@@ -290,8 +290,8 @@ body::-webkit-scrollbar{
   display: block;
   position: relative;
   margin: auto;
-  overflow-y: hidden;
-  overflow-x: hidden;
+  overflow: hidden;
+  opacity: 1;
   background-color: rgb(245, 247, 250,0.1 );
   box-shadow: 0 8px 32px 0 rgba( 31, 38, 135, 0.5 );
   backdrop-filter: blur( 6.5px );
@@ -304,14 +304,9 @@ body::-webkit-scrollbar{
     height: 90%;
     width: 95%;
     display: block;
+    opacity: 0;
     position: absolute;
-    overflow-y: hidden;
-    overflow-x: hidden;
-    background-color: rgb(245, 247, 250,0.1 );
-    box-shadow: 0 8px 32px 0 rgba( 31, 38, 135, 0.5 );
-    backdrop-filter: blur( 6.5px );
-    border-radius: 10px;
-    border: 1px solid rgba( 255, 255, 255, 0.1 );
+    overflow: hidden;
     transform: translateY(-300%);
     transition: All 0.4s ease; 
   }
@@ -320,12 +315,8 @@ body::-webkit-scrollbar{
     width: 95%;
     display: block;
     position: absolute;
-    overflow-y: scroll;
-    overflow-x: hidden;
-    background-color: rgb(245, 247, 250,0.1 );
-    box-shadow: 0 8px 32px 0 rgba( 31, 38, 135, 0.5 );
-    backdrop-filter: blur( 6.5px );
-    border-radius: 10px;
+    overflow: hidden;
+    opacity: 0;
     border: 1px solid rgba( 255, 255, 255, 0.1 );
     transform: translateX(-300%);
     transition: All 0.4s ease; 
@@ -335,11 +326,7 @@ body::-webkit-scrollbar{
   padding: 0 20px;
 
 }
-.complaint-box .return-btn{
-    padding: 0;
-    width: 100%;
-    line-height: 2;
-}
+
 .complaint-box li {
   padding: 0;
   margin: 2px;
@@ -357,307 +344,48 @@ body::-webkit-scrollbar{
     color: #fff;
     border-radius: 8px;
 }
-
-.category-box.selected{
-  width:100%;
-  height: 100%;
-  position: relative;
-  opacity: 1;
+.category-box{
+  width:50%;
+  height: 50%;
   display: block;
-  overflow-y: scroll;
-  transform: translateX(0%);
+  position: absolute;
+  opacity: 0;
+  transform: translateX(300%);
   transition: 0.4s ease;
 }
-
-.category-box{
-  width:100%;
-  height: 100%;
+.category-box.selected{
+  width: 50%;
+  height: 50%;
+  opacity: 1;
+  position: absolute;
+  display: block;
+  transform: translateX(0%);
+  transition: All 0.4s ease;
+}
+.category-box.closed{
+  width: 50%;
+  height: 50%;
   opacity: 0;
-  overflow: hidden;
   position: absolute;
   display: block;
   transform: translateX(-300%);
-  transition: 0.4s ease;
+  transition: All 0.4s ease;
+  
 }
+
 .category-box ul{
   display: flex;
   flex-direction: column;
   padding-bottom: 1rem;
   padding-top: 1rem;
 }
- #subboxA.selected{
-  width:100%;
-  height: 100%;
-     opacity: 1;
-  position: absolute;
-  overflow-y: scroll;
-  display: block;
-  transform: translateX(0%);
-  transition: All 0.2s ease;
-}
-
-#subboxA{
-  width:100%;
-  height: 100%;
-  position: absolute;
-  overflow: hidden;
-  display: block;
-   opacity: 0;
-  transform: translateX(300%);
-  transition: All 0.2s ease;
-}
-#subboxB.selected{
-  width:100%;
-    opacity: 1;
-  height: 100%;
-  position: absolute;
-  display: block;
-  transform: translateX(0%);
-  transition: All 0.2s ease;
-}
-#subboxB{
-  width:100%;
-  height: 100%;
-  position: absolute;
-  overflow: hidden;
-  display: block;
-    opacity: 0;
-  transform: translateX(300%);
-  transition: All 0.2s ease;
-}
-#subboxC.selected{
-  width:100%;
-  height: 100%;
-    opacity: 1;
-  position: absolute;
-  display: block;
-  transform: translateX(0%);
-  transition: All 0.2s ease;
-}
-#subboxC{
-  width:100%;
-  height: 100%;
-  position: absolute;
-  display: block;
-    opacity: 0;
-  transform: translateX(300%);
-  transition: All 0.2s ease;
-}
-#subboxD.selected{
-  width:100%;
-  height: 100%;
-  position: absolute;
-  display: block;
-    opacity: 1;
-  transform: translateX(0%);
-  transition: All 0.2s ease;
-}
-#subboxD{
-  width:100%;
-  height: 100%;
-  position: absolute;
-  display: block;
-    opacity: 0;
-  transform: translateX(300%);
-  transition: All 0.2s ease;
-}
-#subboxE.selected{
-  width:100%;
-  height: 100%;
-  position: absolute;
-  display: block;
-    opacity: 1;
-  transform: translateX(0%);
-  transition: All 0.2s ease;
-}
-#subboxE{
-  width:100%;
-  height: 100%;
-  position: absolute;
-  display: block;
-    opacity: 0;
-  transform: translateX(300%);
-  transition: All 0.2s ease;
-}
-#subboxF.selected{
-  width:100%;
-  height: 100%;
-  position: absolute;
-  display: block;
-    opacity: 1;
-  transform: translateX(0%);
-  transition: All 0.2s ease;
-}
-#subboxF{
-  width:100%;
-  height: 100%;
-  position: absolute;
-  display: block;
-    opacity: 0;
-  transform: translateX(300%);
-  transition: All 0.2s ease;
-}
-#subboxG.selected{
-  width:100%;
-  height: 100%;
-  position: absolute;
-    opacity: 1;
-  display: block;
-  transform: translateX(0%);
-  transition: All 0.2s ease;
-}
-#subboxG{
-  width:100%;
-  height: 100%;
-  position: absolute;
-  display: block;
-    opacity: 0;
-  transform: translateX(300%);
-  transition: All 0.2s ease;
-}
-#subboxH.selected{
-  width:100%;
-  height: 100%;
-  position: absolute;
-    opacity: 1;
-  display: block;
-  transform: translateX(0%);
-  transition: All 0.2s ease;
-}
-#subboxH{
-  width:100%;
-  height: 100%;
-  position: absolute;
-  display: block;
-    opacity: 0;
-  transform: translateX(300%);
-  transition: All 0.2s ease;
-}
-#subboxI.selected{
-  width:100%;
-  height: 100%;
-  position: absolute;
-    opacity: 1;
-  display: block;
-  transform: translateX(0%);
-  transition: All 0.2s ease;
-}
-#subboxI{
-  width:100%;
-  height: 0;
-  position: absolute;
-  overflow: hidden;
-  display: block;
-    opacity: 0;
-  transform: translateX(300%);
-  transition: All 0.2s ease;
-}
-#subboxJ.selected{
-  width:100%;
-  height: 100%;
-  position: absolute;
-  overflow-y: scroll;
-  display: block;
-    opacity: 1;
-  transform: translateX(0%);
-  transition: All 0.2s ease;
-}
-#subboxJ{
-  width:100%;
-  height: 100%;
-  overflow: hidden;
-  position: absolute;
-  display: block;
-    opacity: 0;
-  transform: translateX(300%);
-  transition: All 0.2s ease;
-}
-#subboxK.selected{
-  width:100%;
-  height: 100%;
-  position: absolute;
-    opacity: 1;
-  display: block;
-  transform: translateX(0%);
-  transition: All 0.2s ease;
-}
-#subboxK{
-  width:100%;
-  height: 100%;
-  overflow: hidden;
-  position: absolute;
-  display: block;
-    opacity: 0;
-  transform: translateX(300%);
-  transition: All 0.2s ease;
-}
-#subboxL.selected{
-  width:100%;
-  height: 100%;
-    opacity: 1;
-  position: absolute;
-  display: block;
-  transform: translateX(0%);
-  transition: All 0.2s ease;
-}
-
-#subboxL{
-  width:100%;
-  height: 100%;
-  overflow: hidden;
-  position: absolute;
-  display: block;
-    opacity: 0;
-  transform: translateX(300%);
-  transition: All 0.2s ease;
-}
-#subboxM.selected{
-  width:100%;
-  height: 100%;
-  overflow: hidden;
-    opacity: 1;
-  position: absolute;
-  display: block;
-  transform: translateX(0%);
-  transition: All 0.2s ease;
-}
-#subboxM{
-  width:100%;
-  height: 100%;
-  overflow: hidden;
-  position: absolute;
-  display: block;
-    opacity: 0;
-  transform: translateX(300%);
-  transition: All 0.2s ease;
-}
-.ADTpage{
-  height: 94%;
-  width: 98%;
-  position: absolute;
-  margin: auto;
-  top: 3.5rem;
-  opacity: 1;
-  z-index: 99;
-  overflow-Y: scroll;
-  background-color: rgba( 255, 255, 255, 0.05 );
-  box-shadow: 0 8px 12px 0 rgba( 31, 38, 135, 0.37 );
-  backdrop-filter: blur( 11.5px );
-  -webkit-backdrop-filter: blur( 11.5px );
-  border-radius: 10px;
-  padding-bottom: 2rem;
-  border: 1px solid rgba( 255, 255, 255, 0.4 );
-  transform: translateX(0%);
-  transition: All 0.2s ease; 
-
-}
-.ADTpage.closed{
+.ADTcontainer{
   height: 100%;
   width: 100%;
-  opacity: 0;
-  display: block;
+  top: 3.5rem;
   position: absolute;
-  overflow: hidden;
+  opacity: 1;
+  overflow-Y: scroll;
   background-color: rgb(245, 247, 250,0.1 );
   box-shadow: 0 8px 32px 0 rgba( 31, 38, 135, 0.5 );
   backdrop-filter: blur( 6.5px );
@@ -666,6 +394,35 @@ body::-webkit-scrollbar{
   transform: translateX(300%);
   transition:  All 0.2s ease;
 }
+.ADTcontainer.open{
+  height: 100%;
+  width: 100%;
+  top: 3.5rem;
+  position: absolute;
+  opacity: 1;
+  overflow-Y: scroll;
+  background-color: rgba( 255, 255, 255, 0.05 );
+  box-shadow: 0 8px 12px 0 rgba( 31, 38, 135, 0.37 );
+  backdrop-filter: blur( 11.5px );
+  -webkit-backdrop-filter: blur( 11.5px );
+  border-radius: 10px;
+  padding-bottom: 2rem;
+  z-index: 196;
+  border: 1px solid rgba( 255, 255, 255, 0.4 );
+  transform: translateX(0%);
+  transition: All 0.2s ease; 
+}
+.ADTpage{
+  height: 98%;
+  width: 98%;
+  position:relative;
+  display: block;
+  margin: auto;
+  position: absolute;
+  overflow: hidden;
+
+}
+
 .page-content{
   width: 100%;
   top: 2rem;
@@ -682,7 +439,9 @@ body::-webkit-scrollbar{
   overflow: scroll;
   padding-bottom: 20px;
 }
-
+#return2{
+  margin: none;
+}
 
 .ddxbox{
   position: relative;
@@ -800,7 +559,7 @@ margin: 1rem 1rem;
 display: flex;
 flex-direction: column;
 list-style-position: inside;
-text-indent: 8px;
+text-indent: 8px hanging;
 line-height: 1.4;
 
 }
