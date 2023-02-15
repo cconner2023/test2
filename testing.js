@@ -12,6 +12,7 @@ if ("serviceWorker" in navigator) {
 const menu = document.querySelector("#item-menu");
 const complaints = document.querySelector(".complaint-box");
 const homecatbox = document.querySelector("#homecatbox");
+const Acontainer = document.querySelector(".ADTcontainer");
 const ADTpage = document.querySelector(".ADTpage");
 const return2 = document.querySelector(".return-btn2")
 const homebanner = document.querySelector("#banner1");
@@ -1085,14 +1086,17 @@ menu.addEventListener("click", ()=> {
             document.querySelectorAll('.selected').forEach(el => {
               el.classList.remove('selected');
             })
+            
         }
+        homecatbox.classList.remove("closed");
+            homecatbox.classList.add("selected");
         if (banner.classList.contains("open")){
           banner.classList.toggle("open");
           homebanner.classList.toggle("closed");
           rtn.classList.toggle("closed");
         }
-        if(!ADTpage.classList.contains("closed")){
-          ADTpage.classList.add("closed");
+        if(Acontainer.classList.contains("open")){
+          Acontainer.classList.remove("open");
           subbanner.classList.remove("open")
           banner.classList.remove("closed");
           algorithm.querySelectorAll(".ADTsheet").forEach(el => {
@@ -1124,6 +1128,7 @@ itembtns.forEach(function(currentSwitch){
           el.classList.remove('selected');
         })
     }
+    homecatbox.classList.add("closed");
     currentSwitch.related = currentSwitch.id;
     console.log(currentSwitch.id);
     subcatboxes[currentSwitch.related].classList.add("selected");
@@ -1135,19 +1140,20 @@ itembtns.forEach(function(currentSwitch){
 });
 //return button (back to main menu)
 rtn.addEventListener("click", ()=> {
-  if(ADTpage.classList.contains("closed")){
+  if(!Acontainer.classList.contains("open")){
     if (document.querySelectorAll('.selected').length > 0) {
       document.querySelectorAll('.selected').forEach(el => {
         el.classList.remove('selected');
       })
   }
-    homecatbox.classList.add('selected');
+    homecatbox.classList.remove('closed');
+    homecatbox.classList.add("selected");
     banner.classList.remove("open");
     homebanner.classList.remove("closed");
     rtn.classList.toggle("closed");
   }
-  if(!ADTpage.classList.contains("closed")){
-    ADTpage.classList.toggle("closed");
+  if(Acontainer.classList.contains("open")){
+    Acontainer.classList.remove("open");
     icon.classList.remove("open");
     info.classList.remove("open");
     subbanner.classList.toggle("open");
@@ -1173,13 +1179,13 @@ ADTMCpagers.forEach(function(currentPager){
 currentPager.addEventListener('click',()=> { 
   const bLabel = document.querySelector("#banner3-label")
   complaints.classList.add('paged');
-  ADTpage.classList.toggle('closed');
+  Acontainer.classList.toggle('open');
   banner.classList.add("closed");
   subbanner.classList.add("open");
   bLabel.innerHTML = currentPager.innerHTML;
   const sheetnow = ADTMCSheets[currentPager.id];
   sheetnow.classList.add("open");
-  ADTpage.scrollTop = 0;
+  Acontainer.scrollTop = 0;
   
 });
 });
