@@ -241,6 +241,8 @@ body::-webkit-scrollbar{
   width: 100%;
   margin-left: 0.5rem;
   position: absolute;
+  align-items: center;
+  justify-content: center;
   width: 100%;
   font-size: x-large;
 }
@@ -281,6 +283,11 @@ body::-webkit-scrollbar{
   font-size: x-large;
 }
 
+.complaint-box-wrapper{
+  height: 100%;
+  width: 100%;
+  position: absolute;
+}
 
 .complaint-box{
   font-size: medium;
@@ -345,32 +352,34 @@ body::-webkit-scrollbar{
     border-radius: 8px;
 }
 .category-box{
-  width:50%;
-  height: 50%;
+  width: 100%;
+  height: 100%;
   display: block;
   position: absolute;
   opacity: 0;
   transform: translateX(300%);
   transition: 0.4s ease;
+  overflow: hidden;
 }
 .category-box.selected{
-  width: 50%;
-  height: 50%;
+  width: 100%;
+  height: 100%;
   opacity: 1;
   position: absolute;
   display: block;
   transform: translateX(0%);
   transition: All 0.4s ease;
+  overflow: scroll;
 }
 .category-box.closed{
-  width: 50%;
-  height: 50%;
+  width: 100%;
+  height: 100%;
   opacity: 0;
   position: absolute;
   display: block;
   transform: translateX(-300%);
   transition: All 0.4s ease;
-  
+  overflow: hidden;
 }
 
 .category-box ul{
@@ -385,12 +394,6 @@ body::-webkit-scrollbar{
   top: 3.5rem;
   position: absolute;
   opacity: 1;
-  overflow-Y: scroll;
-  background-color: rgb(245, 247, 250,0.1 );
-  box-shadow: 0 8px 32px 0 rgba( 31, 38, 135, 0.5 );
-  backdrop-filter: blur( 6.5px );
-  border-radius: 10px;
-  border: 1px solid rgba( 255, 255, 255, 0.1 );
   transform: translateX(300%);
   transition:  All 0.2s ease;
 }
@@ -400,15 +403,9 @@ body::-webkit-scrollbar{
   top: 3.5rem;
   position: absolute;
   opacity: 1;
-  overflow-Y: scroll;
-  background-color: rgba( 255, 255, 255, 0.05 );
-  box-shadow: 0 8px 12px 0 rgba( 31, 38, 135, 0.37 );
-  backdrop-filter: blur( 11.5px );
-  -webkit-backdrop-filter: blur( 11.5px );
-  border-radius: 10px;
-  padding-bottom: 2rem;
+  display: flex;
+  margin: auto;
   z-index: 196;
-  border: 1px solid rgba( 255, 255, 255, 0.4 );
   transform: translateX(0%);
   transition: All 0.2s ease; 
 }
@@ -416,10 +413,16 @@ body::-webkit-scrollbar{
   height: 98%;
   width: 98%;
   position:relative;
-  display: block;
+  display: flex;
   margin: auto;
-  position: absolute;
-  overflow: hidden;
+  overflow-Y: scroll;
+  padding-bottom: 2rem;
+  background-color: rgba( 255, 255, 255, 0.05 );
+  box-shadow: 0 8px 12px 0 rgba( 31, 38, 135, 0.37 );
+  backdrop-filter: blur( 11.5px );
+  -webkit-backdrop-filter: blur( 11.5px );
+  border: 1px solid rgba( 255, 255, 255, 0.4 );
+  border-radius: 10px;
 
 }
 
