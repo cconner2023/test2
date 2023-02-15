@@ -1,0 +1,10 @@
+{
+    "name": "ADTMC Beta",
+    "short_name": "ADTMC",
+    "start_url": "index.html",
+    "display": "standalone",
+    "background_color": "#fdfdfd",
+    "theme_color": "#fdfdfd",
+    "orientation": "portrait-primary"
+  }
+  
