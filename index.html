@@ -8,15 +8,15 @@
         <link rel="stylesheet" type="text/css" href="testing.css">
         <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
         <link rel="manifest" href="manifest.json" />
+
         <title> ADTMC </title>
     </head>
 <body>
-
 <div class="navbox">
         <div class="item-menu-box">
                 <div class="menu-btn"><i class='bx bx-plus-circle' id="item-menu"></i></div>
                 <div class="return"><i class='bx bx-chevron-left' id="item-menu2"></i></div>
-                <div class="settings-btn"><i class='bx bxs-capsule' id="item-menu3"></i></div>
+                <div class="settings-btn" ><i class='bx bxs-capsule' id="medbtn" onclick="MED()"></i></div>
         </div>
         <div class="banner-box">
                 <div class='banner' id="banner1"><label for="banner1"> ADTMC Version 1.4</label></div>
@@ -39,6 +39,7 @@
         
                 </div>  
 </div>
+
 <div class="ADTcontainer">
 <div class="ADTpage">
     <div class="page-content">
@@ -1139,11 +1140,190 @@
         </div>
         </div>
 </div>
+<div class="ADTsheet" id="D-1">
+        <div class="Qbox" id="D1redbox">
+        <div class="Q">
+                <div class="Qwrap" id="D1RED"><label for="D1RED">Are red flags present?</label></div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="D1-red-toggle"><input type="checkbox" class="check" id="D1-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="D1-RED-btnlabel">NO</div>
+                </div>
+        </div>
+        <div class="dispobox" id="D1dispo-red">
+                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="D1dispo-red"> CAT I: Provider Now</label></div>
+                <div class="justboxACT"><div class="just JR ACT1"></div></div>
+                <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="D1-1box">
+        <div class="Q">
+                <div class="Qwrap" id="D1-1"><label for="D1-1">1. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="D1-1-LI-1">Irregular pulse</li></label>
+                                <label><li class="Q-LI" id="D1-1-LI-2">Sweating</li></label>
+                                <label><li class="Q-LI" id="D1-1-LI-3">Chest, shoulder, jaw pain or pressure</li></label>
+                                <label><li class="Q-LI" id="D1-1-LI-4">H/O or FH of heart problems</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="D1-1-toggle"><input type="checkbox" class="check" id="D1-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="D1-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="D1dispo-1">
+                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="D1dispo-1"> CAT I: Provider Now</label></div>
+                <div class="justboxACT"><div class="just JR ACT2"></div></div>
+                <div class="justbox"><div class="just JR JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="D1-2box">
+        <div class="Q">
+                <div class="Qwrap" id="D1-2"><label for="D1-2">2. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="D1-2-LI-1">Elevated temperature</li></label>
+                                <label><li class="Q-LI" id="D1-2-LI-2">Productive cough</li></label>
+                                <label><li class="Q-LI" id="D1-2-LI-3">Symptoms > 10 days</li></label>
+                                <label><li class="Q-LI" id="D1-2-LI-4">H/O asthma wheeze</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="D1-2-toggle"><input type="checkbox" class="check" id="D1-2-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="D1-2-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="D1dispo-2">
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="D1dispo-2"> CAT II: AEM</label></div>
+                <div class="justbox"><div class="just JII JDP2"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="D1-3box">
+                <div class="Q">
+                        <div class="Qwrap" id="D1-3"><label for="D1-3">3. Do any of the following apply</label>
+                                <ul class="Q-UL">
+                                        <label><li class="Q-LI" id="D1-3-LI-1">Cold like symptom </li></label>
+                                        <label><li class="Q-LI" id="D1-3-LI-2">Allergy symptoms</li></label>
+                                        <label><li class="Q-LI" id="D1-3-LI-3">H/O panic attacks</li></label>
+                                </ul>
+                        </div>
+                        <div class="A">
+                                <div id="btnwrap">
+                                <label class="ios-toggle" id="D1-3-toggle"><input type="checkbox" class="check" id="D1-3-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                                </div>
+                                <div class="label" id="D1-3-btnlabel">NO</div>
+                        </div>    
+                </div>
+                <div class="dispobox" id="D1dispo-3">
+                        <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="D1dispo-3"> CAT II: AEM</label></div>
+                        <div class="justbox"><div class="just JII JDP3"><label for="R">Decision Making</label></div></div>
+                </div>
+        
+                <div class="dispobox" id="D1dispo-RTD">
+                        <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="D1dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
+                        <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                        <div class="justboxAM"><div class="just JRTD JAM"><label for="R">Activity Modification</label></div></div>
+                        <div class="justbox"><div class="just JRTD JDP3"><label for="R">Decision Making</label></div></div>
+                </div>
+                </div>
+</div>
+<div class="ADTsheet" id="D-2">
+        <div class="Qbox" id="D2-3box">
+                <div class="Q">
+                        <div class="Qwrap" id="D2-3"><label for="D2-3">Obtain an EKG on the patient</label></div>
+                </div>
+        </div>
+        <div class="Qbox" id="D2-3box">
+        <div class="Q">
+                <div class="Qwrap" id="D2-3"><label for="D2-3">1. Do any of the following apply?</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="D2-1-LI-1">Red flags</li></label>
+                                <label><li class="Q-LI" id="D2-1-LI-2">Abnormal vitals</li></label>
+                                <label><li class="Q-LI" id="D2-1-LI-3">Abnormal EKG</li></label>
+                                <label><li class="Q-LI" id="D2-1-LI-4">Sweating</li></label>
+                                <label><li class="Q-LI" id="D2-1-LI-5">40+ years old</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="D2-red-toggle"><input type="checkbox" class="check" id="D2-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="D2-RED-btnlabel">NO</div>
+                </div>
+        </div>
+        <div class="dispobox" id="D2dispo-red">
+                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="D2dispo-red"> CAT I: Provider Now</label></div>
+                <div class="justboxACT"><div class="just JR ACT1"></div></div>
+                <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="D2-1box">
+        <div class="Q">
+                <div class="Qwrap" id="D2-1"><label for="D2-1">2. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="D2-1-LI-1">Productive cough >7 days</li></label>
+                                <label><li class="Q-LI" id="D2-1-LI-2">Elevated temperature</li></label>
+                                <label><li class="Q-LI" id="D2-1-LI-3">Symptoms > 10 days</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="D2-1-toggle"><input type="checkbox" class="check" id="D2-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="D2-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="D2dispo-1">
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="D2dispo-2"> CAT II: AEM</label></div>
+                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="D2-2box">
+        <div class="Q">
+                <div class="Qwrap" id="D2-2"><label for="D2-2">3. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="D2-2-LI-1">Cold like symptoms</li></label>
+                                <label><li class="Q-LI" id="D2-2-LI-2">Reproducible chest pain</li></label>
+                                <label><li class="Q-LI" id="D2-2-LI-3">Heartburn</li></label>
+                                <label><li class="Q-LI" id="D2-2-LI-4">H/O panic attacks</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="D2-2-toggle"><input type="checkbox" class="check" id="D2-2-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="D2-2-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="D2dispo-2">
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="D2dispo-2"> CAT II: AEM</label></div>
+                <div class="justbox"><div class="just JII JDP2"><label for="R">Decision Making</label></div></div>
+        </div>
+        <div class="dispobox" id="D2dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="D2dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
+                <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                <div class="justboxAM"><div class="just JRTD JAM"><label for="R">Activity Modification</label></div></div>
+                <div class="justbox"><div class="just JRTD JDP3"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+</div>
+
+
+
+
+
+
+
+
 </div>  
 </div>
 </div>
 </div>
-
+<div class="complaint-box-wrapper">
 <div class="complaint-box closed">
             <div class="category-box selected" id="homecatbox">
             <ul id="items">
@@ -1317,7 +1497,7 @@
             </ul>
             </div>
 </div>
-   
+</div>   
 <script src="testing.js"></script>
 </body>
 </html>
