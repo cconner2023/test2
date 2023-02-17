@@ -334,9 +334,9 @@ const
   B2DPRED = ["Bony step off and midline tenderness can be signs of a vertebral fracture.","Inability to flex the neck can be a sign of meningitis or fracture. ","Recent head, eyes, ears, nose, and throat (HEENT) or dental infection can have progressed to a more serious infection. ","Action 1. In the setting of trauma, immobilize the head and neck and support ABCs as required, then transfer care to a privileged provider."],
   B2PRO = ["Provide home exercise program. Activity modification as appropriate.","Intermittent ice or heat as needed for inflammation.","Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain as needed.","Refer to PT if direct access is available.","Follow-up: Immediate follow-up for a DP1 or DP2 symptoms. ","Routine follow-up is recommended for any symptoms that do not improve or worsen"],
   B2LIMITATIONS = ["No rucking or jumping","Consider limiting Kevlar use","Restrict driving if limited ROM","Perform stretching, core strengthening home regiment during PT"],
-  B2GEN = ["pg. 19-20: A sore throat is often due to a viral infection. Bacterial infections and other causes need to also be considered."],
-  B2MEDCOM = ["Obtain a Throat Culture", "pg. 68","(13)"],
-  B2STP1 = ["Subject Area 6: Primary Care. Perform a head, eyes, ears, nose, and throat (HEENT) Exam. 081-833-0254", "Subject Area 6: Primary Care. Provide Care for Common Throat Infections. 081-833-0243","Subject Area 15: Primary Care (SL2). Obtain a Throat Culture. 081-833-0248"],
+  B2GEN = ["pg. "],
+  B2MEDCOM = [""],
+  B2STP1 = [""],
   
 //B3
   B3ACT1 = ["Immobilize the injured extremity before transport or referral"],
@@ -572,7 +572,37 @@ const
   C7LIMITATIONS = [],
   C7GEN = ["pg. 63-64: Heartburn is a common finding but can also be a sign of a more serious condition like a gastric ulcer or heart attack."],
   C7MEDCOM = ["Performs 12-lead Electrocardiogram pg. 69-70 (2)(o-p) "],
-  C7STP1 = ["Subject Area 12: Medical Treatment. Obtain an Electrocardiogram. 081-833-3007 ","Subject Area 6: Primary Care. Provide Treatment for Abdominal Disorders. 081-833-0239"];
+  C7STP1 = ["Subject Area 12: Medical Treatment. Obtain an Electrocardiogram. 081-833-3007 ","Subject Area 6: Primary Care. Provide Treatment for Abdominal Disorders. 081-833-0239"],
+
+  D1ACT1 = ["Oxygen, EKG, IV"],
+  D1ACT2 = ["Oxygen, EKG, IV, Aspirin 325 mg"],
+  D1ACT3 = ["DP 3. Identifies conditions that are self-limited or can be treated with a minor-care protocol."],
+  D1DP1 = ["DP 1. Tachycardia, sweating, pain or pressure in the chest, shoulder, or jaw can be symptoms of a myocardial infarction. Chest pain and tachycardia can also be signs of a pulmonary embolism. Irregular pulse identifies an arrhythmia. Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider."],
+  D1DP2 = ["DP 2. Screens for other medical conditions requiring further evaluation. Productive cough and elevated temperature are signs of pneumonia. Symptoms lasting longer than 10 days may not be viral. History of asthma or wheezing screens for an asthma exacerbation."],
+  D1DP3 = ["MCP for cold symptoms: Counsel the Soldier to drink plenty of fluids and rest, cover their mouth when they cough and wash hands to prevent spread. Ibuprofen for pain, acetaminophen for elevated temperature, decongestant for nasal congestion, guaifenesin for mucous, or antihistamine for allergies. Return to clinic if not improving within one week, worsening symptoms, fever, new sinus pain, lightheadedness, or pain in the neck.", "MCP for panic attack symptoms (chest tightness, palpitations, anxious, lightheaded): Check EKG. If EKG is normal, initiate observed deep breathing exercises. Place a pulse oximeter on the Soldier’s finger. Have the Soldier lay back at a 45 degree angle with legs uncrossed and initiate diaphragmatic breathing exercises with deep, slow inhalation over 4 seconds and exhalation over another 4 second count. If the SpO2 starts to drop, disposition the Soldier as “Provider Now”.Refer Soldier to Behavioral Health after initial panic attack decreases in intensity."],
+  D1DP4 = [],
+  D1DPRE = [],
+  D1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now”. Start the Soldier on oxygen with non-rebreather mask at 10 Liters/ minute, start an IV and IVF at TKO and obtain EKG if available. They can be signs of significant underlying medical problems."],
+  D1PRO = [],
+  D1LIMITATIONS = ["Cold Symptoms","Aerobic training at own pace/distance x 3 days","Limit exposure to temperatures below <50 degrees F"],
+  D1GEN = ["pg. 65-66: Dyspnea is a sensation of breathing discomfort that can be in respiratory or cardiovascular in nature."],
+  D1MEDCOM = ["Initiate an Intravenous Infusion pg.69 (2)(a)","Provide Oxygen pg.69 (2)(h)","Performs 12-lead Electrocardiogram pg. 69-70 (2)(o-p)"],
+  D1STP1 = ["Subject Area 5: Venipuncture and IV Therapy. Initiate an Intravenous Infusion. 081-833-0033", "Subject Area 6: Primary Care. Provide Care for Common Respiratory Disorders. 081-833-0245"],
+
+  D2ACT1 = [],
+  D2ACT2 = [],
+  D2ACT3 = [],
+  D2DP1 = ["DP 1. Obtain an EKG if available. Tachycardia, sweating, pain, and pressure in the chest, shoulder, or jaw can be symptoms of a myocardial infarction. Note that diabetics and women can present atypically. Chest pain and tachycardia can also be signs of a pulmonary embolism or arrhythmia. Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider."],
+  D2DP2 = ["DP 2. Elevated temperature and productive cough screens for pneumonia. Recent chest trauma screens for multiple etiologies to include a rib fracture."],
+  D2DP3 = ["DP 3. Conditions that are not identified below should be referred to the AEM for further evaluation."],
+  D2DP4 = ["Cold or allergy symptoms: A-3 Minor Care Protocol","Panic attack symptoms: Check EKG. Monitor pulse oximeter. Supervised deep breathing exercises. Referral to provider now if oxygenation decreases or symptoms do not resolve. Refer to behavioral health after dyspnea symptoms have resolved"],
+  D2DPRE = [],
+  D2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now”. Start them on oxygen with a nasal cannula at four-six liters/ minute, start an IV and IVF at TKO, give a chewable aspirin. These can be signs of significant underlying medical problems."],
+  D2PRO = ["Cold liky symptoms: A-3 Protocol","Hearbutn: C-7 Protocol","Panic attack symptoms: Check EKG. Monitor pulse oximeter. Supervised deep breathing exercises. Referral to provider now if oxygenation decreases or symptoms do not resolve. Refer to behavioral health after dyspnea symptoms have resolved","Musculoskeletal: Medications: ibuprofen or acetaminophen for pain, analgesic balm for muscle/tendons. Temporary profile x 3 days if needed. Return to the clinic if pain increases, not improved in four days, shortness of breath/dizziness/or new symptoms develop."],
+  D2LIMITATIONS = ["MSK Chest Pain: May lift, push up to 25 lbs","Cold Symptoms: Aerobic training at own pace/distance x 3 days","Limit exposure to temperatures below <50 degrees F"],
+  D2GEN = ["pg. 67-68: Chest pain must always be taken seriously. It is a sign of many serious conditions."],
+  D2MEDCOM = [],
+  D2STP1 = [],
 
     // B4ACT1 = [],
   // B4ACT2 = [],
@@ -589,7 +619,7 @@ const
   // B4MEDCOM = [],
   // B4STP1 = [],
 
-
+end =[];
 //Array linking decision trees to the ul creation function
 
 const A2decision = {  
@@ -851,6 +881,70 @@ const C2decision = {
   "MED" : C2MEDCOM,
   "STP" : C2STP1,
   }
+const C3decision = {
+"DACT1" : C3ACT1,
+"DACT2" : C3ACT2,
+"DACT3" : C3ACT3,
+"DPRED" : C3DPRED,
+"DP1" : C3DP1,
+"DP2" : C3DP2,
+"DP3" : C3DP3,
+"DP4" : C3DP4,
+"DPRE" : C3DPRE,
+"DPRO" : C3PRO,
+"DLIM" : C3LIMITATIONS,
+"GEN" : C3GEN,
+"MED" : C3MEDCOM,
+"STP" : C3STP1,
+}
+const C4decision = {
+  "DACT1" : C4ACT1,
+  "DACT2" : C4ACT2,
+  "DACT3" : C4ACT3,
+  "DPRED" : C4DPRED,
+  "DP1" : C4DP1,
+  "DP2" : C4DP2,
+  "DP3" : C4DP3,
+  "DP4" : C4DP4,
+  "DPRE" : C4DPRE,
+  "DPRO" : C4PRO,
+  "DLIM" : C4LIMITATIONS,
+  "GEN" : C4GEN,
+  "MED" : C4MEDCOM,
+  "STP" : C4STP1,
+  }
+const C5decision = {
+  "DACT1" : C5ACT1,
+  "DACT2" : C5ACT2,
+  "DACT3" : C5ACT3,
+  "DPRED" : C5DPRED,
+  "DP1" : C5DP1,
+  "DP2" : C5DP2,
+  "DP3" : C5DP3,
+  "DP4" : C5DP4,
+  "DPRE" : C5DPRE,
+  "DPRO" : C5PRO,
+  "DLIM" : C5LIMITATIONS,
+  "GEN" : C5GEN,
+  "MED" : C5MEDCOM,
+  "STP" : C5STP1,
+  }
+const C6decision = {
+  "DACT1" : C6ACT1,
+  "DACT2" : C6ACT2,
+  "DACT3" : C6ACT3,
+  "DPRED" : C6DPRED,
+  "DP1" : C6DP1,
+  "DP2" : C6DP2,
+  "DP3" : C6DP3,
+  "DP4" : C6DP4,
+  "DPRE" : C6DPRE,
+  "DPRO" : C6PRO,
+  "DLIM" : C6LIMITATIONS,
+  "GEN" : C6GEN,
+  "MED" : C6MEDCOM,
+  "STP" : C6STP1,
+  }
 const C7decision = {
 "DACT1" : C7ACT1,
 "DACT2" : C7ACT2,
@@ -867,6 +961,38 @@ const C7decision = {
 "MED" : C7MEDCOM,
 "STP" : C7STP1,
 }
+const D1decision = {
+"DACT1" : D1ACT1,
+"DACT2" : D1ACT2,
+"DACT3" : D1ACT3,
+"DPRED" : D1DPRED,
+"DP1" : D1DP1,
+"DP2" : D1DP2,
+"DP3" : D1DP3,
+"DP4" : D1DP4,
+"DPRE" : D1DPRE,
+"DPRO" : D1PRO,
+"DLIM" : D1LIMITATIONS,
+"GEN" : D1GEN,
+"MED" : D1MEDCOM,
+"STP" : D1STP1,
+}
+const D2decision = {
+  "DACT1" : D2ACT1,
+  "DACT2" : D2ACT2,
+  "DACT3" : D2ACT3,
+  "DPRED" : D2DPRED,
+  "DP1" : D2DP1,
+  "DP2" : D2DP2,
+  "DP3" : D2DP3,
+  "DP4" : D2DP4,
+  "DPRE" : D2DPRE,
+  "DPRO" : D2PRO,
+  "DLIM" : D2LIMITATIONS,
+  "GEN" : D2GEN,
+  "MED" : D2MEDCOM,
+  "STP" : D2STP1,
+  }
 
 const link1 ={
   // "A-1" : A1decision,
@@ -887,13 +1013,13 @@ const link1 ={
   "B-11" : B11decision,
   // "C-1" : C1decision,
   "C-2" : C2decision,
-  // "C-3" : C3decision,
-  // "C-4" : C4decision,
-  // "C-5" : C5decision,
-  // "C-6" : C6decision,
-  "C-7" : C7decision
-  // "D-1" : D1decision,
-  // "D-2" : D2decision,
+  "C-3" : C3decision,
+  "C-4" : C4decision,
+  "C-5" : C5decision,
+  "C-6" : C6decision,
+  "C-7" : C7decision,
+  "D-1" : D1decision,
+  "D-2" : D2decision,
   // "E-1" : E1decision,
   // "E-2" : E2decision,
   // "E-3" : E3decision,
@@ -1115,6 +1241,7 @@ menu.addEventListener("click", ()=> {
         complaints.classList.toggle("closed");
         info.classList.remove("open");
         icon.classList.remove("open");
+        medi.classList.remove("show");
         menu.classList.toggle("closed");
 });
 
@@ -1172,6 +1299,10 @@ rtn.addEventListener("click", ()=> {
   }
 });
 
+
+
+
+
 //open ADTMC sheets from the subtext buttons
 const ADTsheets = document.querySelectorAll(".ADTsheet");
 const ADTMCpagers = document.querySelectorAll(".subtexts");
@@ -1186,6 +1317,7 @@ currentPager.addEventListener('click',()=> {
   const sheetnow = ADTMCSheets[currentPager.id];
   sheetnow.classList.add("open");
   Acontainer.scrollTop = 0;
+  ADTpage.scrollTop = 0;
   
 });
 });
@@ -1206,7 +1338,9 @@ function DC(){
       let c = b.parentElement;
       const d = c.querySelector(".label");
       d.innerHTML = "YES";
-      if(!dispo.classList.contains("open")){dispo.classList.toggle("open")};
+
+      if(!dispo.classList.contains("open")){dispo.classList.toggle("open");
+    };
       functions[dad.id]();
       
 
@@ -1247,7 +1381,12 @@ function DC2(){
   };
   };
 
-
+  function MED(){
+    medi.classList.toggle("show");
+    medcont.classList.toggle("open");
+    
+  };
+  
 
   //toggle explanation box
 function explain(){
@@ -1262,6 +1401,9 @@ function explain(){
 
 const icon = document.querySelector("#btni")
 const info = document.querySelector(".infobox");
+const medi = document.querySelector("#medbtn");
+const medcont = document.querySelector(".medbox1");
+const nav = document.querySelector(".navbox");
 
 function infobox(){
   info.classList.toggle("open")
@@ -1989,8 +2131,8 @@ const functions = {
   // "C-5" : justifyC5,
   // "C-6" : justifyC6,
   "C-7" : justifyC7,
-  // "D-1" : justifyD1,
-  // "D-2" : justifyD2,
+  "D-1" : justifyD1,
+  "D-2" : justifyD2,
   // "E-1" : justifyE1,
   // "E-2" : justifyE2,
   // "E-3" : justifyE3,
@@ -2625,3 +2767,84 @@ function justifyC7() {
         }
       }
   }
+
+function justifyD1() {
+  const D1red = D1.querySelector("#D1-redbtn");
+  const D1c1 = D1.querySelector("#D1-1-btn");
+  const D1c2 = D1.querySelector("#D1-2-btn");
+  const D1c3 = D1.querySelector("#D1-3-btn");
+  const dispored = D1.querySelector("#D1dispo-red");
+  const dispo1 = D1.querySelector("#D1dispo-1");
+  const dispo2 = D1.querySelector("#D1dispo-2");
+  const dispo3 = D1.querySelector("#D1dispo-3");
+  const dispoRTD = D1.querySelector("#D1dispo-RTD");
+  if(D1red.checked == true){
+      console.log("it works");
+      D1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')}); 
+      if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+  }else{
+      D1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(D1c1.checked == true){
+        D1.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+  
+      }else{
+        if(D1c2.checked == true){
+          D1.querySelectorAll('.dispobox').forEach(el => {
+            el.classList.remove('open')});
+            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open");}
+        }else{
+          
+        if(D1c3.checked == true){
+          D1.querySelectorAll('.dispobox').forEach(el => {
+            el.classList.remove('open')});
+            if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open");}
+        }else{
+          D1.querySelectorAll('.dispobox').forEach(el => {
+            el.classList.remove('open')});
+            if(!dispo3.classList.contains("open")){dispo3.classList.toggle("open")}
+            }
+          }
+        }
+      }
+    }
+
+
+function justifyD2() {
+  const D2red = D2.querySelector("#D2-redbtn");
+  const D2c1 = D2.querySelector("#D2-1-btn");
+  const D2c2 = D2.querySelector("#D2-2-btn");
+  const dispored = D2.querySelector("#D2dispo-red");
+  const dispo1 = D2.querySelector("#D2dispo-1");
+  const dispo2 = D2.querySelector("#D2dispo-2");
+  const dispo3 = D2.querySelector("#D2dispo-3");
+  const dispoRTD = D2.querySelector("#D2dispo-RTD");
+  if(D2red.checked == true){
+      console.log("it works");
+      D2.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')}); 
+      if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+  }else{
+      D2.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(D2c1.checked == true){
+        D2.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+  
+      }else{
+        if(D2c2.checked == true){
+          D2.querySelectorAll('.dispobox').forEach(el => {
+            el.classList.remove('open')});
+            if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open");}
+        }else{
+          D2.querySelectorAll('.dispobox').forEach(el => {
+            el.classList.remove('open')});
+            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open")}
+            }
+          }
+        }
+      }
