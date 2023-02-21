@@ -200,19 +200,23 @@ body{
   align-items: center;
   margin-left: 10px;
   position: absolute;
-  width: 70%;
+  width: 60%;
   transform: translateX(400%);
   transition: all 0.2s ease;
 }
 #banner2.open{
   position: absolute;
-  width: 70%;
+  width: 60%;
+  display: flex;
+  flex-direction: column ;
+  margin: auto;
   transform: translateX(0%);
   transition: all 0.2s ease;
+  background-color: red;
 }
 #banner2.closed{
   position: absolute;
-  width: 70%;
+  width: 60%;
   transform: translateX(0%) translateY(200%);
   transition: all 0.2s ease;
 }
@@ -221,14 +225,14 @@ body{
   position: absolute;
   display: flex;
   align-items: center;
-  width: 100%;
+  width: 70%;
   transform: translateX(400%);
   transition: all 0.2s ease;
 }
 #banner3.open{
   left: 0;
   position: absolute;
-  width: 100%;
+  width: 70%;
   transform: translateX(0%);
   transition: all 0.2s ease;
   display: flex;
@@ -237,11 +241,9 @@ body{
 #banner3-label{
   font-size: small;
   overflow: hidden;
-  width: 55%;
-  margin-left: 10px;
+  width: 100%;
+  margin-left: 8px;
   display: flex;
-  align-items: center;
-  justify-content: center;
   white-space: nowrap;
   text-overflow: ellipsis;
   max-width: 16rem;
@@ -251,8 +253,6 @@ body{
   font-size: x-large;
   color: black;
   border-radius: 50%;
-  margin-left: 1rem;
-  padding: 10px;
   transition: All 0.2s ease;
 }
 
@@ -851,19 +851,12 @@ border: 3px solid rgb(65, 162, 194, 0.7);
   opacity: 0;
   overflow: hidden;
 }
-.bot-menu-wrapper{
-  border-top-right-radius: 20px;
-  border-top-left-radius: 20px;
-  height: 10rem;
-  width: 100%;
-  position: relative;
-  display: flex;
-  background-color: white;
-}
+
 .bod2.open{
-  height: 10rem;
+  height: 5rem;
   opacity: 1;
   transition: All 0.2s ease;
+  overflow: hidden;
 }
 /* medbtn animation opening bottom bar */
 .BG101{
@@ -874,4 +867,82 @@ border: 3px solid rgb(65, 162, 194, 0.7);
   -o-transition: 0.2s;
   transition: All 0.2s ease;
   opacity: 0.2;
+}
+.bot-menu-wrapper{
+  border-top-right-radius: 20px;
+  border-top-left-radius: 20px;
+  height: 5rem;
+  width: 100%;
+  position: absolute;
+  display: block;
+  background-color: white;
+  overflow: hidden;
+}
+.bot-menu-top-row{
+  position: relative;
+  top: 0;
+  height: 3rem;
+  width: 100%;
+  display: flex;
+}
+.social-menu{
+  width: 100%;
+  top: 5px;
+  position: relative;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 26px;
+  text-decoration: none;
+}
+.social-menu ul{
+  display: flex;
+}
+
+.social-menu ul li{
+  list-style: none;
+  margin: 0 15px;
+}
+
+.social-menu ul li a .fab{
+  transition: .3s;
+  background-color: none;
+  text-decoration: none;
+  color: #fff
+}
+
+.social-menu ul li a .fab:hover{
+  color: black;
+}
+
+.social-menu ul li a{
+  position: relative;
+  display: flex;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: black;
+  align-items: center;
+  justify-content: center;
+  transition: .6s;
+  box-shadow: 0 5px 4px rgba(0,0,0,.5);
+}
+
+.social-menu ul li a:hover{
+  transform: translate(0, -10%);
+}
+
+.social-menu ul li:nth-child(1) a:hover{
+  background-color: #E4405F;;
+}
+.social-menu ul li:nth-child(2) a:hover{
+  background-color: #E4405F;
+}
+.social-menu ul li:nth-child(3) a:hover{
+  background-color: #0077b5;
+}
+.social-menu ul li:nth-child(4) a:hover{
+  background-color: #E4405F;;
 }
