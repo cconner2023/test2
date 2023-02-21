@@ -1633,24 +1633,51 @@ function DC2(){
   };
   const bg2 = document.querySelector(".bod2");
   const bg = document.querySelector(".bod1");
-  function MED(){
-    // nav.classList.toggle("BG101")
+  const medbtn = document.querySelector("#medbtn");
+  const settings = document.querySelector(".settings-btn")
+  medbtn.addEventListener("click",()=>{
+
     medi.classList.toggle("show");
     bg.classList.toggle("BG101");
     bg2.classList.toggle("open");
-  };
+    
+  });
 
-  // window.addEventListener('click', function(e){ 
-  //   while (medi.classList.contains("show"))  
-  //   if (document.getElementById('item-menu2').contains(e.target)){
-  //     // Clicked in box
-  //   } else{
-  //     if(medi.classList.contains("show")){
-  //       bg.classList.toggle("BG101");
-  //       medi.classList.toggle("show");
-  //     }
-  //   }
-  // });
+  $(function() {
+    var $toggleMenu = $("#medbtn"),
+        $menu = $(".bod2"),
+        $background1 =$(".bod1");
+    $toggleMenu.on("click", function(e) {
+      e.preventDefault();
+      toggleUserMenu();
+    });
+    $toggleMenu.on("mouseup", function(e) {
+      e.stopPropagation();
+    });
+    var hideMenu = function() {
+        $menu.removeClass("open"),
+        $background1.removeClass("BG101"),
+        $toggleMenu.removeClass("show");
+        $(document).off("mouseup", mouseupHandler);
+    };
+    var mouseupHandler = function (e) {
+        if (!$menu.is(e.target) && $menu.has(e.target).length === 0) {
+          hideMenu();
+        }
+    };  
+    function toggleUserMenu() {
+      var menuIsVisible = $menu.hasClass(".open");
+      if (menuIsVisible) {
+        hideMenu();
+      } else {
+        $menu.show();
+        $(document).on("mouseup", mouseupHandler);
+      }
+    }
+  });
+
+
+  
   
 
   //toggle explanation box
