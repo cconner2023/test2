@@ -604,6 +604,126 @@ const
   D2MEDCOM = [],
   D2STP1 = [],
 
+  E1ACT1 = [],
+  E1ACT2 = [],
+  E1ACT3 = [],
+  E1DP1 = [],
+  E1DP2 = [],
+  E1DP3 = [],
+  E1DP4 = [],
+  E1DPRE = [],
+  E1DPRED = [],
+  E1PRO = [],
+  E1LIMITATIONS = [],
+  E1GEN = [],
+  E1MEDCOM = [],
+  E1STP1 = [],
+
+  E2ACT1 = [],
+  E2ACT2 = [],
+  E2ACT3 = [],
+  E2DP1 = [],
+  E2DP2 = [],
+  E2DP3 = [],
+  E2DP4 = [],
+  E2DPRE = [],
+  E2DPRED = [],
+  E2PRO = [],
+  E2LIMITATIONS = [],
+  E2GEN = [],
+  E2MEDCOM = [],
+  E2STP1 = [],
+
+  E3ACT1 = [],
+  E3ACT2 = [],
+  E3ACT3 = [],
+  E3DP1 = [],
+  E3DP2 = [],
+  E3DP3 = [],
+  E3DP4 = [],
+  E3DPRE = [],
+  E3DPRED = [],
+  E3PRO = [],
+  E3LIMITATIONS = [],
+  E3GEN = [],
+  E3MEDCOM = [],
+  E3STP1 = [],
+
+  E4ACT1 = [],
+  E4ACT2 = [],
+  E4ACT3 = [],
+  E4DP1 = [],
+  E4DP2 = [],
+  E4DP3 = [],
+  E4DP4 = [],
+  E4DPRE = [],
+  E4DPRED = [],
+  E4PRO = [],
+  E4LIMITATIONS = [],
+  E4GEN = [],
+  E4MEDCOM = [],
+  E4STP1 = [],
+
+  F1ACT1 = [],
+  F1ACT2 = [],
+  F1ACT3 = [],
+  F1DP1 = [],
+  F1DP2 = [],
+  F1DP3 = [],
+  F1DP4 = [],
+  F1DPRE = [],
+  F1DPRED = [],
+  F1PRO = [],
+  F1LIMITATIONS = [],
+  F1GEN = [],
+  F1MEDCOM = [],
+  F1STP1 = [],
+
+  F3ACT1 = [],
+  F3ACT2 = [],
+  F3ACT3 = [],
+  F3DP1 = [],
+  F3DP2 = [],
+  F3DP3 = [],
+  F3DP4 = [],
+  F3DPRE = [],
+  F3DPRED = [],
+  F3PRO = [],
+  F3LIMITATIONS = [],
+  F3GEN = [],
+  F3MEDCOM = [],
+  F3STP1 = [],
+  
+  F4ACT1 = [],
+  F4ACT2 = [],
+  F4ACT3 = [],
+  F4DP1 = [],
+  F4DP2 = [],
+  F4DP3 = [],
+  F4DP4 = [],
+  F4DPRE = [],
+  F4DPRED = [],
+  F4PRO = [],
+  F4LIMITATIONS = [],
+  F4GEN = [],
+  F4MEDCOM = [],
+  F4STP1 = [],
+
+  F5ACT1 = [],
+  F5ACT2 = [],
+  F5ACT3 = [],
+  F5DP1 = [],
+  F5DP2 = [],
+  F5DP3 = [],
+  F5DP4 = [],
+  F5DPRE = [],
+  F5DPRED = [],
+  F5PRO = [],
+  F5LIMITATIONS = [],
+  F5GEN = [],
+  F5MEDCOM = [],
+  F5STP1 = [],
+  
     // B4ACT1 = [],
   // B4ACT2 = [],
   // B4ACT3 = [],
@@ -620,6 +740,7 @@ const
   // B4STP1 = [],
 
 end =[];
+//anchor
 //Array linking decision trees to the ul creation function
 
 const A2decision = {  
@@ -993,7 +1114,138 @@ const D2decision = {
   "MED" : D2MEDCOM,
   "STP" : D2STP1,
   }
+const E1decision = {
+  "DACT1" : E1ACT1,
+  "DACT2" : E1ACT2,
+  "DACT3" : E1ACT3,
+  "DPRED" : E1DPRED,
+  "DP1" : E1DP1,
+  "DP2" : E1DP2,
+  "DP3" : E1DP3,
+  "DP4" : E1DP4,
+  "DPRE" : E1DPRE,
+  "DPRO" : E1PRO,
+  "DLIM" : E1LIMITATIONS,
+  "GEN" : E1GEN,
+  "MED" : E1MEDCOM,
+  "STP" : E1STP1,
+  }
+const E2decision = {
+"DACT1" : E2ACT1,
+"DACT2" : E2ACT2,
+"DACT3" : E2ACT3,
+"DPRED" : E2DPRED,
+"DP1" : E2DP1,
+"DP2" : E2DP2,
+"DP3" : E2DP3,
+"DP4" : E2DP4,
+"DPRE" : E2DPRE,
+"DPRO" : E2PRO,
+"DLIM" : E2LIMITATIONS,
+"GEN" : E2GEN,
+"MED" : E2MEDCOM,
+"STP" : E2STP1,
+}
+const E3decision = {
+"DACT1" : E3ACT1,
+"DACT2" : E3ACT2,
+"DACT3" : E3ACT3,
+"DPRED" : E3DPRED,
+"DP1" : E3DP1,
+"DP2" : E3DP2,
+"DP3" : E3DP3,
+"DP4" : E3DP4,
+"DPRE" : E3DPRE,
+"DPRO" : E3PRO,
+"DLIM" : E3LIMITATIONS,
+"GEN" : E3GEN,
+"MED" : E3MEDCOM,
+"STP" : E3STP1,
+}
 
+const E4decision = {
+  "DACT1" : E4ACT1,
+  "DACT2" : E4ACT2,
+  "DACT3" : E4ACT3,
+  "DPRED" : E4DPRED,
+  "DP1" : E4DP1,
+  "DP2" : E4DP2,
+  "DP3" : E4DP3,
+  "DP4" : E4DP4,
+  "DPRE" : E4DPRE,
+  "DPRO" : E4PRO,
+  "DLIM" : E4LIMITATIONS,
+  "GEN" : E4GEN,
+  "MED" : E4MEDCOM,
+  "STP" : E4STP1,
+  }
+const F1decision = {
+  "DACT1" : F1ACT1,
+  "DACT2" : F1ACT2,
+  "DACT3" : F1ACT3,
+  "DPRED" : F1DPRED,
+  "DP1" : F1DP1,
+  "DP2" : F1DP2,
+  "DP3" : F1DP3,
+  "DP4" : F1DP4,
+  "DPRE" : F1DPRE,
+  "DPRO" : F1PRO,
+  "DLIM" : F1LIMITATIONS,
+  "GEN" : F1GEN,
+  "MED" : F1MEDCOM,
+  "STP" : F1STP1,
+  }
+const F3decision = {
+  "DACT1" : F3ACT1,
+  "DACT2" : F3ACT2,
+  "DACT3" : F3ACT3,
+  "DPRED" : F3DPRED,
+  "DP1" : F3DP1,
+  "DP2" : F3DP2,
+  "DP3" : F3DP3,
+  "DP4" : F3DP4,
+  "DPRE" : F3DPRE,
+  "DPRO" : F3PRO,
+  "DLIM" : F3LIMITATIONS,
+  "GEN" : F3GEN,
+  "MED" : F3MEDCOM,
+  "STP" : F3STP1,
+  }
+
+const F4decision = {
+  "DACT1" : F4ACT1,
+  "DACT2" : F4ACT2,
+  "DACT3" : F4ACT3,
+  "DPRED" : F4DPRED,
+  "DP1" : F4DP1,
+  "DP2" : F4DP2,
+  "DP3" : F4DP3,
+  "DP4" : F4DP4,
+  "DPRE" : F4DPRE,
+  "DPRO" : F4PRO,
+  "DLIM" : F4LIMITATIONS,
+  "GEN" : F4GEN,
+  "MED" : F4MEDCOM,
+  "STP" : F4STP1,
+  }
+const F5decision = {
+  "DACT1" : F5ACT1,
+  "DACT2" : F5ACT2,
+  "DACT3" : F5ACT3,
+  "DPRED" : F5DPRED,
+  "DP1" : F5DP1,
+  "DP2" : F5DP2,
+  "DP3" : F5DP3,
+  "DP4" : F5DP4,
+  "DPRE" : F5DPRE,
+  "DPRO" : F5PRO,
+  "DLIM" : F5LIMITATIONS,
+  "GEN" : F5GEN,
+  "MED" : F5MEDCOM,
+  "STP" : F5STP1,
+  }
+
+//anchor
 const link1 ={
   // "A-1" : A1decision,
   "A-2" : A2decision,
@@ -1020,15 +1272,15 @@ const link1 ={
   "C-7" : C7decision,
   "D-1" : D1decision,
   "D-2" : D2decision,
-  // "E-1" : E1decision,
-  // "E-2" : E2decision,
-  // "E-3" : E3decision,
-  // "E-4" : E4decision,
-  // "F-1" : F1decision,
+  "E-1" : E1decision,
+  "E-2" : E2decision,
+  "E-3" : E3decision,
+  "E-4" : E4decision,
+  "F-1" : F1decision,
   // "F-2" : F2decision,
-  // "F-3" : F3decision,
-  // "F-4" : F4decision,
-  // "F-5" : F5decision,
+  "F-3" : F3decision,
+  "F-4" : F4decision,
+  "F-5" : F5decision,
   // "F-6" : F6decision,
   // "G-1" : G1decision,
   // "G-2" : G2decision,
@@ -1241,7 +1493,6 @@ menu.addEventListener("click", ()=> {
         complaints.classList.toggle("closed");
         info.classList.remove("open");
         icon.classList.remove("open");
-        medi.classList.remove("show");
         menu.classList.toggle("closed");
 });
 
@@ -1380,12 +1631,26 @@ function DC2(){
       functions[dad.id]();
   };
   };
-
+  const bg2 = document.querySelector(".bod2");
+  const bg = document.querySelector(".bod1");
   function MED(){
+    // nav.classList.toggle("BG101")
     medi.classList.toggle("show");
-    medcont.classList.toggle("open");
-    
+    bg.classList.toggle("BG101");
+    bg2.classList.toggle("open");
   };
+
+  // window.addEventListener('click', function(e){ 
+  //   while (medi.classList.contains("show"))  
+  //   if (document.getElementById('item-menu2').contains(e.target)){
+  //     // Clicked in box
+  //   } else{
+  //     if(medi.classList.contains("show")){
+  //       bg.classList.toggle("BG101");
+  //       medi.classList.toggle("show");
+  //     }
+  //   }
+  // });
   
 
   //toggle explanation box
@@ -1402,7 +1667,6 @@ function explain(){
 const icon = document.querySelector("#btni")
 const info = document.querySelector(".infobox");
 const medi = document.querySelector("#medbtn");
-const medcont = document.querySelector(".medbox1");
 const nav = document.querySelector(".navbox");
 
 function infobox(){
@@ -1855,6 +2119,14 @@ const redflaglist = {
   M1label : M1flags,
   M2label : M2flags 
 }
+//Green button to show cat III at the beginning of screening
+function c3it(){
+  const a = event.target;
+  let b = a.closest(".ADTsheet")
+  let c = b.querySelector(".green-btn");
+  c.classList.add("closed");
+  functions[b.id]();
+}
 
 
 //append information to li and ul of ADTsheets
@@ -2105,7 +2377,7 @@ btns.forEach(function(currentChild){
 
 });
 });
-
+//anchor
 //functions to link the id to the of the ADTSheet to how the disposition boxes pop up
 const functions = {
   // "A-1" : justifyA1,
@@ -2133,14 +2405,14 @@ const functions = {
   "C-7" : justifyC7,
   "D-1" : justifyD1,
   "D-2" : justifyD2,
-  // "E-1" : justifyE1,
-  // "E-2" : justifyE2,
-  // "E-3" : justifyE3,
-  // "E-4" : justifyE4,
-  // "F-1" : justifyF1,
+  "E-1" : justifyE1,
+  "E-2" : justifyE2,
+  "E-3" : justifyE3,
+  "E-4" : justifyE4,
+  "F-1" : justifyF1,
   // "F-2" : justifyF2,
-  // "F-3" : justifyF3,
-  // "F-4" : justifyF4,
+  "F-3" : justifyF3,
+  "F-4" : justifyF4,
   // "F-5" : justifyF5,
   // "F-6" : justifyF6,
   // "G-1" : justifyG1,
@@ -2814,37 +3086,260 @@ function justifyD1() {
 
 
 function justifyD2() {
-  const D2red = D2.querySelector("#D2-redbtn");
-  const D2c1 = D2.querySelector("#D2-1-btn");
-  const D2c2 = D2.querySelector("#D2-2-btn");
-  const dispored = D2.querySelector("#D2dispo-red");
-  const dispo1 = D2.querySelector("#D2dispo-1");
-  const dispo2 = D2.querySelector("#D2dispo-2");
-  const dispo3 = D2.querySelector("#D2dispo-3");
-  const dispoRTD = D2.querySelector("#D2dispo-RTD");
-  if(D2red.checked == true){
-      console.log("it works");
-      D2.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
-  }else{
+const D2red = D2.querySelector("#D2-redbtn");
+const D2c1 = D2.querySelector("#D2-1-btn");
+const D2c2 = D2.querySelector("#D2-2-btn");
+const dispored = D2.querySelector("#D2dispo-red");
+const dispo1 = D2.querySelector("#D2dispo-1");
+const dispo2 = D2.querySelector("#D2dispo-2");
+const dispo3 = D2.querySelector("#D2dispo-3");
+const dispoRTD = D2.querySelector("#D2dispo-RTD");
+if(D2red.checked == true){
+    console.log("it works");
+    D2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+}else{
+    D2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(D2c1.checked == true){
       D2.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
-      if(D2c1.checked == true){
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+
+    }else{
+      if(D2c2.checked == true){
         D2.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
-  
+          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open");}
       }else{
-        if(D2c2.checked == true){
-          D2.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open");}
-        }else{
-          D2.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open")}
-            }
+        D2.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open")}
           }
         }
       }
+    }
+
+function justifyE1() {
+const E1red = E1.querySelector("#E1-redbtn");
+const E1c1 = E1.querySelector("#E1-1-btn");
+const dispored = E1.querySelector("#E1dispo-red");
+const dispo1 = E1.querySelector("#E1dispo-1");
+const dispoRTD = E1.querySelector("#E1dispo-RTD");
+if(E1red.checked == true){
+    console.log("it works");
+    E1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+}else{
+    E1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(E1c1.checked == true){
+      E1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+
+    }else{
+        E1.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyE2() {
+const E2red = E2.querySelector("#E2-redbtn");
+const E2c1 = E2.querySelector("#E2-1-btn");
+const dispored = E2.querySelector("#E2dispo-red");
+const dispo1 = E2.querySelector("#E2dispo-1");
+const dispoRTD = E2.querySelector("#E2dispo-RTD");
+if(E2red.checked == true){
+    console.log("it works");
+    E2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+}else{
+    E2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(E2c1.checked == true){
+      E2.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+
+    }else{
+        E2.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyE3() {
+const E3red = E3.querySelector("#E3-redbtn");
+const E3c1 = E3.querySelector("#E3-1-btn");
+const dispored = E3.querySelector("#E3dispo-red");
+const dispo1 = E3.querySelector("#E3dispo-1");
+const dispoRTD = E3.querySelector("#E3dispo-RTD");
+if(E3red.checked == true){
+    console.log("it works");
+    E3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+}else{
+    E3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(E3c1.checked == true){
+      E3.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+
+    }else{
+        E3.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyE4() {
+const E4red = E4.querySelector("#E4-redbtn");
+const E4c1 = E4.querySelector("#E4-1-btn");
+const dispored = E4.querySelector("#E4dispo-red");
+const dispo1 = E4.querySelector("#E4dispo-1");
+const dispoRTD = E4.querySelector("#E4dispo-RTD");
+const greenbtn = E4.querySelector(".green-btn");
+if(E4red.checked == true){
+    console.log("it works");
+    E4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    E4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(E4c1.checked == true){
+      E4.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        E4.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyF1() {
+const F1red = F1.querySelector("#F1-redbtn");
+const F1c1 = F1.querySelector("#F1-1-btn");
+const dispored = F1.querySelector("#F1dispo-red");
+const dispo1 = F1.querySelector("#F1dispo-1");
+const dispoRTD = F1.querySelector("#F1dispo-RTD");
+const greenbtn = F1.querySelector(".green-btn");
+if(F1red.checked == true){
+    console.log("it works");
+    F1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");
+    greenbtn.classList.add("closed")}
+}else{
+    F1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(F1c1.checked == true){
+      F1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        F1.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyF3() {
+const F3red = F3.querySelector("#F3-redbtn");
+const F3c1 = F3.querySelector("#F3-1-btn");
+const dispored = F3.querySelector("#F3dispo-red");
+const dispo1 = F3.querySelector("#F3dispo-1");
+const dispoRTD = F3.querySelector("#F3dispo-RTD");
+const greenbtn = F3.querySelector(".green-btn");
+if(F3red.checked == true){
+    console.log("it works");
+    F3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    F3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(F3c1.checked == true){
+      F3.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        F3.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyF4() {
+const F4red = F4.querySelector("#F4-redbtn");
+const F4c1 = F4.querySelector("#F4-1-btn");
+const dispored = F4.querySelector("#F4dispo-red");
+const dispo1 = F4.querySelector("#F4dispo-1");
+const dispoRTD = F4.querySelector("#F4dispo-RTD");
+const greenbtn = F4.querySelector(".green-btn");
+if(F4red.checked == true){
+    console.log("it works");
+    F4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    F4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(F4c1.checked == true){
+      F4.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        F4.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyF4() {
+const F4red = F4.querySelector("#F4-redbtn");
+const F4c1 = F4.querySelector("#F4-1-btn");
+const dispored = F4.querySelector("#F4dispo-red");
+const dispo1 = F4.querySelector("#F4dispo-1");
+const dispoRTD = F4.querySelector("#F4dispo-RTD");
+const greenbtn = F4.querySelector(".green-btn");
+if(F4red.checked == true){
+    console.log("it works");
+    F4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    F4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(F4c1.checked == true){
+      F4.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        F4.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+//anchor
+        
