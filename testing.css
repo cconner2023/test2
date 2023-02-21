@@ -19,8 +19,20 @@ body{
     height: 100vh;
     width: 100%;
     overflow: hidden;
+    /* background-color: rgba(255, 255, 255, 0.4);
+    background-image: linear-gradient(33deg, rgba(224, 224, 198, 0.7),rgb(184, 208, 219, 0.4),rgba(224, 224, 198, 0.2) ); */
+}
+.bod1{
+  height: 100vh;
+    width: 100%;
+    overflow: hidden;
     background-color: rgba(255, 255, 255, 0.4);
     background-image: linear-gradient(33deg, rgba(224, 224, 198, 0.7),rgb(184, 208, 219, 0.4),rgba(224, 224, 198, 0.2) );
+    -webkit-transition: 0.2s;
+    -moz-transition: 0.2s;
+    -ms-transition: 0.2s;
+    -o-transition: 0.2s;
+    transition: All 0.2s ease;
 }
 
 .center-box-wrapper{
@@ -58,11 +70,19 @@ body{
   border-bottom-right-radius: 20px;
   z-index: 199;
   transition: All 0.3s  ease-in-out;
+  -webkit-transition: 0.3s;
+  -moz-transition: 0.3s;
+  -ms-transition: 0.3s;
+  -o-transition: 0.3s;
   overflow: hidden;
 }
 .infobox.open{
   height: 95%;
   transition: All 0.3s   ease-in-out;
+  -webkit-transition: 0.3s;
+  -moz-transition: 0.3s;
+  -ms-transition: 0.3s;
+  -o-transition: 0.3s;
 }
 .mainbox{
   position: absolute;
@@ -158,17 +178,19 @@ body{
 }
 
 #banner1{
-  left: 2rem;
+  left: 1rem;
+  right: 1rem;
   position: absolute;
-  width: 100%;
+  width: 55%;
   transform: translateX(0%);
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 #banner1.closed{
   position: absolute;
-  width: 100%;
+  width: 55%;
   transform: translateY(200%);
   transition: all 0.2s ease;
 }
@@ -176,20 +198,21 @@ body{
   left: 0;
   display: flex;
   align-items: center;
+  margin-left: 10px;
   position: absolute;
-  width: 100%;
+  width: 70%;
   transform: translateX(400%);
   transition: all 0.2s ease;
 }
 #banner2.open{
   position: absolute;
-  width: 100%;
+  width: 70%;
   transform: translateX(0%);
   transition: all 0.2s ease;
 }
 #banner2.closed{
   position: absolute;
-  width: 100%;
+  width: 70%;
   transform: translateX(0%) translateY(200%);
   transition: all 0.2s ease;
 }
@@ -215,6 +238,10 @@ body{
   font-size: small;
   overflow: hidden;
   width: 55%;
+  margin-left: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   white-space: nowrap;
   text-overflow: ellipsis;
   max-width: 16rem;
@@ -260,9 +287,11 @@ body{
   width: 100%;
   position: absolute;
   left: 2rem;
-  font-size: x-large;
   transform: translateX(300%);
   transition: 0.2s ease;
+}
+.return i{
+  font-size: 24px;
 }
 .return.closed{
   margin-left: 0.5rem;
@@ -293,6 +322,7 @@ body{
   transform: scale(1.2);
   color: red;
   transition: All 0.2s ease;
+  z-index: 202;
 }
 
 .complaint-box-wrapper{
@@ -569,7 +599,9 @@ line-height: 1.4;
 
 }
 .A{
-width: 20%;
+left: 0;
+width: 30%;
+margin-left: 2rem;
 display: flex;
 position: relative;
 align-items: center;
@@ -577,6 +609,8 @@ justify-content: space-around;
 }
 .Q-LI{
   margin-left: 1rem;
+  list-style-position: outside;
+  
 }
 .subQ{
   position: relative;
@@ -763,6 +797,39 @@ background-color: rgb(65, 162, 194, 0.4);
 border: 3px solid rgb(65, 162, 194, 0.7);
 }
 
+.green-btn{
+  position: relative;
+  display: flex;
+  height: 5rem;
+  width: 5rem;
+  padding: 20px;
+  opacity: 1;
+  transition: opacity 0.3s ease;
+}
+.green-btn.closed{
+  display: none;
+  opacity: 0;
+  height: 0;
+  transition: opacity 0.3s ease;
+}
+
+#green-just-btn{
+  width: 4rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: 20px;
+  background-color: rgb(102, 192, 102, 0.4);
+  border: 3px solid rgb(102, 192, 102, 0.7);
+  box-shadow: 0 4px 8px 0 rgba( 31, 38, 135, 0.5 );
+  backdrop-filter: blur( 6.5px );
+}
+#green-just-btn i{
+  font-size: 28px;
+}
+
+
+
 
 .blink_me {
   animation: blinker 1s linear infinite;
@@ -772,4 +839,39 @@ border: 3px solid rgb(65, 162, 194, 0.7);
   50% {
     opacity: 0;
   }
+}
+
+.bod2{
+  bottom: 0;
+  height: 1px;
+  width: 100%;
+  display: flex;
+  position: absolute;
+  transition: All 0.2s ease;
+  opacity: 0;
+  overflow: hidden;
+}
+.bot-menu-wrapper{
+  border-top-right-radius: 20px;
+  border-top-left-radius: 20px;
+  height: 10rem;
+  width: 100%;
+  position: relative;
+  display: flex;
+  background-color: white;
+}
+.bod2.open{
+  height: 10rem;
+  opacity: 1;
+  transition: All 0.2s ease;
+}
+/* medbtn animation opening bottom bar */
+.BG101{
+  background-color: rgb(109, 108, 108);
+  -webkit-transition: 0.2s;
+  -moz-transition: 0.2s;
+  -ms-transition: 0.2s;
+  -o-transition: 0.2s;
+  transition: All 0.2s ease;
+  opacity: 0.2;
 }
