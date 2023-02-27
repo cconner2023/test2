@@ -1511,7 +1511,7 @@ itembtns.forEach(function(currentSwitch){
     console.log(currentSwitch.id);
     subcatboxes[currentSwitch.related].classList.add("selected");
     homebanner.classList.add("closed");
-    banner.innerText = currentSwitch.innerText;
+    banner.innerHTML = currentSwitch.innerText;
     banner.classList.add("open");
     rtn.classList.toggle("closed");
   });
@@ -1559,16 +1559,23 @@ const ADTsheets = document.querySelectorAll(".ADTsheet");
 const ADTMCpagers = document.querySelectorAll(".subtexts");
 ADTMCpagers.forEach(function(currentPager){
 currentPager.addEventListener('click',()=> { 
+  console.log(currentPager.id)
+  const border = currentPager.querySelector(".subtext-border");
   const bLabel = document.querySelector("#banner3-label")
   complaints.classList.add('paged');
   Acontainer.classList.toggle('open');
   banner.classList.add("closed");
   subbanner.classList.add("open");
-  bLabel.innerHTML = currentPager.innerHTML;
+  bLabel.innerHTML = currentPager.innerText;
   const sheetnow = ADTMCSheets[currentPager.id];
   sheetnow.classList.add("open");
   Acontainer.scrollTop = 0;
   ADTpage.scrollTop = 0;
+  const style = getComputedStyle(border);
+  const color = style.backgroundColor
+  console.log(color)
+  const sheetborder = document.querySelector(".ADT-border");
+  sheetborder.style.backgroundColor = color;
   
 });
 });
@@ -1677,7 +1684,6 @@ function DC2(){
   });
 
 
-  
   
 
   //toggle explanation box
@@ -2440,7 +2446,7 @@ const functions = {
   // "F-2" : justifyF2,
   "F-3" : justifyF3,
   "F-4" : justifyF4,
-  // "F-5" : justifyF5,
+  "F-5" : justifyF5,
   // "F-6" : justifyF6,
   // "G-1" : justifyG1,
   // "G-2" : justifyG2,
@@ -3363,6 +3369,35 @@ if(F4red.checked == true){
 
     }else{
         F4.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+    
+function justifyF5() {
+const F5red = F5.querySelector("#F5-redbtn");
+const F5c1 = F5.querySelector("#F5-1-btn");
+const dispored = F5.querySelector("#F5dispo-red");
+const dispo1 = F5.querySelector("#F5dispo-1");
+const dispoRTD = F5.querySelector("#F5dispo-RTD");
+const greenbtn = F5.querySelector(".green-btn");
+if(F5red.checked == true){
+    console.log("it works");
+    F5.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    F5.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(F5c1.checked == true){
+      F5.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        F5.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
           if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
           }
