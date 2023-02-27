@@ -5,7 +5,10 @@
   box-sizing: border-box;
   font-family: 'Poppins';
   scroll-behavior: smooth;
+  --BG2: #C6AC8F ;
+  --BG1:#22333B ;
 }
+
 *::-webkit-scrollbar{
   display: none;
 }
@@ -187,6 +190,7 @@ body{
   display: flex;
   align-items: center;
   justify-content: center;
+  font-weight: bold;
 }
 #banner1.closed{
   position: absolute;
@@ -212,7 +216,7 @@ body{
   margin: auto;
   transform: translateX(0%);
   transition: all 0.2s ease;
-  background-color: red;
+  font-weight: bold;
 }
 #banner2.closed{
   position: absolute;
@@ -237,19 +241,21 @@ body{
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
+  font-weight: bold;
 }
 #banner3-label{
   font-size: small;
   overflow: hidden;
   width: 100%;
-  margin-left: 8px;
+  margin-left: 10px;
   display: flex;
-  white-space: nowrap;
+  white-space: wrap;
   text-overflow: ellipsis;
   max-width: 16rem;
 }
 
 #banner3 i{
+  padding-left: 6px;
   font-size: x-large;
   color: black;
   border-radius: 50%;
@@ -341,13 +347,15 @@ body{
   margin: auto;
   overflow: hidden;
   opacity: 1;
-  background-color: rgb(245, 247, 250,0.1 );
-  box-shadow: 0 8px 32px 0 rgba( 31, 38, 135, 0.5 );
   backdrop-filter: blur( 6.5px );
   border-radius: 10px;
   border: 1px solid rgba( 255, 255, 255, 0.1 );
   transform: translateY(0%);
-  transition: All 0.4s ease;  
+  transition: All 0.4s ease; 
+  -webkit-transition: 0.4s;
+  -moz-transition: 0.4s;
+  -ms-transition: 0.4s;
+  -o-transition: 0.4s; 
 }
 .complaint-box.closed{
     height: 90%;
@@ -358,6 +366,10 @@ body{
     overflow: hidden;
     transform: translateY(-300%);
     transition: All 0.4s ease; 
+    -webkit-transition: 0.4s;
+    -moz-transition: 0.4s;
+    -ms-transition: 0.4s;
+    -o-transition: 0.4s;
   }
   .complaint-box.paged{
     height: 90%;
@@ -369,25 +381,16 @@ body{
     border: 1px solid rgba( 255, 255, 255, 0.1 );
     transform: translateX(-300%);
     transition: All 0.4s ease; 
+    -webkit-transition: 0.4s;
+    -moz-transition: 0.4s;
+    -ms-transition: 0.4s;
+    -o-transition: 0.4s;
   }
 .complaint-box ul{
-  list-style: none;
-  padding: 0 20px;
+  margin-top: 0;
 
 }
 
-.complaint-box li {
-  padding: 0;
-  margin: 2px;
-  width: 100%;
-  text-indent: hanging;
-  line-height: 2;   
-}
-.complaint-box a {
-    text-decoration: none;
-    color: #1A1A1A;
-    margin: auto;
-}
 .complaint-box li:hover {
     background: rgba(255,255,255,0.2);
     color: #fff;
@@ -428,7 +431,6 @@ body{
   display: flex;
   flex-direction: column;
   padding-bottom: 1rem;
-  padding-top: 1rem;
 }
 .ADTcontainer{
   height: 100%;
@@ -453,19 +455,31 @@ body{
   transform: translateX(0%);
   transition: All 0.2s ease; 
 }
+.ADT-border{
+  height: 100%;
+  position: relative;
+  width: 10px;
+  background-color: red;
+  margin-left: 4px;
+  opacity: 1;
+  border-top-left-radius: 20px;
+  border-bottom-left-radius: 20px;
+}
+
+
 .ADTpage{
-  height: 98%;
-  width: 98%;
+  height: 100%;
+  width: 100%;
   position:relative;
   display: flex;
   margin: auto;
-  padding-bottom: 2rem;
-  background-color: rgba( 255, 255, 255, 0.05 );
+  padding: 1rem;
+  padding-bottom: 1rem;
+  background-color: white;
   box-shadow: 0 8px 12px 0 rgba( 31, 38, 135, 0.37 );
   backdrop-filter: blur( 11.5px );
   -webkit-backdrop-filter: blur( 11.5px );
   border: 1px solid rgba( 255, 255, 255, 0.4 );
-  border-radius: 10px;
 
 }
 
@@ -485,6 +499,7 @@ body{
 .ADTsheet.open{
   display: block;
   height: 100%;
+  margin-top: 8px;
 
 
 }
@@ -495,7 +510,8 @@ body{
   width: 100%;
   font-size: small;
   display: block;
-  padding-bottom: 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid black ;
 }
 .ddxbox li{
   margin: 0 1rem;
@@ -503,10 +519,11 @@ body{
 }
 .redbox{
   position: relative;
-  border-bottom: 1px solid black ;
+  border: 1px solid black ;
   width: 100%;
   display: block;
   font-size: small;
+  margin-bottom: 1rem;
 }
 
 .redbox li{
@@ -518,6 +535,7 @@ body{
   width: 100%;
   display: block;
   text-align: left;
+  padding-left: 8px;
   border-bottom: 2px solid black;
   font-weight: bold;
 }
@@ -526,7 +544,7 @@ body{
 .ios-toggle {
   display: inline-block;
   position: relative;
-  width: 3.2rem;
+  width: 3rem;
   height: 1rem;
   margin-right: 10px;
 }
@@ -539,7 +557,7 @@ body{
   background-color: rgb(177, 91, 91, 0.5)
 }
 .ios-toggle input:checked + span.slider:before {
-  transform: translateX(220%);
+  transform: translateX(190%);
 }
 .ios-toggle span.slider {
   position: absolute;
@@ -548,11 +566,10 @@ body{
   left: 0;
   right: 0;
   bottom: 0;
-  height: 1rem;
-  width: 3.2rem;
+  height: 19px;
+  width: 2.8rem;
   border-radius: 12.5px;
-  background-color: rgba( 255, 255, 255, 0.1 );
-  box-shadow: 0 8px 32px 0 rgba( 31, 38, 135, 0.5 );
+  background-color: rgba(226, 223, 223, 0.5);
   -webkit-transition: 0.3s;
   -moz-transition: 0.3s;
   -ms-transition: 0.3s;
@@ -562,11 +579,13 @@ body{
 }
 .ios-toggle span.slider:before {
   position: absolute;
+  top: 2px;
+  left: 1px;
   content: "";
-  height: 1rem;
-  width: 1rem;
+  height: 14px;
+  width: 14px;
   border-radius: 12.5px;
-  box-shadow: 0px 2px 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0px 2px 2px rgba(0, 0, 0, 0.4);
   background-color: white;
   -webkit-transition: 0.3s;
   -moz-transition: 0.3s;
@@ -579,13 +598,19 @@ body{
   display: flex;
   width: 100%;
   max-height: 50rem;
-  border-bottom: 1px solid black;
+  border-top: 1px solid black;
   align-items: center;
   visibility: visible;
   transform: translateY(0%);
   transition: 0.3s ease;
   
   }
+.Q-icon{
+  height: 100%;
+  position: absolute;
+  top: 1rem;
+  font-weight: bold;
+}
 .Qwrap{
 width: 50%;
 margin: 1rem 1rem;
@@ -638,7 +663,7 @@ justify-content: space-around;
   visibility: visible;
   display: block;
   height: auto;
-  width: 98%;
+  /* width: 98%; */
   margin: auto;
   transform: scaleY(1) scaleX(1);
   transition: all 0.3s ease;
@@ -653,7 +678,7 @@ justify-content: space-around;
   flex-direction: row;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 8px 10px 0 rgba( 31, 38, 135, 0.5 );
+  /* box-shadow: 0 8px 10px 0 rgba( 31, 38, 135, 0.5 ); */
   backdrop-filter: blur( 6.5px );
 }
 .dispo label{
@@ -675,54 +700,55 @@ justify-content: space-around;
   padding: 8px;
 }
 .DR{
-  background-color: rgb(226, 103, 103, 0.7);
-  border: 3px solid rgb(226, 103, 103, 0.9);
+  background-color: rgb(226, 103, 103, 0.4);
+  border: 3px solid rgb(226, 103, 103, 0.6);
 }
 .DR{
-background-color: rgb(226, 103, 103, 0.7);
-border: 3px solid rgb(226, 103, 103, 0.9);
+background-color: rgb(226, 103, 103, 0.4);
+border: 3px solid rgb(226, 103, 103, 0.6);
 }
 .DI{
 background-color: rgb(226, 103, 103, 0.4);
-border: 3px solid rgb(226, 103, 103, 0.7);
+border: 3px solid rgb(226, 103, 103, 0.6);
 }
 .DII{
 background-color: rgb(238, 185, 86, 0.4);
-border: 3px solid rgb(238, 185, 86, 0.7); 
+border: 3px solid rgb(238, 185, 86, 0.6); 
 }
 .DIII{
 background-color: rgb(65, 162, 194, 0.4);
-border: 3px solid rgb(65, 162, 194, 0.7);
+border: 3px solid rgb(65, 162, 194, 0.6);
 }
 .DIV{
 background-color: rgb(102, 192, 102, 0.4);
-border: 3px solid rgb(102, 192, 102, 0.7);
+border: 3px solid rgb(102, 192, 102, 0.6);
 }
 .DRTD{
 background-color: rgb(102, 192, 102, 0.4);
-border: 3px solid rgb(102, 192, 102, 0.7);
+border: 3px solid rgb(102, 192, 102, 0.6);
 }
 .DRETEST{
 background-color: rgb(65, 162, 194, 0.4);
-border: 3px solid rgb(65, 162, 194, 0.7);
+border: 3px solid rgb(65, 162, 194, 0.6);
 }
 .justbox{
-position: relative;
-height: 0;
-visibility: collapse;
-transform: scaleY(0) scaleX(0);
-transition: all 0.2s ease-in-out;
+  position: relative;
+  height: 0;
+  display: block;
+  visibility: collapse;
+  transform: scaleY(0) scaleX(0);
+  transition: all 0.3s ease;
 }
 
 .justbox.open{
-position: relative;
-visibility: visible;
-height: auto;
-width: 100%;
-margin: auto;
-transform: scaleY(1) scaleX(1);
-transition: all 0.3s ease;
-padding: 6px;
+  position: relative;
+  visibility: visible;
+  height: auto;
+  /* width: 98%; */
+  margin: auto;
+  transform: scaleY(1) scaleX(1);
+  transition: all 0.3s ease;
+  padding: 20px;
 
 }
 .justboxACT{
@@ -746,12 +772,14 @@ transition: all 0.3s ease;
 padding: 6px;
 }
 .just{
-  padding: 10px;
+  padding: 8px;
   border-radius: 20px;
+  align-items: center;
   display: block;
+  flex-direction: row;
   position: relative;
   overflow: hidden;
-  box-shadow: 0 8px 10px 0 rgba( 31, 38, 135, 0.5 );
+  /* box-shadow: 0 8px 10px 0 rgba( 31, 38, 135, 0.5 ); */
   backdrop-filter: blur( 6.5px );
 }
 .just label{
@@ -767,34 +795,34 @@ padding: 6px;
 }
 
 .JR{
-  background-color: rgb(226, 103, 103, 0.7);
-  border: 3px solid rgb(226, 103, 103, 0.9);
+  background-color: rgb(226, 103, 103, 0.4);
+  border: 3px solid rgb(226, 103, 103, 0.6);
 
 }
 .JI{
 background-color: rgb(226, 103, 103, 0.4);
-border: 3px solid rgb(226, 103, 103, 0.7);
+border: 3px solid rgb(226, 103, 103, 0.6);
 
 }
 .JII{
 background-color: rgb(238, 185, 86, 0.4);
-border: 3px solid rgb(238, 185, 86, 0.7); 
+border: 3px solid rgb(238, 185, 86, 0.6); 
 }
 .JIII{
 background-color: rgb(65, 162, 194, 0.4);
-border: 3px solid rgb(65, 162, 194, 0.7);
+border: 3px solid rgb(65, 162, 194, 0.6);
 }
 .JIV{
 background-color: rgb(102, 192, 102, 0.4);
-border: 3px solid rgb(102, 192, 102, 0.7);
+border: 3px solid rgb(102, 192, 102, 0.6);
 }
 .JRTD{
 background-color: rgb(102, 192, 102, 0.4);
-border: 3px solid rgb(102, 192, 102, 0.7);
+border: 3px solid rgb(102, 192, 102, 0.6);
 }
 .JRETEST{
 background-color: rgb(65, 162, 194, 0.4);
-border: 3px solid rgb(65, 162, 194, 0.7);
+border: 3px solid rgb(65, 162, 194, 0.6);
 }
 
 .green-btn{
@@ -860,7 +888,9 @@ border: 3px solid rgb(65, 162, 194, 0.7);
 }
 /* medbtn animation opening bottom bar */
 .BG101{
-  background-color: rgb(109, 108, 108);
+  background-color: rgba(0, 0, 0, 1);
+  background-image: rgba(0, 0, 0, 1);
+
   -webkit-transition: 0.2s;
   -moz-transition: 0.2s;
   -ms-transition: 0.2s;
@@ -935,7 +965,7 @@ border: 3px solid rgb(65, 162, 194, 0.7);
 }
 
 .social-menu ul li:nth-child(1) a:hover{
-  background-color: #E4405F;;
+  background-color: #E4405F;
 }
 .social-menu ul li:nth-child(2) a:hover{
   background-color: #E4405F;
@@ -944,5 +974,73 @@ border: 3px solid rgb(65, 162, 194, 0.7);
   background-color: #0077b5;
 }
 .social-menu ul li:nth-child(4) a:hover{
-  background-color: #E4405F;;
+  background-color: #E4405F;
+}
+
+.itembtn{
+  height: 2.5rem;
+  margin-bottom: 5px;
+  margin-top: 1px;
+  width: 100%;
+  display: flex;
+  overflow: none;
+  margin-left: 2px;
+}
+.subtexts{
+  height: 2.5rem;
+  margin-bottom: 5px;
+  margin-top: 5px;
+  width: 100%;
+  display: flex;
+  overflow: none;
+  margin-left: 2px;
+}
+li:nth-of-type(odd) .subtext-border{
+  background-color: var(--BG1);
+}
+
+li:nth-of-type(even) .subtext-border{
+  background-color: var(--BG2);
+}
+
+.subtext-border{
+  height: 2.5rem;
+  width: 8px;
+  position: relative;
+  display: flex;
+  margin-top: auto;
+  margin-bottom: auto;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  transform: translateX(2px);
+  border-bottom-left-radius: 20px;
+  border-top-left-radius: 20px;
+}
+
+
+.texticon{
+  font-size: small;
+  height: 2.5rem;
+  position: relative;
+  display: flex;
+  margin-top: auto;
+  margin-bottom: auto;
+  width: 2.5rem;
+  padding-left: 10px;
+  background-color: white;
+  justify-content: center;
+  align-items: center;
+}
+.text-text{
+  font-size: small;
+  height: 2.5rem;
+  width: 85%;
+  background-color: white;
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding-left: 10px;
+  line-height: 1;
 }
