@@ -19,7 +19,7 @@
         <div class="item-menu-box">
                 <div class="menu-btn"><i class='bx bx-plus-circle' id="item-menu"></i></div>
                 <div class="return"><i class='bx bx-chevron-left' id="item-menu2"></i></div>
-                <div class="settings-btn" ><i data-feather="grid" id="medbtn" onclick="MED()"></i></div>
+                <div class="settings-btn" ><i data-feather="grid" id="medbtn"></i></div>
         </div>
         <div class="banner-box">
                 <div class='banner' id="banner1"><label for="banner1"> ADTMC Version 1.5</label></div>
@@ -43,6 +43,7 @@
                 </div>  
 </div>
 <div class="ADTcontainer">
+<div class="ADT-border"></div>
 <div class="ADTpage">
     <div class="page-content">
         <div class="ddxbox" id="ddxb"><label for ="ddxb" class="label1">DIFFERENTIAL DIAGNOSIS</label></div>
@@ -67,7 +68,8 @@
                 </div>
                 <div class="Qbox" id="A2-1box">
                 <div class="Q">
-                        <div class="Qwrap" id="A2-1"><label for="A2-1">1. Do any of the following apply?</label>
+                        <div class="Q-icon">1.</div>
+                        <div class="Qwrap" id="A2-1"><label for="A2-1">Do any of the following apply?</label>
                                 <ul class="Q-UL">
                                         <label><li class="Q-LI" id="A2-1-LI-1">Severe Ear pain</li></label>
                                         <label><li class="Q-LI" id="A2-1-LI-2">Ear drainage</li></label>
@@ -83,6 +85,7 @@
                 </div>
                 <div class="subQ">
                         <div class="Q">
+                                
                                 <div class="Qwrap" id="action-needed"><label for="action-needed">Perform an otoscope exam (both ears); look for the following</label>
                                         <ul class="Q-UL">
                                                 <label><li class="Q-LI" id="A2-2-LI-1">TM: redness, opacification, bulging, immobility, rupture</li></label>
@@ -92,7 +95,8 @@
                         </div>
                         <div class="Qbox" id="A2-2box">
                         <div class="Q">
-                                <div class="Qwrap" id="A2-2"><label for="A2-2">2. Are any TM symptoms present?</label></div>
+                                <div class="Q-icon">2.</div>
+                                <div class="Qwrap" id="A2-2"><label for="A2-2">Are any TM symptoms present?</label></div>
                                 <div class="A">
                                         <div id="btnwrap">
                                         <label class="ios-toggle" id="A2-2-toggle"><input type="checkbox" class="check" id="A2-2-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
@@ -107,7 +111,8 @@
                         </div>
                         <div class="Qbox" id="A2-3box">
                         <div class="Q">
-                                <div class="Qwrap" id="A2-3"><label for="A2-3">3. Are any EC symptoms present?</label></div>
+                                <div class="Q-icon">3.</div>
+                                <div class="Qwrap" id="A2-3"><label for="A2-3">Are any EC symptoms present?</label></div>
                                 <div class="A">
                                         <div id="btnwrap">
                                         <label class="ios-toggle" id="A2-3-toggle"><input type="checkbox" class="check" id="A2-3-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
@@ -123,7 +128,8 @@
                 </div>
                 <div class="Qbox" id="A2-4box">
                 <div class="Q">
-                        <div class="Qwrap" id="A2-4"><label for="A2-4">4. Do any of the following apply?</label>
+                        <div class="Q-icon">4.</div>
+                        <div class="Qwrap" id="A2-4"><label for="A2-4">Do any of the following apply?</label>
                                 <ul class="Q-UL">
                                         <label><li class="Q-LI" id="A2-2-LI-1">Vertigo</li></label>
                                         <label><li class="Q-LI" id="A2-2-LI-2">Symptoms > 7 days</li></label>
@@ -146,7 +152,8 @@
                 </div>
                 <div class="Qbox" id="A2-5box">
                 <div class="Q">
-                        <div class="Qwrap" id="A2-5"><label for="A2-5">5. Do any of the following apply?</label>
+                        <div class="Q-icon">5.</div>
+                        <div class="Qwrap" id="A2-5"><label for="A2-5">Do any of the following apply?</label>
                                 <ul class="Q-UL">
                                         <label><li class="Q-LI" id="A2-5-LI-1">Cold symptoms</li></label>
                                         <label><li class="Q-LI" id="A2-5-LI-2">Sore Throat</li></label>
@@ -1536,7 +1543,7 @@
                 <div class="justbox"><div class="just JRTD JDP3"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
-        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="JRTD" id="green-just-btn"><i class='bx bx-chevrons-right'></i></div></div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="JRTD" id="green-just-btn"><i data-feather="check"></i></div></div>
 </div>
 <div class="ADTsheet" id="F-1">
         <div class="Qbox" id="F1-redbox">
@@ -1591,7 +1598,7 @@
                 <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
-        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="JRTD" id="green-just-btn"><i class='bx bx-chevrons-right'></i></div></div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="JRTD" id="green-just-btn"><i class='data-feather="check"'></i></div></div>
 </div>
 <div class="ADTsheet" id="F-3">
         <div class="Qbox" id="F3-redbox">
@@ -1822,10 +1829,839 @@
         </div>
         <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
 </div>
-<!--Anchor: End of ADTsheets -->
+<div class="ADTsheet" id="G-1">
+        <div class="Qbox" id="G1-redbox">
+        <div class="Q">
+                <div class="Qwrap" id="G1-red"><label for="G1-red">1. Do any of the following apply?</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="G1-1-LI-1">Red flags</li></label>
+                                <label><li class="Q-LI" id="G1-1-LI-2">Depression</li></label>
+                                <label><li class="Q-LI" id="G1-1-LI-3">Loss of libido</li></label>
+                                <label><li class="Q-LI" id="G1-1-LI-4">Weight change</li></label>
+                                <label><li class="Q-LI" id="G1-1-LI-5">Menorrhagia, Anemia > 3 weeks</li></label>
+                                <label><li class="Q-LI" id="G1-1-LI-6">Snoring</li></label>
+                                <label><li class="Q-LI" id="G1-1-LI-7">UPSTF</li></label>
+                                <label><li class="Q-LI" id="G1-1-LI-8">Screen/PHA out of date</li></label>
+
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="G1-red-toggle"><input type="checkbox" class="check" id="G1-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="G1-RED-btnlabel">NO</div>
+                </div>
+        </div>
+        <div class="dispobox" id="G1dispo-red">
+                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="G1dispo-red"> CAT I: Provider Now</label></div>
+                <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="G1-1box">
+        <div class="Q">
+                <div class="Qwrap" id="G1-1"><label for="G1-1">2. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="G1-1-LI-1">Cold, Sore throat Sx</li></label>
+                                <label><li class="Q-LI" id="G1-1-LI-2">Rectal bleeding</li></label>
+                                <label><li class="Q-LI" id="G1-1-LI-3">Other symptoms</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="G1-1-toggle"><input type="checkbox" class="check" id="G1-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="G1-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="G1dispo-RETEST">
+                <div class="dispo DRETEST"><i class='bx bx-info-circle' onclick="explain()"></i><label for="G1dispo-2"> Screen bleeding, cold, sore throat, other symptom if present</label></div>
+                <div class="justbox"><div class="just JRETEST"><label for="R">Decision Making</label></div></div>
+        </div>
+        <div class="dispobox" id="G1dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="G1dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
+                <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                <div class="justboxAM"><div class="just JRTD JAM"><label for="R">Activity Modification</label></div></div>
+                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<div class="ADTsheet" id="G-2">
+        <div class="Qbox" id="G2-redbox">
+        <div class="Q">
+                <div class="Qwrap" id="G2-red"><label for="G2-red">1. Do any of the following apply?</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="G2-1-LI-1">Abnormal Vitals</li></label>
+                                <label><li class="Q-LI" id="G2-1-LI-2">HIV positive</li></label>
+                                <label><li class="Q-LI" id="G2-1-LI-3">Immunosupression</li></label>
+                                <label><li class="Q-LI" id="G2-1-LI-4">Overseas travel within 6 months</li></label>
+                                <label><li class="Q-LI" id="G2-1-LI-5">Tick, mosquito bite</li></label>
+                                <label><li class="Q-LI" id="G2-1-LI-6">Malaria area</li></label>
+                                <label><li class="Q-LI" id="G2-1-LI-7">Animal exposure</li></label>
+                                <label><li class="Q-LI" id="G2-1-LI-8">IV drug use</li></label>
+
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="G2-red-toggle"><input type="checkbox" class="check" id="G2-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="G2-RED-btnlabel">NO</div>
+                </div>
+        </div>
+        <div class="dispobox" id="G2dispo-red">
+                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="G2dispo-red"> CAT I: Provider Now</label></div>
+                <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="G2-1box">
+        <div class="Q">
+                <div class="Qwrap" id="G2-1"><label for="G2-1">2. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="G2-1-LI-1">Cold, Sore throat Sx</li></label>
+                                <label><li class="Q-LI" id="G2-1-LI-2">Ear pain</li></label>
+                                <label><li class="Q-LI" id="G2-1-LI-3">Diarrhea</li></label>
+                                <label><li class="Q-LI" id="G2-1-LI-4">Pain with urination</li></label>
+                                <label><li class="Q-LI" id="G2-1-LI-5">Other symptoms</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="G2-1-toggle"><input type="checkbox" class="check" id="G2-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="G2-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="G2dispo-RETEST">
+                <div class="dispo DRETEST"><i class='bx bx-info-circle' onclick="explain()"></i><label for="G2dispo-2"> Screen other symptoms algorithm</label></div>
+                <div class="justbox"><div class="just JRETEST"><label for="R">Decision Making</label></div></div>
+        </div>
+        <div class="dispobox" id="G2dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="G2dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
+                <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                <div class="justboxAM"><div class="just JRTD JAM"><label for="R">Activity Modification</label></div></div>
+                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<div class="ADTsheet" id="H-1">
+        <div class="Qbox" id="H1-redbox">
+        <div class="Q">
+                <div class="Qwrap" id="H1-red"><label for="H1-red">**Perform an eye exam with Fluorescein**<br>1. Do any of the following apply?</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="H1-1-LI-1">Red Flags</li></label>
+                                <label><li class="Q-LI" id="H1-1-LI-2">Contact lens wearer</li></label>
+                                <label><li class="Q-LI" id="H1-1-LI-3">Fluorescein uptake</li></label>
+                                <label><li class="Q-LI" id="H1-1-LI-4">Recent eye surgery</li></label>
+                                <label><li class="Q-LI" id="H1-1-LI-5">Associated head trauma</li></label>
+                                <label><li class="Q-LI" id="H1-1-LI-6">Double vision</li></label>
+
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="H1-red-toggle"><input type="checkbox" class="check" id="H1-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="H1-RED-btnlabel">NO</div>
+                </div>
+        </div>
+        <div class="dispobox" id="H1dispo-red">
+                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="H1dispo-red"> CAT I: Provider Now</label></div>
+                <div class="justboxACT"><div class="just JR ACT1"></div></div>
+                <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="H1-1box">
+        <div class="Q">
+                <div class="Qwrap" id="H1-1"><label for="H1-1">2. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="H1-1-LI-1">Thick, yellow or green discharge</li></label>
+                                <label><li class="Q-LI" id="H1-1-LI-2">Painful</li></label>
+                                <label><li class="Q-LI" id="H1-1-LI-3">Light sensitivity</li></label>
+                                <label><li class="Q-LI" id="H1-1-LI-4">Inability to keep eye open</li></label>
+                                <label><li class="Q-LI" id="H1-1-LI-5">trauma</li></label>
+                                <label><li class="Q-LI" id="H1-1-LI-6">history foreign body getting better</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="H1-1-toggle"><input type="checkbox" class="check" id="H1-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="H1-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="H1dispo-2">
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="H1dispo-2"> CAT II: AEM</label></div>
+                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        <div class="dispobox" id="H1dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="H1dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
+                <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                <div class="justboxAM"><div class="just JRTD JAM"><label for="R">Activity Modification</label></div></div>
+                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<div class="ADTsheet" id="H-2">
+        <div class="Qbox" id="H2-redbox">
+        <div class="Q">
+                <div class="Qwrap" id="H2-red"><label for="H2-red">**Perform an eye exam and visual acuity**<br>1. Do any of the following apply?</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="H2-1-LI-1">Red Flags</li></label>
+                                <label><li class="Q-LI" id="H2-1-LI-2">mixed pupil</li></label>
+                                <label><li class="Q-LI" id="H2-1-LI-3">Mod-severe pain</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="H2-red-toggle"><input type="checkbox" class="check" id="H2-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="H2-RED-btnlabel">NO</div>
+                </div>
+        </div>
+        <div class="dispobox" id="H2dispo-red">
+                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="H2dispo-red"> CAT I: Provider Now</label></div>
+                <div class="justboxACT"><div class="just JR ACT1"></div></div>
+                <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="H2-1box">
+        <div class="Q">
+                <div class="Qwrap" id="H2-1"><label for="H2-1">2. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="H2-1-LI-1">significant redness, swelling</li></label>
+                                <label><li class="Q-LI" id="H2-1-LI-2">Rash > 1 week</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="H2-1-toggle"><input type="checkbox" class="check" id="H2-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="H2-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="H2dispo-2">
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="H2dispo-2"> CAT II: AEM</label></div>
+                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        <div class="dispobox" id="H2dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="H2dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
+                <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<div class="ADTsheet" id="H-3">
+        <div class="Qbox" id="H3-redbox">
+        <div class="Q">
+                <div class="Qwrap" id="H3-red"><label for="H3-red">**Perform an eye exam and visual acuity**<br>1. Do any of the following apply?</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="H3-1-LI-1">Red Flags</li></label>
+                                <label><li class="Q-LI" id="H3-1-LI-2">Observed foreign body</li></label>
+                                <label><li class="Q-LI" id="H3-1-LI-3">Partial visual field affected</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="H3-red-toggle"><input type="checkbox" class="check" id="H3-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="H3-RED-btnlabel">NO</div>
+                </div>
+        </div>
+        <div class="dispobox" id="H3dispo-red">
+                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="H3dispo-red"> CAT I: Provider Now</label></div>
+                <div class="justboxACT"><div class="just JR ACT1"></div></div>
+                <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="H3-1box">
+        <div class="Q">
+                <div class="Qwrap" id="H3-1"><label for="H3-1">2. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="H3-1-LI-1">contact wearer</li></label>
+                                <label><li class="Q-LI" id="H3-1-LI-2">Onset within 7 days</li></label>
+                                <label><li class="Q-LI" id="H3-1-LI-3">Painful</li></label>
+                                <label><li class="Q-LI" id="H3-1-LI-4">Red</li></label>
+                                <label><li class="Q-LI" id="H3-1-LI-5">Headache</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="H3-1-toggle"><input type="checkbox" class="check" id="H3-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="H3-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="H3dispo-2">
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="H3dispo-2"> CAT II: AEM</label></div>
+                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        <div class="dispobox" id="H3dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="H3dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
+                <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<div class="ADTsheet" id="H-4">
+        <div class="Qbox" id="H4-redbox">
+        <div class="Q">
+                <div class="Qwrap" id="H4-red"><label for="H4-red">**Perform an eye exam and visual acuity**<br>1. Do any of the following apply?</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="H4-1-LI-1">Red Flags</li></label>
+                                <label><li class="Q-LI" id="H4-1-LI-2">Red eye</li></label>
+                                <label><li class="Q-LI" id="H4-1-LI-3">Associated pain</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="H4-red-toggle"><input type="checkbox" class="check" id="H4-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="H4-RED-btnlabel">NO</div>
+                </div>
+        </div>
+        <div class="dispobox" id="H4dispo-red">
+                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="H4dispo-red"> CAT I: Provider Now</label></div>
+                <div class="justboxACT"><div class="just JR ACT1"></div></div>
+                <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="H4-1box">
+        <div class="Q">
+                <div class="Qwrap" id="H4-1"><label for="H4-1">2. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="H4-1-LI-1">Appear intoxicated</li></label>
+                                <label><li class="Q-LI" id="H4-1-LI-2">With 1 eye shut</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="H4-1-toggle"><input type="checkbox" class="check" id="H4-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="H4-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="H4dispo-2">
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="H4dispo-2"> CAT II: AEM</label></div>
+                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        <div class="dispobox" id="H4dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="H4dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
+                <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<div class="ADTsheet" id="I-1">
+        <div class="Qbox" id="I1-redbox">
+        <div class="Q">
+                <div class="Qwrap" id="I1-red"><label for="I1-red">1. Do any of the following apply?</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="I1-1-LI-1">Red Flags</li></label>
+                                <label><li class="Q-LI" id="I1-1-LI-2">T> 100.4</li></label>
+                                <label><li class="Q-LI" id="I1-1-LI-3">Red, swollen breast</li></label>
+                                <label><li class="Q-LI" id="I1-1-LI-4">focal breast pain but no other symptoms</li></label>
+                                <label><li class="Q-LI" id="I1-1-LI-5">family H/O early breast cancer</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="I1-red-toggle"><input type="checkbox" class="check" id="I1-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="I1-RED-btnlabel">NO</div>
+                </div>
+        </div>
+        <div class="dispobox" id="I1dispo-red">
+                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="I1dispo-red"> CAT I: Provider Now</label></div>
+                <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="I1-1box">
+        <div class="Q">
+                <div class="Qwrap" id="I1-1"><label for="I1-1">2. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="I1-1-LI-1">Male with H/O testosterone supplement</li></label>
+                                <label><li class="Q-LI" id="I1-1-LI-2">Female breastfeeding</li></label>
+                                <label><li class="Q-LI" id="I1-1-LI-3">Repeat visit</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="I1-1-toggle"><input type="checkbox" class="check" id="I1-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="I1-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="I1dispo-2">
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="I1dispo-2"> CAT II: AEM</label></div>
+                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        <div class="dispobox" id="I1dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="I1dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
+                <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                <div class="justboxAM"><div class="just JRTD JAM"><label for="R">Activity Modification</label></div></div>
+                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<div class="ADTsheet" id="I-2">
+        <div class="Qbox" id="I2-redbox">
+        <div class="Q">
+                <div class="Qwrap" id="I2-red"><label for="I2-red">**Check urine hCG**<br>1. Red Flags?</label>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="I2-red-toggle"><input type="checkbox" class="check" id="I2-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="I2-RED-btnlabel">NO</div>
+                </div>
+        </div>
+        <div class="dispobox" id="I2dispo-red">
+                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="I2dispo-red"> CAT I: Provider Now</label></div>
+                <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="I2-1box">
+        <div class="Q">
+                <div class="Qwrap" id="I2-1"><label for="I2-1">2. Positive hCG without other symptoms?</label>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="I2-1-toggle"><input type="checkbox" class="check" id="I2-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="I2-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="I2dispo-2">
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="I2dispo-2"> CAT II: AEM</label></div>
+                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        <div class="dispobox" id="I2dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="I2dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
+                <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<div class="ADTsheet" id="I-3">
+        <div class="Qbox" id="I3-redbox">
+        <div class="Q">
+                <div class="Qwrap" id="I3-red"><label for="I3-red">**Check urine hCG**<br><br>1. Do any of the following apply?</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="I3-1-LI-1">Red flags</li></label>
+                                <label><li class="Q-LI" id="I3-1-LI-2">Non-midline pelvic pain</li></label>
+                                <label><li class="Q-LI" id="I3-1-LI-3">Pain with intercourse</li></label>
+                                <label><li class="Q-LI" id="I3-1-LI-4">Post menopause</li></label>
+                                <label><li class="Q-LI" id="I3-1-LI-5">Bleeding > 10 days not on birth control</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="I3-red-toggle"><input type="checkbox" class="check" id="I3-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="I3-RED-btnlabel">NO</div>
+                </div>
+        </div>
+        <div class="dispobox" id="I3dispo-red">
+                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="I3dispo-red"> CAT I: Provider Now</label></div>
+                <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="I3-1box">
+        <div class="Q">
+                <div class="Qwrap" id="I3-1"><label for="I3-1">**Obtain menses history: Length, severity (clots, #pads), Medications**<br><br>2. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="I3-1-LI-1">New problem</li></label>
+                                <label><li class="Q-LI" id="I3-1-LI-2">Failed previous self-care</li></label>
+                                <label><li class="Q-LI" id="I3-1-LI-3">Menstrual pain onset after 25 y/o</li></label>
+                                <label><li class="Q-LI" id="I3-1-LI-4">Progression of symptoms</li></label>
+                                <label><li class="Q-LI" id="I3-1-LI-5">Menses less than 21 or greater than 35 days</li></label>
+                                <label><li class="Q-LI" id="I3-1-LI-6">Spotting >1 pad/2hrs</li></label>
+                                <label><li class="Q-LI" id="I3-1-LI-7">Prevents normal duties</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="I3-1-toggle"><input type="checkbox" class="check" id="I3-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="I3-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="I3dispo-2">
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="I3dispo-2"> CAT II: AEM</label></div>
+                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        <div class="dispobox" id="I3dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="I3dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
+                <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                <div class="justboxAM"><div class="just JRTD JAM"><label for="R">Activity Modification</label></div></div>
+                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<div class="ADTsheet" id="I-4">
+        <div class="Qbox" id="I4-redbox">
+                <div class="Q">
+                        <div class="Qwrap" id="I4-red"><label for="I4-red">**Check urine hCG**<br><br>1. Do any of the following apply?</label>
+                                <ul class="Q-UL">
+                                        <label><li class="Q-LI" id="I4-1-LI-1">Red flags</li></label>
+                                        <label><li class="Q-LI" id="I4-1-LI-2">Recurrent vaginitis</li></label>
+                                        <label><li class="Q-LI" id="I4-1-LI-3">Presence of IUD</li></label>
+                                        <label><li class="Q-LI" id="I4-1-LI-4">Vaginal discharge</li></label>
+                                        <label><li class="Q-LI" id="I4-1-LI-5">Genital lesion, ulcer</li></label>
+                                        <label><li class="Q-LI" id="I4-1-LI-6">Vaginal lump, mass</li></label>
+                                        <label><li class="Q-LI" id="I4-1-LI-7">Pelvic pain during exercise</li></label>
+                                </ul>
+                        </div>
+                        <div class="A">
+                                <div id="btnwrap">
+                                <label class="ios-toggle" id="I4-red-toggle"><input type="checkbox" class="check" id="I4-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                                </div>
+                                <div class="label" id="I4-RED-btnlabel">NO</div>
+                        </div>
+                </div>
+                <div class="dispobox" id="I4dispo-red">
+                        <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="I3dispo-red"> CAT I: Provider Now</label></div>
+                        <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+                </div>
+                </div>
+        <div class="Qbox" id="I4-1box">
+        <div class="Q">
+                <div class="Qwrap" id="I4-1"><label for="I4-1">2. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="I4-1-LI-1">Moderate vaginal pain</li></label>
+                                <label><li class="Q-LI" id="I4-1-LI-2">Presentation different from the treatment protocol descriptions</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="I4-1-toggle"><input type="checkbox" class="check" id="I4-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="I4-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="I4dispo-2">
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="I4dispo-2"> CAT II: AEM</label></div>
+                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        <div class="dispobox" id="I4dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="I4dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
+                <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<div class="ADTsheet" id="I-5">
+        <div class="Qbox" id="I5-redbox">
+                <div class="Q">
+                        <div class="Qwrap" id="I5-red"><label for="I5-red">**Check urine hCG**<br><br>1. Do any of the following apply?</label>
+                                <ul class="Q-UL">
+                                        <label><li class="Q-LI" id="I5-1-LI-1">Pregnant</li></label>
+                                        <label><li class="Q-LI" id="I5-1-LI-2">Abnormal previous pap</li></label>
+                                        <label><li class="Q-LI" id="I5-1-LI-3">Total hysterectomy</li></label>
+                                </ul>
+                        </div>
+                        <div class="A">
+                                <div id="btnwrap">
+                                <label class="ios-toggle" id="I5-red-toggle"><input type="checkbox" class="check" id="I5-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                                </div>
+                                <div class="label" id="I5-RED-btnlabel">NO</div>
+                        </div>
+                </div>
+                <div class="dispobox" id="I5dispo-red">
+                        <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="I3dispo-red"> CAT I: Provider Now</label></div>
+                        <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+                </div>
+                </div>
+        <div class="Qbox" id="I5-1box">
+        <div class="Q">
+                <div class="Qwrap" id="I5-1"><label for="I5-1">2. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="I5-1-LI-1">1st pap over 21 y/o</li></label>
+                                <label><li class="Q-LI" id="I5-1-LI-2">21-29 y/o pap/3 yrs</li></label>
+                                <label><li class="Q-LI" id="I5-1-LI-3">30+ y/o pap/3 yrs or pap and HPV/5 yrs if tests are negative</li></label>
+                                <label><li class="Q-LI" id="I5-1-LI-4">Additional screening: HPV vaccine and G/C screening</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="I5-1-toggle"><input type="checkbox" class="check" id="I5-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="I5-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="I5dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="I5dispo-RTD"> Schedule appointment</label></div>
+                <div class="justbox"><div class="just JRTD JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<div class="ADTsheet" id="I-6">
+        <div class="Qbox" id="I6-redbox">
+                <div class="Q">
+                        <div class="Qwrap" id="I6-red"><label for="I6-red">**Check urine hCG**<br><br>1. Do any of the following apply?</label>
+                                <ul class="Q-UL">
+                                        <label><li class="Q-LI" id="I6-1-LI-1">Pregnant</li></label>
+                                        <label><li class="Q-LI" id="I6-1-LI-2">Medication side-effects</li></label>
+                                        <label><li class="Q-LI" id="I6-1-LI-3">H/O recent unprotected sex</li></label>
+                                </ul>
+                        </div>
+                        <div class="A">
+                                <div id="btnwrap">
+                                <label class="ios-toggle" id="I6-red-toggle"><input type="checkbox" class="check" id="I6-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                                </div>
+                                <div class="label" id="I6-RED-btnlabel">NO</div>
+                        </div>
+                </div>
+                <div class="dispobox" id="I6dispo-red">
+                        <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="I3dispo-red"> CAT I: Provider Now</label></div>
+                        <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+                </div>
+                </div>
+        <div class="Qbox" id="I6-1box">
+        <div class="Q">
+                <div class="Qwrap" id="I6-1"><label for="I6-1">2. Do any of the following apply</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="I6-1-LI-1">Discuss effectiveness of each type of contraceptive</li></label>
+                                <label><li class="Q-LI" id="I6-1-LI-2">Discuss contraceptive preferences</li></label>
+                                <label><li class="Q-LI" id="I6-1-LI-3">Discuss additional benefits</li></label>
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="I6-1-toggle"><input type="checkbox" class="check" id="I6-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="I6-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="I6dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="I6dispo-RTD"> Schedule appointment or referral to gynecology</label></div>
+                <!-- <div class="justboxACT"><div class="just JRTD JPROT"></div></div> -->
+                <!-- <div class="justboxAM"><div class="just JRTD JAM"><label for="R">Activity Modification</label></div></div> -->
+                <div class="justbox"><div class="just JRTD JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<!-- K1 -->
+<div class="ADTsheet" id="K-1">
+        <div class="Qbox" id="K1-redbox">
+        <div class="Q">
+                <div class="Qwrap" id="K1-red"><label for="K1-red">Do any of the following apply?</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="K1-1-LI-1">Patient appears confused, delirious, or unresponsive</li></label>
+                                <label><li class="Q-LI" id="K1-1-LI-2">Dry skin</li></label>
+                                <label><li class="Q-LI" id="K1-1-LI-3">Temperature > 103&#176 F</li></label>
+
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="K1-red-toggle"><input type="checkbox" class="check" id="K1-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="K1-RED-btnlabel">NO</div>
+                </div>
+        </div>
+        <div class="dispobox" id="K1dispo-red">
+                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="K1dispo-red"> CAT I: Provider Now</label></div>
+                <div class="justboxACT"><div class="just JR ACT1"></div></div>
+                <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="K1-1box">
+        <div class="Q">
+                <div class="Qwrap" id="K1-1"><label for="K1-1">Do any of the following apply?</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="K1-2-LI-1">Patient is sweating profusely</li></label>
+                                <label><li class="Q-LI" id="K1-2-LI-2">Headache, weakness, dizziness, or nausea</li></label>
+                                <label><li class="Q-LI" id="K1-2-LI-3">painful cramps of extremities and/or abdominal muscles with normal body temperature is normal</li></label>
+
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="K1-1-toggle"><input type="checkbox" class="check" id="K1-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="K1-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="K1dispo-2">
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="K1dispo-2"> CAT II: AEM</label></div>
+                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        <div class="dispobox" id="K1dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="K1dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
+                <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                <div class="justboxAM"><div class="just JRTD JAM"><label for="R">Activity Modification</label></div></div>
+                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<div class="ADTsheet" id="K-2">
+        <div class="Qbox" id="K2-redbox">
+        <div class="Q">
+                <div class="Qwrap" id="K2-red"><label for="K2-red">Do any of the following apply?</label>
+                        <ul class="Q-UL">
+                                <label><li class="Q-LI" id="K2-1-LI-1">Patient appears confused, delirious, or unresponsive</li></label>
+                                <label><li class="Q-LI" id="K2-1-LI-2">Dry skin</li></label>
+                                <label><li class="Q-LI" id="K2-1-LI-3">Temperature > 103&#176 F</li></label>
+
+                        </ul>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="K2-red-toggle"><input type="checkbox" class="check" id="K2-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="K2-RED-btnlabel">NO</div>
+                </div>
+        </div>
+        <div class="dispobox" id="K2dispo-red">
+                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="K2dispo-red"> CAT I: Provider Now</label></div>
+                <div class="justboxACT"><div class="just JR ACT1"></div></div>
+                <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="Qbox" id="K2-1box">
+                <div class="Q">
+                        <div class="Qwrap" id="K2-1"><label for="K2-1">Do any of the following apply?</label>
+                                <ul class="Q-UL">
+                                        <label><li class="Q-LI" id="K2-2-LI-1">H/O psych meds or narcotics</li></label>
+                                        <label><li class="Q-LI" id="K2-2-LI-2">H/O alcohol abuse</li></label>
+                                        <label><li class="Q-LI" id="K2-2-LI-3">Severe Pain</li></label>
+        
+                                </ul>
+                        </div>
+                        <div class="A">
+                                <div id="btnwrap">
+                                <label class="ios-toggle" id="K2-1-toggle"><input type="checkbox" class="check" id="K2-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                                </div>
+                                <div class="label" id="K2-1-btnlabel">NO</div>
+                        </div>    
+                </div>
+                <div class="dispobox" id="K2dispo-2">
+                        <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="K2dispo-2"> CAT II: AEM</label></div>
+                        <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
+                </div>
+                </div>
+        <div class="Qbox" id="K2-2box">
+        <div class="Q">
+                <div class="Qwrap" id="K2-2"><label for="K2-2">Is immersion foot present?</label>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="K2-2-toggle"><input type="checkbox" class="check" id="K2-2-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="K2-2-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="K2dispo-RETEST">
+                <div class="dispo DRETEST"><i class='bx bx-info-circle' onclick="explain()"></i><label for="G2dispo-2">Screen as K-3 Immersion Foot</label></div>
+                <div class="justbox"><div class="just JRETEST"><label for="R">Decision Making</label></div></div>
+                
+        </div>
+        <div class="dispobox" id="K2dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="K2dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
+                <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                <div class="justboxAM"><div class="just JRTD JAM"><label for="R">Activity Modification</label></div></div>
+                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<!--Anchor: Before M -->
 
 
-
+<div class="ADTsheet" id="M-1">
+        <div class="Qbox" id="M1-redbox">
+                <div class="Q">
+                        <div class="Qwrap" id="M1-red"><label for="M1-red">**Rescreen algorithm for complaint**<br><br>1. Do any of the following apply?</label>
+                                <ul class="Q-UL">
+                                        <label><li class="Q-LI" id="M1-1-LI-1">Worsening on treatment</li></label>
+                                        <label><li class="Q-LI" id="M1-1-LI-2">Previously saw provider or AEM</li></label>
+                                </ul>
+                        </div>
+                        <div class="A">
+                                <div id="btnwrap">
+                                <label class="ios-toggle" id="M1-red-toggle"><input type="checkbox" class="check" id="M1-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                                </div>
+                                <div class="label" id="M1-RED-btnlabel">NO</div>
+                        </div>
+                </div>
+                <div class="dispobox" id="M1dispo-red">
+                        <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="I3dispo-red"> CAT I: Provider Now</label></div>
+                        <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+                </div>
+                </div>
+        <div class="Qbox" id="M1-1box">
+        <div class="Q">
+                <div class="Qwrap" id="M1-1"><label for="M1-1">2. Was screened as self care or AEM</label>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="M1-1-toggle"><input type="checkbox" class="check" id="M1-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="M1-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="M1dispo-2">
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="M1dispo-2"> CAT II: AEM</label></div>
+                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<div class="ADTsheet" id="M-2">
+        <div class="Qbox" id="M2-redbox">
+                <div class="Q">
+                        <div class="Qwrap" id="M2-red"><label for="M2-red">**Rescreen if acutely ill**<br><br>1. Do any of the following apply?</label>
+                                <ul class="Q-UL">
+                                        <label><li class="Q-LI" id="M2-1-LI-1">Screening dispositioned as provider now</li></label>
+                                        <label><li class="Q-LI" id="M2-1-LI-2">Condition worsening</li></label>
+                                        <label><li class="Q-LI" id="M2-1-LI-3">Not improving</li></label>
+                                </ul>
+                        </div>
+                        <div class="A">
+                                <div id="btnwrap">
+                                <label class="ios-toggle" id="M2-red-toggle"><input type="checkbox" class="check" id="M2-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                                </div>
+                                <div class="label" id="M2-RED-btnlabel">NO</div>
+                        </div>
+                </div>
+                <div class="dispobox" id="M2dispo-red">
+                        <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="I3dispo-red"> CAT I: Provider Now</label></div>
+                        <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
+                </div>
+                </div>
+        <div class="Qbox" id="M2-1box">
+        <div class="Q">
+                <div class="Qwrap" id="M2-1"><label for="M2-1">2. Previously seen by provider or specialty clinic requesting Soldier to follow-up?</label>
+                </div>
+                <div class="A">
+                        <div id="btnwrap">
+                        <label class="ios-toggle" id="M2-1-toggle"><input type="checkbox" class="check" id="M2-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                        </div>
+                        <div class="label" id="M2-1-btnlabel">NO</div>
+                </div>    
+        </div>
+        <div class="dispobox" id="M2dispo-RTD">
+                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="M2dispo-RTD"> Schedule appointment</label></div>
+                <div class="justbox"><div class="just JRTD JDP1"><label for="R">Decision Making</label></div></div>
+        </div>
+        </div>
+        <div class="green-btn" id="green-btn" onclick="c3it()"><div class="x" id="green-just-btn"><i data-feather="check"></i></div></div>
+</div>
+<!--Anchor: End of M -->
 
 
 
@@ -1837,174 +2673,310 @@
 <div class="complaint-box closed">
             <div class="category-box selected" id="homecatbox">
             <ul id="items">
-                <li class="itembtn" id="btnA"><a href="#">A. EAR, NOSE, AND THROAT</a></li>
-                <li class="itembtn" id="btnB"><a href="#">B. MUSCULOSKELETAL</a></li>
-                <li class="itembtn" id="btnC"><a href="#">C. GASTROINTESTINAL (GI)</a></li>
-                <li class="itembtn" id="btnD"><a href="#">D. CARDIORESPIRATORY</a></li>
-                <li class="itembtn" id="btnE"><a href="#">E. GENITOURINARY (GU)</a></li>
-                <li class="itembtn" id="btnF"><a href="#">F. NEUROPSYCHIATRIC</a></li>
-                <li class="itembtn" id="btnG"><a href="#">G. CONSTITUTIONAL</a></li>
-                <li class="itembtn" id="btnH"><a href="#">H. EYE</a></li>
-                <li class="itembtn" id="btnI"><a href="#">I. GYNECOLOGICAL</a></li>
-                <li class="itembtn" id="btnJ"><a href="#">J. DERMATOLOGICAL</a></li>
-                <li class="itembtn" id="btnK"><a href="#">K. ENVIRONMENTAL</a></li>
-                <li class="itembtn" id="btnL"><a href="#">L. MISCELLANEOUS</a></li>
-                <li class="itembtn" id="btnM"><a href="#">M. MISCELLANEOUS RETURN</a></li>
+                <li>
+                                        
+                        <div class="itembtn" id="btnA"><div class="subtext-border"></div><div class="texticon">A. </div><div class="text-text">EAR, NOSE, AND THROAT</div></div>
+                </li>
+                <li>
+                                
+                        <div class="itembtn" id="btnB"><div class="subtext-border"></div><div class="texticon">B. </div><div class="text-text">MUSCULOSKELETAL</div></div>
+                </li>
+                <li>
+                                
+                        <div class="itembtn" id="btnC"><div class="subtext-border"></div><div class="texticon">C. </div><div class="text-text">GASTROINTESTINAL (GI)</div></div>
+                </li>
+                <li>
+                                
+                        <div class="itembtn" id="btnD"><div class="subtext-border"></div><div class="texticon">D. </div><div class="text-text">CARDIORESPIRATORY</div></div>
+                </li>
+                <li>
+                                
+                        <div class="itembtn" id="btnE"><div class="subtext-border"></div><div class="texticon">E. </div><div class="text-text">GENITOURINARY (GU)</div></div>
+                </li>
+                <li>
+                                
+                        <div class="itembtn" id="btnF"><div class="subtext-border"></div><div class="texticon">F. </div><div class="text-text">NEUROPSYCHIATRIC</div></div>
+                </li>
+                <li>
+                                
+                        <div class="itembtn" id="btnG"><div class="subtext-border"></div><div class="texticon">G. </div><div class="text-text">CONSTITUTIONAL</div></div>
+                </li>
+                <li>
+                                
+                        <div class="itembtn" id="btnH"><div class="subtext-border"></div><div class="texticon">H. </div><div class="text-text">EYE</div></div>
+                </li>
+                <li>
+                                
+                        <div class="itembtn" id="btnI"><div class="subtext-border"></div><div class="texticon">I. </div><div class="text-text">GYNECOLOGICAL</div></div>
+                </li>
+                <li>
+                                
+                        <div class="itembtn" id="btnJ"><div class="subtext-border"></div><div class="texticon">J. </div><div class="text-text">DERMATOLOGICAL</div></div>
+                </li>
+                <li>
+                                
+                        <div class="itembtn" id="btnK"><div class="subtext-border"></div><div class="texticon">K. </div><div class="text-text">ENVIRONMENTAL</div></div>
+                </li>
+                <li>
+                                
+                        <div class="itembtn" id="btnL"><div class="subtext-border"></div><div class="texticon">L. </div><div class="text-text">MISCELLANEOUS</div></div>
+                </li>
+                <li>
+                                
+                        <div class="itembtn" id="btnM"><div class="subtext-border"></div><div class="texticon">M. </div><div class="text-text">MISCELLANEOUS RETURN</div></div>
+                </li>
             </ul>
             </div>
 
             <div class="category-box" id="subboxA">
-            <ul class="A-items" id="sub-items">
+                <ul class="A-items" id="sub-items">
+                        <li>
+                                
+                                <div class="subtexts" id="A1label"><div class="subtext-border"></div><div class="texticon">A-1</div><div class="text-text">Sore Throat/Hoarseness</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="A2label"><div class="subtext-border BGODD"></div>
+                                        <div class="texticon">A-2</div>
+                                        <div class="text-text">Ear Pain/Drainage/Trauma</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="A3label"><div class="subtext-border"></div>
+                                        <div class="texticon">A-3</div>
+                                        <div class="text-text">Cold Symptoms/Allergies/Cough</div>
+                                </div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="A4label"><div class="subtext-border BGODD"></div>
+                                        <div class="texticon">A-4</div>
+                                        <div class="text-text">Ringing in the Ears/Hearing Problems</div>
+                                </div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="A5label"><div class="subtext-border"></div>
+                                        <div class="texticon">A-5</div>
+                                        <div class="text-text">Nosebleed/Nose Trauma</div>
+                                </div>
+                        </li>
+                </ul>
+            <!-- <ul class="A-items" id="sub-items">
                 <li><a href="#" class="subtexts" id="A1label">A-1 Sore Throat/Hoarseness</a></li>
                 <li><a href="#" class="subtexts" id="A2label">A-2 Ear Pain/Drainage/Trauma</a></li>
                 <li><a href="#" class="subtexts" id="A3label">A-3 Cold Symptoms/Allergies/Cough</a></li>
                 <li><a href="#" class="subtexts" id="A4label">A-4 Ringing in the Ears/Hearing Problem</a></li>
                 <li><a href="#" class="subtexts" id="A5label">A-5 Nosebleed/Nose Trauma</a></li>
-            </ul>
+            </ul> -->
             </div>
 
             <div class="category-box" id="subboxB">
-            <ul class="B-items" id="sub-items">
-                <li><a href="#" class="subtexts" id="B1label">B-1 Back Pain</a></li>
-                <li><a href="#" class="subtexts" id="B2label">B-2 Neck Pain</a></li>
-                <li><a href="#" class="subtexts" id="B3label">B-3 Shoulder Pain</a></li>
-                <li><a href="#" class="subtexts" id="B4label">B-4 Elbow Pain</a></li>
-                <li><a href="#" class="subtexts" id="B5label">B-5 Wrist Pain</a></li>
-                <li><a href="#" class="subtexts" id="B6label">B-6 Hand Pain</a></li>
-                <li><a href="#" class="subtexts" id="B7label">B-7 Hip Pain</a></li>
-                <li><a href="#" class="subtexts" id="B8label">B-8 Knee Pain</a></li>
-                <li><a href="#" class="subtexts" id="B9label">B-9 Ankle Pain</a></li>
-                <li><a href="#" class="subtexts" id="B10label">B-10 Foot Pain</a></li>
-                <li><a href="#" class="subtexts" id="B11label">B-11 Extremity, Non-joint Pain</a></li>
-            </ul>
+                <ul class="B-items" id="sub-items">
+                        <li>
+                                
+                                <div class="subtexts" id="B1label"><div class="subtext-border"></div><div class="texticon">B-1</div>
+                                        <div class="text-text">Back Pain</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="B2label"><div class="subtext-border"></div><div class="texticon">B-2</div>
+                                        <div class="text-text">Neck Pain</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="B3label"><div class="subtext-border"></div><div class="texticon">B-3</div>
+                                        <div class="text-text">Shoulder Pain</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="B4label"><div class="subtext-border"></div><div class="texticon">B-4</div>
+                                        <div class="text-text">Elbow Pain</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="B5label"><div class="subtext-border"></div><div class="texticon">B-5</div>
+                                        <div class="text-text">Wrist Pain</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="B6label"><div class="subtext-border"></div><div class="texticon">B-6</div>
+                                        <div class="text-text">Hand Pain</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="B7label"><div class="subtext-border"></div><div class="texticon">B-7</div>
+                                        <div class="text-text"> Hip Pain</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="B8label"><div class="subtext-border"></div><div class="texticon">B-8</div>
+                                        <div class="text-text"> Knee Pain</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="B9label"><div class="subtext-border"></div><div class="texticon">B-9</div>
+                                        <div class="text-text"> Ankle Pain</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="B10label"><div class="subtext-border"></div><div class="texticon">B-10</div>
+                                        <div class="text-text"> Foot Pain</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="B11label"><div class="subtext-border"></div><div class="texticon">B-11</div>
+                                        <div class="text-text"> Extremity, Non-joint Pain</div></div>
+                        </li>
+                </ul>
             </div>
 
             <div class="category-box" id="subboxC">
-            <ul class="C-items" id="sub-items">
-                <li><a href="#" class="subtexts" id="C1label">C-1 Nausea/Vomiting </a></li>
-                <li><a href="#" class="subtexts" id="C2label">C-2 Diarrhea </a></li>
-                <li><a href="#" class="subtexts" id="C3label">C-3 Abdominal and Flank Pain</a></li>
-                <li><a href="#" class="subtexts" id="C4label">C-4 Rectal Pain/Itching/Bleeding</a></li>
-                <li><a href="#" class="subtexts" id="C5label">C-5 Constipation</a></li>
-                <li><a href="#" class="subtexts" id="C6label">C-6 Difficulty When Swallowing</a></li>
-                <li><a href="#" class="subtexts" id="C7label">C-7 Heartburn</a></li>
-            </ul>
+                <ul class="C-items" id="sub-items">
+                        <li>
+                                
+                                <div class="subtexts" id="C1label"><div class="subtext-border"></div><div class="texticon">C-1</div>
+                                        <div class="text-text">Nausea/Vomiting</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="C2label"><div class="subtext-border"></div><div class="texticon">C-2</div>
+                                        <div class="text-text">Diarrhea</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="C3label"><div class="subtext-border"></div><div class="texticon">C-3</div>
+                                        <div class="text-text">Abdominal and Flank Pain</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="C4label"><div class="subtext-border"></div><div class="texticon">C-4</div>
+                                        <div class="text-text">Rectal Pain/Itching/Bleeding</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="C5label"><div class="subtext-border"></div><div class="texticon">C-5</div>
+                                        <div class="text-text">Constipation</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="C6label"><div class="subtext-border"></div><div class="texticon">C-6</div>
+                                        <div class="text-text">Difficulty When Swallowing</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="C7label"><div class="subtext-border"></div><div class="texticon">C-7</div>
+                                        <div class="text-text">Heartburn</div></div>
+                        </li>
+                </ul>
             </div>
 
                     
             <div class="category-box" id="subboxD">
-            <ul class="D-items" id="sub-items">
-                <li><a href="#" class="subtexts" id="D1label">D-1 Shortness of Breath</a> </li>
-                <li><a href="#" class="subtexts" id="D2label">D-2 Chest Pain</a></li>
-            </ul>
+                <ul class="D-items" id="sub-items">
+                        <li>
+                                <div class="subtexts" id="D1label"><div class="subtext-border"></div><div class="texticon">D-1</div><div class="text-text">Shortness of Breath</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="D2label"><div class="subtext-border"></div><div class="texticon">D-2</div><div class="text-text">Chest Pain</div></div>
+                        </li>
+                </ul>
             </div>
 
 
             <div class="category-box" id="subboxE"> 
-            <ul class="E-items" id="sub-items">
-                <li><a href="#" class="subtexts" id="E1label">E-1 Painful/Frequent Urination</a></li>
-                <li><a href="#" class="subtexts" id="E2label">E-2 Groin/Testicular Pain or Urethral Discharge</a></li>
-                <li><a href="#" class="subtexts" id="E3label">E-3 Sexually Transmitted Infection (STI)</a></li>
-                <li><a href="#" class="subtexts" id="E4label">E-4 Problems with Voiding</a></li>
-            </ul>
+                <ul class="E-items" id="sub-items">
+                        <li>
+                                <div class="subtexts" id="E1label"><div class="subtext-border"></div><div class="texticon">E-1</div><div class="text-text">Painful/Frequent Urination</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="E2label"><div class="subtext-border"></div><div class="texticon">E-2</div><div class="text-text">Groin/Testicular Pain or Urethral Discharge</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="E3label"><div class="subtext-border"></div><div class="texticon">E-3</div><div class="text-text">Sexually Transmitted Infection (STI)</div></div>
+                        </li>
+                        <li>
+                                <div class="subtexts" id="E4label"><div class="subtext-border"></div><div class="texticon">E-4</div><div class="text-text">Problems with Voiding</div></div>
+                        </li>
+                </ul>
             </div>
 
             <div class="category-box" id="subboxF">
-            <ul class="F-items" id="sub-items">                      
-                <li><a href="#" class="subtexts" id="F1label">F-1 Dizziness/Faintness/Blackout </a></li>
-                <li><a href="#" class="subtexts" id="F2label">F-2 Headache</a></li>
-                <li><a href="#" class="subtexts" id="F3label">F-3 Numbness/Tingling/Paralysis/Weakness </a></li>
-                <li><a href="#" class="subtexts" id="F4label">F-4 Drowsiness/Confusion</a></li>
-                <li><a href="#" class="subtexts" id="F5label">F-5 Depression/Nervousness/Anxiety/Tension</a></li>
-                <li><a href="#" class="subtexts" id="F6label">F-6 Minor Traumatic Brain Injury</a></li>
-            </ul>
+                <ul class="F-items" id="sub-items">                      
+                        <li><div class="subtexts" id="F1label"><div class="subtext-border"></div><div class="texticon"> F-1 </div><div class="text-text"> Dizziness/Faintness/Blackout </div></div></li>
+                        <li><div class="subtexts" id="F2label"><div class="subtext-border"></div><div class="texticon"> F-2 </div><div class="text-text"> Headache</div></div></li>
+                        <li><div class="subtexts" id="F3label"><div class="subtext-border"></div><div class="texticon"> F-3 </div><div class="text-text"> Numbness/Tingling/Paralysis/Weakness </div></div></li>
+                        <li><div class="subtexts" id="F4label"><div class="subtext-border"></div><div class="texticon"> F-4 </div><div class="text-text"> Drowsiness/Confusion</div></div></li>
+                        <li><div class="subtexts" id="F5label"><div class="subtext-border"></div><div class="texticon"> F-5 </div><div class="text-text"> Depression /Nervousness/anxiety/Tension</div></div></li>
+                        <li><div class="subtexts" id="F6label"><div class="subtext-border"></div><div class="texticon"> F-6 </div><div class="text-text"> Minor Traumatic Brain Injury</div></div></li>
+                </ul>
             </div>
 
             <div class="category-box" id="subboxG">
-            <ul class="G-items" id="sub-items">                    
-                <li><a href="#" class="subtexts" id="G1label">G-1 Fatigue </a></li>
-                <li><a href="#" class="subtexts" id="G2label">G-2 Fever/Chills</a></li>
-            </ul>
+                <ul class="G-items" id="sub-items">                    
+                        <li><div class="subtexts" id="G1label"><div class="subtext-border"></div><div class="texticon"> G-1 </div><div class="text-text"> Fatigue </div></div></li>
+                        <li><div class="subtexts" id="G2label"><div class="subtext-border"></div><div class="texticon"> G-2 </div><div class="text-text"> Fever/Chills</div></div></li>
+                </ul>
             </div>
 
             <div class="category-box" id="subboxH">
-            <ul class="H-items" id="sub-items">                    
-                <li><a href="#" class="subtexts" id="H1label">H-1 Eye Pain/Redness/Discharge/Itching/Injury</a></li>
-                <li><a href="#" class="subtexts" id="H2label">H-2 Eyelid Problem</a></li>
-                <li><a href="#" class="subtexts" id="H3label">H-3 Decreased Vision, Seeing Spots, Request for Glasses</a></li>
-                <li><a href="#" class="subtexts" id="H4label">H-4 Seeing Double (Diplopia)</a></li>
-            </ul>
+                <ul class="H-items" id="sub-items">                    
+                        <li><div class="subtexts" id="H1label"><div class="subtext-border"></div><div class="texticon"> H-1 </div><div class="text-text"> Eye Pain/Redness/Discharge/Itching/Injury</div></div></li>
+                        <li><div class="subtexts" id="H2label"><div class="subtext-border"></div><div class="texticon"> H-2 </div><div class="text-text"> Eyelid Problem</div></div></li>
+                        <li><div class="subtexts" id="H3label"><div class="subtext-border"></div><div class="texticon"> H-3 </div><div class="text-text"> Decreased Vision, Seeing Spots, Request for Glasses</div></div></li>
+                        <li><div class="subtexts" id="H4label"><div class="subtext-border"></div><div class="texticon"> H-4 </div><div class="text-text"> Seeing Double (Diplopia)</div></div></li>
+                </ul>
             </div>
             
                 
             <div class="category-box" id="subboxI">
-            <ul class="I-items" id="sub-items">                    
-                <li><a href="#" class="subtexts" id="I1label">I-1 Breast Problems </a></li>
-                <li><a href="#" class="subtexts" id="I2label">I-2 Suspects Pregnancy</a></li>
-                <li><a href="#" class="subtexts" id="I3label">I-3 Menstrual Problems, Vaginal Bleeding</a></li>
-                <li><a href="#" class="subtexts" id="I4label">I-4 Vaginal Discharge, Itching, Irritation, or Pain</a></li>
-                <li><a href="#" class="subtexts" id="I5label">I-5 Request for PAP or Routine Pelvic Examination </a></li>
-                <li><a href="#" class="subtexts" id="I6label">I-6 Request for Information on Contraception</a></li>
-            </ul>
+                <ul class="I-items" id="sub-items">                    
+                        <li><div class="subtexts" id="I1label"><div class="subtext-border"></div><div class="texticon"> I-1 </div><div class="text-text"> Breast Problems </div></div></li>
+                        <li><div class="subtexts" id="I2label"><div class="subtext-border"></div><div class="texticon"> I-2 </div><div class="text-text"> Suspects Pregnancy</div></div></li>
+                        <li><div class="subtexts" id="I3label"><div class="subtext-border"></div><div class="texticon"> I-3 </div><div class="text-text"> Menstrual Problems, Vaginal Bleeding</div></div></li>
+                        <li><div class="subtexts" id="I4label"><div class="subtext-border"></div><div class="texticon"> I-4 </div><div class="text-text"> Vaginal Discharge, Itching, Irritation, or Pain</div></div></li>
+                        <li><div class="subtexts" id="I5label"><div class="subtext-border"></div><div class="texticon"> I-5 </div><div class="text-text"> Request for PAP or Routine Pelvic Examination </div></div></li>
+                        <li><div class="subtexts" id="I6label"><div class="subtext-border"></div><div class="texticon"> I-6 </div><div class="text-text"> Request for Information on Contraception</div></div></li>
+                </ul>
             </div>
                 
             <div class="category-box" id="subboxJ">
-            <ul class="J-items" id="sub-items">                    
-                <li><a href="#" class="subtexts" id="J1label">J-1 Unknown Cause of Skin Disorder</a></li>
-                <li><a href="#" class="subtexts" id="J2label">J-2 Acne</a></li>
-                <li><a href="#" class="subtexts" id="J3label">J-3 Shaving-Pseudofolliculitis Barbae (Ingrown Hairs)</a></li>
-                <li><a href="#" class="subtexts" id="J4label">J-4 Dandruff (Scaling of the Scalp)</a></li>
-                <li><a href="#" class="subtexts" id="J5label">J-5 Hair Loss</a></li>
-                <li><a href="#" class="subtexts" id="J6label">J-6 Athlete’s Foot (Tinea Pedis)</a></li>
-                <li><a href="#" class="subtexts" id="J7label">J-7 Jock Itch (Tinea Cruris)</a></li>
-                <li><a href="#" class="subtexts" id="J8label">J-8 Scaling, Depigmented Spots (Tinea Versicolor)</a></li>
-                <li><a href="#" class="subtexts" id="J9label">J-9 Boils</a></li>
-                <li><a href="#" class="subtexts" id="J10label">J-10 Fever Blisters (Cold Sores)</a></li>
-                <li><a href="#" class="subtexts" id="J11label">J-11 Skin Abrasion/Laceration</a></li>
-                <li><a href="#" class="subtexts" id="J12label">J-12 Suture Removal</a></li>
-                <li><a href="#" class="subtexts" id="J13label">J-13 Drug Rash, Contact Dermatitis</a></li>
-                <li><a href="#" class="subtexts" id="J14label">J-14 Burns/Sunburn</a></li>
-                <li><a href="#" class="subtexts" id="J15label">J-15 Friction Blisters on Feet</a></li>
-                <li><a href="#" class="subtexts" id="J16label">J-16 Corns on Feet</a></li>
-                <li><a href="#" class="subtexts" id="J17label">J-17 Cutaneous (Plantar) Warts</a></li>
-                <li><a href="#" class="subtexts" id="J18label">J-18 Ingrown Toenail</a></li>
-            </ul>
+                <ul class="J-items" id="sub-items">                    
+                        <li><div class="subtexts" id="J1label"><div class="subtext-border"></div><div class="texticon"> J-1 </div><div class="text-text"> Unknown Cause of Skin Disorder</div></div></li>
+                        <li><div class="subtexts" id="J2label"><div class="subtext-border"></div><div class="texticon"> J-2 </div><div class="text-text"> Acne</div></div></li>
+                        <li><div class="subtexts" id="J3label"><div class="subtext-border"></div><div class="texticon"> J-3 </div><div class="text-text"> Shaving-Pseudofolliculitis Barbae (Ingrown Hairs)</div></div></li>
+                        <li><div class="subtexts" id="J4label"><div class="subtext-border"></div><div class="texticon"> J-4 </div><div class="text-text"> Dandruff (Scaling of the Scalp)</div></div></li>
+                        <li><div class="subtexts" id="J5label"><div class="subtext-border"></div><div class="texticon"> J-5 </div><div class="text-text"> Hair Loss</div></div></li>
+                        <li><div class="subtexts" id="J6label"><div class="subtext-border"></div><div class="texticon"> J-6 </div><div class="text-text"> Athlete’s Foot (Tinea Pedis)</div></div></li>
+                        <li><div class="subtexts" id="J7label"><div class="subtext-border"></div><div class="texticon"> J-7 </div><div class="text-text"> Jock Itch (Tinea Cruris)</div></div></li>
+                        <li><div class="subtexts" id="J8label"><div class="subtext-border"></div><div class="texticon"> J-8 </div><div class="text-text"> Scaling, Depigmented Spots (Tinea Versicolor)</div></div></li>
+                        <li><div class="subtexts" id="J9label"><div class="subtext-border"></div><div class="texticon"> J-9 </div><div class="text-text"> Boils</div></div></li>
+                        <li><div class="subtexts" id="J10label"><div class="subtext-border"></div><div class="texticon"> J-10 </div><div class="text-text"> Fever Blisters (Cold Sores)</div></div></li>
+                        <li><div class="subtexts" id="J11label"><div class="subtext-border"></div><div class="texticon"> J-11 </div><div class="text-text"> Skin Abrasion/Laceration</div></div></li>
+                        <li><div class="subtexts" id="J12label"><div class="subtext-border"></div><div class="texticon"> J-12 </div><div class="text-text"> Suture Removal</div></div></li>
+                        <li><div class="subtexts" id="J13label"><div class="subtext-border"></div><div class="texticon"> J-13 </div><div class="text-text"> Drug Rash, Contact Dermatitis</div></div></li>
+                        <li><div class="subtexts" id="J14label"><div class="subtext-border"></div><div class="texticon"> J-14 </div><div class="text-text"> Burns/Sunburn</div></div></li>
+                        <li><div class="subtexts" id="J15label"><div class="subtext-border"></div><div class="texticon"> J-15 </div><div class="text-text"> Friction Blisters on Feet</div></div></li>
+                        <li><div class="subtexts" id="J16label"><div class="subtext-border"></div><div class="texticon"> J-16 </div><div class="text-text"> Corns on Feet</div></div></li>
+                        <li><div class="subtexts" id="J17label"><div class="subtext-border"></div><div class="texticon"> J-17 </div><div class="text-text"> Cutaneous (Plantar) Warts</div></div></li>
+                        <li><div class="subtexts" id="J18label"><div class="subtext-border"></div><div class="texticon"> J-18 </div><div class="text-text"> Ingrown Toenail</div></div></li>
+                </ul>
             </div>
                     
             <div class="category-box" id="subboxK">
-            <ul class="K-items" >                    
-                <li><a href="#" class="subtexts" id="K1label">K-1 Exertional Heat Illness/ Hyperthermia</a></li>
-                <li><a href="#" class="subtexts" id="K2label">K-2 Hypothermia</a></li>
-                <li><a href="#" class="subtexts" id="K3label">K-3 Immersion Foot</a></li>
-                <li><a href="#" class="subtexts" id="K4label">K-4 Chapped Skin/Windburn</a></li>
-                <li><a href="#" class="subtexts" id="K5label">K-5 Frostbite</a></li>
-                <li><a href="#" class="subtexts" id="K6label">K-6 Crabs/Lice (Pediculosis) </a></li>
-                <li><a href="#" class="subtexts" id="K7label">K-7 Insect Bites (Not Crabs/Lice)</a></li>
-            </ul>
+                <ul class="K-items" >                    
+                        <li><div class="subtexts" id="K1label"><div class="subtext-border"></div><div class="texticon"> K-1 </div><div class="text-text"> Exertional Heat Illness/ Hyperthermia</div></div></li>
+                        <li><div class="subtexts" id="K2label"><div class="subtext-border"></div><div class="texticon"> K-2 </div><div class="text-text"> Hypothermia</div></div></li>
+                        <li><div class="subtexts" id="K3label"><div class="subtext-border"></div><div class="texticon"> K-3 </div><div class="text-text"> Immersion Foot</div></div></li>
+                        <li><div class="subtexts" id="K4label"><div class="subtext-border"></div><div class="texticon"> K-4 </div><div class="text-text"> Chapped Skin/Windburn</div></div></li>
+                        <li><div class="subtexts" id="K5label"><div class="subtext-border"></div><div class="texticon"> K-5 </div><div class="text-text"> Frostbite</div></div></li>
+                        <li><div class="subtexts" id="K6label"><div class="subtext-border"></div><div class="texticon"> K-6 </div><div class="text-text"> Crabs/Lice (Pediculosis) </div></div></li>
+                        <li><div class="subtexts" id="K7label"><div class="subtext-border"></div><div class="texticon"> K-7 </div><div class="text-text"> Insect Bites (Not Crabs/Lice)</div></div></li>
+                </ul>
             </div>
 
             <div class="category-box" id="subboxL">
-            <ul class="L-items"  >                    
-                <li><a href="#" class="subtexts" id="L1label">L-1 Exposed to Hepatitis or HIV</a></li>
-                <li><a href="#" class="subtexts" id="L2label">L-2 Dental Problems</a></li>
-                <li><a href="#" class="subtexts" id="L3label">L-3 Sores in the Mouth</a></li>
-                <li><a href="#" class="subtexts" id="L4label">L-4 Prescription Refill</a></li>
-                <li><a href="#" class="subtexts" id="L5label">L-5 Requests a Vasectomy</a></li>
-                <li><a href="#" class="subtexts" id="L6label">L-6 Needs an Immunization</a></li>
-                <li><a href="#" class="subtexts" id="L7label">L-7 Lymph Node Enlargement</a></li>
-                <li><a href="#" class="subtexts" id="L8label">L-8 Blood Pressure Check</a></li>
-                <li><a href="#" class="subtexts" id="L9label">L-9 Medical Screening for Overseas PCS</a></li>
-                <li><a href="#" class="subtexts" id="L10label">L-10 Weight Reduction</a></li>
-                <li><a href="#" class="subtexts" id="L11label">L-11 Complaint Not on the List</a></li>
-                <li><a href="#" class="subtexts" id="L12label">L-12 Request for Nonprescription or Traveling Medication</a></li>
-            </ul>
+                <ul class="L-items"  >                    
+                        <li><div class="subtexts" id="L1label"><div class="subtext-border"></div><div class="texticon"> L-1 </div><div class="text-text"> Exposed to Hepatitis or HIV</div></div></li>
+                        <li><div class="subtexts" id="L2label"><div class="subtext-border"></div><div class="texticon"> L-2 </div><div class="text-text"> Dental Problems</div></div></li>
+                        <li><div class="subtexts" id="L3label"><div class="subtext-border"></div><div class="texticon"> L-3 </div><div class="text-text"> Sores in the Mouth</div></div></li>
+                        <li><div class="subtexts" id="L4label"><div class="subtext-border"></div><div class="texticon"> L-4 </div><div class="text-text"> Prescription Refill</div></div></li>
+                        <li><div class="subtexts" id="L5label"><div class="subtext-border"></div><div class="texticon"> L-5 </div><div class="text-text"> Requests a Vasectomy</div></div></li>
+                        <li><div class="subtexts" id="L6label"><div class="subtext-border"></div><div class="texticon"> L-6 </div><div class="text-text"> Needs an Immunization</div></div></li>
+                        <li><div class="subtexts" id="L7label"><div class="subtext-border"></div><div class="texticon"> L-7 </div><div class="text-text"> Lymph Node Enlargement</div></div></li>
+                        <li><div class="subtexts" id="L8label"><div class="subtext-border"></div><div class="texticon"> L-8 </div><div class="text-text"> Blood Pressure Check</div></div></li>
+                        <li><div class="subtexts" id="L9label"><div class="subtext-border"></div><div class="texticon"> L-9 </div><div class="text-text"> Medical Screening for Overseas PCS</div></div></li>
+                        <li><div class="subtexts" id="L10label"><div class="subtext-border"></div><div class="texticon"> L-10 </div><div class="text-text"> Weight Reduction</div></div></li>
+                        <li><div class="subtexts" id="L11label"><div class="subtext-border"></div><div class="texticon"> L-11 </div><div class="text-text"> Complaint Not on the List</div></div></li>
+                        <li><div class="subtexts" id="L12label"><div class="subtext-border"></div><div class="texticon"> L-12 </div><div class="text-text"> Request for Nonprescription or Traveling Medication</div></div></li>
+                </ul>
             </div>
 
             <div class="category-box" id="subboxM">
-            <ul class="M-items" id="sub-items">                    
-                <li><a href="#" class="subtexts" id="M1label">M-1 No Signs of Improvement</a></li>
-                <li><a href="#" class="subtexts" id="M2label">M-2 Return Requested by Provider</a></li>
-            </ul>
+                <ul class="M-items" id="sub-items">                    
+                        <li><div class="subtexts" id="M1label"><div class="subtext-border"></div><div class="texticon">M-1 </div><div class="text-text"> No Signs of Improvement</div></div></li>
+                        <li><div class="subtexts" id="M2label"><div class="subtext-border"></div><div class="texticon">M-2 </div><div class="text-text"> Return Requested by Provider</div></div></li>
+                </ul>
             </div>
 </div>
 </div>
@@ -2024,7 +2996,7 @@
                 <div class="bot-menu-bottom-row"></div>
        </div>
 
-</div>    
+</div>  
 <script> feather.replace()
 </script>
 <script src="testing.js"></script>
