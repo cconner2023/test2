@@ -7,6 +7,9 @@
   scroll-behavior: smooth;
   --BG2: #C6AC8F ;
   --BG1:#22333B ;
+  --BG2a: rgb(198, 172, 143,0.5);
+  --BG2b: rgb(34, 51, 59);
+
 }
 
 *::-webkit-scrollbar{
@@ -16,6 +19,7 @@
 
 html{
   -webkit-tap-highlight-color: transparent;
+  --BGorigin:rgba(226, 223, 223, 0.5);
 }
 
 body{
@@ -339,8 +343,10 @@ body{
 
 .complaint-box{
   font-size: medium;
-  height: 90%;
-  width: 95%;
+  height: 100%;
+  padding-left: 6px;
+  padding-top: 2px;
+  width: 100%;
   top: 3.5rem;
   display: block;
   position: relative;
@@ -554,7 +560,7 @@ body{
   height: 0;
 }
 .ios-toggle input:checked + span.slider {
-  background-color: rgb(177, 91, 91, 0.5)
+  background-color: var(--BG2a)
 }
 .ios-toggle input:checked + span.slider:before {
   transform: translateX(190%);
@@ -667,7 +673,8 @@ justify-content: space-around;
   margin: auto;
   transform: scaleY(1) scaleX(1);
   transition: all 0.3s ease;
-  padding: 20px;
+  padding-top: 10px;
+  padding-bottom: 10px;
   
 }
 .dispo{
@@ -744,11 +751,13 @@ border: 3px solid rgb(65, 162, 194, 0.6);
   position: relative;
   visibility: visible;
   height: auto;
-  /* width: 98%; */
+  width: 100%;
   margin: auto;
   transform: scaleY(1) scaleX(1);
   transition: all 0.3s ease;
-  padding: 20px;
+  padding-top: 10px;
+  padding-left: 0;
+  padding-right: 0;
 
 }
 .justboxACT{
@@ -759,7 +768,7 @@ width: 100%;
 margin: auto;
 transform: scaleY(1) scaleX(1);
 transition: all 0.3s ease;
-padding: 6px;
+padding-top: 6px;
 }
 .justboxAM{
 position: relative;
@@ -769,7 +778,7 @@ width: 100%;
 margin: auto;
 transform: scaleY(1) scaleX(1);
 transition: all 0.3s ease;
-padding: 6px;
+padding-top: 6px;
 }
 .just{
   padding: 8px;
@@ -828,9 +837,8 @@ border: 3px solid rgb(65, 162, 194, 0.6);
 .green-btn{
   position: relative;
   display: flex;
-  height: 5rem;
-  width: 5rem;
-  padding: 20px;
+  height: 30px;
+  width: 100px;
   opacity: 1;
   transition: opacity 0.3s ease;
 }
@@ -842,14 +850,13 @@ border: 3px solid rgb(65, 162, 194, 0.6);
 }
 
 #green-just-btn{
-  width: 4rem;
+  width: 200px;
+  height: 30px;
   display: flex;
-  justify-content: center;
   align-items: center;
-  border-radius: 20px;
-  background-color: rgb(102, 192, 102, 0.4);
-  border: 3px solid rgb(102, 192, 102, 0.7);
-  box-shadow: 0 4px 8px 0 rgba( 31, 38, 135, 0.5 );
+  border-radius: 10px;
+  background-color: var(--BG2a);
+  border: 3px solid var(--BG2a);
   backdrop-filter: blur( 6.5px );
 }
 #green-just-btn i{
@@ -1043,4 +1050,46 @@ li:nth-of-type(even) .subtext-border{
   align-items: center;
   padding-left: 10px;
   line-height: 1;
+}
+.toastwrapper{
+  height: 1px;
+  width: 100%;
+  bottom: 0rem;
+  position: absolute;
+  display: flex;
+  z-index: 999;
+  overflow: hidden;
+  /* transform: translateY(300%); */
+  transition: All 0.2s ease;
+}
+.toastwrapper.selected{
+  height: 300px;
+  width: 100%;
+  bottom: 8rem;
+  position: absolute;
+  display: flex;
+  z-index: 999;
+  overflow: hidden;
+  /* transform: translateY(0%); */
+  transition: All 0.2s ease;
+}
+
+.toastbox{
+  height: 100%;
+  width: 100%;
+  position: absolute;
+  z-index: 999;
+  background-color: rgba( 255, 255, 255, 0.8 );
+  border-top-right-radius: 20px;
+  border-top-left-radius: 20px;
+  backdrop-filter: blur( 6.5px );
+}
+.toastboxborder{
+  height: 1rem;
+  width: 100%;
+  top: 0;
+  position: relative;
+  z-index: 999;
+  background-color: var(--BG1);
+  backdrop-filter: blur( 6.5px );
 }
