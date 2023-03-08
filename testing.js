@@ -724,24 +724,807 @@ const
   F5MEDCOM = [],
   F5STP1 = [],
   
-    // B4ACT1 = [],
-  // B4ACT2 = [],
-  // B4ACT3 = [],
-  // B4DP1 = [],
-  // B4DP2 = [],
-  // B4DP3 = [],
-  // B4DP4 = [],
-  // B4DPRE = [],
-  // B4DPRED = [],
-  // B4PRO = [],
-  // B4LIMITATIONS = [],
-  // B4GEN = [],
-  // B4MEDCOM = [],
-  // B4STP1 = [],
+  F6ACT1 = [],
+  F6ACT2 = [],
+  F6ACT3 = [],
+  F6DP1 = [],
+  F6DP2 = [],
+  F6DP3 = [],
+  F6DP4 = [],
+  F6DPRE = [],
+  F6DPRED = [],
+  F6PRO = [],
+  F6LIMITATIONS = [],
+  F6GEN = [],
+  F6MEDCOM = [],
+  F6STP1 = [],
+
+  G1ACT1 = [],
+  G1ACT2 = [],
+  G1ACT3 = [],
+  G1DP1 = [],
+  G1DP2 = [],
+  G1DP3 = [],
+  G1DP4 = [],
+  G1DPRE = [],
+  G1DPRED = [],
+  G1PRO = [],
+  G1LIMITATIONS = [],
+  G1GEN = [],
+  G1MEDCOM = [],
+  G1STP1 = [],
+
+  G2ACT1 = [],
+  G2ACT2 = [],
+  G2ACT3 = [],
+  G2DP1 = [],
+  G2DP2 = [],
+  G2DP3 = [],
+  G2DP4 = [],
+  G2DPRE = [],
+  G2DPRED = [],
+  G2PRO = [],
+  G2LIMITATIONS = [],
+  G2GEN = [],
+  G2MEDCOM = [],
+  G2STP1 = [],
+
+  H1ACT1 = [],
+  H1ACT2 = [],
+  H1ACT3 = [],
+  H1DP1 = [],
+  H1DP2 = [],
+  H1DP3 = [],
+  H1DP4 = [],
+  H1DPRE = [],
+  H1DPRED = [],
+  H1PRO = [],
+  H1LIMITATIONS = [],
+  H1GEN = [],
+  H1MEDCOM = [],
+  H1STP1 = [],
+
+  H2ACT1 = [],
+  H2ACT2 = [],
+  H2ACT3 = [],
+  H2DP1 = [],
+  H2DP2 = [],
+  H2DP3 = [],
+  H2DP4 = [],
+  H2DPRE = [],
+  H2DPRED = [],
+  H2PRO = [],
+  H2LIMITATIONS = [],
+  H2GEN = [],
+  H2MEDCOM = [],
+  H2STP1 = [],
+
+  H3ACT1 = [],
+  H3ACT2 = [],
+  H3ACT3 = [],
+  H3DP1 = [],
+  H3DP2 = [],
+  H3DP3 = [],
+  H3DP4 = [],
+  H3DPRE = [],
+  H3DPRED = [],
+  H3PRO = [],
+  H3LIMITATIONS = [],
+  H3GEN = [],
+  H3MEDCOM = [],
+  H3STP1 = [],
+
+  H4ACT1 = [],
+  H4ACT2 = [],
+  H4ACT3 = [],
+  H4DP1 = [],
+  H4DP2 = [],
+  H4DP3 = [],
+  H4DP4 = [],
+  H4DPRE = [],
+  H4DPRED = [],
+  H4PRO = [],
+  H4LIMITATIONS = [],
+  H4GEN = [],
+  H4MEDCOM = [],
+  H4STP1 = [],
+
+  I1ACT1 = [],
+  I1ACT2 = [],
+  I1ACT3 = [],
+  I1DP1 = [],
+  I1DP2 = [],
+  I1DP3 = [],
+  I1DP4 = [],
+  I1DPRE = [],
+  I1DPRED = [],
+  I1PRO = [],
+  I1LIMITATIONS = [],
+  I1GEN = [],
+  I1MEDCOM = [],
+  I1STP1 = [],
+
+  I2ACT1 = [],
+  I2ACT2 = [],
+  I2ACT3 = [],
+  I2DP1 = [],
+  I2DP2 = [],
+  I2DP3 = [],
+  I2DP4 = [],
+  I2DPRE = [],
+  I2DPRED = [],
+  I2PRO = [],
+  I2LIMITATIONS = [],
+  I2GEN = [],
+  I2MEDCOM = [],
+  I2STP1 = [],
+
+  I3ACT1 = [],
+  I3ACT2 = [],
+  I3ACT3 = [],
+  I3DP1 = [],
+  I3DP2 = [],
+  I3DP3 = [],
+  I3DP4 = [],
+  I3DPRE = [],
+  I3DPRED = [],
+  I3PRO = [],
+  I3LIMITATIONS = [],
+  I3GEN = [],
+  I3MEDCOM = [],
+  I3STP1 = [],
+
+  I4ACT1 = [],
+  I4ACT2 = [],
+  I4ACT3 = [],
+  I4DP1 = [],
+  I4DP2 = [],
+  I4DP3 = [],
+  I4DP4 = [],
+  I4DPRE = [],
+  I4DPRED = [],
+  I4PRO = [],
+  I4LIMITATIONS = [],
+  I4GEN = [],
+  I4MEDCOM = [],
+  I4STP1 = [],
+
+  I5ACT1 = [],
+  I5ACT2 = [],
+  I5ACT3 = [],
+  I5DP1 = [],
+  I5DP2 = [],
+  I5DP3 = [],
+  I5DP4 = [],
+  I5DPRE = [],
+  I5DPRED = [],
+  I5PRO = [],
+  I5LIMITATIONS = [],
+  I5GEN = [],
+  I5MEDCOM = [],
+  I5STP1 = [],
+
+  I6ACT1 = [],
+  I6ACT2 = [],
+  I6ACT3 = [],
+  I6DP1 = [],
+  I6DP2 = [],
+  I6DP3 = [],
+  I6DP4 = [],
+  I6DPRE = [],
+  I6DPRED = [],
+  I6PRO = [],
+  I6LIMITATIONS = [],
+  I6GEN = [],
+  I6MEDCOM = [],
+  I6STP1 = [],
+
+  J1ACT1 = [],
+  J1ACT2 = [],
+  J1ACT3 = [],
+  J1DP1 = [],
+  J1DP2 = [],
+  J1DP3 = [],
+  J1DP4 = [],
+  J1DPRE = [],
+  J1DPRED = [],
+  J1PRO = [],
+  J1LIMITATIONS = [],
+  J1GEN = [],
+  J1MEDCOM = [],
+  J1STP1 = [],
+
+  J2ACT1 = [],
+  J2ACT2 = [],
+  J2ACT3 = [],
+  J2DP1 = [],
+  J2DP2 = [],
+  J2DP3 = [],
+  J2DP4 = [],
+  J2DPRE = [],
+  J2DPRED = [],
+  J2PRO = [],
+  J2LIMITATIONS = [],
+  J2GEN = [],
+  J2MEDCOM = [],
+  J2STP1 = [],
+
+  J3ACT1 = [],
+  J3ACT2 = [],
+  J3ACT3 = [],
+  J3DP1 = [],
+  J3DP2 = [],
+  J3DP3 = [],
+  J3DP4 = [],
+  J3DPRE = [],
+  J3DPRED = [],
+  J3PRO = [],
+  J3LIMITATIONS = [],
+  J3GEN = [],
+  J3MEDCOM = [],
+  J3STP1 = [],
+
+  J4ACT1 = [],
+  J4ACT2 = [],
+  J4ACT3 = [],
+  J4DP1 = [],
+  J4DP2 = [],
+  J4DP3 = [],
+  J4DP4 = [],
+  J4DPRE = [],
+  J4DPRED = [],
+  J4PRO = [],
+  J4LIMITATIONS = [],
+  J4GEN = [],
+  J4MEDCOM = [],
+  J4STP1 = [],
+
+  J5ACT1 = [],
+  J5ACT2 = [],
+  J5ACT3 = [],
+  J5DP1 = [],
+  J5DP2 = [],
+  J5DP3 = [],
+  J5DP4 = [],
+  J5DPRE = [],
+  J5DPRED = [],
+  J5PRO = [],
+  J5LIMITATIONS = [],
+  J5GEN = [],
+  J5MEDCOM = [],
+  J5STP1 = [],
+
+  J6ACT1 = [],
+  J6ACT2 = [],
+  J6ACT3 = [],
+  J6DP1 = [],
+  J6DP2 = [],
+  J6DP3 = [],
+  J6DP4 = [],
+  J6DPRE = [],
+  J6DPRED = [],
+  J6PRO = [],
+  J6LIMITATIONS = [],
+  J6GEN = [],
+  J6MEDCOM = [],
+  J6STP1 = [],
+
+  J7ACT1 = [],
+  J7ACT2 = [],
+  J7ACT3 = [],
+  J7DP1 = [],
+  J7DP2 = [],
+  J7DP3 = [],
+  J7DP4 = [],
+  J7DPRE = [],
+  J7DPRED = [],
+  J7PRO = [],
+  J7LIMITATIONS = [],
+  J7GEN = [],
+  J7MEDCOM = [],
+  J7STP1 = [],
+
+  J8ACT1 = [],
+  J8ACT2 = [],
+  J8ACT3 = [],
+  J8DP1 = [],
+  J8DP2 = [],
+  J8DP3 = [],
+  J8DP4 = [],
+  J8DPRE = [],
+  J8DPRED = [],
+  J8PRO = [],
+  J8LIMITATIONS = [],
+  J8GEN = [],
+  J8MEDCOM = [],
+  J8STP1 = [],
+
+  J9ACT1 = [],
+  J9ACT2 = [],
+  J9ACT3 = [],
+  J9DP1 = [],
+  J9DP2 = [],
+  J9DP3 = [],
+  J9DP4 = [],
+  J9DPRE = [],
+  J9DPRED = [],
+  J9PRO = [],
+  J9LIMITATIONS = [],
+  J9GEN = [],
+  J9MEDCOM = [],
+  J9STP1 = [],
+
+  J10ACT1 = [],
+  J10ACT2 = [],
+  J10ACT3 = [],
+  J10DP1 = [],
+  J10DP2 = [],
+  J10DP3 = [],
+  J10DP4 = [],
+  J10DPRE = [],
+  J10DPRED = [],
+  J10PRO = [],
+  J10LIMITATIONS = [],
+  J10GEN = [],
+  J10MEDCOM = [],
+  J10STP1 = [],
+
+  J11ACT1 = [],
+  J11ACT2 = [],
+  J11ACT3 = [],
+  J11DP1 = [],
+  J11DP2 = [],
+  J11DP3 = [],
+  J11DP4 = [],
+  J11DPRE = [],
+  J11DPRED = [],
+  J11PRO = [],
+  J11LIMITATIONS = [],
+  J11GEN = [],
+  J11MEDCOM = [],
+  J11STP1 = [],
+
+  J12ACT1 = [],
+  J12ACT2 = [],
+  J12ACT3 = [],
+  J12DP1 = [],
+  J12DP2 = [],
+  J12DP3 = [],
+  J12DP4 = [],
+  J12DPRE = [],
+  J12DPRED = [],
+  J12PRO = [],
+  J12LIMITATIONS = [],
+  J12GEN = [],
+  J12MEDCOM = [],
+  J12STP1 = [],
+
+  J13ACT1 = [],
+  J13ACT2 = [],
+  J13ACT3 = [],
+  J13DP1 = [],
+  J13DP2 = [],
+  J13DP3 = [],
+  J13DP4 = [],
+  J13DPRE = [],
+  J13DPRED = [],
+  J13PRO = [],
+  J13LIMITATIONS = [],
+  J13GEN = [],
+  J13MEDCOM = [],
+  J13STP1 = [],
+
+  J14ACT1 = [],
+  J14ACT2 = [],
+  J14ACT3 = [],
+  J14DP1 = [],
+  J14DP2 = [],
+  J14DP3 = [],
+  J14DP4 = [],
+  J14DPRE = [],
+  J14DPRED = [],
+  J14PRO = [],
+  J14LIMITATIONS = [],
+  J14GEN = [],
+  J14MEDCOM = [],
+  J14STP1 = [],
+
+  J15ACT1 = [],
+  J15ACT2 = [],
+  J15ACT3 = [],
+  J15DP1 = [],
+  J15DP2 = [],
+  J15DP3 = [],
+  J15DP4 = [],
+  J15DPRE = [],
+  J15DPRED = [],
+  J15PRO = [],
+  J15LIMITATIONS = [],
+  J15GEN = [],
+  J15MEDCOM = [],
+  J15STP1 = [],
+
+  J16ACT1 = [],
+  J16ACT2 = [],
+  J16ACT3 = [],
+  J16DP1 = [],
+  J16DP2 = [],
+  J16DP3 = [],
+  J16DP4 = [],
+  J16DPRE = [],
+  J16DPRED = [],
+  J16PRO = [],
+  J16LIMITATIONS = [],
+  J16GEN = [],
+  J16MEDCOM = [],
+  J16STP1 = [],
+
+  J17ACT1 = [],
+  J17ACT2 = [],
+  J17ACT3 = [],
+  J17DP1 = [],
+  J17DP2 = [],
+  J17DP3 = [],
+  J17DP4 = [],
+  J17DPRE = [],
+  J17DPRED = [],
+  J17PRO = [],
+  J17LIMITATIONS = [],
+  J17GEN = [],
+  J17MEDCOM = [],
+  J17STP1 = [],
+
+  J18ACT1 = [],
+  J18ACT2 = [],
+  J18ACT3 = [],
+  J18DP1 = [],
+  J18DP2 = [],
+  J18DP3 = [],
+  J18DP4 = [],
+  J18DPRE = [],
+  J18DPRED = [],
+  J18PRO = [],
+  J18LIMITATIONS = [],
+  J18GEN = [],
+  J18MEDCOM = [],
+  J18STP1 = [],
+
+  K1ACT1 = [],
+  K1ACT2 = [],
+  K1ACT3 = [],
+  K1DP1 = [],
+  K1DP2 = [],
+  K1DP3 = [],
+  K1DP4 = [],
+  K1DPRE = [],
+  K1DPRED = [],
+  K1PRO = [],
+  K1LIMITATIONS = [],
+  K1GEN = [],
+  K1MEDCOM = [],
+  K1STP1 = [],
+
+  K2ACT1 = [],
+  K2ACT2 = [],
+  K2ACT3 = [],
+  K2DP1 = [],
+  K2DP2 = [],
+  K2DP3 = [],
+  K2DP4 = [],
+  K2DPRE = [],
+  K2DPRED = [],
+  K2PRO = [],
+  K2LIMITATIONS = [],
+  K2GEN = [],
+  K2MEDCOM = [],
+  K2STP1 = [],
+
+  K3ACT1 = [],
+  K3ACT2 = [],
+  K3ACT3 = [],
+  K3DP1 = [],
+  K3DP2 = [],
+  K3DP3 = [],
+  K3DP4 = [],
+  K3DPRE = [],
+  K3DPRED = [],
+  K3PRO = [],
+  K3LIMITATIONS = [],
+  K3GEN = [],
+  K3MEDCOM = [],
+  K3STP1 = [],
+
+  K4ACT1 = [],
+  K4ACT2 = [],
+  K4ACT3 = [],
+  K4DP1 = [],
+  K4DP2 = [],
+  K4DP3 = [],
+  K4DP4 = [],
+  K4DPRE = [],
+  K4DPRED = [],
+  K4PRO = [],
+  K4LIMITATIONS = [],
+  K4GEN = [],
+  K4MEDCOM = [],
+  K4STP1 = [],
+
+  K5ACT1 = [],
+  K5ACT2 = [],
+  K5ACT3 = [],
+  K5DP1 = [],
+  K5DP2 = [],
+  K5DP3 = [],
+  K5DP4 = [],
+  K5DPRE = [],
+  K5DPRED = [],
+  K5PRO = [],
+  K5LIMITATIONS = [],
+  K5GEN = [],
+  K5MEDCOM = [],
+  K5STP1 = [],
+
+  K6ACT1 = [],
+  K6ACT2 = [],
+  K6ACT3 = [],
+  K6DP1 = [],
+  K6DP2 = [],
+  K6DP3 = [],
+  K6DP4 = [],
+  K6DPRE = [],
+  K6DPRED = [],
+  K6PRO = [],
+  K6LIMITATIONS = [],
+  K6GEN = [],
+  K6MEDCOM = [],
+  K6STP1 = [],
+
+  K7ACT1 = [],
+  K7ACT2 = [],
+  K7ACT3 = [],
+  K7DP1 = [],
+  K7DP2 = [],
+  K7DP3 = [],
+  K7DP4 = [],
+  K7DPRE = [],
+  K7DPRED = [],
+  K7PRO = [],
+  K7LIMITATIONS = [],
+  K7GEN = [],
+  K7MEDCOM = [],
+  K7STP1 = [],
+
+  L1ACT1 = [],
+  L1ACT2 = [],
+  L1ACT3 = [],
+  L1DP1 = [],
+  L1DP2 = [],
+  L1DP3 = [],
+  L1DP4 = [],
+  L1DPRE = [],
+  L1DPRED = [],
+  L1PRO = [],
+  L1LIMITATIONS = [],
+  L1GEN = [],
+  L1MEDCOM = [],
+  L1STP1 = [],
+
+  L2ACT1 = [],
+  L2ACT2 = [],
+  L2ACT3 = [],
+  L2DP1 = [],
+  L2DP2 = [],
+  L2DP3 = [],
+  L2DP4 = [],
+  L2DPRE = [],
+  L2DPRED = [],
+  L2PRO = [],
+  L2LIMITATIONS = [],
+  L2GEN = [],
+  L2MEDCOM = [],
+  L2STP1 = [],
+
+  L3ACT1 = [],
+  L3ACT2 = [],
+  L3ACT3 = [],
+  L3DP1 = [],
+  L3DP2 = [],
+  L3DP3 = [],
+  L3DP4 = [],
+  L3DPRE = [],
+  L3DPRED = [],
+  L3PRO = [],
+  L3LIMITATIONS = [],
+  L3GEN = [],
+  L3MEDCOM = [],
+  L3STP1 = [],
+
+  L4ACT1 = [],
+  L4ACT2 = [],
+  L4ACT3 = [],
+  L4DP1 = [],
+  L4DP2 = [],
+  L4DP3 = [],
+  L4DP4 = [],
+  L4DPRE = [],
+  L4DPRED = [],
+  L4PRO = [],
+  L4LIMITATIONS = [],
+  L4GEN = [],
+  L4MEDCOM = [],
+  L4STP1 = [],
+
+  L5ACT1 = [],
+  L5ACT2 = [],
+  L5ACT3 = [],
+  L5DP1 = [],
+  L5DP2 = [],
+  L5DP3 = [],
+  L5DP4 = [],
+  L5DPRE = [],
+  L5DPRED = [],
+  L5PRO = [],
+  L5LIMITATIONS = [],
+  L5GEN = [],
+  L5MEDCOM = [],
+  L5STP1 = [],
+
+  L6ACT1 = [],
+  L6ACT2 = [],
+  L6ACT3 = [],
+  L6DP1 = [],
+  L6DP2 = [],
+  L6DP3 = [],
+  L6DP4 = [],
+  L6DPRE = [],
+  L6DPRED = [],
+  L6PRO = [],
+  L6LIMITATIONS = [],
+  L6GEN = [],
+  L6MEDCOM = [],
+  L6STP1 = [],
+
+  L7ACT1 = [],
+  L7ACT2 = [],
+  L7ACT3 = [],
+  L7DP1 = [],
+  L7DP2 = [],
+  L7DP3 = [],
+  L7DP4 = [],
+  L7DPRE = [],
+  L7DPRED = [],
+  L7PRO = [],
+  L7LIMITATIONS = [],
+  L7GEN = [],
+  L7MEDCOM = [],
+  L7STP1 = [],
+
+  L8ACT1 = [],
+  L8ACT2 = [],
+  L8ACT3 = [],
+  L8DP1 = [],
+  L8DP2 = [],
+  L8DP3 = [],
+  L8DP4 = [],
+  L8DPRE = [],
+  L8DPRED = [],
+  L8PRO = [],
+  L8LIMITATIONS = [],
+  L8GEN = [],
+  L8MEDCOM = [],
+  L8STP1 = [],
+
+  L9ACT1 = [],
+  L9ACT2 = [],
+  L9ACT3 = [],
+  L9DP1 = [],
+  L9DP2 = [],
+  L9DP3 = [],
+  L9DP4 = [],
+  L9DPRE = [],
+  L9DPRED = [],
+  L9PRO = [],
+  L9LIMITATIONS = [],
+  L9GEN = [],
+  L9MEDCOM = [],
+  L9STP1 = [],
+
+  L10ACT1 = [],
+  L10ACT2 = [],
+  L10ACT3 = [],
+  L10DP1 = [],
+  L10DP2 = [],
+  L10DP3 = [],
+  L10DP4 = [],
+  L10DPRE = [],
+  L10DPRED = [],
+  L10PRO = [],
+  L10LIMITATIONS = [],
+  L10GEN = [],
+  L10MEDCOM = [],
+  L10STP1 = [],
+
+  L11ACT1 = [],
+  L11ACT2 = [],
+  L11ACT3 = [],
+  L11DP1 = [],
+  L11DP2 = [],
+  L11DP3 = [],
+  L11DP4 = [],
+  L11DPRE = [],
+  L11DPRED = [],
+  L11PRO = [],
+  L11LIMITATIONS = [],
+  L11GEN = [],
+  L11MEDCOM = [],
+  L11STP1 = [],
+
+  L12ACT1 = [],
+  L12ACT2 = [],
+  L12ACT3 = [],
+  L12DP1 = [],
+  L12DP2 = [],
+  L12DP3 = [],
+  L12DP4 = [],
+  L12DPRE = [],
+  L12DPRED = [],
+  L12PRO = [],
+  L12LIMITATIONS = [],
+  L12GEN = [],
+  L12MEDCOM = [],
+  L12STP1 = [],
+
+  M1ACT1 = [],
+  M1ACT2 = [],
+  M1ACT3 = [],
+  M1DP1 = [],
+  M1DP2 = [],
+  M1DP3 = [],
+  M1DP4 = [],
+  M1DPRE = [],
+  M1DPRED = [],
+  M1PRO = [],
+  M1LIMITATIONS = [],
+  M1GEN = [],
+  M1MEDCOM = [],
+  M1STP1 = [],
+
+  M2ACT1 = [],
+  M2ACT2 = [],
+  M2ACT3 = [],
+  M2DP1 = [],
+  M2DP2 = [],
+  M2DP3 = [],
+  M2DP4 = [],
+  M2DPRE = [],
+  M2DPRED = [],
+  M2PRO = [],
+  M2LIMITATIONS = [],
+  M2GEN = [],
+  M2MEDCOM = [],
+  M2STP1 = [],
+
 
 end =[];
 //anchor
 //Array linking decision trees to the ul creation function
+const A1decision = {  
+  "DACT1" : A1ACT1,
+  "DACT2" : A1ACT2,
+  "DACT3" : A1ACT3,
+  "DPRED" : A1DPRED,
+  "DP1" : A1DP1,
+  "DP2" : A1DP2,
+  "DP3" : A1DP3,
+  "DP4" : A1DP4,
+  "DPRE" : A1DPRE,
+  "DPRO" : A1PRO,
+  "DLIM" : A1LIMITATIONS,
+  "GEN" : A1GEN,
+  "MED" : A1MEDCOM,
+  "STP" : A1STP1,
+  }
+
 
 const A2decision = {  
 "DACT1" : A2ACT1,
@@ -1245,6 +2028,896 @@ const F5decision = {
   "STP" : F5STP1,
   }
 
+  const F6decision ={
+    "DACT1" : F6ACT1,
+  "DACT2" : F6ACT2,
+  "DACT3" : F6ACT3,
+  "DPRED" : F6DPRED,
+  "DP1" : F6DP1,
+  "DP2" : F6DP2,
+  "DP3" : F6DP3,
+  "DP4" : F6DP4,
+  "DPRE" : F6DPRE,
+  "DPRO" : F6PRO,
+  "DLIM" : F6LIMITATIONS,
+  "GEN" : F6GEN,
+  "MED" : F6MEDCOM,
+  "STP" : F6STP1,
+  }
+  const G1decision ={
+    "DACT1" : G1ACT1,
+  "DACT2" : G1ACT2,
+  "DACT3" : G1ACT3,
+  "DPRED" : G1DPRED,
+  "DP1" : G1DP1,
+  "DP2" : G1DP2,
+  "DP3" : G1DP3,
+  "DP4" : G1DP4,
+  "DPRE" : G1DPRE,
+  "DPRO" : G1PRO,
+  "DLIM" : G1LIMITATIONS,
+  "GEN" : G1GEN,
+  "MED" : G1MEDCOM,
+  "STP" : G1STP1,
+  }
+  const G2decision ={
+    "DACT1" : G2ACT1,
+  "DACT2" : G2ACT2,
+  "DACT3" : G2ACT3,
+  "DPRED" : G2DPRED,
+  "DP1" : G2DP1,
+  "DP2" : G2DP2,
+  "DP3" : G2DP3,
+  "DP4" : G2DP4,
+  "DPRE" : G2DPRE,
+  "DPRO" : G2PRO,
+  "DLIM" : G2LIMITATIONS,
+  "GEN" : G2GEN,
+  "MED" : G2MEDCOM,
+  "STP" : G2STP1,
+  }
+  const H1decision ={
+    "DACT1" : H1ACT1,
+  "DACT2" : H1ACT2,
+  "DACT3" : H1ACT3,
+  "DPRED" : H1DPRED,
+  "DP1" : H1DP1,
+  "DP2" : H1DP2,
+  "DP3" : H1DP3,
+  "DP4" : H1DP4,
+  "DPRE" : H1DPRE,
+  "DPRO" : H1PRO,
+  "DLIM" : H1LIMITATIONS,
+  "GEN" : H1GEN,
+  "MED" : H1MEDCOM,
+  "STP" : H1STP1,
+  }
+  const H2decision ={
+    "DACT1" : H2ACT1,
+  "DACT2" : H2ACT2,
+  "DACT3" : H2ACT3,
+  "DPRED" : H2DPRED,
+  "DP1" : H2DP1,
+  "DP2" : H2DP2,
+  "DP3" : H2DP3,
+  "DP4" : H2DP4,
+  "DPRE" : H2DPRE,
+  "DPRO" : H2PRO,
+  "DLIM" : H2LIMITATIONS,
+  "GEN" : H2GEN,
+  "MED" : H2MEDCOM,
+  "STP" : H2STP1,
+  }
+  const H3decision ={
+    "DACT1" : H3ACT1,
+  "DACT2" : H3ACT2,
+  "DACT3" : H3ACT3,
+  "DPRED" : H3DPRED,
+  "DP1" : H3DP1,
+  "DP2" : H3DP2,
+  "DP3" : H3DP3,
+  "DP4" : H3DP4,
+  "DPRE" : H3DPRE,
+  "DPRO" : H3PRO,
+  "DLIM" : H3LIMITATIONS,
+  "GEN" : H3GEN,
+  "MED" : H3MEDCOM,
+  "STP" : H3STP1,
+  }
+  const H4decision ={
+    "DACT1" : H4ACT1,
+  "DACT2" : H4ACT2,
+  "DACT3" : H4ACT3,
+  "DPRED" : H4DPRED,
+  "DP1" : H4DP1,
+  "DP2" : H4DP2,
+  "DP3" : H4DP3,
+  "DP4" : H4DP4,
+  "DPRE" : H4DPRE,
+  "DPRO" : H4PRO,
+  "DLIM" : H4LIMITATIONS,
+  "GEN" : H4GEN,
+  "MED" : H4MEDCOM,
+  "STP" : H4STP1,
+  }
+  const I1decision ={
+    "DACT1" : I1ACT1,
+  "DACT2" : I1ACT2,
+  "DACT3" : I1ACT3,
+  "DPRED" : I1DPRED,
+  "DP1" : I1DP1,
+  "DP2" : I1DP2,
+  "DP3" : I1DP3,
+  "DP4" : I1DP4,
+  "DPRE" : I1DPRE,
+  "DPRO" : I1PRO,
+  "DLIM" : I1LIMITATIONS,
+  "GEN" : I1GEN,
+  "MED" : I1MEDCOM,
+  "STP" : I1STP1,
+  }
+  const I2decision ={
+    "DACT1" : I2ACT1,
+  "DACT2" : I2ACT2,
+  "DACT3" : I2ACT3,
+  "DPRED" : I2DPRED,
+  "DP1" : I2DP1,
+  "DP2" : I2DP2,
+  "DP3" : I2DP3,
+  "DP4" : I2DP4,
+  "DPRE" : I2DPRE,
+  "DPRO" : I2PRO,
+  "DLIM" : I2LIMITATIONS,
+  "GEN" : I2GEN,
+  "MED" : I2MEDCOM,
+  "STP" : I2STP1,
+  }
+  const I3decision ={
+    "DACT1" : I3ACT1,
+  "DACT2" : I3ACT2,
+  "DACT3" : I3ACT3,
+  "DPRED" : I3DPRED,
+  "DP1" : I3DP1,
+  "DP2" : I3DP2,
+  "DP3" : I3DP3,
+  "DP4" : I3DP4,
+  "DPRE" : I3DPRE,
+  "DPRO" : I3PRO,
+  "DLIM" : I3LIMITATIONS,
+  "GEN" : I3GEN,
+  "MED" : I3MEDCOM,
+  "STP" : I3STP1,
+  }
+  const I4decision ={
+    "DACT1" : I4ACT1,
+  "DACT2" : I4ACT2,
+  "DACT3" : I4ACT3,
+  "DPRED" : I4DPRED,
+  "DP1" : I4DP1,
+  "DP2" : I4DP2,
+  "DP3" : I4DP3,
+  "DP4" : I4DP4,
+  "DPRE" : I4DPRE,
+  "DPRO" : I4PRO,
+  "DLIM" : I4LIMITATIONS,
+  "GEN" : I4GEN,
+  "MED" : I4MEDCOM,
+  "STP" : I4STP1,
+  }
+  const I5decision ={
+    "DACT1" : I5ACT1,
+  "DACT2" : I5ACT2,
+  "DACT3" : I5ACT3,
+  "DPRED" : I5DPRED,
+  "DP1" : I5DP1,
+  "DP2" : I5DP2,
+  "DP3" : I5DP3,
+  "DP4" : I5DP4,
+  "DPRE" : I5DPRE,
+  "DPRO" : I5PRO,
+  "DLIM" : I5LIMITATIONS,
+  "GEN" : I5GEN,
+  "MED" : I5MEDCOM,
+  "STP" : I5STP1,
+  }
+
+  const I6decision ={
+    "DACT1" : I6ACT1,
+  "DACT2" : I6ACT2,
+  "DACT3" : I6ACT3,
+  "DPRED" : I6DPRED,
+  "DP1" : I6DP1,
+  "DP2" : I6DP2,
+  "DP3" : I6DP3,
+  "DP4" : I6DP4,
+  "DPRE" : I6DPRE,
+  "DPRO" : I6PRO,
+  "DLIM" : I6LIMITATIONS,
+  "GEN" : I6GEN,
+  "MED" : I6MEDCOM,
+  "STP" : I6STP1,
+  }
+  
+  const J1decision ={
+    "DACT1" :J1ACT1,
+  "DACT2" : J1ACT2,
+  "DACT3" : J1ACT3,
+  "DPRED" : J1DPRED,
+  "DP1" : J1DP1,
+  "DP2" : J1DP2,
+  "DP3" : J1DP3,
+  "DP4" : J1DP4,
+  "DPRE" : J1DPRE,
+  "DPRO" : J1PRO,
+  "DLIM" : J1LIMITATIONS,
+  "GEN" : J1GEN,
+  "MED" : J1MEDCOM,
+  "STP" : J1STP1,
+  }
+
+  const J2decision ={
+    "DACT1" :J2ACT1,
+  "DACT2" : J2ACT2,
+  "DACT3" : J2ACT3,
+  "DPRED" : J2DPRED,
+  "DP1" : J2DP1,
+  "DP2" : J2DP2,
+  "DP3" : J2DP3,
+  "DP4" : J2DP4,
+  "DPRE" : J2DPRE,
+  "DPRO" : J2PRO,
+  "DLIM" : J2LIMITATIONS,
+  "GEN" : J2GEN,
+  "MED" : J2MEDCOM,
+  "STP" : J2STP1,
+  }
+
+
+  const J3decision ={
+    "DACT1" :J3ACT1,
+  "DACT2" : J3ACT2,
+  "DACT3" : J3ACT3,
+  "DPRED" : J3DPRED,
+  "DP1" : J3DP1,
+  "DP2" : J3DP2,
+  "DP3" : J3DP3,
+  "DP4" : J3DP4,
+  "DPRE" : J3DPRE,
+  "DPRO" : J3PRO,
+  "DLIM" : J3LIMITATIONS,
+  "GEN" : J3GEN,
+  "MED" : J3MEDCOM,
+  "STP" : J3STP1,
+  }
+
+
+  const J4decision ={
+    "DACT1" :J4ACT1,
+  "DACT2" : J4ACT2,
+  "DACT3" : J4ACT3,
+  "DPRED" : J4DPRED,
+  "DP1" : J4DP1,
+  "DP2" : J4DP2,
+  "DP3" : J4DP3,
+  "DP4" : J4DP4,
+  "DPRE" : J4DPRE,
+  "DPRO" : J4PRO,
+  "DLIM" : J4LIMITATIONS,
+  "GEN" : J4GEN,
+  "MED" : J4MEDCOM,
+  "STP" : J4STP1,
+  }
+
+
+  const J5decision ={
+    "DACT1" :J5ACT1,
+  "DACT2" : J5ACT2,
+  "DACT3" : J5ACT3,
+  "DPRED" : J5DPRED,
+  "DP1" : J5DP1,
+  "DP2" : J5DP2,
+  "DP3" : J5DP3,
+  "DP4" : J5DP4,
+  "DPRE" : J5DPRE,
+  "DPRO" : J5PRO,
+  "DLIM" : J5LIMITATIONS,
+  "GEN" : J5GEN,
+  "MED" : J5MEDCOM,
+  "STP" : J5STP1,
+  }
+
+
+  const J6decision ={
+    "DACT1" :J6ACT1,
+  "DACT2" : J6ACT2,
+  "DACT3" : J6ACT3,
+  "DPRED" : J6DPRED,
+  "DP1" : J6DP1,
+  "DP2" : J6DP2,
+  "DP3" : J6DP3,
+  "DP4" : J6DP4,
+  "DPRE" : J6DPRE,
+  "DPRO" : J6PRO,
+  "DLIM" : J6LIMITATIONS,
+  "GEN" : J6GEN,
+  "MED" : J6MEDCOM,
+  "STP" : J6STP1,
+  }
+
+
+  const J7decision ={
+    "DACT1" :J7ACT1,
+  "DACT2" : J7ACT2,
+  "DACT3" : J7ACT3,
+  "DPRED" : J7DPRED,
+  "DP1" : J7DP1,
+  "DP2" : J7DP2,
+  "DP3" : J7DP3,
+  "DP4" : J7DP4,
+  "DPRE" : J7DPRE,
+  "DPRO" : J7PRO,
+  "DLIM" : J7LIMITATIONS,
+  "GEN" : J7GEN,
+  "MED" : J7MEDCOM,
+  "STP" : J7STP1,
+  }
+
+
+  const J8decision ={
+    "DACT1" :J8ACT1,
+  "DACT2" : J8ACT2,
+  "DACT3" : J8ACT3,
+  "DPRED" : J8DPRED,
+  "DP1" : J8DP1,
+  "DP2" : J8DP2,
+  "DP3" : J8DP3,
+  "DP4" : J8DP4,
+  "DPRE" : J8DPRE,
+  "DPRO" : J8PRO,
+  "DLIM" : J8LIMITATIONS,
+  "GEN" : J8GEN,
+  "MED" : J8MEDCOM,
+  "STP" : J8STP1,
+  }
+
+
+  const J9decision ={
+    "DACT1" :J9ACT1,
+  "DACT2" : J9ACT2,
+  "DACT3" : J9ACT3,
+  "DPRED" : J9DPRED,
+  "DP1" : J9DP1,
+  "DP2" : J9DP2,
+  "DP3" : J9DP3,
+  "DP4" : J9DP4,
+  "DPRE" : J9DPRE,
+  "DPRO" : J9PRO,
+  "DLIM" : J9LIMITATIONS,
+  "GEN" : J9GEN,
+  "MED" : J9MEDCOM,
+  "STP" : J9STP1,
+  }
+
+
+  const J10decision ={
+    "DACT1" : J10ACT1,
+  "DACT2" : J10ACT2,
+  "DACT3" : J10ACT3,
+  "DPRED" : J10DPRED,
+  "DP1" : J10DP1,
+  "DP2" : J10DP2,
+  "DP3" : J10DP3,
+  "DP4" : J10DP4,
+  "DPRE" : J10DPRE,
+  "DPRO" : J10PRO,
+  "DLIM" : J10LIMITATIONS,
+  "GEN" : J10GEN,
+  "MED" : J10MEDCOM,
+  "STP" : J10STP1,
+  }
+
+
+  const J11decision ={
+    "DACT1" : J11ACT1,
+  "DACT2" : J11ACT2,
+  "DACT3" : J11ACT3,
+  "DPRED" : J11DPRED,
+  "DP1" : J11DP1,
+  "DP2" : J11DP2,
+  "DP3" : J11DP3,
+  "DP4" : J11DP4,
+  "DPRE" : J11DPRE,
+  "DPRO" : J11PRO,
+  "DLIM" : J11LIMITATIONS,
+  "GEN" : J11GEN,
+  "MED" : J11MEDCOM,
+  "STP" : J11STP1,
+  }
+
+
+  const J12decision ={
+    "DACT1" : J12ACT1,
+  "DACT2" : J12ACT2,
+  "DACT3" : J12ACT3,
+  "DPRED" : J12DPRED,
+  "DP1" : J12DP1,
+  "DP2" : J12DP2,
+  "DP3" : J12DP3,
+  "DP4" : J12DP4,
+  "DPRE" : J12DPRE,
+  "DPRO" : J12PRO,
+  "DLIM" : J12LIMITATIONS,
+  "GEN" : J12GEN,
+  "MED" : J12MEDCOM,
+  "STP" : J12STP1,
+  }
+
+
+  const J13decision ={
+    "DACT1" : J13ACT1,
+  "DACT2" : J13ACT2,
+  "DACT3" : J13ACT3,
+  "DPRED" : J13DPRED,
+  "DP1" : J13DP1,
+  "DP2" : J13DP2,
+  "DP3" : J13DP3,
+  "DP4" : J13DP4,
+  "DPRE" : J13DPRE,
+  "DPRO" : J13PRO,
+  "DLIM" : J13LIMITATIONS,
+  "GEN" : J13GEN,
+  "MED" : J13MEDCOM,
+  "STP" : J13STP1,
+  }
+
+
+  const J14decision ={
+    "DACT1" : J14ACT1,
+  "DACT2" : J14ACT2,
+  "DACT3" : J14ACT3,
+  "DPRED" : J14DPRED,
+  "DP1" : J14DP1,
+  "DP2" : J14DP2,
+  "DP3" : J14DP3,
+  "DP4" : J14DP4,
+  "DPRE" : J14DPRE,
+  "DPRO" : J14PRO,
+  "DLIM" : J14LIMITATIONS,
+  "GEN" : J14GEN,
+  "MED" : J14MEDCOM,
+  "STP" : J14STP1,
+  }
+
+
+  const J15decision ={
+    "DACT1" : J15ACT1,
+  "DACT2" : J15ACT2,
+  "DACT3" : J15ACT3,
+  "DPRED" : J15DPRED,
+  "DP1" : J15DP1,
+  "DP2" : J15DP2,
+  "DP3" : J15DP3,
+  "DP4" : J15DP4,
+  "DPRE" : J15DPRE,
+  "DPRO" : J15PRO,
+  "DLIM" : J15LIMITATIONS,
+  "GEN" : J15GEN,
+  "MED" : J15MEDCOM,
+  "STP" : J15STP1,
+  }
+
+
+  const J16decision ={
+    "DACT1" : J16ACT1,
+  "DACT2" : J16ACT2,
+  "DACT3" : J16ACT3,
+  "DPRED" : J16DPRED,
+  "DP1" : J16DP1,
+  "DP2" : J16DP2,
+  "DP3" : J16DP3,
+  "DP4" : J16DP4,
+  "DPRE" : J16DPRE,
+  "DPRO" : J16PRO,
+  "DLIM" : J16LIMITATIONS,
+  "GEN" : J16GEN,
+  "MED" : J16MEDCOM,
+  "STP" : J16STP1,
+  }
+
+
+  const J17decision ={
+    "DACT1" : J17ACT1,
+  "DACT2" : J17ACT2,
+  "DACT3" : J17ACT3,
+  "DPRED" : J17DPRED,
+  "DP1" : J17DP1,
+  "DP2" : J17DP2,
+  "DP3" : J17DP3,
+  "DP4" : J17DP4,
+  "DPRE" : J17DPRE,
+  "DPRO" : J17PRO,
+  "DLIM" : J17LIMITATIONS,
+  "GEN" : J17GEN,
+  "MED" : J17MEDCOM,
+  "STP" : J17STP1,
+  }
+
+
+  const J18decision ={
+    "DACT1" : J18ACT1,
+  "DACT2" : J18ACT2,
+  "DACT3" : J18ACT3,
+  "DPRED" : J18DPRED,
+  "DP1" : J18DP1,
+  "DP2" : J18DP2,
+  "DP3" : J18DP3,
+  "DP4" : J18DP4,
+  "DPRE" : J18DPRE,
+  "DPRO" : J18PRO,
+  "DLIM" : J18LIMITATIONS,
+  "GEN" : J18GEN,
+  "MED" : J18MEDCOM,
+  "STP" : J18STP1,
+  }
+
+  const K1decision ={
+    "DACT1" : K1ACT1,
+  "DACT2" : K1ACT2,
+  "DACT3" : K1ACT3,
+  "DPRED" : K1DPRED,
+  "DP1" : K1DP1,
+  "DP2" : K1DP2,
+  "DP3" : K1DP3,
+  "DP4" : K1DP4,
+  "DPRE" : K1DPRE,
+  "DPRO" : K1PRO,
+  "DLIM" : K1LIMITATIONS,
+  "GEN" : K1GEN,
+  "MED" : K1MEDCOM,
+  "STP" : K1STP1,
+  }
+
+  const K2decision ={
+    "DACT1" : K2ACT1,
+  "DACT2" : K2ACT2,
+  "DACT3" : K2ACT3,
+  "DPRED" : K2DPRED,
+  "DP1" : K2DP1,
+  "DP2" : K2DP2,
+  "DP3" : K2DP3,
+  "DP4" : K2DP4,
+  "DPRE" : K2DPRE,
+  "DPRO" : K2PRO,
+  "DLIM" : K2LIMITATIONS,
+  "GEN" : K2GEN,
+  "MED" : K2MEDCOM,
+  "STP" : K2STP1,
+  }
+
+  const K3decision ={
+    "DACT1" : K3ACT1,
+  "DACT2" : K3ACT2,
+  "DACT3" : K3ACT3,
+  "DPRED" : K3DPRED,
+  "DP1" : K3DP1,
+  "DP2" : K3DP2,
+  "DP3" : K3DP3,
+  "DP4" : K3DP4,
+  "DPRE" : K3DPRE,
+  "DPRO" : K3PRO,
+  "DLIM" : K3LIMITATIONS,
+  "GEN" : K3GEN,
+  "MED" : K3MEDCOM,
+  "STP" : K3STP1,
+  }
+
+  const K4decision ={
+    "DACT1" : K4ACT1,
+  "DACT2" : K4ACT2,
+  "DACT3" : K4ACT3,
+  "DPRED" : K4DPRED,
+  "DP1" : K4DP1,
+  "DP2" : K4DP2,
+  "DP3" : K4DP3,
+  "DP4" : K4DP4,
+  "DPRE" : K4DPRE,
+  "DPRO" : K4PRO,
+  "DLIM" : K4LIMITATIONS,
+  "GEN" : K4GEN,
+  "MED" : K4MEDCOM,
+  "STP" : K4STP1,
+  }
+
+  const K5decision ={
+    "DACT1" : K5ACT1,
+  "DACT2" : K5ACT2,
+  "DACT3" : K5ACT3,
+  "DPRED" : K5DPRED,
+  "DP1" : K5DP1,
+  "DP2" : K5DP2,
+  "DP3" : K5DP3,
+  "DP4" : K5DP4,
+  "DPRE" : K5DPRE,
+  "DPRO" : K5PRO,
+  "DLIM" : K5LIMITATIONS,
+  "GEN" : K5GEN,
+  "MED" : K5MEDCOM,
+  "STP" : K5STP1,
+  }
+
+  const K6decision ={
+    "DACT1" : K6ACT1,
+  "DACT2" : K6ACT2,
+  "DACT3" : K6ACT3,
+  "DPRED" : K6DPRED,
+  "DP1" : K6DP1,
+  "DP2" : K6DP2,
+  "DP3" : K6DP3,
+  "DP4" : K6DP4,
+  "DPRE" : K6DPRE,
+  "DPRO" : K6PRO,
+  "DLIM" : K6LIMITATIONS,
+  "GEN" : K6GEN,
+  "MED" : K6MEDCOM,
+  "STP" : K6STP1,
+  }
+
+  const K7decision ={
+    "DACT1" : K7ACT1,
+  "DACT2" : K7ACT2,
+  "DACT3" : K7ACT3,
+  "DPRED" : K7DPRED,
+  "DP1" : K7DP1,
+  "DP2" : K7DP2,
+  "DP3" : K7DP3,
+  "DP4" : K7DP4,
+  "DPRE" : K7DPRE,
+  "DPRO" : K7PRO,
+  "DLIM" : K7LIMITATIONS,
+  "GEN" : K7GEN,
+  "MED" : K7MEDCOM,
+  "STP" : K7STP1,
+  }
+
+  const L1decision ={
+    "DACT1" : L1ACT1,
+  "DACT2" : L1ACT2,
+  "DACT3" : L1ACT3,
+  "DPRED" : L1DPRED,
+  "DP1" : L1DP1,
+  "DP2" : L1DP2,
+  "DP3" : L1DP3,
+  "DP4" : L1DP4,
+  "DPRE" : L1DPRE,
+  "DPRO" : L1PRO,
+  "DLIM" : L1LIMITATIONS,
+  "GEN" : L1GEN,
+  "MED" : L1MEDCOM,
+  "STP" : L1STP1,
+  }
+
+  const L2decision ={
+    "DACT1" : L2ACT1,
+  "DACT2" : L2ACT2,
+  "DACT3" : L2ACT3,
+  "DPRED" : L2DPRED,
+  "DP1" : L2DP1,
+  "DP2" : L2DP2,
+  "DP3" : L2DP3,
+  "DP4" : L2DP4,
+  "DPRE" : L2DPRE,
+  "DPRO" : L2PRO,
+  "DLIM" : L2LIMITATIONS,
+  "GEN" : L2GEN,
+  "MED" : L2MEDCOM,
+  "STP" : L2STP1,
+  }
+
+  const L3decision ={
+    "DACT1" : L3ACT1,
+  "DACT2" : L3ACT2,
+  "DACT3" : L3ACT3,
+  "DPRED" : L3DPRED,
+  "DP1" : L3DP1,
+  "DP2" : L3DP2,
+  "DP3" : L3DP3,
+  "DP4" : L3DP4,
+  "DPRE" : L3DPRE,
+  "DPRO" : L3PRO,
+  "DLIM" : L3LIMITATIONS,
+  "GEN" : L3GEN,
+  "MED" : L3MEDCOM,
+  "STP" : L3STP1,
+  }
+
+  const L4decision ={
+    "DACT1" : L4ACT1,
+  "DACT2" : L4ACT2,
+  "DACT3" : L4ACT3,
+  "DPRED" : L4DPRED,
+  "DP1" : L4DP1,
+  "DP2" : L4DP2,
+  "DP3" : L4DP3,
+  "DP4" : L4DP4,
+  "DPRE" : L4DPRE,
+  "DPRO" : L4PRO,
+  "DLIM" : L4LIMITATIONS,
+  "GEN" : L4GEN,
+  "MED" : L4MEDCOM,
+  "STP" : L4STP1,
+  }
+
+  const L5decision ={
+    "DACT1" : L5ACT1,
+  "DACT2" : L5ACT2,
+  "DACT3" : L5ACT3,
+  "DPRED" : L5DPRED,
+  "DP1" : L5DP1,
+  "DP2" : L5DP2,
+  "DP3" : L5DP3,
+  "DP4" : L5DP4,
+  "DPRE" : L5DPRE,
+  "DPRO" : L5PRO,
+  "DLIM" : L5LIMITATIONS,
+  "GEN" : L5GEN,
+  "MED" : L5MEDCOM,
+  "STP" : L5STP1,
+  }
+
+  const L6decision ={
+    "DACT1" : L6ACT1,
+  "DACT2" : L6ACT2,
+  "DACT3" : L6ACT3,
+  "DPRED" : L6DPRED,
+  "DP1" : L6DP1,
+  "DP2" : L6DP2,
+  "DP3" : L6DP3,
+  "DP4" : L6DP4,
+  "DPRE" : L6DPRE,
+  "DPRO" : L6PRO,
+  "DLIM" : L6LIMITATIONS,
+  "GEN" : L6GEN,
+  "MED" : L6MEDCOM,
+  "STP" : L6STP1,
+  }
+
+  const L7decision ={
+    "DACT1" : L7ACT1,
+  "DACT2" : L7ACT2,
+  "DACT3" : L7ACT3,
+  "DPRED" : L7DPRED,
+  "DP1" : L7DP1,
+  "DP2" : L7DP2,
+  "DP3" : L7DP3,
+  "DP4" : L7DP4,
+  "DPRE" : L7DPRE,
+  "DPRO" : L7PRO,
+  "DLIM" : L7LIMITATIONS,
+  "GEN" : L7GEN,
+  "MED" : L7MEDCOM,
+  "STP" : L7STP1,
+  }
+
+  const L8decision ={
+    "DACT1" : L8ACT1,
+  "DACT2" : L8ACT2,
+  "DACT3" : L8ACT3,
+  "DPRED" : L8DPRED,
+  "DP1" : L8DP1,
+  "DP2" : L8DP2,
+  "DP3" : L8DP3,
+  "DP4" : L8DP4,
+  "DPRE" : L8DPRE,
+  "DPRO" : L8PRO,
+  "DLIM" : L8LIMITATIONS,
+  "GEN" : L8GEN,
+  "MED" : L8MEDCOM,
+  "STP" : L8STP1,
+  }
+
+  const L9decision ={
+    "DACT1" : L9ACT1,
+  "DACT2" : L9ACT2,
+  "DACT3" : L9ACT3,
+  "DPRED" : L9DPRED,
+  "DP1" : L9DP1,
+  "DP2" : L9DP2,
+  "DP3" : L9DP3,
+  "DP4" : L9DP4,
+  "DPRE" : L9DPRE,
+  "DPRO" : L9PRO,
+  "DLIM" : L9LIMITATIONS,
+  "GEN" : L9GEN,
+  "MED" : L9MEDCOM,
+  "STP" : L9STP1,
+  }
+
+  const L10decision ={
+    "DACT1" : L10ACT1,
+  "DACT2" : L10ACT2,
+  "DACT3" : L10ACT3,
+  "DPRED" : L10DPRED,
+  "DP1" : L10DP1,
+  "DP2" : L10DP2,
+  "DP3" : L10DP3,
+  "DP4" : L10DP4,
+  "DPRE" : L10DPRE,
+  "DPRO" : L10PRO,
+  "DLIM" : L10LIMITATIONS,
+  "GEN" : L10GEN,
+  "MED" : L10MEDCOM,
+  "STP" : L10STP1,
+  }
+
+  const L11decision ={
+    "DACT1" : L11ACT1,
+  "DACT2" : L11ACT2,
+  "DACT3" : L11ACT3,
+  "DPRED" : L11DPRED,
+  "DP1" : L11DP1,
+  "DP2" : L11DP2,
+  "DP3" : L11DP3,
+  "DP4" : L11DP4,
+  "DPRE" : L11DPRE,
+  "DPRO" : L11PRO,
+  "DLIM" : L11LIMITATIONS,
+  "GEN" : L11GEN,
+  "MED" : L11MEDCOM,
+  "STP" : L11STP1,
+  }
+
+  const L12decision ={
+    "DACT1" : L12ACT1,
+  "DACT2" : L12ACT2,
+  "DACT3" : L12ACT3,
+  "DPRED" : L12DPRED,
+  "DP1" : L12DP1,
+  "DP2" : L12DP2,
+  "DP3" : L12DP3,
+  "DP4" : L12DP4,
+  "DPRE" : L12DPRE,
+  "DPRO" : L12PRO,
+  "DLIM" : L12LIMITATIONS,
+  "GEN" : L12GEN,
+  "MED" : L12MEDCOM,
+  "STP" : L12STP1,
+  }
+
+  const M1decision ={
+    "DACT1" : M1ACT1,
+  "DACT2" : M1ACT2,
+  "DACT3" : M1ACT3,
+  "DPRED" : M1DPRED,
+  "DP1" : M1DP1,
+  "DP2" : M1DP2,
+  "DP3" : M1DP3,
+  "DP4" : M1DP4,
+  "DPRE" : M1DPRE,
+  "DPRO" : M1PRO,
+  "DLIM" : M1LIMITATIONS,
+  "GEN" : M1GEN,
+  "MED" : M1MEDCOM,
+  "STP" : M1STP1,
+  }
+
+  const M2decision ={
+    "DACT1" : M2ACT1,
+  "DACT2" : M2ACT2,
+  "DACT3" : M2ACT3,
+  "DPRED" : M2DPRED,
+  "DP1" : M2DP1,
+  "DP2" : M2DP2,
+  "DP3" : M2DP3,
+  "DP4" : M2DP4,
+  "DPRE" : M2DPRE,
+  "DPRO" : M2PRO,
+  "DLIM" : M2LIMITATIONS,
+  "GEN" : M2GEN,
+  "MED" : M2MEDCOM,
+  "STP" : M2STP1,
+  }
+
+
 //anchor
 const link1 ={
   // "A-1" : A1decision,
@@ -1281,58 +2954,58 @@ const link1 ={
   "F-3" : F3decision,
   "F-4" : F4decision,
   "F-5" : F5decision,
-  // "F-6" : F6decision,
-  // "G-1" : G1decision,
-  // "G-2" : G2decision,
-  // "H-1" : H1decision,
-  // "H-2" : H2decision,
-  // "H-3" : H3decision,
-  // "H-4" : H4decision,
-  // "I-1" : I1decision,
-  // "I-2" : I2decision,
-  // "I-3" : I3decision,
-  // "I-4" : I4decision,
-  // "I-5" : I5decision,
-  // "I-6" : I6decision,
-  // "J-1" : J1decision,
-  // "J-2" : J2decision,
-  // "J-3" : J3decision,
-  // "J-4" : J4decision,
-  // "J-5" : J5decision,
-  // "J-6" : J6decision,
-  // "J-7" : J7decision,
-  // "J-8" : J8decision,
-  // "J-9" : J9decision,
-  // "J-10" : J10decision,
-  // "J-11" : J11decision,
-  // "J-12" : J12decision,
-  // "J-13" : J13decision,
-  // "J-14" : J14decision,
-  // "J-15" : J15decision,
-  // "J-16" : J16decision,
-  // "J-17" : J17decision,
-  // "J-18" : J18decision,
-  // "K-1" : K1decision,
-  // "K-2" : K2decision,
-  // "K-3" : K3decision,
-  // "K-4" : K4decision,
-  // "K-5" : K5decision,
-  // "K-6" : K6decision,
-  // "K-7" : K7decision,
-  // "L-1" : L1decision,
-  // "L-2" : L2decision,
-  // "L-3" : L3decision,
-  // "L-4" : L4decision,
-  // "L-5" : L5decision,
-  // "L-6" : L6decision,
-  // "L-7" : L7decision,
-  // "L-8" : L8decision,
-  // "L-9" : L9decision,
-  // "L-10" : L10decision,
-  // "L-11" : L11decision,
-  // "L-12" : L12decision,
-  // "M-1" : M1decision,
-  // "M-2" : M2decision 
+  "F-6" : F6decision,
+  "G-1" : G1decision,
+  "G-2" : G2decision,
+  "H-1" : H1decision,
+  "H-2" : H2decision,
+  "H-3" : H3decision,
+  "H-4" : H4decision,
+  "I-1" : I1decision,
+  "I-2" : I2decision,
+  "I-3" : I3decision,
+  "I-4" : I4decision,
+  "I-5" : I5decision,
+  "I-6" : I6decision,
+  "J-1" : J1decision,
+  "J-2" : J2decision,
+  "J-3" : J3decision,
+  "J-4" : J4decision,
+  "J-5" : J5decision,
+  "J-6" : J6decision,
+  "J-7" : J7decision,
+  "J-8" : J8decision,
+  "J-9" : J9decision,
+  "J-10" : J10decision,
+  "J-11" : J11decision,
+  "J-12" : J12decision,
+  "J-13" : J13decision,
+  "J-14" : J14decision,
+  "J-15" : J15decision,
+  "J-16" : J16decision,
+  "J-17" : J17decision,
+  "J-18" : J18decision,
+  "K-1" : K1decision,
+  "K-2" : K2decision,
+  "K-3" : K3decision,
+  "K-4" : K4decision,
+  "K-5" : K5decision,
+  "K-6" : K6decision,
+  "K-7" : K7decision,
+  "L-1" : L1decision,
+  "L-2" : L2decision,
+  "L-3" : L3decision,
+  "L-4" : L4decision,
+  "L-5" : L5decision,
+  "L-6" : L6decision,
+  "L-7" : L7decision,
+  "L-8" : L8decision,
+  "L-9" : L9decision,
+  "L-10" : L10decision,
+  "L-11" : L11decision,
+  "L-12" : L12decision,
+  "M-1" : M1decision,
+  "M-2" : M2decision 
 }
 
 //Array linking main category buttons to the subcategory boxes
@@ -1493,6 +3166,7 @@ menu.addEventListener("click", ()=> {
         complaints.classList.toggle("closed");
         info.classList.remove("open");
         icon.classList.remove("open");
+        greenbtn.classList.remove("closed")
         menu.classList.toggle("closed");
 });
 
@@ -1526,6 +3200,7 @@ rtn.addEventListener("click", ()=> {
   }
     homecatbox.classList.remove('closed');
     homecatbox.classList.add("selected");
+    homecatbox.scrolltop = 0;
     banner.classList.remove("open");
     homebanner.classList.remove("closed");
     rtn.classList.toggle("closed");
@@ -1534,6 +3209,7 @@ rtn.addEventListener("click", ()=> {
     Acontainer.classList.remove("open");
     icon.classList.remove("open");
     info.classList.remove("open");
+    greenbtn.classList.remove("closed");
     subbanner.classList.toggle("open");
     banner.classList.remove("closed")
     algorithm.querySelectorAll(".ADTsheet").forEach(el => {
@@ -1547,12 +3223,16 @@ rtn.addEventListener("click", ()=> {
     algorithm.querySelectorAll(".label").forEach(el => {
     el.innerHTML = "NO"});
     complaints.classList.remove("paged");
+    const e = document.querySelectorAll(".slider");
+      e.forEach(function(currentGreen){
+        const style = document.documentElement.style.getPropertyValue('--BGorigin');
+        console.log(style)
+        currentGreen.style.backgroundColor = style;
+      })
   }
 });
 
-
-
-
+const greenbtn = document.querySelector(".green-btn");
 
 //open ADTMC sheets from the subtext buttons
 const ADTsheets = document.querySelectorAll(".ADTsheet");
@@ -1561,7 +3241,8 @@ ADTMCpagers.forEach(function(currentPager){
 currentPager.addEventListener('click',()=> { 
   console.log(currentPager.id)
   const border = currentPager.querySelector(".subtext-border");
-  const bLabel = document.querySelector("#banner3-label")
+  const bLabel = document.querySelector("#banner3-label");
+  const clearbtn = document.querySelector("#green-just-btn")
   complaints.classList.add('paged');
   Acontainer.classList.toggle('open');
   banner.classList.add("closed");
@@ -1576,6 +3257,7 @@ currentPager.addEventListener('click',()=> {
   console.log(color)
   const sheetborder = document.querySelector(".ADT-border");
   sheetborder.style.backgroundColor = color;
+  clearbtn.style.backgroundColor = color;
   
 });
 });
@@ -1585,15 +3267,20 @@ function DC(){
   var btn = document.getElementById(btnid);
   var dad = btn.closest(".ADTsheet");
   var box = btn.closest(".Qbox");
-  console.log(box.id);
   var dispo = box.querySelector(".dispobox");
   var just = box.querySelector(".justbox");
-  console.log(just);
   if(just.classList.contains("open")){just.classList.toggle("open")}
   if(btn.checked){
       let a = btn.parentElement;
       let b = a.parentElement;
       let c = b.parentElement;
+      let border = document.querySelector(".ADT-border");
+      let e = c.querySelector(".slider");
+      console.log(border)
+      const style = getComputedStyle(border);
+      const color = style.backgroundColor
+      console.log(color);
+      e.style.backgroundColor = color;
       const d = c.querySelector(".label");
       d.innerHTML = "YES";
 
@@ -1608,6 +3295,10 @@ function DC(){
       let b = a.parentElement;
       let c = b.parentElement;
       const d = c.querySelector(".label");
+      let e = c.querySelector(".slider");
+      const style = document.documentElement.style.getPropertyValue('--BGorigin');
+      console.log(style)
+      e.style.backgroundColor = style;
       d.innerHTML = "NO";
       if(dispo.classList.contains("open")){dispo.classList.toggle("open")};
       functions[dad.id]();
@@ -1620,7 +3311,6 @@ function DC2(){
   var btn = document.getElementById(btnid);
   var dad = btn.closest(".ADTsheet");
   var box = btn.closest(".Qbox");
-  console.log(box.id);
   if(btn.checked){
       let a = btn.parentElement;
       let b = a.parentElement;
@@ -1653,6 +3343,7 @@ function DC2(){
   $(function() {
     var $toggleMenu = $("#medbtn"),
         $menu = $(".bod2"),
+        $bod3 = $(".bod3"),
         $background1 =$(".bod1");
     $toggleMenu.on("click", function(e) {
       e.preventDefault();
@@ -1683,17 +3374,20 @@ function DC2(){
     }
   });
 
+function openlog(){
+  document.querySelector(".toastwrapper").classList.toggle("selected");
+}
 
-  
 
   //toggle explanation box
 function explain(){
   var btn = event.target;
-  console.log(btn);
   var a = btn.parentElement;
   var b = a.parentElement;
   var c = b.querySelector(".justbox");
   c.classList.toggle("open");
+  // const Acont = document.querySelector(".ADTcontainer");
+  // if(document.querySelector(".toastwrapper").classList.contains("selected")){Acont.setAttribute('style', 'opacity: 1;');}else{  Acont.setAttribute('style', 'opacity: 0.2;');}
 
 }
 
@@ -1816,76 +3510,76 @@ const B8ddxs = ["Ligament or Cartilage Injury","Arthritis","Overuse Injury","Inf
 const B9ddxs = ["Sprain/Strain","Fracture","Tendon Rupture","Arthritis","Bursitis","Tendinopathy"];
 const B10ddxs = ["Injury","Overuse","Plantar Fasciitis","Tarsal Tunnel Syndrome","Achilles Tendinopathy","Ingrown Toenail","Bunion"]; 
 const B11ddxs = ["Fracture","Laceration","Bruise","Stress Reaction"];
-const C1ddxs = [];
+const C1ddxs = ["Medication","Infection","Intense Pain","Pregnancy","Concussion","Heartburn"];
 const C2ddxs = ["Food Intolerance", "Medication", "Infection (Viral/Bacterial)", "Dizziness", "Chest Pain", "Ear Pain", "Heartburn"];
-const C3ddxs = [];
-const C4ddxs = [];
-const C5ddxs = [];
-const C6ddxs = [];
+const C3ddxs = ["MI, AAA","Appendicitis","Pancreatitis, Hepatitis","Heartburn","Ectopic Pregnancy","Testicular Torsion","Pelvic Inflammatory Dis."];
+const C4ddxs = ["Gastrointestinal Bleed","Hemorrhoid/Fissure","IBD","Infection","Cancer"];
+const C5ddxs = ["Obstruction","Cancer","Hypothyroidism","Constipation","Associated with Hemorrhoids"];
+const C6ddxs = ["Food bolus obstruction","Esophagitis","Ring, Web, Achalasia","Throat Infection"];
 const C7ddxs = ["Gastroesophageal Reflux","Myocardial Infarction","Stomach/Duodenal Ulcer","Cancer","Pancreatitis"];
-const D1ddxs = [];
-const D2ddxs = [];
-const E1ddxs = [];
-const E2ddxs = [];
-const E3ddxs = [];
-const E4ddxs = [];
-const F1ddxs = [];
-const F2ddxs = [];
-const F3ddxs = [];
-const F4ddxs = [];
-const F5ddxs = [];
-const F6ddxs = [];
-const G1ddxs = [];
-const G2ddxs = [];
-const H1ddxs = [];
-const H2ddxs = [];
-const H3ddxs = [];
-const H4ddxs = [];
-const I1ddxs = [];
-const I2ddxs = [];
-const I3ddxs = [];
-const I4ddxs = [];
-const I5ddxs = [];
-const I6ddxs = [];
-const J1ddxs = [];
-const J2ddxs = [];
-const J3ddxs = [];
-const J4ddxs = [];
-const J5ddxs = [];
-const J6ddxs = [];
-const J7ddxs = [];
-const J8ddxs = [];
-const J9ddxs = [];
-const J10ddxs = [];
-const J11ddxs = [];
-const J12ddxs = [];
-const J13ddxs = [];
-const J14ddxs = [];
-const J15ddxs = [];
-const J16ddxs = [];
-const J17ddxs = [];
-const J18ddxs = [];
-const K1ddxs = [];
-const K2ddxs = [];
-const K3ddxs = [];
-const K4ddxs = [];
-const K5ddxs = [];
-const K6ddxs = [];
-const K7ddxs = [];
-const L1ddxs = [];
-const L2ddxs = [];
-const L3ddxs = [];
-const L4ddxs = [];
-const L5ddxs = [];
-const L6ddxs = [];
-const L7ddxs = [];
-const L8ddxs = [];
-const L9ddxs = [];
-const L10ddxs = [];
-const L11ddxs = [];
-const L12ddxs = [];
-const M1ddxs = [];
-const M2ddxs = [];
+const D1ddxs = ["Asthma","Anxiety","Myocardial Infarction","Pulmonary Embolism","Pneumonia, Bronchitis","Deconditioning"];
+const D2ddxs = ["Myocardial Infarction","Pulmonary Embolism","Pneumonia, Bronchitis","Anxiety","Heartburn","Musculoskeletal"];
+const E1ddxs = ["Kidney Infection","Urinary Tract Infection","Kidney Stone","Uncontrolled Diabetes","BPH","STI, Vaginitis"];
+const E2ddxs = ["Testicular Torsion","Hernia","Muscle/Tendon Strain","Stress Fracture","Hip injury"];
+const E3ddxs = ["Testicular Torsion","Hernia","Muscle/Tendon Strain","Stress Fracture","Hip injury"];
+const E4ddxs = ["Urinary Obstruction","Benign Prostatic Hypertrophy","UTI, STI","Stress Incontinence"];
+const F1ddxs = ["Orthostatic Hypotension","Vasovagal Syncope","Vertigo","Anxiety","Heart Arrhythmia","Intracranial Bleed","Seizure, Drugs, Alcohol"];
+const F2ddxs = ["Migraine Headache","Tension Headache","Caffeine Withdrawal","Infection/Meningitis","Intracranial Hemorrhage"];
+const F3ddxs = ["Viral Syndrome/ Fatigue","Stroke","Nerve Compression","Hypoglycemia","Hyperventilation","Depression","Lyme disease"];
+const F4ddxs = ["Hypoglycemia","Hypotension","Hypoxia","Concussion","Infection","Intoxication"];
+const F5ddxs = ["Depression","Anxiety","Hypoxia","Hypo/hyperthyroidism","Substance intoxication or withdrawal"];
+const F6ddxs = ["Headache/migraine","Concussion","Intracerebral Hemorrhage","Anxiety","Stroke","Spinal cord injury","Seizure","Dehydration"];
+const G1ddxs = ["Sleep Debt","Sleep Apnea","Anemia","Anxiety Disorders","Chronic Infection/Inflammation","Chronic fatigue syndrome","Acute liver failure"];
+const G2ddxs = ["Malaise","Cold Symptoms","Sore Throat, Ear Pain","Heat/Cold Injury","Diarrhea","Pain with urination"];
+const H1ddxs = ["Blepharitis","Allergies","Conjunctivitis","Corneal Abrasion/Trauma","Subconjunctival Hemorrhage","Keratitis/Iritis"];
+const H2ddxs = ["Stye, Blepharitis","Dermatitis","Infection","Eyelid laceration"];
+const H3ddxs = ["Trauma","Migraine","Hemorrhage","Infection","Ischemia, Stroke"];
+const H4ddxs = ["Intoxication","Prescription Eyeglasses","Muscle Weakness","Trauma"];
+const I1ddxs = ["Cyclical Breast Pain","Musculoskeletal Issue","Large Breasts","Mastitis, Abscess","Cancer"];
+const I2ddxs = ["Irregular Menstrual Cycle","Pregnancy"];
+const I3ddxs = ["Heavy Menstrual Cycle","Irregular Menstrual Cycle","Birth Control Side Effect","Miscarriage","Ectopic Pregnancy"];
+const I4ddxs = ["Bacterial Vaginosis","Yeast Infection","Trichomonas","Pelvic Inflammatory Disease","STI"];
+const I5ddxs = ["N/A"];
+const I6ddxs = ["N/A"];
+const J1ddxs = ["Eczema","Hives","Contact Dermatitis","Athlete’s Foot","Heat Rash","Drug Reaction"];
+const J2ddxs = ["Acne Vulgaris","Pseudofolliculitis Barbae","Folliculitis","Acne Rosacea","Hyperandrogenism"];
+const J3ddxs = ["Acne","Pseudofolliculitis Barbae","Folliculitis","Tinea Barbae","Acne Keloidalis Nuchae"];
+const J4ddxs = ["Pemphigus Foliaceous","Tinea Capitis","Psoriasis","Allergic Contact Dermatitis","Seborrheic Dermatitis"];
+const J5ddxs = ["Alopecia","Traction Hair Loss","Alopecia Areata","Tinea Capitis","Acne Keloidalis Nuchae"];
+const J6ddxs = ["Interdigital tinea pedis","Hyperkeratotic (moccasin-type) tinea pedis","Vesiculobullous (Inflammatory) tinea pedis"];
+const J7ddxs = ["Inverse psoriasis","Erythrasma","Seborrheic dermatitis","Candidal intertrigo"];
+const J8ddxs = ["Seborrheic dermatitis","Tinea corporis","Vitiligo","Secondary syphilis"];
+const J9ddxs = ["Folliculitis","Abscess","Epidermal Cyst","Hidradenitis Suppurativa","Septic Joint"];
+const J10ddxs = ["Cold Sore","Aphthous Ulcer","Epstein-Barr Virus","Syphilis"];
+const J11ddxs = ["Abrasion","Laceration"];
+const J12ddxs = ["N/A"];
+const J13ddxs = ["Hives","Contact Dermatitis","Viral Exanthem","Drug Rash"];
+const J14ddxs = ["Burn","Irritant Contact Dermatitis"];
+const J15ddxs = ["Corn","Stephen Johnson Syndrome","Staphylococcal scalded skin syndrome"];
+const J16ddxs = ["Callus","Plantar Wart","Corn","Bunion"];
+const J17ddxs = ["Cutaneous Wart","Corn","Callous","Skin Cancer"];
+const J18ddxs = ["Paronychia","Ingrown Toenail","Trauma","Cellulitis"];
+const K1ddxs = ["Heatstroke","Heat Cramps","Heat Exhaustion","Fever/ Infection","Dehydration","Hyperthyroidism"];
+const K2ddxs = ["Environmental Exposure","Exhaustion and Malnutrition","Hypothyroidism","Sepsis"];
+const K3ddxs = ["Nonfreezing Cold Injury","Cold Urticaria","Raynaud Phenomenon","Frostbite"];
+const K4ddxs = ["N/A"];
+const K5ddxs = ["N/A"];
+const K6ddxs = ["Lice","Scabies","Contact Dermatitis","Fungal Infection","Hair Casts"];
+const K7ddxs = ["Insect Bite","Skin Infection","Contact Dermatitis"];
+const L1ddxs = ["Low Risk Exposure","High Risk Exposure"];
+const L2ddxs = ["Tooth Cavity","Poor Dental Hygiene","Temporomandibular Joint Pain","Infection","Heart Attack"];
+const L3ddxs = ["Aphthous Ulcers","Herpes Simplex Virus","Hand, Foot, and Mouth Disease","Stevens Johnson Syndrome"];
+const L4ddxs = ["N/A"];
+const L5ddxs = ["N/A"];
+const L6ddxs = ["N/A"];
+const L7ddxs = ["N/A"];
+const L8ddxs = ["N/A"];
+const L9ddxs = ["N/A"];
+const L10ddxs = ["N/A"];
+const L11ddxs = ["N/A"];
+const L12ddxs = ["N/A"];
+const M1ddxs = ["N/A"];
+const M2ddxs = ["N/A"];
 //redflags            ","
 const A1flags = ["SOB", "Stridor", "Deviated Uvula", "Drooling/ Trouble Swallowing ", "Stiff Neck"];
 const A2flags = ["Stiff Neck AND Fever", "Posterior ear pain and/or mastoid erythema"];
@@ -1903,76 +3597,76 @@ const B8flags = ["Abnormal PMS", "Deformity", "High Energy Trauma"];
 const B9flags = ["Abnormal Distal Pulse", "Abnormal Sensation", "Deformity"];
 const B10flags = ["Abnormal Distal Pulse", "Abnormal Sensation", "Deformity", "Suspect Stress Fracture (increased with weight bearing or during exercise, endurance training, change in exercise routine)"];
 const B11flags = ["Abnormal Distal Pulse", "Abnormal Sensation", "Deformity", "Cola Colored Urine", "Inability to Urinate"];
-const C1flags = [];
+const C1flags = ["Vomiting Blood or Coffee Grinds, Melena","Neurologic Symptoms","Chest Pain","Abdominal Pain followed by Nausea","Abdominal Distension"];
 const C2flags = ["Vomiting Blood or Coffee Grinds, Melena ","Severe abdominal pain"," Significant weight loss"];
-const C3flags = [];
-const C4flags = [];
-const C5flags = [];
-const C6flags = [];
+const C3flags = ["Abnormal Vitals","Abdominal rigidity/rebound (bump chair)","Severe pain","Fever with jaundice and RUQ pain","Confirmed Pregnancy","Alcoholism","Immunocompromised","RLQ Pain"];
+const C4flags = ["Toilette FULL of Blood","Vomiting Blood or Coffee Grinds","Melena","Lightheaded"];
+const C5flags = ["Diarrhea at night","Iron deficiency anemia","Vomiting"];
+const C6flags = ["Airway compromise","Coughing, choking when swallowing"];
 const C7flags = ["Vomiting Blood or Coffee Grinds","Melena","Angina", "SOB","Radiation to Back"];
-const D1flags = [];
-const D2flags = [];
-const E1flags = [];
-const E2flags = [];
-const E3flags = [];
-const E4flags = [];
-const F1flags = [];
-const F2flags = [];
-const F3flags = [];
-const F4flags = [];
-const F5flags = [];
-const F6flags = [];
-const G1flags = [];
-const G2flags = [];
-const H1flags = [];
-const H2flags = [];
-const H3flags = [];
-const H4flags = [];
-const I1flags = [];
-const I2flags = [];
-const I3flags = [];
-const I4flags = [];
-const I5flags = [];
-const I6flags = [];
-const J1flags = [];
-const J2flags = [];
-const J3flags = [];
-const J4flags = [];
-const J5flags = [];
-const J6flags = [];
-const J7flags = [];
-const J8flags = [];
-const J9flags = [];
-const J10flags = [];
-const J11flags = [];
-const J12flags = [];
-const J13flags = [];
-const J14flags = [];
-const J15flags = [];
-const J16flags = [];
-const J17flags = [];
-const J18flags = [];
-const K1flags = [];
-const K2flags = [];
-const K3flags = [];
-const K4flags = [];
-const K5flags = [];
-const K6flags = [];
-const K7flags = [];
-const L1flags = [];
-const L2flags = [];
-const L3flags = [];
-const L4flags = [];
-const L5flags = [];
-const L6flags = [];
-const L7flags = [];
-const L8flags = [];
-const L9flags = [];
-const L10flags = [];
-const L11flags = [];
-const L12flags = [];
-const M1flags = [];
-const M2flags = [];
+const D1flags = ["Cyanosis","Ancillary muscles","SpO2<90%","SIRS Criteria","Airway Swelling","Hives","Altered Mental Status (AMS)"];
+const D2flags = ["Irregular Pulse","H/O or FH of Heart Problems","Shoulder, jaw pain or pressure"];
+const E1flags = ["Systemic Inflammatory Response Syndrome","Flank Pain","Severe Abdominal Pain","Gross Hematuria or Passing Blood Clots"];
+const E2flags = ["Pain with testes supported","Suspect Stress Fracture (increased with weight bearing or during exercise, endurance training, change in exercise routine)","Severe Pain"];
+const E3flags = ["Female Pelvic Pain with Intercourse","Pregnant","Orthostatic, Fever"];
+const E4flags = ["Inability to void x 12 hours","Fever","Cola Colored Urine","Blood or Clots in Urine"];
+const F1flags = ["Abnormal Vital Signs","Irregular Pulse","Witnessed or H/O Seizure","Severe Headache","Heat Injury"];
+const F2flags = ["Sudden Onset, Severe","Focal Neurologic Signs","Blown pupil","Severe Hypertension","Fever","Vision Change/Loss"];
+const F3flags = ["Localized to a Region or 1 sided","Recent Trauma","Loss of Consciousness","Bowel/Bladder Incontinence"];
+const F4flags = ["Abnormal Vital Signs","Altered Mental Status","Focal Neurological Deficit","Recent Trauma"];
+const F5flags = ["Homicidal Intent or Attempt","Suicide Intent or Attempt","Self-injury","Altered Mental Status"];
+const F6flags = ["Deteriorating Level of Consciousness","Double Vision","Increased Restlessness, combative or agitated behavior","Repeat vomiting","Positive result from structural brain injury detection device (if available)","Seizure","Weakness or tingling in arms or legs","Devere or worsening headache","Abnormal Neuro Exam","Battle sign, Raccoon eyes","Suspected skull fracture","Anticoagulant use"];
+const G1flags = ["Suicide Ideation","Homicide Ideation","Shortness of Breath","Stiff Neck","Melena"];
+const G2flags = ["Heat Injury","Stiff Neck","Light sensitivity","Pregnant","Seizure","Lightheaded"];
+const H1flags = ["Fixed, Abnormal Pupil"," Visual Acuity Change"," Observed Foreign Body"," Penetration, Rupture"," Chemical Exposure"," Fluid Level over Iris, Pupil"];
+const H2flags = ["Open Globe"," High Risk Laceration"," Decreased Visual Acuity"," Double Vision"];
+const H3flags = ["Trauma"," Recent Surgery"," Chemical Exposure"," Fluid Level over Iris, Pupil"," Neurologic Deficits"];
+const H4flags = ["Trauma"," Neurologic Deficits"];
+const I1flags = ["Skin Changes"," Mass"," Bloody Nipple Discharge"];
+const I2flags = ["Positive hCG AND"," Pelvic Pain"," H/O Ectopic Pregnancy"," Vaginal Bleeding"];
+const I3flags = ["Sexual Assault"," Trauma"," Severe Pain"," Pregnant"];
+const I4flags = ["Fever"," Pregnant"," Non-midline Pelvic Pain","Pain with Intercourse"];
+const I5flags = ["N/A"];
+const I6flags = ["N/A"];
+const J1flags = ["Airway Compromise/Swelling"];
+const J2flags = ["N/A"];
+const J3flags = ["Facial Cellulitis"];
+const J4flags = ["Scaling with Visible Inflammation"," Abnormal Sensation"," Painful Erosions"];
+const J5flags = ["N/A"];
+const J6flags = ["Diabetic Soldiers","Significant erosions/ulcerations or malodor in affected area","Soldiers w/weakened immune systems"];
+const J7flags = ["Diabetes"," Immunodeficiency"];
+const J8flags = ["N/A"];
+const J9flags = ["Location over Tailbone"," SIRS Criteria"," Worsening on Antibiotics"," Palm of Hand"," Over Joint"," Black Eschar"];
+const J10flags = ["Eye Pain"];
+const J11flags = ["SIRS Criteria"," Animal Bite, Scratch"];
+const J12flags = ["Fever"," Pus/redness/swelling"];
+const J13flags = ["Airway Swelling"," Wheezing"," Anaphylaxis"];
+const J14flags = ["Trouble Breathing"," AMS, Drowsy"," High Risk Location"," Circumferential Burn"];
+const J15flags = ["Fever/malaise"," Epidermal sloughing"];
+const J16flags = ["N/A"];
+const J17flags = ["N/A"];
+const J18flags = ["Red Streaks up Foot"," Gangrene"," Black Eschar"];
+const K1flags = ["Altered mental status"," Abnormal vital signs"];
+const K2flags = ["T<96 degrees F"," Altered Mental Status"," Abnormal Vital Signs"," Frostbite"," Trauma"];
+const K3flags = ["Gangrene/Necrosis"," Hemorrhagic Blisters"," Hypothermia"," Frostbite"," Trauma"];
+const K4flags = ["N/A"];
+const K5flags = ["N/A"];
+const K6flags = ["N/A"];
+const K7flags = ["Swelling of Lips or Tongue","Trouble Breathing","Abnormal Vital Signs"];
+const L1flags = ["Known Infection"," High Risk Contact"];
+const L2flags = ["Exposed Pulp"," Avulsed Tooth"," Severe Pain"," Trauma"," Chest Pain, SOB"];
+const L3flags = ["Diffuse"," Bloody Diarrhea"];
+const L4flags = ["N/A"];
+const L5flags = ["N/A"];
+const L6flags = ["N/A"];
+const L7flags = ["N/A"];
+const L8flags = ["N/A","1"];
+const L9flags = ["N/A"];
+const L10flags = ["N/A"];
+const L11flags = ["N/A"];
+const L12flags = ["N/A"];
+const M1flags = ["N/A"];
+const M2flags = ["N/A"];
 
 
 
@@ -2156,9 +3850,9 @@ const redflaglist = {
 function c3it(){
   const a = event.target;
   let b = a.closest(".ADTsheet")
-  let c = b.querySelector(".green-btn");
-  c.classList.add("closed");
+  greenbtn.classList.toggle("closed");
   functions[b.id]();
+
 }
 
 
@@ -2395,6 +4089,7 @@ btns.forEach(function(currentChild){
       var li = document.createElement('li');
       li.innerHTML = ddxarrayvalue[i];
       li.setAttribute('style', 'display: block;');
+      console.log("ddx works")
       ul.appendChild(li);
   }
   //append red flags with cont2
@@ -2403,6 +4098,7 @@ btns.forEach(function(currentChild){
       li2.innerHTML = redflagvalue[i];
       li2.setAttribute('style', 'display: block;');
       ul2.appendChild(li2);
+      console.log("red f works")
   }
  //append ddx and red flag li to their ul after validation
   cont.appendChild(ul);
@@ -2569,7 +4265,6 @@ function justifyA3() {
   const dispo2 = A3.querySelector("#A3dispo-2");
   const dispoRTD = A3.querySelector("#A3dispo-RTD");
   if(A3red.checked == true){
-      console.log("it works");
       A3.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')}); 
       if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
@@ -2590,8 +4285,6 @@ function justifyA3() {
           A3.querySelectorAll('.dispobox').forEach(el => {
             el.classList.remove('open')});
             if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open");
-            const Div = dispoRTD.offsetTop;
-            ADTpage.scrollTo({ top: Div, behavior: 'smooth' })
           }
         }
       }
@@ -2600,7 +4293,6 @@ function justifyA3() {
 //Justification A4
   function justifyA4() {
     var btnid = event.target.id;
-    console.log(btnid);
     const hidden = A4.querySelector(".subQ");
     const A4red = A4.querySelector("#A4-redbtn");
     const A4c1 = A4.querySelector("#A4-1-btn");
@@ -3191,19 +4883,19 @@ if(E2red.checked == true){
     console.log("it works");
     E2.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
 }else{
     E2.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
     if(E2c1.checked == true){
       E2.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
 
     }else{
         E2.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
           }
         }
       }
@@ -3241,7 +4933,7 @@ const E4c1 = E4.querySelector("#E4-1-btn");
 const dispored = E4.querySelector("#E4dispo-red");
 const dispo1 = E4.querySelector("#E4dispo-1");
 const dispoRTD = E4.querySelector("#E4dispo-RTD");
-const greenbtn = E4.querySelector(".green-btn");
+const greenbtn = document.querySelector(".green-btn");
 if(E4red.checked == true){
     console.log("it works");
     E4.querySelectorAll('.dispobox').forEach(el => {
@@ -3268,7 +4960,6 @@ const F1c1 = F1.querySelector("#F1-1-btn");
 const dispored = F1.querySelector("#F1dispo-red");
 const dispo1 = F1.querySelector("#F1dispo-1");
 const dispoRTD = F1.querySelector("#F1dispo-RTD");
-const greenbtn = F1.querySelector(".green-btn");
 if(F1red.checked == true){
     console.log("it works");
     F1.querySelectorAll('.dispobox').forEach(el => {
@@ -3297,7 +4988,6 @@ const F3c1 = F3.querySelector("#F3-1-btn");
 const dispored = F3.querySelector("#F3dispo-red");
 const dispo1 = F3.querySelector("#F3dispo-1");
 const dispoRTD = F3.querySelector("#F3dispo-RTD");
-const greenbtn = F3.querySelector(".green-btn");
 if(F3red.checked == true){
     console.log("it works");
     F3.querySelectorAll('.dispobox').forEach(el => {
@@ -3325,7 +5015,6 @@ const F4c1 = F4.querySelector("#F4-1-btn");
 const dispored = F4.querySelector("#F4dispo-red");
 const dispo1 = F4.querySelector("#F4dispo-1");
 const dispoRTD = F4.querySelector("#F4dispo-RTD");
-const greenbtn = F4.querySelector(".green-btn");
 if(F4red.checked == true){
     console.log("it works");
     F4.querySelectorAll('.dispobox').forEach(el => {
@@ -3353,7 +5042,6 @@ const F4c1 = F4.querySelector("#F4-1-btn");
 const dispored = F4.querySelector("#F4dispo-red");
 const dispo1 = F4.querySelector("#F4dispo-1");
 const dispoRTD = F4.querySelector("#F4dispo-RTD");
-const greenbtn = F4.querySelector(".green-btn");
 if(F4red.checked == true){
     console.log("it works");
     F4.querySelectorAll('.dispobox').forEach(el => {
@@ -3382,7 +5070,6 @@ const F5c1 = F5.querySelector("#F5-1-btn");
 const dispored = F5.querySelector("#F5dispo-red");
 const dispo1 = F5.querySelector("#F5dispo-1");
 const dispoRTD = F5.querySelector("#F5dispo-RTD");
-const greenbtn = F5.querySelector(".green-btn");
 if(F5red.checked == true){
     console.log("it works");
     F5.querySelectorAll('.dispobox').forEach(el => {
