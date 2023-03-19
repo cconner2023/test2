@@ -228,13 +228,13 @@ const
   A1ACT1 = [],
   A1ACT2 = [],
   A1ACT3 = [],  
-  A1DP1 = ["DP1. Signs of infection. All Soldiers with otitis media or moderate to severe otitis externa should be evaluated by a privileged provider to be considered for antibiotics."],
-  A1DP2 = ["DP2. Vertigo requires an internal ear evaluation. Longer timeline and decreased hearing can be signs of a complication from an ear infection or alternate cause requiring a qualified provider evaluation."],
-  A1DP3 = ["Mild otitis externa, temporal-mandibular joint (TMJ) dysfunction, and ear pain with normal exam should be treated with minor-care.","MCP for otitis externa. Soak wick of a cotton ball wick with OTC ear drops. Place in the ear for 24 hours while using the drops. Remove the cotton wick and continue drops for 1 week (3 days after the symptoms have resolved). Keep the ear canal dry. Use OTC ibuprofen as needed for pain. Return to clinic if not resolved in 1 week or worsening symptoms to include pain or fever.","MCP for TMJ is another common cause of pain around the ear. Evaluation includes seeing if the pain increases with opening and closing the jaw while placing the finger on the anterior inside of the ear to feel the joint. Ensure pain is not related to the heart. Use OTC ibuprofen for inflammation and pain. Refer to dental if history of teeth grinding. Instruct on avoidance of triggers (excessive chewing, chewing gum). Home therapy is jaw isometric exercises: jaw is open 1 inch and jaw is pushed 1) down against a loosely fisted hand and 2) forward against a hand for 5 seconds each, each set is repeated 5 times per session with 3 sessions per day. Return if not improving within three days."],
+  A1DP1 = ["DP2. 4 questions that look at the chance of having a Group A Streptococcal (GAS) infection. If 3 of the questions are positive, there is 32% chance of having GAS and a rapid antigen test (RADT) should be performed. The RADT is effective for ruling out GAS in adults but some Soldiers with GAS are missed. Culture test is performed when the RADT is negative and Soldiers or their contacts are at higher risk for complications from a GAS infection. Culture generally takes 24-48 hours for the results to return."],
+  A1DP2 = ["Other protocols. Sore throat and hoarseness that are associated with a virus should be treated with minor-care. The other symptoms should be treated according to their associated protocols.","MCP for sore throat. A sore throat is often due to a viral infection. Minor-care consist of pain control, measures to decrease inflammation, getting plenty of rest and drinking plenty of fluids (water). Return for signs of the infection getting worse or progressing.","MCP for hoarseness. Hoarseness is often due to a virus or irritant. Minor-care consists of resting the vocal cords and avoidance of irritants (cigarette smoking, yelling, heartburn, post-nasal drip). This is a good opportunity to discuss the negative effects of tobacco use and encourage the Soldier to quit using tobacco, if applicable."],
+  A1DP3 = [],
   A1DP4 = [],
-  A1DPRE = ["DP3. Evaluate for cold symptoms and sore throat that can be associated with ear pain with their respective protocols."],
-  A1DPRED = [],
-  A1PRO = [],
+  A1DPRE = ["DP3.  CENTOR score < 2 low risk of strep throat, screen other symptoms if present"],
+  A1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” One-sided severe sore throat with fever, trouble swallowing as shown by drooling, uvula displacement, hoarseness (hot potato voice), trismus (lock jaw), and enlarged, tender tonsils are signs of a deep neck space infection like a peritonsillar abscess. Shortness of breath and stridor are signs of upper airway obstruction due to severe pharyngeal inflammation.","DP1. Symptoms greater than 10 days, immunosuppression, inhaled steroid medications are related to diseases that are unlikely to go away without treatment. Hoarseness longer than 2 weeks requires a full laryngeal exam."],
+  A1PRO = ["MCP sore throat: For pain: lozenge first line, ibuprofen second line, for elevated temperature: acetaminophen, salt water gargles and drink warm fluids for inflammation","MCP hoarseness: rest vocal cords and avoid irritants (cigarette smoking, yelling, heartburn","Return if not improving in 3 days or immediately if worsening symptoms or red flags (above)."],
   A1LIMITATIONS = [],
   A1GEN = ["pg. 19-20: A sore throat is often due to a viral infection. Bacterial infections and other causes need to also be considered."],
   A1MEDCOM = ["Obtain a Throat Culture", "pg. 68","(13)"],
@@ -480,7 +480,22 @@ const
   B11MEDCOM = ["Initial Management of Fractures/Spinal Injury pg.69 (2)(d)"],
   B11STP1 = [" Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222 ","Subject Area 7: Musculoskeletal. Apply a Rigid Splint. 081-833-0263 ","Subject Area 7: Musculoskeletal. Apply and Elastic Bandage. 081-833-0264"],
 
- //C2 
+  C1ACT1 = [],
+  C1ACT2 = [],
+  C1ACT3 = [],
+  C1DP1 = ["DP 2. These are symptoms that are related to volume depletion. Fluid depletion is a risk of significant nausea and vomiting. If a Soldier is not able to maintain fluid intake due to his or her nausea and vomiting, then short term hospitalization has to be considered until the nausea and vomiting can be controlled. Nausea and vomiting, especially in the mornings, is a common symptom in pregnancy. If a Soldier has a positive pregnancy test or symptoms of nausea during pregnancy, she will require a longer-term plan than the minor-care protocol can accommodate."],
+  C1DP2 = [],
+  C1DP3 = ["MCP for nausea/vomiting. Handwashing is important to prevent spread of disease. Due to contagion risk, activity modification is important for food handlers and multiple cases or when DFAC food is suspected must be reported to the supervising NCO due to the potential of an outbreak. Diet control is very important in treating nausea and vomiting. Ice chips should be used initially. Once vomiting is controlled, advance to clear liquids (broth, fruit juice, sports drink and caffeine free soda). Start with small sips and slowly advance. Once the Soldier has been able to tolerate liquids for 24 hours, advance to a BRAT (bread, rice, apple sauce, toast) diet of simple carbohydrates. The Soldier with severe or persistent vomiting that is unable to tolerate liquids will require IV fluids. Advise the Soldier to return for medical assistance if the symptoms last more than two days, if blood appears in his vomit or in his stools, or if he becomes dizzy and/or faints upon standing. Vomiting that is severe enough to prevent the Soldier from keeping clear liquids down for 24 hours, severe abdominal pain, or worsening symptoms are also causes for a prompt return visit."],
+  C1DP4 = [],
+  C1DPRE = ["DP 3. There are many other symptoms that can be associated with nausea and vomiting to include dizziness (vertigo), headaches (migraines) and heartburn. Reflux and regurgitation (return of gastric contents to hypopharynx with little effort) can be seen with heartburn and do not require treatment unless symptomatic."],
+  C1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Vomiting blood/coffee grinds and melena can be signs of an intestinal bleed. Neurologic symptoms can be a sign of increased intracranial pressure. Myocardial infarction can present with nausea.","DP 1. These represent the possibility of more significant underlying medical conditions. A common side effect of chemotherapy treatment is nausea and vomiting that is sometimes difficult to control. BMI less than 18 can be a sign of an eating disorder like bulimia or another significant medical condition. Uncontrolled diabetes and gastroparesis due to diabetes can also present with nausea and vomiting."],
+  C1PRO = ["Hand washing protocol. Special food handler precautions.","Notify supervising NCO if DFAC food is suspected or multiple cases identified.","Initiate a clear liquid diet with broth, sports drinks, clear non-caffeine soft drinks, fruit juice. ice chips to maintain calories and hydration. When vomiting controlled, start BRAT diet of simple carbohydrates.","Return to clinic if not improved in 48 hours or any of the red flags or other symptoms develop."],
+  C1LIMITATIONS = ["No food handling, if work in a DFAC, until symptoms have resolved x 48 hours"],
+  C1GEN = ["Pg. 51-52: Acute diarrhea in adults are often infectious in nature. The largest risk is due to volume depletion secondary to fluid loss. Small intestine infections often results in large, watery bowel movements associated with cramping, bloating, and gas symptoms. Large intestine infections often results in frequent regular, small bowel movements that are painful and associated with symptoms of mucous, blood, or fever. In general, diarrhea is often self-limited. Note that treatment of the symptoms by decreasing bowel movements frequency may extend the length of the disease."],
+  C1MEDCOM = ["Administer Antiemetic pg. 67(3)(g)","Obtain Laboratory Specimens pg. 69-70(2)(k)"],
+  C1STP1 = ["N/A"],
+
+
   C2ACT1 = [],
   C2ACT2 = [],
   C2ACT3 = [],
@@ -492,7 +507,7 @@ const
   C2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Nausea/ vomiting blood or coffee grinds and melena can be signs of an intestinal bleeding. Melena is a tar like stool with a very pungent odor resulting from the digestion of blood."],
   C2PRO = ["Medication: bismuth subsalicylate (1st line) as needed, discuss with provider before giving Imodium (2nd line)","Initiate a clear liquid diet with broth, sports drinks, cler non-caffeine soft drinks, fruit juice, ice chips to maintain calories and hydration. When diarrhea controlled, start BRAT diet of simple carbohydrates."],
   C2LIMITATIONS = ["No food handling, if work in a DFAC, until symptoms have resolved x 48 hours", "Must have access to a restroom within 2 minutes"],
-  C2GEN = ["Pg. 52-53: Acute diarrhea in adults are often infectious in nature. The largest risk is due to volume depletion secondary to fluid loss. Small intestine infections often results in large, watery bowel movements associated with cramping, bloating, and gas symptoms. Large intestine infections often results in frequent regular, small bowel movements that are painful and associated with symptoms of mucous, blood, or fever. In general, diarrhea is often self-limited. Note that treatment of the symptoms by decreasing bowel movements frequency may extend the length of the disease."],
+  C2GEN = ["Pg. 53-54: Acute diarrhea in adults are often infectious in nature. The largest risk is due to volume depletion secondary to fluid loss. Small intestine infections often results in large, watery bowel movements associated with cramping, bloating, and gas symptoms. Large intestine infections often results in frequent regular, small bowel movements that are painful and associated with symptoms of mucous, blood, or fever. In general, diarrhea is often self-limited. Note that treatment of the symptoms by decreasing bowel movements frequency may extend the length of the disease."],
   C2MEDCOM = ["Obtain Laboratory Specimens pg. 69-70 (2)(k)"],
   C2STP1 = [ "Subject Area 2: Medical Treatment. Initiate Treatment for a Poisoned Casualty. 081-833-0004", "Subject Area 6: Primary Care. Provide Treatment for Abdominal Disorders. 081-833-0239", "Subject Area 16: CBRN. Provide Treatment for a Radiation Casualty. 081-833-0280"],
   
@@ -607,782 +622,799 @@ const
   E1ACT1 = [],
   E1ACT2 = [],
   E1ACT3 = [],
-  E1DP1 = [],
-  E1DP2 = [],
-  E1DP3 = [],
+  E1DP1 = ["DP 1. Urinary tract infections can get worse if not promptly treated. Urinary tract infection can progress to a kidney infection and then a systemic infection through the blood. Uncontrolled diabetes can present with increased urination and nausea with vomiting. Complaints requiring an invasive exam are referred to the supervising privileged provider."],
+  E1DP2 = ["DP 2. Urinary complaints in a male are more likely to be something other than a urinary tract infection. Recurrent urinary tract infections (UTIs), recent urinary catheterization, and immunocompromised are more likely to have an atypical bacterial infection."],
+  E1DP3 = ["MCP for UTI. Instruct the Soldier about the importance of increasing fluid intake to flush out the bacteria. OTC medication: phenazopyridine as needed for pain. Instruct the Soldier that it will likely dye his or her urine orange. It may also stain contact lenses from transferring the dye from the fingers to the contacts, if worn. Antibiotics: Trimethoprim/ Sulfamethoxazole is the first line agent. Nitrofurantoin is the second line agent if the Soldier is allergic to sulfa drugs or there is local resistance to the first line agent. Return to clinic if symptoms are not improving within 24 hours, development of new symptoms, or worsening symptoms despite treatment."],
   E1DP4 = [],
   E1DPRE = [],
   E1DPRED = [],
-  E1PRO = [],
+  E1PRO = [""],
   E1LIMITATIONS = [],
-  E1GEN = [],
-  E1MEDCOM = [],
+  E1GEN = ["pg. 69-70: Painful urination is most commonly a sign of a urinary tract infection, kidney stone, sexually transmitted infection, or yeast infection. Frequent urination can be associated with these but can also be one of the initial signs of hyperglycemia from diabetes. ","UA and urine culture should be completed if resources are available. A Soldier with symptoms consistent with a UTI can be empirically treated without a urinalysis after ruling out any history that would increase the Soldier’s risk and determining any allergies to medications."],
+  E1MEDCOM = ["Obtain Laboratory Specimens pg. 69-70(2)(k)"],
   E1STP1 = [],
 
-  E2ACT1 = [],
-  E2ACT2 = [],
+  E2ACT1 = ["Stress fracture: crutches with toe touching weight bearing"],
+  E2ACT2 = ["STD Screen and UA"],
   E2ACT3 = [],
-  E2DP1 = [],
-  E2DP2 = [],
+  E2DP1 = ["DP 2: Pain that has lasted for over 2 weeks is less likely to be an acute muscle strain and could represent an injury to the hip joint requiring further evaluation. Urologic symptoms, like hematuria, require further evaluation."],
+  E2DP2 = ["MCP for epididymitis. Pain is often improved with testicular support. Instruct the Soldier on the importance of wearing supportive underwear (briefs, jock strap), application of ice to decrease the swelling. Medication: ibuprofen, acetaminophen, topical muscle balm, ice and heat as needed for pain, inflammation, and swelling or ketorolac for moderate pain. Activity modification.","MCP for muscle/tendon strain. Pain is often worse with activity. Instruct the Soldier on the home exercise program in accordance with local protocol. Medication: ibuprofen, acetaminophen, topical muscle balm, ice and heat as needed for pain, inflammation, and swelling or ketorolac for moderate pain. Activity modification.","MCP for urethral discharge. Request an order for a urinalysis and gonorrhea/chlamydia urine screen. If urethral discharge is present, 2+ white blood cells (WBCs) on urinalysis, leukocyte esterase positive on urinalysis, or recent known STI exposure, treat for potential gonorrhea/chlamydia infection with ceftriaxone and azithromycin. Instruct the Soldier that the condition is contagious and to abstain from intercourse for 1 week after treatment. Notify the supervising privileged provider so that he or she can track. Refer to community health. Return to clinic if symptoms are not improving within 48 hours, development of new symptoms, or worsening symptoms."],
   E2DP3 = [],
   E2DP4 = [],
   E2DPRE = [],
-  E2DPRED = [],
-  E2PRO = [],
-  E2LIMITATIONS = [],
-  E2GEN = [],
-  E2MEDCOM = [],
+  E2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems. ","DP 1: Severe pain at rest with the testes supported can be a sign of testicular torsion or a hernia. Immediate referral is needed for further evaluation and potential treatment. Pain with standing or increasing during exercise can be a sign of a stress fracture of the hip. Change in activity or endurance training are risk factors for a stress fracture. Suspected stress fractures should be toe touch weight bearing and get immediate evaluation. Nausea and vomiting could represent severe pain or be a sign of a hernia."],
+  E2PRO = ["MCP FOR MSK:","Provide home exercise program, intermittent ice or heat IAW local protocol if worse with activity","MCP for epididymitis:","Intermittent ice and testicular support if improved with support","Activity modification as appropriate","Medication: Ibuprofen (1st line) and ketorolac (2nd line) as needed for moderate pain","Provide screening, treatment, and counseling if present with urologic symptoms.","RTC if worsening pain, new symptoms arise, or not improved within 1 week","MCP for urethral discharge:","Provide screening. if urethral discharge is present, or recent known STI exposure, treat for potential Gonorrheal/Chlamydia infection with ceftriaxone and azithromycin.","Instruct the Soldier that the condition is contagious and to abstain from intercourse for 1 week after treatment.","Notify provider, Refer to community health","RTC if symptoms are not improving within 48 hours, development of new symptoms or worsening symptoms"],
+  E2LIMITATIONS = ["Epididymitis","Walk at own pace/distance","No running, jumping, riding in military vehicle over uneven terrain","May stand for up to 15min"],
+  E2GEN = ["pg. 71-72: This term may be described as pain in the testes or groin. Look for visual cues and orient the Soldier to the pain scale prior to defining the level of pain."],
+  E2MEDCOM = ["Initial Management of Fractures/Spinal Injury pg.69 (2)(d)","Obtain Laboratory Specimens pg.69-70 (2)(k)","Gathers Sexually Transmitted Infection Specimen pg.69-70 (2)(n)"],
   E2STP1 = [],
 
-  E3ACT1 = [],
+  E3ACT1 = ["STD Screen and UA"],
   E3ACT2 = [],
   E3ACT3 = [],
-  E3DP1 = [],
-  E3DP2 = [],
+  E3DP1 = ["DP 2: Skin lesions/rash may represent a chancre (syphilis), HSV ulcers, genital warts (HPV), chancroid, or molluscum contagiosum. Further evaluation is necessary to determine the necessary treatment modality (freezing, medication, or referral)"],
+  E3DP2 = ["MCP for urethral discharge. Request an order for a urinalysis and gonorrhea/chlamydia urine screen. If urethral discharge is present, 2+ WBC on urinalysis, leukocyte esterase positive on urinalysis, or recent known STI exposure, treat for potential gonorrhea/chlamydia infection with ceftriaxone and azithromycin. Instruct the Soldier to abstain from intercourse for one week after treatment due to contagious risk and counsel on safe sex practices and risks of high risk sexual behavior. Notify the supervising privileged provider so that he or she can track. Refer to community health. Return to clinic if symptoms are not improving within 48 hours, development of new symptoms, or worsening symptoms."],
   E3DP3 = [],
   E3DP4 = [],
   E3DPRE = [],
-  E3DPRED = [],
-  E3PRO = [],
+  E3DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: All Soldiers will be screened with a pregnancy test (if female), UA, and STI screen. STI screen will consist of a RPR, gonorrhea/chlamydia urine screen, and HIV screen. Pelvic pain with intercourse may be pelvic inflammatory disease. Orthostatic symptoms, fever, and signs of a severe illness can represent a more significant problem. Signs of a severe illness includes abnormal vital signs, appearing pale, sweaty, lethargic, or visually in pain. Failure of initial treatment may be a drug resistant organism. Females with vaginal symptoms to include discharge will be referred to a privileged provider for a pelvic examination."],
+  E3PRO = ["Counsel on avoidance of sexual contact till diagnosis has been confirmed/ruled-out, safe sex practices, and risks of high risk sexual behavior.","STD Screen. Provide treatment with oeftriaxone and arithromycin if positive or symptomatic. Natty provider. Refer to community health.","RTC if worsening symptoms. new symptoms arise, or not improving within 2 days "],
   E3LIMITATIONS = [],
-  E3GEN = [],
-  E3MEDCOM = [],
-  E3STP1 = [],
+  E3GEN = ["pg. 73-74: Soldiers frequently show concern that they may have (STIs); however, they seldom use that term. For screening purposes, focus on the symptom(s), or in the absence of symptoms, the belief that they may have been exposed to infections through sexual contact. Sexually transmitted infections include but are not limited to those traditionally classified as venereal diseases. Some are potentially life-threatening; others are not. Some infections can be cured through treatment; others cannot be cured at the present time. Sometimes symptomatic relief is available. All Soldiers, with or without symptom(s), need to be evaluated."],
+  E3MEDCOM = ["Obtain Laboratory Specimens pg.69-70(2)(k)","Gathers Sexually Transmitted Infection Specimen pg.69-70(2)(n)"],
+  E3STP1 = ["Subject Area 15: Primary Care. Utilize a Urine Test Strip 081-833-0255"],
 
-  E4ACT1 = [],
+  E4ACT1 = ["Urinalysis, pregnancy test"],
   E4ACT2 = [],
   E4ACT3 = [],
-  E4DP1 = [],
-  E4DP2 = [],
+  E4DP1 = ["DP 2: A man’s prostate can become enlarged later in life resulting in urinary symptoms of post-void urine dribbling, a weak stream, or difficulty initiating a urinary stream that requires further evaluation and treatment by a qualified provider."],
+  E4DP2 = ["MCP for urethral discharge. See Protocol E-3. Check a first morning void urinalysis and gonorrhea/chlamydia urine screen. If indicated, treat for potential gonorrhea/chlamydia infection with ceftriaxone and azithromycin. Instruct the Soldier to abstain from sex due to the contagious risk. Notify the supervising privileged provider. Refer to community health. RTC if symptoms have not improved in 1 week, symptoms worsen, or new symptoms develop.","MCP for UTI. See Protocol E-1. OTC medication: phenazopyridine as needed for pain. Antibiotics: trimethoprim/sulfamethoxazole is the first line agent. Nitrofurantoin is the second line agent. Return to clinic in 24 hours if symptoms are not improving, worsening symptoms, or developing new symptoms.","MCP for urinary incontinence. If leaking urine during episodes of increased intra-abdominal pressure (sneezing, coughing, laughing, jumping), it is stress incontinence. Instruct the Soldier on performing Kegel exercises at home. Contact the clinic if not improving and would like a referral. Return for worsening or development of new symptoms."],
   E4DP3 = [],
   E4DP4 = [],
   E4DPRE = [],
-  E4DPRED = [],
-  E4PRO = [],
-  E4LIMITATIONS = [],
-  E4GEN = [],
-  E4MEDCOM = [],
-  E4STP1 = [],
+  E4DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Inability to void can represent an obstruction of the ureter. Do to the risks to the kidneys, it is a medical emergency."],
+  E4PRO = ["If urethral discharge is present, use SCP E-3","if UA is leukocyte esterase positive, 2+ WBCs, or UTI symptoms in a female, then use SCP E-1","if leaking urine when coughing, sneeing, jumping, counsel patient on home exercises.","RTC if worsening symptoms, new symptoms arise, or not improved within stated timeframe"],
+  E4LIMITATIONS = ["For incontinence","Access to a restroom","No jumping"],
+  E4GEN = ["pg. 75-76: Problems with voiding may include urinary incontinence (voiding unintentionally), difficulty initiating the urinary stream, decreased force of the stream, dribbling urination, complete inability to void."],
+  E4MEDCOM = ["Obtain Laboratory Specimens pg.69-70(2)(k)","Gathers Sexually Transmitted Infection Specimen pg.69-70(2)(n)"],
+  E4STP1 = ["Subject Area 15: Primary Care. Utilize a Urine Test Strip 081-833-0255"],
 
-  F1ACT1 = [],
+  F1ACT1 = ["Hypotensive - start IVF","Irregular pulse - EKG","Heat exposure - cool"],
   F1ACT2 = [],
   F1ACT3 = [],
-  F1DP1 = [],
-  F1DP2 = [],
+  F1DP1 = ["DP 2: Anxiety with hyperventilation can result in dizziness. Soldiers with vertigo will require further evaluation and medications for treatment."],
+  F1DP2 = ["MCP for syncope. Common reflex syncope situations include prolonged standing in formation, seeing/ giving blood, or especially stressful situation. Have the Soldier lay down in a comfortable position and elevate the legs, if possible. Continue to monitor the Soldier for 30 minutes after the symptoms have resolved. Reassure the Soldier that it is a common and benign condition. Instruct the Soldier to increase water and salt intake, watch for the prodromal signs (lightheaded, flushing/ feeling of warmth, sweating, tunnel vision/ changes in vision progressing to blindness, nausea, appearing pale), and actions to take when the symptoms start. Laying down with the legs raised or sitting when not able to lay down, clenching the fist, or leg pumping (crossing and flexing legs) or some ways that can help relieve symptoms."],
   F1DP3 = [],
   F1DP4 = [],
   F1DPRE = [],
-  F1DPRED = [],
-  F1PRO = [],
-  F1LIMITATIONS = [],
-  F1GEN = [],
-  F1MEDCOM = [],
-  F1STP1 = [],
+  F1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Take orthostatic blood pressure. Severe headache associated with trauma can represent an intracranial bleed. Heat injuries can be life-threatening and require prompt action. Soldier acting abnormal or intoxicated, with abnormal pupils, an unsteady gait, loss of coordination, slurred speech, or appearing unkempt should be referred for further evaluation. Hypo/hyperglycemia can also result in altered mental status and progress to a coma."],
+  F1PRO = ["Reflex syncope situation/symptoms before incident, have the patient lay down wth legs uncrossed and elevated until symptoms resolve. Observe the patient for 30 minutes after symptoms resolved to make sure that the symptoms do not return. Counsel the patient to increase electrolyte intake. Counsel the patient on situations that increase risk of reoccurrence, symptoms to watch for, and early interventions to take.","RTC if worsening symptoms, new symptoms arise, or recurrence of incident."],
+  F1LIMITATIONS = ["No driving x 72 hours"],
+  F1GEN = ["pg. 77-78: It is useful to try and distinguish among different presentations of dizziness: faintness, blackouts, vertigo, confusion, malaise, muscle weakness, and other sensations. True vertigo refers to an illusion where the room seems to be spinning about or the floor seems to be moving. It may be likened to the feeling experienced immediately after getting off a fast merry-go-round and is often accompanied by nausea. Faintness or light-headedness is a feeling of unsteadiness or beginning to fall. Blackout refers to a complete loss of consciousness and observers should also be questioned about potential causes of the event and any unusual observations during the event."],
+  F1MEDCOM = ["Initiate an Intravenous Infusion pg.69(2)(a)","Initial Treatment of Environmental Injuries pg.69(2) ( e )","Provide Oxygen pg.69(2)(h)","Performs 12-lead Electrocardiogram pg. 69-70(2)(o-p)"],
+  F1STP1 = ["Subject Area 12: Medical Treatment. Obtain an Electrocardiogram 081-833-3007","Subject Area 5: Venipuncture and IV Therapy. Initiate an Intravenous Infusion 081-833-0034","Subject Area 11: Force Health Protection. Initiate Treatment for a Heat Injury 081-833-0038"],
 
-  F3ACT1 = [],
+  F2ACT1 = [],
+  F2ACT2 = [],
+  F2ACT3 = [],
+  F2DP1 = ["DP 2: Nausea is a common symptom with a migraine headache but can also be a sign of increased intracranial pressure. Nausea requires a further evaluation to determine the most likely cause. Uncontrolled high blood pressure can result in a headache and requires additional treatment. Headaches that have failed initial treatment need to be evaluated for secondary causes and a different medication regiment. A change from a Soldier’s usual headache can represent a more significant underlying medical problem or new cause of the headache. Pregnancy limits the medications that can be used, and headache in pregnancy could represent pre-eclampsia if over 20 weeks pregnant."],
+  F2DP2 = ["MCP for headache. Provide the Soldier with ibuprofen, naproxen, or ketorolac as needed for his or her headache. Return to clinic if confusion, vision problems, nausea, or fever develop, if the pain is so severe that performance of normal duties is impossible, or the headache lasts over 24 hours. May provide physical activity modification for one day, if necessary."],
+  F2DP3 = [],
+  F2DP4 = [],
+  F2DPRE = [],
+  F2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Severe hypertension is a blood pressure over 220 systolic or 110 diastolic. When a Soldier has severe hypertension, have them lay down in a quiet, dark room until able to transport them to a higher level of care. A blown pupil can be a sign of increased intracranial pressure. Sudden worst headache of the Soldier’s life and focal neurological sign can be a sign of an intracranial hemorrhage. Fever and inability to touch the chin the chest are signs of meningitis. Altered mental status can be a sign of a more significant problem. If there is some question as to whether or not the Soldier is confused, ask him simple questions such as his name, day of the week, the year, where he is now, or who is the President of the United States?"],
+  F2PRO = [],
+  F2LIMITATIONS = ["May wear Sunglasses Indoors"," Limit loud noises"," Walk at own pace/distance"," No running, rucking, jumping"],
+  F2GEN = ["pg. 79-80: In the absence of fever, severe pain, or confusion, serious disease is extremely unlikely. Migraines often present with a gradual, increasing onset of a one sided, pulsatile moderate to severe headache worse with physical activity, noise, or light and associated with nausea and may have an aura. Tension-type headache often presents as a bilateral pressure that waxes and wanes lasting from 30 min to seven days. Cluster headache is rare. It presents with a rapid onset within minutes of unilateral deep, continuous severe pain around the eye or temple often associated with tearing, congestion, runny nose, pallor, or sweating."],
+  F2MEDCOM = [],
+  F2STP1 = [],
+
+
+
+  F3ACT1 = ["Glucose < 70 - provide sugar/food if available"],
   F3ACT2 = [],
   F3ACT3 = [],
-  F3DP1 = [],
-  F3DP2 = [],
+  F3DP1 = ["DP 2: Fatigue from an infectious illness can be described as weakness. First occurrence of symptoms or being 35 years old or older may indicate a higher risk for a more serious condition. Depression can also present as weakness."],
+  F3DP2 = ["MCP for hyperventilation (respiratory rate greater than 14 per minute). Provide reassurance to the patient. Have the Soldier practice relaxed breathing. If symptoms do not resolve within 10 minutes, refer to AEM. If symptoms resolve, refer to behavioral health if available.","MCP for viral syndrome. Viral syndrome can present as fatigue described as weakness. It is a global feeling often associated with other symptoms and muscle aches. Treat in accordance with related protocol.","MCP for sleep issues. Sleep issues can present as fatigue described as weakness. It can be a manifestation of depression or stress among other things. Provide education on sleep hygiene, consider providing diphenhydramine or melatonin nightly for three nights, consider activity modification, discuss stress management, and offer a routine referral to behavioral health asset for counseling and treatment."],
   F3DP3 = [],
   F3DP4 = [],
   F3DPRE = [],
-  F3DPRED = [],
-  F3PRO = [],
-  F3LIMITATIONS = [],
-  F3GEN = [],
-  F3MEDCOM = [],
-  F3STP1 = [],
+  F3DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Localized issue is more likely to have a serious cause then generalized symptoms. Back pain can represent a herniated disc causing nerve compression. Severe headache can represent an intracranial lesion. Insulin use, or history of diabetes can present with symptomatic hypoglycemia. In hypoglycemic Soldiers, sugar or food should be provided if available."],
+  F3PRO = ["Hyperventilation: respiratory rate greater than 14 per minute. Provide reassurance to the patient. Have the Soldier practice relaxed breathing. If symptoms do not resolve within 10 minutes, refer to AEM. If symptoms resolve, refer to behavioral health if available. ","Viral Syndrome: ibuprofen as needed for fatigue/body aches. Drink plenty of water. Get plenty of sleep. ","Insomnia/Fatigue/Stress: provide sleep hygiene education, recommend self-reflection to find a way to relieve stress, and offer a routine referral to a routine behavioral health asset, if available. ","Return to clinic if not improving, new symptoms arise, or symptoms are worsening."],
+  F3LIMITATIONS = ["For insomnia: Allow for 8 hours of uninterrupted sleep in 24 hour period","For Viral Syndrome: PT training at own pace/ rep/ distance x 3 days"],
+  F3GEN = ["pg. 81-82: “Numbness” may be used by the Soldier to describe muscle weakness, malaise, confusion, or abnormal sensation including tingling (a “pins and needles” sensation). Paralysis/weakness is a condition that refers to a loss of muscular strength resulting in difficulty or inability to move a body part. A complete loss of muscular strength is paralysis; a partial loss is weakness."],
+  F3MEDCOM = ["Obtain Blood Glucose Levels pg.69(2)(f)"],
+  F3STP1 = ["Subject Area 15: Primary Care. Operate a Glucometer 081-833-0257"],
   
-  F4ACT1 = [],
-  F4ACT2 = [],
+  F4ACT1 = ["Glucose < 70 - provide glucose","SpO2 <90 - start oxygen","H/O alcohol - give thiamine","H/O narcotics - give naloxone"],
+  F4ACT2 = ["Check rectal temp if heat exposure concern"],
   F4ACT3 = [],
-  F4DP1 = [],
-  F4DP2 = [],
+  F4DP1 = ["DP 2: Sudden onset of symptoms is more concerning. Heat exhaustion, heat injury, and heat stroke can be associated with drowsiness or confusion. If a heat exposure is of concern, then a rectal temperature must be checked. Alternative methods of checking the temperature can be inaccurate. Alcohol, drug, or medication exposure or withdrawal can cause drowsiness. Some medications that can cause drowsiness include antihistamines, sleep medications, muscle relaxants, analgesics, and psychiatric medications."],
+  F4DP2 = ["If drowsiness or confusion is not from a condition below, refer to AEM.","MCP for viral syndrome. Viral syndrome can present as fatigue described as drowsiness. It is a global feeling often associated with other symptoms and muscle aches. Treat with ibuprofen as needed for fatigue/body aches. Treat other symptoms in accordance with the corresponding minor-care protocol.","MCP for sleep problems. Sleep issues can present as fatigue described as weakness. It can be a manifestation of depression or stress among other things. Provide education on sleep hygiene, consider providing diphenhydramine or melatonin nightly for three nights, consider activity modification, discuss stress management, and offer a routine referral to behavioral health asset for counseling and treatment."],
   F4DP3 = [],
   F4DP4 = [],
   F4DPRE = [],
-  F4DPRED = [],
-  F4PRO = [],
-  F4LIMITATIONS = [],
-  F4GEN = [],
-  F4MEDCOM = [],
-  F4STP1 = [],
+  F4DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Abnormal vital signs may represent a more significant condition to include shock. Soldiers with an altered mental status should have their finger stick blood sugar checked. Hypoglycemia can cause an altered mental status. Focal neurological deficits and a recent trauma suggest intracranial pathology. Alcohol, narcotics, and other drugs can cause confusion through intoxication or withdrawal. Seizures can cause confusion even if the rhythmic jerking movements are not presenting in the Soldier."],
+  F4PRO = ["Viral Syndrome: ibuprofen as needed for fatiguerbody aches. Drink plenty of water. Get plenty of sleep. Screen other symptoms as needed.", "Insomnia/fatigue/Stress: provide sleep hygiene education, consider providing melatonin or activity modification, recommend self-reflection to find a way to relieve stress. and offer a routine referral to a behavioral health asset. if available. ","Return to clinic if not improving. new symptoms arise, or symptoms are worsening."],
+  F4LIMITATIONS = ["Allow for 8 Hours of uninterrupted sleep in any given 24 hour period"],
+  F4GEN = ["pg. 83-84: Drowsiness and confusion are symptoms that may be observed even when the Soldier is relating other complaints. Drowsiness and confusion may be related to many underlying issues to include systemic illness, organ dysfunction, drug intoxication/ withdrawal, psychiatric illness, trauma, or neurologic illness."],
+  F4MEDCOM = ["Obtain Blood Glucose Levels pg.69(2)(f)","Provide Oxygen pg.69(2)(h)","Obtain Laboratory Specimens pg.69-70(2)(k)"],
+  F4STP1 = ["Subject Area 15: Primary Care. Operate a Glucometer 081-833-0257","Subject Area 4: Airway Management. Administer Oxygen 081-833-0158"],
 
-  F5ACT1 = [],
-  F5ACT2 = [],
+  F5ACT1 = ["Inform leadership","Do not leave Soldier alone","Remove means of self-harm"],
+  F5ACT2 = ["Obtain list of all medications and amount taken","Ask if currently receiving BH services"],
   F5ACT3 = [],
-  F5DP1 = [],
-  F5DP2 = [],
+  F5DP1 = ["DP 2: Ask the following questions for a depression screen: Over the past 2 weeks, have you often been bothered by feeling down, depressed, or hopeless? Over the past 2 weeks, have you often been bothered by having littler interest or pleasure in doing things? In addition to other situational, mental health, or medical causes, emotional distress may accompany injury and/or chronic pain and may merit a referral to behavioral health services. Ask Soldier how he or she is coping with the injury and/or pain. Other indicators of emotional distress may include disheveled appearance or poor hygiene, reported change in work performance, and risk-taking behavior. Obtain a list of all medications and the amounts taken to provide to the AEM. Taking significantly more of a medication than the prescribed amount may represent a suicidal gesture and should be inquired about if reported. If the Soldier was accompanied to the screening area by an escort, it may be due to high risk behavior or safety concerns. Inquire as to reason for escort, asking escort if necessary."],
+  F5DP2 = ["MCP for decreased mood. Soldiers that are experiencing mood symptoms that are mild in nature and not associated with other symptoms or impairment should be offered assistance. As always, remain calm, express concern for the Soldier, and do not be judgmental or argumentative. Educate the Soldier on the many resources that are available in your area, to include: Behavioral Health, Chaplaincy, Army Community Services, Chain of Command, Military and Family Life Consultants, Military OneSource, and Army Wellness Center. Offer to walk the Soldier to the resource that they prefer. Do not allow the Soldier to leave the screening area until they have been cleared by the supervising medic."],
   F5DP3 = [],
   F5DP4 = [],
   F5DPRE = [],
-  F5DPRED = [],
-  F5PRO = [],
-  F5LIMITATIONS = [],
-  F5GEN = [],
-  F5MEDCOM = [],
-  F5STP1 = [],
+  F5DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “provider now.” These can be signs of significant underlying medical or serious behavioral health problems.","DP 1: Ask the following questions: In the past month, have you wished you were dead or wished you could go to sleep and not wake up? Have you had any thoughts about killing yourself? If YES to the second question, ask: Have you thought of how you might do this? Have you started to work out or have worked out the details of how to kill yourself? Do you have any intention of acting on these thoughts of killing yourself? Remain calm. Express concern and do not be dismissive. Do not be judgmental or argumentative. If YES to questions about suicidality, do not leave the Soldier alone. Remove means of self-harm. Do not leave the Soldier waiting alone for a long time in a busy waiting room, as this may increase the Soldier’s distress. Be aware that abnormal vital signs and/or anxiety or depression symptoms may represent an underlying medical issue."],
+  F5PRO = ["Must get cleared by the supervising medic prior to the Soldier leaving the screening area.","Offer assistance through Behavioral Health, Chaplain, Chain of Command Army Community Services, Military and Family Life Consultants, Military OneSource, or Army Wellness Center. ","Offer to escort the Soldier to the service."],
+  F5LIMITATIONS = ["Escort to Behavioral Health or Emergency Room"],
+  F5GEN = ["pg. 85-86: The terms “depression, nervousness, anxiety, tension” and complaints of “nerves” or “being upset” may all be used by Soldiers to describe problems with mood. Complaints such as these are often due to situational or behavioral health factors, but may also be due to a physical condition. Everyone experiences emotional distress from time to time. However, when symptoms become continuous or interfere with daily functioning, or when suicidal or homicidal thoughts or self-harm are reported, the complaint must be taken seriously and further evaluated."],
+  F5MEDCOM = ["N/A"],
+  F5STP1 = ["Subject Area 6: Primary Care. Provide Treatment for a Behavioral Emergency 081-833-0246"],
   
   F6ACT1 = [],
   F6ACT2 = [],
   F6ACT3 = [],
-  F6DP1 = [],
-  F6DP2 = [],
+  F6DP1 = ["DP 2: A MACE 2 cognitive score less than or equal to 25, any abnormality on the neurological exam, any abnormality on the VOMS exam, presence of one or more symptoms, observed loss or alteration of consciousness, or a history of TBIs require additional evaluation and treatment."],
+  F6DP2 = ["MCP for mTBI. MACE 2 screening that does not identify a concussion (screens negative) can be managed with reviewing the Acute Concussion Educational Brochure with Soldier, a mandatory 24 hour rest period followed by a re-evaluation after the 24 hour rest period prior to the Soldier returning to duty. Re-evaluation should include exertional testing if the Soldier is still asymptomatic. Exertional testing increases the cardiac output (blood pressure and heart rate) which can worsen symptoms by increasing swelling if present. Return to the clinic if symptoms worsen or new symptoms develop. More information is available at https://dvbic.dcoe.mil.","Concussion treatment is guided by the results of the symptom cluster assessment generated by the MACE 2. A MACE 2 screening that identifies a concussion (screens positive) should prompt a minimum of 24-hour rest, with follow-up every 24 to 48 hours up to seven days. Additionally, concussions should be managed by initiation of the concussion management tool (CMT) and progressive return to activity (PRA) by a medical provider or other trained medical staff member. Results from the MACE 2 align to specific treatment protocols embedded within the CMT. Rapidly addressing vestibular and oculomotor deficits identified by the MACE 2 and daily evaluation of progress with the PRA will lead to faster recovery. The new MACE 2, CMT and PRA are enclosed in the appendix."],
   F6DP3 = [],
   F6DP4 = [],
   F6DPRE = [],
-  F6DPRED = [],
-  F6PRO = [],
-  F6LIMITATIONS = [],
-  F6GEN = [],
-  F6MEDCOM = [],
-  F6STP1 = [],
+  F6DPRED = ["Red Flags. If the Soldier presents with any red flag, immediately disposition the Soldier as “Provider Now” as these can be signs of medical emergencies.","DP 1: All Soldiers with a possible mTBI should be screened using the Military Acute Concussion Evaluation, version 2 (MACE 2) exam and results should be documented on the Soldier’s medical record. The MACE 2 assesses for red flags and the five predominate concussion sub-types (vestibular, oculomotor, headache/migraine, anxiety/mood, and cognitive).","Presence of the following observable signs are suggestive of a concussion and prompt thorough evaluation: (1) lying motionless on the ground, (2) slow to get up after a direct or indirect blow to the head, (3) disorientation, confusion or inability to respond appropriately to questions, (4) blank or vacant look, (5) balance difficulties, stumbling, or slow labored movements, and (6) facial injury after head trauma.","A positive initial screening on the MACE 2 indicates a concussive injury and often presents as alteration of consciousness (seeing stars, dazed, confused), loss of consciousness, or amnesia (trouble remembering the event). Positive screening with the following are recommended for a CT scan of the head: deteriorating level of consciousness, double vision, increased restlessness, combative or agitated behavior, severe or worsening headache, mental status (GCS<15), suspected skull fracture, sign of basilar skull fracture (hemotympanum, raccoon eyes, Battle sign, oto-/rhinorrhea), 2+ episodes of vomiting, amnesia for 30+ minutes before incident, neurologic deficit, seizure, severe incident (hit by motor vehicle, ejection from vehicle, fall >3 feet/ >5 stairs), or on an anticoagulant.","The MACE 2 encompasses the following key areas: (1) concussion screening, (2) history questions (related to anxiety, migraine, and cervicogenic assessment), and (3) neurological, cognitive, and vestibular/oculomotor assessments. The neurological assessment includes speech fluency, word finding, single leg stance, tandem gait, pronator strength and eye tracking. The cognitive section includes scored evaluations of orientation and immediate and delayed recall. The vestibular/ocular-motor screening (VOMS) is a symptom-provoking exam that is necessary to detect patients at risk for delayed recovery due to oculomotor and vestibular deficits. Symptoms assessed are headache, dizziness, nausea, and fogginess."],
+  F6PRO = ["All positive MACE 2 screens should be referred to the AEM or Provider for further evaluation","Negative MACE 2 24 hour rest period, review Acute Concussion Educational Brochure with patient. and counsel Soldier to return after 24 hour rest for re-evaluation If no symptoms. perform exertional testing","Return to Clinic if worsening symptoms, new symptoms","More information is available at https://dvbic.dcoe.mil","See Appendix for MACE 2 card, CMT, and PRA resources"],
+  F6LIMITATIONS = ["Use the Concussion Management Tool (CMT) and associated Progressive Return to Activity (PRA) for specific management. A minimum of 24 hour rest, defined as:","1. Rest with extremely limited cognitive activity","2. Limit physical activities to those of daily living and extremely light leisure activity","3. Avoid working, exercising, playing video games, studying, or driving","4. Avoid any potentially concussive events","5. Avoid caffeine and alcohol","Reassess using the MACE 2 after 24 hours rest"],
+  F6GEN = ["pg. 87-89: More information is available at https://dvbic.dcoe.mil. minor traumatic brain injury (mTBI) or concussion is an injury to the brain that may result after blunt force, an acceleration/deceleration head injury (whiplash), or exposure to a blast wave (close contact or prolonged duration such as a firing range). In addition, mild TBIs are defined by at least one of the following clinical signs immediately following the event: alteration of consciousness lasting <24 hours, loss of consciousness <30 minutes, or post-traumatic amnesia <24 hours. CT scans are not indicated for most patients with concussion, but if obtained, the results are typically normal."],
+  F6MEDCOM = ["N/A"],
+  F6STP1 = ["Subject Area 6: Primary Care. Perform a Military Acute Concussion Evaluation 2 (MACE 2) Screening for mild Traumatic Brain Injury 081-833-0247"],
 
   G1ACT1 = [],
   G1ACT2 = [],
-  G1ACT3 = [],
+  G1ACT3 = ["MCP for fatigue. Advise the Soldier that vitamins are rarely helpful, that “pep pills” do not work (the rebound usually makes the problem worse), and that tranquilizers generally intensify fatigue. Taking a vacation, if possible, or undertaking new activities are often helpful.","Helpful Actions Include: Identifying potential sources of the fatigue such as work stress, marital discord, lack of rest or sleep (either quantity or quality of sleep), or a poor/not well balanced diet. Provide information on proper sleep hygiene and refer to sleep hygiene course if locally available. If not a suicidal risk (which would require immediate referral) suggest various available options for counseling, including behavioral health, Army community services, and the chaplain. Work on the problem rather than on the symptom.","Seek medical assistance if symptoms worsen, other symptoms develop, fatigue makes normal activities difficult, difficulty staying awake while driving, or not improved within one week.","MCP for sleep problems. Sleep issues can present as fatigue described as weakness. It can be a manifestation of depression or stress among other things. Provide education on sleep hygiene, consider providing diphenhydramine or melatonin nightly for three nights, consider activity modification, discuss stress management, and offer a routine referral to behavioral health asset for counseling and treatment."],
   G1DP1 = [],
   G1DP2 = [],
   G1DP3 = [],
   G1DP4 = [],
-  G1DPRE = [],
-  G1DPRED = [],
-  G1PRO = [],
-  G1LIMITATIONS = [],
-  G1GEN = [],
-  G1MEDCOM = [],
-  G1STP1 = [],
+  G1DPRE = ["DP 2. If the Soldier has other specific complaints or symptoms, the Soldier should be evaluated for that complaint. Otherwise, the minor-care protocol is appropriate."],
+  G1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.","DP 1. While fatigue is often not caused by a specific disease, it may be a presenting symptom of a potentially serious condition. Depression may only present as fatigue. Decreased libido could be a sign of an adrenal/pituitary issue. Weight change could represent hypo/hyperthyroidism. Menorrhagia often results in anemia. Snoring can be a sign of sleep apnea. USPSTF Screening/PHA is to look at age appropriate cancer and cardiovascular screening. Infections, inflammation, liver/kidney disease, and medication/drug use can also cause fatigue."],
+  G1PRO = ["OTC Medication: diphenhydramine to assist with sleep if needed","Referral: Wellness Center for relaxation exercises for stress, ACS for anger management, Behavioral Health or Chaplain for stress or support","Return if not improving in 1 week or immediately if Red Flags, development of new symptoms, or inability to perform daily activ ties."],
+  G1LIMITATIONS = ["Allow for 8 hours of uninterrupted sleep with a 24 hour period"],
+  G1GEN = ["pg. 90-91: Fatigue is a state of increased demand/stress on the body or decreased efficiency."],
+  G1MEDCOM = ["N/A"],
+  G1STP1 = ["N/A"],
 
   G2ACT1 = [],
   G2ACT2 = [],
   G2ACT3 = [],
   G2DP1 = [],
-  G2DP2 = [],
+  G2DP2 = ["MCP for elevated temperature. Instruct the Soldier to stay well hydrated and get plenty of rest. He or she should drink fluids to keep their urine mostly clear and obtain at least eight hours of rest per day. Take acetaminophen as needed for temperature above 98.4°F (No more than eight tablets within 24 hours. No other medications with acetaminophen in them. No alcohol.)","Soldier is contagious while he or she has an elevated temperature. He or she should avoid contact with healthy Soldiers as much as possible. If in training, refer to local SOP. Soldier may need to be placed in quarters. Return for medical assistance if symptoms do not improve with acetaminophen, other symptoms develop, or a fever develops (T > 100.4)."],
   G2DP3 = [],
   G2DP4 = [],
-  G2DPRE = [],
-  G2DPRED = [],
-  G2PRO = [],
-  G2LIMITATIONS = [],
-  G2GEN = [],
-  G2MEDCOM = [],
-  G2STP1 = [],
+  G2DPRE = ["DP 2. Before assuming the Soldier has isolated fever/chills, be sure to ask him/her specifically about other symptoms such as upper respiratory infection symptoms, cough, sore throat, ear pain, diarrhea, dysuria, rash, and muscle aches. If no associated symptoms can be identified, over half of Soldiers’ fever will resolve on its own without an underlying issue being identified."],
+  G2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.","DP 1. If the Soldier’s temperature is greater than 100.4°F, has symptoms for more than 48 hours, HIV infection, or immunosuppression, then there is a greater risk of the fever being caused by a bacterial infection. Overseas travel, tick or mosquito bite, animal exposure, and malaria endemic area, increase the risk of a zoonotic or malaria infection. IV drug use increases the risk of endocarditis."],
+  G2PRO = ["OTC Medication: acetaminophen as needed for elevated temperature (No other medications with acetaminophen. No alcohol.), ibuprofen as needed for malaise.","Stay hydrated by drinking fluids to keep your urine mostly clear. Get plenty of rest.","Return if red flags, new symptoms. lasts longer than 48 hours, or fever not controlled with acetaminophen"],
+  G2LIMITATIONS = ["For a Fever: Consider Quarters x 24-48 hours (must discuss with supervising privileged provider)"],
+  G2GEN = ["pg. 92-93: Fever/chills are usually associated with an acute illness with other obvious symptoms."],
+  G2MEDCOM = ["N/A"],
+  G2STP1 = ["N/A"],
 
-  H1ACT1 = [],
+  H1ACT1 = ["Chemical - irrigation","Foreign body - fox shield","Head trauma - stabilize neck","Other - cover eye"],
   H1ACT2 = [],
   H1ACT3 = [],
-  H1DP1 = [],
-  H1DP2 = [],
+  H1DP1 = ["DP 2. Thick, yellow or green discharge that continues throughout the day suggests bacterial conjunctivitis. Eye pain, light sensitivity, inability to open or keep the eye open, and foreign body sensation suggests a corneal or intraocular inflammatory process. Fast moving metal or glass slivers from an explosion or welding can penetrate the eye with symptoms that rapidly disappear. A history of a foreign body that is now “getting better” should be screened as a foreign body."],
+  H1DP2 = ["MCP for blepharitis (crusting of the eye in the morning with or without red, swollen eyelids). Treatment is washing of the eyelashes daily with washcloth using warm water and non-tearing baby shampoo, warm compresses, lid massage. Instruct to avoid lotions, creams, make-up to the affected area. RTC if worsening or not improving within one week.","MCP for dry eyes (tearing, blurry vision that clears with blinking, and a gritty sensation). Treatment is artificial tears as needed (prn).","MCP for viral, allergic conjunctivitis (crusting, watery discharge with burning (viral) or itching (allergic)). Viral is highly contagious. Treatment is with warm or cool compresses and topical antihistamine/decongestant drops.","MCP for subconjunctival hemorrhage. Further evaluation is necessary when associated with trauma, is recurrent, or Soldier is on an anticoagulant."],
   H1DP3 = [],
   H1DP4 = [],
   H1DPRE = [],
-  H1DPRED = [],
-  H1PRO = [],
+  H1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.","DP 1. Perform an eye exam with visual acuity. Do not perform a fluorescein exam if concerned for an open globe. Cover the eye with an unpadded protective fox shield or cup and discuss with the supervising privileged provider if a potential foreign body. A privileged provider order is required to irrigate the eye except when immediate irrigation is required for a chemical exposure. A white or red layered fluid level over the iris is a sign of a hypopyon or hyphema, respectively, requiring emergent referral. Contact lens, recent eye surgery, and fluorescein uptake increase potential of a serious condition."],
+  H1PRO = ["Stye treated with warm compress x 15min, 4x/day followed by massaging area. ","Blepharitis treated with warm compresses (like stye), avoidance of make-up, and washing with warm water and tear free shampoo. ","Dry eyes are treated with artificial tears lubricating drops as needed. ","Viral, allergic conjunctivitis is treated with warm or cool compresses, topical antihistamine/ decongestant drops, and contagion precautions. ","Subconjunctival hemorrhage is a demarcated area of blood (outside of the iris) with normal visior no discharge, light sensitivity, or foreign body sensation. Typically resolves in 1-2 weeks. ","Do not perform fluorescein exam if there is concern for an open globe or ruptured eye."],
   H1LIMITATIONS = [],
-  H1GEN = [],
-  H1MEDCOM = [],
-  H1STP1 = [],
+  H1GEN = ["pg. 94-95: Eye pain, redness, discharge, itching, and injury includes trauma to common inflammatory and infectious conditions."],
+  H1MEDCOM = ["Administer Ophthalmic Medication pg.67(3)( c)","Examines Eye Using Fluorescein Strip pg.69(2)(i)"],
+  H1STP1 = ["Subject Area 18: Medication Administration. Administer Eye Medications 081-833-0015"],
 
-  H2ACT1 = [],
+  H2ACT1 = ["Fox shield/ protective cover","Head trauma - stabilize neck"],
   H2ACT2 = [],
   H2ACT3 = [],
-  H2DP1 = [],
-  H2DP2 = [],
+  H2DP1 = ["DP 2. Significant redness and swelling can be signs of cellulitis. Cellulitis is a relatively common complication of a stye. It requires further evaluation and treatment with oral antibiotics. Dermatitis and some systemic diseases can also present with an eyelid rash requiring further evaluation and treatment."],
+  H2DP2 = ["MCP for stye. Presents with redness, tenderness, and swelling of the eyelid. Initial treatment should be a warm compress placed on the area for 15 min four times per day with massage of the area after the warm compress. Return to clinic if becomes significantly painful, redness and swelling spreads, or not improving within one week.","MCP for chalazion. Presents with painless swelling of the eyelid. It is treated the same way as a stye and usually resolves within a couple of weeks.","MCP for blepharitis. Presents with bilateral crusting of the eye in the morning and may be associated with red, swollen eyelids, and dry eyes that improve with blinking. Treatment is washing of the eyelashes daily with washcloth using warm water and non-tearing baby shampoo, warm compresses, lid massage. Instruct to avoid lotions, creams, make-up to the affected area. RTC if worsening or not improving within one week.","MCP for contact dermatitis. Skin reaction from an irritant. In a female, make-up is the most common cause. Evaluate for any new exposures, other areas involved. Instruct to avoid the most likely contact/cause and any lotions, creams, or soaps with perfumes, hair dyes, new shampoos, and eye make-up. Use hydrocortisone cream with precautions to avoid getting it in the eye."],
   H2DP3 = [],
   H2DP4 = [],
   H2DPRE = [],
-  H2DPRED = [],
-  H2PRO = [],
+  H2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.","DP 1. Assess for life-threatening injuries (head, neck, airway) before performing an eye exam with visual acuity. Access for signs of an open globe. Laceration of full thickness of eyelid, with orbital fat prolapse, through lid margin, involving lateral/medial/tear duct/or muscles, or associate with avulsion or malalignment requires referral. Decreased visual acuity and double vision along with pain, fixed pupil, and swelling around the eye are signs of a potential internal eye injury. Orbital compartment syndrome can develop which is a medical emergency requiring immediate treatment."],
+  H2PRO = ["Stye, chalazion is treated with warm compress x 15min, 4x/day followed by massaging area.","Blepharitis is treated with warm compresses (like stye), avoidance of make-up, and washing with warm water and tear free shampoo.","Contact dermatitis is treated with avoidance of the exposure and hydrocortisone ointment 1% twice a day for 1 week.","Return to clinic if the condition is worsening, new symptoms develop, or it is not improving within 1 week."],
   H2LIMITATIONS = [],
-  H2GEN = [],
-  H2MEDCOM = [],
-  H2STP1 = [],
+  H2GEN = ["pg. 96-97: Eyelid problems include serious effects of trauma to simple conditions of inflammation."],
+  H2MEDCOM = ["Administer Ophthalmic Medication pg.67(3)( c)"],
+  H2STP1 = ["Subject Area 18: Medication Administration. Administer Eye Medications 081-833-0015"],
 
-  H3ACT1 = [],
+  H3ACT1 = ["Fox shield/protective cover","Head trauma- stabilize neck"],
   H3ACT2 = [],
   H3ACT3 = [],
-  H3DP1 = [],
-  H3DP2 = [],
+  H3DP1 = ["DP 2. Wearing contacts increases the risk of keratitis and corneal abrasion. Fluorescein exam is the next step to evaluate for these causes. Visual acuity of contact wearer should be performed with and without glasses to evaluate for a change in vision not related to the contacts. Acute onset and pain are signs of a more concerning cause than the need for glasses. Migraine can be associated with temporary decreased vision or seeing spots prior to a headache (an aura)."],
+  H3DP2 = ["MCP for decreased vision. Visual acuity worse than 20/40 requires a referral to optometry for evaluation for glasses. Worsening of the vision is gradual and often occurs in both eyes. Noticing the issue may occur with a specific activity like trying to read a sign, seeing a target at the range, or Soldier may present requesting an evaluation or been screened during a yearly readiness screening. (Note: protective mask inserts are not usually provided to personnel with uncorrected vision of 20/40 or better). Floaters are clumps of material in the gel-like substance in the back of your eye. They are common, benign and move around in your field of vision. They are not fixed to a particular location in the field of view or significantly obstruct the field of view."],
   H3DP3 = [],
   H3DP4 = [],
   H3DPRE = [],
-  H3DPRED = [],
-  H3PRO = [],
+  H3DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.","DP 1. Perform an eye exam with visual acuity. Decreased visual acuity following trauma may indicate a serious injury that requires immediate treatment. Retinal detachment is often preceded by flashes of light, new floaters, and black spots, these symptoms should prompt a dilated retinal exam as soon as possible by an eye care provider. A foreign body seen on exam should not be removed. Cover the eye with a protective fox shield or cup and discuss with the supervising privileged provider. A privileged provider order is necessary prior to irrigation of a foreign body except when immediate irrigation is required for a chemical exposure. A white or red layered fluid level over the iris is a sign of a hypopyon or hyphema, respectively, and requires emergent referral. If the decreased vision involves a distinct part of the visual field which includes a black spot that moves with your eye, the cause may be serious."],
+  H3PRO = ["Decreased visual acuity worse than 20/40: Gradual Onset. Refer to optometry for evaluation for glasses. ","Floaters are common and benign. Provide reassurance. ","Return to clinic if the condition is worsening or new symptoms develop."],
   H3LIMITATIONS = [],
-  H3GEN = [],
-  H3MEDCOM = [],
-  H3STP1 = [],
+  H3GEN = ["pg. 98-99: Decreased vision can mean that images are less distinct or that a portion of the visual field is “blacked out.” The Soldier may refer to the spots as stars, flashes, or floaters."],
+  H3MEDCOM = ["Initial Management of Fractures/Spinal Injury pg.69(2)(d)"],
+  H3STP1 = ["Subject Area 6: Primary Care. Perform Visual Acuity Testing 081-833-0193","Subject Area 3: Trauma Treatment. Apply a Cervical Collar 081-833-0177"],
 
-  H4ACT1 = [],
+  H4ACT1 = ["Head trauma - stabilize neck"],
   H4ACT2 = [],
   H4ACT3 = [],
-  H4DP1 = [],
-  H4DP2 = [],
+  H4DP1 = ["  DP 2. Cover one of the patient’s eyes and then the other, assessing whether the double vision persists or not. If double vision continues despite having one eye shut or if double vision is a new issue, the Soldier will need to be referred to an eye care provider (ophthalmologist or optometrist)."],
+  H4DP2 = ["MCP for seeing double. A long-standing history of double vision or double vision caused by new eyeglasses may well indicate a need for evaluation of the eyeglass prescription. The Soldier should be given an appointment at the optometry clinic. Soldier should not drive a vehicle, fire a weapon, or perform other duties requiring depth perception."],
   H4DP3 = [],
   H4DP4 = [],
   H4DPRE = [],
-  H4DPRED = [],
-  H4PRO = [],
-  H4LIMITATIONS = [],
-  H4GEN = [],
-  H4MEDCOM = [],
-  H4STP1 = [],
+  H4DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.","DP 1. Assess for potential life-threatening injuries (head, neck, and airway) before accessing for vision issues. If the double vision is related to a recent trauma to the head, neck, or back, then it may represent a serious injury to the brain. Neurologic deficits (trouble walking, talking) can indicate a serious problem requiring immediate evaluation."],
+  H4PRO = ["Long-standing history or started with new eyeglasses, refer to optometry and patch the eye for symptomatic relief. No driving a vehicle, firing a weapon, or other duties requiring depth perception unti the Soldier has been evaluated by an optometrist.","Return to clinic if symptoms worsen or new symptoms develop."],
+  H4LIMITATIONS = ["No Driving"," No Firing Weapon"," No Duties Requiring Depth Perception"],
+  H4GEN = ["pg. 99-100: Double vision means seeing two images of a single object."],
+  H4MEDCOM = ["Initial Management of Fractures/Spinal Injury pg.69(2)(d)"],
+  H4STP1 = ["Subject Area 6: Primary Care. Perform Visual Acuity Testing 081-833-0193","Subject Area 3: Trauma Treatment. Apply a Cervical Collar 081-833-0177"],
 
   I1ACT1 = [],
   I1ACT2 = [],
   I1ACT3 = [],
-  I1DP1 = [],
-  I1DP2 = [],
+  I1DP1 = ["DP 2: Testosterone supplementation in exercise supplements can result in enlargement of breast tissue under the nipple. Enlarged breast tissue can be painful, especially when wearing body armor, further evaluation and counseling are warranted. Nursing mothers often have problems with cracked or infected nipples or have difficulty when the child is weaned, but further examination is required to rule out more concerning issues. Pain without other concerns that is not related to breastfeeding weaning, exercise, or cyclical pain with menstrual cycle requires further evaluation and may require imaging."],
+  I1DP2 = ["MCP for breast pain. Women with a large amount of breast tissue can have discomfort associated with stretching of Cooper’s ligaments. It can be associated with shoulder, back, or neck pain and made worse with exercise. Educate the Soldier on the importance of supportive undergarments, ice compress/heat compress for inflammation, acetaminophen as needed for mild pain, and ibuprofen (1st line) or ketorolac (2nd line) as needed for moderate pain.","MCP for chest extramammary/musculoskeletal pain. Related to the chest wall and not the breast tissue. Ice/ heat compresses as needed for inflammation. Medication: mentyl salicylate (1st line) or acetaminophen (2nd line) as needed for mild pain, and ibuprofen (1st line) or ketorolac (2nd line) as needed for moderate pain. Activity modifications should be considered as appropriate.","MCP for diffuse breast pain. Diffuse breast pain is unlikely to be related to cancer. Provide reassurance. If the Soldier is concerned about the possibility of breast cancer after reassurance, refer to provider for consideration of an imaging study to provide reassurance. Treat discomfort with ice/heat (1st line) or acetaminophen (2nd line) as needed for mild pain and ibuprofen (1st line) or ketorolac (2nd line) as needed for moderate pain."],
   I1DP3 = [],
   I1DP4 = [],
   I1DPRE = [],
-  I1DPRED = [],
-  I1PRO = [],
-  I1LIMITATIONS = [],
-  I1GEN = [],
-  I1MEDCOM = [],
-  I1STP1 = [],
+  I1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be an indication of significant underlying medical problems.","DP 1: Skin changes, mass, or bloody nipple discharge are concerning symptoms that require further evaluation and imaging. Red, swollen breast can represent mastitis or an abscess that requires further evaluation and treatment."],
+  I1PRO = ["Large breasts: educate the patient on importance of physical support (well-fitting bra). Ice' heat (1st line) or acetaminophen (2nd line) as needed for mild pain. Ibuprofen (1st line) or ketorolac (2nd line) as needed for moderate pain.","extramammary/Muskuloskletal pain: ice, heat for inflamma: rpettgly) salicylate (1st line) or acetaminophen (2nd line) as needed for mild pa profen (1st line) or ketorolac (2nd line) as needed for moderate pain. Activity modification as needed.","Female diffuse breast pain: ice/heat for inflammation. menthyl salicylate (1st line) or acetaminophen (2nd line) as needed for mild pain. ibuprofen (1st line) or ketorolac (2nd line) as needed for moderate pain. Provide reassurance. Refer to provider if Soldier is concerned about risk of breast cancer after reassurance.","RTC if not improving within 3 days. worsening symptoms. or development of new symptoms."],
+  I1LIMITATIONS = ["No running, jumping, rucking","Walk at own pace/ distance","May lift, carry, push up to 25 lbs"],
+  I1GEN = ["pg. 102-103: Breast pain can represent musculoskeletal pain, cyclic pain, or pain associated with inflammation or infection. It is rarely associated with cancer."],
+  I1MEDCOM = ["N/A"],
+  I1STP1 = ["N/A"],
 
   I2ACT1 = [],
   I2ACT2 = [],
   I2ACT3 = [],
-  I2DP1 = [],
-  I2DP2 = [],
+  I2DP1 = ["DP 2: Refer Soldiers with a positive pregnancy test to the AEM. The Soldier will need to receive initial pregnancy counseling that includes medications and foods to avoid, importance of a daily prenatal vitamin, avoidance of alcohol, pregnancy profile, and referral to obstetrics-gynecology clinic. These services are also sometimes provided by the clinic nurse depending on local protocol."],
+  I2DP2 = ["There are multiple causes of a late cycle that are unrelated to pregnancy to include birth control medications, increasing exercise regimen, and stress. Average menstrual cycle is 28 days but can range from 24 to 38 days. Instruct the Soldier to avoid alcohol and NSAID medications (to include Ibuprofen, naproxen, or ketorolac). Return to the clinic in one week if she still has not had a cycle."],
   I2DP3 = [],
   I2DP4 = [],
   I2DPRE = [],
-  I2DPRED = [],
-  I2PRO = [],
+  I2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” They can be signs of significant underlying medical problems.","DP 1: Check a urine hCG. If the urine hCG is negative, confirm negative with a serum hCG. Positive hCG with pelvic pain or history of a prior ectopic pregnancy increases the possibility of an ectopic pregnancy. Vaginal bleeding suggests a possible miscarriage or complication of pregnancy."],
+  I2PRO = ["Counsel the Soldier to avoid alchol and NSAID medications","Return to clinic in 1 week if she still has not had a cycle"],
   I2LIMITATIONS = [],
-  I2GEN = [],
-  I2MEDCOM = [],
+  I2GEN = ["pg. 104-105: Women who believe that their menstrual cycles are late should be evaluated with a pregnancy test. Urine human chorionic gonadotrophin (hCG) tests have improved over the years and provide results much quicker than in the past. A urine hCG obtained greater than seven to eight days after conception should be positive."],
+  I2MEDCOM = ["Obtain Laboratory Specimens pg.69-70(2)(k)"],
   I2STP1 = [],
 
   I3ACT1 = [],
   I3ACT2 = [],
   I3ACT3 = [],
-  I3DP1 = [],
-  I3DP2 = [],
+  I3DP1 = ["DP 2: Most common problems are irregular and painful periods. Menstrual pain starting after age 25, progressive worsening of symptoms, and poor relief with Ibuprofen are symptoms of a secondary cause to include adenomyosis, endometriosis, or fibroids. Spotting on Depo-Provera, Nexplanon, or IUD is not uncommon but should be examined further. Menses lasting for over five days, more often than every 21 days or less often than 35 days, or bleeding in between menses is considered abnormal. Soaking a pad or tampon more often than every two hours or interferes with daily activities is considered heavy."],
+  I3DP2 = ["MCP for Painful Menstrual Cycles. Bothersome menstrual cramping (dysmenorrhea) usually lasts about 24 hours. It may be relieved by naproxen or ibuprofen for 5-7 days. Ketorolac can be used on presentation for moderate pain. Seldom is discomfort such that the Soldier is unable to perform normal activities. Give the Soldier symptomatic medication and instructions for use. Instruct the Soldier to return if the symptoms are worsening, new symptoms develop, or the minor-care protocol is not controlling the symptoms such that the problem is preventing performance of normal duties. A privileged provider can evaluate further and may prescribe additional medications to help decrease the symptoms during future menstrual cycles."],
   I3DP3 = [],
   I3DP4 = [],
   I3DPRE = [],
-  I3DPRED = [],
-  I3PRO = [],
-  I3LIMITATIONS = [],
-  I3GEN = [],
-  I3MEDCOM = [],
-  I3STP1 = [],
+  I3DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: If due to sexual assault, immediately notify the supervising privileged provider. Do not leave the victim alone. Ask if she would prefer a female medic/privileged provider if one is available. If bleeding is over one week late or the previous bleeding was spotting, it could represent a pregnancy. Bleeding during pregnancy (positive hCG) can represent a miscarriage or complication of pregnancy and needs to be seen ASAP. Non-midline pelvic pain and pain with intercourse are signs of pelvic inflammatory disease. Bleeding after menopause (period of no cycle for 12 months after 45 y/o) needs to be evaluated for possible malignancy. Massive Bleeding needs to be seen immediately."],
+  I3PRO = ["Menstrual Cramps: provide NSAID like naproxen or ibuprofen as needed for pain to be taken with food for up to 7 days. Toradol as a 1 x dose for moderate pain. A warm compress may also be placed over the abdomen to help with the discomfort.","RTC if symptoms are worsening, new symptoms developing, or symptoms are not controlled with the MCP."],
+  I3LIMITATIONS = ["Aerobic exercise at own pace/ distance x 3 days","Must have access to restroom every hour"],
+  I3GEN = ["pg. 106-107: This protocol is meant to cover menstrual difficulties and vaginal bleeding. If the problems are missed periods (possible pregnancy), vaginal discharge, or abdominal pain, screen according to the appropriate protocol."],
+  I3MEDCOM = ["Obtain Laboratory Specimens pg.69-70(2)(k)"],
+  I3STP1 = ["N/A"],
 
   I4ACT1 = [],
   I4ACT2 = [],
   I4ACT3 = [],
-  I4DP1 = [],
-  I4DP2 = [],
+  I4DP1 = ["DP 2: Vaginitis may have an atypical presentation. In these situations, a more detailed evaluation is required."],
+  I4DP2 = ["When facilities for a speculum exam and/or microscopic evaluation are not available and evacuation is unfeasible, the Soldier may be treated according the history below.","MCP for yeast infection. Presents with a scant amount of thick, white (cottage cheese like) discharge that is usually odorless and may be associated with vulvar itching, soreness, and dysuria. Symptoms are often worse the week before a menstrual cycle. Vaginal pH is typically normal (pH of 4-4.5). Treat with Fluconazole.","MCP for bacterial vaginosis. Presents with a thin, greyish discharge, vaginal pH greater than 4.5, and a fishy smell (prominent when 10% potassium chloride is added to a slide of vaginal discharge) without signs of inflammation. Symptoms are often pronounced during menstrual cycle or after intercourse. Treat with Metronidazole for seven days. Instruct the Soldier to return if the symptoms are worsening, new symptoms develop, or the minor-care protocol does not resolve the symptoms."],
   I4DP3 = [],
   I4DP4 = [],
   I4DPRE = [],
-  I4DPRED = [],
-  I4PRO = [],
+  I4DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Fever, non-midline pelvic pain, and pain with intercourse are symptoms of pelvic inflammatory disease, which is a serious infection requiring further evaluation. Vaginal infections and certain medications have a higher risk during pregnancy. Recurrent infections or infections that failed initial therapy require treatment regimens and closer observation. Vaginal discharge, lesion, or ulcer requires an invasive physical exam with laboratory evaluation. If facilities for a speculum physical exam and/or microscopic evaluation are not available and evacuation is not feasible, then treat according to history in minor-care protocol section."],
+  I4PRO = ["Yeast Infection: treat with fluconazole.","Bacterial Vaginosis: treat with metronidazole for 7 days.","RTC if symptoms are worsening, new symptoms developing, or MCP does not resolve the symptoms."],
   I4LIMITATIONS = [],
-  I4GEN = [],
-  I4MEDCOM = [],
-  I4STP1 = [],
+  I4GEN = ["pg. 108-109: This protocol is meant to cover the majority of vaginal complaints not related to bleeding or a menstrual cycle. If a Soldier has external or vaginal discomfort along with symptoms suggesting a urinary tract infection (frequency, urgency, and internal dysuria), she should be screened as painful urination (dysuria)/frequent urination, E-1."],
+  I4MEDCOM = ["Obtain Laboratory Specimens pg.69-70(2)(k)"],
+  I4STP1 = ["N/A"],
 
-  I5ACT1 = [],
+  I5ACT1 = ["Check hCG"],
   I5ACT2 = [],
   I5ACT3 = [],
-  I5DP1 = [],
-  I5DP2 = [],
+  I5DP1 = ["DP 2: Confirm the current USPSTF standards. Initial pap smear should be performed starting at 21 years old. From ages 21-29 years old, pap smear should be performed every three years. From age 30 and older, pap smear can be performed every three years or pap smear and HPV testing every five years if both tests are negative. HPV vaccine is recommended up to age 26. G/C screening is recommended yearly for women less than 26 y/o"],
+  I5DP2 = ["No indication to rescreen. Patient can schedule an appointment for routine screening if desired; rescreen other symptoms if present"],
   I5DP3 = [],
   I5DP4 = [],
   I5DPRE = [],
-  I5DPRED = [],
+  I5DPRED = ["DP 1: If the Soldier’s menstrual cycle is late, check a pregnancy test. If the Soldier is pregnant, refer to the AEM. Look in lab results for previous pap smears. If there has been an abnormal pap lab result, look for the clinical note that details the plan of care. Determine if the plan was followed and discuss with the AEM to determine care."],
   I5PRO = [],
   I5LIMITATIONS = [],
-  I5GEN = [],
-  I5MEDCOM = [],
-  I5STP1 = [],
+  I5GEN = ["pg. 110: A Pap test is a microscopic examination of cells to detect the presence of pre-cancerous or cancerous process."],
+  I5MEDCOM = ["Obtain Laboratory Specimens pg.69-70(2)(k)"],
+  I5STP1 = ["N/A"],
 
-  I6ACT1 = [],
+  I6ACT1 = ["Screening check hCG"],
   I6ACT2 = [],
   I6ACT3 = [],
-  I6DP1 = [],
-  I6DP2 = [],
+  I6DP1 = ["DP 2: Long acting contraceptives are the most effective (surgical/permanent, IUD, implantable). Injectable, oral, patch, vaginal ring effectiveness is partially based on consistent, correct use. Condoms and behavioral modification are least effective. Choose the most effective method that the Soldier will be able to use successfully. If male, discuss the permanent nature of the procedure, discuss with AEM, and follow local protocol for referral. Estrogen-progesterone decrease menstrual symptoms, acne, and hirsutism. Progesterone and IUDs decrease menstrual symptoms. Longer term contraception to include injectable types have a risk of irregular bleeding, spotting. Discuss Soldier preferences and history with AEM. Check hCG if requesting Depo-Provera. Schedule accordingly: routine appointment (injectable, oral, patch, ring) or procedural appointment or referral based on supervising privileged provider preferences (implantable, IUD)."],
+  I6DP2 = ["DP 2: Long acting contraceptives are the most effective (surgical/permanent, IUD, implantable). Injectable, oral, patch, vaginal ring effectiveness is partially based on consistent, correct use. Condoms and behavioral modification are least effective. Choose the most effective method that the Soldier will be able to use successfully. If male, discuss the permanent nature of the procedure, discuss with AEM, and follow local protocol for referral. Estrogen-progesterone decrease menstrual symptoms, acne, and hirsutism. Progesterone and IUDs decrease menstrual symptoms. Longer term contraception to include injectable types have a risk of irregular bleeding, spotting. Discuss Soldier preferences and history with AEM. Check hCG if requesting Depo-Provera. Schedule accordingly: routine appointment (injectable, oral, patch, ring) or procedural appointment or referral based on supervising privileged provider preferences (implantable, IUD)."],
   I6DP3 = [],
   I6DP4 = [],
   I6DPRE = [],
-  I6DPRED = [],
+  I6DPRED = ["DP 1: Determine date of last menstrual cycle. Check a pregnancy test if the Soldier’s menstrual cycle is late. Determine history of previous contraceptive use. If the Soldier is having side-effects from her current birth control or has had recent unprotected sex, refer for further evaluation."],
   I6PRO = [],
   I6LIMITATIONS = [],
-  I6GEN = [],
-  I6MEDCOM = [],
-  I6STP1 = [],
+  I6GEN = ["pg. 111: Contraception provides prevention of unintended pregnancy. There are many different types of contraception depending on the Soldier’s goals."],
+  I6MEDCOM = ["Obtain Laboratory Specimens pg.69-70(2)(k)"],
+  I6STP1 = ["N/A"],
 
   J1ACT1 = [],
   J1ACT2 = [],
   J1ACT3 = [],
-  J1DP1 = [],
-  J1DP2 = [],
+  J1DP1 = ["DP 2: Change in a lesion or oozing of fluids require further evaluation. Skin lesions that have been present for over 4 weeks may represent a symptom of a systemic condition."],
+  J1DP2 = ["MCP for unidentified skin disorder. If the Soldier is already on a treatment for this issue, has not finished the current treatment, and the issue is not getting worse, then instruct the Soldier to continue with the current treatment for the full course. Some skin issues can take two to three weeks or potentially longer for them to work. Confirm with your supervising NCO or supervising privileged provider before returning the Soldier to work. If you recognize the skin lesion, then screen according to the identified skin condition. If you do not recognize the skin lesion, refer the Soldier to the AEM for further evaluation."],
   J1DP3 = [],
   J1DP4 = [],
   J1DPRE = [],
-  J1DPRED = [],
-  J1PRO = [],
-  J1LIMITATIONS = [],
-  J1GEN = [],
-  J1MEDCOM = [],
-  J1STP1 = [],
+  J1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Skin rash associated with a medication, fever, or is painful (but not due to a sunburn) has the potential to be very serious. Further evaluation is indicated when it has failed previous treatment or is worsening. Certain anatomical locations present with a higher risk of complications to include the face, genitals area, or inhibiting a joint function."],
+  J1PRO = ["Continue the current skin treatment regimen if it has not been completed/followed for the necessary amount of time (usually 2-3 weeks)","Screen according to pertinent algorithm if you can identify the skin condition.","Refer to AEM for further evaluation if you cannot identify the skin condition."],
+  J1LIMITATIONS = ["Keep area clean and dry"],
+  J1GEN = ["pg. 112-113: If the cause of the condition is unknown to the Soldier, this first protocol provides the category/ level of care indicated by the Soldier’s symptoms."],
+  J1MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)"],
+  J1STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125","Subject Area 18: Medication Administration. Administer Topical Medications 081-833-3020"],
 
   J2ACT1 = [],
   J2ACT2 = [],
   J2ACT3 = [],
-  J2DP1 = [],
-  J2DP2 = [],
+  J2DP1 = ["DP 2: Moderate to severe acne or acne on the back or interferes with wearing equipment requires evaluation for oral medications and temporary profile. Scarring and hyperpigmentation requires more aggressive therapy to avoid further permanent scarring. There can be psychological effects from acne. It is important to identify Soldiers that are very self-conscious and escalating the treatment regimen to quickly control the acne."],
+  J2DP2 = ["MCP for acne. All Soldiers with acne should be instructed to wash the affected area with mild soap and water without scrubbing twice a day and pat dry. Avoid creams and lotions to the area.","Non-inflammatory acne with closed comedones (white heads) or open comedones (black heads) can be treated with a topical retinoid. Retinoids should not be prescribed during pregnancy or if have fish allergy. Instruct Soldier to apply a pea sized amount of medication to a dry face at night. Treat the whole area (don’t spot treat) due to its preventative effect on acne. Don’t combine use with harsh soaps or other acne treatments. If skin irritation occurs, decrease use to every other night.","Mild to moderate inflammatory acne with papules can be treated with the addition of topical benzoyl peroxide with an antibiotic in the morning. Benzoyl peroxide should not be applied at the same time as a retinoid due to decreasing the retinoid’s effectiveness.","Instruct to return to clinic if not improving within two weeks, getting worse, or side-effects from the medications are occurring."],
   J2DP3 = [],
   J2DP4 = [],
   J2DPRE = [],
-  J2DPRED = [],
-  J2PRO = [],
+  J2DPRED = ["Red Flags. None.","DP 1: Birth control and a positive hCG requires additional counseling that should be provided by the supervising privileged provider. Hyperandrogenism requires additional evaluation. Draining lesions requires more aggressive therapy. Acute onset of acne symptoms for the first time after age 18 requires further evaluation."],
+  J2PRO = ["For comedones, confirm a negative pregnancy test (if female) and no fish allergy. Provide topical retinoid for a pea size to be applied to the affected area of the dry face at night. Counsel to decrease to every other night if irrigations, dry skin occurs.","For mild to moderate inflammation, add topical combination of benzyl peroxide and antibiotics in the morning to the retinoid used at night.","RTC if symptoms are worsening, new symptoms developing, or symptoms are not controlled with the MCP within 2 weeks."],
   J2LIMITATIONS = [],
-  J2GEN = [],
-  J2MEDCOM = [],
-  J2STP1 = [],
+  J2GEN = ["pg. 114-115: Acne is caused by plugged oil glands. The oily material may form a ‘whitehead” or develop a dark colored “blackhead” when exposed to the air. Pimples develop when these plugged glands become inflamed and bacteria begin breaking down the oil-producing irritating substances as by-products. Acne is a common condition occurring primarily in the late teens and early twenties. Acne may be extremely upsetting to the young Soldier. The seriousness of this condition or its importance to the Soldier must not be underestimated. With proper treatment, acne can be improved thus avoiding scarring."],
+  J2MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)","Obtain Laboratory Specimens(urine for HcG) pg.69-70(2)(k)"],
+  J2STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125","Subject Area 18: Medication Administration. Administer Topical Medications 081-833-3020"],
 
   J3ACT1 = [],
   J3ACT2 = [],
   J3ACT3 = [],
-  J3DP1 = [],
-  J3DP2 = [],
+  J3DP1 = ["DP 2: After failure of conservative therapy and lifestyle modifications, a permanent profile may need to be considered. Refer to the AEM for counseling prior to initiating the next step in therapy."],
+  J3DP2 = ["Shaving routine modifications are the first line in treatment. The following adjustments can help reduce the penetration of the inter-follicular skin by the hair shaft. Instruct the Soldier to wash the face in a circular motion with soap and warm water once a day to free any embedded hairs. Use a warm compress or warm water on the face before shaving and apply generous amounts of shaving cream for 5 minutes before shaving to soften the hair. Use a single blade razor, shave in the direction of hair growth, and avoid stretching the skin during shaving to reduce the production of very short hairs. Medication can be used in conjunction with the shaving routine modifications. A topical retinoid at night with or without the combination of a low potency topical steroid. Bumps associated with pseudofolliculitis barbae can remain for a few months after treatment has been started. Instruct the Soldier to return if the symptoms are worsening, new symptoms develop, or the minor-care protocol does not appear to be helping after a few weeks."],
   J3DP3 = [],
   J3DP4 = [],
   J3DPRE = [],
-  J3DPRED = [],
-  J3PRO = [],
-  J3LIMITATIONS = [],
-  J3GEN = [],
-  J3MEDCOM = [],
-  J3STP1 = [],
+  J3DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Facial cellulitis or a draining abscess are signs of a skin infection and not pseudofolliculitis barbae. These conditions require further evaluation and treatment. Cellulitis of the face can have life threatening complications."],
+  J3PRO = ["Counsel the Soldier on shaving routine modification to include washing the face in a circula motion, warm compress and leaving shaving cream on for 5 min prior to shaving, and using a single blade razor. ","Topical retinoid with or without a low potency steroid can be used once a day at night as an adjunct. ","RTC if symptoms are worsening, new symptoms devebping, or symptoms are not controlled with the MCP."],
+  J3LIMITATIONS = ["Shaving profile in eProfile"],
+  J3GEN = ["pg. 115-117: Pseudofolliculitis barbae is a chronic condition of the beard area resulting from the reentry of the growing hair into the upper layer of the skin or facial hairs becoming trapped in the upper layer of the skin. The genetic predisposition of the African-American male to tight coiling hair makes him highly susceptible to this condition. The most common locations for lesions are the face and neck. The lesions can be painful and interfere with shaving although they rarely become secondarily infected. Permanent scarring is possible."],
+  J3MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)"],
+  J3STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125","Subject Area 18: Medication Administration. Administer Topical Medications 081-833-3020"],
 
   J4ACT1 = [],
   J4ACT2 = [],
   J4ACT3 = [],
-  J4DP1 = [],
-  J4DP2 = [],
+  J4DP1 = ["DP 2. Dandruff, can be a chronic relapsing condition even in its mild form. All antifungal shampoos are not the same and Soldiers may have different responses to them. OTC treatment may take some trial and error to find the shampoo that is right for the Soldier. Inflammation, lesions with oozing and crusting are signs that the symptoms are getting worse and the Soldier needs to be evaluated inside of a clinic setting."],
+  J4DP2 = ["MCP for dandruff. There are some risk factors that make a Soldier more susceptible. Some risk factors include if the Soldier is male, Soldier has excessively oily skin and hair and/or if the Soldier suffers from certain diseases (for example, Parkinson’s disease, HIV).","OTC medication: Antifungal shampoo used daily (2-3 times per week minimal) for several weeks and remission is achieved. Manage stress levels, spend time (a few minutes) outdoors in the sun (DO NOT sunbathe). OTC medication: Antifungal shampoo used daily (2-3 times per week minimal) for several weeks and remission is achieved. Instruct the Soldier to seek medical assistance if mild dandruff is still present and not improving after three to four weeks of antifungal shampoo use, symptoms worsen, or new symptoms begin."],
   J4DP3 = [],
   J4DP4 = [],
   J4DPRE = [],
-  J4DPRED = [],
-  J4PRO = [],
+  J4DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”","DP 1. Visible inflammation with patchy, orange to salmon-colored or grayish plaques covered with yellowish, greasy scales, concretions of scale around hair shafts, lesions consisting of fissures, oozing, and crusting, are all signs of a more severe form of scalp seborrheic dermatitis."],
+  J4PRO = ["Antifungal shampoo used daily (2-3 times per week minimal) for several weeks and rem ission is achieved. ","Manage stress levels. ","Spend time (a few minutes) outdoors in the sun (DO NOT sunbathe).","Return to clinic if mild dandruff is still present after 3-4 weeks of antifungal shampoo use, symptoms worsen, or new symptoms begin."],
   J4LIMITATIONS = [],
-  J4GEN = [],
+  J4GEN = ["pg. 118-119: Dandruff which is also known as pityriasis sicca, is the mildest and most common form of scalp seborrheic dermatitis. White scales or flakes on the head or hair with mild itching are the most common symptoms."],
   J4MEDCOM = [],
-  J4STP1 = [],
+  J4STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125","Subject Area 18: Medication Administration. Administer Topical Medications 081-833-3020"],
 
   J5ACT1 = [],
   J5ACT2 = [],
   J5ACT3 = [],
-  J5DP1 = [],
-  J5DP2 = [],
+  J5DP1 = ["DP 2: Tinea capitis is a fungal infection of the scalp that presents with itching, scaling, and hair loss. It is common in kids but can occur in adults. Treatment is with an oral antifungal. Papules, pustules, and erythema are signs of inflammation which require further evaluation."],
+  J5DP2 = ["MCP for traction hair loss: Hair loss associated with traction being applied to hair for an extended period of time from tight hair styles often over the frontal and temporal areas. It is associated with traction folliculitis which includes erythema, papules, and sterile pustules. Instruct Soldier to avoid tight hair styles, chemical straighteners, and heating the hair follicle (for example, curling iron, straight iron) until it has resolved. Refer to AEM if signs of inflammation are present to evaluate for treatment with a high potency topical steroid or intra-lesion steroid inject.","MCP for male/female pattern hair loss: Male pattern hair loss often occurs after age 30 with hair loss over the frontal, temporal, and top of the head. On examination, hair follicles with a decreased caliber will be seen. Female pattern hair loss occurs over the front and top of the head. It most often occurs after menopause. Instruct the Soldier on the diagnosis.","Refer to AEM if does not meet either of the above patterns. Return to clinic if symptoms worsen or new symptoms develop."],
   J5DP3 = [],
   J5DP4 = [],
   J5DPRE = [],
-  J5DPRED = [],
-  J5PRO = [],
+  J5DPRED = ["Red Flags. None.","DP 1: Examples of medications that can result in hair loss are propranolol, ketoconazole, isotretinoin, colchicine, and cholesterol medications. If hair follicules are not present on exam, then scarring hair loss is more likely requiring a referral to dermatology. Alopecia areata is described as smooth, circular discrete hair loss that occurs over a couple of weeks. Refer to a privileged provider for consideration of intra-lesion steroid injections."],
+  J5PRO = ["Traction Hair Loss: counsel Soldier to avoid tight hair styles, chemical relaxants, and applying heat to hair until resolved. Refer to AEM for further evaluation if signs of inflammation are present. ","Male/female pattern hair loss (FPHL): discuss the suspected diagnosis with the AEM and then provide counseling to the patient. ","RTC if symptoms worsen or new symptoms begin."],
   J5LIMITATIONS = [],
-  J5GEN = [],
+  J5GEN = ["pg. 120-121: While most hair loss is natural and hereditary, any hair loss that is sudden or extreme in nature may have resulted from a fungal infection or other forms of illness or as a result of using certain medications. When treated promptly and properly, hair growth typically resumes."],
   J5MEDCOM = [],
   J5STP1 = [],
 
   J6ACT1 = [],
   J6ACT2 = [],
   J6ACT3 = [],
-  J6DP1 = [],
-  J6DP2 = [],
+  J6DP1 = ["DP 2. Some fungal infections are unresponsive to topical medications and a systemic antifungal treatment is required. Ulcers increase the risk of a secondary bacterial infection."],
+  J6DP2 = ["MCP for athlete’s foot. This type of fungal infection requires keratin for growth, which restricts the infection to the superficial skin, hair, and nails. Interdigital tinea pedis, hyperkeratotic (moccasin-type) tinea pedis and vesiculobullous (inflammatory) tinea pedis are the 3 major categories of tinea pedis infections.","OTC medication: topical antifungal therapy can used to cure a fungal infection which has no secondary infection. Antifungal cream is applied twice a day for one week. Instruct the Soldier to return to the clinic if the fungal infection does not respond to OTC medications, symptoms worsens, new symptoms develop. Prevention measures: Athlete's foot can be spread through direct and indirect contact. Direct, skin-to-skin contact, occurs when an uninfected person touches the infected area of somebody with athlete's foot while indirect contact, is when the fungi can infect people via contaminated surfaces, clothing, socks, shoes, bed sheets, and towels. Instruct Soldier to keep his or her feet clean and dry, change socks regularly, wear well ventilated shoes and provide feet protection in public places. Use antifungal powder daily, alternate shoes and do not share shoes."],
   J6DP3 = [],
   J6DP4 = [],
   J6DPRE = [],
-  J6DPRED = [],
-  J6PRO = [],
+  J6DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”","DP 1. Peeling, cracking, redness, blisters, and breakdown of the skin with itching and burning are characteristics of both dry skin and athlete’s foot. If untreated, the fungal infection can lead to a severe secondary bacterial infection."],
+  J6PRO = ["Antifungal lotion, ointment, powder or spray-applied twice a day for 4-8 weeks. ","RTC if the fungal infection does not respond to medications, symptoms worsens, new symptoms develop. Prevention ","Instruct patient to keep their feet thy, change socks regularly, wear well ventilated shoes and provide feet protection in public places. Use antifungal powder daily, alternate shoes and do not share shoes."],
   J6LIMITATIONS = [],
-  J6GEN = [],
-  J6MEDCOM = [],
-  J6STP1 = [],
+  J6GEN = ["pg. 122-123: Tinea pedis (athlete's foot) most commonly occurs with frequently wearing damp socks and/or tight fitting shoes. It is contagious and can be spread by contact with an infected person or contaminated surface."],
+  J6MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)"],
+  J6STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125","Subject Area 18: Medication Administration. Administer Topical Medications 081-833-3020"],
 
-  J7ACT1 = [],
-  J7ACT2 = [],
+  J7ACT1 = ["Perform potassium hydroxide (KOH) examination"],
+  J7ACT2 = ["Perform potassium hydroxide (KOH) examination"],
   J7ACT3 = [],
-  J7DP1 = [],
-  J7DP2 = [],
+  J7DP1 = ["DP 2. Some infections and rashes do not respond well to OTC medications and infections may not get better or may reoccur within a few weeks. These Soldiers need to be evaluated to rule out more serious skin conditions. A normal infection may respond better to a prescription strength antifungal.","Note: In the absence of any of the preceding conditions, minor-care is appropriate."],
+  J7DP2 = ["MCP for jock itch. Tinea cruris is far more common in men than women. Predisposing factors include copious sweating, obesity, diabetes, and immunodeficiency.","OTC medication. Topical antifungal medication twice a day for two weeks. Instruct Soldier to keep groin area clean and dry and return to clinic if symptoms worsens, new symptoms develop, symptoms not improving within two weeks, or if the infection returns within a few weeks after using OTC Medications."],
   J7DP3 = [],
   J7DP4 = [],
   J7DPRE = [],
-  J7DPRED = [],
-  J7PRO = [],
+  J7DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”","DP 1. Diabetes can affect every part of the body, including the skin. Soldiers with diabetes are more susceptible to skin conditions such as bacterial infections and fungal infections. Although common infections can be self-treated, the Soldier should see a privileged provider to rule out other more serious diabetic related skin conditions."],
+  J7PRO = ["Topical antifungal medications twice a day for 2 weeks ","Instruct patient to keep groin area clean and dry and RTC if symptoms worsens, new symptoms develop, symptoms not improving within 2 weeks, or if the infection returns within a few weeks after using medications. ","Preventive- Hygiene"],
   J7LIMITATIONS = [],
-  J7GEN = [],
-  J7MEDCOM = [],
-  J7STP1 = [],
+  J7GEN = ["pg. 124-125: Tinea cruris (also known as jock itch) is a dermatophyte infection involving the crural (superior medial portion of the thigh) fold. The spreading of tinea pedis is often the cause for these infections. Infection may spread to the perineum and perianal areas, into the gluteal cleft, or onto the buttocks."],
+  J7MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)"],
+  J7STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125","Subject Area 18: Medication Administration. Administer Topical Medications 081-833-3020"],
 
-  J8ACT1 = [],
+  J8ACT1 = ["Perform potassium hydroxide (KOH) examination"],
   J8ACT2 = [],
   J8ACT3 = [],
-  J8DP1 = [],
-  J8DP2 = [],
+  J8DP1 = ["DP 2: Tinea versicolor often reoccurs. When this occurs, additional counseling to the Soldier is required to help prevent further occurrences. Refer to the AEM for additional counseling and preventative measures. If it is an atypical presentation that you do not recognize, refer to the AEM for further evaluation and treatment."],
+  J8DP2 = ["MCP for tinea versicolor. Treat with topical terbinafine twice a day for one week. Selenium sulfide 2.5% shampoo lathered over the affected area and left for 10 minutes once a week is also effective. Instruct the Soldier that hypo/hyperpigmentation of the area may remain for months after effective treatment. If the presentation is not classic for tinea versicolor, screen according to the appropriate protocol and discuss with the AEM. Return to the clinic for worsening symptoms, new symptoms, or presence of scale in the lesions after treatment."],
   J8DP3 = [],
   J8DP4 = [],
   J8DPRE = [],
-  J8DPRED = [],
-  J8PRO = [],
+  J8DPRED = ["Red Flags. None.","DP 1: Tinea versicolor that has failed initial therapy or is widespread may require systemic treatment. Presence of scale in the area and a positive potassium hydroxide (KOH) test confirms treatment failure requiring systemic treatment. Refer to the supervising privileged provider for counseling and evaluation for treatment."],
+  J8PRO = ["Topical antifungal medications twice a day for 1 week. ","Instruct patient that the hypo/hyper pigmented areas can remain for months after effective treatment. ","If the presentation is atypical, screen according to the identified lesion. If not able to identify the lesion, refer to the AEM for further evaluation and treatment. ","RTC for worsening symptoms, new symptoms, or presence of scale in the lesions after treatment"],
   J8LIMITATIONS = [],
-  J8GEN = [],
-  J8MEDCOM = [],
-  J8STP1 = [],
+  J8GEN = ["pg. 126-127: Tinea versicolor is a common superficial fungal infection that appears as “spots” (lighter, darker, or redder than surrounding skin) on the neck, chest, back, and arms usually with no other symptoms. The rash is typically scaly and painless. It may be noticed in the summer when affected areas fail to tan after sun exposure."],
+  J8MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)"],
+  J8STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125","Subject Area 18: Medication Administration. Administer Topical Medications 081-833-3020"],
 
-  J9ACT1 = [],
-  J9ACT2 = [],
+  J9ACT1 = ["Prepare informed consent, timeout, I&D set-up if provider requests"],
+  J9ACT2 = ["Prepare informed consent, timeout, I&D set-up if provider requests"],
   J9ACT3 = [],
-  J9DP1 = [],
-  J9DP2 = [],
+  J9DP1 = ["DP 2: An abscess should be drained to allow it to heal, and an abscess with a diameter of greater than 5 cm will need to be packed. Military population is at risk for community transmission of staphylococcus aureus and should be evaluated for the addition of antibiotic therapy."],
+  J9DP2 = ["MCP for skin infection. Prior to abscess formation, the skin normally becomes indurated from the inflammation. The skin appears to be warm, red, and tender with a hard area where the inflammation is present. Treatment is minor-care. An abscess may form within a couple of days requiring further treatment.","Apply a moist, warm compress over the area for 20 minutes every four hours. It will increase blood flow to the area, allowing the Soldier’s immune system to fight the infection. Instruct the Soldier to return to the clinic after the abscess forms for drainage. Return sooner, if symptoms worsen (for example, fevers, chills, increased pain or redness, red streaks, increased swelling, or re-accumulation of pus, if it has already drained)."],
   J9DP3 = [],
   J9DP4 = [],
   J9DPRE = [],
-  J9DPRED = [],
-  J9PRO = [],
+  J9DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Pilonidal abscesses (over the tail bone) can be much larger than they appear and should be referred to a privileged provider for evaluation. Systemic inflammatory response syndrome (SIRS) criteria, fever, black eschar, rapid progression over hours, and worsening on oral antibiotics are signs of a more significant infection that may require hospitalization. Hand infection, infection over a joint, indwelling medical device, and associated cellulitis increases the risks of serious complications."],
+  J9PRO = ["Apply a warm moist compress over the abscess for 20 minutes every four hours. ","RTC for worsening symptoms (fever/chills, re-accumulation of pus, increased pain/ redness, red streaks, or increased swell ing), new symptoms, if not improving within 3 days."],
   J9LIMITATIONS = [],
-  J9GEN = [],
+  J9GEN = ["pg. 128-129: A boil is usually caused by bacteria that enters through a hair follicle. A painful nodule enclosing a core of pus forms in the skin. Tenderness, warmth, swelling, and firm area, and pain may be present around the area of inflammation. An extremely large boil or numerous boils can produce fever. Boils are also known as furuncles if they have single cores or carbuncles if they have multiple cores."],
   J9MEDCOM = [],
-  J9STP1 = [],
+  J9STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125","Subject Area 18: Medication Administration. Administer Topical Medications 081-833-3020"],
 
   J10ACT1 = [],
   J10ACT2 = [],
   J10ACT3 = [],
-  J10DP1 = [],
-  J10DP2 = [],
+  J10DP1 = ["DP 2: Elevated temperature, sore throat, sores on the hand, and moderate to severe pain increase the chance of an alternative viral infection or initial infection requiring further evaluation and possible systemic antiviral therapy. Pustules and yellow, honeycomb crusting suggest a bacterial infection requiring further evaluation."],
+  J10DP2 = ["MCP for fever blister. Instruct Soldier on contagious nature of HSV-1, cold sores. Soldier is contagious a little all of the time. When symptomatic or cold sores are present, the Soldier is very contagious, and the virus is spread through direct contact. Instruct the Soldier to avoid sharing drinks or kissing anyone till after it has resolved. Provide docosanol (Abreva) topical ointment to be applied to the cold sore five times a day or two doses of valacyclovir (2g), 12 hours apart. Return to clinic if symptoms are worsening, new symptoms develop, or it is not improved within 10 days."],
   J10DP3 = [],
   J10DP4 = [],
   J10DPRE = [],
-  J10DPRED = [],
-  J10PRO = [],
+  J10DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: HSV-1 infection can occur at any mucosal or skin site. Although rare, eye infection with HSV causes keratitis. Eczema and burns result in breaks in the skin’s natural protective barrier increasing the risk of spreading the HSV infection to these areas."],
+  J10PRO = ["Counsel the Soldier on the contagious nature of the virus and to avoid sharing a drink or kissing anyone till it has resolved.","Provide docosanol topical ointment (1st line) to be applied 5 x per day till cold sore is healed or valacyclovir (2nd line).","RTC if symptoms worsen, new symptoms develop. or it is not improved within 10 days."],
   J10LIMITATIONS = [],
-  J10GEN = [],
-  J10MEDCOM = [],
-  J10STP1 = [],
+  J10GEN = ["pg. 130-131: Fever blisters result from an acute viral infection that frequently occurs around the mouth or on the lips. Fever blisters usually occur with multiple vesicular lesions on an erythematous base. Lesions can be painful and last for 10-14 days. Initial infection can be associated with systemic symptoms, like fever and malaise. Viral infection resides in the nerve cells after the initial infection and can reoccur when the body is under stress. Re-emergence of the cold sores is often preceded by prodromal symptoms of pain, burning, tingling, or itching for 6 hours to 2.5 days. Cold sores are contagious and spread through contact."],
+  J10MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)"],
+  J10STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125","Subject Area 18: Medication Administration. Administer Topical Medications 081-833-3020"],
 
   J11ACT1 = [],
   J11ACT2 = [],
   J11ACT3 = [],
-  J11DP1 = [],
-  J11DP2 = [],
+  J11DP1 = ["DP 2: Erythema, warmth, and increased tenderness are signs of inflammation or an early infection that requires further evaluation. A laceration needs to be evaluated to determine if it needs to be closed."],
+  J11DP2 = ["Gently wash the affected area with soap and water. If there is a laceration, irrigate inside the laceration using a syringe with jets of sterile saline. While washing and irrigating the wound, ensure that all foreign material has been removed from the wound.","MCP for abrasion: Cover the abrasion with an antibacterial ointment (Bacitracin). Provide the ointment for the Soldier to apply to the abrasion twice a day. Cover the abrasion with a protective, non-stick sterile dressing and have the Soldier change the dressing daily or when saturated with fluid. Keep the area clean and dry.","MCP for laceration: If the edges of the wound can be brought together easily, bleeding is controlled, and there are no signs of infection, minor-care is appropriate. Steri-strips may be applied to keep the skin edges together. If it is a laceration, return to clinic in 24-48 hours for re-evaluation. Otherwise, return to clinic for increasing redness, bad smell, thick discharge, increasing tenderness, or other concerns to include the edges becoming separated."],
   J11DP3 = [],
   J11DP4 = [],
   J11DPRE = [],
-  J11DPRED = [],
-  J11PRO = [],
-  J11LIMITATIONS = [],
-  J11GEN = [],
-  J11MEDCOM = [],
-  J11STP1 = [],
+  J11DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: SIRS criteria includes two of the following: heart rate over 90 bpm, respiratory rate over 20, Temp >100.4o F or <96.8o F, or WBC >12,000 cells. SIRS criteria with a source of infection is sepsis and requires prompt treatment. Fever, red streaks, and oozing wounds indicate an infection that requires further evaluation and treatment. Puncture wounds, avulsions, from crushing or burns, and wounds contaminated with dirt, saliva, or feces require tetanus if not given within last 5 years. Clean wounds require tetanus if not given within last 10 years. High risk wounds increase the risk of complications. Bite wounds have a risk of infection. Lacerations over a joint, on the face, or on the hand or foot have a higher risk of complication from the laceration."],
+  J11PRO = ["Wash the area with soap and water. Ensure the area is thoroughly irrigated and all foreign material has been removed. Cover the area with an antibiotic ointment and sterile dressing. ","Provide materials for wound care. Counsel the Soldier on how to take care of the wound. ","RTC for increasing redness, bad smell, thick discharge, increasing tenderness, or other concerns. "],
+  J11LIMITATIONS = ["Keep area clean and dry"],
+  J11GEN = ["pg 132-133: Skin abrasions are caused when the skin is rubbed raw such as when a knee or elbow is scraped. While this type of injury is painful, it normally requires only minor treatment."],
+  J11MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)","Perform Wound Care pg.70(l)"],
+  J11STP1 = ["Subject Area 2: Medical Treatment. Initiate Treatment for a Soft Tissue Injury 081-833-0063"],
 
   J12ACT1 = [],
   J12ACT2 = [],
   J12ACT3 = [],
-  J12DP1 = [],
-  J12DP2 = [],
+  J12DP1 = ["DP 2: Incomplete closure should be referred to the AEM to determine the next step in wound care."],
+  J12DP2 = ["Suture should be removed when:","The wound has healed (within 5 to 10 days).","The suture line is clean.","No purulent drainage, redness, or swelling is present.","Document the appearance of the wound (sutured laceration) and number and type of sutures removed. Provide bacitracin if wound edges are still healing. Counsel the patient on wearing sunscreen and sensitivity of the scar to the sun with resulting hyperpigmentation for the first year."],
   J12DP3 = [],
   J12DP4 = [],
   J12DPRE = [],
-  J12DPRED = [],
-  J12PRO = [],
+  J12DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Fever, pus, or redness and swelling at the suture location can be a sign of a secondary infection. Refer the patient to the supervising privileged provider for further evaluation and treatment."],
+  J12PRO = ["Bacitracin for the scar","Protect the scar from the sun","Wear sunscreen for three months to protect from discoloration","(Source: up-to-date)"],
   J12LIMITATIONS = [],
-  J12GEN = [],
-  J12MEDCOM = [],
-  J12STP1 = [],
+  J12GEN = ["pg. 134-135: Sutures should be removed after the skin edges have started to heal together. If sutures are left in too long, it can result in increased scar formation. If sutures are removed too early, the wound can reopen or pull apart at the edges resulting in a larger scar."],
+  J12MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)","Assists Privileged Provider To Perform Invasive Procedures pg.68(5)","Sets Up and Maintains A Sterile Field pg.68(7)","Perform Suturing pg.68(11)","Perform Wound Care pg.70(l)"],
+  J12STP1 = ["Subject Area 20: Medical Treatment. Perform Suture Removal 081-833-0026"],
 
-  J13ACT1 = [],
+  J13ACT1 = ["Provide emergency stabilization (oxygen, IVG, airway management, epinephrine auto injector) prior to transport if necessary"],
   J13ACT2 = [],
   J13ACT3 = [],
-  J13DP1 = [],
-  J13DP2 = [],
+  J13DP1 = ["DP 2: If the Soldier has not started a medication within the last two weeks, then the rash may not be from a medication. Further evaluation by the AEM is required. Itchy rash (likely hives) with other symptoms needs to be seen by the AEM for evaluation of a more serious reaction."],
+  J13DP2 = ["MCP for hives (urticarial). Caused by the release of histamine from mast cells often related to an allergic reaction and present with circumscribed, raised, red rash with central pallor that moves around. Treatment is avoidance of the irritating substance, if it can be identified. Benadryl at bedtime can help with the symptoms and allow the Soldier to sleep. Provide up to a three day course of the medication.","MCP for irritant contact dermatitis. Presents with burning, redness, and may progress to fissures of the skin. Treatment is with avoidance of the irritating substance. Skin lotion to help the skin retain moisture and heal. Hydrocortisone ointment PRN inflammation.","MCP for allergic contact dermatitis. Presents with red, itchy well demarcated area with vesicles, bumps, or scaly skin. Treatment is with avoidance of the irritating substance. Hydrocortisone cream or Burrow’s solution compresses can help with the irritation and itching."],
   J13DP3 = [],
   J13DP4 = [],
   J13DPRE = [],
-  J13DPRED = [],
-  J13PRO = [],
-  J13LIMITATIONS = [],
-  J13GEN = [],
-  J13MEDCOM = [],
-  J13STP1 = [],
+  J13DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: An allergic reaction can include swelling within the airway, wheezing and breathing problems, to anaphylaxis. Immediate stabilization and treatment is required. Blistering over the body and oral involvement are signs of a more serious drug reaction. Petechial rash and fever are signs of vasculitis (palpable purpura)."],
+  J13PRO = ["Hives are common. Counsel to avoid offending agent. Discuss with AEM and notify prescribing provider. Provide benadryl twee limes a day for 3 days. ","Irritant contact dermatitis should be treated with avoidance and skin moisturizing lotion or cetaphil body wash with the addition of hydrocortisone ointment three times a day if needed for 1-2 weeks. ","Allergic contact dermatitis should be treated with avoidance, hydrocortisone ointment three a day as needed for 1-2 weeks, and Burrow's solution compresses every 4 hours for 30 minutes as needed.","RTC for worsening symptoms, development of new symptoms, or other concerns."],
+  J13LIMITATIONS = ["Avoidance of offending agent","Use latex free gloves or moisturizing soap"],
+  J13GEN = ["pg. 136-137: Drugs can cause an acute rash of small red spots over the entire body in individuals who are sensitivity to them, like antibiotics or sulfonamides. Contact dermatitis results when the skin comes in contact with anything in the environment that causes an inflammatory reaction, like shoe materials, watchbands, earrings, and poison ivy. Contact area can present with burning, itching, redness, and fissures or vesicles. Poison ivy is the most common example of this group and related to an oil in the plant’s leaves. Symptoms usually develop within 24 to 48 hours of contact."],
+  J13MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)"],
+  J13STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125","Subject Area 18: Medication Administration. Administer Topical Medications 081-833-3020"],
 
-  J14ACT1 = [],
+  J14ACT1 = ["Provide emergency resuscitation before transport"],
   J14ACT2 = [],
   J14ACT3 = [],
-  J14DP1 = [],
-  J14DP2 = [],
+  J14DP1 = ["DP 2: Limited partial thickness (second degree) burns present with red, painful skin that may weep and blisters within 24 hours. These burns typically heal within 3 weeks but require additional management due to risk of secondary infection. Secondary infection (for example, warmth, thick discharge, smell, increasing redness) is a potential complication that should be referred to the AEM. Sunburn of greater than 25% of the Soldier’s body surface area or symptoms of exhaustion should be evaluated for a heat injury."],
+  J14DP2 = ["MCP for burns. Superficial burns only include the epidermal layer of skin. They are red and painful but do not blister. The pain and redness typically resolves within three days, and they heal without scarring. Apply cold packs to the affected area as needed for comfort. Leave the area uncovered. Provide acetaminophen or ibuprofen as needed for pain. For sunburn, instruct the Soldier on the importance of using sunscreen, reapplying it every hour, and risks of cancer with repetitive sun damage to the skin. May recommend OTC aloe vera for additional pain relief. Return to clinic for worsening symptoms, new symptoms, or if not improving within three days."],
   J14DP3 = [],
   J14DP4 = [],
   J14DPRE = [],
-  J14DPRED = [],
-  J14PRO = [],
-  J14LIMITATIONS = [],
-  J14GEN = [],
-  J14MEDCOM = [],
-  J14STP1 = [],
+  J14DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: A Soldier with any potential for airway involvement or smoke inhalation causing symptoms should be immediately transported to the nearest qualified or privileged provider. High risk locations for burns include the head, neck, hand, feet, female breast, genitalia, perineum, major joints, and circumferential burns and should be evaluated for referral to a burn center. Partial thickness burns >10% of body surface area, chemical burns, full thickness burns, electrical burns, and burns with associated trauma have a higher risk and should also be evaluated for a burn center. Deep partial thickness (second degree) are painful to pressure only, appear waxy or wet, and do not blanch with pressure. They typically heal within two months."],
+  J14PRO = ["Apply cool compresses. Provide ibuprofen or acetaminophen as needed for pain. Keep the area clean and uncovered. May recommend aloe vera for additional pain relief","RTC for worsening symptoms, new symptoms, if not improving within 3 days."],
+  J14LIMITATIONS = ["Keep area clean","Avoid additional heat exposure to area"],
+  J14GEN = ["pg. 138-139: A burn is defined as any injury to the outer layer of skin or deeper tissue caused by heat, chemicals, or electricity. Minor burns are characterized by redness, pain, and tenderness. More severe burns may not have these symptoms. Sunburn is generalized redness of the skin produced by overexposure to sunlight. Sunburns should be avoided due to repeat occurrences increasing the risk of permanent injury to the skin and increased risk of skin cancer."],
+  J14MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)","Initial Treatment of Environmental Injuries pg.69(2)(e)"],
+  J14STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125","Subject Area 18: Medication Administration. Administer Topical Medications 081-833-3020"],
 
   J15ACT1 = [],
   J15ACT2 = [],
   J15ACT3 = [],
-  J15DP1 = [],
-  J15DP2 = [],
+  J15DP1 = ["DP 2. Large open and infected blisters can become serious health hazards and should be referred to the AEM for further evaluation and treatment."],
+  J15DP2 = ["MCP for blister on the foot. Wash area with antibacterial soap. Cover a large area of surrounding undamaged skin and the treated blister with a protective dressing of moleskin with a hole in the middle cut out for the blister. An adhesive solution such as tincture of benzoin or a surgical adhesive to the skin around the blister to improve the adhesion of the moleskin. Have the Soldier return to the clinic after the blister ruptures.","MCP for ruptured blisters on the feet. Clean the skin with Betadine. Remove the dead skin with sterile scissors. If sterile instruments are not available or personnel have not been taught to perform the procedure, skip this step. Wash area with Betadine and apply an antibacterial ointment to the blister only. Cover a large area of surrounding undamaged skin and the treated blister with a protective dressing of moleskin between treatments. An adhesive solution such as tincture of benzoin may be applied to the skin around the blister to improve the adhesion of the moleskin. Reevaluate the Soldier every 24 hours.","Instruct the Soldier to wear two pairs of socks when wearing combat boots (for example, a thin pair of nonabsorbent, non-cotton socks under the boot socks) and to check for proper fit of boots.","Instruct the Soldier to return for further evaluation if: the protective dressing begins to come off, develops blisters that make wearing shoes or boots difficult, significant pain, or signs of infection develop."],
   J15DP3 = [],
   J15DP4 = [],
   J15DPRE = [],
-  J15DPRED = [],
-  J15PRO = [],
-  J15LIMITATIONS = [],
-  J15GEN = [],
-  J15MEDCOM = [],
-  J15STP1 = [],
+  J15DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1. Serious skin conditions can present with blisters. Fever, malaise, and epidermal sloughing are signs of a more serious medical condition."],
+  J15PRO = ["Wash area with betadine and apply an antibacterial ointment to the blister only. ","Cover a large area of surrounding undamaged skin and the treated blister with a protective dressing of moleskin between treatments. An adhesive solution such as tincture of benzoin or a surgical adhesive may be applied to the skin around the blister to improve the adhesion of the moleskin. ","Wear two pairs of socks when wearing combat boots (a thin pair of nonabsorbent, non-cotton socks under the boot socks) and to check for proper fit of boots.","Instruct the patient to return for further evaluation if:","The protective dressing begins to come off.","He develops blisters that make wearing shoes or boots impossible.","He is disabled by pain.","He has signs of infection. ","The patient should be reevaluated every 24 hours"],
+  J15LIMITATIONS = ["No running, rucking, or jumping","Walk at own pace/ distance"],
+  J15GEN = ["pg. 140-141: Friction blisters are common and should be treated to prevent complications."],
+  J15MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)","Assists Privileged Provider To Perform Invasive Procedures pg.68(5)","Sets Up and Maintains A sterile Field pg.68(7)","Perform Wound Care pg.70(2)(i)"],
+  J15STP1 = ["Subject Area 18: Medication Administration. Administer Topical Medications 081-833-3020"],
 
   J16ACT1 = [],
   J16ACT2 = [],
   J16ACT3 = [],
-  J16DP1 = [],
+  J16DP1 = ["DP 2: Plantar warts requires additional treatment. Warts disrupt the normal skin markings so skin lines are not evident and have several dark specks within middle of the wart. One treatment option is using liquid nitrogen to freeze the wart in the clinic. An order from a privileged provider is required prior to treating with liquid nitrogen. Bunions are located on the medial side of the base of the first metacarpal with the big toe deviated inward. Bunions may need to be referred to podiatry."],
   J16DP2 = [],
   J16DP3 = [],
   J16DP4 = [],
   J16DPRE = [],
-  J16DPRED = [],
-  J16PRO = [],
-  J16LIMITATIONS = [],
-  J16GEN = [],
-  J16MEDCOM = [],
-  J16STP1 = [],
+  J16DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: No red flags. Diabetes mellitus or a decreased peripheral sensation increases the risk to the Soldier with a peripheral wound; so evaluation and treatment of a corn should be referred to a privileged provider."],
+  J16PRO = ["MCP for corns on feet. Soak the Soldier’s foot in warm water for 20 minutes. Paring down a callous/corn: The performing medic must have training in the procedure and have the training documented. After the risks and benefits of the procedure have been explained to the Soldier, Soldier has signed the consent form, and a final timeout has been performed, pare down the callous or corn with a scalpel blade. Reduce the hard skin until the lesion is flexible or the Soldier can stand/bear weight without discomfort. Do not remove skin to the point of bleeding.","Instruct the Soldier on weekly self-debridement. Minor-care can be given using a pumice stone. Refer to AEM if special insole is needed to be constructed for the Soldier’s shoe. Instruct the Soldier to return if the symptoms are worsening, new symptoms develop, or the minor-care protocol does not resolve the symptoms.","RTC if symptoms are worsening, new symptoms developing, or symptoms are not controlled with the MCP"],
+  J16LIMITATIONS = ["No running, rucking, or jumping","Walk at own pace/ distance"],
+  J16GEN = ["pg. 142-143: A callus is a thickened outermost layer of skin from repeated friction or pressure. A corn has a centralized hyperkeratotic area that is often painful on the sole of the foot or toe. Tenderness occurs especially during weight-bearing on the foot"],
+  J16MEDCOM = ["All Medication Protocols Associated with 68W Training and Certifications pg.68(k)","Assists Privileged Provider To Perform Invasive Procedures pg.68(5)","Sets Up and Maintains A sterile Field pg.68(7)","Perform Wound Care pg.70(l)"],
+  J16STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125"],
 
   J17ACT1 = [],
   J17ACT2 = [],
   J17ACT3 = [],
-  J17DP1 = [],
-  J17DP2 = [],
+  J17DP1 = ["DP 2: More than three warts will likely require a follow-up visit. AEM should see the Soldier if he or she returns for complications of the wart treatment or a repeat treatment."],
+  J17DP2 = ["MCP for cutaneous wart. Discuss the Soldier and your treatment plan with the AEM and obtain the supervising privileged provider approval prior to starting treatment. Medic must be trained and have had his or her procedure competency validated prior to performing a procedure. All procedures will be directly supervised.","Discuss the treatment options and their risks, benefits, and alternative that warts will often go away without treatment after several years with the Soldier. After the consent has been obtained and procedure approved by the supervising privileged provider, perform a final timeout. Clean the wart and surrounding skin. Pare down the callous over the wart but not to the point of bleeding or pain. Then apply the treatment option that the Soldier chose. Treatment options include salicylic acid, cryotherapy, or a combination of both. Cryotherapy includes 2 freeze thaw cycles that cover the wart and 2mm around the wart that takes 30-60 seconds to thaw. Instruct the Soldier that a blister, loss of skin pigmentation to the area, and pain may develop over the site. Salicylic acid may be applied to the wart after freezing and covered with a bandage or without freezing and covered with tape. Soldier can reapply salicylic acid and replace the tape or bandage every two days. Soldier should return in two weeks for re-evaluation and retreatment if needed. It is common for warts to require ongoing treatment for up to 12 weeks. Return earlier if new symptoms or complications from the treatment develop."],
   J17DP3 = [],
   J17DP4 = [],
   J17DPRE = [],
-  J17DPRED = [],
-  J17PRO = [],
-  J17LIMITATIONS = [],
-  J17GEN = [],
-  J17MEDCOM = [],
-  J17STP1 = [],
+  J17DPRED = ["Red Flags. None.","DP 1: Bleeding may indicate that the lesion is something other than a wart and requires further evaluation. Higher risk locations include the face, breast, perineum, anus, and genital regions. Greater than 10 lesions will require multiple repeat visits and other treatment options can be considered. If treatment would limit or prevent the Soldier from conducting an upcoming mission/task, refer to the supervising privileged provider to determine the best timing of treatment. If signs of an infection or inflammation are present around the wart, refer to the supervising privileged provider for treatment."],
+  J17PRO = ["Obtain approval for treatment from AEM. Counsel the Soldier on options, risks, and course of treatment. ","Consent and Final Timeout. Clean area and pare down built-up skin. Cryotherapy - 2 freeze thaw cycles, freezes the wart and 2mm around it with 30-60 seconds to thaw and/or salicylic acid. Salicylic acid is reapplied daily if using a bandage or every 2 days if using tape.","RTC if new symptoms develop or in 2 weeks for next treatment."],
+  J17LIMITATIONS = ["On Foot:","No running, rucking, or jumping","Walk at own pace/ distance"],
+  J17GEN = ["pg. 144-145: A cutaneous wart is a benign growth of skin caused by a virus. Common and plantar warts often have thrombosed capillaries within them that look like black dots or ‘seeds’"],
+  J17MEDCOM = ["All Medication Protocols Associated with 68W Training and Certifications pg.67(k)","Assists Privileged Provider To Perform Invasive Procedures pg.68(5)","Sets Up and Maintains A Sterile Field pg.68(7)","Removes Skin Warts On Extremities As Ordered pg.68(14)","Perform Wound Care pg.70(l)"],
+  J17STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125"],
 
   J18ACT1 = [],
   J18ACT2 = [],
   J18ACT3 = [],
-  J18DP1 = [],
-  J18DP2 = [],
+  J18DP1 = ["DP 2: Moderate lesions are characterized with substantial erythema and pus. Toenail removal (partial or complete) requires an order for the procedure by a privileged provider. Task must be trained, validated, and documented with the competency assessment file for a medic to be able to perform it. After toenail removal (partial or complete), have the Soldier return in three days to evaluate for healing and for spicule reformation with nail regrowth."],
+  J18DP2 = ["MCP for ingrown toenail. Mild lesions can be treated with conservative measures. Signs include minimal to moderate discomfort, some redness, and no discharge or pus. Educate the Soldier on not cutting the toenail below the lateral fold, allowing the toenail to grow out past the lateral fold before trimming, and importance of well-fitting shoes. Poorly fitting shoes can predispose the Soldier to ingrown toenails. Soak the affected foot in warm, soapy water for 15 minutes three times per day. While the foot is soaking, push the nail fold away from the nail. After soaking and drying the area, place a piece of cotton or dental floss under the lateral edge of the nail to separate it from the nail fold. Hydrocortisone cream 1% can also be applied to the inflamed area after each soaking to further decrease inflammation. Consider duty limitation for up to 3 days as needed.","Return to clinic in one week if still having symptoms or sooner if symptoms are worsening to include spreading or increasing redness, formation of pus or discharge, or increasing discomfort"],
   J18DP3 = [],
   J18DP4 = [],
   J18DPRE = [],
-  J18DPRED = [],
-  J18PRO = [],
-  J18LIMITATIONS = [],
-  J18GEN = [],
-  J18MEDCOM = [],
-  J18STP1 = [],
+  J18DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Severe lesions are characterized with signs of spreading infection to include red streaks, cellulitis, or ingrown toenails along both nail folds. Red flags, cellulitis, diabetes, and immunocompromised may indicate or increase the risk of a more severe infection requiring antibiotics. Recurrent ingrown toenails need to be evaluated by the supervising privileged provider to determine if permanent nail ablation is required."],
+  J18PRO = ["Educate the Soldier on proper trimming of toenail, allowing toenail to grow out, and proper fitting shoes. ","Soak foot in warm, soapy water for 15 minutes 3x/day. Place cotton piece or dental floss under lateral nail to separate from nail fold. Apply hydrocortisone cream 1% to dry inflamed area after soaks. ","Consider duty limitations for up to 3 days as needed. ","RTC if symptoms are worsening or symptoms are not improved after 1 week."],
+  J18LIMITATIONS = ["No running, rucking, or jumping","Walk at own pace/ distance"],
+  J18GEN = ["pg. 146-147: An ingrown toenail is a nail that extends into the flesh of the toe along its lateral margins (nail fold). It can range from inflammation and tenderness to a significant infection."],
+  J18MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)","All Medication Protocols Associated with 68W Training And Certifications pg.68(k)","Assists Privileged Provider To Perform Invasive Procedures pg.68(5)","Sets Up and Maintains A sterile Field pg.68(7)","Perform Wound Care pg.70(l)","Assists With The Administration of Local Anesthesia pg.70(r)","Assists In Performing Digital Block Procedures pg.70(s)","Perform Toenail Removal pg.70(t)"],
+  J18STP1 = ["N/A"],
 
   K1ACT1 = [],
   K1ACT2 = [],
   K1ACT3 = [],
-  K1DP1 = [],
-  K1DP2 = [],
-  K1DP3 = [],
+  K1DP1 = ["DP 2. A “yes” response to questions may indicate heat exhaustion which occurs as a result of an excessive loss of water and salt from the body. The syndrome is characterized by profuse perspiration, pallor, and perhaps low blood pressure. The mortality rate from this disorder, if treated, is extremely low. Moving the Soldier to a cool area for rest and the administration of fluids (orally or intravenous infusion, depending on severity of symptoms) will result in prompt recovery. Untreated heat exhaustion may progress to heatstroke."],
+  K1DP2 = ["DP 3. A “yes” response to these questions indicates heat cramps. These are painful cramps of voluntary muscles which result from excessive loss of salt from the body. Muscles of the extremities and the abdominal wall are usually involved. Body temperature is normal. Heat cramps can be promptly relieved by replacing salt and fluid orally and placing the individual in a cool environment."],
+  K1DP3 = ["MCP for mild heat injury. COOL: Place the Soldier in a cool or shaded place. HYDRATE: Give the Soldier at least one liter of cool water to drink in the first 30 minutes and then at least one liter of water per hour the next 2 hours. Advise the Soldier to decrease his activity for the next 24 hours. REASSESS: If the Soldier’s symptoms do not begin to resolve themselves within 30 minutes, if they get worse, or if the Soldier’s temperature exceeds 100.3OF, refer the Soldier to the supervising privileged provider."],
   K1DP4 = [],
   K1DPRE = [],
-  K1DPRED = [],
-  K1PRO = [],
-  K1LIMITATIONS = [],
-  K1GEN = [],
-  K1MEDCOM = [],
-  K1STP1 = [],
+  K1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1. A “yes” response to any of the questions may indicate heatstroke with a breakdown of the body’s heat regulating mechanism. Heatstroke is characterized by high body temperature (>l03oF), altered mental status (that is, confusion, delirium, syncope and/or coma) and, in most cases, an absence of sweating. This condition has a high mortality rate and is a MEDICAL EMERGENCY. Lowering the body temperature is the most important treatment. Placing icepacks/ice sheets in the groin, arm pits and behind the neck, along with ice sheers under and on top the Soldier allows for rapid cooling. An alternative is dousing the Soldier with water and gently fanning to allow for evaporative cooling. Start an intravenous infusion. Monitor the Soldier’s body (rectal) temperature. Transport to an emergency treatment location, if available."],
+  K1PRO = ["COOL: Place the Soldier in a cool or shaded place.","HYDRATE: Give the Soldier at least one liter of cool water to drink in the first 30 minutes and then at least one liter of water per hour the next 2 hours. Advise the Soldier to decrease his activity for the next 24 hours. ","REASSESS: If the Soldier's symptoms do not begin to resolve themselves within 30 minutes, if they get worse, or if the Soldier's temperature exceeds 101°F, Refer the Soldier to the privileged provider."],
+  K1LIMITATIONS = ["No significant exercise x 48 hours","Limit exposure to hot environments"],
+  K1GEN = ["pg. 148-149: Heat injury results from an excessive loss of water and salt from the body or a breakdown of the body’s cooling mechanism. Risks include inadequate acclimatization, illness, blood donation, poor physical fitness, obesity, using drugs such as antihistamines (Benadryl®, Atarax®, CTM®), decongestants (Sudafed®), high Blood Pressure (diuretics, beta blockers) and psychiatrics (tricyclic antidepressants, antipsychotics)."],
+  K1MEDCOM = ["All Medication Protocols Associated with 68W Training And Certifications pg.68(k)","Initiate an Intravenous Infusion pg.69(2)(a)","Assists In The Initial Treatment Of Environmental Injuries pg.69(2)(e)"],
+  K1STP1 = ["Subject Area 11: Force Health Protection. Initiate Treatment for a Heat Injury 081-833-0038"],
 
-  K2ACT1 = [],
+  K2ACT1 = ["Support ABCs","IVs","Transport horizontal on stretcher","Start Warming"],
   K2ACT2 = [],
   K2ACT3 = [],
-  K2DP1 = [],
-  K2DP2 = [],
+  K2DP1 = ["DP 2. Symptoms of hypothermia with a normal temperature suggests an alternative diagnosis. Opioids, behavioral health medications, and alcohol can include medications for anxiety, depression, antipsychotics can impair thermoregulation. Severe pain associated with a nonfreezing cold injury requires further evaluation and management."],
+  K2DP2 = ["Move Soldier to warm area. Remove wet clothing. Rewarm through utilizing body heat and space/hypothermia blanket. Do not place numb area by heat source (risk of burns)."],
   K2DP3 = [],
   K2DP4 = [],
-  K2DPRE = [],
-  K2DPRED = [],
-  K2PRO = [],
-  K2LIMITATIONS = [],
-  K2GEN = [],
-  K2MEDCOM = [],
-  K2STP1 = [],
+  K2DPRE = ["DP 3. See Protocol K-3 for immersion foot. Immersion foot usually results when the skin is exposed to wet, cold foot gear or from immersion at temperatures from 32oF to 59oF for over two to three days (nonfreezing cold injury (NFCI) or immersion foot) and presents with a white, wrinkled, numb, painless extremity."],
+  K2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1. Mild hypothermia presents with T 90-95oF, normal mental status, tachycardia, tachypnea, and shivering. Moderate hypothermia presents with T 82-90oF, lethargy, bradycardia with arrhythmias, and hypoventilation without shivering. Severe hypothermia presents with T <82oF, coma, asystole, and apnea so that the Soldier may appear dead but resuscitation is still possible. Note any discrepancy between the extent of an abnormal vital sign and the degree of hypothermia may represent an underlying alternate cause for the vital sign abnormality like a head injury for confusion or hypovolemia for tachycardia. Frostbite may appear white or grayish-yellow and be hard or waxy to the touch. Support the Soldier’s airway, breathing, circulation, start two large bore IVs with warmed fluids, remove wet clothes, use body heat, blankets, and space/hypothermia blanket to rewarm, and transport horizontally. Low exertion of peripheral muscles can result in further drop in temperature."],
+  K2PRO = ["Cold without criteria for hypothermia: move to warm area, remove wet clothes, and rewarm through body heat and space/hypothermia blanket. Monitor closely and elevate care if not improving within 30 minutes"],
+  K2LIMITATIONS = ["Limit exposure to cold environments"],
+  K2GEN = ["pg. 150-151: Hypothermia, or a lower than normal body temperature, can be the result of heat loss from exposure to cold or wet environments, inadequate heat production due to poor nutrition or exhaustion, or inaccurate heat regulation from using drugs such as nicotine, alcohol, and medications with anticholinergic side effects."],
+  K2MEDCOM = ["All Medication Protocols Associated with 68W Training and Certifications pg.68(k)","Initiate an Intravenous Infusion pg.69(2)(a)","Identifies, reports and Treats Hypovolemia pg.69(2)(c)","Assists In The Initial Treatment Of Environmental Injuries pg.69(2)(e)"],
+  K2STP1 = ["Subject Area 11: Force Health Protection. Treat a Casualty for a Cold Injury 081-833-0039"],
 
-  K3ACT1 = [],
+  K3ACT1 = ["Remove wet clothes","Rewarm the Soldier if hypothermic"],
   K3ACT2 = [],
   K3ACT3 = [],
-  K3DP1 = [],
-  K3DP2 = [],
+  K3DP1 = ["DP 2: Symptoms lasting longer than one week will need a more in depth evaluation. If the Soldier is unable to perform duties, a profile for one week may initially be required."],
+  K3DP2 = ["MCP for immersion foot. Rewarm the extremity gradually with bed rest, elevation of the extremity, and air drying at room temperature. Rapid warming can increase pain, swelling, and risk of further injury in the extremity. Limit activities with affected extremity and keep elevated for three days. Soldier may have a “slapping, flat footed” gait upon starting to walk that should improve within a week. Rehydrate with warm IV fluids and provide tetanus prophylaxis if required (discuss with AEM prior to giving). Ibuprofen, amitriptyline (requires a privileged provider prescription) as needed for pain. A fan to cool the affected extremity can also help with the pain. Refer to AEM if pain is not controlled. Return to clinic if new symptoms develop, condition worsens, signs of infection."],
   K3DP3 = [],
   K3DP4 = [],
   K3DPRE = [],
-  K3DPRED = [],
-  K3PRO = [],
-  K3LIMITATIONS = [],
-  K3GEN = [],
-  K3MEDCOM = [],
-  K3STP1 = [],
+  K3DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Frostbite, hypothermia, and signs of gangrene represent a serious medical condition that requires prompt treatment. Severe pain or signs of an infection (such as, fever, red streaks, or swollen glands) require further evaluation by a privileged provider. Hypothermia should be rewarmed once the Soldier is under shelter and able to stay warm. Do Not rub the extremity. Do Not rewarm the extremity in NFCI unless frostbite is also present. During the exam, it is important to look for other injuries, especially in the setting of trauma."],
+  K3PRO = ["Rest, elevate, and air dry affected extremity at room temperature. Limit activities for 3 days.","Rehydrate with warm IVF, Tetanus prophylaxis (AEM approval required). Toradol for moderate pain. Ibuprofen as needed for minor pain. Am itriptAne at night as needed for pain (provider prescription required).","RTC if symptoms are worsening, signs of infection, new symptoms developing, or symptoms are not controlled with the MCP not improving after 1 week."],
+  K3LIMITATIONS = ["Limit activities for 3 days","elevate affected extremity x 3 days"],
+  K3GEN = ["pg. 152-153: Immersion foot usually results when the skin is exposed to wet, cold foot gear or from immersion at temperatures from 32oF to 59oF for over 2-3 days NFCI or immersion foot. NFCI can result in an infection acutely or cold intolerance and pain syndromes chronically. Prolonged exposure to wet environments at temperatures greater than 59oF (jungle foot) can also result in acute pain or injury but typically do not cause chronic issues. Presentation is with a white, wrinkled, numb, painless extremity. After warmed, it becomes a mottled pale blue with delayed capillary refill and start of swelling (hours to days). Progresses to a red, swollen painful extremity with blisters in areas of tissue damage (days to weeks). Can remain sensitive to cold, painful to cold, cool to touch, excessive sweating, or painful for weeks to years."],
+  K3MEDCOM = ["All Medication Protocols Associated with 68W Training and Certifications pg.68(k)","Initiate An Intravenous Infusion pg.69(2)(a)","Identifies, Reports And Treats Hypovolemia pg.69(2)(c)","Assists In The Initial Treatment Of Environmental Injuries pg.69(2)(e)"],
+  K3STP1 = ["Subject Area 11: Force Health Protection. Treat a Casualty for a Cold Injury 081-833-0039"],
 
   K4ACT1 = [],
   K4ACT2 = [],
   K4ACT3 = [],
-  K4DP1 = [],
-  K4DP2 = [],
+  K4DP1 = ["DP 1: Since exposure to dry wind causes chapping, involvement of areas other than the hands and face or not being exposed to dry wind makes this diagnosis unlikely, and the Soldier should be referred for further evaluation. Presence of inflammation other than simple skin redness warms of the possibility of infection and requires evaluation for possible antibiotics. Numbness can be a sign of a cold injury."],
+  K4DP2 = ["MCP for chapped skin. Cover the exposed area so that it is no longer exposed to the drying wind. Apply moisturizing lotion (oil based cream or ointment). Apply Vaseline or lip balm to the lips. Moisturizing cream can also protect from further wind effects."],
   K4DP3 = [],
   K4DP4 = [],
   K4DPRE = [],
   K4DPRED = [],
-  K4PRO = [],
+  K4PRO = ["Cover affected skin area. Apply moisturizing lotion to affected area. Apply petroleum jelly or lip balm to the lips, if needed","RTC if symptoms are worsening, signs of infection, or new symptoms develop."],
   K4LIMITATIONS = [],
-  K4GEN = [],
-  K4MEDCOM = [],
-  K4STP1 = [],
+  K4GEN = ["pg. 154: Chapping is the unusually rapid drying of skin due to exposure to a hot or cold dry wind which draws water out of the skin. Generally, it is not a medical problem unless cracking or fissuring with a secondary infection takes place. The involved skin heals as new skin cells develop."],
+  K4MEDCOM = ["All Medication Protocols Associated with 68W Training And Certifications pg.68(k)","Assists In The Initial Treatment Of Environmental Injuries pg.69(2)(e)"],
+  K4STP1 = ["N/A"],
 
-  K5ACT1 = [],
+  K5ACT1 = ["Pad or splint affected area","Move Soldier to a warm area. Remove wet clothing","Rewarm using body heat and space/hypothermia blanket.","Do not rub area, place area near fire/heating element, or rewarm area if chance of refreezing","Tetanus prophylaxis"],
   K5ACT2 = [],
   K5ACT3 = [],
-  K5DP1 = [],
+  K5DP1 = ["MCP initial frostbite treatment. Pad or splint the affected area. Avoid walking/standing on frostbitten feet. If walking required for evacuation, do not rewarm prior to walking. Move Soldier to warm area. Remove wet clothing. Do not rewarm frostbitten area if there is a possibility of the area refreezing. Rewarm with placing area in warm water or body heat and space/hypothermia blanket. Do not place frostbitten area by heat source (risk of burns with sensory loss) or rub the frostbitten area."],
   K5DP2 = [],
   K5DP3 = [],
   K5DP4 = [],
-  K5DPRE = [],
-  K5DPRED = [],
+  K5DPRE = ["DP 2: If not hypothermia or frostbite, screen for trench foot (algorithm K-3)."],
+  K5DPRED = ["DP 1: Presentation includes complaints of a cold, numb, and clumsy affected area. Area may appear white or grayish-yellow and be hard or waxy to the touch. Blisters or cyanosis will be present after rewarming."],
   K5PRO = [],
   K5LIMITATIONS = [],
-  K5GEN = [],
-  K5MEDCOM = [],
-  K5STP1 = [],
+  K5GEN = ["pg. 155: Frostbite results from the skin (usually on the toes, fingers, or face) being exposed to extreme cold for an extended period of time. Lower temperatures and high winds result in shorter times to injury. Immediate evaluation is required."],
+  K5MEDCOM = ["N/A"],
+  K5STP1 = ["N/A"],
 
   K6ACT1 = [],
   K6ACT2 = [],
   K6ACT3 = [],
-  K6DP1 = [],
-  K6DP2 = [],
+  K6DP1 = ["DP 1: Secondary infection is common due associated itching. If nits and lice are not seen, then further evaluation is needed for a different diagnosis (contact dermatitis or scabies)."],
+  K6DP2 = ["MCP for lice. Wash clothes, sleeping linens, sleeping bag in hot water (above 149oF) or have them dry cleaned. If unable to wash or dry clean, place in a sealed bag for two weeks.","MCP for body lice. Lice live on the seams of the clothing. Permethrin 5% application can also be used in addition to laundering the clothes.","MCP for head lice. Wash the area without using conditioner and towel dry. Apply permethrin cream to saturate the affected area. Leave on for 10 minutes. Rinse with warm (not hot) water. Use a close toothed comb to remove nits (eggs from base of hair follicles). Repeat in one week if nits or lice are still present.","MCP for pubis lice (such as, crabs). Screen for other STIs. Treat recent sexual contacts at the same time. Skin should be cool and dry. Apply Permethrin cream to all affected areas (groin, buttock, thighs, trunk, and axillae) for 10 minutes and then rinse off in warm water. Remove nits with tweezers or thin toothed comb. Follow-up in 10 days. If unable to follow-up, retreat with Permethrin cream in 10 days due to 40% of Soldiers not having cleared the infection with one treatment."],
   K6DP3 = [],
   K6DP4 = [],
   K6DPRE = [],
   K6DPRED = [],
-  K6PRO = [],
+  K6PRO = ["Launder clothes and bed linens in hot water. ","Body lice: apply perrnethrin 5% cream to body. ","Head lice: wash hair without conditioner and towel dry. Apply permethrin 1% cream. Leave on for 10 minutes. Rinse with warm water. Remove nits and dead lice with thin toothed comb. ","Pubis lice: screen for other STDs. Treat sexual partners at same time. Apply petrnethrin 1% cream to cool, dry areas (groin, buttock, upper thighs, trunk, axillae) for 10 minutes. Rinse with warm water. ","Follow-up in 10 days for repeat evaluation."],
   K6LIMITATIONS = [],
-  K6GEN = [],
-  K6MEDCOM = [],
-  K6STP1 = [],
+  K6GEN = ["pg. 156-157: Crabs/lice are tiny insects that are visible to the naked eye that infest the hairy areas of the body (such as, groin, body hair, and scalp). The insect deposits eggs (nits) and attaches them at the bases of hair shafts. The lice require a diet of human blood and will die within three days after removal from the body. The possibility of spreading infection to close associates by intimate contact or common use of clothing, beds, or toilet articles is real."],
+  K6MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)","All Medication Protocols Associated with 68W Training And Certifications pg.68(k)"],
+  K6STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125","Subject Area 18: Medication Administration. Administer Topical Medications 081-833-3020"],
 
-  K7ACT1 = [],
+  K7ACT1 = ["Epi pen if indicated"],
   K7ACT2 = [],
   K7ACT3 = [],
-  K7DP1 = [],
-  K7DP2 = [],
+  K7DP1 = ["DP 2: If no signs of an insect bite can be seen, a blister or ulcer is present, or there is moderate to severe pain, refer to the AEM for further evaluation because it may be something other than an insect bite."],
+  K7DP2 = ["MCP for Insect Bite. Remove any stinger, head of tick, or other biting apparatus left at the bite site. Clean with betadine solution.","Apply Calamine lotion or hydrocortisone 1% cream four times per day as needed for itching. Apply cold compress or ice pack as needed for swelling.","Return to clinic if symptoms worsen, new symptoms develop, or symptoms are not improving within 48 hours."],
   K7DP3 = [],
   K7DP4 = [],
   K7DPRE = [],
-  K7DPRED = [],
-  K7PRO = [],
+  K7DPRED = ["Red Flags. Wheezing, shortness of breath: immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Red flags, hives, or history of severe reaction from similar insect bite (such as, bee sting allergy), have Soldier inject epinephrine pen if indicated (signs of respiratory or circulatory compromise) and refer to a privileged provider immediately. Reported poisonous insect bite (brown recluse, black widow, etc.) should also be immediately referred."],
+  K7PRO = [" Remove any stinger, head of tick, or other biting apparatus. Clean site with betadine solution. "," Apply calamine lotion or hydrocortisone 1% cream every 6 hours as needed for itching. Apply an ice pack as needed for swelling. "," RTC if symptoms worsen, new symptoms develop, or symptoms are not improving within 48 hours."],
   K7LIMITATIONS = [],
-  K7GEN = [],
-  K7MEDCOM = [],
-  K7STP1 = [],
+  K7GEN = ["pg. 158-159: Insect bites are characterized by itching, local swelling, mild pain, and redness. All of these reactions represent a local reaction to the sting of the insect. Document any history of tick bites and include the location of the bite."],
+  K7MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)","All Medication Protocols Associated with 68W Training And Certifications pg.68(k)"],
+  K7STP1 = ["Subject Area 11: Force Health Protection. Treat a Casualty for a Cold Injury 081-833-0039"],
 
-  L1ACT1 = [],
+  L1ACT1 = ["Wound care document exposure"],
   L1ACT2 = [],
   L1ACT3 = [],
-  L1DP1 = [],
-  L1DP2 = [],
+  L1DP1 = ["DP 2: Feces, nasal secretions, saliva, gastric secretions, sputum, sweat, tears, and urine are not considered to be infectious without blood being present within them. Intact skin is a successful barrier to potentially infectious fluid. Note that cuts, abrasions, dermatitis are not considered intact skin. These exposures should be referred to the AEM for counseling and referral to a privileged provider if needed. Exposures that are over 7 days old are no longer within the window for prophylaxis treatment. They should be referred to the AEM for counseling and required laboratory testing."],
+  L1DP2 = ["MCP for Initial Treatment of Exposure. For Soldiers who are exposed to blood or body fluids through a wound or mucous membrane, wash the area with soap and water or flush the mucous membranes with saline or water. Clean any wounds with an alcohol-based hand hygiene agent. Alcohol helps kills the HIV virus. Document the exposure with: source person and Soldier risk factors, serologic tests (HIV, Hepatitis B, Hepatitis C), type of exposure to include instrument (hollow bore needle, scalpel if indicated), time of incident, body fluid involved, body location of exposure to include depth of wound, and contact time with contaminated fluid. If the source person is known to be infected, it is important to determine the person’s most recent viral load and previous treatment to include drug resistance."],
   L1DP3 = [],
   L1DP4 = [],
   L1DPRE = [],
-  L1DPRED = [],
-  L1PRO = [],
+  L1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Known or high risk contacts for HIV should be offered prophylaxis medications to decrease the risk of infection if they had non-intact skin, mucous membrane, blood, or at risk body fluid exposures. Prophylaxis medications should be started within 2 hours of initial exposure but no later than 72 hours. With Hepatitis B, immunoglobulin should be provided within 24 hours of exposure but no later than 1 week. With Hepatitis C, post exposure management is with early detection and treatment of an infection."],
+  L1PRO = ["Ensure the following information is documented in the Healthcare record before the patient leaves:","HCP — The following information should be obtained from the injured HCP and verified from their medical/occupational health record:","Dates of HepB immunizations","Post-immunization titer, if known","Previous testing (if available) for HBV and HCV","Tetanus immunization status","Current medications","Current or underlying medical conditions that might influence use of/response to vaccination","Exposure — The following information regarding the exposure should be obtained:","The date and time of the exposure","Nature of the exposure (i.e., non-intact skin, mucosal, percutaneous, human bite)","Type of fluid (i.e.. blood, blood contaminated fluid, or other contaminated fluid)","Body location of the exposure and contact time with the contaminated fluid","For percutaneous injuries, a description of the injury (e.g., depth of wound, solid versus hollow needle, sharp use in source patient)"],
   L1LIMITATIONS = [],
-  L1GEN = [],
-  L1MEDCOM = [],
-  L1STP1 = [],
+  L1GEN = ["pg. 160: This protocol is to be used in locations where a local policy is not already in place for the screening of potential HIV or Hepatitis exposures."],
+  L1MEDCOM = ["N/A"],
+  L1STP1 = ["N/A"],
 
   L2ACT1 = [],
   L2ACT2 = [],
   L2ACT3 = [],
-  L2DP1 = [],
-  L2DP2 = [],
+  L2DP1 = ["DP 2: AEM can provide temporary pain medications and treatment for a broken tooth (pulp is not showing). Jaw pain not from trauma can be further evaluated by the AEM for temporomandibular joint dysfunction or infection."],
+  L2DP2 = ["MCP for furry tongue. Benign condition often due to antibiotic use, tobacco use or poor oral hygiene. Treatment is to brush the area with toothpaste and a soft toothbrush three times per day. White patches on the oral mucosa (leukoplakia) is a benign condition often due to smokeless tobacco use or mechanical irritation (such as, braces, chewing). Instruct on importance of surveillance during dental visits, because there is a risk that it could progress to cancer over the next 10 years. If an area is indurated, refer to a dentist now to be evaluated to determine if a biopsy is necessary.","MCP for bad breath. Mostly commonly from poor oral hygiene and caused by bacteria on material between the teeth and on the back third of the tongue. It can also be related to eating certain types of food/ beverages, smoking, low saliva flow states (such as, sleeping, dry mouth), or infection/inflammation (such as, tonsils, sinuses, bronchitis). After obtaining a history, refer to a PCC or dentist, if indicated. Otherwise, instruct on the likely cause and importance of proper oral hygiene with brushing three times per day and flossing daily. Return to clinic if symptoms are not improving within one week or additional symptoms develop."],
   L2DP3 = [],
   L2DP4 = [],
   L2DPRE = [],
-  L2DPRED = [],
-  L2PRO = [],
+  L2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Exposed pulp (that is, feathery material in middle of tooth), knocked out tooth with tooth present, severe pain, signs of oral infection (such as, redness, gum bleeding, swelling) should be referred to the dentist. Trauma with associated jaw pain, sinus problems with tooth pain, heart symptoms with jaw pain (such as, shortness of breath, sweating, lightheaded, chest pain/pressure), signs of face infection, or if the dentist is not available should be referred to the supervising privileged provider."],
+  L2PRO = ["Furry Tongue- brush the tongue with toothpaste and a soft toothbrush 3 times per day.","White Plaque (leukoplakia): counsel Soldier on importance of surveillance during yearly dental exams. If an indurated area is present, Soldier should be referred to a dentist now.","Bad Breath: screen for causes of bad breath. Refer to provider or dentist if indicated. Otherwise, counsel on likely cause and importance of good oral hygiene. ","RTC if not improving within 1 week or net symptoms develop."],
   L2LIMITATIONS = [],
-  L2GEN = [],
-  L2MEDCOM = [],
-  L2STP1 = [],
+  L2GEN = ["pg. 162-163: Problems with the teeth are usually self-evident. Symptom of dental pain may be a result of a non-dental source such as myofascial inflammation, migraine headache, maxillary sinusitis, ear issues, temporomandibular joint pain, or nerve pain. Always inquire about other complaints before referring the Soldier to a dentist."],
+  L2MEDCOM = ["All Medication Protocols Associated with 68W Training And Certifications pg.68(k)"],
+  L2STP1 = ["N/A"],
 
   L3ACT1 = [],
   L3ACT2 = [],
   L3ACT3 = [],
-  L3DP1 = [],
-  L3DP2 = [],
+  L3DP1 = ["DP 2: Herpes Simplex and Herpes Zoster can both presents as a cluster of ulcers. When it is within the mouth, refer the Soldier to the AEM for further evaluation. Large oral ulcers could be from other causes or require additional treatment"],
+  L3DP2 = ["MCP for aphthous ulcer (canker sore). Most common oral ulcer. They present as small, painful, shallow, round or oval oral ulcers with a grayish base. Apply ¼ inch of triamcinolone oral paste to the ulcer at bedtime. It should resolve 10-14 days. Refer to the supervising privileged 3.0 if there is a history of severe stomach pain or bloody diarrhea.","MCP for hand, foot, and mouth disease. Common in children. It presents with oval pale papules with a red rim on the palms and soles of the feet with an aphthous ulcer. Elevated temperature, feeling tired, and a sore throat often start before the lesions appear. Treatment is supportive. Provide acetaminophen as needed for elevated temperature and Ibuprofen as needed for malaise. Cepacol lozenges, salt water gargles (1/4 teaspoon of salt in 1 cup of warm water), and drinking warm fluids may also help with the sore throat.","Instruct the Soldier to return to the clinic for further evaluation if new symptoms develop, symptoms worsen, or the symptoms are not controlled with the current regimen or resolved within 2 weeks."],
   L3DP3 = [],
   L3DP4 = [],
   L3DPRE = [],
-  L3DPRED = [],
-  L3PRO = [],
+  L3DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Diffuse lesions can be a sign of an inflammatory disorder (such as, Stevens-Johnson syndrome, erythema multiforme). Painless lesion can be a sign of Lupus. Lesions within the mouth and groin can represent Behcet’s syndrome. Mouth sores can be a sign of Crohn’s Disease requiring further evaluation by the supervising privileged provider. Lesions that have been present for over two weeks need further evaluation to rule out other causes."],
+  L3PRO = ["Aphthous Ulcer: apply % inch of triamcinolone acetate oral paste to the ulcer at bedtime. It should resolve in 10-14 days. ","Hand, Foot, and Mouth Disease presents with lesions on the palms and soles of the feet. Provide toradol, acetaminophen every 6 hours as needed for fever, ibuprofen every 6 hours as needed for malaise, and lozenges or lidocaine gargle as needed for sore throat. ","RTC if symptoms are worsening, new symptoms developing, or symptoms are not controlled with the MCP or resolved within 2 weeks"],
   L3LIMITATIONS = [],
-  L3GEN = [],
-  L3MEDCOM = [],
-  L3STP1 = [],
+  L3GEN = ["pg. 164-165: Sores in the mouth are usually inflammatory or ulcerative in nature and may be associated with many upper respiratory infections or may result from trauma. Refer Soldiers with sores in the mouth to Category III care."],
+  L3MEDCOM = ["All Medication Protocols Associated with 68W Training And Certifications pg.68(k)"],
+  L3STP1 = ["N/A"],
 
   L4ACT1 = [],
   L4ACT2 = [],
   L4ACT3 = [],
-  L4DP1 = [],
+  L4DP1 = ["DP 2: Acute conditions that have failed initial treatment should be referred to the AEM for further evaluation. Acute medication can be re-provided if the Soldier lost his or her medication. Prior to re-providing the medication, review the Soldier’s medical record to determine how much longer he or she is supposed to be on the medication"],
   L4DP2 = [],
   L4DP3 = [],
   L4DP4 = [],
   L4DPRE = [],
-  L4DPRED = [],
+  L4DPRED = ["DP 1: Narcotics, psychiatric medications, sleeping medicines, birth control, and chronic medications should be referred to a privileged provider as a secure message or telephone consult. The privileged provider will need to determine if the underlying condition is still being adequately treated and when the next follow-up appointment is needed."],
   L4PRO = [],
   L4LIMITATIONS = [],
-  L4GEN = [],
-  L4MEDCOM = [],
-  L4STP1 = [],
+  L4GEN = ["pg. 166: Use this protocol for all prescription refills except birth control pills. Birth control is screened under I-6, Request for Information on Contraception. Some Soldiers request a refill of medication prescribed for an acute illness. Soldiers are normally given enough medication initially to cover the anticipated period of illness. If the Soldier wants additional medication, the illness may not be responding to the treatment as expected. In this case, the Soldier needs to be rescreened by his complaints. The only exception would be the Soldier who lost his original prescription."],
+  L4MEDCOM = ["N/A"],
+  L4STP1 = ["N/A"],
 
   L5ACT1 = [],
   L5ACT2 = [],
   L5ACT3 = [],
-  L5DP1 = [],
+  L5DP1 = ["DP 2: Process to schedule a vasectomy varies by location. Message the privileged provider (secure messaging, T-con, etc.) to request a referral for the procedure or follow local process if different."],
   L5DP2 = [],
   L5DP3 = [],
   L5DP4 = [],
   L5DPRE = [],
-  L5DPRED = [],
+  L5DPRED = ["DP 1: Vasectomy is for permanent birth control. If the Soldier is not in a stable relationship with acceptance of the other person, doesn’t already have kids, or is under 30 years old, then refer to the privileged provider for counseling prior to referring the Soldier for a vasectomy. If the privileged provider performs vasectomies, the privileged provider will need to counsel the Soldier before the procedure."],
   L5PRO = [],
   L5LIMITATIONS = [],
-  L5GEN = [],
-  L5MEDCOM = [],
-  L5STP1 = [],
+  L5GEN = ["pg. 167: Counseling should be provided to the Soldier prior to scheduling an appointment with the PCM or placing a Secure Message or T-con for a referral. Counseling should include a discussion on contraception, brief overview of the procedure, and emphasis on the permanent nature of the procedure.","Vasectomy is an outpatient procedure. It is often performed in an office or procedure room with local anesthesia and a sedating medication to help the Soldier relax. The skin of the scrotum is cut or punctured, a section of the vas deferens is removed, and the vas deferens ends are closed. After the procedure, the Soldier rests for two to four days with support of the scrotum and application of an ice pack to the area. Soldier doesn’t return to full duty for about 2 weeks.","A vasectomy is a permanent method of birth control. Reversal of the procedure is only about 50% effective and decreases with time. A vasectomy is not effective until after all of the sperm have been removed from the system. Lack of sperm needs to be confirmed by a lab test around three months. Alternate birth control will need to be used until the lack of sperm is confirmed. Pregnancy can still occur after vasectomy in 2% of people. Condoms are required to protect from STIs, if not in a committed monogamous relationship."],
+  L5MEDCOM = ["N/A"],
+  L5STP1 = ["N/A"],
 
   L6ACT1 = [],
   L6ACT2 = [],
   L6ACT3 = [],
-  L6DP1 = [],
+  L6DP1 = ["If the clinic does not have the immunization requested, refer the Soldier to the appropriate location (such as, readiness clinic, immunizations, etc.). If the clinic does have the immunization and you are trained to provide it, obtain approval from your AEM. After obtaining approval, counsel the Soldier on the immunization, confirm that there are no contraindications, and provide the vaccine according to the package insert. After providing the vaccine, document the vaccination information in the appropriate databases or follow the local policy to have the information documented. Have the Soldier return to clinic if symptoms develop after the vaccination to include a rash, local redness or infection, or fever."],
   L6DP2 = [],
   L6DP3 = [],
   L6DP4 = [],
   L6DPRE = [],
-  L6DPRED = [],
-  L6PRO = [],
+  L6DPRED = ["DP 1: Rabies immunoglobulin needs to be referred to the supervising privileged provider. Routine immunizations are normally provided only at scheduled times. If the immunization is requested early, is not on the required immunization series, is contraindication, or you are not trained to provide, then refer the Soldier to the AEM. Contraindications include history of a severe reaction to a vaccine, eggs or egg protein, neomycin, or streptomycin. Being immunocompromised, around an immunocompromised person, or pregnant are contraindications that require further evaluation."],
+  L6PRO = ["If you don't have the immunization, refer to the appropriate location (readiness clinic, immunization, etc.)","Obtain approval from the AEM. Counsel the patient on the vaccine. Confirm no contraindications. Provide the vaccine according to the package insert. ","Document the vaccination information in the required databases or follow local policy to have it documented. ","RTC if symptoms develop after the vaccine to include redness or infection at vaccine site, rash, anaphylaxis, seizure, or any other serious symptoms."],
   L6LIMITATIONS = [],
-  L6GEN = [],
-  L6MEDCOM = [],
-  L6STP1 = [],
+  L6GEN = ["pg. 168"],
+  L6MEDCOM = ["Per Provider Order, Administers And Records Appropriate Immunizations pg.67 b.(1)"],
+  L6STP1 = ["N/A"],
 
   L7ACT1 = [],
   L7ACT2 = [],
@@ -1391,118 +1423,120 @@ const
   L7DP2 = [],
   L7DP3 = [],
   L7DP4 = [],
-  L7DPRE = [],
-  L7DPRED = [],
+  L7DPRE = ["DP 2: Lymph nodes that are associated with an infection or inflammation should be screened according to the infection or inflammation symptoms."],
+  L7DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Unexplained weight loss and enlarged nodes in multiple body areas may represent a systemic illness. Supraclavicular and posterior cervical may represent a more concerning illness. Non-mobile and hard or rubbery nodes may represent nodal fibrosis. Lack a recent infection (within two weeks) or inflammation in the area of the lymph node to cause the lymph node to enlarge requires further evaluation by the supervising privileged provider."],
   L7PRO = [],
   L7LIMITATIONS = [],
-  L7GEN = [],
-  L7MEDCOM = [],
-  L7STP1 = [],
+  L7GEN = ["pg. 169: Enlarged lymph nodes are most commonly found in the neck, armpits, and groin and are locations where the body fights infection. A lymph node enlargement may result from an infection/inflammation in the area of the body drained by the node or from a systemic illness. In the former case, the enlarged nodes are likely to be confined to that area. In the latter case, lymph nodes in several areas of the body may be involved."],
+  L7MEDCOM = ["N/A"],
+  L7STP1 = ["N/A"],
 
-  L8ACT1 = [],
-  L8ACT2 = [],
+  L8ACT1 = ["Lay in dark, quiet room if BP elevated"],
+  L8ACT2 = ["Start IVG if Orthostatic"],
   L8ACT3 = [],
-  L8DP1 = [],
-  L8DP2 = [],
+  L8DP1 = ["DP 2: On the last day of the blood pressure check, refer the Soldier to the AEM to evaluate the recorded blood pressures. If it is not the last blood pressure check, remind the Soldier to return for his or her next check. Orthostatic hypotension is usually associated with feeling lightheaded upon standing and systolic blood pressure drops by 20, diastolic blood pressure drops by 10, or heart rate increases by 20 with standing."],
+  L8DP2 = ["Continue to log BP until 5 day complete"],
   L8DP3 = [],
   L8DP4 = [],
   L8DPRE = [],
-  L8DPRED = [],
+  L8DPRED = ["DP 1: If the blood pressure is greater than 150/90, recheck the blood pressure after five minutes. If it is still greater than 150/90 or was lower than 90 systolic refer the Soldier to a privileged provider for evaluation. Blood pressure over 180/120 is considered severe (hypertensive urgency) and requires prompt treatment. Severe hypertension can cause permanent end organ damage. Have the Soldier lay down in a dark, quiet room while awaiting for transport or to be seen by the privileged provider. A difference of greater than 15mmHg between arms suggests an arterial issue."],
   L8PRO = [],
   L8LIMITATIONS = [],
-  L8GEN = [],
-  L8MEDCOM = [],
-  L8STP1 = [],
+  L8GEN = ["pg. 170: Systolic blood pressure is the top number which is the pressure in the blood vessels when the heart is pumping blood to the body. Diastolic blood pressure is the bottom number which is the pressure in the blood vessels when the heart is filling with blood between pumps. A normal blood pressure is 120/70. Blood pressure can result in medical problems when it is elevated over a long period of time. It can also result in acute problems when it is very low or very high."],
+  L8MEDCOM = ["N/A"],
+  L8STP1 = ["Subject Area 1: Vital Signs. Measure a Patient’s Blood Pressure 081-833-0012"],
 
   L9ACT1 = [],
   L9ACT2 = [],
   L9ACT3 = [],
-  L9DP1 = [],
+  L9DP1 = ["DP 2: Identification of a non-deployable profile, behavioral health appointments, specialty care appointments, or a pregnant or postpartum Soldier requires a referral to the supervising privileged provider for further evaluation prior to having the form signed. If no deficiencies or issues are identified, fill out the form for the supervising privileged provider to review and sign. Instruct the Soldier to wait or return at a later specified time depending on supervising privileged provider availability and local policy."],
   L9DP2 = [],
   L9DP3 = [],
   L9DP4 = [],
   L9DPRE = [],
-  L9DPRED = [],
+  L9DPRED = ["DP 1: If MEDPROS is identified as being red, instruct the Soldier on how to correct the medical readiness deficiencies, and schedule an appointment as needed."],
   L9PRO = [],
   L9LIMITATIONS = [],
-  L9GEN = [],
-  L9MEDCOM = [],
-  L9STP1 = [],
+  L9GEN = ["pg. 171: Soldiers on orders for overseas assignments require review of their medical records to determine if they have medical conditions that would preclude the assignment and to ensure their medical readiness is current. Record review should look for behavioral health appointments, specialty care appointments, e-profile (non-deployable profile), deployment health assessments due, pregnancy status, and MEDPROS data. MEDPROS includes hearing, dental, immunizations, HIV screen, vision screen, and PHA."],
+  L9MEDCOM = ["N/A"],
+  L9STP1 = ["N/A"],
 
-  L10ACT1 = [],
+  L10ACT1 = ["Screening labs","IBHC referral","Dietician referral"],
   L10ACT2 = [],
   L10ACT3 = [],
-  L10DP1 = [],
+  L10DP1 = ["DP 2: Soldiers who are requesting assistance with weight control that is a new issue should be provided information on community resources that are available which may include the Wellness Center, access to a Dietician, an Athletic Trainer, or Strength and Conditioning Coach and offered a referral to Integrated Behavioral Health if available."],
   L10DP2 = [],
   L10DP3 = [],
   L10DP4 = [],
   L10DPRE = [],
-  L10DPRED = [],
+  L10DPRED = ["DP 1: Soldiers who are enrolled in the Army Body Composition Program (AR 600-9) are required to meet with a dietician or privileged provider if a dietician is not available. The privileged provider should screen the Soldier for medical causes of his or her weight gain. Screening labs include TSH, lipids, fasting glucose, and liver function tests. Hypothyroidism can cause weight gain and should be screened for with a TSH. Obesity is associated with diabetes, high cholesterol, and inflammation of the liver. Cholesterol, fasting glucose, and liver function tests should be screened to look for associated medical problems. Evaluation should also include screening for sleep apnea, hypertension, polycystic ovary syndrome, osteoarthritis, heartburn, and depression by history and physical exam. Soldier should be referred to the dietician while the lab results and privileged provider appointment are pending. Integrated Behavioral Health consult should be offered and information about other poster services (wellness centered) provided. Same screening should be performed for Soldiers who’s BMI is over 30, have been struggling to maintain their weight through multiple diets for over 6 months, or have a history of being placed on the Army Body Composition Program."],
   L10PRO = [],
   L10LIMITATIONS = [],
-  L10GEN = [],
-  L10MEDCOM = [],
-  L10STP1 = [],
+  L10GEN = ["pg. 172: Individuals who come on sick call requesting assistance with weight control or diet therapy to reduce their weight should be seen by a dietitian if there are no medical problems that require evaluation."],
+  L10MEDCOM = ["Obtain Laboratory Specimen pg.70(k)"],
+  L10STP1 = ["N/A"],
 
   L11ACT1 = [],
   L11ACT2 = [],
   L11ACT3 = [],
-  L11DP1 = [],
+  L11DP1 = ["DP 2: If the complaint is not on the list, does not fit under another protocol, and the Soldier appears stable with normal vital signs, refer to the AEM for further evaluation, treatment, and disposition. If the complaint is not on the list but you recognize it as being under a protocol on the list or another way of saying a complaint that is on the list, screen according to the protocol that the Soldier’s complaint refers to."],
   L11DP2 = [],
   L11DP3 = [],
   L11DP4 = [],
-  L11DPRE = [],
-  L11DPRED = [],
+  L11DPRE = ["DP 2: If the complaint is not on the list, does not fit under another protocol, and the Soldier appears stable with normal vital signs, refer to the AEM for further evaluation, treatment, and disposition. If the complaint is not on the list but you recognize it as being under a protocol on the list or another way of saying a complaint that is on the list, screen according to the protocol that the Soldier’s complaint refers to."],
+  L11DPRED = ["DP 1: If Soldier appears sick or unstable (such as, pale, sweaty, dazed look in eyes), confused or has an altered mental status, uncomfortable (can’t stop moving or refusing to move due to pain), has abnormal vital signs, or describes pain as five or higher, refer to the supervising privileged provider now for further evaluation and treatment. All of these scenarios may represent a more significant illness or injury."],
   L11PRO = [],
   L11LIMITATIONS = [],
-  L11GEN = [],
-  L11MEDCOM = [],
-  L11STP1 = [],
+  L11GEN = ["pg. 173: Any Soldier with a complaint not covered in this screening manual requires further evaluation."],
+  L11MEDCOM = ["N/A"],
+  L11STP1 = ["Subject Area 1: Vital Signs. Measure a Patient’s Blood Pressure 081-833-0012"],
 
-  L12ACT1 = [],
-  L12ACT2 = [],
+  L12ACT1 = ["Discuss with AEM"],
+  L12ACT2 = ["Local SOP or Discuss with Provider"],
   L12ACT3 = [],
-  L12DP1 = [],
-  L12DP2 = [],
+  L12DP1 = ["DP 2: If a Soldier is traveling on temporary duty to a location where medical care is not easily accessible and local policy supports providing travel medications, he or she may request a travel pack of medications. Evaluate for the risk of malaria and other diseases. Discuss the request with the supervising privileged provider. Provide travel medications as authorized by your supervising privileged provider and local policy."],
+  L12DP2 = ["Example medications include ibuprofen (pain), diphenhydramine (allergies/ reaction), pseudoephedrine (congestion), loperamide and ciprofloxacin (diarrhea), doxycycline (malaria prophylaxis). Supervising privileged provider must approve all travel medications."],
   L12DP3 = [],
   L12DP4 = [],
-  L12DPRE = [],
+  L12DPRE = ["DP 1: If the Soldier has symptoms, screen the Soldier according to the protocol that represents his or her symptoms. Since nonprescription medications can be dangerous if not used properly, the Soldier should be screened first to ensure that the medications requested are appropriate for his or her current symptoms."],
   L12DPRED = [],
   L12PRO = [],
   L12LIMITATIONS = [],
-  L12GEN = [],
-  L12MEDCOM = [],
-  L12STP1 = [],
+  L12GEN = ["pg. 174: This protocol refers to Soldiers requesting specific nonprescription medications for minor-care."],
+  L12MEDCOM = ["All Medication Protocols Associated with 68W Training And Certifications pg.68(k)"],
+  L12STP1 = ["Subject Area 1: Vital Signs. Measure a Patient’s Blood Pressure 081-833-0012"],
 
   M1ACT1 = [],
   M1ACT2 = [],
   M1ACT3 = [],
-  M1DP1 = [],
+  M1DP1 = ["DP 2: Soldier should not be screened to below the AEM level when he or she returns to the clinic for the same issue that was previously treated with minor-care. Soldier has the option to elevate his or her disposition to the next higher level (Provider Now) if he or she feels uncomfortable with seeing an AEM."],
   M1DP2 = [],
   M1DP3 = [],
   M1DP4 = [],
   M1DPRE = [],
-  M1DPRED = [],
+  M1DPRED = ["DP 1: If the Soldier is worsening on treatment or failed the previous treatment regimen, he or she should be referred to the supervising privileged provider."],
   M1PRO = [],
   M1LIMITATIONS = [],
-  M1GEN = [],
-  M1MEDCOM = [],
-  M1STP1 = [],
+  M1GEN = ["pg. 175: This refers to a Soldier who returns for further care not part of a scheduled follow-up. Soldier should NOT be screened to a minor-care protocol. As a follow-up visit, the Soldier should receive a more detailed evaluation and be seen by the privileged provider or AEM (if treated with a minor care protocol at the previous visit)."],
+  M1MEDCOM = ["Subject Area 1: Vital Signs. Measure a Patient’s Blood Pressure 081-833-0012"],
+  M1STP1 = ["N/A"],
 
-  M2ACT1 = [],
-  M2ACT2 = [],
+  M2ACT1 = ["Rescreen if acutely ill"],
+  M2ACT2 = ["Discuss with AEM"],
   M2ACT3 = [],
-  M2DP1 = [],
+  M2DP1 = ["DP 2: If possible, refer the Soldier to the original privileged provider. If the original privileged provider is not available, discuss the situation with the AEM. Based on local policy and original privileged provider availability, the Soldier may be scheduled with a different privileged provider that is covering for the original privileged provider or scheduled with the original privileged provider when he or she is next available. Explain to the Soldier when his or her follow-up will be."],
   M2DP2 = [],
   M2DP3 = [],
   M2DP4 = [],
   M2DPRE = [],
-  M2DPRED = [],
+  M2DPRED = ["DP 1: Rescreen the Soldier if he or she appears acutely ill. Refer to the supervising privileged provider if he or she is worsening, not improving, or screen as “Provider Now” in the protocol."],
   M2PRO = [],
   M2LIMITATIONS = [],
-  M2GEN = [],
-  M2MEDCOM = [],
-  M2STP1 = [],
+  M2GEN = ["pg. 176: Many Soldiers are told to return for follow up. Write the previous level of care and name of the privileged provider on the screening note."],
+  M2MEDCOM = ["Subject Area 1: Vital Signs. Measure a Patient’s Blood Pressure 081-833-0012"],
+  M2STP1 = ["N/A"],
+
+
 
 
 end =[];
@@ -1769,6 +1803,22 @@ const B11decision = {
 "MED" : B11MEDCOM,
 "STP" : B11STP1,
 }
+const C1decision = {
+  "DACT1" : C1ACT1,
+  "DACT2" : C1ACT2,
+  "DACT3" : C1ACT3,
+  "DPRED" : C1DPRED,
+  "DP1" : C1DP1,
+  "DP2" : C1DP2,
+  "DP3" : C1DP3,
+  "DP4" : C1DP4,
+  "DPRE" : C1DPRE,
+  "DPRO" : C1PRO,
+  "DLIM" : C1LIMITATIONS,
+  "GEN" : C1GEN,
+  "MED" : C1MEDCOM,
+  "STP" : C1STP1,
+  }
 const C2decision = {
   "DACT1" : C2ACT1,
   "DACT2" : C2ACT2,
@@ -1978,6 +2028,24 @@ const F1decision = {
   "MED" : F1MEDCOM,
   "STP" : F1STP1,
   }
+
+  const F2decision = {
+    "DACT1" : F2ACT1,
+    "DACT2" : F2ACT2,
+    "DACT3" : F2ACT3,
+    "DPRED" : F2DPRED,
+    "DP1" : F2DP1,
+    "DP2" : F2DP2,
+    "DP3" : F2DP3,
+    "DP4" : F2DP4,
+    "DPRE" : F2DPRE,
+    "DPRO" : F2PRO,
+    "DLIM" : F2LIMITATIONS,
+    "GEN" : F2GEN,
+    "MED" : F2MEDCOM,
+    "STP" : F2STP1,
+    }
+
 const F3decision = {
   "DACT1" : F3ACT1,
   "DACT2" : F3ACT2,
@@ -2920,7 +2988,7 @@ const F5decision = {
 
 //anchor
 const link1 ={
-  // "A-1" : A1decision,
+  "A-1" : A1decision,
   "A-2" : A2decision,
   "A-3" : A3decision,
   "A-4" : A4decision,
@@ -2936,7 +3004,7 @@ const link1 ={
   "B-9" : B9decision,
   "B-10" : B10decision,
   "B-11" : B11decision,
-  // "C-1" : C1decision,
+  "C-1" : C1decision,
   "C-2" : C2decision,
   "C-3" : C3decision,
   "C-4" : C4decision,
@@ -2950,7 +3018,7 @@ const link1 ={
   "E-3" : E3decision,
   "E-4" : E4decision,
   "F-1" : F1decision,
-  // "F-2" : F2decision,
+  "F-2" : F2decision,
   "F-3" : F3decision,
   "F-4" : F4decision,
   "F-5" : F5decision,
@@ -3253,11 +3321,15 @@ currentPager.addEventListener('click',()=> {
   Acontainer.scrollTop = 0;
   ADTpage.scrollTop = 0;
   const style = getComputedStyle(border);
-  const color = style.backgroundColor
-  console.log(color)
+  const color1 = style.backgroundColor
+  const style2 = getComputedStyle(border);
+  const color2 = style2.color;
+  console.log(color1)
+  console.log(color2)
   const sheetborder = document.querySelector(".ADT-border");
-  sheetborder.style.backgroundColor = color;
-  clearbtn.style.backgroundColor = color;
+  sheetborder.style.backgroundColor = color1;
+  clearbtn.style.backgroundColor = color1;
+  clearbtn.style.color = color2;
   
 });
 });
@@ -3287,7 +3359,6 @@ function DC(){
       if(!dispo.classList.contains("open")){dispo.classList.toggle("open");
     };
       functions[dad.id]();
-      
 
   }
   else{
@@ -3304,6 +3375,9 @@ function DC(){
       functions[dad.id]();
   };
   };
+
+//greenbtn to run justify:[]
+
 
 //My special princess button in A-2/A-4 that just toggles more questions
 function DC2(){
@@ -3332,13 +3406,13 @@ function DC2(){
   const bg = document.querySelector(".bod1");
   const medbtn = document.querySelector("#medbtn");
   const settings = document.querySelector(".settings-btn")
-  medbtn.addEventListener("click",()=>{
+  // medbtn.addEventListener("click",()=>{
 
-    medi.classList.toggle("show");
-    bg.classList.toggle("BG101");
-    bg2.classList.toggle("open");
+  //   medi.classList.toggle("show");
+  //   bg.classList.toggle("BG101");
+  //   bg2.classList.toggle("open");
     
-  });
+  // });
 
   $(function() {
     var $toggleMenu = $("#medbtn"),
@@ -3849,8 +3923,10 @@ const redflaglist = {
 //Green button to show cat III at the beginning of screening
 function c3it(){
   const a = event.target;
-  let b = a.closest(".ADTsheet")
-  greenbtn.classList.toggle("closed");
+  console.log(a)
+  const b = document.querySelector(".ADTsheet.open");
+  console.log(b)
+  document.querySelector(".green-btn").classList.toggle("closed");
   functions[b.id]();
 
 }
@@ -4106,10 +4182,10 @@ btns.forEach(function(currentChild){
 
 });
 });
-//anchor
+//anchor justify
 //functions to link the id to the of the ADTSheet to how the disposition boxes pop up
 const functions = {
-  // "A-1" : justifyA1,
+  "A-1" : justifyA1,
   "A-2" : justifyA2,
   "A-3" : justifyA3,
   "A-4" : justifyA4,
@@ -4125,12 +4201,12 @@ const functions = {
   "B-9" : justifyB9,
   "B-10" : justifyB10,
   "B-11" : justifyB11,
-  // "C-1" : justifyC1,
+  "C-1" : justifyC1,
   "C-2" : justifyC2,
-  // "C-3" : justifyC3,
-  // "C-4" : justifyC4,
-  // "C-5" : justifyC5,
-  // "C-6" : justifyC6,
+  "C-3" : justifyC3,
+  "C-4" : justifyC4,
+  "C-5" : justifyC5,
+  "C-6" : justifyC6,
   "C-7" : justifyC7,
   "D-1" : justifyD1,
   "D-2" : justifyD2,
@@ -4143,63 +4219,192 @@ const functions = {
   "F-3" : justifyF3,
   "F-4" : justifyF4,
   "F-5" : justifyF5,
-  // "F-6" : justifyF6,
-  // "G-1" : justifyG1,
-  // "G-2" : justifyG2,
-  // "H-1" : justifyH1,
-  // "H-2" : justifyH2,
-  // "H-3" : justifyH3,
-  // "H-4" : justifyH4,
-  // "I-1" : justifyI1,
-  // "I-2" : justifyI2,
-  // "I-3" : justifyI3,
-  // "I-4" : justifyI4,
-  // "I-5" : justifyI5,
-  // "I-6" : justifyI6,
-  // "J-1" : justifyJ1,
-  // "J-2" : justifyJ2,
-  // "J-3" : justifyJ3,
-  // "J-4" : justifyJ4,
-  // "J-5" : justifyJ5,
-  // "J-6" : justifyJ6,
-  // "J-7" : justifyJ7,
-  // "J-8" : justifyJ8,
-  // "J-9" : justifyJ9,
-  // "J-10" : justifyJ10,
-  // "J-11" : justifyJ11,
-  // "J-12" : justifyJ12,
-  // "J-13" : justifyJ13,
-  // "J-14" : justifyJ14,
-  // "J-15" : justifyJ15,
-  // "J-16" : justifyJ16,
-  // "J-17" : justifyJ17,
-  // "J-18" : justifyJ18,
-  // "K-1" : justifyK1,
-  // "K-2" : justifyK2,
-  // "K-3" : justifyK3,
-  // "K-4" : justifyK4,
-  // "K-5" : justifyK5,
-  // "K-6" : justifyK6,
-  // "K-7" : justifyK7,
-  // "L-1" : justifyL1,
-  // "L-2" : justifyL2,
-  // "L-3" : justifyL3,
-  // "L-4" : justifyL4,
-  // "L-5" : justifyL5,
-  // "L-6" : justifyL6,
-  // "L-7" : justifyL7,
-  // "L-8" : justifyL8,
-  // "L-9" : justifyL9,
-  // "L-10" : justifyL10,
-  // "L-11" : justifyL11,
-  // "L-12" : justifyL12,
-  // "M-1" : justifyM1,
-  // "M-2" : justifyM2 
+  "F-6" : justifyF6,
+  "G-1" : justifyG1,
+  "G-2" : justifyG2,
+  "H-1" : justifyH1,
+  "H-2" : justifyH2,
+  "H-3" : justifyH3,
+  "H-4" : justifyH4,
+  "I-1" : justifyI1,
+  "I-2" : justifyI2,
+  "I-3" : justifyI3,
+  "I-4" : justifyI4,
+  "I-5" : justifyI5,
+  "I-6" : justifyI6,
+  "J-1" : justifyJ1,
+  "J-2" : justifyJ2,
+  "J-3" : justifyJ3,
+  "J-4" : justifyJ4,
+  "J-5" : justifyJ5,
+  "J-6" : justifyJ6,
+  "J-7" : justifyJ7,
+  "J-8" : justifyJ8,
+  "J-9" : justifyJ9,
+  "J-10" : justifyJ10,
+  "J-11" : justifyJ11,
+  "J-12" : justifyJ12,
+  "J-13" : justifyJ13,
+  "J-14" : justifyJ14,
+  "J-15" : justifyJ15,
+  "J-16" : justifyJ16,
+  "J-17" : justifyJ17,
+  "J-18" : justifyJ18,
+  "K-1" : justifyK1,
+  "K-2" : justifyK2,
+  "K-3" : justifyK3,
+  "K-4" : justifyK4,
+  "K-5" : justifyK5,
+  "K-6" : justifyK6,
+  "K-7" : justifyK7,
+  "L-1" : justifyL1,
+  "L-2" : justifyL2,
+  "L-3" : justifyL3,
+  "L-4" : justifyL4,
+  "L-5" : justifyL5,
+  "L-6" : justifyL6,
+  "L-7" : justifyL7,
+  "L-8" : justifyL8,
+  "L-9" : justifyL9,
+  "L-10" : justifyL10,
+  "L-11" : justifyL11,
+  "L-12" : justifyL12,
+  "M-1" : justifyM1,
+  "M-2" : justifyM2 
 
 
 }
 
 //individual justification scripts for each. called when the toggle button is switched
+function justifyA1() {
+  var btnid = event.target.id;
+  console.log(btnid);
+  const hidden = A1.querySelector(".subQ");
+  const A1red = A1.querySelector("#A1-redbtn");
+  const A1c1 = A1.querySelector("#A1-1-btn");
+  const A1c2 = A1.querySelector("#A1-2-btn");
+  const A1c3 = A1.querySelector("#A1-3-btn");
+  const A1c4 = A1.querySelector("#A1-4-btn");
+  const A1c5 = A1.querySelector("#A1-5-btn");
+  const dispored = A1.querySelector("#A1dispo-red");
+  const dispo2 = A1.querySelector("#A1dispo-2");
+  const dispo3 = A1.querySelector("#A1dispo-3");
+  const dispo4 = A1.querySelector("#A1dispo-4");
+  const dispoRETEST = A1.querySelector("#A1dispo-RETEST");
+  const dispoRTD = A1.querySelector("#A1dispo-RTD");
+  if(A1c1.checked == true){
+    if(!hidden.classList.contains("selected")){hidden.classList.toggle("selected")}
+  }else{hidden.classList.remove("selected")}
+  if(A1red.checked == true){
+    console.log("it works");
+    A1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
+  }else{
+      if(A1c2.checked == true){
+        A1.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open"); greenbtn.classList.add("closed")}
+      }else{
+        if(A1c3.checked == true){
+            A1.querySelectorAll('.dispobox').forEach(el => {
+              el.classList.remove('open')});
+              if(!dispo3.classList.contains("open")){dispo3.classList.toggle("open"); greenbtn.classList.add("closed")}
+          }else{
+        A1.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(A1c4.checked == true){
+            A1.querySelectorAll('.dispobox').forEach(el => {
+              el.classList.remove('open')});
+              if(!dispo4.classList.contains("open")){dispo4.classList.toggle("open"); greenbtn.classList.add("closed")}
+          }else{
+            A1.querySelectorAll('.dispobox').forEach(el => {
+              el.classList.remove('open')});
+              if(A1c5.checked == true){
+                A1.querySelectorAll('.dispobox').forEach(el => {
+                  el.classList.remove('open')});
+                  if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
+              }else{
+                if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}}
+          }
+          }
+        }
+      }
+    }
+
+    const cent5 = document.querySelector("#cent5");
+    const criteria = document.querySelectorAll(".centor-crit");
+    const countbox = document.querySelector(".countcenter")
+    criteria.forEach(function(currentSwitch){
+        currentSwitch.addEventListener('click',()=> {
+                cent5.classList.remove("centsel");
+                currentSwitch.classList.toggle("centsel")
+                centorCheck()
+            })
+    
+        })
+    cent5.addEventListener('click',()=> {
+        document.querySelectorAll('.centsel').forEach(el => {
+            el.classList.remove('centsel');
+          })
+        cent5.classList.toggle("centsel")
+        centorCheck();
+    });
+    
+    function centorCheck(){
+        let count = document.querySelectorAll(".centor-crit.centsel").length
+        if(cent5.classList.contains("centsel")){
+            count = 0
+        }
+        console.log(count)
+        if(count == 0 && !cent5.classList.contains("centsel")){
+            cent5.classList.toggle("centsel")
+        }
+        countbox.innerText = count
+        if(count >=3 && !document.querySelector(".subQ").classList.contains("selected")){
+            document.querySelector(".subQ").classList.toggle("selected");
+        }
+        if(count <= 2){
+            document.querySelector(".subQ").classList.remove("selected");
+        }
+    }
+
+function justifyA1() {
+  const A1red = A1.querySelector("#A1-redbtn");
+  const A1A1 = A1.querySelector("#A1-2-btn");
+  const A1c2 = A1.querySelector("#A1-3-btn");
+  const dispored = A1.querySelector("#A1dispo-red");
+  const dispo1 = A1.querySelector("#A1dispo-2");
+  const dispoRETEST = A1.querySelector("#A1dispo-RETEST");
+  const dispoRTD = A1.querySelector("#A1dispo-RTD");
+  if(A1red.checked == true){
+      console.log("it works");
+      A1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')}); 
+        if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
+  }else{
+      A1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(A1A1.checked == true){
+        A1.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
+  
+      }else{
+        if(A1c2.checked == true){
+          A1.querySelectorAll('.dispobox').forEach(el => {
+            el.classList.remove('open')});
+            if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
+        }else{
+          A1.querySelectorAll('.dispobox').forEach(el => {
+            el.classList.remove('open')});
+            if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+            }
+          }
+        }
+      }
+
+
 function justifyA2() {
   var btnid = event.target.id;
   console.log(btnid);
@@ -4223,33 +4428,33 @@ function justifyA2() {
     console.log("it works");
     A2.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
   }else{
       if(A2c2.checked == true){
         A2.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-          if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open");}
+          if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open"); greenbtn.classList.add("closed")}
       }else{
         if(A2c3.checked == true){
             A2.querySelectorAll('.dispobox').forEach(el => {
               el.classList.remove('open')});
-              if(!dispo3.classList.contains("open")){dispo3.classList.toggle("open");}
+              if(!dispo3.classList.contains("open")){dispo3.classList.toggle("open"); greenbtn.classList.add("closed")}
           }else{
         A2.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
           if(A2c4.checked == true){
             A2.querySelectorAll('.dispobox').forEach(el => {
               el.classList.remove('open')});
-              if(!dispo4.classList.contains("open")){dispo4.classList.toggle("open");}
+              if(!dispo4.classList.contains("open")){dispo4.classList.toggle("open"); greenbtn.classList.add("closed")}
           }else{
             A2.querySelectorAll('.dispobox').forEach(el => {
               el.classList.remove('open')});
               if(A2c5.checked == true){
                 A2.querySelectorAll('.dispobox').forEach(el => {
                   el.classList.remove('open')});
-                  if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open");}
+                  if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
               }else{
-                if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}}
+                if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}}
           }
           }
         }
@@ -4267,25 +4472,24 @@ function justifyA3() {
   if(A3red.checked == true){
       A3.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+      if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
   }else{
       A3.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
       if(A3c1.checked == true){
         A3.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
   
       }else{
         if(A3c2.checked == true){
           A3.querySelectorAll('.dispobox').forEach(el => {
             el.classList.remove('open')});
-            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open");}
+            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open"); greenbtn.classList.add("closed")}
         }else{
           A3.querySelectorAll('.dispobox').forEach(el => {
             el.classList.remove('open')});
-            if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open");
-          }
+            if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
         }
       }
     }
@@ -4311,17 +4515,17 @@ function justifyA3() {
       console.log("it works");
       A4.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+      if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
     }else{
         if(A4c1.checked == true){
           A4.querySelectorAll('.dispobox').forEach(el => {
             el.classList.remove('open')});
-            if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open");}
+            if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
         }else{
           if(A4c3.checked == true){
               A4.querySelectorAll('.dispobox').forEach(el => {
                 el.classList.remove('open')});
-                if(!dispo3.classList.contains("open")){dispo3.classList.toggle("open");}
+                if(!dispo3.classList.contains("open")){dispo3.classList.toggle("open"); greenbtn.classList.add("closed")}
             }else{
           A4.querySelectorAll('.dispobox').forEach(el => {
             el.classList.remove('open')});
@@ -4330,7 +4534,7 @@ function justifyA3() {
                 el.classList.remove('open')});
                 if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open");}
             }else{
-                  if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}}
+                  if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}}
             }
             }
           }
@@ -4352,14 +4556,14 @@ function justifyA5(){
     console.log("it works");
     A5.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
   }else{
     A5.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
     if(A5c1.checked == true){
       A5.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
 
     }else{
       A5.querySelectorAll('.dispobox').forEach(el => {
@@ -4367,18 +4571,18 @@ function justifyA5(){
       if(A5c2.checked == true){
         A5.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-        if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open")};
+        if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open"); greenbtn.classList.add("closed")};
 
       }else{
         A5.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
         if(A5c3.checked == true){
-          if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open")};
+          if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")};
 
         }else{
         A5.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
     }}
   }
   }
@@ -4395,19 +4599,19 @@ function justifyB1() {
     console.log("it works");
     B1.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
   }else{
     B1.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
     if(B1c1.checked == true){
       B1.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
 
     }else{
         B1.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
     }
   }
 }
@@ -4423,19 +4627,19 @@ function justifyB2(){
     console.log("it works");
     B2.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
   }else{
     B2.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
     if(B2c1.checked == true){
       B2.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
 
     }else{
         B2.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
     }
   }
 }
@@ -4451,19 +4655,19 @@ function justifyB3(){
     console.log("it works");
     B3.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
   }else{
     B3.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
     if(B3c1.checked == true){
       B3.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
 
     }else{
         B3.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
     }}
   }
 //Justification B-4
@@ -4478,19 +4682,19 @@ function justifyB4(){
     console.log("it works");
     B4.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
   }else{
     B4.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
     if(B4c1.checked == true){
       B4.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
 
     }else{
         B4.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
     }}
   }
 
@@ -4506,19 +4710,19 @@ function justifyB5(){
     console.log("it works");
     B5.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
   }else{
     B5.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
     if(B5c1.checked == true){
       B5.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
 
     }else{
         B5.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
     }}
   }
 //Justification B-6
@@ -4533,19 +4737,19 @@ function justifyB6(){
     console.log("it works");
     B6.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
   }else{
     B6.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
     if(B6c1.checked == true){
       B6.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
 
     }else{
         B6.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
     }}
   }
 //Justification B-7
@@ -4560,19 +4764,19 @@ if(B7red.checked == true){
   console.log("it works");
   B7.querySelectorAll('.dispobox').forEach(el => {
     el.classList.remove('open')}); 
-  if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+  if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
 }else{
   B7.querySelectorAll('.dispobox').forEach(el => {
     el.classList.remove('open')});
   if(B7c1.checked == true){
     B7.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
-    if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+    if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
 
   }else{
       B7.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
-        if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+        if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
   }}
 }
 
@@ -4587,14 +4791,14 @@ if(B8red.checked == true){
   console.log("it works");
   B8.querySelectorAll('.dispobox').forEach(el => {
     el.classList.remove('open')}); 
-  if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+  if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
 }else{
   B8.querySelectorAll('.dispobox').forEach(el => {
     el.classList.remove('open')});
   if(B8c1.checked == true){
     B8.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
-    if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+    if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
 
   }else{
       B8.querySelectorAll('.dispobox').forEach(el => {
@@ -4614,14 +4818,14 @@ function justifyB9(){
     console.log("it works");
     B9.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
   }else{
     B9.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
     if(B9c1.checked == true){
       B9.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
 
     }else{
         B9.querySelectorAll('.dispobox').forEach(el => {
@@ -4641,14 +4845,14 @@ function justifyB9(){
       console.log("it works");
       B10.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+      if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
     }else{
       B10.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
       if(B10c1.checked == true){
         B10.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
   
       }else{
           B10.querySelectorAll('.dispobox').forEach(el => {
@@ -4669,14 +4873,14 @@ if(B11red.checked == true){
   console.log("it works");
   B11.querySelectorAll('.dispobox').forEach(el => {
     el.classList.remove('open')}); 
-  if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+  if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
 }else{
   B11.querySelectorAll('.dispobox').forEach(el => {
     el.classList.remove('open')});
   if(B11c1.checked == true){
     B11.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
-    if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+    if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
 
   }else{
       B11.querySelectorAll('.dispobox').forEach(el => {
@@ -4684,6 +4888,42 @@ if(B11red.checked == true){
         if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
   }}
 }
+function justifyC1() {
+  const C1red = C1.querySelector("#C1-redbtn");
+  const C1c1 = C1.querySelector("#C1-1-btn");
+  const C1c2 = C1.querySelector("#C1-2-btn");
+  const dispored = C1.querySelector("#C1dispo-red");
+  const dispo1 = C1.querySelector("#C1dispo-1");
+  const dispo2 = C1.querySelector("#C1dispo-2");
+  const dispoRETEST = C1.querySelector("#C1dispo-RETEST");
+  const dispoRTD = C1.querySelector("#C1dispo-RTD");
+  if(C1red.checked == true){
+      console.log("it works");
+      C1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')}); 
+        if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
+  }else{
+      C1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(C1c1.checked == true){
+        C1.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
+  
+      }else{
+        if(C1c2.checked == true){
+          C1.querySelectorAll('.dispobox').forEach(el => {
+            el.classList.remove('open')});
+            if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
+        }else{
+          C1.querySelectorAll('.dispobox').forEach(el => {
+            el.classList.remove('open')});
+            if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+            }
+          }
+        }
+      }
+
 
 function justifyC2() {
   const C2red = C2.querySelector("#C2-redbtn");
@@ -4697,31 +4937,150 @@ function justifyC2() {
       console.log("it works");
       C2.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+      if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
   }else{
       C2.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
       if(C2c1.checked == true){
         C2.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
   
       }else{
         if(C2c2.checked == true){
           C2.querySelectorAll('.dispobox').forEach(el => {
             el.classList.remove('open')});
-            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open");}
+            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open"); greenbtn.classList.add("closed")}
         }else{
           C2.querySelectorAll('.dispobox').forEach(el => {
             el.classList.remove('open')});
-            if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+            if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
             }
           }
         }
       }
-//anchor
 
-//justification C-7
+function justifyC3() {
+const C3red = C3.querySelector("#C3-redbtn");
+const C3c1 = C3.querySelector("#C3-1-btn");
+const C3c2 = C3.querySelector("#C3-2-btn");
+const dispored = C3.querySelector("#C3dispo-red");
+const dispo1 = C3.querySelector("#C3dispo-1");
+const dispoRETEST = C3.querySelector("#C3dispo-RETEST");
+const dispoRTD = C3.querySelector("#C3dispo-RTD");
+if(C3red.checked == true){
+    console.log("it works");
+    C3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
+}else{
+    C3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(C3c1.checked == true){
+      C3.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
+
+    }else{
+      if(C3c2.checked == true){
+        C3.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
+      }else{
+        C3.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+    }
+
+function justifyC4() {
+const C4red = C4.querySelector("#C4-redbtn");
+const C4c1 = C4.querySelector("#C4-1-btn");
+const dispored = C4.querySelector("#C4dispo-red");
+const dispo1 = C4.querySelector("#C4dispo-1");
+const dispoRTD = C4.querySelector("#C4dispo-RTD");
+if(C4red.checked == true){
+    console.log("it works");
+    C4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
+}else{
+    C4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(C4c1.checked == true){
+      C4.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
+
+    }else{
+        C4.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyC5() {
+const C5red = C5.querySelector("#C5-redbtn");
+const C5c1 = C5.querySelector("#C5-1-btn");
+const dispored = C5.querySelector("#C5dispo-red");
+const dispoRETEST = C5.querySelector("#C5dispo-RETEST");
+const dispoRTD = C5.querySelector("#C5dispo-RTD");
+if(C5red.checked == true){
+    console.log("it works");
+    C5.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
+}else{
+    C5.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(C5c1.checked == true){
+      C5.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
+
+    }else{
+        C5.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyC6() {
+const C6red = C6.querySelector("#C6-redbtn");
+const C6c1 = C6.querySelector("#C6-1-btn");
+const C6c2 = C6.querySelector("#C6-2-btn");
+const dispored = C6.querySelector("#C6dispo-red");
+const dispo1 = C6.querySelector("#C6dispo-1");
+const dispoRETEST = C6.querySelector("#C6dispo-RETEST");
+const dispoRTD = C6.querySelector("#C6dispo-RTD");
+if(C6red.checked == true){
+    console.log("it works");
+    C6.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
+}else{
+    C6.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(C6c1.checked == true){
+      C6.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
+
+    }else{
+      if(C6c2.checked == true){
+        C6.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
+      }else{
+        C6.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+    }
 function justifyC7() {
   const C7red = C7.querySelector("#C7-redbtn");
   const C7c1 = C7.querySelector("#C7-1-btn");
@@ -4758,7 +5117,7 @@ function justifyC7() {
             }else{
           C7.querySelectorAll('.dispobox').forEach(el => {
             el.classList.remove('open')});
-            if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+            if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
             }
           }
         }
@@ -4802,7 +5161,7 @@ function justifyD1() {
         }else{
           D1.querySelectorAll('.dispobox').forEach(el => {
             el.classList.remove('open')});
-            if(!dispo3.classList.contains("open")){dispo3.classList.toggle("open")}
+            if(!dispo3.classList.contains("open")&& greenbtn.classList.contains("closed")){dispo3.classList.toggle("open")}
             }
           }
         }
@@ -4868,7 +5227,7 @@ if(E1red.checked == true){
     }else{
         E1.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
           }
         }
       }
@@ -4922,7 +5281,7 @@ if(E3red.checked == true){
     }else{
         E3.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
           }
         }
       }
@@ -5090,5 +5449,1410 @@ if(F5red.checked == true){
           }
         }
       }
-//anchor
-        
+
+function justifyF6() {
+const F6red = F6.querySelector("#F6-redbtn");
+const F6c1 = F6.querySelector("#F6-1-btn");
+const dispored = F6.querySelector("#F6dispo-red");
+const dispo1 = F6.querySelector("#F6dispo-1");
+const dispoRTD = F6.querySelector("#F6dispo-RTD");
+if(F6red.checked == true){
+    console.log("it works");
+    F6.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    F6.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(F6c1.checked == true){
+      F6.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        F6.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyG1() {
+const G1red = G1.querySelector("#G1-redbtn");
+const G1c1 = G1.querySelector("#G1-1-btn");
+const dispored = G1.querySelector("#G1dispo-red");
+const dispo1 = G1.querySelector("#G1dispo-RETEST");
+const dispoRTD = G1.querySelector("#G1dispo-RTD");
+if(G1red.checked == true){
+    console.log("it works");
+    G1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    G1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(G1c1.checked == true){
+      G1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        G1.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+
+function justifyG2() {
+const G2red = G2.querySelector("#G2-redbtn");
+const G2c1 = G2.querySelector("#G2-1-btn");
+const dispored = G2.querySelector("#G2dispo-red");
+const dispo1 = G2.querySelector("#G2dispo-RETEST");
+const dispoRTD = G2.querySelector("#G2dispo-RTD");
+if(G2red.checked == true){
+    console.log("it works");
+    G2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    G2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(G2c1.checked == true){
+      G2.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        G2.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyH1() {
+const H1red = H1.querySelector("#H1-redbtn");
+const H1c1 = H1.querySelector("#H1-1-btn");
+const dispored = H1.querySelector("#H1dispo-red");
+const dispo1 = H1.querySelector("#H1dispo-1");
+const dispoRTD = H1.querySelector("#H1dispo-RTD");
+if(H1red.checked == true){
+    console.log("it works");
+    H1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    H1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(H1c1.checked == true){
+      H1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        H1.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyH4() {
+const H4red = H4.querySelector("#H4-redbtn");
+const H4c1 = H4.querySelector("#H4-1-btn");
+const dispored = H4.querySelector("#H4dispo-red");
+const dispo1 = H4.querySelector("#H4dispo-2");
+const dispoRTD = H4.querySelector("#H4dispo-RTD");
+if(H4red.checked == true){
+    console.log("it works");
+    H4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    H4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(H4c1.checked == true){
+      H4.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        H4.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyH2() {
+const H2red = H2.querySelector("#H2-redbtn");
+const H2c1 = H2.querySelector("#H2-1-btn");
+const dispored = H2.querySelector("#H2dispo-red");
+const dispo1 = H2.querySelector("#H2dispo-2");
+const dispoRTD = H2.querySelector("#H2dispo-RTD");
+if(H2red.checked == true){
+    console.log("it works");
+    H2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    H2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(H2c1.checked == true){
+      H2.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        H2.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+
+function justifyH3() {
+const H3red = H3.querySelector("#H3-redbtn");
+const H3c1 = H3.querySelector("#H3-1-btn");
+const dispored = H3.querySelector("#H3dispo-red");
+const dispo1 = H3.querySelector("#H3dispo-2");
+const dispoRTD = H3.querySelector("#H3dispo-RTD");
+if(H3red.checked == true){
+    console.log("it works");
+    H3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    H3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(H3c1.checked == true){
+      H3.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        H3.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyI1() {
+const I1red = I1.querySelector("#I1-redbtn");
+const I1c1 = I1.querySelector("#I1-1-btn");
+const dispored = I1.querySelector("#I1dispo-red");
+const dispo1 = I1.querySelector("#I1dispo-2");
+const dispoRTD = I1.querySelector("#I1dispo-RTD");
+if(I1red.checked == true){
+    console.log("it works");
+    I1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    I1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(I1c1.checked == true){
+      I1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        I1.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyI2() {
+const I2red = I2.querySelector("#I2-redbtn");
+const I2c1 = I2.querySelector("#I2-1-btn");
+const dispored = I2.querySelector("#I2dispo-red");
+const dispo1 = I2.querySelector("#I2dispo-2");
+const dispoRTD = I2.querySelector("#I2dispo-RTD");
+if(I2red.checked == true){
+    console.log("it works");
+    I2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    I2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(I2c1.checked == true){
+      I2.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        I2.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyI3() {
+const I3red = I3.querySelector("#I3-redbtn");
+const I3c1 = I3.querySelector("#I3-1-btn");
+const dispored = I3.querySelector("#I3dispo-red");
+const dispo1 = I3.querySelector("#I3dispo-2");
+const dispoRTD = I3.querySelector("#I3dispo-RTD");
+if(I3red.checked == true){
+    console.log("it works");
+    I3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    I3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(I3c1.checked == true){
+      I3.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        I3.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyI4() {
+const I4red = I4.querySelector("#I4-redbtn");
+const I4c1 = I4.querySelector("#I4-1-btn");
+const dispored = I4.querySelector("#I4dispo-red");
+const dispo1 = I4.querySelector("#I4dispo-2");
+const dispoRTD = I4.querySelector("#I4dispo-RTD");
+if(I4red.checked == true){
+    console.log("it works");
+    I4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    I4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(I4c1.checked == true){
+      I4.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        I4.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyI5() {
+const I5red = I5.querySelector("#I5-redbtn");
+const I5c1 = I5.querySelector("#I5-1-btn");
+const dispored = I5.querySelector("#I5dispo-red");
+const dispo1 = I5.querySelector("#I5dispo-2");
+const dispoRTD = I5.querySelector("#I5dispo-RTD");
+if(I5red.checked == true){
+    console.log("it works");
+    I5.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    I5.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(I5c1.checked == true){
+      I5.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        I5.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyI6() {
+const I6red = I6.querySelector("#I6-redbtn");
+const I6c1 = I6.querySelector("#I6-1-btn");
+const dispored = I6.querySelector("#I6dispo-red");
+const dispo1 = I6.querySelector("#I6dispo-2");
+const dispoRTD = I6.querySelector("#I6dispo-RTD");
+if(I6red.checked == true){
+    console.log("it works");
+    I6.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    I6.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(I6c1.checked == true){
+      I6.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        I6.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyK1() {
+  const K1red = K1.querySelector("#K1-redbtn");
+  const K1c1 = K1.querySelector("#K1-1-btn");
+  const dispored = K1.querySelector("#K1dispo-red");
+  const dispo1 = K1.querySelector("#K1dispo-2");
+  const dispoRTD = K1.querySelector("#K1dispo-RTD");
+  if(K1red.checked == true){
+      console.log("it works");
+      K1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')}); 
+      if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+  }else{
+      K1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(K1c1.checked == true){
+        K1.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+  
+      }else{
+          K1.querySelectorAll('.dispobox').forEach(el => {
+            el.classList.remove('open')});
+            if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+            }
+          }
+        }
+
+function justifyK2() {
+const K2red = K2.querySelector("#K2-redbtn");
+const K2c1 = K2.querySelector("#K2-1-btn");
+const dispored = K2.querySelector("#K2dispo-red");
+const dispo1 = K2.querySelector("#K2dispo-2");
+const dispoRTD = K2.querySelector("#K2dispo-RTD");
+if(K2red.checked == true){
+    console.log("it works");
+    K2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    K2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(K2c1.checked == true){
+      K2.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        K2.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyK3() {
+const K3red = K3.querySelector("#K3-redbtn");
+const K3c1 = K3.querySelector("#K3-1-btn");
+const dispored = K3.querySelector("#K3dispo-red");
+const dispo1 = K3.querySelector("#K3dispo-2");
+const dispoRTD = K3.querySelector("#K3dispo-RTD");
+if(K3red.checked == true){
+    console.log("it works");
+    K3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    K3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(K3c1.checked == true){
+      K3.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        K3.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyK4() {
+const K4red = K4.querySelector("#K4-redbtn");
+const K4c1 = K4.querySelector("#K4-1-btn");
+const dispored = K4.querySelector("#K4dispo-red");
+const dispo1 = K4.querySelector("#K4dispo-2");
+const dispoRTD = K4.querySelector("#K4dispo-RTD");
+if(K4red.checked == true){
+    console.log("it works");
+    K4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    K4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(K4c1.checked == true){
+      K4.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        K4.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyK5() {
+const K5red = K5.querySelector("#K5-redbtn");
+const K5c1 = K5.querySelector("#K5-1-btn");
+const dispored = K5.querySelector("#K5dispo-red");
+const dispo1 = K5.querySelector("#K5dispo-2");
+const dispoRTD = K5.querySelector("#K5dispo-RTD");
+if(K5red.checked == true){
+    console.log("it works");
+    K5.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    K5.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(K5c1.checked == true){
+      K5.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        K5.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyK5() {
+const K5red = K5.querySelector("#K5-redbtn");
+const K5c1 = K5.querySelector("#K5-1-btn");
+const dispored = K5.querySelector("#K5dispo-red");
+const dispo1 = K5.querySelector("#K5dispo-2");
+const dispoRTD = K5.querySelector("#K5dispo-RTD");
+if(K5red.checked == true){
+    console.log("it works");
+    K5.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    K5.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(K5c1.checked == true){
+      K5.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        K5.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+
+function justifyK6() {
+const K6red = K6.querySelector("#K6-redbtn");
+const K6c1 = K6.querySelector("#K6-1-btn");
+const dispored = K6.querySelector("#K6dispo-red");
+const dispo1 = K6.querySelector("#K6dispo-2");
+const dispoRTD = K6.querySelector("#K6dispo-RTD");
+if(K6red.checked == true){
+    console.log("it works");
+    K6.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    K6.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(K6c1.checked == true){
+      K6.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        K6.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyK7() {
+const K7red = K7.querySelector("#K7-redbtn");
+const K7c1 = K7.querySelector("#K7-1-btn");
+const dispored = K7.querySelector("#K7dispo-red");
+const dispo1 = K7.querySelector("#K7dispo-2");
+const dispoRTD = K7.querySelector("#K7dispo-RTD");
+if(K7red.checked == true){
+    console.log("it works");
+    K7.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    K7.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(K7c1.checked == true){
+      K7.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        K7.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyJ1() {
+const J1red = J1.querySelector("#J1-redbtn");
+const J1c1 = J1.querySelector("#J1-1-btn");
+const dispored = J1.querySelector("#J1dispo-red");
+const dispo1 = J1.querySelector("#J1dispo-2");
+const dispoRTD = J1.querySelector("#J1dispo-RTD");
+if(J1red.checked == true){
+    console.log("it works");
+    J1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J1c1.checked == true){
+      J1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J1.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyJ2() {
+const J2red = J2.querySelector("#J2-redbtn");
+const J2c1 = J2.querySelector("#J2-1-btn");
+const dispored = J2.querySelector("#J2dispo-red");
+const dispo1 = J2.querySelector("#J2dispo-2");
+const dispoRTD = J2.querySelector("#J2dispo-RTD");
+if(J2red.checked == true){
+    console.log("it works");
+    J2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J2c1.checked == true){
+      J2.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J2.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }  
+function justifyJ3() {
+const J3red = J3.querySelector("#J3-redbtn");
+const J3c1 = J3.querySelector("#J3-1-btn");
+const dispored = J3.querySelector("#J3dispo-red");
+const dispo1 = J3.querySelector("#J3dispo-2");
+const dispoRTD = J3.querySelector("#J3dispo-RTD");
+if(J3red.checked == true){
+    console.log("it works");
+    J3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J3c1.checked == true){
+      J3.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J3.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      } 
+function justifyJ4() {
+const J4red = J4.querySelector("#J4-redbtn");
+const J4c1 = J4.querySelector("#J4-1-btn");
+const dispored = J4.querySelector("#J4dispo-red");
+const dispo1 = J4.querySelector("#J4dispo-2");
+const dispoRTD = J4.querySelector("#J4dispo-RTD");
+if(J4red.checked == true){
+    console.log("it works");
+    J4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J4c1.checked == true){
+      J4.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J4.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }  
+function justifyJ5() {
+const J5red = J5.querySelector("#J5-redbtn");
+const J5c1 = J5.querySelector("#J5-1-btn");
+const dispored = J5.querySelector("#J5dispo-red");
+const dispo1 = J5.querySelector("#J5dispo-2");
+const dispoRTD = J5.querySelector("#J5dispo-RTD");
+if(J5red.checked == true){
+    console.log("it works");
+    J5.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J5.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J5c1.checked == true){
+      J5.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J5.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }  
+function justifyJ6() {
+const J6red = J6.querySelector("#J6-redbtn");
+const J6c1 = J6.querySelector("#J6-1-btn");
+const dispored = J6.querySelector("#J6dispo-red");
+const dispo1 = J6.querySelector("#J6dispo-2");
+const dispoRTD = J6.querySelector("#J6dispo-RTD");
+if(J6red.checked == true){
+    console.log("it works");
+    J6.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J6.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J6c1.checked == true){
+      J6.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J6.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }  
+function justifyJ7() {
+const J7red = J7.querySelector("#J7-redbtn");
+const J7c1 = J7.querySelector("#J7-1-btn");
+const dispored = J7.querySelector("#J7dispo-red");
+const dispo1 = J7.querySelector("#J7dispo-1");
+const dispoRTD = J7.querySelector("#J7dispo-RTD");
+if(J7red.checked == true){
+    console.log("it works");
+    J7.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J7.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J7c1.checked == true){
+      J7.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J7.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }  
+
+function justifyJ8() {
+const J8red = J8.querySelector("#J8-redbtn");
+const J8c1 = J8.querySelector("#J8-1-btn");
+const dispored = J8.querySelector("#J8dispo-red");
+const dispo1 = J8.querySelector("#J8dispo-1");
+const dispoRTD = J8.querySelector("#J8dispo-RTD");
+if(J8red.checked == true){
+    console.log("it works");
+    J8.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J8.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J8c1.checked == true){
+      J8.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J8.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }  
+function justifyJ9() {
+const J9red = J9.querySelector("#J9-redbtn");
+const J9c1 = J9.querySelector("#J9-1-btn");
+const dispored = J9.querySelector("#J9dispo-red");
+const dispo1 = J9.querySelector("#J9dispo-1");
+const dispoRTD = J9.querySelector("#J9dispo-RTD");
+if(J9red.checked == true){
+    console.log("it works");
+    J9.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J9.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J9c1.checked == true){
+      J9.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J9.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      } 
+function justifyJ10() {
+const J10red = J10.querySelector("#J10-redbtn");
+const J10c1 = J10.querySelector("#J10-1-btn");
+const dispored = J10.querySelector("#J10dispo-red");
+const dispo1 = J10.querySelector("#J10dispo-1");
+const dispoRTD = J10.querySelector("#J10dispo-RTD");
+if(J10red.checked == true){
+    console.log("it works");
+    J10.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J10.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J10c1.checked == true){
+      J10.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J10.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      } 
+function justifyJ11() {
+const J11red = J11.querySelector("#J11-redbtn");
+const J11c1 = J11.querySelector("#J11-1-btn");
+const dispored = J11.querySelector("#J11dispo-red");
+const dispo1 = J11.querySelector("#J11dispo-1");
+const dispoRTD = J11.querySelector("#J11dispo-RTD");
+if(J11red.checked == true){
+    console.log("it works");
+    J11.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J11.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J11c1.checked == true){
+      J11.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J11.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      } 
+ function justifyJ12() {
+const J12red = J12.querySelector("#J12-redbtn");
+const J12c1 = J12.querySelector("#J12-1-btn");
+const dispored = J12.querySelector("#J12dispo-red");
+const dispo1 = J12.querySelector("#J12dispo-1");
+const dispoRTD = J12.querySelector("#J12dispo-RTD");
+if(J12red.checked == true){
+    console.log("it works");
+    J12.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J12.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J12c1.checked == true){
+      J12.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J12.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      } 
+function justifyJ13() {
+const J13red = J13.querySelector("#J13-redbtn");
+const J13c1 = J13.querySelector("#J13-1-btn");
+const dispored = J13.querySelector("#J13dispo-red");
+const dispo1 = J13.querySelector("#J13dispo-1");
+const dispoRTD = J13.querySelector("#J13dispo-RTD");
+if(J13red.checked == true){
+    console.log("it works");
+    J13.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J13.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J13c1.checked == true){
+      J13.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J13.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      } 
+function justifyJ14() {
+const J14red = J14.querySelector("#J14-redbtn");
+const J14c1 = J14.querySelector("#J14-1-btn");
+const dispored = J14.querySelector("#J14dispo-red");
+const dispo1 = J14.querySelector("#J14dispo-1");
+const dispoRTD = J14.querySelector("#J14dispo-RTD");
+if(J14red.checked == true){
+    console.log("it works");
+    J14.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J14.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J14c1.checked == true){
+      J14.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J14.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      } 
+function justifyJ15() {
+const J15red = J15.querySelector("#J15-redbtn");
+const J15c1 = J15.querySelector("#J15-1-btn");
+const dispored = J15.querySelector("#J15dispo-red");
+const dispo1 = J15.querySelector("#J15dispo-1");
+const dispoRTD = J15.querySelector("#J15dispo-RTD");
+if(J15red.checked == true){
+    console.log("it works");
+    J15.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J15.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J15c1.checked == true){
+      J15.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J15.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      } 
+function justifyJ16() {
+const J16red = J16.querySelector("#J16-redbtn");
+const J16c1 = J16.querySelector("#J16-1-btn");
+const dispored = J16.querySelector("#J16dispo-red");
+const dispo1 = J16.querySelector("#J16dispo-1");
+const dispoRTD = J16.querySelector("#J16dispo-RTD");
+if(J16red.checked == true){
+    console.log("it works");
+    J16.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J16.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J16c1.checked == true){
+      J16.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J16.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      } 
+function justifyJ17() {
+const J17red = J17.querySelector("#J17-redbtn");
+const J17c1 = J17.querySelector("#J17-1-btn");
+const dispored = J17.querySelector("#J17dispo-red");
+const dispo1 = J17.querySelector("#J17dispo-1");
+const dispoRTD = J17.querySelector("#J17dispo-RTD");
+if(J17red.checked == true){
+    console.log("it works");
+    J17.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J17.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J17c1.checked == true){
+      J17.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J17.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      } 
+function justifyJ18() {
+const J18red = J18.querySelector("#J18-redbtn");
+const J18c1 = J18.querySelector("#J18-1-btn");
+const dispored = J18.querySelector("#J18dispo-red");
+const dispo1 = J18.querySelector("#J18dispo-1");
+const dispoRTD = J18.querySelector("#J18dispo-RTD");
+if(J18red.checked == true){
+    console.log("it works");
+    J18.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    J18.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(J18c1.checked == true){
+      J18.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        J18.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      } 
+
+ 
+
+
+
+
+function justifyL1() {
+const L1red = L1.querySelector("#L1-redbtn");
+const L1c1 = L1.querySelector("#L1-1-btn");
+const dispored = L1.querySelector("#L1dispo-red");
+const dispo1 = L1.querySelector("#L1dispo-2");
+const dispoRTD = L1.querySelector("#L1dispo-RTD");
+if(L1red.checked == true){
+    console.log("it works");
+    L1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    L1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(L1c1.checked == true){
+      L1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        L1.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      } 
+function justifyL2() {
+const L2red = L2.querySelector("#L2-redbtn");
+const L2c1 = L2.querySelector("#L2-1-btn");
+const dispored = L2.querySelector("#L2dispo-red");
+const dispo1 = L2.querySelector("#L2dispo-2");
+const dispoRTD = L2.querySelector("#L2dispo-RTD");
+if(L2red.checked == true){
+    console.log("it works");
+    L2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    L2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(L2c1.checked == true){
+      L2.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        L2.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyL3() {
+const L3red = L3.querySelector("#L3-redbtn");
+const L3c1 = L3.querySelector("#L3-1-btn");
+const dispored = L3.querySelector("#L3dispo-red");
+const dispo1 = L3.querySelector("#L3dispo-2");
+const dispoRTD = L3.querySelector("#L3dispo-RTD");
+if(L3red.checked == true){
+    console.log("it works");
+    L3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    L3.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(L3c1.checked == true){
+      L3.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        L3.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyL4() {
+const L4red = L4.querySelector("#L4-redbtn");
+const L4c1 = L4.querySelector("#L4-1-btn");
+const dispored = L4.querySelector("#L4dispo-red");
+const dispo1 = L4.querySelector("#L4dispo-2");
+const dispoRTD = L4.querySelector("#L4dispo-RTD");
+if(L4red.checked == true){
+    console.log("it works");
+    L4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    L4.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(L4c1.checked == true){
+      L4.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        L4.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyL5() {
+const L5red = L5.querySelector("#L5-redbtn");
+const L5c1 = L5.querySelector("#L5-1-btn");
+const dispored = L5.querySelector("#L5dispo-red");
+const dispo1 = L5.querySelector("#L5dispo-2");
+const dispoRTD = L5.querySelector("#L5dispo-RTD");
+if(L5red.checked == true){
+    console.log("it works");
+    L5.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    L5.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(L5c1.checked == true){
+      L5.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        L5.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyL6() {
+const L6red = L6.querySelector("#L6-redbtn");
+const L6c1 = L6.querySelector("#L6-1-btn");
+const dispored = L6.querySelector("#L6dispo-red");
+const dispo1 = L6.querySelector("#L6dispo-2");
+const dispoRTD = L6.querySelector("#L6dispo-RTD");
+if(L6red.checked == true){
+    console.log("it works");
+    L6.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    L6.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(L6c1.checked == true){
+      L6.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        L6.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyL7() {
+const L7red = L7.querySelector("#L7-redbtn");
+const L7c1 = L7.querySelector("#L7-1-btn");
+const dispored = L7.querySelector("#L7dispo-red");
+const dispo1 = L7.querySelector("#L7dispo-2");
+const dispoRTD = L7.querySelector("#L7dispo-RTD");
+if(L7red.checked == true){
+    console.log("it works");
+    L7.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    L7.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(L7c1.checked == true){
+      L7.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        L7.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyL8() {
+  const L8red = L8.querySelector("#L8-redbtn");
+  const L8c1 = L8.querySelector("#L8-1-btn");
+  const dispored = L8.querySelector("#L8dispo-red");
+  const dispo1 = L8.querySelector("#L8dispo-2");
+  const dispoRTD = L8.querySelector("#L8dispo-RTD");
+  if(L8red.checked == true){
+      console.log("it works");
+      L8.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')}); 
+      if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+  }else{
+      L8.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(L8c1.checked == true){
+        L8.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+  
+      }else{
+          L8.querySelectorAll('.dispobox').forEach(el => {
+            el.classList.remove('open')});
+            if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+            }
+          }
+        }
+function justifyL9() {
+const L9red = L9.querySelector("#L9-redbtn");
+const L9c1 = L9.querySelector("#L9-1-btn");
+const dispored = L9.querySelector("#L9dispo-red");
+const dispo1 = L9.querySelector("#L9dispo-2");
+const dispoRTD = L9.querySelector("#L9dispo-RTD");
+if(L9red.checked == true){
+    console.log("it works");
+    L9.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    L9.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(L9c1.checked == true){
+      L9.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        L9.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyL10() {
+const L10red = L10.querySelector("#L10-redbtn");
+const L10c1 = L10.querySelector("#L10-1-btn");
+const dispored = L10.querySelector("#L10dispo-red");
+const dispo1 = L10.querySelector("#L10dispo-2");
+const dispoRTD = L10.querySelector("#L10dispo-RTD");
+if(L10red.checked == true){
+    console.log("it works");
+    L10.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    L10.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(L10c1.checked == true){
+      L10.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        L10.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyL11() {
+const L11red = L11.querySelector("#L11-redbtn");
+const L11c1 = L11.querySelector("#L11-1-btn");
+const dispored = L11.querySelector("#L11dispo-red");
+const dispo1 = L11.querySelector("#L11dispo-2");
+const dispoRTD = L11.querySelector("#L11dispo-RTD");
+if(L11red.checked == true){
+    console.log("it works");
+    L11.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    L11.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(L11c1.checked == true){
+      L11.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        L11.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyL12() {
+const L12red = L12.querySelector("#L12-redbtn");
+const L12c1 = L12.querySelector("#L12-1-btn");
+const dispored = L12.querySelector("#L12dispo-red");
+const dispo1 = L12.querySelector("#L12dispo-2");
+const dispoRTD = L12.querySelector("#L12dispo-RTD");
+if(L12red.checked == true){
+    console.log("it works");
+    L12.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    L12.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(L12c1.checked == true){
+      L12.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        L12.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyM1() {
+const M1red = M1.querySelector("#M1-redbtn");
+const M1c1 = M1.querySelector("#M1-1-btn");
+const dispored = M1.querySelector("#M1dispo-red");
+const dispo1 = M1.querySelector("#M1dispo-2");
+const dispoRTD = M1.querySelector("#M1dispo-RTD");
+if(M1red.checked == true){
+    console.log("it works");
+    M1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    M1.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(M1c1.checked == true){
+      M1.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        M1.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
+function justifyM2() {
+const M2red = M2.querySelector("#M2-redbtn");
+const M2c1 = M2.querySelector("#M2-1-btn");
+const dispored = M2.querySelector("#M2dispo-red");
+const dispo1 = M2.querySelector("#M2dispo-2");
+const dispoRTD = M2.querySelector("#M2dispo-RTD");
+if(M2red.checked == true){
+    console.log("it works");
+    M2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')}); 
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
+}else{
+    M2.querySelectorAll('.dispobox').forEach(el => {
+      el.classList.remove('open')});
+    if(M2c1.checked == true){
+      M2.querySelectorAll('.dispobox').forEach(el => {
+        el.classList.remove('open')});
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
+
+    }else{
+        M2.querySelectorAll('.dispobox').forEach(el => {
+          el.classList.remove('open')});
+          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
+          }
+        }
+      }
