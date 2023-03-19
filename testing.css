@@ -396,14 +396,13 @@ body{
   }
 .complaint-box ul{
   margin-top: 0;
-
+  list-style: none;
 }
 
-.complaint-box li:hover {
-    background: rgba(255,255,255,0.2);
-    color: #fff;
-    border-radius: 8px;
+.complaint-box ul li{
+  list-style: none;
 }
+
 .category-box{
   width: 100%;
   height: 100%;
