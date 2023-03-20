@@ -230,14 +230,14 @@ const
   A1ACT3 = [],  
   A1DP1 = ["DP2. 4 questions that look at the chance of having a Group A Streptococcal (GAS) infection. If 3 of the questions are positive, there is 32% chance of having GAS and a rapid antigen test (RADT) should be performed. The RADT is effective for ruling out GAS in adults but some Soldiers with GAS are missed. Culture test is performed when the RADT is negative and Soldiers or their contacts are at higher risk for complications from a GAS infection. Culture generally takes 24-48 hours for the results to return."],
   A1DP2 = ["Other protocols. Sore throat and hoarseness that are associated with a virus should be treated with minor-care. The other symptoms should be treated according to their associated protocols.","MCP for sore throat. A sore throat is often due to a viral infection. Minor-care consist of pain control, measures to decrease inflammation, getting plenty of rest and drinking plenty of fluids (water). Return for signs of the infection getting worse or progressing.","MCP for hoarseness. Hoarseness is often due to a virus or irritant. Minor-care consists of resting the vocal cords and avoidance of irritants (cigarette smoking, yelling, heartburn, post-nasal drip). This is a good opportunity to discuss the negative effects of tobacco use and encourage the Soldier to quit using tobacco, if applicable."],
-  A1DP3 = [],
+  A1DP3 = ["Other protocols. Sore throat and hoarseness that are associated with a virus should be treated with minor-care. The other symptoms should be treated according to their associated protocols.","MCP for sore throat. A sore throat is often due to a viral infection. Minor-care consist of pain control, measures to decrease inflammation, getting plenty of rest and drinking plenty of fluids (water). Return for signs of the infection getting worse or progressing.","MCP for hoarseness. Hoarseness is often due to a virus or irritant. Minor-care consists of resting the vocal cords and avoidance of irritants (cigarette smoking, yelling, heartburn, post-nasal drip). This is a good opportunity to discuss the negative effects of tobacco use and encourage the Soldier to quit using tobacco, if applicable."],
   A1DP4 = [],
   A1DPRE = ["DP3.  CENTOR score < 2 low risk of strep throat, screen other symptoms if present"],
   A1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” One-sided severe sore throat with fever, trouble swallowing as shown by drooling, uvula displacement, hoarseness (hot potato voice), trismus (lock jaw), and enlarged, tender tonsils are signs of a deep neck space infection like a peritonsillar abscess. Shortness of breath and stridor are signs of upper airway obstruction due to severe pharyngeal inflammation.","DP1. Symptoms greater than 10 days, immunosuppression, inhaled steroid medications are related to diseases that are unlikely to go away without treatment. Hoarseness longer than 2 weeks requires a full laryngeal exam."],
   A1PRO = ["MCP sore throat: For pain: lozenge first line, ibuprofen second line, for elevated temperature: acetaminophen, salt water gargles and drink warm fluids for inflammation","MCP hoarseness: rest vocal cords and avoid irritants (cigarette smoking, yelling, heartburn","Return if not improving in 3 days or immediately if worsening symptoms or red flags (above)."],
-  A1LIMITATIONS = [],
-  A1GEN = ["pg. 19-20: A sore throat is often due to a viral infection. Bacterial infections and other causes need to also be considered."],
-  A1MEDCOM = ["Obtain a Throat Culture", "pg. 68","(13)"],
+  A1LIMITATIONS = ["None"],
+  A1GEN = ["pg. 19-20:","A sore throat is often due to a viral infection. Bacterial infections and other causes need to also be considered."],
+  A1MEDCOM = ["Obtain a Throat Culture pg. 68(13)"],
   A1STP1 = ["Subject Area 6: Primary Care. Perform a head, eyes, ears, nose, and throat (HEENT) Exam. 081-833-0254", "Subject Area 6: Primary Care. Provide Care for Common Throat Infections. 081-833-0243","Subject Area 15: Primary Care (SL2). Obtain a Throat Culture. 081-833-0248"],
 
 
@@ -250,10 +250,10 @@ const
   A2DP3 = ["Mild otitis externa, temporal-mandibular joint (TMJ) dysfunction, and ear pain with normal exam should be treated with minor-care.","MCP for otitis externa. Soak wick of a cotton ball wick with OTC ear drops. Place in the ear for 24 hours while using the drops. Remove the cotton wick and continue drops for 1 week (3 days after the symptoms have resolved). Keep the ear canal dry. Use OTC ibuprofen as needed for pain. Return to clinic if not resolved in 1 week or worsening symptoms to include pain or fever.","MCP for TMJ is another common cause of pain around the ear. Evaluation includes seeing if the pain increases with opening and closing the jaw while placing the finger on the anterior inside of the ear to feel the joint. Ensure pain is not related to the heart. Use OTC ibuprofen for inflammation and pain. Refer to dental if history of teeth grinding. Instruct on avoidance of triggers (excessive chewing, chewing gum). Home therapy is jaw isometric exercises: jaw is open 1 inch and jaw is pushed 1) down against a loosely fisted hand and 2) forward against a hand for 5 seconds each, each set is repeated 5 times per session with 3 sessions per day. Return if not improving within three days."],
   A2DP4 = [],
   A2DPRE = ["DP3. Evaluate for cold symptoms and sore throat that can be associated with ear pain with their respective protocols."],
-  A2DPRED = [],
+  A2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” A stiff neck and fever are signs of meningitis, and all Soldiers with signs of meningitis should be seen by a privileged provider as soon as possible. Mastoid symptoms can be a sign of mastoiditis.","DP1. Signs of infection. All Soldiers with otitis media or moderate to severe otitis externa should be evaluated by a privileged provider to be considered for antibiotics."],
   A2PRO = ["MCP for Mild Otitis Externa: Soak wick of a cotton ball with ear drops. Place in the ear for 24 hours while using the drops. Remove the cotton wick and continue drops for 1 week (3 days after the symptoms have resolved). Keep the ear canal dry","MCP for TMJ: Refer to dental if history of teeth grinding, ibuprofen as needed for pain, instruct on avoidance of triggers and home jaw exercises.","Return if not improving in 3 days, worsening symptoms, dizziness, loss of hearing, stiff neck."],
   A2LIMITATIONS = ["Otitis Externa: Avoidance of situations requiring utilization of ear plugs, No swimming","Eustachian Tube Dysfunction: No scuba diving"],
-  A2GEN = ["pg 21-22"],
+  A2GEN = ["pg. 21-22"],
   A2MEDCOM = ["Administer Otic Medications pg.67 (3)(b)"],
   A2STP1 = ["Subject Area 6: Primary Care. Perform a HEENT Exam. 081-833-0254"," Subject Area 6: Primary Care. Provide Treatment for Common Ear Infections. 081-833-0241 ","Subject Area 18: Medication Administration. Administer Ear Medications. 081-833-0020"],
 
@@ -267,10 +267,10 @@ const
   A3DP3 = ["Most upper respiratory tract infection symptoms which include sore throat and ear pain are caused by a virus or allergies and do not require antibiotics. Minor-care is focused on improving the symptoms that the Soldier is having while the issue resolves on its own.","MCP Cold: Counsel the Soldier to drink plenty of fluids and rest, cover their mouth when they cough and wash hands to prevent spread.","Ibuprofen for pain, acetaminophen for elevated temperature, decongestant for nasal congestion, guaifenesin for mucous, or antihistamine for allergies","Return to clinic if not improving within 1 week, worsening symptoms, fever, new sinus pain, lightheadedness, or pain in the neck."],
   A3DP4 = [],
   A3DPRE = [],
-  A3DPRED = ["Red Flags: If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”","Shortness of breath and abnormal pulse oxygenation suggest respiratory compromise. The soldier should be immediately started on oxygen pending further evaluation.", "Fever with a stiff neck suggests meningitis.", "Quick Sequential (sepsis-related) Organ Failure Assessment (qSOFA) is comprised of a respiratory rate greater than 21, systolic blood pressure less than 101, and Glasgow coma scale less than 15.", "Coughing up blood clots or quarter sized amounts of blood can be a sign of bleeding within the lungs."],
+  A3DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Shortness of breath and abnormal pulse oxygenation suggest respiratory compromise. The soldier should be immediately started on oxygen pending further evaluation. Fever with a stiff neck suggests meningitis. Quick Sequential (sepsis-related) Organ Failure Assessment (qSOFA) is comprised of a respiratory rate greater than 21, systolic blood pressure less than 101, and Glasgow coma scale less than 15. Coughing up blood clots or quarter sized amounts of blood can be a sign of bleeding within the lungs.","DP1. Soldier with an ongoing productive cough may be contagious and needs to be evaluated for quarters. Viral symptoms that are improving and then get worse or onset of severe pain over the cheekbones/back upper teeth (sinuses) can be a sign of a sinus problem requiring prescription medications."],
   A3PRO = ["MCP for Cold: Counsel the Soldier to drink plenty of fluids, get plenty of rest, and to cover their mouth when coughing and wash their hands to prevent spread.","Stop or limit smoking.","Ibuprofen for pain, Acetaminophen for elevated temperature, decongestant for nasal congestion, guaifenesin for mucous, or antihistamine for allergies","Return if it does not improve in 7 days, worsening symptoms, develop sinus pain, lightheaded, neck pain, or fever."],
   A3LIMITATIONS = ["Consider quarters/ contagious precautions while febrile"],
-  A3GEN = ["pg. 23-24: If a Soldier states that they have a cold, determine what complaint to screen by asking, “What do you mean by a cold?” If his/her complaint can be screened by another protocol, use that protocol."],
+  A3GEN = ["pg. 23-24:","If a Soldier states that they have a cold, determine what complaint to screen by asking, “What do you mean by a cold?” If his/her complaint can be screened by another protocol, use that protocol."],
   A3MEDCOM = ["Administer Antihistamines pg.67 (3)(j)","Administer Allergy Shots/Skin Testing pg.67 (2)","Provide Oxygen pg.69 (2)(h)"],
   A3STP1 = ["Subject Area 6: Primary Care. Perform a HEENT Exam. 081-833-0254","Subject Area 6: Primary Care. Provide Treatment for Sinus Infections. 081-833-0242","Subject Area 6: Primary Care. Provide Care for Common Throat Infections. 081-833-0243","Subject Area 6: Primary Care. Provide Care for Common Respiratory Disorders. 081-833-0245"],
 
@@ -285,7 +285,7 @@ const
   A4DPRE = ["DP3. If the ringing noise is an associated symptom of a cold or flu, it should be screened by the protocol that addresses that primary complaint. Ringing in the ears, if without loss of balance, is not uncommon especially following recent exposure to loud noises from situations such as weapons firing or riding in mechanized vehicles or aircraft. Generally, the ringing in the ears associated with such noises subsides within 24 hours, but may persist in persons who have long histories of exposure. Further examination is indicated in the absence of exposure to excessive noise or for symptoms lasting longer than 24 hours. Ringing in the ears, if without loss of balance, can be associated with certain medications such as aspirin, nonsteroidal anti-inflammatory agents, some diuretics, etc. It is also important to check for hearing on the follow-up visit."],
   A4DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Altered mental status is a sign of a more serious underlying problem. Ear trauma can also result in a concussion that needs to be evaluated further. Focal neurological symptom/sign require further evaluation."],
   A4PRO = ["Ringing sound after exposure to excessive noise exposure should resolve within 24 hours","Return to clinic if the ringing does not resolve after 24 hours.","Return if associated with dizziness (spinning sensation) or worsening symptoms"],
-  A4LIMITATIONS = ["Avoid loud noise exposure"],
+  A4LIMITATIONS = ["Avoid loud noise exposure x 48 hours"],
   A4GEN = ["pg. 25-26"],
   A4MEDCOM = ["Administer Otic Medications pg.67 (3)(b) "],
   A4STP1 = ["Subject Area 6: Primary Care. Perform a HEENT Exam. 081-833-0254","Subject Area 6: Primary Care. Provide Treatment for Common Ear Infections. 081-833-0241","Subject Area 15: Primary Care. Irrigate an Obstructed Ear. 081-833-0059 ","Subject Area 18: Medication Administration. Administer Ear Medications. 081-833-0020"],
@@ -295,14 +295,14 @@ const
   A5ACT2 = [],
   A5ACT3 = [],
   A5DP1 = ["DP2. Soldiers who have had trauma to the nose with an associated nosebleed require further screening. ","A misaligned broken nose can affect the upper airway and increase the risk of future sinus infections. Other injuries can be associated with the force that caused the trauma and nosebleed. ","Nosebleed while on anticoagulants can make it more difficult to stop a nosebleed and be a sign that the anticoagulation level is too high. ","Purulent discharge can be related to a retained foreign body or a concurrent infection that requires additional treatment. ","Recurrent nosebleeds not associated with a cold can be a sign of a bleeding disorder."],
-  A5DP2 = ["DP3. Cold symptoms often result in nosebleeds from recurrent blowing of the nose, rubbing the nose with a tissue after blowing it, picking the nose from congestion, and prominent blood vessels from allergies or inflammation. ","Soldiers with symptoms of runny nose, congestion, or allergies should be screened with the cold symptoms protocol."],
+  A5DP2 = [],
   A5DP3 = ["MCP Nosebleed. Once the bleeding is controlled, tell the Soldier to avoid vigorous blowing of the nose. If the room air is dry a humidifier or vaporizer often helps. Instruct the Soldier to return for medical assistance if the bleeding recurs and is not able to be controlled with tilting the head forward and applying external pressure with the thumb and index finger for 5 minutes or if the amount of blood lost at one time is enough to soak a wash cloth (ask the Soldier to bring in his wash cloth). ","Saline nasal spray can be used to prevent future nosebleeds if the air is dry after the initial nosebleed has resolved. ","Decongestant (Oxymetazoline) can be used to constrict the blood vessels."],
   A5DP4 = [],
-  A5DPRE = [],
-  A5DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Orthostatic hypotension is a sign of volume depletion and can represent a significant amount of blood loss.","Action1. Nosebleeds normally result from the rupture of small blood vessels inside the nose related to mucosal trauma (nose picking) or irritation (dry climate, blowing nose). 90% occur in the front of septum in the nose and can be controlled by applying external pressure.","If the bleeding does not stop, then the nosebleed likely is coming from the back of the nose and needs to be controlled by a privileged provider."],
+  A5DPRE = ["DP3. Cold symptoms often result in nosebleeds from recurrent blowing of the nose, rubbing the nose with a tissue after blowing it, picking the nose from congestion, and prominent blood vessels from allergies or inflammation. ","Soldiers with symptoms of runny nose, congestion, or allergies should be screened with the cold symptoms protocol."],
+  A5DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Orthostatic hypotension is a sign of volume depletion and can represent a significant amount of blood loss.","Action1. Nosebleeds normally result from the rupture of small blood vessels inside the nose related to mucosal trauma (nose picking) or irritation (dry climate, blowing nose). 90% occur in the front of septum in the nose and can be controlled by applying external pressure. If the bleeding does not stop, then the nosebleed likely is coming from the back of the nose and needs to be controlled by a privileged provider."],
   A5PRO = ["Do not blow the nose vigorously or wipe the middle of the nose, as it can cause a nosebleed.","Medications: nasal saline for prevention if the air is dry, oxymetazoline if recurrent with nasal sx.","Humidifier can also be used if the air is dry.","Return if unable to get a recurrent nosevleed to stop, notice bleeding from other sites, feeling lightheaded or tired, losing a significant amount of blood, or recurrent without common cold sx."],
   A5LIMITATIONS = [],
-  A5GEN = ["pg. 27-28: Nosebleeds normally result from the rupture of small blood vessels inside the nose related to mucosal trauma (nose picking) or irritation (dry climate, blowing nose). 90% occur in the front of septum in the nose and can be controlled by applying external pressure. If the bleeding does not stop, then the nosebleed likely is coming from the back of the nose and needs to be controlled by a privileged provider."],
+  A5GEN = ["pg. 27-28: ","Nosebleeds normally result from the rupture of small blood vessels inside the nose related to mucosal trauma (nose picking) or irritation (dry climate, blowing nose). 90% occur in the front of septum in the nose and can be controlled by applying external pressure. If the bleeding does not stop, then the nosebleed likely is coming from the back of the nose and needs to be controlled by a privileged provider."],
   A5MEDCOM = ["N/A"],
   A5STP1 = ["Subject Area 6: Primary Care. Perform a HEENT Exam. 081-833-0254"],
   
@@ -310,15 +310,15 @@ const
   B1ACT1 = [],
   B1ACT2 = [],
   B1ACT3 = [],
-  B1DP1 = ["If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”","Back pain associated with pain, numbness, or tingling running down into the legs may represent central or peripheral nerve impingement and requires further evaluation.", "Refer to a physical therapist if direct referral is available locally"],
-  B1DP2 = ["MCP Low back pain (LBP). LBP is extremely common in Soldiers. The best treatment is conservative measures including a home exercise program for mobilization and strengthening, ice and heat as needed for inflammation, and pain control with analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain. Follow established local protocols for home exercise that focus on stretching the lower back and hamstrings multiple times per day, strengthening the core muscles daily, and pain control as needed. Often obesity is a factor in low back pain and Soldiers should be encouraged to lose weight. Instruct the Soldier to seek medical assistance if pain becomes severe enough to prevent performance of normal duties/activities, worsening of other symptoms, symptoms last longer than one week. If direct access to physical therapy (physical therapy sick call) is available, consider direct referral to physical therapy in accordance with local policy."],
+  B1DP1 = ["DP2. Back pain associated with pain, numbness, or tingling running down into the legs may represent central or peripheral nerve impingement and requires further evaluation. Refer to a physical therapist if direct referral is available locally."],
+  B1DP2 = ["MCP Low back pain (LBP). LBP is extremely common in Soldiers. The best treatment is conservative measures including a home exercise program for mobilization and strengthening, ice and heat as needed for inflammation, and pain control with analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain. Follow established local protocols for home exercise that focus on stretching the lower back and hamstrings multiple times per day, strengthening the core muscles daily, and pain control as needed. Often obesity is a factor in low back pain and Soldiers should be encouraged to lose weight. Instruct the Soldier to seek medical assistance if pain becomes severe enough to prevent performance of normal duties/activities, worsening of other symptoms, symptoms last longer than one week. ","If direct access to physical therapy (physical therapy sick call) is available, consider direct referral to physical therapy in accordance with local policy."],
   B1DP3 = [],
   B1DP4 = [],
   B1DPRE = [],
-  B1DPRED = ["If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”"],
+  B1DPRED = ["Red Flags/DP1. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”","DP1. A focused history and physical exam is essential to localizing a Soldier’s complaint of back pain and identifying its source. The HPI should include an OPQRST evaluation of the complaint and the ROS should specifically address red flag symptoms as well as questions related but not limited to infection, trauma, cardiopulmonary, gastrointestinal, and genitourinary, or gynecological complaints."],
   B1PRO = ["Provide home exercise program, activity modification as appropriate","Intermittent ice or heat IAW local protocol for inflammation","Medication: analgesic balm for mild pain, Ibuprofen (1st line) and Ketorolac (2nd line) for moderate pain as needed","Refer to PT if direct access is available","Follow-up: Immediate follow-up for a DP1 or DP2 symptoms. Routine follow-up is recommended for any symptoms that do not improve or worsen"],
   B1LIMITATIONS = ["No repetitive bending or lifting but may lift/ carry up to 40lbs", "Perform stretching, core strengthening home regiment during PT", "No ruck marching, running, or jumping but may walk, bike, or swim for cardio"],
-  B1GEN = ["pg. 29-30: A focused history and physical exam is essential to localizing a Soldier’s complaint of back pain and identifying its source. The HPI should include an OPQRST evaluation of the complaint and the ROS should specifically address red flag symptoms as well as questions related but not limited to infection, trauma, cardiopulmonary, gastrointestinal, and genitourinary, or gynecological complaints."],
+  B1GEN = ["pg. 29-30: ","A focused history and physical exam is essential to localizing a Soldier’s complaint of back pain and identifying its source. The HPI should include an OPQRST evaluation of the complaint and the ROS should specifically address red flag symptoms as well as questions related but not limited to infection, trauma, cardiopulmonary, gastrointestinal, and genitourinary, or gynecological complaints."],
   B1MEDCOM = ["Initial Management of Fractures/Spinal Injury. pg.69 (2)(d)"],
   B1STP1 = ["Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222"],
 
@@ -334,23 +334,23 @@ const
   B2DPRED = ["Bony step off and midline tenderness can be signs of a vertebral fracture.","Inability to flex the neck can be a sign of meningitis or fracture. ","Recent head, eyes, ears, nose, and throat (HEENT) or dental infection can have progressed to a more serious infection. ","Action 1. In the setting of trauma, immobilize the head and neck and support ABCs as required, then transfer care to a privileged provider."],
   B2PRO = ["Provide home exercise program. Activity modification as appropriate.","Intermittent ice or heat as needed for inflammation.","Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain as needed.","Refer to PT if direct access is available.","Follow-up: Immediate follow-up for a DP1 or DP2 symptoms. ","Routine follow-up is recommended for any symptoms that do not improve or worsen"],
   B2LIMITATIONS = ["No rucking or jumping","Consider limiting Kevlar use","Restrict driving if limited ROM","Perform stretching, core strengthening home regiment during PT"],
-  B2GEN = ["pg. "],
-  B2MEDCOM = [""],
-  B2STP1 = [""],
+  B2GEN = ["pg. 31-32"],
+  B2MEDCOM = ["Initial Management of Fractures/Spinal Injury pg.69(2)(d)"],
+  B2STP1 = ["Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders 081-833-0222","Subject Area 3: Trauma Treatment. Initiate Treatment for Neck Wounds 081-833-0091","Subject Area 3: Trauma Treatment. Apply a Cervical Collar 081-833-0177","Subject Area 3: Trauma Treatment. Apply a Long Spine Board 081-833-0181"],
   
 //B3
   B3ACT1 = ["Immobilize the injured extremity before transport or referral"],
   B3ACT2 = ["Immobilize the injured extremity before transport or referral"],
   B3ACT3 = [],
-  B3DP1 = ["DP 1. The red flags indicate a medical emergency. ","Immobilize the affected extremity prior to transport if associated with trauma. ","Immediately refer shoulder pain associated with cardiac symptoms (sweating, shortness of breath, chest or jaw pain/ pressure).","A red, warm, swollen joint or pain with fever can be a sign of an infected joint requiring immediate surgical evaluation. ","Abdominal symptoms suggest an extrinsic cause requiring evaluation"],
-  B3DP2 = ["DP2. Neurologic symptoms (numbness, weakness) suggest nerve impingement. ","Limited motion suggests a more significant injury that should be placed in a sling and require further evaluation. ","Laceration may require closure."],
-  B3DP3 = ["for mobilization and strengthening and analgesics as needed. A temporary profile may be required. Instruct the Soldier to work the injured shoulder through its range of motion (but not vigorous enough to cause pain) at least twice each day to preserve mobility after a 20-minute application of ice. Follow established local protocols for home exercise. Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain. Instruct the Soldier to seek medical assistance if pain becomes severe enough to prevent performance of normal duties/activities, worsening of other symptoms, symptoms last longer than one week. Refer to PT if direct access to physical therapy (physical therapy sick call) is available, in accordance with local policy."],
+  B3DP1 = ["DP2. Neurologic symptoms (numbness, weakness) suggest nerve impingement. Limited motion suggests a more significant injury that should be placed in a sling and require further evaluation. Laceration may require closure."],
+  B3DP2 = ["MCP. The best treatment is conservative measures including a home exercise program for mobilization and strengthening and analgesics as needed. A temporary profile may be required. Instruct the Soldier to work the injured shoulder through its range of motion (but not vigorous enough to cause pain) at least twice each day to preserve mobility after a 20-minute application of ice. Follow established local protocols for home exercise. Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain. Instruct the Soldier to seek medical assistance if pain becomes severe enough to prevent performance of normal duties/activities, worsening of other symptoms, symptoms last longer than one week.","Refer to PT if direct access to physical therapy (physical therapy sick call) is available, in accordance with local policy."],
+  B3DP3 = [],
   B3DP4 = [],
   B3DPRE = [],
-  B3DPRED = ["Red Flags: If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” ","Abnormal distal pulse or sensation in the setting of trauma is a medical emergency require immediate evaluation. ","Deformity can be a dislocated shoulder or fracture. ","Myocardial infarction can be associated with shoulder pain."],
+  B3DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Abnormal distal pulse or sensation in the setting of trauma is a medical emergency require immediate evaluation. Deformity can be a dislocated shoulder or fracture. Myocardial infarction can be associated with shoulder pain.","DP 1. The red flags indicate a medical emergency. Immobilize the affected extremity prior to transport if associated with trauma. Immediately refer shoulder pain associated with cardiac symptoms (sweating, shortness of breath, chest or jaw pain/ pressure). A red, warm, swollen joint or pain with fever can be a sign of an infected joint requiring immediate surgical evaluation. Abdominal symptoms suggest an extrinsic cause requiring evaluation."],
   B3PRO = ["Provide home exercise program. Activity modification as appropriate","Intermittent ice or heat for inflammation","Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain as needed","Refer to PT if direct access is available","Follow-up: Immediate follow-up for a DP1 or DP2 symptoms. Routine follow-up is recommended for any symptoms that do not improve or worsen."],
   B3LIMITATIONS = ["May lift, push, pull up to 5 lbs","No overhead lifting or repetitive activities","Perform stretching, core strengthening home regiment during PT"],
-  B3GEN = ["Pg. 33-34: Anterolateral shoulder pain worsened by reaching overhead can be related to impingement syndrome, AC joint pathology, or rotator cuff injury. Posterior shoulder pain could be from rotator cuff injury, gallbladder, spleen, or neck."],
+  B3GEN = ["Pg. 33-34: ","Anterolateral shoulder pain worsened by reaching overhead can be related to impingement syndrome, AC joint pathology, or rotator cuff injury. Posterior shoulder pain could be from rotator cuff injury, gallbladder, spleen, or neck."],
   B3MEDCOM = ["Initial Management of Fractures/Spinal Injury. pg.69 (2)(d)"],
   B3STP1 = ["Subject Area 7: Musculoskeletal. Perform an Examination of the Shoulder. 081-833-0269", "Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222"],
 
@@ -359,15 +359,15 @@ const
   B4ACT1 = ["Immobilize the injured extremity before transport or referral"],
   B4ACT2 = [],
   B4ACT3 = [],
-  B4DP1 = ["DP 1: Immobilize the affected extremity prior to transport if associated with trauma. A red, warm, swollen joint or pain with fever can be a sign of an infected joint requiring immediate surgical evaluation. Diffuse pain that involves multiple joints or muscles may represent a systemic cause and requires further evaluation.","DP2: Limited ROM and swelling may represent an issue within the joint requiring further evaluation. Neck and shoulder issues may refer pain to the elbow. Ulnar nerve pain may be referred to the ulnar side of the forearm, hand, pinky, and ring finger area."],
-  B4DP2 = ["MCP. The best treatment is conservative measures including a home exercise program for mobilization and strengthening and analgesics as needed. ","A temporary profile may be required. ","Instruct the Soldier to work the injured elbow through its range of motion at least twice each day to preserve mobility. This should ideally be done after a 20-minute application of ice. ","The range of motion exercise should not be vigorous enough to cause pain. Follow established local protocols for home exercise. ","Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain. ","Instruct the Soldier to seek medical assistance if pain becomes severe enough to prevent performance of normal duties/activities, worsening of other symptoms, symptoms last longer than one week. ","If direct access to physical therapy (physical therapy sick call) is available, consider direct referral to physical therapy in accordance with local policy."],
+  B4DP1 = ["DP2. Limited ROM and swelling may represent an issue within the joint requiring further evaluation. Neck and shoulder issues may refer pain to the elbow. Ulnar nerve pain may be referred to the ulnar side of the forearm, hand, pinky, and ring finger area."],
+  B4DP2 = ["MCP. The best treatment is conservative measures including a home exercise program for mobilization and strengthening and analgesics as needed. A temporary profile may be required. Instruct the Soldier to work the injured elbow through its range of motion at least twice each day to preserve mobility. This should ideally be done after a 20-minute application of ice. The range of motion exercise should not be vigorous enough to cause pain. Follow established local protocols for home exercise. Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain. Instruct the Soldier to seek medical assistance if pain becomes severe enough to prevent performance of normal duties/activities, worsening of other symptoms, symptoms last longer than one week.","If direct access to physical therapy (physical therapy sick call) is available, consider direct referral to physical therapy in accordance with local policy."],
   B4DP3 = [],
   B4DP4 = [],
   B4DPRE = [],
-  B4DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” ","Abnormal distal pulse or sensation in the setting of trauma is a medical emergency requiring immediate evaluation."],
+  B4DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Abnormal distal pulse or sensation in the setting of trauma is a medical emergency requiring immediate evaluation.","DP 1. Immobilize the affected extremity prior to transport if associated with trauma. A red, warm, swollen joint or pain with fever can be a sign of an infected joint requiring immediate surgical evaluation. Diffuse pain that involves multiple joints or muscles may represent a systemic cause and requires further evaluation."],
   B4PRO = ["Provide home exercise program. Activity modification as appropriate","Intermittent ice or heat for inflammation","Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain as needed","Refer to PT if direct access is available","Follow-up: Immediate follow-up for a DP1 or DP2 symptoms. Routine follow-up is recommended for any symptoms that do not improve or worsen."],
   B4LIMITATIONS = ["May lift, push, pull up to 5 lbs","No repetitive bending of elbow or turning/ bending of wrist","Perform stretching, core strengthening home regiment during PT"],
-  B4GEN = ["Pg. 35-36: Elbow joint is formed by the connection of the distal humerus and the proximal radius (radial head). Epicondyles are bony prominences on the medial and lateral side of the distal humerus and are the site tendon attachment for muscles of the lower arm. Lateral elbow pain may represent tennis elbow, radiohumeral joint pain, or referred pain."],
+  B4GEN = ["Pg. 35-36: ","Elbow joint is formed by the connection of the distal humerus and the proximal radius (radial head). Epicondyles are bony prominences on the medial and lateral side of the distal humerus and are the site tendon attachment for muscles of the lower arm. Lateral elbow pain may represent tennis elbow, radiohumeral joint pain, or referred pain."],
   B4MEDCOM = ["Initial Management of Fractures/Spinal Injury. pg.69 (2)(d)"],
   B4STP1 = ["Subject Area 7: Musculoskeletal. Perform an Examination of the Elbow. 081-833-0270","Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222"],
 
@@ -380,10 +380,10 @@ const
   B5DP3 = [],
   B5DP4 = [],
   B5DPRE = [],
-  B5DPRED = ["Red Flags: If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” ","Abnormal distal pulse or sensation in the setting of trauma is a medical emergency requiring immediate evaluation.","DP 1: In the setting of trauma, the red flags are an indicator of a medical emergency. Immobilize the affected extremity prior to transport. A red, warm, swollen joint or pain with fever can be a sign of an infected joint requiring immediate surgical evaluation. Trauma and Pain without recent trauma or overuse injury may represent a systemic problem to include rheumatoid arthritis or Lyme disease."],
+  B5DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Abnormal distal pulse or sensation in the setting of trauma is a medical emergency requiring immediate evaluation.","DP 1. In the setting of trauma, the red flags are an indicator of a medical emergency. Immobilize the affected extremity prior to transport. A red, warm, swollen joint or pain with fever can be a sign of an infected joint requiring immediate surgical evaluation. Trauma and Pain without recent trauma or overuse injury may represent a systemic problem to include rheumatoid arthritis or Lyme disease."],
   B5PRO = ["Provide home exercise program. Activity modification as appropriate","Intermittent ice or heat for inflammation","Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain as needed","Refer to PT if direct access is available","Follow-up: Immediate follow-up for a DP1 or DP2 symptoms. Routine follow-up is recommended for any symptoms that do not improve or worsen."],
   B5LIMITATIONS = ["May lift, push, pull up to 5 lbs","May wrap or wear a brace for comfort","No repetitive bending of wrist","Perform stretching, core strengthening home regiment during PT"],
-  B5GEN = ["Pg. 37-38: Wrist pain usually occurs from trauma or overuse. Falling on an outstretched hand can result in a scaphoid (falling forward) or lunate/ triquetrum (falling back) injury. Ulnar side of wrist may involve tendinopathy, triangular fibrocartilage complex injury, or fracture. Radial side of wrist may involve tendinopathy, ligamentous injury, or fracture. Dorsal pain may involve a wrist sprain or fracture. Volar pain may involve fracture, ganglion, or carpal tunnel syndrome."],
+  B5GEN = ["Pg. 37-38: ","Wrist pain usually occurs from trauma or overuse. Falling on an outstretched hand can result in a scaphoid (falling forward) or lunate/ triquetrum (falling back) injury. Ulnar side of wrist may involve tendinopathy, triangular fibrocartilage complex injury, or fracture. Radial side of wrist may involve tendinopathy, ligamentous injury, or fracture. Dorsal pain may involve a wrist sprain or fracture. Volar pain may involve fracture, ganglion, or carpal tunnel syndrome."],
   B5MEDCOM = ["Initial Management of Fractures/Spinal Injury. pg.69 (2)(d)"],
   B5STP1 = ["Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222","Subject Area 7: Musculoskeletal. Perform an Examination of the Wrist. 081-833-0273"],
 
@@ -400,7 +400,7 @@ const
   B6DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Abnormal distal pulse or sensation in the setting of trauma is a medical emergency requiring immediate evaluation. Significant burns of the hands are considered high risk and should be evaluated for referral to a burn center.","DP 1. The red flags are an indication of a medical emergency. In the setting of trauma, immobilize the affected extremity prior to transport. Crush injuries and history of punching something are common causes of fractures requiring further evaluation."],
   B6PRO = ["Paronychia: 10-15min warm soaks 3 times per day and topical antibiotic cream after each soak. Ibuprofen (1st line) or acetaminophen (2nd line) as needed for pain. Ketorolac (3rd line) can be used once on presentation for moderate pain. Return if worsening, spreading redness, abscess formation, not improving in 2 days.","Sprained finger: Activity modification as appropriate, Intermittent ice for swelling, ibuprofen (1st line) or acetaminophen (2nd line) as needed for pain. Splint to adjacent finger. Return if worsening or not improving."],
   B6LIMITATIONS = ["Paronychia: Keep area clean and dry","Sprained Finger: May Lift, push, pull up to 5 lbs. May tape or brace comfort. No contact sports"],
-  B6GEN = ["Pg. 39-40: Any deviation of the hand from normal function can result in significant disability. Hand and finger injury are common in Soldiers."],
+  B6GEN = ["Pg. 39-40: ","Any deviation of the hand from normal function can result in significant disability. Hand and finger injury are common in Soldiers."],
   B6MEDCOM = ["Initial Management of Fractures/Spinal Injury. pg.69 (2)(d)"],
   B6STP1 = ["Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222","Subject Area 7: Musculoskeletal. Apply a Rigid Splint. 081-833-0263","Subject Area 7: Musculoskeletal. Apply an Elastic Bandage. 081-833-0264"],
 //B7
@@ -415,7 +415,7 @@ const
   B7DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Abnormal distal pulse or sensation in the setting of trauma is a medical emergency requiring immediate evaluation.","DP1. Significant force of trauma to include car accident can cause a hip fracture. Immobilize the affected extremity prior to transport. Pain with weight bearing or starts after a certain point during exercise can be a sign of a stress injury. Increase in exercise, long endurance training, or recent modification to training can be risk factors of a stress injury. Place the Soldier on crutches with toe touch weight bearing until a bone stress injury is ruled out."],
   B7PRO = ["Provide home exercise program. Activity modification as appropriate","Intermittent ice or heat for inflammation","Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain as needed","Refer to PT if direct access is available"],
   B7LIMITATIONS = ["No running, jumping but may walk up to ¼ mile at own pace/ distance and stand up to 20min","May Lift, carry, push, pull up to 25 lbs","No repetitive lifting from floor","Perform stretching, core strengthening home regiment during PT"],
-  B7GEN = ["pg. 41-42: Lateral pain worse with direct pressure may represent trochanteric bursitis. Anterior hip or groin pain may represent the hip joint injury, fracture (stress fracture), or non-hip issue like inguinal hernia. Femoral stress fractures are more common in initial entry training. They can result in permanent disability if not properly identified and treated."],
+  B7GEN = ["pg. 41-42: ","Lateral pain worse with direct pressure may represent trochanteric bursitis. Anterior hip or groin pain may represent the hip joint injury, fracture (stress fracture), or non-hip issue like inguinal hernia. Femoral stress fractures are more common in initial entry training. They can result in permanent disability if not properly identified and treated."],
   B7MEDCOM = ["Initial Management of Fractures/Spinal Injury. pg.69 (2)(d)"],
   B7STP1 = ["Subject Area 7: Musculoskeletal. Perform an Examination of the Hip. 081-833-0274","Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222","Subject Area 7: Musculoskeletal. Immobilize the Pelvis. 081-833-0266"],
 
@@ -431,7 +431,7 @@ const
   B8DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”","DP 1. In the setting of trauma, deformity with loss of peripheral pulses or sensation is an indication of a medical emergency. High energy trauma to include car accident, skiing injury, or fall from a height should be assumed to have a serious injury until ruled out. Immobilize the affected extremity prior to transport. Red, warm joint could represent inflammation or infection. Swelling immediately after a traumatic event can be a sign of bleeding into the knee joint. Closer the pain and swelling are related to the traumatic event, the more likely there is a significant injury. Lack of an identifiable cause or relation to activity suggests an inflammatory cause that requires further evaluation."],
   B8PRO = ["Provide home exercise program. Activity modification as appropriate","Intermittent ice or heat for inflammation","Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain as needed","Refer to PT if direct access is available","Follow-up: Immediate follow-up for a DP1 or DP2 symptoms. Routine follow-up is recommended for any symptoms that do not improve or worsen."],
   B8LIMITATIONS = ["No running, jumping but may walk up to 1/4 mile at own pace/distance and stand up to 15min","No repetitive squatting but may lift, carry, push, pull up to 25 lbs","Perform stretching, core strengthening home regiment during PT","May wear a brace or wrap"],
-  B8GEN = ["pg. 43-44: Knee pain is a common complaint in Soldiers with a complex differential that includes evaluating for trauma, overuse, swelling, and referred pain."],
+  B8GEN = ["pg. 43-44: ","Knee pain is a common complaint in Soldiers with a complex differential that includes evaluating for trauma, overuse, swelling, and referred pain."],
   B8MEDCOM = ["Initial Management of Fractures/Spinal Injury. pg.69 (2)(d)"],
   B8STP1 = ["Subject Area 7: Musculoskeletal. Perform an Examination of the Knee. 081-833-0268","Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222","Subject Area 7: Musculoskeletal. Apply a Rigid Splint. 081-833-0263","Subject Area 7: Musculoskeletal. Apply an Elastic Bandage. 081-833-0264"],
 
@@ -446,7 +446,7 @@ const
   B9DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”","DP 1. In the setting of trauma, deformity with loss of peripheral pulses or sensation is an indication of a medical emergency. Immobilize the affected extremity prior to transport. If posterior ankle pain, have the Soldier lie on his or her stomach and squeeze the calf. The test is positive if the foot does not plantar flex with squeezing the calf indicative of a possible Achilles tendon rupture. Pain unrelated to overuse or injury could be an inflammatory process requiring further evaluation."],
   B9PRO = ["Provide home exercise program, wrap the ankle, and activity modification as appropriate","Intermittent ice for inflammation. Elevate for swelling","Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain as needed","Refer to PT if direct access is available","Follow-up: Immediate follow-up for a DP1 or DP2 symptoms. Return to clinic if worsening or not improving within 1 week."],
   B9LIMITATIONS = ["No running, jumping, rucking but may walk up to ¼ mile at own pace/ distance and stand up to 20min","May Lift, carry, up to 25 lbs","Limit walking over uneven terraine","Perform stretching, strengthening home regiment during PT","May wear brace or wrap"],
-  B9GEN = ["pg 45-46: Ankle pain is a common complaint in Soldiers from overuse or trauma."],
+  B9GEN = ["pg 45-46: ","Ankle pain is a common complaint in Soldiers from overuse or trauma."],
   B9MEDCOM = ["Initial Management of Fractures/Spinal Injury pg.69 (2)(d) "],
   B9STP1 = ["Subject Area 7: Musculoskeletal. Perform an Examination of the Ankle. 081-833-0272 ","Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222","Subject Area 7: Musculoskeletal. Apply a Rigid Splint. 081-833-0263 ","Subject Area 7: Musculoskeletal. Apply an Elastic Bandage. 081-833-0264"],
 
@@ -461,7 +461,7 @@ const
   B10DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”","DP 1. In the setting of trauma, deformity with loss of peripheral pulses or sensation is an indication of a medical emergency. Immobilize the affected extremity prior to transport. Constant pain can be a sign of a more serious injury. Unrelated to overuse or injury can be a sign of inflammation requiring further evaluation."],
   B10PRO = ["Ingrown Toenail: Soak in soap and water for 20min three times per day. Place cotton under the toenail. Consult provider if toenail removal required (protocol J-18)","Subungual Hematoma: Discuss with supervisor. Treat. Soak in soap and water twice a day for 3 days.","Plantar fasciitis: Home exercise/ stretching program, intermittent ice for inflammation, ibuprofen as needed for pain. Consider activity modification and arch support. Refer to PT if direct access is available","Blisters, Callus (See J-15). Use moleskin. Consider activity modification","Plantar Wart (See J-16). Discuss with supervising provider.","Return to clinif if worsens, new symptoms develop, or not improving within 1 week or interferes with performance of normal duties/ activities."],
   B10LIMITATIONS = ["No running, jumping, rucking but may walk up to ¼ mile at own pace/ distance and stand up to 20min","May Lift, carry, up to 25 lbs","Perform stretching, strengthening home regiment during PT"],
-  B10GEN = ["pg. 47-48: Common anterior foot pains include around the big toe (bunion, sprain, arthritis, sesamoiditis, ingrown toenail, subungual hematoma) and below the 2nd and 3rd metatarsals (metatarsalgia, Morton’s neuroma, and plantar wart)."],
+  B10GEN = ["pg. 47-48: ","Common anterior foot pains include around the big toe (bunion, sprain, arthritis, sesamoiditis, ingrown toenail, subungual hematoma) and below the 2nd and 3rd metatarsals (metatarsalgia, Morton’s neuroma, and plantar wart)."],
   B10MEDCOM = ["Initial Management of Fractures/Spinal Injury pg.69 (2)(d)"],
   B10STP1 = ["Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal. Disorders. 081-833-0222 ","Subject Area 7: Musculoskeletal. Apply a Rigid Splint. 081-833-0263 ","Subject Area 7: Musculoskeletal. Apply and Elastic Bandage. 081-833-0264"],
 
@@ -491,7 +491,7 @@ const
   C1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Vomiting blood/coffee grinds and melena can be signs of an intestinal bleed. Neurologic symptoms can be a sign of increased intracranial pressure. Myocardial infarction can present with nausea.","DP 1. These represent the possibility of more significant underlying medical conditions. A common side effect of chemotherapy treatment is nausea and vomiting that is sometimes difficult to control. BMI less than 18 can be a sign of an eating disorder like bulimia or another significant medical condition. Uncontrolled diabetes and gastroparesis due to diabetes can also present with nausea and vomiting."],
   C1PRO = ["Hand washing protocol. Special food handler precautions.","Notify supervising NCO if DFAC food is suspected or multiple cases identified.","Initiate a clear liquid diet with broth, sports drinks, clear non-caffeine soft drinks, fruit juice. ice chips to maintain calories and hydration. When vomiting controlled, start BRAT diet of simple carbohydrates.","Return to clinic if not improved in 48 hours or any of the red flags or other symptoms develop."],
   C1LIMITATIONS = ["No food handling, if work in a DFAC, until symptoms have resolved x 48 hours"],
-  C1GEN = ["Pg. 51-52: Acute diarrhea in adults are often infectious in nature. The largest risk is due to volume depletion secondary to fluid loss. Small intestine infections often results in large, watery bowel movements associated with cramping, bloating, and gas symptoms. Large intestine infections often results in frequent regular, small bowel movements that are painful and associated with symptoms of mucous, blood, or fever. In general, diarrhea is often self-limited. Note that treatment of the symptoms by decreasing bowel movements frequency may extend the length of the disease."],
+  C1GEN = ["Pg. 51-52: ","Acute diarrhea in adults are often infectious in nature. The largest risk is due to volume depletion secondary to fluid loss. Small intestine infections often results in large, watery bowel movements associated with cramping, bloating, and gas symptoms. Large intestine infections often results in frequent regular, small bowel movements that are painful and associated with symptoms of mucous, blood, or fever. In general, diarrhea is often self-limited. Note that treatment of the symptoms by decreasing bowel movements frequency may extend the length of the disease."],
   C1MEDCOM = ["Administer Antiemetic pg. 67(3)(g)","Obtain Laboratory Specimens pg. 69-70(2)(k)"],
   C1STP1 = ["N/A"],
 
@@ -507,7 +507,7 @@ const
   C2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Nausea/ vomiting blood or coffee grinds and melena can be signs of an intestinal bleeding. Melena is a tar like stool with a very pungent odor resulting from the digestion of blood."],
   C2PRO = ["Medication: bismuth subsalicylate (1st line) as needed, discuss with provider before giving Imodium (2nd line)","Initiate a clear liquid diet with broth, sports drinks, cler non-caffeine soft drinks, fruit juice, ice chips to maintain calories and hydration. When diarrhea controlled, start BRAT diet of simple carbohydrates."],
   C2LIMITATIONS = ["No food handling, if work in a DFAC, until symptoms have resolved x 48 hours", "Must have access to a restroom within 2 minutes"],
-  C2GEN = ["Pg. 53-54: Acute diarrhea in adults are often infectious in nature. The largest risk is due to volume depletion secondary to fluid loss. Small intestine infections often results in large, watery bowel movements associated with cramping, bloating, and gas symptoms. Large intestine infections often results in frequent regular, small bowel movements that are painful and associated with symptoms of mucous, blood, or fever. In general, diarrhea is often self-limited. Note that treatment of the symptoms by decreasing bowel movements frequency may extend the length of the disease."],
+  C2GEN = ["Pg. 53-54: ","Acute diarrhea in adults are often infectious in nature. The largest risk is due to volume depletion secondary to fluid loss. Small intestine infections often results in large, watery bowel movements associated with cramping, bloating, and gas symptoms. Large intestine infections often results in frequent regular, small bowel movements that are painful and associated with symptoms of mucous, blood, or fever. In general, diarrhea is often self-limited. Note that treatment of the symptoms by decreasing bowel movements frequency may extend the length of the disease."],
   C2MEDCOM = ["Obtain Laboratory Specimens pg. 69-70 (2)(k)"],
   C2STP1 = [ "Subject Area 2: Medical Treatment. Initiate Treatment for a Poisoned Casualty. 081-833-0004", "Subject Area 6: Primary Care. Provide Treatment for Abdominal Disorders. 081-833-0239", "Subject Area 16: CBRN. Provide Treatment for a Radiation Casualty. 081-833-0280"],
   
@@ -523,22 +523,22 @@ const
   C3DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Unstable vitals represent a significant health risk. Abdominal rigidity and rebound or significant Soldier discomfort with bumping the Soldier’s stretcher/chair are signs of peritonitis and can represent a surgical abdomen. Level of pain may represent the significance of the underlying disease."],
   C3PRO = ["Initiate hydration with 8 glasses of water per day and a well-balanced, high fiber diet.","Maintain a food diary to see if the symptoms are related to a particular food.","Follow-up in 3 days if the symptoms have not resolved or earlier if symptoms worsenn, new symptoms develop, or red flags become present"],
   C3LIMITATIONS = ["No running, jumping, riding in vehicle over uneven terrain"," Aerobic activity at own pace/ distance", "Abdominal training at own intensity/ rep"],
-  C3GEN = ["pg. 55-56: Abdominal pain is pain between the ribs and groin in the front half of the body. Note that a cardiac problem can cause upper abdominal pain. Pain may be related to the location: right upper quadrant (RUQ) (liver, gallbladder), left upper quadrant (LUQ) (spleen), epigastric (stomach, pancreas, aorta, heart), lower (intestines, urinary tract, hernia, pelvic organs), flank (kidney)."],
+  C3GEN = ["pg. 55-56: ","Abdominal pain is pain between the ribs and groin in the front half of the body. Note that a cardiac problem can cause upper abdominal pain. Pain may be related to the location: right upper quadrant (RUQ) (liver, gallbladder), left upper quadrant (LUQ) (spleen), epigastric (stomach, pancreas, aorta, heart), lower (intestines, urinary tract, hernia, pelvic organs), flank (kidney)."],
   C3MEDCOM = ["Obtain Laboratory Specimens pg. 69-70 (2)(k)"],
   C3STP1 = ["Task Subject Area 6: Primary Care. Provide Treatment for Abdominal Disorders. 081-833-0239"],
 
   C4ACT1 = ["FOBT unless unable to obtain stool sample"],
   C4ACT2 = [],
   C4ACT3 = [],
-  C4DP1 = ["DP 1. Feeling lightheaded and orthostatic hypotension can be signs of significant blood loss. Hemoccult stool test can identify blood in the stool. Blood only on the outside of the stool or toilet paper is more likely to be from a hemorrhoid or anal fissure. If a stool sample cannot be obtained except by a rectal exam, then refer as “Provider Now” for the rectal exam. If a hemoccult stool test is not available, then Soldiers with blood on the outside of the stool or on the toilet paper only should be considered as negative. Blood mixed in with the stool should be treated as positive. If you are unsure, consider it positive."],
-  C4DP2 = ["DP 2. These are symptoms of more concerning disease processes to include cancer with a family history of colon cancer before 45 years old, inflammatory bowel disease, and invasive gastroenteritis."],
+  C4DP1 = ["DP 2. These are symptoms of more concerning disease processes to include cancer with a family history of colon cancer before 45 years old, inflammatory bowel disease, and invasive gastroenteritis."],
+  C4DP2 = ["Hemorrhoids are enlarged veins around the rectum that protrude; get rubbed; and/or become painful from inflammation related to a small clot forming within the vein. Hemorrhoids are not dangerous but can be extremely uncomfortable. A Soldier who has a history of hemorrhoids or anal fissure and then develops similar symptoms likely has a recurrence. Soldier should be instructed on avoiding constipation since it is a common cause of hemorrhoids and anal fissures. Most people with itching (and no other symptoms) do not have a serious disease.","MCP for hemorrhoids and anal fissures. To decrease the amount of irritation, the stool needs to be soft. Advise the Soldier to ensure adequate intake of fluids (8 glasses a day), eat foods high in fiber like bran cereal and fresh fruits and vegetables, and spend less than five minutes on the toilet at a time. Increase fiber slowly as too much fiber at once may cause stomach cramping and gas. Tell the Soldier that the area should be kept clean by washing with warm water and blotting (rather than wiping) dry. Sitting in warm water can improve healing. Polyethylene glycol (1st line) or docusate sodium (2nd line) can be used to help keep the stool soft. Hydrocortisone and pramoxine cream (3rd line) can be used if needed for inflammation and pain. Instruct the Soldier in its use and to return for evaluation if the symptoms worsen, new symptoms develop, or symptoms last longer than one week or recurs."],
   C4DP3 = ["MCP for hemorrhoids and anal fissures. To decrease the amount of irritation, the stool needs to be soft. Advise the Soldier to ensure adequate intake of fluids (8 glasses a day), eat foods high in fiber like bran cereal and fresh fruits and vegetables, and spend less than five minutes on the toilet at a time. Increase fiber slowly as too much fiber at once may cause stomach cramping and gas. Tell the Soldier that the area should be kept clean by washing with warm water and blotting (rather than wiping) dry. Sitting in warm water can improve healing. Polyethylene glycol (1st line) or docusate sodium (2nd line) can be used to help keep the stool soft. Hydrocortisone and pramoxine cream (3rd line) can be used if needed for inflammation and pain. Instruct the Soldier in its use and to return for evaluation if the symptoms worsen, new symptoms develop, or symptoms last longer than one week or recurs."],
   C4DP4 = [],
   C4DPRE = [],
-  C4DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of hemodynamically significant stomach/ intestinal bleeding."],
+  C4DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of hemodynamically significant stomach/ intestinal bleeding.","DP 1. Feeling lightheaded and orthostatic hypotension can be signs of significant blood loss. Hemoccult stool test can identify blood in the stool. Blood only on the outside of the stool or toilet paper is more likely to be from a hemorrhoid or anal fissure. If a stool sample cannot be obtained except by a rectal exam, then refer as “Provider Now” for the rectal exam. If a hemoccult stool test is not available, then Soldiers with blood on the outside of the stool or on the toilet paper only should be considered as negative. Blood mixed in with the stool should be treated as positive. If you are unsure, consider it positive."],
   C4PRO = ["Sit in warm water for 30min a day. Wash the area with warm water and blotting dry to keep clean.","Drink 8 glasses of liquid a day and eat foods high in fiber.","Medication: Polyethylene glycol (1st line) or docusate sodium (2nd line) can be used to soften the stool, and hydrocortisone and pramoxine cream (3rd line) can be used if needed for inflammation and pain","Return to clinic if not improved in 1 week, symptoms worsen, or new symptoms develop."],
   C4LIMITATIONS = [],
-  C4GEN = ["pg. 57-58: Rectal pain, itching, and bleeding are often signs of hemorrhoids or an anal fissure but more serious conditions must be ruled out. Hemorrhoids are enlarged veins around the rectum that protrude; get rubbed; and/or become painful from inflammation related to a small clot forming within the vein. Hemorrhoids are not dangerous but can be extremely uncomfortable. A Soldier who has a history of hemorrhoids or anal fissure and then develops similar symptoms likely has a recurrence. Soldier should be instructed on avoiding constipation since it is a common cause of hemorrhoids and anal fissures. Most people with itching (and no other symptoms) do not have a serious disease."],
+  C4GEN = ["pg. 57-58: ","Rectal pain, itching, and bleeding are often signs of hemorrhoids or an anal fissure but more serious conditions must be ruled out. Hemorrhoids are enlarged veins around the rectum that protrude; get rubbed; and/or become painful from inflammation related to a small clot forming within the vein. Hemorrhoids are not dangerous but can be extremely uncomfortable. A Soldier who has a history of hemorrhoids or anal fissure and then develops similar symptoms likely has a recurrence. Soldier should be instructed on avoiding constipation since it is a common cause of hemorrhoids and anal fissures. Most people with itching (and no other symptoms) do not have a serious disease."],
   C4MEDCOM = ["N/A"],
   C4STP1 = ["Subject Area 6: Primary Care. Provide Treatment for Abdominal Disorders. 081-833-0239","Subject Area 15: Primary Care. Test a Stool Sample. 081-833-0256"],
 
@@ -547,27 +547,27 @@ const
   C5ACT1 = ["Screen rectal bleeding or other symptoms if present"],
   C5ACT2 = [],
   C5ACT3 = [],
-  C5DP1 = ["DP 1. These are symptoms of hypothyroidism. Soldiers that screen positive for possible hypothyroidism should be referred for further evaluation."],
-  C5DP2 = ["DP 2. Rectal bleeding can be a sign of significant internal bleeding that requires further evaluation."],
-  C5DP3 = ["The most important step in treating constipation is to alter the diet so that it contains plenty of fiber. Fiber is that part of food which is not absorbed into the body but instead remains in the intestines and absorbs water to form the bulk of the bowel movements. Without proper bulk, the large and small intestines cannot work properly, and this causes constipation. Fiber is present in bran cereal, whole wheat bread, fresh fruits, and vegetables. Ensure that the Soldier is taking adequate water (8 glasses a day).","Laxatives can be used on a one-time basis but should not be used repeatedly because the body can become dependent on them. After the bisacodyl, use polyethylene glycol for two weeks (1st line) or docusate sodium for one week (2nd line) to prevent recurrence. Not everyone has a bowel movement every day. Bowel movements may occur as often as three times a day or once every three days and still be normal. Discomfort and a change in pattern are more reliable guides to a diagnosis of constipation. Instruct the Soldier to return for medical assistance if abdominal pain develops, if the interval between movements is three days or longer, or if blood appears in his or her stool."],
+  C5DP1 = ["DP 2. Rectal bleeding can be a sign of significant internal bleeding that requires further evaluation."],
+  C5DP2 = ["The most important step in treating constipation is to alter the diet so that it contains plenty of fiber. Fiber is that part of food which is not absorbed into the body but instead remains in the intestines and absorbs water to form the bulk of the bowel movements. Without proper bulk, the large and small intestines cannot work properly, and this causes constipation. Fiber is present in bran cereal, whole wheat bread, fresh fruits, and vegetables. Ensure that the Soldier is taking adequate water (8 glasses a day).","Laxatives can be used on a one-time basis but should not be used repeatedly because the body can become dependent on them. After the bisacodyl, use polyethylene glycol for two weeks (1st line) or docusate sodium for one week (2nd line) to prevent recurrence. Not everyone has a bowel movement every day. Bowel movements may occur as often as three times a day or once every three days and still be normal. Discomfort and a change in pattern are more reliable guides to a diagnosis of constipation. Instruct the Soldier to return for medical assistance if abdominal pain develops, if the interval between movements is three days or longer, or if blood appears in his or her stool."],
+  C5DP3 = [],
   C5DP4 = [],
-  C5DPRE = [],
-  C5DPRED = [],
+  C5DPRE = ["DP 2. Rectal bleeding can be a sign of significant internal bleeding that requires further evaluation."],
+  C5DPRED = ["DP 1. These are symptoms of hypothyroidism. Soldiers that screen positive for possible hypothyroidism should be referred for further evaluation."],
   C5PRO = ["Counsel the Soldier to drink 8 glasses of water per day and eat foods that are high in fiber","Medication: bisacodyl for acute constipation followed by a polyethylene glycol for 2 weeks (1st line) or docusate sodium for 1 week (2nd line)","Return to clinic for blood in stool, abdominal pain, or not having a BM for 3 days"],
   C5LIMITATIONS = [],
-  C5GEN = ["pg. 59-60: Constipation means infrequent or difficult bowel movements. Soldiers use the word to mean many things—painful defecation, narrowing of the stools, or not having a “regular daily” bowel movement. Normal bowel habits differ from Soldier to Soldier; therefore, a wide variation exists in what Soldiers consider to be normal or to be a problem.", "Because constipation and hemorrhoids commonly occur together, rectal bleeding may be falsely attributed to these causes. This can be a dangerous mistake. Rectal bleeding must be screened as a separate problem. Constipation not associated with rectal bleeding may be appropriately treated through minor-care."],
+  C5GEN = ["pg. 59-60: ","Constipation means infrequent or difficult bowel movements. Soldiers use the word to mean many things—painful defecation, narrowing of the stools, or not having a “regular daily” bowel movement. Normal bowel habits differ from Soldier to Soldier; therefore, a wide variation exists in what Soldiers consider to be normal or to be a problem.", "Because constipation and hemorrhoids commonly occur together, rectal bleeding may be falsely attributed to these causes. This can be a dangerous mistake. Rectal bleeding must be screened as a separate problem. Constipation not associated with rectal bleeding may be appropriately treated through minor-care."],
   C5MEDCOM = ["N/A"],
   C5STP1 = ["Subject Area 6: Primary Care. Provide Treatment for Abdominal Disorders. 081-833-0239"],
 //C6
   C6ACT1 = ["Include glucagon if unable to transport within 24 hours of onset"],
   C6ACT2 = ["Screen sore throat or other symptoms if present"],
   C6ACT3 = [],
-  C6DP1 = ["DP 1. Most common cause of dysphagia in an adult is an acute food obstruction. It is often due to swallowing a piece of meat that has not been fully chewed. Food obstruction will present with a feeling of something stuck in the throat and decreased or inability to swallow. The obstruction must be removed promptly. Complete obstruction should undergo an emergent endoscopy. A partial obstruction should undergo endoscopy within 24 hours. The esophagus can start to ulcerate and the risk of esophageal perforation increases after 24 hours. If endoscopic evaluation/ treatment is not available within 24 hours, see the treatment protocol below."],
-  C6DP2 = ["DP 2. Other causes of dysphagia not related to a sore throat should be evaluated by the AEM.","DP 3. Dysphagia frequently accompanies a severe sore throat. However, MAKE CERTAIN that dysphagia did not precede the sore throat. Causes of dysphagia not associated with a sore throat may require a more extensive evaluation."],
+  C6DP1 = ["DP 2. Other causes of dysphagia not related to a sore throat should be evaluated by the AEM."],
+  C6DP2 = ["Do not administer meat tenderizers to Soldiers with an esophageal food impaction. It could cause serious esophageal injury. Glucagon can be administered to relax the esophagus as an initial attempt for the Soldier to spontaneously pass the food bolus when a referral for an endoscopic evaluation/ treatment is not available. Treatment must be prescribed by a supervising privileged provider."],
   C6DP3 = [],
   C6DP4 = [],
-  C6DPRE = [],
-  C6DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Airway compromise is an emergency. Coughing, choking, or nasal regurgitation when initiating a swallow is a sign of decreased ability to maintain the airway. The Soldier is at risk for aspiration."],
+  C6DPRE = ["DP 3. Dysphagia frequently accompanies a severe sore throat. However, MAKE CERTAIN that dysphagia did not precede the sore throat. Causes of dysphagia not associated with a sore throat may require a more extensive evaluation."],
+  C6DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Airway compromise is an emergency. Coughing, choking, or nasal regurgitation when initiating a swallow is a sign of decreased ability to maintain the airway. The Soldier is at risk for aspiration.","DP 1. Most common cause of dysphagia in an adult is an acute food obstruction. It is often due to swallowing a piece of meat that has not been fully chewed. Food obstruction will present with a feeling of something stuck in the throat and decreased or inability to swallow. The obstruction must be removed promptly. Complete obstruction should undergo an emergent endoscopy. A partial obstruction should undergo endoscopy within 24 hours. The esophagus can start to ulcerate and the risk of esophageal perforation increases after 24 hours. If endoscopic evaluation/ treatment is not available within 24 hours, see the treatment protocol below."],
   C6PRO = ["Do not administer meat tenderizers to Soldiers with an esophageal food impaction. It could cause serious esophageal injury. Glucagon can be administered to relax the esophagus as an initial attempt for the Soldier to spontaneously pass the food bolus when a referral for an endoscopic evaluation/ treatment is not available. Treatment must be prescribed by a supervising privileged provider."],
   C6LIMITATIONS = [],
   C6GEN = ["pg. 61-62: Dysphagia means difficulty or pain when swallowing."],
@@ -577,9 +577,9 @@ const
   C7ACT1 = ["Oxygen, EKG, chewable aspirin"],
   C7ACT2 = ["Oxygen, EKG, chewable aspirin"],
   C7ACT3 = [],
-  C7DPRED = ["If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”","These can be signs of significant underlying medical problems."],
-  C7DP1 = ["Oxygen, EKG, and chewable aspirin","Angina (substernal chest pressure, worse with exercise), shortness of breath, tachycardia, lightheaded, sweating, shoulder or jaw pain can be signs and symptoms of a myocardial infarction.","Obtain an EKG and give aspirin (if no signs of bleeding).", "Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider.","Vomiting blood or coffee grinds and melena are signs of a bleeding ulcer.", "Tearing pain that radiates to the back is a sign of a dissecting aortic aneurysm."],
-  C7DP2 = ["These are symptoms that suggest a more chronic condition than just heartburn. ","History of an ulcer suggests gastritis or another ulcer. ","Unexplained weight loss is a sign of cancer.", "Anorexia and vomiting are signs of pancreatitis.","Dysphagia and odynophagia are signs of esophagitis and chronic gastroesophageal reflux disease."],
+  C7DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1. Angina (substernal chest pressure, worse with exercise), shortness of breath, tachycardia, lightheaded, sweating, shoulder or jaw pain can be signs and symptoms of a myocardial infarction. Obtain an EKG and give aspirin (if no signs of bleeding). Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider. Vomiting blood or coffee grinds and melena are signs of a bleeding ulcer. Tearing pain that radiates to the back is a sign of a dissecting aortic aneurysm."],
+  C7DP1 = ["Oxygen, EKG, and chewable aspirin","DP 1. Angina (substernal chest pressure, worse with exercise), shortness of breath, tachycardia, lightheaded, sweating, shoulder or jaw pain can be signs and symptoms of a myocardial infarction. Obtain an EKG and give aspirin (if no signs of bleeding). Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider. Vomiting blood or coffee grinds and melena are signs of a bleeding ulcer. Tearing pain that radiates to the back is a sign of a dissecting aortic aneurysm."],
+  C7DP2 = ["DP 2. These are symptoms that suggest a more chronic condition than just heartburn. History of an ulcer suggests gastritis or another ulcer. Unexplained weight loss is a sign of cancer. Anorexia and vomiting are signs of pancreatitis. Dysphagia and odynophagia are signs of esophagitis and chronic gastroesophageal reflux disease."],
   C7DP3 =["MCP for gastroesophageal reflux. It occurs due to the passage of gastric contents into the esophagus. It is a normal physiologic process that can result in brief episodes of heartburn. Overeating, tobacco, alcohol, overweight, stress, certain foods can act as triggers to increase the frequency of heartburn.","Instruct Soldier on lifestyle modifications: weight loss if overweight, smoking cessation if indicated, and elevation of head of bed, avoidance of chocolate/caffeine/spicy foods/ alcohol/other foods that exacerbate symptoms. Ranitidine (histamine 2 receptor antagonist) as needed for symptoms. Ranitidine reaches peak of action about 2.5 hours after taking and lasts around 8 hours. Return if symptoms are not controlled with minor-care measures, new symptoms arise, or Soldier is having to take the over the counter medication more than once per week."],
   C7DP4 =[""],
   C7DPRE = ["Soldier without the previous concerning symptoms and classic heartburn symptoms can be treated with over the counter medications and lifestyle changes.","If other symptoms are present, he or she should be screened for those symptoms."],
@@ -592,43 +592,43 @@ const
   D1ACT1 = ["Oxygen, EKG, IV"],
   D1ACT2 = ["Oxygen, EKG, IV, Aspirin 325 mg"],
   D1ACT3 = ["DP 3. Identifies conditions that are self-limited or can be treated with a minor-care protocol."],
-  D1DP1 = ["DP 1. Tachycardia, sweating, pain or pressure in the chest, shoulder, or jaw can be symptoms of a myocardial infarction. Chest pain and tachycardia can also be signs of a pulmonary embolism. Irregular pulse identifies an arrhythmia. Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider."],
+  D1DP1 = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now”. Start the Soldier on oxygen with non-rebreather mask at 10 Liters/ minute, start an IV and IVF at TKO and obtain EKG if available. They can be signs of significant underlying medical problems.","DP 1. Tachycardia, sweating, pain or pressure in the chest, shoulder, or jaw can be symptoms of a myocardial infarction. Chest pain and tachycardia can also be signs of a pulmonary embolism. Irregular pulse identifies an arrhythmia. Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider."],
   D1DP2 = ["DP 2. Screens for other medical conditions requiring further evaluation. Productive cough and elevated temperature are signs of pneumonia. Symptoms lasting longer than 10 days may not be viral. History of asthma or wheezing screens for an asthma exacerbation."],
-  D1DP3 = ["MCP for cold symptoms: Counsel the Soldier to drink plenty of fluids and rest, cover their mouth when they cough and wash hands to prevent spread. Ibuprofen for pain, acetaminophen for elevated temperature, decongestant for nasal congestion, guaifenesin for mucous, or antihistamine for allergies. Return to clinic if not improving within one week, worsening symptoms, fever, new sinus pain, lightheadedness, or pain in the neck.", "MCP for panic attack symptoms (chest tightness, palpitations, anxious, lightheaded): Check EKG. If EKG is normal, initiate observed deep breathing exercises. Place a pulse oximeter on the Soldier’s finger. Have the Soldier lay back at a 45 degree angle with legs uncrossed and initiate diaphragmatic breathing exercises with deep, slow inhalation over 4 seconds and exhalation over another 4 second count. If the SpO2 starts to drop, disposition the Soldier as “Provider Now”.Refer Soldier to Behavioral Health after initial panic attack decreases in intensity."],
-  D1DP4 = [],
+  D1DP3 = ["DP 3. Identifies conditions that are self-limited or can be treated with a minor-care protocol."],
+  D1DP4 = ["MCP for cold symptoms: Counsel the Soldier to drink plenty of fluids and rest, cover their mouth when they cough and wash hands to prevent spread. Ibuprofen for pain, acetaminophen for elevated temperature, decongestant for nasal congestion, guaifenesin for mucous, or antihistamine for allergies. Return to clinic if not improving within one week, worsening symptoms, fever, new sinus pain, lightheadedness, or pain in the neck.", "MCP for panic attack symptoms (chest tightness, palpitations, anxious, lightheaded): Check EKG. If EKG is normal, initiate observed deep breathing exercises. Place a pulse oximeter on the Soldier’s finger. Have the Soldier lay back at a 45 degree angle with legs uncrossed and initiate diaphragmatic breathing exercises with deep, slow inhalation over 4 seconds and exhalation over another 4 second count. If the SpO2 starts to drop, disposition the Soldier as “Provider Now”.Refer Soldier to Behavioral Health after initial panic attack decreases in intensity."],
   D1DPRE = [],
-  D1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now”. Start the Soldier on oxygen with non-rebreather mask at 10 Liters/ minute, start an IV and IVF at TKO and obtain EKG if available. They can be signs of significant underlying medical problems."],
-  D1PRO = [],
+  D1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now”. Start the Soldier on oxygen with non-rebreather mask at 10 Liters/ minute, start an IV and IVF at TKO and obtain EKG if available. They can be signs of significant underlying medical problems.","DP 1. Tachycardia, sweating, pain or pressure in the chest, shoulder, or jaw can be symptoms of a myocardial infarction. Chest pain and tachycardia can also be signs of a pulmonary embolism. Irregular pulse identifies an arrhythmia. Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider."],
+  D1PRO = ["Cold or allergy symptoms: A-3 Minor Care Protocol ","Panic attack symptoms: Check EKG. Monitor purse oximeter. Supervised deep breathing exercises. Referral to provider now if oxygenation decreases or symptoms do not resolve. Refer to behavioral health after dyspnea symptoms have resolved. "],
   D1LIMITATIONS = ["Cold Symptoms","Aerobic training at own pace/distance x 3 days","Limit exposure to temperatures below <50 degrees F"],
   D1GEN = ["pg. 65-66: Dyspnea is a sensation of breathing discomfort that can be in respiratory or cardiovascular in nature."],
   D1MEDCOM = ["Initiate an Intravenous Infusion pg.69 (2)(a)","Provide Oxygen pg.69 (2)(h)","Performs 12-lead Electrocardiogram pg. 69-70 (2)(o-p)"],
   D1STP1 = ["Subject Area 5: Venipuncture and IV Therapy. Initiate an Intravenous Infusion. 081-833-0033", "Subject Area 6: Primary Care. Provide Care for Common Respiratory Disorders. 081-833-0245"],
 
-  D2ACT1 = [],
-  D2ACT2 = [],
+  D2ACT1 = ["Oxygen, EKG, IV, Aspirin 325 mg"],
+  D2ACT2 = ["Oxygen, EKG, IV, Aspirin 325 mg"],
   D2ACT3 = [],
-  D2DP1 = ["DP 1. Obtain an EKG if available. Tachycardia, sweating, pain, and pressure in the chest, shoulder, or jaw can be symptoms of a myocardial infarction. Note that diabetics and women can present atypically. Chest pain and tachycardia can also be signs of a pulmonary embolism or arrhythmia. Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider."],
-  D2DP2 = ["DP 2. Elevated temperature and productive cough screens for pneumonia. Recent chest trauma screens for multiple etiologies to include a rib fracture."],
-  D2DP3 = ["DP 3. Conditions that are not identified below should be referred to the AEM for further evaluation."],
-  D2DP4 = ["Cold or allergy symptoms: A-3 Minor Care Protocol","Panic attack symptoms: Check EKG. Monitor pulse oximeter. Supervised deep breathing exercises. Referral to provider now if oxygenation decreases or symptoms do not resolve. Refer to behavioral health after dyspnea symptoms have resolved"],
+  D2DP1 = ["DP 2. Elevated temperature and productive cough screens for pneumonia. Recent chest trauma screens for multiple etiologies to include a rib fracture."],
+  D2DP2 = ["DP 3. Conditions that are not identified below should be referred to the AEM for further evaluation."],
+  D2DP3 = ["MCP for cold symptoms. See Protocol A-3.","MCP for panic attack symptoms (chest tightness, palpitations, anxious, lightheaded): Check EKG. If EKG is normal, initiate observed deep breathing exercises. Place a pulse oximeter on the Soldier’s finger. Have the Soldier lay back at a 45 degree angle with legs uncrossed and initiate diaphragmatic breathing exercises with deep, slow inhalation over 4 seconds and exhalation over another 4 second count. If the SpO2 starts to drop, disposition the Soldier as “Provider Now”. Refer Soldier to behavioral health after initial panic attack decreases in intensity.","MCP for musculoskeletal chest pain: Pain must be reproducible and directly correspond to a supporting history. Medications: ibuprofen as needed for muscle complaints. Return to clinic if pain increases, lasts longer than three days, shortness of breath/ dizziness/ or new symptoms develop. ","Must discuss with supervising privileged provider before Soldier leaves screening area."],
+  D2DP4 = [],
   D2DPRE = [],
-  D2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now”. Start them on oxygen with a nasal cannula at four-six liters/ minute, start an IV and IVF at TKO, give a chewable aspirin. These can be signs of significant underlying medical problems."],
-  D2PRO = ["Cold liky symptoms: A-3 Protocol","Hearbutn: C-7 Protocol","Panic attack symptoms: Check EKG. Monitor pulse oximeter. Supervised deep breathing exercises. Referral to provider now if oxygenation decreases or symptoms do not resolve. Refer to behavioral health after dyspnea symptoms have resolved","Musculoskeletal: Medications: ibuprofen or acetaminophen for pain, analgesic balm for muscle/tendons. Temporary profile x 3 days if needed. Return to the clinic if pain increases, not improved in four days, shortness of breath/dizziness/or new symptoms develop."],
+  D2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now”. Start them on oxygen with a nasal cannula at four-six liters/ minute, start an IV and IVF at TKO, give a chewable aspirin. These can be signs of significant underlying medical problems.","DP 1. Obtain an EKG if available. Tachycardia, sweating, pain, and pressure in the chest, shoulder, or jaw can be symptoms of a myocardial infarction. Note that diabetics and women can present atypically. Chest pain and tachycardia can also be signs of a pulmonary embolism or arrhythmia. Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider."],
+  D2PRO = ["Must discuss with supervising privileged provider before Soldier leaves screening area","Cold liky symptoms: A-3 Protocol","Hearburn: C-7 Protocol","Panic attack symptoms: Check EKG. Monitor pulse oximeter. Supervised deep breathing exercises. Referral to provider now if oxygenation decreases or symptoms do not resolve. Refer to behavioral health after dyspnea symptoms have resolved","Musculoskeletal: Medications: ibuprofen or acetaminophen for pain, analgesic balm for muscle/tendons. Temporary profile x 3 days if needed. Return to the clinic if pain increases, not improved in four days, shortness of breath/dizziness/or new symptoms develop."],
   D2LIMITATIONS = ["MSK Chest Pain: May lift, push up to 25 lbs","Cold Symptoms: Aerobic training at own pace/distance x 3 days","Limit exposure to temperatures below <50 degrees F"],
   D2GEN = ["pg. 67-68: Chest pain must always be taken seriously. It is a sign of many serious conditions."],
-  D2MEDCOM = [],
-  D2STP1 = [],
+  D2MEDCOM = ["Initiate an Intravenous Infusion pg.69(2)(a)","Provide Oxygen pg.69(2)(h)","Performs 12-lead Electrocardiogram pg. 69-70(2)(o-p)"],
+  D2STP1 = ["Subject Area 12: Medical Treatment. Obtain an Electrocardiogram 081-833-3007","Subject Area 4: Airway Management. Administer Oxygen 081-833-0158"],
 
-  E1ACT1 = [],
-  E1ACT2 = [],
+  E1ACT1 = ["UA, urine culture if available"],
+  E1ACT2 = ["UA, Urine culture"],
   E1ACT3 = [],
-  E1DP1 = ["DP 1. Urinary tract infections can get worse if not promptly treated. Urinary tract infection can progress to a kidney infection and then a systemic infection through the blood. Uncontrolled diabetes can present with increased urination and nausea with vomiting. Complaints requiring an invasive exam are referred to the supervising privileged provider."],
-  E1DP2 = ["DP 2. Urinary complaints in a male are more likely to be something other than a urinary tract infection. Recurrent urinary tract infections (UTIs), recent urinary catheterization, and immunocompromised are more likely to have an atypical bacterial infection."],
+  E1DP1 = ["DP 2. Urinary complaints in a male are more likely to be something other than a urinary tract infection. Recurrent urinary tract infections (UTIs), recent urinary catheterization, and immunocompromised are more likely to have an atypical bacterial infection."],
+  E1DP2 = ["UA and urine culture should be completed if resources are available. A Soldier with symptoms consistent with a UTI can be empirically treated without a urinalysis after ruling out any history that would increase the Soldier’s risk and determining any allergies to medications.","MCP for UTI. Instruct the Soldier about the importance of increasing fluid intake to flush out the bacteria. OTC medication: phenazopyridine as needed for pain. Instruct the Soldier that it will likely dye his or her urine orange. It may also stain contact lenses from transferring the dye from the fingers to the contacts, if worn. Antibiotics: Trimethoprim/ Sulfamethoxazole is the first line agent. Nitrofurantoin is the second line agent if the Soldier is allergic to sulfa drugs or there is local resistance to the first line agent. Return to clinic if symptoms are not improving within 24 hours, development of new symptoms, or worsening symptoms despite treatment."],
   E1DP3 = ["MCP for UTI. Instruct the Soldier about the importance of increasing fluid intake to flush out the bacteria. OTC medication: phenazopyridine as needed for pain. Instruct the Soldier that it will likely dye his or her urine orange. It may also stain contact lenses from transferring the dye from the fingers to the contacts, if worn. Antibiotics: Trimethoprim/ Sulfamethoxazole is the first line agent. Nitrofurantoin is the second line agent if the Soldier is allergic to sulfa drugs or there is local resistance to the first line agent. Return to clinic if symptoms are not improving within 24 hours, development of new symptoms, or worsening symptoms despite treatment."],
   E1DP4 = [],
   E1DPRE = [],
-  E1DPRED = [],
-  E1PRO = [""],
+  E1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1. Urinary tract infections can get worse if not promptly treated. Urinary tract infection can progress to a kidney infection and then a systemic infection through the blood. Uncontrolled diabetes can present with increased urination and nausea with vomiting. Complaints requiring an invasive exam are referred to the supervising privileged provider."],
+  E1PRO = ["UTI: drink 8+ glasses of water/day. Phenazopyridine as needed. Counsel on it changing urine orange and potential to dye contacts. ","First line agent: trimethoprim/sulfamethoxazole. if the MTF antibiotic resistance is greater than 20% or patient has sulfa allergy, use second line agent. ","Second line agent: nitrofurantoin, if the patient reports an allergy to nitrofurantoin. refer to AEM. ","Return to clinic if symptoms not improving within 24 hours, development of new symptoms, worsening symptoms "],
   E1LIMITATIONS = [],
   E1GEN = ["pg. 69-70: Painful urination is most commonly a sign of a urinary tract infection, kidney stone, sexually transmitted infection, or yeast infection. Frequent urination can be associated with these but can also be one of the initial signs of hyperglycemia from diabetes. ","UA and urine culture should be completed if resources are available. A Soldier with symptoms consistent with a UTI can be empirically treated without a urinalysis after ruling out any history that would increase the Soldier’s risk and determining any allergies to medications."],
   E1MEDCOM = ["Obtain Laboratory Specimens pg. 69-70(2)(k)"],
@@ -675,7 +675,7 @@ const
   E4DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Inability to void can represent an obstruction of the ureter. Do to the risks to the kidneys, it is a medical emergency."],
   E4PRO = ["If urethral discharge is present, use SCP E-3","if UA is leukocyte esterase positive, 2+ WBCs, or UTI symptoms in a female, then use SCP E-1","if leaking urine when coughing, sneeing, jumping, counsel patient on home exercises.","RTC if worsening symptoms, new symptoms arise, or not improved within stated timeframe"],
   E4LIMITATIONS = ["For incontinence","Access to a restroom","No jumping"],
-  E4GEN = ["pg. 75-76: Problems with voiding may include urinary incontinence (voiding unintentionally), difficulty initiating the urinary stream, decreased force of the stream, dribbling urination, complete inability to void."],
+  E4GEN = ["pg. 75-76: ","Problems with voiding may include urinary incontinence (voiding unintentionally), difficulty initiating the urinary stream, decreased force of the stream, dribbling urination, complete inability to void."],
   E4MEDCOM = ["Obtain Laboratory Specimens pg.69-70(2)(k)","Gathers Sexually Transmitted Infection Specimen pg.69-70(2)(n)"],
   E4STP1 = ["Subject Area 15: Primary Care. Utilize a Urine Test Strip 081-833-0255"],
 
@@ -690,7 +690,7 @@ const
   F1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Take orthostatic blood pressure. Severe headache associated with trauma can represent an intracranial bleed. Heat injuries can be life-threatening and require prompt action. Soldier acting abnormal or intoxicated, with abnormal pupils, an unsteady gait, loss of coordination, slurred speech, or appearing unkempt should be referred for further evaluation. Hypo/hyperglycemia can also result in altered mental status and progress to a coma."],
   F1PRO = ["Reflex syncope situation/symptoms before incident, have the patient lay down wth legs uncrossed and elevated until symptoms resolve. Observe the patient for 30 minutes after symptoms resolved to make sure that the symptoms do not return. Counsel the patient to increase electrolyte intake. Counsel the patient on situations that increase risk of reoccurrence, symptoms to watch for, and early interventions to take.","RTC if worsening symptoms, new symptoms arise, or recurrence of incident."],
   F1LIMITATIONS = ["No driving x 72 hours"],
-  F1GEN = ["pg. 77-78: It is useful to try and distinguish among different presentations of dizziness: faintness, blackouts, vertigo, confusion, malaise, muscle weakness, and other sensations. True vertigo refers to an illusion where the room seems to be spinning about or the floor seems to be moving. It may be likened to the feeling experienced immediately after getting off a fast merry-go-round and is often accompanied by nausea. Faintness or light-headedness is a feeling of unsteadiness or beginning to fall. Blackout refers to a complete loss of consciousness and observers should also be questioned about potential causes of the event and any unusual observations during the event."],
+  F1GEN = ["pg. 77-78: ","It is useful to try and distinguish among different presentations of dizziness: faintness, blackouts, vertigo, confusion, malaise, muscle weakness, and other sensations. True vertigo refers to an illusion where the room seems to be spinning about or the floor seems to be moving. It may be likened to the feeling experienced immediately after getting off a fast merry-go-round and is often accompanied by nausea. Faintness or light-headedness is a feeling of unsteadiness or beginning to fall. Blackout refers to a complete loss of consciousness and observers should also be questioned about potential causes of the event and any unusual observations during the event."],
   F1MEDCOM = ["Initiate an Intravenous Infusion pg.69(2)(a)","Initial Treatment of Environmental Injuries pg.69(2) ( e )","Provide Oxygen pg.69(2)(h)","Performs 12-lead Electrocardiogram pg. 69-70(2)(o-p)"],
   F1STP1 = ["Subject Area 12: Medical Treatment. Obtain an Electrocardiogram 081-833-3007","Subject Area 5: Venipuncture and IV Therapy. Initiate an Intravenous Infusion 081-833-0034","Subject Area 11: Force Health Protection. Initiate Treatment for a Heat Injury 081-833-0038"],
 
@@ -705,7 +705,7 @@ const
   F2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Severe hypertension is a blood pressure over 220 systolic or 110 diastolic. When a Soldier has severe hypertension, have them lay down in a quiet, dark room until able to transport them to a higher level of care. A blown pupil can be a sign of increased intracranial pressure. Sudden worst headache of the Soldier’s life and focal neurological sign can be a sign of an intracranial hemorrhage. Fever and inability to touch the chin the chest are signs of meningitis. Altered mental status can be a sign of a more significant problem. If there is some question as to whether or not the Soldier is confused, ask him simple questions such as his name, day of the week, the year, where he is now, or who is the President of the United States?"],
   F2PRO = [],
   F2LIMITATIONS = ["May wear Sunglasses Indoors"," Limit loud noises"," Walk at own pace/distance"," No running, rucking, jumping"],
-  F2GEN = ["pg. 79-80: In the absence of fever, severe pain, or confusion, serious disease is extremely unlikely. Migraines often present with a gradual, increasing onset of a one sided, pulsatile moderate to severe headache worse with physical activity, noise, or light and associated with nausea and may have an aura. Tension-type headache often presents as a bilateral pressure that waxes and wanes lasting from 30 min to seven days. Cluster headache is rare. It presents with a rapid onset within minutes of unilateral deep, continuous severe pain around the eye or temple often associated with tearing, congestion, runny nose, pallor, or sweating."],
+  F2GEN = ["pg. 79-80: ","In the absence of fever, severe pain, or confusion, serious disease is extremely unlikely. Migraines often present with a gradual, increasing onset of a one sided, pulsatile moderate to severe headache worse with physical activity, noise, or light and associated with nausea and may have an aura. Tension-type headache often presents as a bilateral pressure that waxes and wanes lasting from 30 min to seven days. Cluster headache is rare. It presents with a rapid onset within minutes of unilateral deep, continuous severe pain around the eye or temple often associated with tearing, congestion, runny nose, pallor, or sweating."],
   F2MEDCOM = [],
   F2STP1 = [],
 
@@ -722,7 +722,7 @@ const
   F3DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Localized issue is more likely to have a serious cause then generalized symptoms. Back pain can represent a herniated disc causing nerve compression. Severe headache can represent an intracranial lesion. Insulin use, or history of diabetes can present with symptomatic hypoglycemia. In hypoglycemic Soldiers, sugar or food should be provided if available."],
   F3PRO = ["Hyperventilation: respiratory rate greater than 14 per minute. Provide reassurance to the patient. Have the Soldier practice relaxed breathing. If symptoms do not resolve within 10 minutes, refer to AEM. If symptoms resolve, refer to behavioral health if available. ","Viral Syndrome: ibuprofen as needed for fatigue/body aches. Drink plenty of water. Get plenty of sleep. ","Insomnia/Fatigue/Stress: provide sleep hygiene education, recommend self-reflection to find a way to relieve stress, and offer a routine referral to a routine behavioral health asset, if available. ","Return to clinic if not improving, new symptoms arise, or symptoms are worsening."],
   F3LIMITATIONS = ["For insomnia: Allow for 8 hours of uninterrupted sleep in 24 hour period","For Viral Syndrome: PT training at own pace/ rep/ distance x 3 days"],
-  F3GEN = ["pg. 81-82: “Numbness” may be used by the Soldier to describe muscle weakness, malaise, confusion, or abnormal sensation including tingling (a “pins and needles” sensation). Paralysis/weakness is a condition that refers to a loss of muscular strength resulting in difficulty or inability to move a body part. A complete loss of muscular strength is paralysis; a partial loss is weakness."],
+  F3GEN = ["pg. 81-82: ","“Numbness” may be used by the Soldier to describe muscle weakness, malaise, confusion, or abnormal sensation including tingling (a “pins and needles” sensation). Paralysis/weakness is a condition that refers to a loss of muscular strength resulting in difficulty or inability to move a body part. A complete loss of muscular strength is paralysis; a partial loss is weakness."],
   F3MEDCOM = ["Obtain Blood Glucose Levels pg.69(2)(f)"],
   F3STP1 = ["Subject Area 15: Primary Care. Operate a Glucometer 081-833-0257"],
   
@@ -752,7 +752,7 @@ const
   F5DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “provider now.” These can be signs of significant underlying medical or serious behavioral health problems.","DP 1: Ask the following questions: In the past month, have you wished you were dead or wished you could go to sleep and not wake up? Have you had any thoughts about killing yourself? If YES to the second question, ask: Have you thought of how you might do this? Have you started to work out or have worked out the details of how to kill yourself? Do you have any intention of acting on these thoughts of killing yourself? Remain calm. Express concern and do not be dismissive. Do not be judgmental or argumentative. If YES to questions about suicidality, do not leave the Soldier alone. Remove means of self-harm. Do not leave the Soldier waiting alone for a long time in a busy waiting room, as this may increase the Soldier’s distress. Be aware that abnormal vital signs and/or anxiety or depression symptoms may represent an underlying medical issue."],
   F5PRO = ["Must get cleared by the supervising medic prior to the Soldier leaving the screening area.","Offer assistance through Behavioral Health, Chaplain, Chain of Command Army Community Services, Military and Family Life Consultants, Military OneSource, or Army Wellness Center. ","Offer to escort the Soldier to the service."],
   F5LIMITATIONS = ["Escort to Behavioral Health or Emergency Room"],
-  F5GEN = ["pg. 85-86: The terms “depression, nervousness, anxiety, tension” and complaints of “nerves” or “being upset” may all be used by Soldiers to describe problems with mood. Complaints such as these are often due to situational or behavioral health factors, but may also be due to a physical condition. Everyone experiences emotional distress from time to time. However, when symptoms become continuous or interfere with daily functioning, or when suicidal or homicidal thoughts or self-harm are reported, the complaint must be taken seriously and further evaluated."],
+  F5GEN = ["pg. 85-86: ","The terms “depression, nervousness, anxiety, tension” and complaints of “nerves” or “being upset” may all be used by Soldiers to describe problems with mood. Complaints such as these are often due to situational or behavioral health factors, but may also be due to a physical condition. Everyone experiences emotional distress from time to time. However, when symptoms become continuous or interfere with daily functioning, or when suicidal or homicidal thoughts or self-harm are reported, the complaint must be taken seriously and further evaluated."],
   F5MEDCOM = ["N/A"],
   F5STP1 = ["Subject Area 6: Primary Care. Provide Treatment for a Behavioral Emergency 081-833-0246"],
   
@@ -767,7 +767,7 @@ const
   F6DPRED = ["Red Flags. If the Soldier presents with any red flag, immediately disposition the Soldier as “Provider Now” as these can be signs of medical emergencies.","DP 1: All Soldiers with a possible mTBI should be screened using the Military Acute Concussion Evaluation, version 2 (MACE 2) exam and results should be documented on the Soldier’s medical record. The MACE 2 assesses for red flags and the five predominate concussion sub-types (vestibular, oculomotor, headache/migraine, anxiety/mood, and cognitive).","Presence of the following observable signs are suggestive of a concussion and prompt thorough evaluation: (1) lying motionless on the ground, (2) slow to get up after a direct or indirect blow to the head, (3) disorientation, confusion or inability to respond appropriately to questions, (4) blank or vacant look, (5) balance difficulties, stumbling, or slow labored movements, and (6) facial injury after head trauma.","A positive initial screening on the MACE 2 indicates a concussive injury and often presents as alteration of consciousness (seeing stars, dazed, confused), loss of consciousness, or amnesia (trouble remembering the event). Positive screening with the following are recommended for a CT scan of the head: deteriorating level of consciousness, double vision, increased restlessness, combative or agitated behavior, severe or worsening headache, mental status (GCS<15), suspected skull fracture, sign of basilar skull fracture (hemotympanum, raccoon eyes, Battle sign, oto-/rhinorrhea), 2+ episodes of vomiting, amnesia for 30+ minutes before incident, neurologic deficit, seizure, severe incident (hit by motor vehicle, ejection from vehicle, fall >3 feet/ >5 stairs), or on an anticoagulant.","The MACE 2 encompasses the following key areas: (1) concussion screening, (2) history questions (related to anxiety, migraine, and cervicogenic assessment), and (3) neurological, cognitive, and vestibular/oculomotor assessments. The neurological assessment includes speech fluency, word finding, single leg stance, tandem gait, pronator strength and eye tracking. The cognitive section includes scored evaluations of orientation and immediate and delayed recall. The vestibular/ocular-motor screening (VOMS) is a symptom-provoking exam that is necessary to detect patients at risk for delayed recovery due to oculomotor and vestibular deficits. Symptoms assessed are headache, dizziness, nausea, and fogginess."],
   F6PRO = ["All positive MACE 2 screens should be referred to the AEM or Provider for further evaluation","Negative MACE 2 24 hour rest period, review Acute Concussion Educational Brochure with patient. and counsel Soldier to return after 24 hour rest for re-evaluation If no symptoms. perform exertional testing","Return to Clinic if worsening symptoms, new symptoms","More information is available at https://dvbic.dcoe.mil","See Appendix for MACE 2 card, CMT, and PRA resources"],
   F6LIMITATIONS = ["Use the Concussion Management Tool (CMT) and associated Progressive Return to Activity (PRA) for specific management. A minimum of 24 hour rest, defined as:","1. Rest with extremely limited cognitive activity","2. Limit physical activities to those of daily living and extremely light leisure activity","3. Avoid working, exercising, playing video games, studying, or driving","4. Avoid any potentially concussive events","5. Avoid caffeine and alcohol","Reassess using the MACE 2 after 24 hours rest"],
-  F6GEN = ["pg. 87-89: More information is available at https://dvbic.dcoe.mil. minor traumatic brain injury (mTBI) or concussion is an injury to the brain that may result after blunt force, an acceleration/deceleration head injury (whiplash), or exposure to a blast wave (close contact or prolonged duration such as a firing range). In addition, mild TBIs are defined by at least one of the following clinical signs immediately following the event: alteration of consciousness lasting <24 hours, loss of consciousness <30 minutes, or post-traumatic amnesia <24 hours. CT scans are not indicated for most patients with concussion, but if obtained, the results are typically normal."],
+  F6GEN = ["pg. 87-89: ","More information is available at https://dvbic.dcoe.mil. minor traumatic brain injury (mTBI) or concussion is an injury to the brain that may result after blunt force, an acceleration/deceleration head injury (whiplash), or exposure to a blast wave (close contact or prolonged duration such as a firing range). In addition, mild TBIs are defined by at least one of the following clinical signs immediately following the event: alteration of consciousness lasting <24 hours, loss of consciousness <30 minutes, or post-traumatic amnesia <24 hours. CT scans are not indicated for most patients with concussion, but if obtained, the results are typically normal."],
   F6MEDCOM = ["N/A"],
   F6STP1 = ["Subject Area 6: Primary Care. Perform a Military Acute Concussion Evaluation 2 (MACE 2) Screening for mild Traumatic Brain Injury 081-833-0247"],
 
@@ -782,7 +782,7 @@ const
   G1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.","DP 1. While fatigue is often not caused by a specific disease, it may be a presenting symptom of a potentially serious condition. Depression may only present as fatigue. Decreased libido could be a sign of an adrenal/pituitary issue. Weight change could represent hypo/hyperthyroidism. Menorrhagia often results in anemia. Snoring can be a sign of sleep apnea. USPSTF Screening/PHA is to look at age appropriate cancer and cardiovascular screening. Infections, inflammation, liver/kidney disease, and medication/drug use can also cause fatigue."],
   G1PRO = ["OTC Medication: diphenhydramine to assist with sleep if needed","Referral: Wellness Center for relaxation exercises for stress, ACS for anger management, Behavioral Health or Chaplain for stress or support","Return if not improving in 1 week or immediately if Red Flags, development of new symptoms, or inability to perform daily activ ties."],
   G1LIMITATIONS = ["Allow for 8 hours of uninterrupted sleep with a 24 hour period"],
-  G1GEN = ["pg. 90-91: Fatigue is a state of increased demand/stress on the body or decreased efficiency."],
+  G1GEN = ["pg. 90-91: ","Fatigue is a state of increased demand/stress on the body or decreased efficiency."],
   G1MEDCOM = ["N/A"],
   G1STP1 = ["N/A"],
 
@@ -797,7 +797,7 @@ const
   G2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.","DP 1. If the Soldier’s temperature is greater than 100.4°F, has symptoms for more than 48 hours, HIV infection, or immunosuppression, then there is a greater risk of the fever being caused by a bacterial infection. Overseas travel, tick or mosquito bite, animal exposure, and malaria endemic area, increase the risk of a zoonotic or malaria infection. IV drug use increases the risk of endocarditis."],
   G2PRO = ["OTC Medication: acetaminophen as needed for elevated temperature (No other medications with acetaminophen. No alcohol.), ibuprofen as needed for malaise.","Stay hydrated by drinking fluids to keep your urine mostly clear. Get plenty of rest.","Return if red flags, new symptoms. lasts longer than 48 hours, or fever not controlled with acetaminophen"],
   G2LIMITATIONS = ["For a Fever: Consider Quarters x 24-48 hours (must discuss with supervising privileged provider)"],
-  G2GEN = ["pg. 92-93: Fever/chills are usually associated with an acute illness with other obvious symptoms."],
+  G2GEN = ["pg. 92-93: ","Fever/chills are usually associated with an acute illness with other obvious symptoms."],
   G2MEDCOM = ["N/A"],
   G2STP1 = ["N/A"],
 
@@ -3198,7 +3198,7 @@ const ADTMCSheets = {
     M2label : M2 
 }
 
-
+const notices = document.querySelector(".disclaimerwrap")
 //hamburger button events
 menu.addEventListener("click", ()=> {
         if (document.querySelectorAll('.selected').length > 0) {
@@ -3208,6 +3208,7 @@ menu.addEventListener("click", ()=> {
             
         }
         homecatbox.classList.remove("closed");
+        notices.classList.add("hidden101")
             homecatbox.classList.add("selected");
         if (banner.classList.contains("open")){
           banner.classList.toggle("open");
@@ -4532,7 +4533,7 @@ function justifyA3() {
             if(A4c4.checked == true){
               A4.querySelectorAll('.dispobox').forEach(el => {
                 el.classList.remove('open')});
-                if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open");}
+                if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
             }else{
                   if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}}
             }
@@ -4552,15 +4553,14 @@ function justifyA5(){
   const dispo2 = A5.querySelector("#A5dispo-2");
   const dispoRETEST = A5.querySelector("#A5dispo-RETEST")
   const dispoRTD = A5.querySelector("#A5dispo-RTD");
-  if(A5red.checked == true){
-    console.log("it works");
-    A5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-    A5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(A5c1.checked == true){
+if(A5red.checked == true){
+  A5.querySelectorAll('.dispobox').forEach(el => {
+    el.classList.remove('open')});
+  if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")};
+}else{
+  A5.querySelectorAll('.dispobox').forEach(el => {
+    el.classList.remove('open')});  
+  if(A5c1.checked == true){
       A5.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
       if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
@@ -4571,12 +4571,6 @@ function justifyA5(){
       if(A5c2.checked == true){
         A5.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-        if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-      }else{
-        A5.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-        if(A5c3.checked == true){
           if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")};
 
         }else{
@@ -4586,7 +4580,7 @@ function justifyA5(){
     }}
   }
   }
-}
+
 
 //justification B-1
 function justifyB1() {
@@ -5095,25 +5089,24 @@ function justifyC7() {
       console.log("it works");
       C7.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+      if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
   }else{
       C7.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
       if(C7c1.checked == true){
         C7.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
-  
+        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
       }else{
         if(C7c2.checked == true){
           C7.querySelectorAll('.dispobox').forEach(el => {
             el.classList.remove('open')});
-            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open");}
+            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open"); greenbtn.classList.add("closed")}
         }else{
           if(C7c3.checked == true){
               C7.querySelectorAll('.dispobox').forEach(el => {
                 el.classList.remove('open')});
-                if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open");}
+                if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
             }else{
           C7.querySelectorAll('.dispobox').forEach(el => {
             el.classList.remove('open')});
@@ -5138,26 +5131,26 @@ function justifyD1() {
       console.log("it works");
       D1.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+      if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
   }else{
       D1.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
       if(D1c1.checked == true){
         D1.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
   
       }else{
         if(D1c2.checked == true){
           D1.querySelectorAll('.dispobox').forEach(el => {
             el.classList.remove('open')});
-            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open");}
+            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open"); greenbtn.classList.add("closed")}
         }else{
           
         if(D1c3.checked == true){
           D1.querySelectorAll('.dispobox').forEach(el => {
             el.classList.remove('open')});
-            if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open");}
+            if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open"); greenbtn.classList.add("closed")}
         }else{
           D1.querySelectorAll('.dispobox').forEach(el => {
             el.classList.remove('open')});
@@ -5182,24 +5175,24 @@ if(D2red.checked == true){
     console.log("it works");
     D2.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
 }else{
     D2.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
     if(D2c1.checked == true){
       D2.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
 
     }else{
       if(D2c2.checked == true){
         D2.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open");}
+          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open"); greenbtn.classList.add("closed")}
       }else{
         D2.querySelectorAll('.dispobox').forEach(el => {
           el.classList.remove('open')});
-          if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open")}
+          if(!dispo2.classList.contains("open")&& greenbtn.classList.contains("closed")){dispo2.classList.toggle("open")}
           }
         }
       }
@@ -5215,14 +5208,14 @@ if(E1red.checked == true){
     console.log("it works");
     E1.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
 }else{
     E1.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
     if(E1c1.checked == true){
       E1.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
 
     }else{
         E1.querySelectorAll('.dispobox').forEach(el => {
@@ -5269,14 +5262,14 @@ if(E3red.checked == true){
     console.log("it works");
     E3.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open")}
+    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
 }else{
     E3.querySelectorAll('.dispobox').forEach(el => {
       el.classList.remove('open')});
     if(E3c1.checked == true){
       E3.querySelectorAll('.dispobox').forEach(el => {
         el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open")};
+      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open");greenbtn.classList.add("closed")}
 
     }else{
         E3.querySelectorAll('.dispobox').forEach(el => {
