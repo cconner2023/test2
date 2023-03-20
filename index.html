@@ -19,10 +19,10 @@
         <div class="item-menu-box">
                 <div class="menu-btn"><i class='bx bx-plus-circle' id="item-menu"></i></div>
                 <div class="return"><i class='bx bx-chevron-left' id="item-menu2"></i></div>
-                <div class="settings-btn" ><i data-feather="grid" id="medbtn"></i></div>
+                <!-- <div class="settings-btn" ><i data-feather="grid" id="medbtn"></i></div> -->
         </div>
         <div class="banner-box">
-                <div class='banner' id="banner1"><label for="banner1"> ADTMC Version 1.5</label></div>
+                <div class='banner' id="banner1"><label for="banner1"> ADTMC Version 1.6</label></div>
                 <div class='banner' id="banner2"><label for="banner2" id="banner2-label"> Test banner</label></div>
                 <div class='banner' id="banner3"><label for="banner3" id="banner3-label">Banner3 Test</label><i class="bx bx-info-circle" id="btni" onclick="infobox()"></i></div>
         </div>
@@ -41,6 +41,18 @@
                         </div>
         
                 </div>  
+</div>
+<div class="disclaimerwrap">
+        <div class="disclaimerborder"><label> VERSION NOTICES</label>
+                <div class="noticebox">
+                <ul class="noticelist">
+                        <li class="notice">To view decision making, tap the icon next to the disposition. Tap again to hide the decision making</li>
+                        <li class="notice">To view category STP and MEDCOM regulations tap the info icon at the top of the category page</li>
+                        <li class="notice">19MAR2023: updated C1-C7 decision making</li>
+                        <li class="notice">ETA JUN 2023: convert to SOAP and 5181/689 generator</li>
+                </ul>
+        </div>
+        </div>
 </div>
 
 <div class="ADTcontainer">
@@ -78,7 +90,7 @@
         <div class="Qbox" id="A1-1box">
         <div class="Q">
                 <div class="Q-icon">2.</div>
-                <div class="Qwrap" id="A1-1"><label for="A1-1">Select all that apply?</label>
+                <div class="Qwrap" id="A1-1"><label for="A1-1" >Select all that apply</label>
                         <ul class="Q-ULA">
                                 <div class="centor-box">
 
@@ -121,7 +133,7 @@
         <div class="subQ">
                 <div class="Q">
                         
-                        <div class="Qwrap" id="action-needed"><label for="action-needed">Perform a Rapid Strep + culture test <br> (Barracks, positive close contact, immunosuppressed contact, H/O ARF)</label>
+                        <div class="Qwrapx" id="action-needed"><label for="action-needed" class="bold-label">Perform a Rapid Strep + culture test</label><label> <br> (Barracks, positive close contact, immunosuppressed contact, H/O ARF)</label>
 
                         </div>  
                 </div>
@@ -137,7 +149,7 @@
                         </div>    
                 </div>
                 <div class="dispobox" id="A1dispo-2">
-                        <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="A1dispo-2"> CAT II: AEM</label></div>
+                        <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="A1dispo-2"> CAT II: AEM Now</label></div>
                         <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
                         </div>
                 </div>
@@ -331,9 +343,9 @@
                                 </div>    
                         </div>
                         <div class="dispobox" id="A3dispo-1">
-                                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="A3dispo-1"> CAT II: AEM</label></div>
-                                <div class="justboxACT"><div class="just JII ACT1"></div></div>
-                                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
+                                <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="A3dispo-1"> CAT II: AEM</label></div>
+                                <div class="justboxACT"><div class="just JR ACT1"></div></div>
+                                <div class="justbox"><div class="just JR JDP1"><label for="R">Decision Making</label></div></div>
                         </div>
                 </div> 
                 <div class="Qbox" id="A3-2box">
@@ -354,7 +366,7 @@
                                 </div>    
                         </div>
                         <div class="dispobox" id="A3dispo-2">
-                                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="A3dispo-2">CAT II: AEM</label></div>
+                                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="A3dispo-2">CAT II: AEM Now</label></div>
                                 <div class="justboxACT"><div class="just JII ACT2"></div></div>
                                 <div class="justbox"><div class="just JII JDP2"></div></div> 
                         </div>
@@ -494,14 +506,14 @@
                         </div>
                         <div class="A">
                                 <div id="btnwrap">
-                                <label class="ios-toggle" id="A5-1-toggle"><input type="checkbox" class="check" id="A5-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                                <label class="ios-toggle" id="A5-red-toggle"><input type="checkbox" class="check" id="A5-redbtn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
                                 </div>
-                                <div class="label" id="A5-1-btnlabel">NO</div>
+                                <div class="label" id="A5-RED-btnlabel">NO</div>
                         </div>    
                 </div>
-                <div class="dispobox" id="A5dispo-1">
+                <div class="dispobox" id="A5dispo-red">
                         <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="A5-dispo-1"> CAT I: Provider Now</label></div>
-                        <div class="justbox"><div class="just JR JDP1"><label for="R">Decision Making</label></div></div>
+                        <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
                       </div>
                 </div>
                 <div class="Qbox" id="A5-2box">
@@ -519,14 +531,14 @@
                         </div>
                         <div class="A">
                                 <div id="btnwrap">
-                                <label class="ios-toggle" id="A5-2-toggle"><input type="checkbox" class="check" id="A5-2-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                                <label class="ios-toggle" id="A5-1-toggle"><input type="checkbox" class="check" id="A5-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
                                 </div>
-                                <div class="label" id="A5-2-btnlabel">NO</div>
+                                <div class="label" id="A5-1-btnlabel">NO</div>
                         </div>    
                 </div>
-                <div class="dispobox" id="A5dispo-2">
-                        <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="A5dispo-2">CAT II: AEM</label></div>
-                        <div class="justbox"><div class="just JII JDP2"><label for="R">Decision Making</label></div></div>
+                <div class="dispobox" id="A5dispo-1">
+                        <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="A5dispo-2">CAT II: AEM Now</label></div>
+                        <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
                 </div>
                 </div>
                 <div class="Qbox" id="A5-3box">
@@ -541,9 +553,9 @@
                         </div>
                         <div class="A">
                                 <div id="btnwrap">
-                                <label class="ios-toggle" id="A5-3-toggle"><input type="checkbox" class="check" id="A5-3-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
+                                <label class="ios-toggle" id="A5-2-toggle"><input type="checkbox" class="check" id="A5-2-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
                                 </div>
-                                <div class="label" id="A5-3-btnlabel">NO</div>
+                                <div class="label" id="A5-2-btnlabel">NO</div>
                         </div>    
                         </div>
                         <div class="dispobox" id="A5dispo-RETEST">
@@ -588,12 +600,13 @@
                             </div>    
                     </div>
                     <div class="dispobox" id="B1dispo-1">
-                            <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B1dispo-1"> CAT II: AEM</label></div>
+                            <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B1dispo-1"> CAT II: AEM Now</label></div>
                             <div class="justbox"><div class="just JII JDP1"><label for="R">DECISION MAKING</label></div></div>
                     </div>
                     <div class="dispobox" id="B1dispo-RTD">
                             <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="B1dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
                             <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                            <div class="justboxAM"><div class="just JRTD JAM"><label for="R">Activity Modification</label></div></div>
                             <div class="justbox"><div class="just JRTD JDP2"><label for="R">DECISION MAKING</label></div></div>
                     </div>
             </div>
@@ -635,7 +648,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="B2dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B2dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B2dispo-1"> CAT II: AEM Now <br> PT if available</label></div>
                 <div class="justbox"><div class="just JII JDP2"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="B2dispo-RTD">
@@ -745,7 +758,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="B4dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B4-dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B4-dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="B4dispo-RTD">
@@ -801,7 +814,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="B5dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B5-dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B5-dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="B5dispo-RTD">
@@ -855,7 +868,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="B6dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B6-dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B6-dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="B6dispo-RTD">
@@ -903,7 +916,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="B7dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B7-dispo-1"> CAT II: AEM <br> PT if available</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B7-dispo-1"> CAT II: AEM Now <br> PT if available</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="B7dispo-RTD">
@@ -957,7 +970,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="B8dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B8-dispo-1"> CAT II: AEM <br> PT if available</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B8-dispo-1"> CAT II: AEM Now <br> PT if available</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="B8dispo-RTD">
@@ -1010,7 +1023,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="B9dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B9-dispo-1"> CAT II: AEM <br> PT if available</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B9-dispo-1"> CAT II: AEM Now <br> PT if available</label></div>
                 <div class="justboxACT"><div class="just JII ACT2"></div></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
@@ -1064,7 +1077,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="B10dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B10-dispo-1"> CAT II: AEM <br> PT if appropriate</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B10-dispo-1"> CAT II: AEM Now <br> PT if appropriate</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="B10dispo-RTD">
@@ -1118,7 +1131,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="B11dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B11-dispo-1"> CAT II: AEM <br> PT if appropriate</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="B11-dispo-1"> CAT II: AEM Now <br> PT if appropriate</label></div>
                 <div class="justboxACT"><div class="just JII ACT2"></div></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
@@ -1173,8 +1186,8 @@
         </div>
         <div class="dispobox" id="C1dispo-1">
                 <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="C1dispo-1"> CAT I: Provider Now</label></div>
-                <div class="justbox"><div class="just JR JDP1"><label for="R">Decision Making</label></div></div>
                 <div class="justboxACT"><div class="just JII ACT2">Pregnancy screen/test</div></div>
+                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
         <div class="Qbox" id="C1-2box">
@@ -1265,7 +1278,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="C2dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="C2dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="C2dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP2"><label for="R">Decision Making</label></div></div>
         </div>
 
@@ -1322,7 +1335,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="C3dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="C3dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="C3dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JR JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
@@ -1400,7 +1413,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="C4dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="C4dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="C4dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="C4dispo-RTD">
@@ -1448,7 +1461,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="C5dispo-RETEST">
-                <div class="dispo DRETEST"><i class='bx bx-info-circle' onclick="explain()"></i><label for="C5dispo-RETEST"> Rescreen as another complaint</label></div>
+                <div class="dispo DRETEST"><i class='bx bx-info-circle' onclick="explain()"></i><label for="C5dispo-RETEST"> Rescreen as rectal bleeding <br> or other symptoms if present</label></div>
                 <div class="justbox"><div class="just JRETEST"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="C5dispo-RTD">
@@ -1494,8 +1507,8 @@
                 </div>    
         </div>
         <div class="dispobox" id="C6dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="C6dispo-1"> CAT II: AEM</label></div>
-                <div class="justbox"><div class="just JR JDP1"><label for="R">Decision Making</label></div></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="C6dispo-1"> CAT II: AEM Now</label></div>
+                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
         <div class="Qbox" id="C6-2box">
@@ -1511,7 +1524,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="C6dispo-RETEST">
-                <div class="dispo DRETEST"><i class='bx bx-info-circle' onclick="explain()"></i><label for="C6dispo-RETEST"> Rescreen as another complaint</label></div>
+                <div class="dispo DRETEST"><i class='bx bx-info-circle' onclick="explain()"></i><label for="C6dispo-RETEST"> Rescreen as sore throat <br> or other symptoms if present</label></div>
                 <div class="justbox"><div class="just JRETEST"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="C6dispo-RTD">
@@ -1558,6 +1571,7 @@
         </div>
         <div class="dispobox" id="C7dispo-1">
                 <div class="dispo DR"><i class='bx bx-error' onclick="explain()"></i><label for="C7dispo-1"> CAT I: Provider Now</label></div>
+                <div class="justboxACT"><div class="just JR ACT2"></div></div>
                 <div class="justbox"><div class="just JR JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
@@ -1583,7 +1597,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="C7dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="C7dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="C7dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP2"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
@@ -1670,7 +1684,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="D1dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="D1dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="D1dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP2"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
@@ -1692,7 +1706,7 @@
                         </div>    
                 </div>
                 <div class="dispobox" id="D1dispo-3">
-                        <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="D1dispo-3"> CAT II: AEM</label></div>
+                        <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="D1dispo-3"> CAT II: AEM Now</label></div>
                         <div class="justbox"><div class="just JII JDP3"><label for="R">Decision Making</label></div></div>
                 </div>
         
@@ -1700,7 +1714,7 @@
                         <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="D1dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
                         <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
                         <div class="justboxAM"><div class="just JRTD JAM"><label for="R">Activity Modification</label></div></div>
-                        <div class="justbox"><div class="just JRTD JDP3"><label for="R">Decision Making</label></div></div>
+                        <div class="justbox"><div class="just JRTD JDP4"><label for="R">Decision Making</label></div></div>
                 </div>
                 </div>
 </div>
@@ -1753,7 +1767,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="D2dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="D2dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="D2dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
@@ -1776,7 +1790,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="D2dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="D2dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="D2dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP2"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="D2dispo-RTD">
@@ -1842,7 +1856,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="E1dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="E1dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="E1dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justboxACT"><div class="just JII ACT2"></div></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
@@ -1889,7 +1903,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="E2dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="E2dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="E2dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justboxACT"><div class="just JII ACT2"></div></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
@@ -1949,14 +1963,13 @@
                 </div>    
         </div>
         <div class="dispobox" id="E3dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="E3dispo-2"> CAT II: AEM</label></div>
-                <div class="justboxACT"><div class="just JII ACT2"></div></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="E3dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="E3dispo-RTD">
                 <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="E3dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
                 <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
-                <div class="justbox"><div class="just JRTD JDP3"><label for="R">Decision Making</label></div></div>
+                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
 </div>
@@ -2009,14 +2022,13 @@
                 </div>    
         </div>
         <div class="dispobox" id="E4dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="E4dispo-2"> CAT II: AEM</label></div>
-                <div class="justboxACT"><div class="just JII ACT2"></div></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="E4dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="E4dispo-RTD">
                 <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="E4dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
                 <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
-                <div class="justbox"><div class="just JRTD JDP3"><label for="R">Decision Making</label></div></div>
+                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
 
@@ -2066,7 +2078,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="F1dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="F1dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="F1dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="F1dispo-RTD">
@@ -2081,7 +2093,7 @@
 <div class="ADTsheet" id="F-2">
         <div class="Qbox" id="F2-redbox">
         <div class="Q">
-                <div class="Qwrap" id="F2-red"><label for="F2-red"></label>
+                <div class="Qwrap" id="F2-red"><label for="F2-red">No algorithm exists for<br> F-2</label>
                         <ul class="Q-UL">
 
                         </ul>
@@ -2099,38 +2111,13 @@
                 <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
-        <div class="Qbox" id="F2-1box">
-        <div class="Q">
-                <div class="Qwrap" id="F2-1"><label for="F2-1">2. </label>
-                        <ul class="Q-UL">
-                                <label><li class="Q-LI" id="F2-1-LI-1">V</li></label>
-
-                        </ul>
-                </div>
-                <div class="A">
-                        <div id="btnwrap">
-                        <label class="ios-toggle" id="F2-1-toggle"><input type="checkbox" class="check" id="F2-1-btn" onclick="DC()" autocomplete="off"><span class="slider"></span></label>
-                        </div>
-                        <div class="label" id="F2-1-btnlabel">NO</div>
-                </div>    
-        </div>
-        <div class="dispobox" id="F2dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="F2dispo-2"> CAT II: AEM</label></div>
-                <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
-        </div>
-        <div class="dispobox" id="F2dispo-RTD">
-                <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="F2dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
-                <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
-                <div class="justboxAM"><div class="just JRTD JAM"><label for="R">Activity Modification</label></div></div>
-                <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
-        </div>
-        </div>
 
 </div>
 <div class="ADTsheet" id="F-3">
         <div class="Qbox" id="F3-redbox">
         <div class="Q">
-                <div class="Qwrap" id="F3-red"><label for="F3-red">**Obtain a Finger stick Glucose**<br>1. Do any of the following apply?</label>
+                <div class="Q-icon">1.</div>
+                <div class="Qwrap" id="F3-red"><label for="F3-red">**Obtain a Finger stick Glucose**<br>Do any of the following apply?</label>
                         <ul class="Q-UL">
                                 <label><li class="Q-LI" id="F3-1-LI-1">Red flags</li></label>
                                 <label><li class="Q-LI" id="F3-1-LI-2">Back Pain</li></label>
@@ -2155,7 +2142,8 @@
         </div>
         <div class="Qbox" id="F3-1box">
         <div class="Q">
-                <div class="Qwrap" id="F3-1"><label for="F3-1">**Obtain urine HcG**<br>2. Do any of the following apply</label>
+                <div class="Q-icon">2.</div>
+                <div class="Qwrap" id="F3-1"><label for="F3-1">**Obtain urine HcG**<br>Do any of the following apply</label>
                         <ul class="Q-UL">
                                 <label><li class="Q-LI" id="F3-1-LI-1">Fever</li></label>
                                 <label><li class="Q-LI" id="F3-1-LI-2">Prevents normal activities</li></label>
@@ -2174,7 +2162,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="F3dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="F3dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="F3dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="F3dispo-RTD">
@@ -2189,7 +2177,8 @@
 <div class="ADTsheet" id="F-4">
         <div class="Qbox" id="F4-redbox">
         <div class="Q">
-                <div class="Qwrap" id="F4-red"><label for="F4-red">**Obtain a Finger stick Glucose**<br>1. Do any of the following apply?</label>
+                <div class="Q-icon">1.</div>
+                <div class="Qwrap" id="F4-red"><label for="F4-red">**Obtain a Finger stick Glucose**<br>Do any of the following apply?</label>
                         <ul class="Q-UL">
                                 <label><li class="Q-LI" id="F4-1-LI-1">Red flags</li></label>
                                 <label><li class="Q-LI" id="F4-1-LI-2">Unable to touch chin to chest</li></label>
@@ -2214,7 +2203,8 @@
         </div>
         <div class="Qbox" id="F4-1box">
         <div class="Q">
-                <div class="Qwrap" id="F4-1"><label for="F4-1">**Obtain Blood alcohol and urine drug screen**<br>2. Do any of the following apply</label>
+                <div class="Q-icon">2.</div>
+                <div class="Qwrap" id="F4-1"><label for="F4-1">**Obtain Blood alcohol and urine drug screen**<br>Do any of the following apply</label>
                         <ul class="Q-UL">
                                 <label><li class="Q-LI" id="F4-1-LI-1">Sudden onset</li></label>
                                 <label><li class="Q-LI" id="F4-1-LI-2">Heat exposure</li></label>
@@ -2231,7 +2221,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="F4dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="F4dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="F4dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justboxACT"><div class="just JII ACT2"></div></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
@@ -2288,7 +2278,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="F5dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="F5dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="F5dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justboxACT"><div class="just JII ACT2"></div></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
@@ -2347,7 +2337,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="F6dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="F6dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="F6dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="F6dispo-RTD">
@@ -2528,7 +2518,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="H1dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="H1dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="H1dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="H1dispo-RTD">
@@ -2543,7 +2533,8 @@
 <div class="ADTsheet" id="H-2">
         <div class="Qbox" id="H2-redbox">
         <div class="Q">
-                <div class="Qwrap" id="H2-red"><label for="H2-red">**Perform an eye exam and visual acuity**<br>1. Do any of the following apply?</label>
+                <div class="Q-icon">1.</div>
+                <div class="Qwrap" id="H2-red"><label for="H2-red" class="bold-label">**Perform an eye exam and visual acuity**</label><label><br>Do any of the following apply?</label>
                         <ul class="Q-UL">
                                 <label><li class="Q-LI" id="H2-1-LI-1">Red Flags</li></label>
                                 <label><li class="Q-LI" id="H2-1-LI-2">mixed pupil</li></label>
@@ -2580,7 +2571,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="H2dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="H2dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="H2dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="H2dispo-RTD">
@@ -2594,7 +2585,8 @@
 <div class="ADTsheet" id="H-3">
         <div class="Qbox" id="H3-redbox">
         <div class="Q">
-                <div class="Qwrap" id="H3-red"><label for="H3-red">**Perform an eye exam and visual acuity**<br>1. Do any of the following apply?</label>
+                <div class="Q-icon">1.</div>
+                <div class="Qwrap" id="H3-red"><label for="H3-red" class="bold-label">**Perform an eye exam and visual acuity**</label><label><br>Do any of the following apply?</label>
                         <ul class="Q-UL">
                                 <label><li class="Q-LI" id="H3-1-LI-1">Red Flags</li></label>
                                 <label><li class="Q-LI" id="H3-1-LI-2">Observed foreign body</li></label>
@@ -2634,7 +2626,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="H3dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="H3dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="H3dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="H3dispo-RTD">
@@ -2648,7 +2640,8 @@
 <div class="ADTsheet" id="H-4">
         <div class="Qbox" id="H4-redbox">
         <div class="Q">
-                <div class="Qwrap" id="H4-red"><label for="H4-red">**Perform an eye exam and visual acuity**<br>1. Do any of the following apply?</label>
+                <div class="Q-icon">1.</div>
+                <div class="Qwrap" id="H4-red"><label for="H4-red" class="bold-label">**Perform an eye exam and visual acuity**</label><label><br>Do any of the following apply?</label>
                         <ul class="Q-UL">
                                 <label><li class="Q-LI" id="H4-1-LI-1">Red Flags</li></label>
                                 <label><li class="Q-LI" id="H4-1-LI-2">Red eye</li></label>
@@ -2685,12 +2678,13 @@
                 </div>    
         </div>
         <div class="dispobox" id="H4dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="H4dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="H4dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="H4dispo-RTD">
                 <div class="dispo DRTD"><i class='bx bxs-capsule' onclick="explain()"></i><label for="H4dispo-RTD"> CAT III: Treatment Protocol and RTD</label></div>
                 <div class="justboxACT"><div class="just JRTD JPROT"></div></div>
+                <div class="justboxAM"><div class="just JRTD JAM"><label for="R">Activity Modification</label></div></div>
                 <div class="justbox"><div class="just JRTD JDP2"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
@@ -2739,7 +2733,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="I1dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="I1dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="I1dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="I1dispo-RTD">
@@ -2781,7 +2775,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="I2dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="I2dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="I2dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="I2dispo-RTD">
@@ -2837,7 +2831,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="I3dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="I3dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="I3dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="I3dispo-RTD">
@@ -2892,7 +2886,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="I4dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="I4dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="I4dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="I4dispo-RTD">
@@ -3040,7 +3034,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J1dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J1dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J1dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J1dispo-RTD">
@@ -3098,7 +3092,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J2dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J2dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J2dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J2dispo-RTD">
@@ -3150,7 +3144,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J3dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J3dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J3dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J3dispo-RTD">
@@ -3198,7 +3192,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J4dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J4dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J4dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J4dispo-RTD">
@@ -3252,7 +3246,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J5dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J5dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J5dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J5dispo-RTD">
@@ -3297,7 +3291,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J6dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J6dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J6dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J6dispo-RTD">
@@ -3346,7 +3340,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J7dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J7dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J7dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justboxACT"><div class="just JII ACT2"></div></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
@@ -3399,7 +3393,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J8dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J8dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J8dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J8dispo-RTD">
@@ -3454,7 +3448,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J9dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J9dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J9dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
                 <div class="justboxACT"><div class="just JII ACT2"></div></div>
         </div>
@@ -3510,7 +3504,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J10dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J10dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J10dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J10dispo-RTD">
@@ -3567,7 +3561,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J11dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J11dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J11dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J11dispo-RTD">
@@ -3610,7 +3604,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J12dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J12dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J12dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J12dispo-RTD">
@@ -3665,7 +3659,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J13dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J13dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J13dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J13dispo-RTD">
@@ -3723,7 +3717,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J14dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J14dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J14dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J14dispo-RTD">
@@ -3777,7 +3771,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J15dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J15dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J15dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J15dispo-RTD">
@@ -3834,7 +3828,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J16dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J16dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J16dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J16dispo-RTD">
@@ -3891,7 +3885,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J17dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J17dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J17dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J17dispo-RTD">
@@ -3946,7 +3940,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="J18dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J18dispo-1"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="J18dispo-1"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="J18dispo-RTD">
@@ -4002,7 +3996,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="K1dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="K1dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="K1dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="K1dispo-RTD">
@@ -4058,7 +4052,7 @@
                         </div>    
                 </div>
                 <div class="dispobox" id="K2dispo-2">
-                        <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="K2dispo-2"> CAT II: AEM</label></div>
+                        <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="K2dispo-2"> CAT II: AEM Now</label></div>
                         <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
                 </div>
                 </div>
@@ -4132,7 +4126,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="K3dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="K3dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="K3dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="K3dispo-RTD">
@@ -4163,7 +4157,7 @@
                 </div>
         </div>
         <div class="dispobox" id="K4dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="K4dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="K4dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="K4dispo-RTD">
@@ -4227,7 +4221,7 @@
                 </div>
         </div>
         <div class="dispobox" id="K6dispo-1">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="K6dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="K6dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="K6dispo-RTD">
@@ -4282,7 +4276,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="K7dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="K7dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="K7dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="K7dispo-RTD">
@@ -4335,7 +4329,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="L1dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="L1dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="L1dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="L1dispo-RTD">
@@ -4444,7 +4438,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="L3dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="L3dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="L3dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="L3dispo-RTD">
@@ -4497,7 +4491,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="L4dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="L4dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="L4dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="L4dispo-RTD">
@@ -4532,7 +4526,7 @@
                 <div class="justbox"><div class="just JR JRED"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="L5dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="L5dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="L5dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
@@ -4579,7 +4573,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="L8dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="L8dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="L8dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
@@ -4718,7 +4712,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="L11dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="L11dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="L11dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         <div class="dispobox" id="L11dispo-RETEST">
@@ -4799,7 +4793,7 @@
                 </div>    
         </div>
         <div class="dispobox" id="M1dispo-2">
-                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="M1dispo-2"> CAT II: AEM</label></div>
+                <div class="dispo DII"><i class='bx bx-error' onclick="explain()"></i><label for="M1dispo-2"> CAT II: AEM Now</label></div>
                 <div class="justbox"><div class="just JII JDP1"><label for="R">Decision Making</label></div></div>
         </div>
         </div>
