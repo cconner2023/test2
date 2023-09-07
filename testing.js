@@ -7,224 +7,7 @@ if ("serviceWorker" in navigator) {
   })
 }
 
-
-//defining parent elements
-const menu = document.querySelector("#item-menu");
-const complaints = document.querySelector(".complaint-box");
-const homecatbox = document.querySelector("#homecatbox");
-const Acontainer = document.querySelector(".ADTcontainer");
-const ADTpage = document.querySelector(".ADTpage");
-const return2 = document.querySelector(".return-btn2")
-const homebanner = document.querySelector("#banner1");
-const banner = document.querySelector("#banner2");
-const subbanner = document.querySelector("#banner3");
-const algorithm = document.querySelector(".algorithm");
-//Main category buttons (to go to the subcategories A, B, C, D)
-const btnA = document.querySelector("#btn-A");
-const btnB = document.querySelector("#btn-B");
-const btnC = document.querySelector("#btn-C");
-const btnD = document.querySelector("#btn-D");
-const btnE = document.querySelector("#btn-E");
-const btnF = document.querySelector("#btn-F");
-const btnG = document.querySelector("#btn-G");
-const btnH = document.querySelector("#btn-H");
-const btnI = document.querySelector("#btn-I");
-const btnJ = document.querySelector("#btn-J");
-const btnK = document.querySelector("#btn-K");
-const btnL = document.querySelector("#btn-L");
-const btnM = document.querySelector("#btn-M");
-//Subcategory boxes (A, B, C, D, E)
-const Abox = document.querySelector("#subboxA");
-const Bbox = document.querySelector("#subboxB");
-const Cbox = document.querySelector("#subboxC");
-const Dbox = document.querySelector("#subboxD");
-const Ebox = document.querySelector("#subboxE");
-const Fbox = document.querySelector("#subboxF");
-const Gbox = document.querySelector("#subboxG");
-const Hbox = document.querySelector("#subboxH");
-const Ibox = document.querySelector("#subboxI");
-const Jbox = document.querySelector("#subboxJ");
-const Kbox = document.querySelector("#subboxK");
-const Lbox = document.querySelector("#subboxL");
-const Mbox = document.querySelector("#subboxM");
-//labels (A-1, A-2) that act as buttons
-const A1label = document.querySelector("A1label"),
-A2label = document.querySelector("#A2label"),
-A3label = document.querySelector("#A3label"),
-A4label = document.querySelector("#A4label"),
-A5label = document.querySelector("#A5label"),
-B1label = document.querySelector("#B1label"),
-B2label = document.querySelector("#B2label"),
-B3label = document.querySelector("#B3label"),
-B4label = document.querySelector("#B4label"),
-B5label = document.querySelector("#B5label"),
-B6label = document.querySelector("#B6label"),
-B7label = document.querySelector("#B7label"),
-B8label = document.querySelector("#B8label"),
-B9label = document.querySelector("#B9label"),
-B10label = document.querySelector("#B10label"),
-B11label = document.querySelector("#B11label"),
-C1label = document.querySelector("#C1label"),
-C2label = document.querySelector("#C2label"),
-C3label = document.querySelector("#C3label"),
-C4label = document.querySelector("#C4label"),
-C5label = document.querySelector("#C5label"),
-C6label = document.querySelector("#C6label"),
-C7label = document.querySelector("#C7label"),
-D1label = document.querySelector("#D1label"),
-D2label = document.querySelector("#D2label"),
-E1label = document.querySelector("#E1label"),
-E2label = document.querySelector("#E2label"),
-E3label = document.querySelector("#E3label"),
-E4label = document.querySelector("#E4label"),
-F1label = document.querySelector("#F1label"),
-F2label = document.querySelector("#F2label"),
-F3label = document.querySelector("#F3label"),
-F4label = document.querySelector("#F4label"),
-F5label = document.querySelector("#F5label"),
-F6label = document.querySelector("#F6label"),
-G1label = document.querySelector("#G1label"),
-G2label = document.querySelector("#G2label"),
-H1label = document.querySelector("#H1label"),
-H2label = document.querySelector("#H2label"),
-H3label = document.querySelector("#H3label"),
-H4label = document.querySelector("#H4label"),
-I1label = document.querySelector("#I1label"),
-I2label = document.querySelector("#I2label"),
-I3label = document.querySelector("#I3label"),
-I4label = document.querySelector("#I4label"),
-I5label = document.querySelector("#I5label"),
-I6label = document.querySelector("#I6label"),
-J1label = document.querySelector("#J1label"),
-J2label = document.querySelector("#J2label"),
-J3label = document.querySelector("#J3label"),
-J4label = document.querySelector("#J4label"),
-J5label = document.querySelector("#J5label"),
-J6label = document.querySelector("#J6label"),
-J7label = document.querySelector("#J7label"),
-J8label = document.querySelector("#J8label"),
-J9label = document.querySelector("#J9label"),
-J10label = document.querySelector("#J10label"),
-J11label = document.querySelector("#J11label"),
-J12label = document.querySelector("#J12label"),
-J13label = document.querySelector("#J13label"),
-J14label = document.querySelector("#J14label"),
-J15label = document.querySelector("#J15label"),
-J16label = document.querySelector("#J16label"),
-J17label = document.querySelector("#J17label"),
-J18label = document.querySelector("#J18label"),
-K1label = document.querySelector("#K1label"),
-K2label = document.querySelector("#K2label"),
-K3label = document.querySelector("#K3label"),
-K4label = document.querySelector("#K4label"),
-K5label = document.querySelector("#K5label"),
-K6label = document.querySelector("#K6label"),
-K7label = document.querySelector("#K7label"),
-L1label = document.querySelector("#L1label"),
-L2label = document.querySelector("#L2label"),
-L3label = document.querySelector("#L3label"),
-L4label = document.querySelector("#L4label"),
-L5label = document.querySelector("#L5label"),
-L6label = document.querySelector("#L6label"),
-L7label = document.querySelector("#L7label"),
-L8label = document.querySelector("#L8label"),
-L9label = document.querySelector("#L9label"),
-L10label = document.querySelector("#L10label"),
-L11label = document.querySelector("#L11label"),
-L12label = document.querySelector("#L12label"),
-M1label = document.querySelector("#M1label"),
-M2label = document.querySelector("#M2label");
-
-//ADTsheets (A-1, A-2, A-3)
-const A1 = document.querySelector("#A-1"),
-A2 = document.querySelector("#A-2"),
-A3 = document.querySelector("#A-3"),
-A4 = document.querySelector("#A-4"),
-A5 = document.querySelector("#A-5"),
-B1 = document.querySelector("#B-1"),
-B2 = document.querySelector("#B-2"),
-B3 = document.querySelector("#B-3"),
-B4 = document.querySelector("#B-4"),
-B5 = document.querySelector("#B-5"),
-B6 = document.querySelector("#B-6"),
-B7 = document.querySelector("#B-7"),
-B8 = document.querySelector("#B-8"),
-B9 = document.querySelector("#B-9"),
-B10 = document.querySelector("#B-10"),
-B11 = document.querySelector("#B-11"),
-C1 = document.querySelector("#C-1"),
-C2 = document.querySelector("#C-2"),
-C3 = document.querySelector("#C-3"),
-C4 = document.querySelector("#C-4"),
-C5 = document.querySelector("#C-5"),
-C6 = document.querySelector("#C-6"),
-C7 = document.querySelector("#C-7"),
-D1 = document.querySelector("#D-1"),
-D2 = document.querySelector("#D-2"),
-E1 = document.querySelector("#E-1"),
-E2 = document.querySelector("#E-2"),
-E3 = document.querySelector("#E-3"),
-E4 = document.querySelector("#E-4"),
-F1 = document.querySelector("#F-1"),
-F2 = document.querySelector("#F-2"),
-F3 = document.querySelector("#F-3"),
-F4 = document.querySelector("#F-4"),
-F5 = document.querySelector("#F-5"),
-F6 = document.querySelector("#F-6"),
-G1 = document.querySelector("#G-1"),
-G2 = document.querySelector("#G-2"),
-H1 = document.querySelector("#H-1"),
-H2 = document.querySelector("#H-2"),
-H3 = document.querySelector("#H-3"),
-H4 = document.querySelector("#H-4"),
-I1 = document.querySelector("#I-1"),
-I2 = document.querySelector("#I-2"),
-I3 = document.querySelector("#I-3"),
-I4 = document.querySelector("#I-4"),
-I5 = document.querySelector("#I-5"),
-I6 = document.querySelector("#I-6"),
-J1 = document.querySelector("#J-1"),
-J2 = document.querySelector("#J-2"),
-J3 = document.querySelector("#J-3"),
-J4 = document.querySelector("#J-4"),
-J5 = document.querySelector("#J-5"),
-J6 = document.querySelector("#J-6"),
-J7 = document.querySelector("#J-7"),
-J8 = document.querySelector("#J-8"),
-J9 = document.querySelector("#J-9"),
-J10 = document.querySelector("#J-10"),
-J11 = document.querySelector("#J-11"),
-J12 = document.querySelector("#J-12"),
-J13 = document.querySelector("#J-13"),
-J14 = document.querySelector("#J-14"),
-J15 = document.querySelector("#J-15"),
-J16 = document.querySelector("#J-16"),
-J17 = document.querySelector("#J-17"),
-J18 = document.querySelector("#J-18"),
-K1 = document.querySelector("#K-1"),
-K2 = document.querySelector("#K-2"),
-K3 = document.querySelector("#K-3"),
-K4 = document.querySelector("#K-4"),
-K5 = document.querySelector("#K-5"),
-K6 = document.querySelector("#K-6"),
-K7 = document.querySelector("#K-7"),
-L1 = document.querySelector("#L-1"),
-L2 = document.querySelector("#L-2"),
-L3 = document.querySelector("#L-3"),
-L4 = document.querySelector("#L-4"),
-L5 = document.querySelector("#L-5"),
-L6 = document.querySelector("#L-6"),
-L7 = document.querySelector("#L-7"),
-L8 = document.querySelector("#L-8"),
-L9 = document.querySelector("#L-9"),
-L10 = document.querySelector("#L-10"),
-L11 = document.querySelector("#L-11"),
-L12 = document.querySelector("#L-12"),
-M1 = document.querySelector("#M-1"),
-M2 = document.querySelector("#M-2");
-//Decision tree values for each subategory (A-1, A-2, A-3)
 const  
-//A1
   A1ACT1 = [],
   A1ACT2 = [],
   A1ACT3 = [],  
@@ -239,9 +22,7 @@ const
   A1GEN = ["pg. 19-20:","A sore throat is often due to a viral infection. Bacterial infections and other causes need to also be considered."],
   A1MEDCOM = ["Obtain a Throat Culture pg. 68(13)"],
   A1STP1 = ["Subject Area 6: Primary Care. Perform a head, eyes, ears, nose, and throat (HEENT) Exam. 081-833-0254", "Subject Area 6: Primary Care. Provide Care for Common Throat Infections. 081-833-0243","Subject Area 15: Primary Care (SL2). Obtain a Throat Culture. 081-833-0248"],
-
-
-//A2
+  A1DDX = ['Viral Infections', 'Bacterial Infection', 'Meningitis', 'Neck Deep Tissue Infection', 'Candida infection', 'Strep Throat'],
   A2ACT1 = [],
   A2ACT2 = [],
   A2ACT3 = [],  
@@ -250,21 +31,19 @@ const
   A2DP3 = ["Mild otitis externa, temporal-mandibular joint (TMJ) dysfunction, and ear pain with normal exam should be treated with minor-care.","MCP for otitis externa. Soak wick of a cotton ball wick with OTC ear drops. Place in the ear for 24 hours while using the drops. Remove the cotton wick and continue drops for 1 week (3 days after the symptoms have resolved). Keep the ear canal dry. Use OTC ibuprofen as needed for pain. Return to clinic if not resolved in 1 week or worsening symptoms to include pain or fever.","MCP for TMJ is another common cause of pain around the ear. Evaluation includes seeing if the pain increases with opening and closing the jaw while placing the finger on the anterior inside of the ear to feel the joint. Ensure pain is not related to the heart. Use OTC ibuprofen for inflammation and pain. Refer to dental if history of teeth grinding. Instruct on avoidance of triggers (excessive chewing, chewing gum). Home therapy is jaw isometric exercises: jaw is open 1 inch and jaw is pushed 1) down against a loosely fisted hand and 2) forward against a hand for 5 seconds each, each set is repeated 5 times per session with 3 sessions per day. Return if not improving within three days."],
   A2DP4 = [],
   A2DPRE = ["DP3. Evaluate for cold symptoms and sore throat that can be associated with ear pain with their respective protocols."],
-  A2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” A stiff neck and fever are signs of meningitis, and all Soldiers with signs of meningitis should be seen by a privileged provider as soon as possible. Mastoid symptoms can be a sign of mastoiditis.","DP1. Signs of infection. All Soldiers with otitis media or moderate to severe otitis externa should be evaluated by a privileged provider to be considered for antibiotics."],
+  A2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” A stiff neck and fever are signs of meningitis, and all Soldiers with signs of meningitis should be seen by a privileged provider as soon as possible. Mastoid symptoms can be a sign of mastoiditis."],
   A2PRO = ["MCP for Mild Otitis Externa: Soak wick of a cotton ball with ear drops. Place in the ear for 24 hours while using the drops. Remove the cotton wick and continue drops for 1 week (3 days after the symptoms have resolved). Keep the ear canal dry","MCP for TMJ: Refer to dental if history of teeth grinding, ibuprofen as needed for pain, instruct on avoidance of triggers and home jaw exercises.","Return if not improving in 3 days, worsening symptoms, dizziness, loss of hearing, stiff neck."],
   A2LIMITATIONS = ["Otitis Externa: Avoidance of situations requiring utilization of ear plugs, No swimming","Eustachian Tube Dysfunction: No scuba diving"],
   A2GEN = ["pg. 21-22"],
   A2MEDCOM = ["Administer Otic Medications pg.67 (3)(b)"],
   A2STP1 = ["Subject Area 6: Primary Care. Perform a HEENT Exam. 081-833-0254"," Subject Area 6: Primary Care. Provide Treatment for Common Ear Infections. 081-833-0241 ","Subject Area 18: Medication Administration. Administer Ear Medications. 081-833-0020"],
-
-
-//A3
+  A2DDX = ["Otitis Media/Externa", "Esutachian tube dysfunction", "Nasopharyngeal pathology", "Deep space head/neck infections", "Meningitis", "Mastoiditis", "Ruptured Ear Drum", "TMJ Dysfunction"],
   A3ACT1 = ["Place Mask"],
   A3ACT2 = ["Place Mask"],
-  A3ACT3 = [],
-  A3DP1 = ["Soldier with an ongoing productive cough may be contagious and needs to be evaluated for quarters.", "Viral symptoms that are improving and then get worse or onset of severe pain over the cheekbones/back upper teeth (sinuses) can be a sign of a sinus problem requiring prescription medications."],
-  A3DP2 = ["Purulent material is thick, yellow/greenish, foul smelling nasal discharge. Purulent discharge can be a sign of an infection or a retained foreign body in the nose.", "If symptoms have been going on for over seven days, evaluate for a bacterial infection."],
-  A3DP3 = ["Most upper respiratory tract infection symptoms which include sore throat and ear pain are caused by a virus or allergies and do not require antibiotics. Minor-care is focused on improving the symptoms that the Soldier is having while the issue resolves on its own.","MCP Cold: Counsel the Soldier to drink plenty of fluids and rest, cover their mouth when they cough and wash hands to prevent spread.","Ibuprofen for pain, acetaminophen for elevated temperature, decongestant for nasal congestion, guaifenesin for mucous, or antihistamine for allergies","Return to clinic if not improving within 1 week, worsening symptoms, fever, new sinus pain, lightheadedness, or pain in the neck."],
+  A3ACT3 = ["Place Mask"],
+  A3DP1 = ["DP1: Soldier with an ongoing productive cough may be contagious and needs to be evaluated for quarters.", "Viral symptoms that are improving and then get worse or onset of severe pain over the cheekbones/back upper teeth (sinuses) can be a sign of a sinus problem requiring prescription medications."],
+  A3DP2 = ["DP2: Purulent material is thick, yellow/greenish, foul smelling nasal discharge. Purulent discharge can be a sign of an infection or a retained foreign body in the nose.", "If symptoms have been going on for over seven days, evaluate for a bacterial infection."],
+  A3DP3 = ["Treatment Protocol: Most upper respiratory tract infection symptoms which include sore throat and ear pain are caused by a virus or allergies and do not require antibiotics. Minor-care is focused on improving the symptoms that the Soldier is having while the issue resolves on its own.","MCP Cold: Counsel the Soldier to drink plenty of fluids and rest, cover their mouth when they cough and wash hands to prevent spread.","Ibuprofen for pain, acetaminophen for elevated temperature, decongestant for nasal congestion, guaifenesin for mucous, or antihistamine for allergies","Return to clinic if not improving within 1 week, worsening symptoms, fever, new sinus pain, lightheadedness, or pain in the neck."],
   A3DP4 = [],
   A3DPRE = [],
   A3DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Shortness of breath and abnormal pulse oxygenation suggest respiratory compromise. The soldier should be immediately started on oxygen pending further evaluation. Fever with a stiff neck suggests meningitis. Quick Sequential (sepsis-related) Organ Failure Assessment (qSOFA) is comprised of a respiratory rate greater than 21, systolic blood pressure less than 101, and Glasgow coma scale less than 15. Coughing up blood clots or quarter sized amounts of blood can be a sign of bleeding within the lungs.","DP1. Soldier with an ongoing productive cough may be contagious and needs to be evaluated for quarters. Viral symptoms that are improving and then get worse or onset of severe pain over the cheekbones/back upper teeth (sinuses) can be a sign of a sinus problem requiring prescription medications."],
@@ -273,8 +52,7 @@ const
   A3GEN = ["pg. 23-24:","If a Soldier states that they have a cold, determine what complaint to screen by asking, “What do you mean by a cold?” If his/her complaint can be screened by another protocol, use that protocol."],
   A3MEDCOM = ["Administer Antihistamines pg.67 (3)(j)","Administer Allergy Shots/Skin Testing pg.67 (2)","Provide Oxygen pg.69 (2)(h)"],
   A3STP1 = ["Subject Area 6: Primary Care. Perform a HEENT Exam. 081-833-0254","Subject Area 6: Primary Care. Provide Treatment for Sinus Infections. 081-833-0242","Subject Area 6: Primary Care. Provide Care for Common Throat Infections. 081-833-0243","Subject Area 6: Primary Care. Provide Care for Common Respiratory Disorders. 081-833-0245"],
-
-//A4 
+  A3DDX = ["Allergic or seasonal rhinitis","Bacterial pharyngitis or tonsillitis","Acute bacterial rhinosinusitis","Influenza","Pertussis"],
   A4ACT1 = ["Ear irrigation if wax and TM intact"],
   A4ACT2 = [],
   A4ACT3 = [],
@@ -289,9 +67,8 @@ const
   A4GEN = ["pg. 25-26"],
   A4MEDCOM = ["Administer Otic Medications pg.67 (3)(b) "],
   A4STP1 = ["Subject Area 6: Primary Care. Perform a HEENT Exam. 081-833-0254","Subject Area 6: Primary Care. Provide Treatment for Common Ear Infections. 081-833-0241","Subject Area 15: Primary Care. Irrigate an Obstructed Ear. 081-833-0059 ","Subject Area 18: Medication Administration. Administer Ear Medications. 081-833-0020"],
-  
-//A5
-  A5ACT1 = [],
+  A4DDX = ['Cerumen Impaction','Otitis Media','Otosclerosis','Ruptured Ear Drum','Eustachian Tube Dysfunction','Hearing Loss','Disorders of the Jaw Joint','Severe Anxiety','Neck Injuries'],
+  A5ACT1 = ['Ear irrigation if wax and TM intact'],
   A5ACT2 = [],
   A5ACT3 = [],
   A5DP1 = ["DP2. Soldiers who have had trauma to the nose with an associated nosebleed require further screening. ","A misaligned broken nose can affect the upper airway and increase the risk of future sinus infections. Other injuries can be associated with the force that caused the trauma and nosebleed. ","Nosebleed while on anticoagulants can make it more difficult to stop a nosebleed and be a sign that the anticoagulation level is too high. ","Purulent discharge can be related to a retained foreign body or a concurrent infection that requires additional treatment. ","Recurrent nosebleeds not associated with a cold can be a sign of a bleeding disorder."],
@@ -299,14 +76,14 @@ const
   A5DP3 = ["MCP Nosebleed. Once the bleeding is controlled, tell the Soldier to avoid vigorous blowing of the nose. If the room air is dry a humidifier or vaporizer often helps. Instruct the Soldier to return for medical assistance if the bleeding recurs and is not able to be controlled with tilting the head forward and applying external pressure with the thumb and index finger for 5 minutes or if the amount of blood lost at one time is enough to soak a wash cloth (ask the Soldier to bring in his wash cloth). ","Saline nasal spray can be used to prevent future nosebleeds if the air is dry after the initial nosebleed has resolved. ","Decongestant (Oxymetazoline) can be used to constrict the blood vessels."],
   A5DP4 = [],
   A5DPRE = ["DP3. Cold symptoms often result in nosebleeds from recurrent blowing of the nose, rubbing the nose with a tissue after blowing it, picking the nose from congestion, and prominent blood vessels from allergies or inflammation. ","Soldiers with symptoms of runny nose, congestion, or allergies should be screened with the cold symptoms protocol."],
-  A5DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Orthostatic hypotension is a sign of volume depletion and can represent a significant amount of blood loss.","Action1. Nosebleeds normally result from the rupture of small blood vessels inside the nose related to mucosal trauma (nose picking) or irritation (dry climate, blowing nose). 90% occur in the front of septum in the nose and can be controlled by applying external pressure. If the bleeding does not stop, then the nosebleed likely is coming from the back of the nose and needs to be controlled by a privileged provider."],
+  A5DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Orthostatic hypotension is a sign of volume depletion and can represent a significant amount of blood loss.","Nosebleeds normally result from the rupture of small blood vessels inside the nose related to mucosal trauma (nose picking) or irritation (dry climate, blowing nose). 90% occur in the front of septum in the nose and can be controlled by applying external pressure. If the bleeding does not stop, then the nosebleed likely is coming from the back of the nose and needs to be controlled by a privileged provider."],
   A5PRO = ["Do not blow the nose vigorously or wipe the middle of the nose, as it can cause a nosebleed.","Medications: nasal saline for prevention if the air is dry, oxymetazoline if recurrent with nasal sx.","Humidifier can also be used if the air is dry.","Return if unable to get a recurrent nosevleed to stop, notice bleeding from other sites, feeling lightheaded or tired, losing a significant amount of blood, or recurrent without common cold sx."],
   A5LIMITATIONS = [],
   A5GEN = ["pg. 27-28: ","Nosebleeds normally result from the rupture of small blood vessels inside the nose related to mucosal trauma (nose picking) or irritation (dry climate, blowing nose). 90% occur in the front of septum in the nose and can be controlled by applying external pressure. If the bleeding does not stop, then the nosebleed likely is coming from the back of the nose and needs to be controlled by a privileged provider."],
   A5MEDCOM = ["N/A"],
   A5STP1 = ["Subject Area 6: Primary Care. Perform a HEENT Exam. 081-833-0254"],
-  
-//B1
+  A5DDX = ["Upper Respiratory Infections","Allergic or Viral Rhinitis","Trauma","Bleeding Disorder","Foreign Body"],
+
   B1ACT1 = [],
   B1ACT2 = [],
   B1ACT3 = [],
@@ -321,8 +98,8 @@ const
   B1GEN = ["pg. 29-30: ","A focused history and physical exam is essential to localizing a Soldier’s complaint of back pain and identifying its source. The HPI should include an OPQRST evaluation of the complaint and the ROS should specifically address red flag symptoms as well as questions related but not limited to infection, trauma, cardiopulmonary, gastrointestinal, and genitourinary, or gynecological complaints."],
   B1MEDCOM = ["Initial Management of Fractures/Spinal Injury. pg.69 (2)(d)"],
   B1STP1 = ["Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222"],
+  B1DDX = ["Muscle Sprain/Strain"," Fracture"," Infection ","Renal Stone/UTI ","Arthritis ","Cauda Equina Syndrome"],
 
-//B2
   B2ACT1 = ["Immobilize head and neck if associated with trauma.","Support ABCs as required."],
   B2ACT2 = [],
   B2ACT3 = [],
@@ -337,25 +114,24 @@ const
   B2GEN = ["pg. 31-32"],
   B2MEDCOM = ["Initial Management of Fractures/Spinal Injury pg.69(2)(d)"],
   B2STP1 = ["Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders 081-833-0222","Subject Area 3: Trauma Treatment. Initiate Treatment for Neck Wounds 081-833-0091","Subject Area 3: Trauma Treatment. Apply a Cervical Collar 081-833-0177","Subject Area 3: Trauma Treatment. Apply a Long Spine Board 081-833-0181"],
-  
-//B3
+  B2DDX = ["Muscle Strain", "Fracture", "Meningitis", "Flu", "Deep neck space infection"],
+
   B3ACT1 = ["Immobilize the injured extremity before transport or referral"],
   B3ACT2 = ["Immobilize the injured extremity before transport or referral"],
   B3ACT3 = [],
-  B3DP1 = ["DP2. Neurologic symptoms (numbness, weakness) suggest nerve impingement. Limited motion suggests a more significant injury that should be placed in a sling and require further evaluation. Laceration may require closure."],
-  B3DP2 = ["MCP. The best treatment is conservative measures including a home exercise program for mobilization and strengthening and analgesics as needed. A temporary profile may be required. Instruct the Soldier to work the injured shoulder through its range of motion (but not vigorous enough to cause pain) at least twice each day to preserve mobility after a 20-minute application of ice. Follow established local protocols for home exercise. Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain. Instruct the Soldier to seek medical assistance if pain becomes severe enough to prevent performance of normal duties/activities, worsening of other symptoms, symptoms last longer than one week.","Refer to PT if direct access to physical therapy (physical therapy sick call) is available, in accordance with local policy."],
-  B3DP3 = [],
+  B3DP1 = ["DP 1. The red flags indicate a medical emergency. Immobilize the affected extremity prior to transport if associated with trauma. Immediately refer shoulder pain associated with cardiac symptoms (sweating, shortness of breath, chest or jaw pain/ pressure). A red, warm, swollen joint or pain with fever can be a sign of an infected joint requiring immediate surgical evaluation. Abdominal symptoms suggest an extrinsic cause requiring evaluation."],
+  B3DP2 = ["DP2. Neurologic symptoms (numbness, weakness) suggest nerve impingement. Limited motion suggests a more significant injury that should be placed in a sling and require further evaluation. Laceration may require closure."],
+  B3DP3 = ["MCP. The best treatment is conservative measures including a home exercise program for mobilization and strengthening and analgesics as needed. A temporary profile may be required. Instruct the Soldier to work the injured shoulder through its range of motion (but not vigorous enough to cause pain) at least twice each day to preserve mobility after a 20-minute application of ice. Follow established local protocols for home exercise. Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain. Instruct the Soldier to seek medical assistance if pain becomes severe enough to prevent performance of normal duties/activities, worsening of other symptoms, symptoms last longer than one week.","Refer to PT if direct access to physical therapy (physical therapy sick call) is available, in accordance with local policy."],
   B3DP4 = [],
   B3DPRE = [],
-  B3DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Abnormal distal pulse or sensation in the setting of trauma is a medical emergency require immediate evaluation. Deformity can be a dislocated shoulder or fracture. Myocardial infarction can be associated with shoulder pain.","DP 1. The red flags indicate a medical emergency. Immobilize the affected extremity prior to transport if associated with trauma. Immediately refer shoulder pain associated with cardiac symptoms (sweating, shortness of breath, chest or jaw pain/ pressure). A red, warm, swollen joint or pain with fever can be a sign of an infected joint requiring immediate surgical evaluation. Abdominal symptoms suggest an extrinsic cause requiring evaluation."],
+  B3DPRED = ["Red Flags: If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Abnormal distal pulse or sensation in the setting of trauma is a medical emergency require immediate evaluation. Deformity can be a dislocated shoulder or fracture. Myocardial infarction can be associated with shoulder pain."],
   B3PRO = ["Provide home exercise program. Activity modification as appropriate","Intermittent ice or heat for inflammation","Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain as needed","Refer to PT if direct access is available","Follow-up: Immediate follow-up for a DP1 or DP2 symptoms. Routine follow-up is recommended for any symptoms that do not improve or worsen."],
   B3LIMITATIONS = ["May lift, push, pull up to 5 lbs","No overhead lifting or repetitive activities","Perform stretching, core strengthening home regiment during PT"],
   B3GEN = ["Pg. 33-34: ","Anterolateral shoulder pain worsened by reaching overhead can be related to impingement syndrome, AC joint pathology, or rotator cuff injury. Posterior shoulder pain could be from rotator cuff injury, gallbladder, spleen, or neck."],
   B3MEDCOM = ["Initial Management of Fractures/Spinal Injury. pg.69 (2)(d)"],
   B3STP1 = ["Subject Area 7: Musculoskeletal. Perform an Examination of the Shoulder. 081-833-0269", "Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222"],
+  B3DDX = ["Tendon inflammation/tear","Instability (dislocation)","Arthritis","Fracture","Myocardial Infarction"],
 
-
-//B4
   B4ACT1 = ["Immobilize the injured extremity before transport or referral"],
   B4ACT2 = [],
   B4ACT3 = [],
@@ -370,6 +146,7 @@ const
   B4GEN = ["Pg. 35-36: ","Elbow joint is formed by the connection of the distal humerus and the proximal radius (radial head). Epicondyles are bony prominences on the medial and lateral side of the distal humerus and are the site tendon attachment for muscles of the lower arm. Lateral elbow pain may represent tennis elbow, radiohumeral joint pain, or referred pain."],
   B4MEDCOM = ["Initial Management of Fractures/Spinal Injury. pg.69 (2)(d)"],
   B4STP1 = ["Subject Area 7: Musculoskeletal. Perform an Examination of the Elbow. 081-833-0270","Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222"],
+  B4DDX = ["Muscle Strain","Fracture","Dislocation","Tendonitis","Bursitis"],
 
 //B5
   B5ACT1 = ["Immobilize the injured extremity before transport or referral"],
@@ -386,6 +163,7 @@ const
   B5GEN = ["Pg. 37-38: ","Wrist pain usually occurs from trauma or overuse. Falling on an outstretched hand can result in a scaphoid (falling forward) or lunate/ triquetrum (falling back) injury. Ulnar side of wrist may involve tendinopathy, triangular fibrocartilage complex injury, or fracture. Radial side of wrist may involve tendinopathy, ligamentous injury, or fracture. Dorsal pain may involve a wrist sprain or fracture. Volar pain may involve fracture, ganglion, or carpal tunnel syndrome."],
   B5MEDCOM = ["Initial Management of Fractures/Spinal Injury. pg.69 (2)(d)"],
   B5STP1 = ["Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222","Subject Area 7: Musculoskeletal. Perform an Examination of the Wrist. 081-833-0273"],
+  B5DDX = ["Fracture","Carpal Tunnel","Arthritis","Bursitis","Tendonitis","Muscle Strain"],
 
 
 //B6
@@ -403,6 +181,7 @@ const
   B6GEN = ["Pg. 39-40: ","Any deviation of the hand from normal function can result in significant disability. Hand and finger injury are common in Soldiers."],
   B6MEDCOM = ["Initial Management of Fractures/Spinal Injury. pg.69 (2)(d)"],
   B6STP1 = ["Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222","Subject Area 7: Musculoskeletal. Apply a Rigid Splint. 081-833-0263","Subject Area 7: Musculoskeletal. Apply an Elastic Bandage. 081-833-0264"],
+  B6DDX = ["Fracture/ Dislocation","Gout","Carpal Tunnel Syndrome","Arthritis","Tendonitis","Muscle Strain"],
 //B7
   B7ACT1 = ["Immobilize the hip or femur as indicated if associated with trauma.","Stress injury: crutches (toe touch)"],
   B7ACT2 = [],
@@ -418,6 +197,7 @@ const
   B7GEN = ["pg. 41-42: ","Lateral pain worse with direct pressure may represent trochanteric bursitis. Anterior hip or groin pain may represent the hip joint injury, fracture (stress fracture), or non-hip issue like inguinal hernia. Femoral stress fractures are more common in initial entry training. They can result in permanent disability if not properly identified and treated."],
   B7MEDCOM = ["Initial Management of Fractures/Spinal Injury. pg.69 (2)(d)"],
   B7STP1 = ["Subject Area 7: Musculoskeletal. Perform an Examination of the Hip. 081-833-0274","Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222","Subject Area 7: Musculoskeletal. Immobilize the Pelvis. 081-833-0266"],
+  B7DDX = ["Arthritis","Stress Fracture","Trochanteric Bursitis","Tendinitis","Muscle Strain","Hernia","Referred Pain"],
 
 //B8
   B8ACT1 = ["Immobilize the injured extremity before transport"],
@@ -434,6 +214,8 @@ const
   B8GEN = ["pg. 43-44: ","Knee pain is a common complaint in Soldiers with a complex differential that includes evaluating for trauma, overuse, swelling, and referred pain."],
   B8MEDCOM = ["Initial Management of Fractures/Spinal Injury. pg.69 (2)(d)"],
   B8STP1 = ["Subject Area 7: Musculoskeletal. Perform an Examination of the Knee. 081-833-0268","Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222","Subject Area 7: Musculoskeletal. Apply a Rigid Splint. 081-833-0263","Subject Area 7: Musculoskeletal. Apply an Elastic Bandage. 081-833-0264"],
+  B8DDX = ["Ligament or Cartilage Injury","Arthritis","Overuse Injury","Infection/Inflammation","Bursitis"],
+
 
   B9ACT1 = ["Immobilize the injured extremity before transport"],
   B9ACT2 = ["X-ray, crutches, and PT education"],
@@ -449,6 +231,7 @@ const
   B9GEN = ["pg 45-46: ","Ankle pain is a common complaint in Soldiers from overuse or trauma."],
   B9MEDCOM = ["Initial Management of Fractures/Spinal Injury pg.69 (2)(d) "],
   B9STP1 = ["Subject Area 7: Musculoskeletal. Perform an Examination of the Ankle. 081-833-0272 ","Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222","Subject Area 7: Musculoskeletal. Apply a Rigid Splint. 081-833-0263 ","Subject Area 7: Musculoskeletal. Apply an Elastic Bandage. 081-833-0264"],
+  B9DDX = ["Sprain/Strain","Fracture","Tendon Rupture","Arthritis","Bursitis","Tendinopathy"],
 
   B10ACT1 = ["Immobilize the injured extremity before transport.","Stress injury: crutches (toe touch)"],
   B10ACT2 = [],
@@ -464,6 +247,7 @@ const
   B10GEN = ["pg. 47-48: ","Common anterior foot pains include around the big toe (bunion, sprain, arthritis, sesamoiditis, ingrown toenail, subungual hematoma) and below the 2nd and 3rd metatarsals (metatarsalgia, Morton’s neuroma, and plantar wart)."],
   B10MEDCOM = ["Initial Management of Fractures/Spinal Injury pg.69 (2)(d)"],
   B10STP1 = ["Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal. Disorders. 081-833-0222 ","Subject Area 7: Musculoskeletal. Apply a Rigid Splint. 081-833-0263 ","Subject Area 7: Musculoskeletal. Apply and Elastic Bandage. 081-833-0264"],
+  B10DDX = ["Injury","Overuse","Plantar Fasciitis","Tarsal Tunnel Syndrome","Achilles Tendinopathy","Ingrown Toenail","Bunion"], 
 
   B11ACT1 = ["Immobilize the injured extremity.","Start IV for suspected rhabdomyolysis","Crutches for suspected BSI"],
   B11ACT2 = ["Provide crutch if needed"],
@@ -479,21 +263,23 @@ const
   B11GEN = ["pg. 49-50"],
   B11MEDCOM = ["Initial Management of Fractures/Spinal Injury pg.69 (2)(d)"],
   B11STP1 = [" Subject Area 7: Musculoskeletal. Treat Common Musculoskeletal Disorders. 081-833-0222 ","Subject Area 7: Musculoskeletal. Apply a Rigid Splint. 081-833-0263 ","Subject Area 7: Musculoskeletal. Apply and Elastic Bandage. 081-833-0264"],
+  B11DDX = ["Fracture","Laceration","Bruise","Stress Reaction"],
 
   C1ACT1 = [],
   C1ACT2 = [],
   C1ACT3 = [],
-  C1DP1 = ["DP 2. These are symptoms that are related to volume depletion. Fluid depletion is a risk of significant nausea and vomiting. If a Soldier is not able to maintain fluid intake due to his or her nausea and vomiting, then short term hospitalization has to be considered until the nausea and vomiting can be controlled. Nausea and vomiting, especially in the mornings, is a common symptom in pregnancy. If a Soldier has a positive pregnancy test or symptoms of nausea during pregnancy, she will require a longer-term plan than the minor-care protocol can accommodate."],
-  C1DP2 = [],
+  C1DP1 = ["DP 1. These represent the possibility of more significant underlying medical conditions. A common side effect of chemotherapy treatment is nausea and vomiting that is sometimes difficult to control. BMI less than 18 can be a sign of an eating disorder like bulimia or another significant medical condition. Uncontrolled diabetes and gastroparesis due to diabetes can also present with nausea and vomiting."],
+  C1DP2 = ["DP 2. These are symptoms that are related to volume depletion. Fluid depletion is a risk of significant nausea and vomiting. If a Soldier is not able to maintain fluid intake due to his or her nausea and vomiting, then short term hospitalization has to be considered until the nausea and vomiting can be controlled. Nausea and vomiting, especially in the mornings, is a common symptom in pregnancy. If a Soldier has a positive pregnancy test or symptoms of nausea during pregnancy, she will require a longer-term plan than the minor-care protocol can accommodate."],
   C1DP3 = ["MCP for nausea/vomiting. Handwashing is important to prevent spread of disease. Due to contagion risk, activity modification is important for food handlers and multiple cases or when DFAC food is suspected must be reported to the supervising NCO due to the potential of an outbreak. Diet control is very important in treating nausea and vomiting. Ice chips should be used initially. Once vomiting is controlled, advance to clear liquids (broth, fruit juice, sports drink and caffeine free soda). Start with small sips and slowly advance. Once the Soldier has been able to tolerate liquids for 24 hours, advance to a BRAT (bread, rice, apple sauce, toast) diet of simple carbohydrates. The Soldier with severe or persistent vomiting that is unable to tolerate liquids will require IV fluids. Advise the Soldier to return for medical assistance if the symptoms last more than two days, if blood appears in his vomit or in his stools, or if he becomes dizzy and/or faints upon standing. Vomiting that is severe enough to prevent the Soldier from keeping clear liquids down for 24 hours, severe abdominal pain, or worsening symptoms are also causes for a prompt return visit."],
   C1DP4 = [],
   C1DPRE = ["DP 3. There are many other symptoms that can be associated with nausea and vomiting to include dizziness (vertigo), headaches (migraines) and heartburn. Reflux and regurgitation (return of gastric contents to hypopharynx with little effort) can be seen with heartburn and do not require treatment unless symptomatic."],
-  C1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Vomiting blood/coffee grinds and melena can be signs of an intestinal bleed. Neurologic symptoms can be a sign of increased intracranial pressure. Myocardial infarction can present with nausea.","DP 1. These represent the possibility of more significant underlying medical conditions. A common side effect of chemotherapy treatment is nausea and vomiting that is sometimes difficult to control. BMI less than 18 can be a sign of an eating disorder like bulimia or another significant medical condition. Uncontrolled diabetes and gastroparesis due to diabetes can also present with nausea and vomiting."],
+  C1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Vomiting blood/coffee grinds and melena can be signs of an intestinal bleed. Neurologic symptoms can be a sign of increased intracranial pressure. Myocardial infarction can present with nausea."],
   C1PRO = ["Hand washing protocol. Special food handler precautions.","Notify supervising NCO if DFAC food is suspected or multiple cases identified.","Initiate a clear liquid diet with broth, sports drinks, clear non-caffeine soft drinks, fruit juice. ice chips to maintain calories and hydration. When vomiting controlled, start BRAT diet of simple carbohydrates.","Return to clinic if not improved in 48 hours or any of the red flags or other symptoms develop."],
   C1LIMITATIONS = ["No food handling, if work in a DFAC, until symptoms have resolved x 48 hours"],
   C1GEN = ["Pg. 51-52: ","Acute diarrhea in adults are often infectious in nature. The largest risk is due to volume depletion secondary to fluid loss. Small intestine infections often results in large, watery bowel movements associated with cramping, bloating, and gas symptoms. Large intestine infections often results in frequent regular, small bowel movements that are painful and associated with symptoms of mucous, blood, or fever. In general, diarrhea is often self-limited. Note that treatment of the symptoms by decreasing bowel movements frequency may extend the length of the disease."],
   C1MEDCOM = ["Administer Antiemetic pg. 67(3)(g)","Obtain Laboratory Specimens pg. 69-70(2)(k)"],
   C1STP1 = ["N/A"],
+  C1DDX = ["Medication","Infection","Intense Pain","Pregnancy","Concussion","Heartburn"],
 
 
   C2ACT1 = [],
@@ -510,6 +296,7 @@ const
   C2GEN = ["Pg. 53-54: ","Acute diarrhea in adults are often infectious in nature. The largest risk is due to volume depletion secondary to fluid loss. Small intestine infections often results in large, watery bowel movements associated with cramping, bloating, and gas symptoms. Large intestine infections often results in frequent regular, small bowel movements that are painful and associated with symptoms of mucous, blood, or fever. In general, diarrhea is often self-limited. Note that treatment of the symptoms by decreasing bowel movements frequency may extend the length of the disease."],
   C2MEDCOM = ["Obtain Laboratory Specimens pg. 69-70 (2)(k)"],
   C2STP1 = [ "Subject Area 2: Medical Treatment. Initiate Treatment for a Poisoned Casualty. 081-833-0004", "Subject Area 6: Primary Care. Provide Treatment for Abdominal Disorders. 081-833-0239", "Subject Area 16: CBRN. Provide Treatment for a Radiation Casualty. 081-833-0280"],
+  C2DDX = ["Food Intolerance", "Medication", "Infection (Viral/Bacterial)", "Dizziness", "Chest Pain", "Ear Pain", "Heartburn"],
   
 //c3
   C3ACT1 = ["Pregnancy Screen/ Test"],
@@ -519,28 +306,30 @@ const
   C3DP2 = ["DP 2. Periumbilical pain that moves to the right lower quadrant (RLQ) is a sign of appendicitis. Pancreatitis and appendicitis are often associated with a loss of appetite. Women of childbearing age should have their pregnancy status verified. Abdominal pain in the setting of pregnancy or recent abdominal trauma can signify an underlying issue. Chronic abdominal pain requires further evaluation by a qualified provider. New-onset benign, functional illness in a Soldier 50 plus years old is unlikely and should be evaluated further."],
   C3DP3 = ["MCP for Abdominal Pain. After significant underlying diseases have been ruled out, many causes of abdominal pain are not identified in the acute setting. Gas pain, constipation, stress are some of the potential other causes of the pain. The pain usually resolves on its own. Initial treatment includes hydration and a well-balanced, high fiber diet to help with any potential issues with constipation. A food diary looks for potential triggers. Follow-up if symptoms worsen, red flags, new symptoms, or no improvement in three days."],
   C3DP4 = [],
-  C3DPRE = [,"DP 3. Abdominal pain frequently accompanies nausea, diarrhea, and constipation. Soldiers should be screened for the complaint. Pelvic pain has an additional partial differential diagnosis and should be screened according to that protocol. Urinary symptoms can progress from a urinary tract infection to a bladder infection causing flank pain."],
+  C3DPRE = ["DP 3. Abdominal pain frequently accompanies nausea, diarrhea, and constipation. Soldiers should be screened for the complaint. Pelvic pain has an additional partial differential diagnosis and should be screened according to that protocol. Urinary symptoms can progress from a urinary tract infection to a bladder infection causing flank pain."],
   C3DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Unstable vitals represent a significant health risk. Abdominal rigidity and rebound or significant Soldier discomfort with bumping the Soldier’s stretcher/chair are signs of peritonitis and can represent a surgical abdomen. Level of pain may represent the significance of the underlying disease."],
   C3PRO = ["Initiate hydration with 8 glasses of water per day and a well-balanced, high fiber diet.","Maintain a food diary to see if the symptoms are related to a particular food.","Follow-up in 3 days if the symptoms have not resolved or earlier if symptoms worsenn, new symptoms develop, or red flags become present"],
   C3LIMITATIONS = ["No running, jumping, riding in vehicle over uneven terrain"," Aerobic activity at own pace/ distance", "Abdominal training at own intensity/ rep"],
   C3GEN = ["pg. 55-56: ","Abdominal pain is pain between the ribs and groin in the front half of the body. Note that a cardiac problem can cause upper abdominal pain. Pain may be related to the location: right upper quadrant (RUQ) (liver, gallbladder), left upper quadrant (LUQ) (spleen), epigastric (stomach, pancreas, aorta, heart), lower (intestines, urinary tract, hernia, pelvic organs), flank (kidney)."],
   C3MEDCOM = ["Obtain Laboratory Specimens pg. 69-70 (2)(k)"],
   C3STP1 = ["Task Subject Area 6: Primary Care. Provide Treatment for Abdominal Disorders. 081-833-0239"],
+  C3DDX = ["MI, AAA","Appendicitis","Pancreatitis, Hepatitis","Heartburn","Ectopic Pregnancy","Testicular Torsion","Pelvic Inflammatory Dis."],
 
   C4ACT1 = ["FOBT unless unable to obtain stool sample"],
   C4ACT2 = [],
   C4ACT3 = [],
-  C4DP1 = ["DP 2. These are symptoms of more concerning disease processes to include cancer with a family history of colon cancer before 45 years old, inflammatory bowel disease, and invasive gastroenteritis."],
-  C4DP2 = ["Hemorrhoids are enlarged veins around the rectum that protrude; get rubbed; and/or become painful from inflammation related to a small clot forming within the vein. Hemorrhoids are not dangerous but can be extremely uncomfortable. A Soldier who has a history of hemorrhoids or anal fissure and then develops similar symptoms likely has a recurrence. Soldier should be instructed on avoiding constipation since it is a common cause of hemorrhoids and anal fissures. Most people with itching (and no other symptoms) do not have a serious disease.","MCP for hemorrhoids and anal fissures. To decrease the amount of irritation, the stool needs to be soft. Advise the Soldier to ensure adequate intake of fluids (8 glasses a day), eat foods high in fiber like bran cereal and fresh fruits and vegetables, and spend less than five minutes on the toilet at a time. Increase fiber slowly as too much fiber at once may cause stomach cramping and gas. Tell the Soldier that the area should be kept clean by washing with warm water and blotting (rather than wiping) dry. Sitting in warm water can improve healing. Polyethylene glycol (1st line) or docusate sodium (2nd line) can be used to help keep the stool soft. Hydrocortisone and pramoxine cream (3rd line) can be used if needed for inflammation and pain. Instruct the Soldier in its use and to return for evaluation if the symptoms worsen, new symptoms develop, or symptoms last longer than one week or recurs."],
-  C4DP3 = ["MCP for hemorrhoids and anal fissures. To decrease the amount of irritation, the stool needs to be soft. Advise the Soldier to ensure adequate intake of fluids (8 glasses a day), eat foods high in fiber like bran cereal and fresh fruits and vegetables, and spend less than five minutes on the toilet at a time. Increase fiber slowly as too much fiber at once may cause stomach cramping and gas. Tell the Soldier that the area should be kept clean by washing with warm water and blotting (rather than wiping) dry. Sitting in warm water can improve healing. Polyethylene glycol (1st line) or docusate sodium (2nd line) can be used to help keep the stool soft. Hydrocortisone and pramoxine cream (3rd line) can be used if needed for inflammation and pain. Instruct the Soldier in its use and to return for evaluation if the symptoms worsen, new symptoms develop, or symptoms last longer than one week or recurs."],
+  C4DP1 = ["DP 1. Feeling lightheaded and orthostatic hypotension can be signs of significant blood loss. Hemoccult stool test can identify blood in the stool. Blood only on the outside of the stool or toilet paper is more likely to be from a hemorrhoid or anal fissure. If a stool sample cannot be obtained except by a rectal exam, then refer as “Provider Now” for the rectal exam. If a hemoccult stool test is not available, then Soldiers with blood on the outside of the stool or on the toilet paper only should be considered as negative. Blood mixed in with the stool should be treated as positive. If you are unsure, consider it positive."],
+  C4DP2 = ["DP 2. These are symptoms of more concerning disease processes to include cancer with a family history of colon cancer before 45 years old, inflammatory bowel disease, and invasive gastroenteritis."],
+  C4DP3 = ["Hemorrhoids are enlarged veins around the rectum that protrude; get rubbed; and/or become painful from inflammation related to a small clot forming within the vein. Hemorrhoids are not dangerous but can be extremely uncomfortable. A Soldier who has a history of hemorrhoids or anal fissure and then develops similar symptoms likely has a recurrence. Soldier should be instructed on avoiding constipation since it is a common cause of hemorrhoids and anal fissures. Most people with itching (and no other symptoms) do not have a serious disease.","MCP for hemorrhoids and anal fissures. To decrease the amount of irritation, the stool needs to be soft. Advise the Soldier to ensure adequate intake of fluids (8 glasses a day), eat foods high in fiber like bran cereal and fresh fruits and vegetables, and spend less than five minutes on the toilet at a time. Increase fiber slowly as too much fiber at once may cause stomach cramping and gas. Tell the Soldier that the area should be kept clean by washing with warm water and blotting (rather than wiping) dry. Sitting in warm water can improve healing. Polyethylene glycol (1st line) or docusate sodium (2nd line) can be used to help keep the stool soft. Hydrocortisone and pramoxine cream (3rd line) can be used if needed for inflammation and pain. Instruct the Soldier in its use and to return for evaluation if the symptoms worsen, new symptoms develop, or symptoms last longer than one week or recurs."],
   C4DP4 = [],
   C4DPRE = [],
-  C4DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of hemodynamically significant stomach/ intestinal bleeding.","DP 1. Feeling lightheaded and orthostatic hypotension can be signs of significant blood loss. Hemoccult stool test can identify blood in the stool. Blood only on the outside of the stool or toilet paper is more likely to be from a hemorrhoid or anal fissure. If a stool sample cannot be obtained except by a rectal exam, then refer as “Provider Now” for the rectal exam. If a hemoccult stool test is not available, then Soldiers with blood on the outside of the stool or on the toilet paper only should be considered as negative. Blood mixed in with the stool should be treated as positive. If you are unsure, consider it positive."],
+  C4DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of hemodynamically significant stomach/ intestinal bleeding."],
   C4PRO = ["Sit in warm water for 30min a day. Wash the area with warm water and blotting dry to keep clean.","Drink 8 glasses of liquid a day and eat foods high in fiber.","Medication: Polyethylene glycol (1st line) or docusate sodium (2nd line) can be used to soften the stool, and hydrocortisone and pramoxine cream (3rd line) can be used if needed for inflammation and pain","Return to clinic if not improved in 1 week, symptoms worsen, or new symptoms develop."],
   C4LIMITATIONS = [],
   C4GEN = ["pg. 57-58: ","Rectal pain, itching, and bleeding are often signs of hemorrhoids or an anal fissure but more serious conditions must be ruled out. Hemorrhoids are enlarged veins around the rectum that protrude; get rubbed; and/or become painful from inflammation related to a small clot forming within the vein. Hemorrhoids are not dangerous but can be extremely uncomfortable. A Soldier who has a history of hemorrhoids or anal fissure and then develops similar symptoms likely has a recurrence. Soldier should be instructed on avoiding constipation since it is a common cause of hemorrhoids and anal fissures. Most people with itching (and no other symptoms) do not have a serious disease."],
   C4MEDCOM = ["N/A"],
   C4STP1 = ["Subject Area 6: Primary Care. Provide Treatment for Abdominal Disorders. 081-833-0239","Subject Area 15: Primary Care. Test a Stool Sample. 081-833-0256"],
+  C4DDX = ["Gastrointestinal Bleed","Hemorrhoid/Fissure","IBD","Infection","Cancer"],
 
 
 
@@ -558,21 +347,23 @@ const
   C5GEN = ["pg. 59-60: ","Constipation means infrequent or difficult bowel movements. Soldiers use the word to mean many things—painful defecation, narrowing of the stools, or not having a “regular daily” bowel movement. Normal bowel habits differ from Soldier to Soldier; therefore, a wide variation exists in what Soldiers consider to be normal or to be a problem.", "Because constipation and hemorrhoids commonly occur together, rectal bleeding may be falsely attributed to these causes. This can be a dangerous mistake. Rectal bleeding must be screened as a separate problem. Constipation not associated with rectal bleeding may be appropriately treated through minor-care."],
   C5MEDCOM = ["N/A"],
   C5STP1 = ["Subject Area 6: Primary Care. Provide Treatment for Abdominal Disorders. 081-833-0239"],
+  C5DDX = ["Obstruction","Cancer","Hypothyroidism","Constipation","Associated with Hemorrhoids"],
 //C6
   C6ACT1 = ["Include glucagon if unable to transport within 24 hours of onset"],
   C6ACT2 = ["Screen sore throat or other symptoms if present"],
   C6ACT3 = [],
-  C6DP1 = ["DP 2. Other causes of dysphagia not related to a sore throat should be evaluated by the AEM."],
-  C6DP2 = ["Do not administer meat tenderizers to Soldiers with an esophageal food impaction. It could cause serious esophageal injury. Glucagon can be administered to relax the esophagus as an initial attempt for the Soldier to spontaneously pass the food bolus when a referral for an endoscopic evaluation/ treatment is not available. Treatment must be prescribed by a supervising privileged provider."],
-  C6DP3 = [],
+  C6DP1 = ["DP 1. Most common cause of dysphagia in an adult is an acute food obstruction. It is often due to swallowing a piece of meat that has not been fully chewed. Food obstruction will present with a feeling of something stuck in the throat and decreased or inability to swallow. The obstruction must be removed promptly. Complete obstruction should undergo an emergent endoscopy. A partial obstruction should undergo endoscopy within 24 hours. The esophagus can start to ulcerate and the risk of esophageal perforation increases after 24 hours. If endoscopic evaluation/ treatment is not available within 24 hours, see the treatment protocol below."],
+  C6DP2 = ["DP 2. Other causes of dysphagia not related to a sore throat should be evaluated by the AEM."],
+  C6DP3 = ["Do not administer meat tenderizers to Soldiers with an esophageal food impaction. It could cause serious esophageal injury. Glucagon can be administered to relax the esophagus as an initial attempt for the Soldier to spontaneously pass the food bolus when a referral for an endoscopic evaluation/ treatment is not available.", "Treatment must be prescribed by a supervising privileged provider."],
   C6DP4 = [],
   C6DPRE = ["DP 3. Dysphagia frequently accompanies a severe sore throat. However, MAKE CERTAIN that dysphagia did not precede the sore throat. Causes of dysphagia not associated with a sore throat may require a more extensive evaluation."],
-  C6DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Airway compromise is an emergency. Coughing, choking, or nasal regurgitation when initiating a swallow is a sign of decreased ability to maintain the airway. The Soldier is at risk for aspiration.","DP 1. Most common cause of dysphagia in an adult is an acute food obstruction. It is often due to swallowing a piece of meat that has not been fully chewed. Food obstruction will present with a feeling of something stuck in the throat and decreased or inability to swallow. The obstruction must be removed promptly. Complete obstruction should undergo an emergent endoscopy. A partial obstruction should undergo endoscopy within 24 hours. The esophagus can start to ulcerate and the risk of esophageal perforation increases after 24 hours. If endoscopic evaluation/ treatment is not available within 24 hours, see the treatment protocol below."],
+  C6DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Airway compromise is an emergency. Coughing, choking, or nasal regurgitation when initiating a swallow is a sign of decreased ability to maintain the airway. The Soldier is at risk for aspiration."],
   C6PRO = ["Do not administer meat tenderizers to Soldiers with an esophageal food impaction. It could cause serious esophageal injury. Glucagon can be administered to relax the esophagus as an initial attempt for the Soldier to spontaneously pass the food bolus when a referral for an endoscopic evaluation/ treatment is not available. Treatment must be prescribed by a supervising privileged provider."],
   C6LIMITATIONS = [],
   C6GEN = ["pg. 61-62: Dysphagia means difficulty or pain when swallowing."],
   C6MEDCOM = ["Obtain Laboratory Specimens pg. 69-70 (2)(k)"],
   C6STP1 = [  "Subject Area 6: Primary Care. Perform a HEENT Exam. 081-833-0254"],
+  C6DDX = ["Food bolus obstruction","Esophagitis","Ring, Web, Achalasia","Throat Infection"],
 //C7
   C7ACT1 = ["Oxygen, EKG, chewable aspirin"],
   C7ACT2 = ["Oxygen, EKG, chewable aspirin"],
@@ -588,14 +379,16 @@ const
   C7GEN = ["pg. 63-64: Heartburn is a common finding but can also be a sign of a more serious condition like a gastric ulcer or heart attack."],
   C7MEDCOM = ["Performs 12-lead Electrocardiogram pg. 69-70 (2)(o-p) "],
   C7STP1 = ["Subject Area 12: Medical Treatment. Obtain an Electrocardiogram. 081-833-3007 ","Subject Area 6: Primary Care. Provide Treatment for Abdominal Disorders. 081-833-0239"],
+  C7DDX = ["Gastroesophageal Reflux","Myocardial Infarction","Stomach/Duodenal Ulcer","Cancer","Pancreatitis"],
+
 
   D1ACT1 = ["Oxygen, EKG, IV"],
   D1ACT2 = ["Oxygen, EKG, IV, Aspirin 325 mg"],
   D1ACT3 = ["DP 3. Identifies conditions that are self-limited or can be treated with a minor-care protocol."],
-  D1DP1 = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now”. Start the Soldier on oxygen with non-rebreather mask at 10 Liters/ minute, start an IV and IVF at TKO and obtain EKG if available. They can be signs of significant underlying medical problems.","DP 1. Tachycardia, sweating, pain or pressure in the chest, shoulder, or jaw can be symptoms of a myocardial infarction. Chest pain and tachycardia can also be signs of a pulmonary embolism. Irregular pulse identifies an arrhythmia. Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider."],
+  D1DP1 = ["DP 1. Tachycardia, sweating, pain or pressure in the chest, shoulder, or jaw can be symptoms of a myocardial infarction. Chest pain and tachycardia can also be signs of a pulmonary embolism. Irregular pulse identifies an arrhythmia. Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider."],
   D1DP2 = ["DP 2. Screens for other medical conditions requiring further evaluation. Productive cough and elevated temperature are signs of pneumonia. Symptoms lasting longer than 10 days may not be viral. History of asthma or wheezing screens for an asthma exacerbation."],
-  D1DP3 = ["DP 3. Identifies conditions that are self-limited or can be treated with a minor-care protocol."],
-  D1DP4 = ["MCP for cold symptoms: Counsel the Soldier to drink plenty of fluids and rest, cover their mouth when they cough and wash hands to prevent spread. Ibuprofen for pain, acetaminophen for elevated temperature, decongestant for nasal congestion, guaifenesin for mucous, or antihistamine for allergies. Return to clinic if not improving within one week, worsening symptoms, fever, new sinus pain, lightheadedness, or pain in the neck.", "MCP for panic attack symptoms (chest tightness, palpitations, anxious, lightheaded): Check EKG. If EKG is normal, initiate observed deep breathing exercises. Place a pulse oximeter on the Soldier’s finger. Have the Soldier lay back at a 45 degree angle with legs uncrossed and initiate diaphragmatic breathing exercises with deep, slow inhalation over 4 seconds and exhalation over another 4 second count. If the SpO2 starts to drop, disposition the Soldier as “Provider Now”.Refer Soldier to Behavioral Health after initial panic attack decreases in intensity."],
+  D1DP3 = ["MCP for cold symptoms: Counsel the Soldier to drink plenty of fluids and rest, cover their mouth when they cough and wash hands to prevent spread. Ibuprofen for pain, acetaminophen for elevated temperature, decongestant for nasal congestion, guaifenesin for mucous, or antihistamine for allergies. Return to clinic if not improving within one week, worsening symptoms, fever, new sinus pain, lightheadedness, or pain in the neck.", "MCP for panic attack symptoms (chest tightness, palpitations, anxious, lightheaded): Check EKG. If EKG is normal, initiate observed deep breathing exercises. Place a pulse oximeter on the Soldier’s finger. Have the Soldier lay back at a 45 degree angle with legs uncrossed and initiate diaphragmatic breathing exercises with deep, slow inhalation over 4 seconds and exhalation over another 4 second count. If the SpO2 starts to drop, disposition the Soldier as “Provider Now”.Refer Soldier to Behavioral Health after initial panic attack decreases in intensity."],
+  D1DP4 = ["DP 3. Identifies conditions that are self-limited or can be treated with a minor-care protocol."],
   D1DPRE = [],
   D1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now”. Start the Soldier on oxygen with non-rebreather mask at 10 Liters/ minute, start an IV and IVF at TKO and obtain EKG if available. They can be signs of significant underlying medical problems.","DP 1. Tachycardia, sweating, pain or pressure in the chest, shoulder, or jaw can be symptoms of a myocardial infarction. Chest pain and tachycardia can also be signs of a pulmonary embolism. Irregular pulse identifies an arrhythmia. Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider."],
   D1PRO = ["Cold or allergy symptoms: A-3 Minor Care Protocol ","Panic attack symptoms: Check EKG. Monitor purse oximeter. Supervised deep breathing exercises. Referral to provider now if oxygenation decreases or symptoms do not resolve. Refer to behavioral health after dyspnea symptoms have resolved. "],
@@ -603,7 +396,9 @@ const
   D1GEN = ["pg. 65-66: Dyspnea is a sensation of breathing discomfort that can be in respiratory or cardiovascular in nature."],
   D1MEDCOM = ["Initiate an Intravenous Infusion pg.69 (2)(a)","Provide Oxygen pg.69 (2)(h)","Performs 12-lead Electrocardiogram pg. 69-70 (2)(o-p)"],
   D1STP1 = ["Subject Area 5: Venipuncture and IV Therapy. Initiate an Intravenous Infusion. 081-833-0033", "Subject Area 6: Primary Care. Provide Care for Common Respiratory Disorders. 081-833-0245"],
+  D1DDX = ["Asthma","Anxiety","Myocardial Infarction","Pulmonary Embolism","Pneumonia, Bronchitis","Deconditioning"],
 
+  D2DDX = ["Myocardial Infarction","Pulmonary Embolism","Pneumonia, Bronchitis","Anxiety","Heartburn","Musculoskeletal"],
   D2ACT1 = ["Oxygen, EKG, IV, Aspirin 325 mg"],
   D2ACT2 = ["Oxygen, EKG, IV, Aspirin 325 mg"],
   D2ACT3 = [],
@@ -633,10 +428,11 @@ const
   E1GEN = ["pg. 69-70: Painful urination is most commonly a sign of a urinary tract infection, kidney stone, sexually transmitted infection, or yeast infection. Frequent urination can be associated with these but can also be one of the initial signs of hyperglycemia from diabetes. ","UA and urine culture should be completed if resources are available. A Soldier with symptoms consistent with a UTI can be empirically treated without a urinalysis after ruling out any history that would increase the Soldier’s risk and determining any allergies to medications."],
   E1MEDCOM = ["Obtain Laboratory Specimens pg. 69-70(2)(k)"],
   E1STP1 = [],
-
+  E1DDX = ["Kidney Infection","Urinary Tract Infection","Kidney Stone","Uncontrolled Diabetes","BPH","STI, Vaginitis"],
+  E2DDX = ["Testicular Torsion","Hernia","Muscle/Tendon Strain","Stress Fracture","Hip injury"],
   E2ACT1 = ["Stress fracture: crutches with toe touching weight bearing"],
   E2ACT2 = ["STD Screen and UA"],
-  E2ACT3 = [],
+  E2ACT3 = ["STD Screen and UA"],
   E2DP1 = ["DP 2: Pain that has lasted for over 2 weeks is less likely to be an acute muscle strain and could represent an injury to the hip joint requiring further evaluation. Urologic symptoms, like hematuria, require further evaluation."],
   E2DP2 = ["MCP for epididymitis. Pain is often improved with testicular support. Instruct the Soldier on the importance of wearing supportive underwear (briefs, jock strap), application of ice to decrease the swelling. Medication: ibuprofen, acetaminophen, topical muscle balm, ice and heat as needed for pain, inflammation, and swelling or ketorolac for moderate pain. Activity modification.","MCP for muscle/tendon strain. Pain is often worse with activity. Instruct the Soldier on the home exercise program in accordance with local protocol. Medication: ibuprofen, acetaminophen, topical muscle balm, ice and heat as needed for pain, inflammation, and swelling or ketorolac for moderate pain. Activity modification.","MCP for urethral discharge. Request an order for a urinalysis and gonorrhea/chlamydia urine screen. If urethral discharge is present, 2+ white blood cells (WBCs) on urinalysis, leukocyte esterase positive on urinalysis, or recent known STI exposure, treat for potential gonorrhea/chlamydia infection with ceftriaxone and azithromycin. Instruct the Soldier that the condition is contagious and to abstain from intercourse for 1 week after treatment. Notify the supervising privileged provider so that he or she can track. Refer to community health. Return to clinic if symptoms are not improving within 48 hours, development of new symptoms, or worsening symptoms."],
   E2DP3 = [],
@@ -674,7 +470,7 @@ const
   E4DPRE = [],
   E4DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Inability to void can represent an obstruction of the ureter. Do to the risks to the kidneys, it is a medical emergency."],
   E4PRO = ["If urethral discharge is present, use SCP E-3","if UA is leukocyte esterase positive, 2+ WBCs, or UTI symptoms in a female, then use SCP E-1","if leaking urine when coughing, sneeing, jumping, counsel patient on home exercises.","RTC if worsening symptoms, new symptoms arise, or not improved within stated timeframe"],
-  E4LIMITATIONS = ["For incontinence","Access to a restroom","No jumping"],
+  E4LIMITATIONS = ["For incontinence: Access to a restroom, No jumping"],
   E4GEN = ["pg. 75-76: ","Problems with voiding may include urinary incontinence (voiding unintentionally), difficulty initiating the urinary stream, decreased force of the stream, dribbling urination, complete inability to void."],
   E4MEDCOM = ["Obtain Laboratory Specimens pg.69-70(2)(k)","Gathers Sexually Transmitted Infection Specimen pg.69-70(2)(n)"],
   E4STP1 = ["Subject Area 15: Primary Care. Utilize a Urine Test Strip 081-833-0255"],
@@ -773,8 +569,8 @@ const
 
   G1ACT1 = [],
   G1ACT2 = [],
-  G1ACT3 = ["MCP for fatigue. Advise the Soldier that vitamins are rarely helpful, that “pep pills” do not work (the rebound usually makes the problem worse), and that tranquilizers generally intensify fatigue. Taking a vacation, if possible, or undertaking new activities are often helpful.","Helpful Actions Include: Identifying potential sources of the fatigue such as work stress, marital discord, lack of rest or sleep (either quantity or quality of sleep), or a poor/not well balanced diet. Provide information on proper sleep hygiene and refer to sleep hygiene course if locally available. If not a suicidal risk (which would require immediate referral) suggest various available options for counseling, including behavioral health, Army community services, and the chaplain. Work on the problem rather than on the symptom.","Seek medical assistance if symptoms worsen, other symptoms develop, fatigue makes normal activities difficult, difficulty staying awake while driving, or not improved within one week.","MCP for sleep problems. Sleep issues can present as fatigue described as weakness. It can be a manifestation of depression or stress among other things. Provide education on sleep hygiene, consider providing diphenhydramine or melatonin nightly for three nights, consider activity modification, discuss stress management, and offer a routine referral to behavioral health asset for counseling and treatment."],
-  G1DP1 = [],
+  G1ACT3 = [],
+  G1DP1 = ["MCP for fatigue. Advise the Soldier that vitamins are rarely helpful, that “pep pills” do not work (the rebound usually makes the problem worse), and that tranquilizers generally intensify fatigue. Taking a vacation, if possible, or undertaking new activities are often helpful.","Helpful Actions Include: Identifying potential sources of the fatigue such as work stress, marital discord, lack of rest or sleep (either quantity or quality of sleep), or a poor/not well balanced diet. Provide information on proper sleep hygiene and refer to sleep hygiene course if locally available. If not a suicidal risk (which would require immediate referral) suggest various available options for counseling, including behavioral health, Army community services, and the chaplain. Work on the problem rather than on the symptom.","Seek medical assistance if symptoms worsen, other symptoms develop, fatigue makes normal activities difficult, difficulty staying awake while driving, or not improved within one week.","MCP for sleep problems. Sleep issues can present as fatigue described as weakness. It can be a manifestation of depression or stress among other things. Provide education on sleep hygiene, consider providing diphenhydramine or melatonin nightly for three nights, consider activity modification, discuss stress management, and offer a routine referral to behavioral health asset for counseling and treatment."],
   G1DP2 = [],
   G1DP3 = [],
   G1DP4 = [],
@@ -789,12 +585,12 @@ const
   G2ACT1 = [],
   G2ACT2 = [],
   G2ACT3 = [],
-  G2DP1 = [],
+  G2DP1 = ["DP 1. If the Soldier’s temperature is greater than 100.4°F, has symptoms for more than 48 hours, HIV infection, or immunosuppression, then there is a greater risk of the fever being caused by a bacterial infection. Overseas travel, tick or mosquito bite, animal exposure, and malaria endemic area, increase the risk of a zoonotic or malaria infection. IV drug use increases the risk of endocarditis."],
   G2DP2 = ["MCP for elevated temperature. Instruct the Soldier to stay well hydrated and get plenty of rest. He or she should drink fluids to keep their urine mostly clear and obtain at least eight hours of rest per day. Take acetaminophen as needed for temperature above 98.4°F (No more than eight tablets within 24 hours. No other medications with acetaminophen in them. No alcohol.)","Soldier is contagious while he or she has an elevated temperature. He or she should avoid contact with healthy Soldiers as much as possible. If in training, refer to local SOP. Soldier may need to be placed in quarters. Return for medical assistance if symptoms do not improve with acetaminophen, other symptoms develop, or a fever develops (T > 100.4)."],
   G2DP3 = [],
   G2DP4 = [],
   G2DPRE = ["DP 2. Before assuming the Soldier has isolated fever/chills, be sure to ask him/her specifically about other symptoms such as upper respiratory infection symptoms, cough, sore throat, ear pain, diarrhea, dysuria, rash, and muscle aches. If no associated symptoms can be identified, over half of Soldiers’ fever will resolve on its own without an underlying issue being identified."],
-  G2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.","DP 1. If the Soldier’s temperature is greater than 100.4°F, has symptoms for more than 48 hours, HIV infection, or immunosuppression, then there is a greater risk of the fever being caused by a bacterial infection. Overseas travel, tick or mosquito bite, animal exposure, and malaria endemic area, increase the risk of a zoonotic or malaria infection. IV drug use increases the risk of endocarditis."],
+  G2DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies."],
   G2PRO = ["OTC Medication: acetaminophen as needed for elevated temperature (No other medications with acetaminophen. No alcohol.), ibuprofen as needed for malaise.","Stay hydrated by drinking fluids to keep your urine mostly clear. Get plenty of rest.","Return if red flags, new symptoms. lasts longer than 48 hours, or fever not controlled with acetaminophen"],
   G2LIMITATIONS = ["For a Fever: Consider Quarters x 24-48 hours (must discuss with supervising privileged provider)"],
   G2GEN = ["pg. 92-93: ","Fever/chills are usually associated with an acute illness with other obvious symptoms."],
@@ -954,12 +750,12 @@ const
   J1ACT1 = [],
   J1ACT2 = [],
   J1ACT3 = [],
-  J1DP1 = ["DP 2: Change in a lesion or oozing of fluids require further evaluation. Skin lesions that have been present for over 4 weeks may represent a symptom of a systemic condition."],
-  J1DP2 = ["MCP for unidentified skin disorder. If the Soldier is already on a treatment for this issue, has not finished the current treatment, and the issue is not getting worse, then instruct the Soldier to continue with the current treatment for the full course. Some skin issues can take two to three weeks or potentially longer for them to work. Confirm with your supervising NCO or supervising privileged provider before returning the Soldier to work. If you recognize the skin lesion, then screen according to the identified skin condition. If you do not recognize the skin lesion, refer the Soldier to the AEM for further evaluation."],
-  J1DP3 = [],
+  J1DP1 = ["DP 1: Skin rash associated with a medication, fever, or is painful (but not due to a sunburn) has the potential to be very serious. Further evaluation is indicated when it has failed previous treatment or is worsening. Certain anatomical locations present with a higher risk of complications to include the face, genitals area, or inhibiting a joint function."],
+  J1DP2 = ["DP 2: Change in a lesion or oozing of fluids require further evaluation. Skin lesions that have been present for over 4 weeks may represent a symptom of a systemic condition."],
+  J1DP3 = ["MCP for unidentified skin disorder. If the Soldier is already on a treatment for this issue, has not finished the current treatment, and the issue is not getting worse, then instruct the Soldier to continue with the current treatment for the full course. Some skin issues can take two to three weeks or potentially longer for them to work. Confirm with your supervising NCO or supervising privileged provider before returning the Soldier to work. If you recognize the skin lesion, then screen according to the identified skin condition. If you do not recognize the skin lesion, refer the Soldier to the AEM for further evaluation."],
   J1DP4 = [],
   J1DPRE = [],
-  J1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Skin rash associated with a medication, fever, or is painful (but not due to a sunburn) has the potential to be very serious. Further evaluation is indicated when it has failed previous treatment or is worsening. Certain anatomical locations present with a higher risk of complications to include the face, genitals area, or inhibiting a joint function."],
+  J1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems."],
   J1PRO = ["Continue the current skin treatment regimen if it has not been completed/followed for the necessary amount of time (usually 2-3 weeks)","Screen according to pertinent algorithm if you can identify the skin condition.","Refer to AEM for further evaluation if you cannot identify the skin condition."],
   J1LIMITATIONS = ["Keep area clean and dry"],
   J1GEN = ["pg. 112-113: If the cause of the condition is unknown to the Soldier, this first protocol provides the category/ level of care indicated by the Soldier’s symptoms."],
@@ -1043,13 +839,13 @@ const
 
   J7ACT1 = ["Perform potassium hydroxide (KOH) examination"],
   J7ACT2 = ["Perform potassium hydroxide (KOH) examination"],
-  J7ACT3 = [],
-  J7DP1 = ["DP 2. Some infections and rashes do not respond well to OTC medications and infections may not get better or may reoccur within a few weeks. These Soldiers need to be evaluated to rule out more serious skin conditions. A normal infection may respond better to a prescription strength antifungal.","Note: In the absence of any of the preceding conditions, minor-care is appropriate."],
-  J7DP2 = ["MCP for jock itch. Tinea cruris is far more common in men than women. Predisposing factors include copious sweating, obesity, diabetes, and immunodeficiency.","OTC medication. Topical antifungal medication twice a day for two weeks. Instruct Soldier to keep groin area clean and dry and return to clinic if symptoms worsens, new symptoms develop, symptoms not improving within two weeks, or if the infection returns within a few weeks after using OTC Medications."],
-  J7DP3 = [],
+  J7ACT3 = ["Perform potassium hydroxide (KOH) examination"],
+  J7DP1 = ["DP 1. Diabetes can affect every part of the body, including the skin. Soldiers with diabetes are more susceptible to skin conditions such as bacterial infections and fungal infections. Although common infections can be self-treated, the Soldier should see a privileged provider to rule out other more serious diabetic related skin conditions."],
+  J7DP2 = ["DP 2. Some infections and rashes do not respond well to OTC medications and infections may not get better or may reoccur within a few weeks. These Soldiers need to be evaluated to rule out more serious skin conditions. A normal infection may respond better to a prescription strength antifungal.","Note: In the absence of any of the preceding conditions, minor-care is appropriate."],
+  J7DP3 = ["MCP for jock itch. Tinea cruris is far more common in men than women. Predisposing factors include copious sweating, obesity, diabetes, and immunodeficiency.","OTC medication. Topical antifungal medication twice a day for two weeks. Instruct Soldier to keep groin area clean and dry and return to clinic if symptoms worsens, new symptoms develop, symptoms not improving within two weeks, or if the infection returns within a few weeks after using OTC Medications."],
   J7DP4 = [],
   J7DPRE = [],
-  J7DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”","DP 1. Diabetes can affect every part of the body, including the skin. Soldiers with diabetes are more susceptible to skin conditions such as bacterial infections and fungal infections. Although common infections can be self-treated, the Soldier should see a privileged provider to rule out other more serious diabetic related skin conditions."],
+  J7DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”"],
   J7PRO = ["Topical antifungal medications twice a day for 2 weeks ","Instruct patient to keep groin area clean and dry and RTC if symptoms worsens, new symptoms develop, symptoms not improving within 2 weeks, or if the infection returns within a few weeks after using medications. ","Preventive- Hygiene"],
   J7LIMITATIONS = [],
   J7GEN = ["pg. 124-125: Tinea cruris (also known as jock itch) is a dermatophyte infection involving the crural (superior medial portion of the thigh) fold. The spreading of tinea pedis is often the cause for these infections. Infection may spread to the perineum and perianal areas, into the gluteal cleft, or onto the buttocks."],
@@ -1074,12 +870,12 @@ const
   J9ACT1 = ["Prepare informed consent, timeout, I&D set-up if provider requests"],
   J9ACT2 = ["Prepare informed consent, timeout, I&D set-up if provider requests"],
   J9ACT3 = [],
-  J9DP1 = ["DP 2: An abscess should be drained to allow it to heal, and an abscess with a diameter of greater than 5 cm will need to be packed. Military population is at risk for community transmission of staphylococcus aureus and should be evaluated for the addition of antibiotic therapy."],
-  J9DP2 = ["MCP for skin infection. Prior to abscess formation, the skin normally becomes indurated from the inflammation. The skin appears to be warm, red, and tender with a hard area where the inflammation is present. Treatment is minor-care. An abscess may form within a couple of days requiring further treatment.","Apply a moist, warm compress over the area for 20 minutes every four hours. It will increase blood flow to the area, allowing the Soldier’s immune system to fight the infection. Instruct the Soldier to return to the clinic after the abscess forms for drainage. Return sooner, if symptoms worsen (for example, fevers, chills, increased pain or redness, red streaks, increased swelling, or re-accumulation of pus, if it has already drained)."],
-  J9DP3 = [],
+  J9DP1 = ["DP 1: Pilonidal abscesses (over the tail bone) can be much larger than they appear and should be referred to a privileged provider for evaluation. Systemic inflammatory response syndrome (SIRS) criteria, fever, black eschar, rapid progression over hours, and worsening on oral antibiotics are signs of a more significant infection that may require hospitalization. Hand infection, infection over a joint, indwelling medical device, and associated cellulitis increases the risks of serious complications."],
+  J9DP2 = ["DP 2: An abscess should be drained to allow it to heal, and an abscess with a diameter of greater than 5 cm will need to be packed. Military population is at risk for community transmission of staphylococcus aureus and should be evaluated for the addition of antibiotic therapy."],
+  J9DP3 = ["MCP for skin infection. Prior to abscess formation, the skin normally becomes indurated from the inflammation. The skin appears to be warm, red, and tender with a hard area where the inflammation is present. Treatment is minor-care. An abscess may form within a couple of days requiring further treatment.","Apply a moist, warm compress over the area for 20 minutes every four hours. It will increase blood flow to the area, allowing the Soldier’s immune system to fight the infection. Instruct the Soldier to return to the clinic after the abscess forms for drainage. Return sooner, if symptoms worsen (for example, fevers, chills, increased pain or redness, red streaks, increased swelling, or re-accumulation of pus, if it has already drained)."],
   J9DP4 = [],
   J9DPRE = [],
-  J9DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Pilonidal abscesses (over the tail bone) can be much larger than they appear and should be referred to a privileged provider for evaluation. Systemic inflammatory response syndrome (SIRS) criteria, fever, black eschar, rapid progression over hours, and worsening on oral antibiotics are signs of a more significant infection that may require hospitalization. Hand infection, infection over a joint, indwelling medical device, and associated cellulitis increases the risks of serious complications."],
+  J9DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems."],
   J9PRO = ["Apply a warm moist compress over the abscess for 20 minutes every four hours. ","RTC for worsening symptoms (fever/chills, re-accumulation of pus, increased pain/ redness, red streaks, or increased swell ing), new symptoms, if not improving within 3 days."],
   J9LIMITATIONS = [],
   J9GEN = ["pg. 128-129: A boil is usually caused by bacteria that enters through a hair follicle. A painful nodule enclosing a core of pus forms in the skin. Tenderness, warmth, swelling, and firm area, and pain may be present around the area of inflammation. An extremely large boil or numerous boils can produce fever. Boils are also known as furuncles if they have single cores or carbuncles if they have multiple cores."],
@@ -1221,15 +1017,15 @@ const
   J18MEDCOM = ["Administer Topical Ointment/Lotions pg.67(3)(a)","All Medication Protocols Associated with 68W Training And Certifications pg.68(k)","Assists Privileged Provider To Perform Invasive Procedures pg.68(5)","Sets Up and Maintains A sterile Field pg.68(7)","Perform Wound Care pg.70(l)","Assists With The Administration of Local Anesthesia pg.70(r)","Assists In Performing Digital Block Procedures pg.70(s)","Perform Toenail Removal pg.70(t)"],
   J18STP1 = ["N/A"],
 
-  K1ACT1 = [],
-  K1ACT2 = [],
+  K1ACT1 = ["1. Ice sheets/douse the patient with water","2. Start an IV as ordered by the doctor or PA","3. Monitor rectal temperature","4. Transport to emergency treatment area"],
+  K1ACT2 = ["1. Ice sheets/douse the patient with water","2. Start an IV as ordered by the doctor or PA","3. Monitor rectal temperature","4. Transport to emergency treatment area"],
   K1ACT3 = [],
-  K1DP1 = ["DP 2. A “yes” response to questions may indicate heat exhaustion which occurs as a result of an excessive loss of water and salt from the body. The syndrome is characterized by profuse perspiration, pallor, and perhaps low blood pressure. The mortality rate from this disorder, if treated, is extremely low. Moving the Soldier to a cool area for rest and the administration of fluids (orally or intravenous infusion, depending on severity of symptoms) will result in prompt recovery. Untreated heat exhaustion may progress to heatstroke."],
-  K1DP2 = ["DP 3. A “yes” response to these questions indicates heat cramps. These are painful cramps of voluntary muscles which result from excessive loss of salt from the body. Muscles of the extremities and the abdominal wall are usually involved. Body temperature is normal. Heat cramps can be promptly relieved by replacing salt and fluid orally and placing the individual in a cool environment."],
+  K1DP1 = ["DP 1. A “yes” response to any of the questions may indicate heatstroke with a breakdown of the body’s heat regulating mechanism. Heatstroke is characterized by high body temperature (>l03oF), altered mental status (that is, confusion, delirium, syncope and/or coma) and, in most cases, an absence of sweating. This condition has a high mortality rate and is a MEDICAL EMERGENCY. Lowering the body temperature is the most important treatment. Placing icepacks/ice sheets in the groin, arm pits and behind the neck, along with ice sheers under and on top the Soldier allows for rapid cooling. An alternative is dousing the Soldier with water and gently fanning to allow for evaporative cooling. Start an intravenous infusion. Monitor the Soldier’s body (rectal) temperature. Transport to an emergency treatment location, if available."],
+  K1DP2 = ["DP 2. A “yes” response to questions may indicate heat exhaustion which occurs as a result of an excessive loss of water and salt from the body. The syndrome is characterized by profuse perspiration, pallor, and perhaps low blood pressure. The mortality rate from this disorder, if treated, is extremely low. Moving the Soldier to a cool area for rest and the administration of fluids (orally or intravenous infusion, depending on severity of symptoms) will result in prompt recovery. Untreated heat exhaustion may progress to heatstroke.","DP 3. A “yes” response to these questions indicates heat cramps. These are painful cramps of voluntary muscles which result from excessive loss of salt from the body. Muscles of the extremities and the abdominal wall are usually involved. Body temperature is normal. Heat cramps can be promptly relieved by replacing salt and fluid orally and placing the individual in a cool environment."],
   K1DP3 = ["MCP for mild heat injury. COOL: Place the Soldier in a cool or shaded place. HYDRATE: Give the Soldier at least one liter of cool water to drink in the first 30 minutes and then at least one liter of water per hour the next 2 hours. Advise the Soldier to decrease his activity for the next 24 hours. REASSESS: If the Soldier’s symptoms do not begin to resolve themselves within 30 minutes, if they get worse, or if the Soldier’s temperature exceeds 100.3OF, refer the Soldier to the supervising privileged provider."],
   K1DP4 = [],
   K1DPRE = [],
-  K1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1. A “yes” response to any of the questions may indicate heatstroke with a breakdown of the body’s heat regulating mechanism. Heatstroke is characterized by high body temperature (>l03oF), altered mental status (that is, confusion, delirium, syncope and/or coma) and, in most cases, an absence of sweating. This condition has a high mortality rate and is a MEDICAL EMERGENCY. Lowering the body temperature is the most important treatment. Placing icepacks/ice sheets in the groin, arm pits and behind the neck, along with ice sheers under and on top the Soldier allows for rapid cooling. An alternative is dousing the Soldier with water and gently fanning to allow for evaporative cooling. Start an intravenous infusion. Monitor the Soldier’s body (rectal) temperature. Transport to an emergency treatment location, if available."],
+  K1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems."],
   K1PRO = ["COOL: Place the Soldier in a cool or shaded place.","HYDRATE: Give the Soldier at least one liter of cool water to drink in the first 30 minutes and then at least one liter of water per hour the next 2 hours. Advise the Soldier to decrease his activity for the next 24 hours. ","REASSESS: If the Soldier's symptoms do not begin to resolve themselves within 30 minutes, if they get worse, or if the Soldier's temperature exceeds 101°F, Refer the Soldier to the privileged provider."],
   K1LIMITATIONS = ["No significant exercise x 48 hours","Limit exposure to hot environments"],
   K1GEN = ["pg. 148-149: Heat injury results from an excessive loss of water and salt from the body or a breakdown of the body’s cooling mechanism. Risks include inadequate acclimatization, illness, blood donation, poor physical fitness, obesity, using drugs such as antihistamines (Benadryl®, Atarax®, CTM®), decongestants (Sudafed®), high Blood Pressure (diuretics, beta blockers) and psychiatrics (tricyclic antidepressants, antipsychotics)."],
@@ -1290,7 +1086,7 @@ const
   K5DP4 = [],
   K5DPRE = ["DP 2: If not hypothermia or frostbite, screen for trench foot (algorithm K-3)."],
   K5DPRED = ["DP 1: Presentation includes complaints of a cold, numb, and clumsy affected area. Area may appear white or grayish-yellow and be hard or waxy to the touch. Blisters or cyanosis will be present after rewarming."],
-  K5PRO = [],
+  K5PRO = ["Cover affected skin area. Apply moisturizing lotion to affected area. Apply petroleum jelly or lip balm to the lips, if needed.","RTC if symptoms are worsning, signs of infection, or new symptoms develop."],
   K5LIMITATIONS = [],
   K5GEN = ["pg. 155: Frostbite results from the skin (usually on the toes, fingers, or face) being exposed to extreme cold for an extended period of time. Lower temperatures and high winds result in shorter times to injury. Immediate evaluation is required."],
   K5MEDCOM = ["N/A"],
@@ -1299,12 +1095,12 @@ const
   K6ACT1 = [],
   K6ACT2 = [],
   K6ACT3 = [],
-  K6DP1 = ["DP 1: Secondary infection is common due associated itching. If nits and lice are not seen, then further evaluation is needed for a different diagnosis (contact dermatitis or scabies)."],
-  K6DP2 = ["MCP for lice. Wash clothes, sleeping linens, sleeping bag in hot water (above 149oF) or have them dry cleaned. If unable to wash or dry clean, place in a sealed bag for two weeks.","MCP for body lice. Lice live on the seams of the clothing. Permethrin 5% application can also be used in addition to laundering the clothes.","MCP for head lice. Wash the area without using conditioner and towel dry. Apply permethrin cream to saturate the affected area. Leave on for 10 minutes. Rinse with warm (not hot) water. Use a close toothed comb to remove nits (eggs from base of hair follicles). Repeat in one week if nits or lice are still present.","MCP for pubis lice (such as, crabs). Screen for other STIs. Treat recent sexual contacts at the same time. Skin should be cool and dry. Apply Permethrin cream to all affected areas (groin, buttock, thighs, trunk, and axillae) for 10 minutes and then rinse off in warm water. Remove nits with tweezers or thin toothed comb. Follow-up in 10 days. If unable to follow-up, retreat with Permethrin cream in 10 days due to 40% of Soldiers not having cleared the infection with one treatment."],
+  K6DP1 = ["MCP for lice. Wash clothes, sleeping linens, sleeping bag in hot water (above 149oF) or have them dry cleaned. If unable to wash or dry clean, place in a sealed bag for two weeks.","MCP for body lice. Lice live on the seams of the clothing. Permethrin 5% application can also be used in addition to laundering the clothes.","MCP for head lice. Wash the area without using conditioner and towel dry. Apply permethrin cream to saturate the affected area. Leave on for 10 minutes. Rinse with warm (not hot) water. Use a close toothed comb to remove nits (eggs from base of hair follicles). Repeat in one week if nits or lice are still present.","MCP for pubis lice (such as, crabs). Screen for other STIs. Treat recent sexual contacts at the same time. Skin should be cool and dry. Apply Permethrin cream to all affected areas (groin, buttock, thighs, trunk, and axillae) for 10 minutes and then rinse off in warm water. Remove nits with tweezers or thin toothed comb. Follow-up in 10 days. If unable to follow-up, retreat with Permethrin cream in 10 days due to 40% of Soldiers not having cleared the infection with one treatment."],
+  K6DP2 = [],
   K6DP3 = [],
   K6DP4 = [],
   K6DPRE = [],
-  K6DPRED = [],
+  K6DPRED = ["DP 1: Secondary infection is common due associated itching. If nits and lice are not seen, then further evaluation is needed for a different diagnosis (contact dermatitis or scabies)."],
   K6PRO = ["Launder clothes and bed linens in hot water. ","Body lice: apply perrnethrin 5% cream to body. ","Head lice: wash hair without conditioner and towel dry. Apply permethrin 1% cream. Leave on for 10 minutes. Rinse with warm water. Remove nits and dead lice with thin toothed comb. ","Pubis lice: screen for other STDs. Treat sexual partners at same time. Apply petrnethrin 1% cream to cool, dry areas (groin, buttock, upper thighs, trunk, axillae) for 10 minutes. Rinse with warm water. ","Follow-up in 10 days for repeat evaluation."],
   K6LIMITATIONS = [],
   K6GEN = ["pg. 156-157: Crabs/lice are tiny insects that are visible to the naked eye that infest the hairy areas of the body (such as, groin, body hair, and scalp). The insect deposits eggs (nits) and attaches them at the bases of hair shafts. The lice require a diet of human blood and will die within three days after removal from the body. The possibility of spreading infection to close associates by intimate contact or common use of clothing, beds, or toilet articles is real."],
@@ -1312,14 +1108,14 @@ const
   K6STP1 = ["Subject Area 6: Primary Care. Treat Skin Disorders 081-833-0125","Subject Area 18: Medication Administration. Administer Topical Medications 081-833-3020"],
 
   K7ACT1 = ["Epi pen if indicated"],
-  K7ACT2 = [],
+  K7ACT2 = ["Epi pen if indicated"],
   K7ACT3 = [],
-  K7DP1 = ["DP 2: If no signs of an insect bite can be seen, a blister or ulcer is present, or there is moderate to severe pain, refer to the AEM for further evaluation because it may be something other than an insect bite."],
-  K7DP2 = ["MCP for Insect Bite. Remove any stinger, head of tick, or other biting apparatus left at the bite site. Clean with betadine solution.","Apply Calamine lotion or hydrocortisone 1% cream four times per day as needed for itching. Apply cold compress or ice pack as needed for swelling.","Return to clinic if symptoms worsen, new symptoms develop, or symptoms are not improving within 48 hours."],
-  K7DP3 = [],
+  K7DP1 = ["DP 1: Red flags, hives, or history of severe reaction from similar insect bite (such as, bee sting allergy), have Soldier inject epinephrine pen if indicated (signs of respiratory or circulatory compromise) and refer to a privileged provider immediately. Reported poisonous insect bite (brown recluse, black widow, etc.) should also be immediately referred."],
+  K7DP2 = ["DP 2: If no signs of an insect bite can be seen, a blister or ulcer is present, or there is moderate to severe pain, refer to the AEM for further evaluation because it may be something other than an insect bite."],
+  K7DP3 = ["MCP for Insect Bite. Remove any stinger, head of tick, or other biting apparatus left at the bite site. Clean with betadine solution.","Apply Calamine lotion or hydrocortisone 1% cream four times per day as needed for itching. Apply cold compress or ice pack as needed for swelling.","Return to clinic if symptoms worsen, new symptoms develop, or symptoms are not improving within 48 hours."],
   K7DP4 = [],
   K7DPRE = [],
-  K7DPRED = ["Red Flags. Wheezing, shortness of breath: immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.","DP 1: Red flags, hives, or history of severe reaction from similar insect bite (such as, bee sting allergy), have Soldier inject epinephrine pen if indicated (signs of respiratory or circulatory compromise) and refer to a privileged provider immediately. Reported poisonous insect bite (brown recluse, black widow, etc.) should also be immediately referred."],
+  K7DPRED = ["Red Flags. Wheezing, shortness of breath: immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems."],
   K7PRO = [" Remove any stinger, head of tick, or other biting apparatus. Clean site with betadine solution. "," Apply calamine lotion or hydrocortisone 1% cream every 6 hours as needed for itching. Apply an ice pack as needed for swelling. "," RTC if symptoms worsen, new symptoms develop, or symptoms are not improving within 48 hours."],
   K7LIMITATIONS = [],
   K7GEN = ["pg. 158-159: Insect bites are characterized by itching, local swelling, mild pain, and redness. All of these reactions represent a local reaction to the sting of the insect. Document any history of tick bites and include the location of the bite."],
@@ -1450,7 +1246,7 @@ const
   L9ACT2 = [],
   L9ACT3 = [],
   L9DP1 = ["DP 2: Identification of a non-deployable profile, behavioral health appointments, specialty care appointments, or a pregnant or postpartum Soldier requires a referral to the supervising privileged provider for further evaluation prior to having the form signed. If no deficiencies or issues are identified, fill out the form for the supervising privileged provider to review and sign. Instruct the Soldier to wait or return at a later specified time depending on supervising privileged provider availability and local policy."],
-  L9DP2 = [],
+  L9DP2 = ["Fill out paper","Provider review and sign"],
   L9DP3 = [],
   L9DP4 = [],
   L9DPRE = [],
@@ -1465,7 +1261,7 @@ const
   L10ACT2 = [],
   L10ACT3 = [],
   L10DP1 = ["DP 2: Soldiers who are requesting assistance with weight control that is a new issue should be provided information on community resources that are available which may include the Wellness Center, access to a Dietician, an Athletic Trainer, or Strength and Conditioning Coach and offered a referral to Integrated Behavioral Health if available."],
-  L10DP2 = [],
+  L10DP2 = ["DP 2: Soldiers who are requesting assistance with weight control that is a new issue should be provided information on community resources that are available which may include the Wellness Center, access to a Dietician, an Athletic Trainer, or Strength and Conditioning Coach and offered a referral to Integrated Behavioral Health if available."],
   L10DP3 = [],
   L10DP4 = [],
   L10DPRE = [],
@@ -1480,7 +1276,7 @@ const
   L11ACT2 = [],
   L11ACT3 = [],
   L11DP1 = ["DP 2: If the complaint is not on the list, does not fit under another protocol, and the Soldier appears stable with normal vital signs, refer to the AEM for further evaluation, treatment, and disposition. If the complaint is not on the list but you recognize it as being under a protocol on the list or another way of saying a complaint that is on the list, screen according to the protocol that the Soldier’s complaint refers to."],
-  L11DP2 = [],
+  L11DP2 = ["Screen symptoms"],
   L11DP3 = [],
   L11DP4 = [],
   L11DPRE = ["DP 2: If the complaint is not on the list, does not fit under another protocol, and the Soldier appears stable with normal vital signs, refer to the AEM for further evaluation, treatment, and disposition. If the complaint is not on the list but you recognize it as being under a protocol on the list or another way of saying a complaint that is on the list, screen according to the protocol that the Soldier’s complaint refers to."],
@@ -1510,7 +1306,7 @@ const
   M1ACT2 = [],
   M1ACT3 = [],
   M1DP1 = ["DP 2: Soldier should not be screened to below the AEM level when he or she returns to the clinic for the same issue that was previously treated with minor-care. Soldier has the option to elevate his or her disposition to the next higher level (Provider Now) if he or she feels uncomfortable with seeing an AEM."],
-  M1DP2 = [],
+  M1DP2 = ["DP 2: Soldier should not be screened to below the AEM level when he or she returns to the clinic for the same issue that was previously treated with minor-care. Soldier has the option to elevate his or her disposition to the next higher level (Provider Now) if he or she feels uncomfortable with seeing an AEM."],
   M1DP3 = [],
   M1DP4 = [],
   M1DPRE = [],
@@ -1525,7 +1321,7 @@ const
   M2ACT2 = ["Discuss with AEM"],
   M2ACT3 = [],
   M2DP1 = ["DP 2: If possible, refer the Soldier to the original privileged provider. If the original privileged provider is not available, discuss the situation with the AEM. Based on local policy and original privileged provider availability, the Soldier may be scheduled with a different privileged provider that is covering for the original privileged provider or scheduled with the original privileged provider when he or she is next available. Explain to the Soldier when his or her follow-up will be."],
-  M2DP2 = [],
+  M2DP2 = ["DP 2: If possible, refer the Soldier to the original privileged provider. If the original privileged provider is not available, discuss the situation with the AEM. Based on local policy and original privileged provider availability, the Soldier may be scheduled with a different privileged provider that is covering for the original privileged provider or scheduled with the original privileged provider when he or she is next available. Explain to the Soldier when his or her follow-up will be."],
   M2DP3 = [],
   M2DP4 = [],
   M2DPRE = [],
@@ -1535,13 +1331,154 @@ const
   M2GEN = ["pg. 176: Many Soldiers are told to return for follow up. Write the previous level of care and name of the privileged provider on the screening note."],
   M2MEDCOM = ["Subject Area 1: Vital Signs. Measure a Patient’s Blood Pressure 081-833-0012"],
   M2STP1 = ["N/A"],
+  E3DDX = ["Testicular Torsion","Hernia","Muscle/Tendon Strain","Stress Fracture","Hip injury"],
+E4DDX = ["Urinary Obstruction","Benign Prostatic Hypertrophy","UTI, STI","Stress Incontinence"],
+F1DDX = ["Orthostatic Hypotension","Vasovagal Syncope","Vertigo","Anxiety","Heart Arrhythmia","Intracranial Bleed","Seizure, Drugs, Alcohol"],
+F2DDX = ["Migraine Headache","Tension Headache","Caffeine Withdrawal","Infection/Meningitis","Intracranial Hemorrhage"],
+F3DDX = ["Viral Syndrome/ Fatigue","Stroke","Nerve Compression","Hypoglycemia","Hyperventilation","Depression","Lyme disease"],
+F4DDX = ["Hypoglycemia","Hypotension","Hypoxia","Concussion","Infection","Intoxication"],
+F5DDX = ["Depression","Anxiety","Hypoxia","Hypo/hyperthyroidism","Substance intoxication or withdrawal"],
+F6DDX = ["Headache/migraine","Concussion","Intracerebral Hemorrhage","Anxiety","Stroke","Spinal cord injury","Seizure","Dehydration"],
+G1DDX = ["Sleep Debt","Sleep Apnea","Anemia","Anxiety Disorders","Chronic Infection/Inflammation","Chronic fatigue syndrome","Acute liver failure"],
+G2DDX = ["Malaise","Cold Symptoms","Sore Throat, Ear Pain","Heat/Cold Injury","Diarrhea","Pain with urination"],
+H1DDX = ["Blepharitis","Allergies","Conjunctivitis","Corneal Abrasion/Trauma","Subconjunctival Hemorrhage","Keratitis/Iritis"],
+H2DDX = ["Stye, Blepharitis","Dermatitis","Infection","Eyelid laceration"],
+H3DDX = ["Trauma","Migraine","Hemorrhage","Infection","Ischemia, Stroke"],
+H4DDX = ["Intoxication","Prescription Eyeglasses","Muscle Weakness","Trauma"],
+I1DDX = ["Cyclical Breast Pain","Musculoskeletal Issue","Large Breasts","Mastitis, Abscess","Cancer"],
+I2DDX = ["Irregular Menstrual Cycle","Pregnancy"],
+I3DDX = ["Heavy Menstrual Cycle","Irregular Menstrual Cycle","Birth Control Side Effect","Miscarriage","Ectopic Pregnancy"],
+I4DDX = ["Bacterial Vaginosis","Yeast Infection","Trichomonas","Pelvic Inflammatory Disease","STI"],
+I5DDX = ["N/A"],
+I6DDX = ["N/A"],
+J1DDX = ["Eczema","Hives","Contact Dermatitis","Athlete’s Foot","Heat Rash","Drug Reaction"],
+J2DDX = ["Acne Vulgaris","Pseudofolliculitis Barbae","Folliculitis","Acne Rosacea","Hyperandrogenism"],
+J3DDX = ["Acne","Pseudofolliculitis Barbae","Folliculitis","Tinea Barbae","Acne Keloidalis Nuchae"],
+J4DDX = ["Pemphigus Foliaceous","Tinea Capitis","Psoriasis","Allergic Contact Dermatitis","Seborrheic Dermatitis"],
+J5DDX = ["Alopecia","Traction Hair Loss","Alopecia Areata","Tinea Capitis","Acne Keloidalis Nuchae"],
+J6DDX = ["Interdigital tinea pedis","Hyperkeratotic (moccasin-type) tinea pedis","Vesiculobullous (Inflammatory) tinea pedis"],
+J7DDX = ["Inverse psoriasis","Erythrasma","Seborrheic dermatitis","Candidal intertrigo"],
+J8DDX = ["Seborrheic dermatitis","Tinea corporis","Vitiligo","Secondary syphilis"],
+J9DDX = ["Folliculitis","Abscess","Epidermal Cyst","Hidradenitis Suppurativa","Septic Joint"],
+J10DDX = ["Cold Sore","Aphthous Ulcer","Epstein-Barr Virus","Syphilis"],
+J11DDX = ["Abrasion","Laceration"],
+J12DDX = ["N/A"],
+J13DDX = ["Hives","Contact Dermatitis","Viral Exanthem","Drug Rash"],
+J14DDX = ["Burn","Irritant Contact Dermatitis"],
+J15DDX = ["Corn","Stephen Johnson Syndrome","Staphylococcal scalded skin syndrome"],
+J16DDX = ["Callus","Plantar Wart","Corn","Bunion"],
+J17DDX = ["Cutaneous Wart","Corn","Callous","Skin Cancer"],
+J18DDX = ["Paronychia","Ingrown Toenail","Trauma","Cellulitis"],
+K1DDX = ["Heatstroke","Heat Cramps","Heat Exhaustion","Fever/ Infection","Dehydration","Hyperthyroidism"],
+K2DDX = ["Environmental Exposure","Exhaustion and Malnutrition","Hypothyroidism","Sepsis"],
+K3DDX = ["Nonfreezing Cold Injury","Cold Urticaria","Raynaud Phenomenon","Frostbite"],
+K4DDX = ["N/A"],
+K5DDX = ["N/A"],
+K6DDX = ["Lice","Scabies","Contact Dermatitis","Fungal Infection","Hair Casts"],
+K7DDX = ["Insect Bite","Skin Infection","Contact Dermatitis"],
+L1DDX = ["Low Risk Exposure","High Risk Exposure"],
+L2DDX = ["Tooth Cavity","Poor Dental Hygiene","Temporomandibular Joint Pain","Infection","Heart Attack"],
+L3DDX = ["Aphthous Ulcers","Herpes Simplex Virus","Hand, Foot, and Mouth Disease","Stevens Johnson Syndrome"],
+L4DDX = ["N/A"],
+L5DDX = ["N/A"],
+L6DDX = ["N/A"],
+L7DDX = ["N/A"],
+L8DDX = ["N/A"],
+L9DDX = ["N/A"],
+L10DDX = ["N/A"],
+L11DDX = ["N/A"],
+L12DDX = ["N/A"],
+M1DDX = ["N/A"],
+M2DDX = ["N/A"],
+A1FLAG = ["SOB", "Stridor", "Deviated Uvula", "Drooling/ Trouble Swallowing ", "Stiff Neck"],
+A2FLAG = ["Stiff Neck AND Fever", "Posterior ear pain and/or mastoid erythema"],
+A3FLAG = ["Abnormal Vital Signs","Shortness of Breath","Stiff Neck","Altered Mental Status","Coughing up blood clots or frank blood"],
+A4FLAG = ["Altered Mental Status","Focal Neurological Symptom or Sign","Dizziness"],
+A5FLAG = ["Airway Compromise","Orthostatic Hypotension","Bleeding from Gums","Inability to Move Eye"],
+B1FLAG = ["Fever", "Saddle Anesthesia", "Urinary Retention/", "Incontinence Fecal Incontinence", " Motor Deficits", "Trauma with Vertebral Tenderness or Neuropathy", "Dysuria/Frequency", "Chest/Abdominal Pain"],
+B2FLAG = ["Bony step off/midline", "tenderness to palpation", "Inability to flex neck","Fever", "Recent HEENT or dental", "infection"],
+B3FLAG = ["Distal Pulses Abnormal", "Distal Sensation Abnormal", "Deformity", "Cardiac Symptoms"],
+B4FLAG = ["Distal Pulses Abnormal","Distal Sensation Abnormal","Deformity"],
+B5FLAG = ["Distal Pulses Abnormal", "Distal Sensation Abnormal", "Deformity", "Open Fracture"],
+B6FLAG = ["Abnormal Capillary Refill","Abnormal Distal Sensation","Palmar Infection","Deformity","Significant Burn"],
+B7FLAG = ["Abnormal PMS", "Deformity", "High Energy Trauma", "Suspect Stress Fracture (increased with weight bearing or during exercise, endurance training, change in exercise routine)" ,"Severe Pain"],
+B8FLAG = ["Abnormal PMS", "Deformity", "High Energy Trauma"],
+B9FLAG = ["Abnormal Distal Pulse", "Abnormal Sensation", "Deformity"],
+B10FLAG = ["Abnormal Distal Pulse", "Abnormal Sensation", "Deformity", "Suspect Stress Fracture (increased with weight bearing or during exercise, endurance training, change in exercise routine)"],
+B11FLAG = ["Abnormal Distal Pulse", "Abnormal Sensation", "Deformity", "Cola Colored Urine", "Inability to Urinate"],
+C1FLAG = ["Vomiting Blood or Coffee Grinds, Melena","Neurologic Symptoms","Chest Pain","Abdominal Pain followed by Nausea","Abdominal Distension"],
+C2FLAG = ["Vomiting Blood or Coffee Grinds, Melena ","Severe abdominal pain"," Significant weight loss"],
+C3FLAG = ["Abnormal Vitals","Abdominal rigidity/rebound (bump chair)","Severe pain","Fever with jaundice and RUQ pain","Confirmed Pregnancy","Alcoholism","Immunocompromised","RLQ Pain"],
+C4FLAG = ["Toilette FULL of Blood","Vomiting Blood or Coffee Grinds","Melena","Lightheaded"],
+C5FLAG = ["Diarrhea at night","Iron deficiency anemia","Vomiting"],
+C6FLAG = ["Airway compromise","Coughing, choking when swallowing"],
+C7FLAG = ["Vomiting Blood or Coffee Grinds","Melena","Angina", "SOB","Radiation to Back"],
+D1FLAG = ["Cyanosis","Ancillary muscles","SpO2<90%","SIRS Criteria","Airway Swelling","Hives","Altered Mental Status (AMS)"],
+D2FLAG = ["Irregular Pulse","H/O or FH of Heart Problems","Shoulder, jaw pain or pressure"],
+E1FLAG = ["Systemic Inflammatory Response Syndrome","Flank Pain","Severe Abdominal Pain","Gross Hematuria or Passing Blood Clots"],
+E2FLAG = ["Pain with testes supported","Suspect Stress Fracture (increased with weight bearing or during exercise, endurance training, change in exercise routine)","Severe Pain"],
+E3FLAG = ["Female Pelvic Pain with Intercourse","Pregnant","Orthostatic, Fever"],
+E4FLAG = ["Inability to void x 12 hours","Fever","Cola Colored Urine","Blood or Clots in Urine"],
+F1FLAG = ["Abnormal Vital Signs","Irregular Pulse","Witnessed or H/O Seizure","Severe Headache","Heat Injury"],
+F2FLAG = ["Sudden Onset, Severe","Focal Neurologic Signs","Blown pupil","Severe Hypertension","Fever","Vision Change/Loss"],
+F3FLAG = ["Localized to a Region or 1 sided","Recent Trauma","Loss of Consciousness","Bowel/Bladder Incontinence"],
+F4FLAG = ["Abnormal Vital Signs","Altered Mental Status","Focal Neurological Deficit","Recent Trauma"],
+F5FLAG = ["Homicidal Intent or Attempt","Suicide Intent or Attempt","Self-injury","Altered Mental Status"],
+F6FLAG = ["Deteriorating Level of Consciousness","Double Vision","Increased Restlessness, combative or agitated behavior","Repeat vomiting","Positive result from structural brain injury detection device (if available)","Seizure","Weakness or tingling in arms or legs","Devere or worsening headache","Abnormal Neuro Exam","Battle sign, Raccoon eyes","Suspected skull fracture","Anticoagulant use"],
+G1FLAG = ["Suicide Ideation","Homicide Ideation","Shortness of Breath","Stiff Neck","Melena"],
+G2FLAG = ["Heat Injury","Stiff Neck","Light sensitivity","Pregnant","Seizure","Lightheaded"],
+H1FLAG = ["Fixed, Abnormal Pupil"," Visual Acuity Change"," Observed Foreign Body"," Penetration, Rupture"," Chemical Exposure"," Fluid Level over Iris, Pupil"],
+H2FLAG = ["Open Globe"," High Risk Laceration"," Decreased Visual Acuity"," Double Vision"],
+H3FLAG = ["Trauma"," Recent Surgery"," Chemical Exposure"," Fluid Level over Iris, Pupil"," Neurologic Deficits"],
+H4FLAG = ["Trauma"," Neurologic Deficits"],
+I1FLAG = ["Skin Changes"," Mass"," Bloody Nipple Discharge"],
+I2FLAG = ["Positive hCG AND"," Pelvic Pain"," H/O Ectopic Pregnancy"," Vaginal Bleeding"],
+I3FLAG = ["Sexual Assault"," Trauma"," Severe Pain"," Pregnant"],
+I4FLAG = ["Fever"," Pregnant"," Non-midline Pelvic Pain","Pain with Intercourse"],
+I5FLAG = ["N/A"],
+I6FLAG = ["N/A"],
+J1FLAG = ["Airway Compromise/Swelling"],
+J2FLAG = ["N/A"],
+J3FLAG = ["Facial Cellulitis"],
+J4FLAG = ["Scaling with Visible Inflammation"," Abnormal Sensation"," Painful Erosions"],
+J5FLAG = ["N/A"],
+J6FLAG = ["Diabetic Soldiers","Significant erosions/ulcerations or malodor in affected area","Soldiers w/weakened immune systems"],
+J7FLAG = ["Diabetes"," Immunodeficiency"],
+J8FLAG = ["N/A"],
+J9FLAG = ["Location over Tailbone"," SIRS Criteria"," Worsening on Antibiotics"," Palm of Hand"," Over Joint"," Black Eschar"],
+J10FLAG = ["Eye Pain"],
+J11FLAG = ["SIRS Criteria"," Animal Bite, Scratch"],
+J12FLAG = ["Fever"," Pus/redness/swelling"],
+J13FLAG = ["Airway Swelling"," Wheezing"," Anaphylaxis"],
+J14FLAG = ["Trouble Breathing"," AMS, Drowsy"," High Risk Location"," Circumferential Burn"],
+J15FLAG = ["Fever/malaise"," Epidermal sloughing"],
+J16FLAG = ["N/A"],
+J17FLAG = ["N/A"],
+J18FLAG = ["Red Streaks up Foot"," Gangrene"," Black Eschar"],
+K1FLAG = ["Altered mental status"," Abnormal vital signs"],
+K2FLAG = ["T<96 degrees F"," Altered Mental Status"," Abnormal Vital Signs"," Frostbite"," Trauma"],
+K3FLAG = ["Gangrene/Necrosis"," Hemorrhagic Blisters"," Hypothermia"," Frostbite"," Trauma"],
+K4FLAG = ["N/A"],
+K5FLAG = ["N/A"],
+K6FLAG = ["N/A"],
+K7FLAG = ["Swelling of Lips or Tongue","Trouble Breathing","Abnormal Vital Signs"],
+L1FLAG = ["Known Infection"," High Risk Contact"],
+L2FLAG = ["Exposed Pulp"," Avulsed Tooth"," Severe Pain"," Trauma"," Chest Pain, SOB"],
+L3FLAG = ["Diffuse"," Bloody Diarrhea"],
+L4FLAG = ["N/A"],
+L5FLAG = ["N/A"],
+L6FLAG = ["N/A"],
+L7FLAG = ["N/A"],
+L8FLAG = ["N/A","1"],
+L9FLAG = ["N/A"],
+L10FLAG = ["N/A"],
+L11FLAG = ["N/A"],
+L12FLAG = ["N/A"],
+M1FLAG = ["N/A"],
+M2FLAG = ["N/A"],
 
+End = [];
 
-
-
-end =[];
-//anchor
-//Array linking decision trees to the ul creation function
 const A1decision = {  
   "DACT1" : A1ACT1,
   "DACT2" : A1ACT2,
@@ -1557,6 +1494,8 @@ const A1decision = {
   "GEN" : A1GEN,
   "MED" : A1MEDCOM,
   "STP" : A1STP1,
+  "RF" : A1FLAG,
+  "DDX" : A1DDX
   }
 
 
@@ -1575,6 +1514,8 @@ const A2decision = {
 "GEN" : A2GEN,
 "MED" : A2MEDCOM,
 "STP" : A2STP1,
+"RF" : A2FLAG,
+"DDX" : A2DDX
 }
 
 const A3decision = {  
@@ -1592,6 +1533,8 @@ const A3decision = {
 "GEN" : A3GEN,
 "MED" : A3MEDCOM,
 "STP" : A3STP1,
+"RF" : A3FLAG,
+"DDX" : A3DDX
 }
 const A4decision = {  
   "DACT1" : A4ACT1,
@@ -1608,6 +1551,8 @@ const A4decision = {
   "GEN" : A4GEN,
   "MED" : A4MEDCOM,
   "STP" : A4STP1,
+  "RF" : A4FLAG,
+  "DDX" : A4DDX
   }
 
 const A5decision = { 
@@ -1624,7 +1569,9 @@ const A5decision = {
 "DLIM" : A5LIMITATIONS,
 "GEN" : A5GEN,
 "MED" : A5MEDCOM,
-"STP" : A5STP1
+"STP" : A5STP1,
+"RF" : A5FLAG,
+"DDX" : A5DDX
 }
 const B1decision = { 
 "DACT1" : B1ACT1,
@@ -1640,7 +1587,9 @@ const B1decision = {
 "DLIM" : B1LIMITATIONS,
 "GEN" : B1GEN,
 "MED" : B1MEDCOM,
-"STP" : B1STP1
+"STP" : B1STP1,
+"RF" : B1FLAG,
+"DDX" : B1DDX
 }
 const B2decision = {
 "DACT1" : B2ACT1,
@@ -1656,7 +1605,9 @@ const B2decision = {
 "DLIM" : B2LIMITATIONS,
 "GEN" : B2GEN,
 "MED" : B2MEDCOM,
-"STP" : B2STP1
+"STP" : B2STP1,
+"RF" : B2FLAG,
+"DDX" : B2DDX
 }
 const B3decision = {
 "DACT1" : B3ACT1,
@@ -1672,7 +1623,9 @@ const B3decision = {
 "DLIM" : B3LIMITATIONS,
 "GEN" : B3GEN,
 "MED" : B3MEDCOM,
-"STP" : B3STP1
+"STP" : B3STP1,
+"RF" : B3FLAG,
+"DDX" : B3DDX
 }
 
 const B4decision = {
@@ -1690,6 +1643,8 @@ const B4decision = {
   "GEN" : B4GEN,
   "MED" : B4MEDCOM,
   "STP" : B4STP1,
+  "RF" : B4FLAG,
+  "DDX" : B4DDX
   }
 const B5decision = {
   "DACT1" : B5ACT1,
@@ -1706,6 +1661,8 @@ const B5decision = {
   "GEN" : B5GEN,
   "MED" : B5MEDCOM,
   "STP" : B5STP1,
+  "RF" : B5FLAG,
+  "DDX" : B5DDX
   }
 const B6decision = {
   "DACT1" : B6ACT1,
@@ -1722,6 +1679,8 @@ const B6decision = {
   "GEN" : B6GEN,
   "MED" : B6MEDCOM,
   "STP" : B6STP1,
+  "RF" : B6FLAG,
+  "DDX" : B6DDX
   }
 const B7decision = {
   "DACT1" : B7ACT1,
@@ -1738,6 +1697,8 @@ const B7decision = {
   "GEN" : B7GEN,
   "MED" : B7MEDCOM,
   "STP" : B7STP1,
+  "RF" : B7FLAG,
+  "DDX" : B7DDX
   }
 const B8decision = {
   "DACT1" : B8ACT1,
@@ -1754,6 +1715,8 @@ const B8decision = {
   "GEN" : B8GEN,
   "MED" : B8MEDCOM,
   "STP" : B8STP1,
+  "RF" : B8FLAG,
+  "DDX" : B8DDX
   }
 const B9decision = {
 "DACT1" : B9ACT1,
@@ -1770,6 +1733,8 @@ const B9decision = {
 "GEN" : B9GEN,
 "MED" : B9MEDCOM,
 "STP" : B9STP1,
+"RF" : B9FLAG,
+"DDX" : B9DDX
 }
 const B10decision = {
 "DACT1" : B10ACT1,
@@ -1786,6 +1751,8 @@ const B10decision = {
 "GEN" : B10GEN,
 "MED" : B10MEDCOM,
 "STP" : B10STP1,
+"RF" : B10FLAG,
+"DDX" : B10DDX
 }
 const B11decision = {
 "DACT1" : B11ACT1,
@@ -1802,6 +1769,8 @@ const B11decision = {
 "GEN" : B11GEN,
 "MED" : B11MEDCOM,
 "STP" : B11STP1,
+"RF" : B11FLAG,
+"DDX" : B11DDX
 }
 const C1decision = {
   "DACT1" : C1ACT1,
@@ -1818,6 +1787,8 @@ const C1decision = {
   "GEN" : C1GEN,
   "MED" : C1MEDCOM,
   "STP" : C1STP1,
+  "RF" : C1FLAG,
+  "DDX" : C1DDX
   }
 const C2decision = {
   "DACT1" : C2ACT1,
@@ -1834,6 +1805,8 @@ const C2decision = {
   "GEN" : C2GEN,
   "MED" : C2MEDCOM,
   "STP" : C2STP1,
+  "RF" : C2FLAG,
+  "DDX" : C2DDX
   }
 const C3decision = {
 "DACT1" : C3ACT1,
@@ -1850,6 +1823,8 @@ const C3decision = {
 "GEN" : C3GEN,
 "MED" : C3MEDCOM,
 "STP" : C3STP1,
+"RF" : C3FLAG,
+"DDX" : C3DDX
 }
 const C4decision = {
   "DACT1" : C4ACT1,
@@ -1866,6 +1841,8 @@ const C4decision = {
   "GEN" : C4GEN,
   "MED" : C4MEDCOM,
   "STP" : C4STP1,
+  "RF" : C4FLAG,
+  "DDX" : C4DDX
   }
 const C5decision = {
   "DACT1" : C5ACT1,
@@ -1882,6 +1859,8 @@ const C5decision = {
   "GEN" : C5GEN,
   "MED" : C5MEDCOM,
   "STP" : C5STP1,
+  "RF" : C5FLAG,
+  "DDX" : C5DDX
   }
 const C6decision = {
   "DACT1" : C6ACT1,
@@ -1898,6 +1877,8 @@ const C6decision = {
   "GEN" : C6GEN,
   "MED" : C6MEDCOM,
   "STP" : C6STP1,
+  "RF" : C6FLAG,
+  "DDX" : C6DDX
   }
 const C7decision = {
 "DACT1" : C7ACT1,
@@ -1914,6 +1895,8 @@ const C7decision = {
 "GEN" : C7GEN,
 "MED" : C7MEDCOM,
 "STP" : C7STP1,
+"RF" : C7FLAG,
+"DDX" : C7DDX
 }
 const D1decision = {
 "DACT1" : D1ACT1,
@@ -1930,6 +1913,8 @@ const D1decision = {
 "GEN" : D1GEN,
 "MED" : D1MEDCOM,
 "STP" : D1STP1,
+"RF" : D1FLAG,
+"DDX" : D1DDX
 }
 const D2decision = {
   "DACT1" : D2ACT1,
@@ -1946,6 +1931,8 @@ const D2decision = {
   "GEN" : D2GEN,
   "MED" : D2MEDCOM,
   "STP" : D2STP1,
+  "RF" : D2FLAG,
+  "DDX" : D2DDX
   }
 const E1decision = {
   "DACT1" : E1ACT1,
@@ -1962,6 +1949,8 @@ const E1decision = {
   "GEN" : E1GEN,
   "MED" : E1MEDCOM,
   "STP" : E1STP1,
+  "RF" : E1FLAG,
+  "DDX" : E1DDX
   }
 const E2decision = {
 "DACT1" : E2ACT1,
@@ -1978,6 +1967,8 @@ const E2decision = {
 "GEN" : E2GEN,
 "MED" : E2MEDCOM,
 "STP" : E2STP1,
+"RF" : E2FLAG,
+"DDX" : E2DDX
 }
 const E3decision = {
 "DACT1" : E3ACT1,
@@ -1994,6 +1985,8 @@ const E3decision = {
 "GEN" : E3GEN,
 "MED" : E3MEDCOM,
 "STP" : E3STP1,
+"RF" : E3FLAG,
+"DDX" : E3DDX
 }
 
 const E4decision = {
@@ -2011,6 +2004,8 @@ const E4decision = {
   "GEN" : E4GEN,
   "MED" : E4MEDCOM,
   "STP" : E4STP1,
+  "RF" : E4FLAG,
+  "DDX" : E4DDX
   }
 const F1decision = {
   "DACT1" : F1ACT1,
@@ -2027,6 +2022,8 @@ const F1decision = {
   "GEN" : F1GEN,
   "MED" : F1MEDCOM,
   "STP" : F1STP1,
+  "RF" : F1FLAG,
+  "DDX" : F1DDX
   }
 
   const F2decision = {
@@ -2044,6 +2041,8 @@ const F1decision = {
     "GEN" : F2GEN,
     "MED" : F2MEDCOM,
     "STP" : F2STP1,
+    "RF" : F2FLAG,
+    "DDX" : F2DDX
     }
 
 const F3decision = {
@@ -2061,6 +2060,8 @@ const F3decision = {
   "GEN" : F3GEN,
   "MED" : F3MEDCOM,
   "STP" : F3STP1,
+  "RF" : F3FLAG,
+  "DDX" : F3DDX
   }
 
 const F4decision = {
@@ -2078,6 +2079,8 @@ const F4decision = {
   "GEN" : F4GEN,
   "MED" : F4MEDCOM,
   "STP" : F4STP1,
+  "RF" : F4FLAG,
+  "DDX" : F4DDX
   }
 const F5decision = {
   "DACT1" : F5ACT1,
@@ -2094,6 +2097,8 @@ const F5decision = {
   "GEN" : F5GEN,
   "MED" : F5MEDCOM,
   "STP" : F5STP1,
+  "RF" : F5FLAG,
+  "DDX" : F5DDX
   }
 
   const F6decision ={
@@ -2111,6 +2116,8 @@ const F5decision = {
   "GEN" : F6GEN,
   "MED" : F6MEDCOM,
   "STP" : F6STP1,
+  "RF" : F6FLAG,
+  "DDX" : F6DDX
   }
   const G1decision ={
     "DACT1" : G1ACT1,
@@ -2127,6 +2134,8 @@ const F5decision = {
   "GEN" : G1GEN,
   "MED" : G1MEDCOM,
   "STP" : G1STP1,
+  "RF" : G1FLAG,
+  "DDX" : G1DDX
   }
   const G2decision ={
     "DACT1" : G2ACT1,
@@ -2143,6 +2152,8 @@ const F5decision = {
   "GEN" : G2GEN,
   "MED" : G2MEDCOM,
   "STP" : G2STP1,
+  "RF" : G2FLAG,
+  "DDX" : G2DDX
   }
   const H1decision ={
     "DACT1" : H1ACT1,
@@ -2159,6 +2170,8 @@ const F5decision = {
   "GEN" : H1GEN,
   "MED" : H1MEDCOM,
   "STP" : H1STP1,
+  "RF" : H1FLAG,
+  "DDX" : H1DDX
   }
   const H2decision ={
     "DACT1" : H2ACT1,
@@ -2175,6 +2188,8 @@ const F5decision = {
   "GEN" : H2GEN,
   "MED" : H2MEDCOM,
   "STP" : H2STP1,
+  "RF" : H2FLAG,
+  "DDX" : H2DDX
   }
   const H3decision ={
     "DACT1" : H3ACT1,
@@ -2191,6 +2206,8 @@ const F5decision = {
   "GEN" : H3GEN,
   "MED" : H3MEDCOM,
   "STP" : H3STP1,
+  "RF" : H3FLAG,
+  "DDX" : H3DDX
   }
   const H4decision ={
     "DACT1" : H4ACT1,
@@ -2207,6 +2224,8 @@ const F5decision = {
   "GEN" : H4GEN,
   "MED" : H4MEDCOM,
   "STP" : H4STP1,
+  "RF" : H4FLAG,
+  "DDX" : H4DDX
   }
   const I1decision ={
     "DACT1" : I1ACT1,
@@ -2223,6 +2242,8 @@ const F5decision = {
   "GEN" : I1GEN,
   "MED" : I1MEDCOM,
   "STP" : I1STP1,
+  "RF" : I1FLAG,
+  "DDX" : I1DDX
   }
   const I2decision ={
     "DACT1" : I2ACT1,
@@ -2239,6 +2260,8 @@ const F5decision = {
   "GEN" : I2GEN,
   "MED" : I2MEDCOM,
   "STP" : I2STP1,
+  "RF" : I2FLAG,
+  "DDX" : I2DDX
   }
   const I3decision ={
     "DACT1" : I3ACT1,
@@ -2255,6 +2278,8 @@ const F5decision = {
   "GEN" : I3GEN,
   "MED" : I3MEDCOM,
   "STP" : I3STP1,
+  "RF" : I3FLAG,
+  "DDX" : I3DDX
   }
   const I4decision ={
     "DACT1" : I4ACT1,
@@ -2271,6 +2296,8 @@ const F5decision = {
   "GEN" : I4GEN,
   "MED" : I4MEDCOM,
   "STP" : I4STP1,
+  "RF" : I4FLAG,
+  "DDX" : I4DDX
   }
   const I5decision ={
     "DACT1" : I5ACT1,
@@ -2287,6 +2314,8 @@ const F5decision = {
   "GEN" : I5GEN,
   "MED" : I5MEDCOM,
   "STP" : I5STP1,
+  "RF" : I5FLAG,
+  "DDX" : I5DDX
   }
 
   const I6decision ={
@@ -2304,6 +2333,8 @@ const F5decision = {
   "GEN" : I6GEN,
   "MED" : I6MEDCOM,
   "STP" : I6STP1,
+  "RF" : I6FLAG,
+  "DDX" : I6DDX
   }
   
   const J1decision ={
@@ -2321,6 +2352,8 @@ const F5decision = {
   "GEN" : J1GEN,
   "MED" : J1MEDCOM,
   "STP" : J1STP1,
+  "RF" : J1FLAG,
+  "DDX" : J1DDX
   }
 
   const J2decision ={
@@ -2338,6 +2371,8 @@ const F5decision = {
   "GEN" : J2GEN,
   "MED" : J2MEDCOM,
   "STP" : J2STP1,
+  "RF" : J2FLAG,
+  "DDX" : J2DDX
   }
 
 
@@ -2356,6 +2391,8 @@ const F5decision = {
   "GEN" : J3GEN,
   "MED" : J3MEDCOM,
   "STP" : J3STP1,
+  "RF" : J3FLAG,
+  "DDX" : J3DDX
   }
 
 
@@ -2374,6 +2411,8 @@ const F5decision = {
   "GEN" : J4GEN,
   "MED" : J4MEDCOM,
   "STP" : J4STP1,
+  "RF" : J4FLAG,
+  "DDX" : J4DDX
   }
 
 
@@ -2392,6 +2431,8 @@ const F5decision = {
   "GEN" : J5GEN,
   "MED" : J5MEDCOM,
   "STP" : J5STP1,
+  "RF" : J5FLAG,
+  "DDX" : J5DDX
   }
 
 
@@ -2410,6 +2451,8 @@ const F5decision = {
   "GEN" : J6GEN,
   "MED" : J6MEDCOM,
   "STP" : J6STP1,
+  "RF" : J6FLAG,
+  "DDX" : J6DDX
   }
 
 
@@ -2428,6 +2471,8 @@ const F5decision = {
   "GEN" : J7GEN,
   "MED" : J7MEDCOM,
   "STP" : J7STP1,
+  "RF" : J7FLAG,
+  "DDX" : J7DDX
   }
 
 
@@ -2446,6 +2491,8 @@ const F5decision = {
   "GEN" : J8GEN,
   "MED" : J8MEDCOM,
   "STP" : J8STP1,
+  "RF" : J8FLAG,
+  "DDX" : J8DDX
   }
 
 
@@ -2464,6 +2511,8 @@ const F5decision = {
   "GEN" : J9GEN,
   "MED" : J9MEDCOM,
   "STP" : J9STP1,
+  "RF" : J9FLAG,
+  "DDX" : J9DDX
   }
 
 
@@ -2482,6 +2531,8 @@ const F5decision = {
   "GEN" : J10GEN,
   "MED" : J10MEDCOM,
   "STP" : J10STP1,
+  "RF" : J10FLAG,
+  "DDX" : J10DDX
   }
 
 
@@ -2500,6 +2551,8 @@ const F5decision = {
   "GEN" : J11GEN,
   "MED" : J11MEDCOM,
   "STP" : J11STP1,
+  "RF" : J11FLAG,
+  "DDX" : J11DDX
   }
 
 
@@ -2518,6 +2571,8 @@ const F5decision = {
   "GEN" : J12GEN,
   "MED" : J12MEDCOM,
   "STP" : J12STP1,
+  "RF" : J12FLAG,
+  "DDX" : J12DDX
   }
 
 
@@ -2536,6 +2591,8 @@ const F5decision = {
   "GEN" : J13GEN,
   "MED" : J13MEDCOM,
   "STP" : J13STP1,
+  "RF" : J13FLAG,
+  "DDX" : J13DDX
   }
 
 
@@ -2554,6 +2611,8 @@ const F5decision = {
   "GEN" : J14GEN,
   "MED" : J14MEDCOM,
   "STP" : J14STP1,
+  "RF" : J14FLAG,
+  "DDX" : J14DDX
   }
 
 
@@ -2572,6 +2631,8 @@ const F5decision = {
   "GEN" : J15GEN,
   "MED" : J15MEDCOM,
   "STP" : J15STP1,
+  "RF" : J15FLAG,
+  "DDX" : J15DDX
   }
 
 
@@ -2590,6 +2651,8 @@ const F5decision = {
   "GEN" : J16GEN,
   "MED" : J16MEDCOM,
   "STP" : J16STP1,
+  "RF" : J16FLAG,
+  "DDX" : J16DDX
   }
 
 
@@ -2608,6 +2671,8 @@ const F5decision = {
   "GEN" : J17GEN,
   "MED" : J17MEDCOM,
   "STP" : J17STP1,
+  "RF" : J17FLAG,
+  "DDX" : J17DDX
   }
 
 
@@ -2626,6 +2691,8 @@ const F5decision = {
   "GEN" : J18GEN,
   "MED" : J18MEDCOM,
   "STP" : J18STP1,
+  "RF" : J18FLAG,
+  "DDX" : J18DDX
   }
 
   const K1decision ={
@@ -2643,6 +2710,8 @@ const F5decision = {
   "GEN" : K1GEN,
   "MED" : K1MEDCOM,
   "STP" : K1STP1,
+  "RF" : K1FLAG,
+  "DDX" : K1DDX
   }
 
   const K2decision ={
@@ -2660,6 +2729,8 @@ const F5decision = {
   "GEN" : K2GEN,
   "MED" : K2MEDCOM,
   "STP" : K2STP1,
+  "RF" : K2FLAG,
+  "DDX" : K2DDX
   }
 
   const K3decision ={
@@ -2677,6 +2748,8 @@ const F5decision = {
   "GEN" : K3GEN,
   "MED" : K3MEDCOM,
   "STP" : K3STP1,
+  "RF" : K3FLAG,
+  "DDX" : K3DDX
   }
 
   const K4decision ={
@@ -2694,6 +2767,8 @@ const F5decision = {
   "GEN" : K4GEN,
   "MED" : K4MEDCOM,
   "STP" : K4STP1,
+  "RF" : K4FLAG,
+  "DDX" : K4DDX
   }
 
   const K5decision ={
@@ -2711,6 +2786,8 @@ const F5decision = {
   "GEN" : K5GEN,
   "MED" : K5MEDCOM,
   "STP" : K5STP1,
+  "RF" : K5FLAG,
+  "DDX" : K5DDX
   }
 
   const K6decision ={
@@ -2728,6 +2805,8 @@ const F5decision = {
   "GEN" : K6GEN,
   "MED" : K6MEDCOM,
   "STP" : K6STP1,
+  "RF" : K6FLAG,
+  "DDX" : K6DDX
   }
 
   const K7decision ={
@@ -2745,6 +2824,8 @@ const F5decision = {
   "GEN" : K7GEN,
   "MED" : K7MEDCOM,
   "STP" : K7STP1,
+  "RF" : K7FLAG,
+  "DDX" : K7DDX
   }
 
   const L1decision ={
@@ -2762,6 +2843,8 @@ const F5decision = {
   "GEN" : L1GEN,
   "MED" : L1MEDCOM,
   "STP" : L1STP1,
+  "RF" : L1FLAG,
+  "DDX" : L1DDX
   }
 
   const L2decision ={
@@ -2779,6 +2862,8 @@ const F5decision = {
   "GEN" : L2GEN,
   "MED" : L2MEDCOM,
   "STP" : L2STP1,
+  "RF" : L2FLAG,
+  "DDX" : L2DDX
   }
 
   const L3decision ={
@@ -2796,6 +2881,8 @@ const F5decision = {
   "GEN" : L3GEN,
   "MED" : L3MEDCOM,
   "STP" : L3STP1,
+  "RF" : L3FLAG,
+  "DDX" : L3DDX
   }
 
   const L4decision ={
@@ -2813,6 +2900,8 @@ const F5decision = {
   "GEN" : L4GEN,
   "MED" : L4MEDCOM,
   "STP" : L4STP1,
+  "RF" : L4FLAG,
+  "DDX" : L4DDX
   }
 
   const L5decision ={
@@ -2830,6 +2919,8 @@ const F5decision = {
   "GEN" : L5GEN,
   "MED" : L5MEDCOM,
   "STP" : L5STP1,
+  "RF" : L5FLAG,
+  "DDX" : L5DDX
   }
 
   const L6decision ={
@@ -2847,6 +2938,8 @@ const F5decision = {
   "GEN" : L6GEN,
   "MED" : L6MEDCOM,
   "STP" : L6STP1,
+  "RF" : L6FLAG,
+  "DDX" : L6DDX
   }
 
   const L7decision ={
@@ -2864,6 +2957,8 @@ const F5decision = {
   "GEN" : L7GEN,
   "MED" : L7MEDCOM,
   "STP" : L7STP1,
+  "RF" : L7FLAG,
+  "DDX" : L7DDX
   }
 
   const L8decision ={
@@ -2881,6 +2976,8 @@ const F5decision = {
   "GEN" : L8GEN,
   "MED" : L8MEDCOM,
   "STP" : L8STP1,
+  "RF" : L8FLAG,
+  "DDX" : L8DDX
   }
 
   const L9decision ={
@@ -2898,6 +2995,8 @@ const F5decision = {
   "GEN" : L9GEN,
   "MED" : L9MEDCOM,
   "STP" : L9STP1,
+  "RF" : L9FLAG,
+  "DDX" : L9DDX
   }
 
   const L10decision ={
@@ -2915,6 +3014,8 @@ const F5decision = {
   "GEN" : L10GEN,
   "MED" : L10MEDCOM,
   "STP" : L10STP1,
+  "RF" : L10FLAG,
+  "DDX" : L10DDX
   }
 
   const L11decision ={
@@ -2932,6 +3033,8 @@ const F5decision = {
   "GEN" : L11GEN,
   "MED" : L11MEDCOM,
   "STP" : L11STP1,
+  "RF" : L11FLAG,
+  "DDX" : L11DDX
   }
 
   const L12decision ={
@@ -2949,6 +3052,8 @@ const F5decision = {
   "GEN" : L12GEN,
   "MED" : L12MEDCOM,
   "STP" : L12STP1,
+  "RF" : L12FLAG,
+  "DDX" : L12DDX
   }
 
   const M1decision ={
@@ -2966,6 +3071,8 @@ const F5decision = {
   "GEN" : M1GEN,
   "MED" : M1MEDCOM,
   "STP" : M1STP1,
+  "RF" : M1FLAG,
+  "DDX" : M1DDX
   }
 
   const M2decision ={
@@ -2983,10 +3090,113 @@ const F5decision = {
   "GEN" : M2GEN,
   "MED" : M2MEDCOM,
   "STP" : M2STP1,
+  "RF" : M2FLAG,
+  "DDX" : M2DDX
   }
 
 
-//anchor
+//Array linking main category buttons to the subcategory boxes
+const subcatboxes = {
+  btnA : document.querySelector("#categoryA"),
+  btnB : document.querySelector("#categoryB"),
+  btnC : document.querySelector("#categoryC"),
+  btnD : document.querySelector("#categoryD"),
+  btnE : document.querySelector("#categoryE"),
+  btnF : document.querySelector("#categoryF"),
+  btnG : document.querySelector("#categoryG"),
+  btnH : document.querySelector("#categoryH"),
+  btnI : document.querySelector("#categoryI"),
+  btnJ : document.querySelector("#categoryJ"),
+  btnK : document.querySelector("#categoryK"),
+  btnL : document.querySelector("#categoryL"),
+  btnM : document.querySelector("#categoryM"),
+  btnA1 : document.querySelector("#A-1"),
+  btnA2 : document.querySelector("#A-2"),
+  btnA3 : document.querySelector("#A-3"),
+  btnA4 : document.querySelector("#A-4"),
+  btnA5 : document.querySelector("#A-5"),
+  btnB1 : document.querySelector("#B-1"),
+  btnB2 : document.querySelector("#B-2"),
+  btnB3 : document.querySelector("#B-3"),
+  btnB4 : document.querySelector("#B-4"),
+  btnB5 : document.querySelector("#B-5"),
+  btnB6 : document.querySelector("#B-6"),
+  btnB7 : document.querySelector("#B-7"),
+  btnB8 : document.querySelector("#B-8"),
+  btnB9 : document.querySelector("#B-9"),
+  btnB10 : document.querySelector("#B-10"),
+  btnB11 : document.querySelector("#B-11"),
+  btnC1 : document.querySelector("#C-1"),
+  btnC2 : document.querySelector("#C-2"),
+  btnC3 : document.querySelector("#C-3"),
+  btnC4 : document.querySelector("#C-4"),
+  btnC5 : document.querySelector("#C-5"),
+  btnC6 : document.querySelector("#C-6"),
+  btnC7 : document.querySelector("#C-7"),
+  btnD1 : document.querySelector("#D-1"),
+  btnD2 : document.querySelector("#D-2"),
+  btnE1 : document.querySelector("#E-1"),
+  btnE2 : document.querySelector("#E-2"),
+  btnE3 : document.querySelector("#E-3"),
+  btnE4 : document.querySelector("#E-4"),
+  btnF1 : document.querySelector("#F-1"),
+  btnF2 : document.querySelector("#F-2"),
+  btnF3 : document.querySelector("#F-3"),
+  btnF4 : document.querySelector("#F-4"),
+  btnF5 : document.querySelector("#F-5"),
+  btnF6 : document.querySelector("#F-6"),
+  btnG1 : document.querySelector("#G-1"),
+  btnG2 : document.querySelector("#G-2"),
+  btnH1 : document.querySelector("#H-1"),
+  btnH2 : document.querySelector("#H-2"),
+  btnH3 : document.querySelector("#H-3"),
+  btnH4 : document.querySelector("#H-4"),
+  btnI1 : document.querySelector("#I-1"),
+  btnI2 : document.querySelector("#I-2"),
+  btnI3 : document.querySelector("#I-3"),
+  btnI4 : document.querySelector("#I-4"),
+  btnI5 : document.querySelector("#I-5"),
+  btnI6 : document.querySelector("#I-6"),
+  btnJ1 : document.querySelector("#J-1"),
+  btnJ2 : document.querySelector("#J-2"),
+  btnJ3 : document.querySelector("#J-3"),
+  btnJ4 : document.querySelector("#J-4"),
+  btnJ5 : document.querySelector("#J-5"),
+  btnJ6 : document.querySelector("#J-6"),
+  btnJ7 : document.querySelector("#J-7"),
+  btnJ8 : document.querySelector("#J-8"),
+  btnJ9 : document.querySelector("#J-9"),
+  btnJ10 : document.querySelector("#J-10"),
+  btnJ11 : document.querySelector("#J-11"),
+  btnJ12 : document.querySelector("#J-12"),
+  btnJ13 : document.querySelector("#J-13"),
+  btnJ14 : document.querySelector("#J-14"),
+  btnJ15 : document.querySelector("#J-15"),
+  btnJ16 : document.querySelector("#J-16"),
+  btnJ17 : document.querySelector("#J-17"),
+  btnJ18 : document.querySelector("#J-18"),
+  btnK1 : document.querySelector("#K-1"),
+  btnK2 : document.querySelector("#K-2"),
+  btnK3 : document.querySelector("#K-3"),
+  btnK4 : document.querySelector("#K-4"),
+  btnK5 : document.querySelector("#K-5"),
+  btnK6 : document.querySelector("#K-6"),
+  btnK7 : document.querySelector("#K-7"),
+  btnL1 : document.querySelector("#L-1"),
+  btnL2 : document.querySelector("#L-2"),
+  btnL3 : document.querySelector("#L-3"),
+  btnL4 : document.querySelector("#L-4"),
+  btnL5 : document.querySelector("#L-5"),
+  btnL6 : document.querySelector("#L-6"),
+  btnL7 : document.querySelector("#L-7"),
+  btnL8 : document.querySelector("#L-8"),
+  btnL9 : document.querySelector("#L-9"),
+  btnL10 : document.querySelector("#L-10"),
+  btnL11 : document.querySelector("#L-11"),
+  btnL12 : document.querySelector("#L-12"),
+  btnM1 : document.querySelector("#M-1"),
+  btnM2 : document.querySelector("#M-2"), 
+};
 const link1 ={
   "A-1" : A1decision,
   "A-2" : A2decision,
@@ -3075,3777 +3285,513 @@ const link1 ={
   "M-1" : M1decision,
   "M-2" : M2decision 
 }
+var main = document.querySelector("#main-categories");
+var banner1 = document.querySelector("#banner1")
+var banner2 = document.querySelector("#banner2")
+var nav = document.querySelector(".top-menu")
+var reverse = document.querySelector("#menu-back-box")
+var homebtn = document.querySelector("#menu-main-box")
+var infoTitle = document.querySelector(".info-title")
 
-//Array linking main category buttons to the subcategory boxes
-const subcatboxes = {
-  btnA : document.querySelector("#subboxA"),
-  btnB : document.querySelector("#subboxB"),
-  btnC : document.querySelector("#subboxC"),
-  btnD : document.querySelector("#subboxD"),
-  btnE : document.querySelector("#subboxE"),
-  btnF : document.querySelector("#subboxF"),
-  btnG : document.querySelector("#subboxG"),
-  btnH : document.querySelector("#subboxH"),
-  btnI : document.querySelector("#subboxI"),
-  btnJ : document.querySelector("#subboxJ"),
-  btnK : document.querySelector("#subboxK"),
-  btnL : document.querySelector("#subboxL"),
-  btnM : document.querySelector("#subboxM")
-};
-//Array linking the boxes back to their buttons on the main box
-const reversecatbox = {
-subboxA : document.querySelector("#btn-A"),
-subboxB : document.querySelector("#btn-B"),
-subboxC : document.querySelector("#btn-C"),
-subboxD : document.querySelector("#btn-D"),
-subboxE : document.querySelector("#btn-E"),
-subboxF : document.querySelector("#btn-F"),
-subboxG : document.querySelector("#btn-G"),
-subboxH : document.querySelector("#btn-H"),
-subboxI : document.querySelector("#btn-I"),
-subboxJ : document.querySelector("#btn-J"),
-subboxK : document.querySelector("#btn-K"),
-subboxL : document.querySelector("#btn-L"),
-subboxM : document.querySelector("#btn-M"),
-}
-//Array linking the labels (A-1, A-2, A-3) to their ADTSheet
-const ADTMCSheets = {
-    A1label : A1,
-    A2label : A2,
-    A3label : A3,
-    A4label : A4,
-    A5label : A5,
-    B1label : B1,
-    B2label : B2,
-    B3label : B3,
-    B4label : B4,
-    B5label : B5,
-    B6label : B6,
-    B7label : B7,
-    B8label : B8,
-    B9label : B9,
-    B10label : B10,
-    B11label : B11,
-    C1label : C1,
-    C2label : C2,
-    C3label : C3,
-    C4label : C4,
-    C5label : C5,
-    C6label : C6,
-    C7label : C7,
-    D1label : D1,
-    D2label : D2,
-    E1label : E1,
-    E2label : E2,
-    E3label : E3,
-    E4label : E4,
-    F1label : F1,
-    F2label : F2,
-    F3label : F3,
-    F4label : F4,
-    F5label : F5,
-    F6label : F6,
-    G1label : G1,
-    G2label : G2,
-    H1label : H1,
-    H2label : H2,
-    H3label : H3,
-    H4label : H4,
-    I1label : I1,
-    I2label : I2,
-    I3label : I3,
-    I4label : I4,
-    I5label : I5,
-    I6label : I6,
-    J1label : J1,
-    J2label : J2,
-    J3label : J3,
-    J4label : J4,
-    J5label : J5,
-    J6label : J6,
-    J7label : J7,
-    J8label : J8,
-    J9label : J9,
-    J10label : J10,
-    J11label : J11,
-    J12label : J12,
-    J13label : J13,
-    J14label : J14,
-    J15label : J15,
-    J16label : J16,
-    J17label : J17,
-    J18label : J18,
-    K1label : K1,
-    K2label : K2,
-    K3label : K3,
-    K4label : K4,
-    K5label : K5,
-    K6label : K6,
-    K7label : K7,
-    L1label : L1,
-    L2label : L2,
-    L3label : L3,
-    L4label : L4,
-    L5label : L5,
-    L6label : L6,
-    L7label : L7,
-    L8label : L8,
-    L9label : L9,
-    L10label : L10,
-    L11label : L11,
-    L12label : L12,
-    M1label : M1,
-    M2label : M2 
-}
-
-const notices = document.querySelector(".disclaimerwrap")
-//hamburger button events
-menu.addEventListener("click", ()=> {
-        if (document.querySelectorAll('.selected').length > 0) {
-            document.querySelectorAll('.selected').forEach(el => {
-              el.classList.remove('selected');
-            })
-            
-        }
-        homecatbox.classList.remove("closed");
-        notices.classList.add("hidden101")
-            homecatbox.classList.add("selected");
-        if (banner.classList.contains("open")){
-          banner.classList.toggle("open");
-          homebanner.classList.toggle("closed");
-          rtn.classList.toggle("closed");
-        }
-        if(Acontainer.classList.contains("open")){
-          Acontainer.classList.remove("open");
-          subbanner.classList.remove("open")
-          banner.classList.remove("closed");
-          algorithm.querySelectorAll(".ADTsheet").forEach(el => {
-          el.classList.remove('open')});
-          algorithm.querySelectorAll(".dispobox").forEach(el => {
-          el.classList.remove('open')});
-          algorithm.querySelectorAll(".justbox").forEach(el => {
-          el.classList.remove('open')});
-          algorithm.querySelectorAll(".check").forEach(el => {
-          el.checked = false});
-          algorithm.querySelectorAll(".label").forEach(el => {
-          el.innerHTML = "NO"});
-          complaints.classList.remove("paged");
-        }
-        homecatbox.classList.add('selected');
-        complaints.classList.toggle("closed");
-        info.classList.remove("open");
-        icon.classList.remove("open");
-        greenbtn.classList.remove("closed")
-        menu.classList.toggle("closed");
-});
-
-//Get from the main menu to the subcategories
-const rtn = document.querySelector(".return");
-const itembtns = document.querySelectorAll(".itembtn");
-itembtns.forEach(function(currentSwitch){
-  currentSwitch.addEventListener('click',()=> {
-    if (document.querySelectorAll('.selected').length > 0) {
-        document.querySelectorAll('.selected').forEach(el => {
-          el.classList.remove('selected');
-        })
-    }
-    homecatbox.classList.add("closed");
-    currentSwitch.related = currentSwitch.id;
-    console.log(currentSwitch.id);
-    subcatboxes[currentSwitch.related].classList.add("selected");
-    homebanner.classList.add("closed");
-    banner.innerHTML = currentSwitch.innerText;
-    banner.classList.add("open");
-    rtn.classList.toggle("closed");
-  });
-});
-//return button (back to main menu)
-rtn.addEventListener("click", ()=> {
-  if(!Acontainer.classList.contains("open")){
-    if (document.querySelectorAll('.selected').length > 0) {
-      document.querySelectorAll('.selected').forEach(el => {
-        el.classList.remove('selected');
-      })
+homebtn.addEventListener("click", () =>{
+  if(main.classList.contains("selected")){
+    main.classList.remove("selected")
+    main.classList.add("place-up")
+  }else{
+    main.classList.remove("place-up");
+    main.classList.remove("place-left")
+    main.classList.add("selected")
   }
-    homecatbox.classList.remove('closed');
-    homecatbox.classList.add("selected");
-    homecatbox.scrolltop = 0;
-    banner.classList.remove("open");
-    homebanner.classList.remove("closed");
-    rtn.classList.toggle("closed");
-  }
-  if(Acontainer.classList.contains("open")){
-    Acontainer.classList.remove("open");
-    icon.classList.remove("open");
-    info.classList.remove("open");
-    greenbtn.classList.remove("closed");
-    subbanner.classList.toggle("open");
-    banner.classList.remove("closed")
-    algorithm.querySelectorAll(".ADTsheet").forEach(el => {
-    el.classList.remove('open')});
-    algorithm.querySelectorAll(".dispobox").forEach(el => {
-    el.classList.remove('open')});
-    algorithm.querySelectorAll(".justbox").forEach(el => {
-    el.classList.remove('open')});
-    algorithm.querySelectorAll(".check").forEach(el => {
-    el.checked = false});
-    algorithm.querySelectorAll(".label").forEach(el => {
-    el.innerHTML = "NO"});
-    complaints.classList.remove("paged");
-    const e = document.querySelectorAll(".slider");
-      e.forEach(function(currentGreen){
-        const style = document.documentElement.style.getPropertyValue('--BGorigin');
-        console.log(style)
-        currentGreen.style.backgroundColor = style;
-      })
-  }
-});
+})
 
-const greenbtn = document.querySelector(".green-btn");
-
-//open ADTMC sheets from the subtext buttons
-const ADTsheets = document.querySelectorAll(".ADTsheet");
-const ADTMCpagers = document.querySelectorAll(".subtexts");
-ADTMCpagers.forEach(function(currentPager){
-currentPager.addEventListener('click',()=> { 
-  console.log(currentPager.id)
-  const border = currentPager.querySelector(".subtext-border");
-  const bLabel = document.querySelector("#banner3-label");
-  const clearbtn = document.querySelector("#green-just-btn")
-  complaints.classList.add('paged');
-  Acontainer.classList.toggle('open');
-  banner.classList.add("closed");
-  subbanner.classList.add("open");
-  bLabel.innerHTML = currentPager.innerText;
-  const sheetnow = ADTMCSheets[currentPager.id];
-  sheetnow.classList.add("open");
-  Acontainer.scrollTop = 0;
-  ADTpage.scrollTop = 0;
-  const style = getComputedStyle(border);
-  const color1 = style.backgroundColor
-  const style2 = getComputedStyle(border);
-  const color2 = style2.color;
-  console.log(color1)
-  console.log(color2)
-  const sheetborder = document.querySelector(".ADT-border");
-  sheetborder.style.backgroundColor = color1;
-  clearbtn.style.backgroundColor = color1;
-  clearbtn.style.color = color2;
-  
-});
-});
-//all ADTsheet toggles
-function DC(){
-  var btnid = event.target.id;
-  var btn = document.getElementById(btnid);
-  var dad = btn.closest(".ADTsheet");
-  var box = btn.closest(".Qbox");
-  var dispo = box.querySelector(".dispobox");
-  var just = box.querySelector(".justbox");
-  if(just.classList.contains("open")){just.classList.toggle("open")}
-  if(btn.checked){
-      let a = btn.parentElement;
-      let b = a.parentElement;
-      let c = b.parentElement;
-      let border = document.querySelector(".ADT-border");
-      let e = c.querySelector(".slider");
-      console.log(border)
-      const style = getComputedStyle(border);
-      const color = style.backgroundColor
-      console.log(color);
-      e.style.backgroundColor = color;
-      const d = c.querySelector(".label");
-      d.innerHTML = "YES";
-
-      if(!dispo.classList.contains("open")){dispo.classList.toggle("open");
-    };
-      functions[dad.id]();
-
-  }
-  else{
-      let a = btn.parentElement;
-      let b = a.parentElement;
-      let c = b.parentElement;
-      const d = c.querySelector(".label");
-      let e = c.querySelector(".slider");
-      const style = document.documentElement.style.getPropertyValue('--BGorigin');
-      console.log(style)
-      e.style.backgroundColor = style;
-      d.innerHTML = "NO";
-      if(dispo.classList.contains("open")){dispo.classList.toggle("open")};
-      functions[dad.id]();
-  };
-  };
-
-//greenbtn to run justify:[]
-
-
-//My special princess button in A-2/A-4 that just toggles more questions
-function DC2(){
-  var btnid = event.target.id;
-  var btn = document.getElementById(btnid);
-  var dad = btn.closest(".ADTsheet");
-  var box = btn.closest(".Qbox");
-  if(btn.checked){
-      let a = btn.parentElement;
-      let b = a.parentElement;
-      let c = b.parentElement;
-      const d = c.querySelector(".label");
-      d.innerHTML = "YES";
-      functions[dad.id]();
-  }
-  else{
-      let a = btn.parentElement;
-      let b = a.parentElement;
-      let c = b.parentElement;
-      const d = c.querySelector(".label");
-      d.innerHTML = "NO";
-      functions[dad.id]();
-  };
-  };
-  const bg2 = document.querySelector(".bod2");
-  const bg = document.querySelector(".bod1");
-  const medbtn = document.querySelector("#medbtn");
-  const settings = document.querySelector(".settings-btn")
-  // medbtn.addEventListener("click",()=>{
-
-  //   medi.classList.toggle("show");
-  //   bg.classList.toggle("BG101");
-  //   bg2.classList.toggle("open");
-    
-  // });
-
-  $(function() {
-    var $toggleMenu = $("#medbtn"),
-        $menu = $(".bod2"),
-        $bod3 = $(".bod3"),
-        $background1 =$(".bod1");
-    $toggleMenu.on("click", function(e) {
-      e.preventDefault();
-      toggleUserMenu();
-    });
-    $toggleMenu.on("mouseup", function(e) {
-      e.stopPropagation();
-    });
-    var hideMenu = function() {
-        $menu.removeClass("open"),
-        $background1.removeClass("BG101"),
-        $toggleMenu.removeClass("show");
-        $(document).off("mouseup", mouseupHandler);
-    };
-    var mouseupHandler = function (e) {
-        if (!$menu.is(e.target) && $menu.has(e.target).length === 0) {
-          hideMenu();
-        }
-    };  
-    function toggleUserMenu() {
-      var menuIsVisible = $menu.hasClass(".open");
-      if (menuIsVisible) {
-        hideMenu();
-      } else {
-        $menu.show();
-        $(document).on("mouseup", mouseupHandler);
+const rtn = document.querySelector("#menu-icon3")
+function retn(){
+  const subpage = document.querySelector(".sub-page");
+  subpage.classList.remove("open");
+  var sheet = document.querySelectorAll(".ADTsheet.open");
+  sheet.forEach(el => {
+    el.classList.remove("open");
+    el.querySelectorAll(".Q").forEach(ele =>{
+      ele.classList.remove("open")
+      if(ele == el.firstElementChild){ele.classList.add("open")}
+    })
+    el.querySelectorAll(".slider").forEach(el1 =>{
+      el1.classList.remove('o','yes','no')
+    })
+    el.querySelectorAll(".dispobox.Yikes").forEach(el2 =>{
+      el2.classList.remove("open")
+    })
+    el.querySelectorAll(".dispobox.Nah").forEach(el3 =>{
+      el3.classList.remove("open")
+    })
+  })
+  nav.classList.remove("paged");
+  var sel = nav.innerText
+  const sels = document.querySelectorAll(".sel-box");
+  sels.forEach(ele =>{
+    if(ele.classList.contains("place-left")){
+      if(ele == main){ null}else{
+        ele.classList.remove("place-left")
+        ele.classList.add("selected")
       }
     }
-  });
-
-function openlog(){
-  document.querySelector(".toastwrapper").classList.toggle("selected");
+  })
 }
 
+//question yes-no slider action + justify() at end
+var btns = document.querySelectorAll(".Aa");
+btns.forEach(function(currentbtn){
+  currentbtn.addEventListener("click",()=>{
+    scrollTo(currentbtn)
+    var Qs = currentbtn.closest(".Q");
+    if(Qs.classList.contains("ACTY")){console.log("here")}
+    var slider = Qs.querySelector(".slider");
+    var dispobox = Qs.querySelector(".dispobox.Yikes");
+    var dispo = dispobox.querySelector(".iconbutton")
+    if(!slider.classList.contains("o")){slider.classList.toggle("o")}
+    if(currentbtn.classList.contains("Y")){
+      if(Qs.querySelector(".dispobox.Nah") == null){null}else{
+        var nah = Qs.querySelector(".dispobox.Nah");
+        nah.classList.remove("open")
+      }
+      slider.classList.add("yes")
+      slider.classList.remove("no");
+      var border = Qs.querySelector(".dispobar");
+        dispobox.classList.add("open")
+        const style = getComputedStyle(border);
+        const color = style.backgroundColor
+        slider.style.backgroundColor = color;
+        dispo.style.backgroundColor = color;
+        dispo.style.color = "#333"
+        justify()
+    }
+    if(currentbtn.classList.contains("N")){
+      slider.classList.add("no")
+      slider.classList.remove("yes");
+      dispobox.classList.remove("open");
+      if(Qs.querySelector(".dispobox.Nah") == null){
+        slider.removeAttribute('style')}
+        else{
+          var nah = Qs.querySelector(".dispobox.Nah");
+          var nahbar = nah.querySelector(".dispobar")
+          const style = getComputedStyle(nahbar);
+          const color = style.backgroundColor
+          var d = nah.querySelector(".iconbutton")
+          d.style.backgroundColor = color;
+          slider.style.backgroundColor = color;
+          nah.classList.add("open")
+        }
+        justify()
+    }
+  })
+})
+//justification for how cards appear and disappear
+function justify(){
+  var ADT = document.querySelector(".ADTsheet.open")
+  var QRED = ADT.querySelector(".QRED")
+  var Q1 = ADT.querySelector(".Q1")
+  var Q2 = ADT.querySelector(".Q2")
+  var Q3 = ADT.querySelector(".Q3")
+  var Q4 = ADT.querySelector(".Q4")
+  var Q5 = ADT.querySelector(".Q5")
+  if(QRED == null){null}else{
+    if(QRED.querySelector(".dispobar").classList.contains("DACT")){
+      if(QRED.querySelector(".slider").classList.contains("yes")){
+        clearboard();
+        let el = QRED
+        let NEXT = el.nextElementSibling
+        while(NEXT.classList.contains("ACTY")){
+          NEXT.classList.add("open")
+          if(NEXT.querySelector(".slider").classList.contains("no")){Q1.classList.add("open")}
+          NEXT = NEXT.nextElementSibling
+        }
+      }
+      if(QRED.querySelector(".slider").classList.contains("no")){
+        clearboard()
+        Q1.classList.add("open")
+      }
+    }else{
+      if(QRED.querySelector(".slider").classList.contains("yes")){
+        clearboard()
+      }
+      if(QRED.querySelector(".slider").classList.contains("no")){
+        clearboard()
+        if(QRED.nextElementSibling.classList.contains("ACTN")){
+          QRED.nextElementSibling.classList.add("open")
+          Q1.classList.add("open")
+        }else{
+          Q1.classList.add("open")
+        }
+      }
+    }
+  } // START OF Q1 JUSTIFY
+  if(Q1 == null){null}else{
+    if(Q1.querySelector(".dispobar").classList.contains("DACT")){
+      if(Q1.querySelector(".slider").classList.contains("yes")){
+        clearboard();
+        let el = Q1
+        let NEXT = el.nextElementSibling
+        while(NEXT.classList.contains("ACTY")){
+          NEXT.classList.add("open")
+          if(NEXT.querySelector(".slider").classList.contains("no")){Q2.classList.add("open")}
+          NEXT = NEXT.nextElementSibling
+        }
+      }
+      if(Q1.querySelector(".slider").classList.contains("no")){
+        clearboard()
+        Q2.classList.add("open")
+      }
+    }else{
+      if(Q1.querySelector(".slider").classList.contains("yes")){
+        clearboard()
+      }
+      if(Q1.querySelector(".slider").classList.contains("no")){
+        clearboard()
+        if(Q1.nextElementSibling.classList.contains("ACTN")){
+          Q1.nextElementSibling.classList.add("open")
+          Q2.classList.add("open")
+        }else{
+          Q2.classList.add("open")
+        }
+      }
+    }
+  } // START OF Q2 JUSTIFY
+  if(Q2 == null){null}else{
+    if(Q2.querySelector(".dispobar").classList.contains("DACT")){
+      if(Q2.querySelector(".slider").classList.contains("yes")){
+        clearboard();
+        let el = Q2
+        let NEXT = el.nextElementSibling
+        while(NEXT.classList.contains("ACTY")){
+          NEXT.classList.add("open")
+          if(NEXT.querySelector(".slider").classList.contains("no")){Q3.classList.add("open")}
+          NEXT = NEXT.nextElementSibling
+        }
+      }
+      if(Q2.querySelector(".slider").classList.contains("no")){
+        clearboard()
+        Q3.classList.add("open")
+      }
+    }else{
+      if(Q2.querySelector(".slider").classList.contains("yes")){
+        clearboard()
+      }
+      if(Q2.querySelector(".slider").classList.contains("no")){
+        clearboard()
+        if(Q2.nextElementSibling.classList.contains("ACTN")){
+          Q2.nextElementSibling.classList.add("open")
+          Q3.classList.add("open")
+        }else{
+          Q3.classList.add("open")
+        }
+      }
+    }
+  } // START OF Q3 JUSTIFY
+  if(Q3 == null){null}else{
+    if(Q3.querySelector(".dispobar").classList.contains("DACT")){
+      if(Q3.querySelector(".slider").classList.contains("yes")){
+        clearboard();
+        let el = Q3
+        let NEXT = el.nextElementSibling
+        while(NEXT.classList.contains("ACTY")){
+          NEXT.classList.add("open")
+          if(NEXT.querySelector(".slider").classList.contains("no")){if(Q4 == null){null}else{Q4.classList.add("open")}}
+          NEXT = NEXT.nextElementSibling
+        }
+      }
+      if(Q3.querySelector(".slider").classList.contains("no")){
+        clearboard()
+        Q4.classList.add("open")
+      }
+    }else{
+      if(Q3.querySelector(".slider").classList.contains("yes")){
+        clearboard()
+      }
+      if(Q3.querySelector(".slider").classList.contains("no")){
+        clearboard()
+        if(Q3.nextElementSibling == null){null}else{
+        if(Q3.nextElementSibling.classList.contains("ACTN")){
+          Q3.nextElementSibling.classList.add("open")
+          if(Q4 == null){null}else{Q4.classList.add("open")}
+        }else{
+          if(Q4 == null){null}else{Q4.classList.add("open")}
+        }}
+      }
+    }
+  } // START OF Q4 JUSTIFY
+  if(Q4 == null){null}else{
+    if(Q4.querySelector(".dispobar").classList.contains("DACT")){
+      if(Q4.querySelector(".slider").classList.contains("yes")){
+        clearboard();
+        let el = Q4
+        let NEXT = el.nextElementSibling
+        while(NEXT.classList.contains("ACTY")){
+          NEXT.classList.add("open")
+          if(NEXT.querySelector(".slider").classList.contains("no")){
+            if(Q5 == null){null}else{Q5.classList.add("open")}}
+          NEXT = NEXT.nextElementSibling
+        }
+      }
+      if(Q4.querySelector(".slider").classList.contains("no")){
+        clearboard()
+        Q5.classList.add("open")
+      }
+    }else{
+      if(Q4.querySelector(".slider").classList.contains("yes")){
+        clearboard()
+      }
+      if(Q4.querySelector(".slider").classList.contains("no")){
+        clearboard()
+        if(Q4.nextElementSibling.classList.contains("ACTN")){
+          Q4.nextElementSibling.classList.add("open")
+          if(Q5 == null){null}else{Q5.classList.add("open")}
+        }else{
+          if(Q5 == null){null}else{Q5.classList.add("open")}
+        }
+      }
+    }
+  } // START OF Q5 JUSTIFY
+}     
 
-  //toggle explanation box
-function explain(){
-  var btn = event.target;
-  var a = btn.parentElement;
-  var b = a.parentElement;
-  var c = b.querySelector(".justbox");
-  c.classList.toggle("open");
-  // const Acont = document.querySelector(".ADTcontainer");
-  // if(document.querySelector(".toastwrapper").classList.contains("selected")){Acont.setAttribute('style', 'opacity: 1;');}else{  Acont.setAttribute('style', 'opacity: 0.2;');}
-
+// clears the board if something turns yes
+// + add clear submitbar and resubmit if applicable
+function clearboard(){
+  var Q = event.target.closest(".Q")
+  let CL = Q
+  let CLP = CL.nextElementSibling
+  while(CLP){
+  CLP.classList.remove("open")
+  CLP.querySelector(".slider").classList.remove("o","yes","no")
+  if(CLP.querySelector(".dispobox.Yikes") == null){null}else{CLP.querySelector(".dispobox.Yikes").classList.remove("open")}
+  if(CLP.querySelector(".dispobox.Nah") == null){null}else{CLP.querySelector(".dispobox.Nah").classList.remove("open")}
+    CLP = CLP.nextElementSibling
+  }
 }
 
-const icon = document.querySelector("#btni")
-const info = document.querySelector(".infobox");
-const medi = document.querySelector("#medbtn");
-const nav = document.querySelector(".navbox");
+reverse.addEventListener("click", () =>{
+  var cat = document.querySelector(".sel-box.selected")
+  cat.classList.remove("selected")
+  main.classList.remove("place-right")
+  main.classList.add("selected")
+  banner1.classList.remove("paged")
+  banner2.classList.remove("open");
+  reverse.classList.add("engaged")
+  homebtn.classList.remove("engaged")
+})
 
-function infobox(){
-  info.classList.toggle("open")
-  icon.classList.toggle("open");
-};
-
-//   ","
-
-// const labelbanners = {
-//   A1label : "A-1 Sore Throat/Hoarseness",
-//   A2label :"A-2 Ear Pain/Drainage/Trauma",
-//   A3label :"A-3 Cold Symptoms/Allergies/Cough",
-//   A4label :"A-4 Ringing in the Ears/Hearing Problem",
-//   A5label :"A-5 Nosebleed/Nose Trauma",
-//   B1label : "B-1 Back Pain",
-//   B2label : "B-2 Neck Pain", 
-//   B3label : "B-3 Shoulder Pain", 
-//   B4label : "B-4 Elbow Pain",
-//   B5label : "B-5 Wrist Pain", 
-//   B6label : "B-6 Hand Pain", 
-//   B7label : "B-7 Hip Pain", 
-//   B8label : "B-8 Knee Pain", 
-//   B9label : "B-9 Ankle Pain", 
-//   B10label : "B-10 Foot Pain", 
-//   B11label : "B-11 Extremity, Non-joint Pain", 
-//   C1label : "C-1 Nausea/Vomiting ", 
-//   C2label : "C-2 Diarrhea ", 
-//   C3label : "C-3 Abdominal and Flank Pain", 
-//   C4label : "C-4 Rectal Pain/Itching/Bleeding", 
-//   C5label : "C-5 Constipation", 
-//   C6label : "C-6 Difficulty When Swallowing", 
-//   C7label : "C-7 Heartburn", 
-//   D1label : "D-1 Shortness of Breath", 
-//   D2label : "D-2 Chest Pain", 
-//   E1label : "E-1 Painful/Frequent Urination", 
-//   E2label : "E-2 Groin/Testicular Pain or Urethral Discharge", 
-//   E3label : "E-3 Sexually Transmitted Infection (STI)", 
-//   E4label : "E-4 Problems with Voiding", 
-//   F1label : "F-1 Dizziness/Faintness/Blackout ", 
-//   F2label : "F-2 Headache", 
-//   F3label : "F-3 Numbness/Tingling/Paralysis/Weakness ", 
-//   F4label : "F-4 Drowsiness/Confusion", 
-//   F5label : "F-5 Depression/Nervousness/Anxiety/Tension", 
-//   F6label : "F-6 Minor Traumatic Brain Injury", 
-//   G1label : "G-1 Fatigue ", 
-//   G2label : "G-2 Fever/Chills", 
-//   H1label : "H-1 Eye Pain/Redness/Discharge/Itching/Injury", 
-//   H2label : "H-2 Eyelid Problem", 
-//   H3label : "H-3 Decreased Vision, Seeing Spots, Request for Glasses", 
-//   H4label : "H-4 Seeing Double (Diplopia)", 
-//   I1label : "I-1 Breast Problems ", 
-//   I2label : "I-2 Suspects Pregnancy", 
-//   I3label : "I-3 Menstrual Problems, Vaginal Bleeding", 
-//   I4label : "I-4 Vaginal Discharge, Itching, Irritation, or Pain", 
-//   I5label : "I-5 Request for PAP or Routine Pelvic Examination ", 
-//   I6label : "I-6 Request for Information on Contraception", 
-//   J1label : "J-1 Unknown Cause of Skin Disorder", 
-//   J2label : "J-2 Acne", 
-//   J3label : "J-3 Shaving-Pseudofolliculitis Barbae (Ingrown Hairs)", 
-//   J4label : "J-4 Dandruff (Scaling of the Scalp)", 
-//   J5label : "J-5 Hair Loss", 
-//   J6label : "J-6 Athlete’s Foot (Tinea Pedis)", 
-//   J7label : "J-7 Jock Itch (Tinea Cruris)", 
-//   J8label : "J-8 Scaling, Depigmented Spots (Tinea Versicolor)", 
-//   J9label : "J-9 Boils", 
-//   J10label : "J-10 Fever Blisters (Cold Sores)", 
-//   J11label : "J-11 Skin Abrasion/Laceration", 
-//   J12label : "J-12 Suture Removal", 
-//   J13label : "J-13 Drug Rash, Contact Dermatitis", 
-//   J14label : "J-14 Burns/Sunburn", 
-//   J15label : "J-15 Friction Blisters on Feet", 
-//   J16label : "J-16 Corns on Feet", 
-//   J17label : "J-17 Cutaneous (Plantar) Warts", 
-//   J18label : "J-18 Ingrown Toenai", 
-//   K1label : "K-1 Exertional Heat Illness/ Hyperthermia", 
-//   K2label : "K-2 Hypothermia", 
-//   K3label : "K-3 Immersion Foot", 
-//   K4label : "K-4 Chapped Skin/Windburn", 
-//   K5label : "K-5 Frostbite", 
-//   K6label : "K-6 Crabs/Lice (Pediculosis) ", 
-//   K7label : "K-7 Insect Bites (Not Crabs/Lice)", 
-//   L1label : "L-1 Exposed to Hepatitis or HIV", 
-//   L2label : "L-2 Dental Problems", 
-//   L3label : "L-3 Sores in the Mouth", 
-//   L4label : "L-4 Prescription Refill", 
-//   L5label : "L-5 Requests a Vasectomy", 
-//   L6label : "L-6 Needs an Immunization", 
-//   L7label : "L-7 Lymph Node Enlargement", 
-//   L8label : "L-8 Blood Pressure Check", 
-//   L9label : "L-9 Medical Screening for Overseas PCS", 
-//   L10label : "L-10 Weight Reduction", 
-//   L11label : "L-11 Complaint Not on the List", 
-//   L12label : "L-12 Request for Nonprescription or Traveling Medication", 
-//   M1label : "M-1 No Signs of Improvement", 
-//   M2label : "M-2 Return Requested by Provider" 
-// }
-
-
-//ddxs
-const A1ddxs = ['Viral Infections', 'Bacterial Infection', 'Meningitis', 'Neck Deep Tissue Infection', 'Candida infection', 'Strep Throat'];
-const A2ddxs = ["Otitis Media/Externa", "Esutachian tube dysfunction", "Nasopharyngeal pathology", "Deep space head/neck infections", "Meningitis", "Mastoiditis", "Ruptured Ear Drum", "TMJ Dysfunction"];
-const A3ddxs = ["Allergic or seasonal rhinitis","Bacterial pharyngitis or tonsillitis","Acute bacterial rhinosinusitis","Influenza","Pertussis"];
-const A4ddxs = ["Cerumen Impaction","Otitis Media","Otosclerosis","Ruptured Ear Drum","Eustachian Tube Dysfunction","Hearing Loss","Disorders of the Jaw Joint","Severe Anxiety","Neck Injuries"];
-const A5ddxs = ["Upper Respiratory Infections","Allergic or Viral Rhinitis","Trauma","Bleeding Disorder","Foreign Body"];
-const B1ddxs = ["Muscle Sprain/Strain"," Fracture"," Infection ","Renal Stone/UTI ","Arthritis ","Cauda Equina Syndrome"];
-const B2ddxs = ["Muscle Strain", "Fracture", "Meningitis", "Flu", "Deep neck space infection"];
-const B3ddxs = ["Tendon inflammation/tear","Instability (dislocation)","Arthritis","Fracture","Myocardial Infarction"]
-const B4ddxs = ["Muscle Strain","Fracture","Dislocation","Tendonitis","Bursitis"];
-const B5ddxs = ["Fracture","Carpal Tunnel","Arthritis","Bursitis","Tendonitis","Muscle Strain"];
-const B6ddxs = ["Fracture/ Dislocation","Gout","Carpal Tunnel Syndrome","Arthritis","Tendonitis","Muscle Strain"];
-const B7ddxs = ["Arthritis","Stress Fracture","Trochanteric Bursitis","Tendinitis","Muscle Strain","Hernia","Referred Pain"];
-const B8ddxs = ["Ligament or Cartilage Injury","Arthritis","Overuse Injury","Infection/Inflammation","Bursitis"];
-const B9ddxs = ["Sprain/Strain","Fracture","Tendon Rupture","Arthritis","Bursitis","Tendinopathy"];
-const B10ddxs = ["Injury","Overuse","Plantar Fasciitis","Tarsal Tunnel Syndrome","Achilles Tendinopathy","Ingrown Toenail","Bunion"]; 
-const B11ddxs = ["Fracture","Laceration","Bruise","Stress Reaction"];
-const C1ddxs = ["Medication","Infection","Intense Pain","Pregnancy","Concussion","Heartburn"];
-const C2ddxs = ["Food Intolerance", "Medication", "Infection (Viral/Bacterial)", "Dizziness", "Chest Pain", "Ear Pain", "Heartburn"];
-const C3ddxs = ["MI, AAA","Appendicitis","Pancreatitis, Hepatitis","Heartburn","Ectopic Pregnancy","Testicular Torsion","Pelvic Inflammatory Dis."];
-const C4ddxs = ["Gastrointestinal Bleed","Hemorrhoid/Fissure","IBD","Infection","Cancer"];
-const C5ddxs = ["Obstruction","Cancer","Hypothyroidism","Constipation","Associated with Hemorrhoids"];
-const C6ddxs = ["Food bolus obstruction","Esophagitis","Ring, Web, Achalasia","Throat Infection"];
-const C7ddxs = ["Gastroesophageal Reflux","Myocardial Infarction","Stomach/Duodenal Ulcer","Cancer","Pancreatitis"];
-const D1ddxs = ["Asthma","Anxiety","Myocardial Infarction","Pulmonary Embolism","Pneumonia, Bronchitis","Deconditioning"];
-const D2ddxs = ["Myocardial Infarction","Pulmonary Embolism","Pneumonia, Bronchitis","Anxiety","Heartburn","Musculoskeletal"];
-const E1ddxs = ["Kidney Infection","Urinary Tract Infection","Kidney Stone","Uncontrolled Diabetes","BPH","STI, Vaginitis"];
-const E2ddxs = ["Testicular Torsion","Hernia","Muscle/Tendon Strain","Stress Fracture","Hip injury"];
-const E3ddxs = ["Testicular Torsion","Hernia","Muscle/Tendon Strain","Stress Fracture","Hip injury"];
-const E4ddxs = ["Urinary Obstruction","Benign Prostatic Hypertrophy","UTI, STI","Stress Incontinence"];
-const F1ddxs = ["Orthostatic Hypotension","Vasovagal Syncope","Vertigo","Anxiety","Heart Arrhythmia","Intracranial Bleed","Seizure, Drugs, Alcohol"];
-const F2ddxs = ["Migraine Headache","Tension Headache","Caffeine Withdrawal","Infection/Meningitis","Intracranial Hemorrhage"];
-const F3ddxs = ["Viral Syndrome/ Fatigue","Stroke","Nerve Compression","Hypoglycemia","Hyperventilation","Depression","Lyme disease"];
-const F4ddxs = ["Hypoglycemia","Hypotension","Hypoxia","Concussion","Infection","Intoxication"];
-const F5ddxs = ["Depression","Anxiety","Hypoxia","Hypo/hyperthyroidism","Substance intoxication or withdrawal"];
-const F6ddxs = ["Headache/migraine","Concussion","Intracerebral Hemorrhage","Anxiety","Stroke","Spinal cord injury","Seizure","Dehydration"];
-const G1ddxs = ["Sleep Debt","Sleep Apnea","Anemia","Anxiety Disorders","Chronic Infection/Inflammation","Chronic fatigue syndrome","Acute liver failure"];
-const G2ddxs = ["Malaise","Cold Symptoms","Sore Throat, Ear Pain","Heat/Cold Injury","Diarrhea","Pain with urination"];
-const H1ddxs = ["Blepharitis","Allergies","Conjunctivitis","Corneal Abrasion/Trauma","Subconjunctival Hemorrhage","Keratitis/Iritis"];
-const H2ddxs = ["Stye, Blepharitis","Dermatitis","Infection","Eyelid laceration"];
-const H3ddxs = ["Trauma","Migraine","Hemorrhage","Infection","Ischemia, Stroke"];
-const H4ddxs = ["Intoxication","Prescription Eyeglasses","Muscle Weakness","Trauma"];
-const I1ddxs = ["Cyclical Breast Pain","Musculoskeletal Issue","Large Breasts","Mastitis, Abscess","Cancer"];
-const I2ddxs = ["Irregular Menstrual Cycle","Pregnancy"];
-const I3ddxs = ["Heavy Menstrual Cycle","Irregular Menstrual Cycle","Birth Control Side Effect","Miscarriage","Ectopic Pregnancy"];
-const I4ddxs = ["Bacterial Vaginosis","Yeast Infection","Trichomonas","Pelvic Inflammatory Disease","STI"];
-const I5ddxs = ["N/A"];
-const I6ddxs = ["N/A"];
-const J1ddxs = ["Eczema","Hives","Contact Dermatitis","Athlete’s Foot","Heat Rash","Drug Reaction"];
-const J2ddxs = ["Acne Vulgaris","Pseudofolliculitis Barbae","Folliculitis","Acne Rosacea","Hyperandrogenism"];
-const J3ddxs = ["Acne","Pseudofolliculitis Barbae","Folliculitis","Tinea Barbae","Acne Keloidalis Nuchae"];
-const J4ddxs = ["Pemphigus Foliaceous","Tinea Capitis","Psoriasis","Allergic Contact Dermatitis","Seborrheic Dermatitis"];
-const J5ddxs = ["Alopecia","Traction Hair Loss","Alopecia Areata","Tinea Capitis","Acne Keloidalis Nuchae"];
-const J6ddxs = ["Interdigital tinea pedis","Hyperkeratotic (moccasin-type) tinea pedis","Vesiculobullous (Inflammatory) tinea pedis"];
-const J7ddxs = ["Inverse psoriasis","Erythrasma","Seborrheic dermatitis","Candidal intertrigo"];
-const J8ddxs = ["Seborrheic dermatitis","Tinea corporis","Vitiligo","Secondary syphilis"];
-const J9ddxs = ["Folliculitis","Abscess","Epidermal Cyst","Hidradenitis Suppurativa","Septic Joint"];
-const J10ddxs = ["Cold Sore","Aphthous Ulcer","Epstein-Barr Virus","Syphilis"];
-const J11ddxs = ["Abrasion","Laceration"];
-const J12ddxs = ["N/A"];
-const J13ddxs = ["Hives","Contact Dermatitis","Viral Exanthem","Drug Rash"];
-const J14ddxs = ["Burn","Irritant Contact Dermatitis"];
-const J15ddxs = ["Corn","Stephen Johnson Syndrome","Staphylococcal scalded skin syndrome"];
-const J16ddxs = ["Callus","Plantar Wart","Corn","Bunion"];
-const J17ddxs = ["Cutaneous Wart","Corn","Callous","Skin Cancer"];
-const J18ddxs = ["Paronychia","Ingrown Toenail","Trauma","Cellulitis"];
-const K1ddxs = ["Heatstroke","Heat Cramps","Heat Exhaustion","Fever/ Infection","Dehydration","Hyperthyroidism"];
-const K2ddxs = ["Environmental Exposure","Exhaustion and Malnutrition","Hypothyroidism","Sepsis"];
-const K3ddxs = ["Nonfreezing Cold Injury","Cold Urticaria","Raynaud Phenomenon","Frostbite"];
-const K4ddxs = ["N/A"];
-const K5ddxs = ["N/A"];
-const K6ddxs = ["Lice","Scabies","Contact Dermatitis","Fungal Infection","Hair Casts"];
-const K7ddxs = ["Insect Bite","Skin Infection","Contact Dermatitis"];
-const L1ddxs = ["Low Risk Exposure","High Risk Exposure"];
-const L2ddxs = ["Tooth Cavity","Poor Dental Hygiene","Temporomandibular Joint Pain","Infection","Heart Attack"];
-const L3ddxs = ["Aphthous Ulcers","Herpes Simplex Virus","Hand, Foot, and Mouth Disease","Stevens Johnson Syndrome"];
-const L4ddxs = ["N/A"];
-const L5ddxs = ["N/A"];
-const L6ddxs = ["N/A"];
-const L7ddxs = ["N/A"];
-const L8ddxs = ["N/A"];
-const L9ddxs = ["N/A"];
-const L10ddxs = ["N/A"];
-const L11ddxs = ["N/A"];
-const L12ddxs = ["N/A"];
-const M1ddxs = ["N/A"];
-const M2ddxs = ["N/A"];
-//redflags            ","
-const A1flags = ["SOB", "Stridor", "Deviated Uvula", "Drooling/ Trouble Swallowing ", "Stiff Neck"];
-const A2flags = ["Stiff Neck AND Fever", "Posterior ear pain and/or mastoid erythema"];
-const A3flags = ["Abnormal Vital Signs","Shortness of Breath","Stiff Neck","Altered Mental Status","Coughing up blood clots or frank blood"];
-const A4flags = ["Altered Mental Status","Focal Neurological Symptom or Sign","Dizziness"];
-const A5flags = ["- Airway Compromise","Orthostatic Hypotension","Bleeding from Gums","Inability to Move Eye"];
-const B1flags = ["Fever", "Saddle Anesthesia", "Urinary Retention/", "Incontinence Fecal Incontinence", " Motor Deficits", "Trauma with Vertebral Tenderness or Neuropathy", "Dysuria/Frequency", "Chest/Abdominal Pain"];
-const B2flags = ["Bony step off/midline", "tenderness to palpation", "Inability to flex neck","Fever", "Recent HEENT or dental", "infection"];
-const B3flags = ["Distal Pulses Abnormal", "Distal Sensation Abnormal", "Deformity", "Cardiac Symptoms"];
-const B4flags = ["Distal Pulses Abnormal","Distal Sensation Abnormal","Deformity"];
-const B5flags = ["Distal Pulses Abnormal", "Distal Sensation Abnormal", "Deformity", "Open Fracture"];
-const B6flags = ["Abnormal Capillary Refill","Abnormal Distal Sensation","Palmar Infection","Deformity","Significant Burn"];
-const B7flags = ["Abnormal PMS", "Deformity", "High Energy Trauma", "Suspect Stress Fracture (increased with weight bearing or during exercise, endurance training, change in exercise routine)" ,"Severe Pain"];
-const B8flags = ["Abnormal PMS", "Deformity", "High Energy Trauma"];
-const B9flags = ["Abnormal Distal Pulse", "Abnormal Sensation", "Deformity"];
-const B10flags = ["Abnormal Distal Pulse", "Abnormal Sensation", "Deformity", "Suspect Stress Fracture (increased with weight bearing or during exercise, endurance training, change in exercise routine)"];
-const B11flags = ["Abnormal Distal Pulse", "Abnormal Sensation", "Deformity", "Cola Colored Urine", "Inability to Urinate"];
-const C1flags = ["Vomiting Blood or Coffee Grinds, Melena","Neurologic Symptoms","Chest Pain","Abdominal Pain followed by Nausea","Abdominal Distension"];
-const C2flags = ["Vomiting Blood or Coffee Grinds, Melena ","Severe abdominal pain"," Significant weight loss"];
-const C3flags = ["Abnormal Vitals","Abdominal rigidity/rebound (bump chair)","Severe pain","Fever with jaundice and RUQ pain","Confirmed Pregnancy","Alcoholism","Immunocompromised","RLQ Pain"];
-const C4flags = ["Toilette FULL of Blood","Vomiting Blood or Coffee Grinds","Melena","Lightheaded"];
-const C5flags = ["Diarrhea at night","Iron deficiency anemia","Vomiting"];
-const C6flags = ["Airway compromise","Coughing, choking when swallowing"];
-const C7flags = ["Vomiting Blood or Coffee Grinds","Melena","Angina", "SOB","Radiation to Back"];
-const D1flags = ["Cyanosis","Ancillary muscles","SpO2<90%","SIRS Criteria","Airway Swelling","Hives","Altered Mental Status (AMS)"];
-const D2flags = ["Irregular Pulse","H/O or FH of Heart Problems","Shoulder, jaw pain or pressure"];
-const E1flags = ["Systemic Inflammatory Response Syndrome","Flank Pain","Severe Abdominal Pain","Gross Hematuria or Passing Blood Clots"];
-const E2flags = ["Pain with testes supported","Suspect Stress Fracture (increased with weight bearing or during exercise, endurance training, change in exercise routine)","Severe Pain"];
-const E3flags = ["Female Pelvic Pain with Intercourse","Pregnant","Orthostatic, Fever"];
-const E4flags = ["Inability to void x 12 hours","Fever","Cola Colored Urine","Blood or Clots in Urine"];
-const F1flags = ["Abnormal Vital Signs","Irregular Pulse","Witnessed or H/O Seizure","Severe Headache","Heat Injury"];
-const F2flags = ["Sudden Onset, Severe","Focal Neurologic Signs","Blown pupil","Severe Hypertension","Fever","Vision Change/Loss"];
-const F3flags = ["Localized to a Region or 1 sided","Recent Trauma","Loss of Consciousness","Bowel/Bladder Incontinence"];
-const F4flags = ["Abnormal Vital Signs","Altered Mental Status","Focal Neurological Deficit","Recent Trauma"];
-const F5flags = ["Homicidal Intent or Attempt","Suicide Intent or Attempt","Self-injury","Altered Mental Status"];
-const F6flags = ["Deteriorating Level of Consciousness","Double Vision","Increased Restlessness, combative or agitated behavior","Repeat vomiting","Positive result from structural brain injury detection device (if available)","Seizure","Weakness or tingling in arms or legs","Devere or worsening headache","Abnormal Neuro Exam","Battle sign, Raccoon eyes","Suspected skull fracture","Anticoagulant use"];
-const G1flags = ["Suicide Ideation","Homicide Ideation","Shortness of Breath","Stiff Neck","Melena"];
-const G2flags = ["Heat Injury","Stiff Neck","Light sensitivity","Pregnant","Seizure","Lightheaded"];
-const H1flags = ["Fixed, Abnormal Pupil"," Visual Acuity Change"," Observed Foreign Body"," Penetration, Rupture"," Chemical Exposure"," Fluid Level over Iris, Pupil"];
-const H2flags = ["Open Globe"," High Risk Laceration"," Decreased Visual Acuity"," Double Vision"];
-const H3flags = ["Trauma"," Recent Surgery"," Chemical Exposure"," Fluid Level over Iris, Pupil"," Neurologic Deficits"];
-const H4flags = ["Trauma"," Neurologic Deficits"];
-const I1flags = ["Skin Changes"," Mass"," Bloody Nipple Discharge"];
-const I2flags = ["Positive hCG AND"," Pelvic Pain"," H/O Ectopic Pregnancy"," Vaginal Bleeding"];
-const I3flags = ["Sexual Assault"," Trauma"," Severe Pain"," Pregnant"];
-const I4flags = ["Fever"," Pregnant"," Non-midline Pelvic Pain","Pain with Intercourse"];
-const I5flags = ["N/A"];
-const I6flags = ["N/A"];
-const J1flags = ["Airway Compromise/Swelling"];
-const J2flags = ["N/A"];
-const J3flags = ["Facial Cellulitis"];
-const J4flags = ["Scaling with Visible Inflammation"," Abnormal Sensation"," Painful Erosions"];
-const J5flags = ["N/A"];
-const J6flags = ["Diabetic Soldiers","Significant erosions/ulcerations or malodor in affected area","Soldiers w/weakened immune systems"];
-const J7flags = ["Diabetes"," Immunodeficiency"];
-const J8flags = ["N/A"];
-const J9flags = ["Location over Tailbone"," SIRS Criteria"," Worsening on Antibiotics"," Palm of Hand"," Over Joint"," Black Eschar"];
-const J10flags = ["Eye Pain"];
-const J11flags = ["SIRS Criteria"," Animal Bite, Scratch"];
-const J12flags = ["Fever"," Pus/redness/swelling"];
-const J13flags = ["Airway Swelling"," Wheezing"," Anaphylaxis"];
-const J14flags = ["Trouble Breathing"," AMS, Drowsy"," High Risk Location"," Circumferential Burn"];
-const J15flags = ["Fever/malaise"," Epidermal sloughing"];
-const J16flags = ["N/A"];
-const J17flags = ["N/A"];
-const J18flags = ["Red Streaks up Foot"," Gangrene"," Black Eschar"];
-const K1flags = ["Altered mental status"," Abnormal vital signs"];
-const K2flags = ["T<96 degrees F"," Altered Mental Status"," Abnormal Vital Signs"," Frostbite"," Trauma"];
-const K3flags = ["Gangrene/Necrosis"," Hemorrhagic Blisters"," Hypothermia"," Frostbite"," Trauma"];
-const K4flags = ["N/A"];
-const K5flags = ["N/A"];
-const K6flags = ["N/A"];
-const K7flags = ["Swelling of Lips or Tongue","Trouble Breathing","Abnormal Vital Signs"];
-const L1flags = ["Known Infection"," High Risk Contact"];
-const L2flags = ["Exposed Pulp"," Avulsed Tooth"," Severe Pain"," Trauma"," Chest Pain, SOB"];
-const L3flags = ["Diffuse"," Bloody Diarrhea"];
-const L4flags = ["N/A"];
-const L5flags = ["N/A"];
-const L6flags = ["N/A"];
-const L7flags = ["N/A"];
-const L8flags = ["N/A","1"];
-const L9flags = ["N/A"];
-const L10flags = ["N/A"];
-const L11flags = ["N/A"];
-const L12flags = ["N/A"];
-const M1flags = ["N/A"];
-const M2flags = ["N/A"];
-
-
-
-const ddxslist = {
-  A1label : A1ddxs,
-  A2label : A2ddxs,
-  A3label : A3ddxs,
-  A4label : A4ddxs,
-  A5label : A5ddxs,
-  B1label : B1ddxs,
-  B2label : B2ddxs,
-  B3label : B3ddxs,
-  B4label : B4ddxs,
-  B5label : B5ddxs,
-  B6label : B6ddxs,
-  B7label : B7ddxs,
-  B8label : B8ddxs,
-  B9label : B9ddxs,
-  B10label : B10ddxs,
-  B11label : B11ddxs,
-  C1label : C1ddxs,
-  C2label : C2ddxs,
-  C3label : C3ddxs,
-  C4label : C4ddxs,
-  C5label : C5ddxs,
-  C6label : C6ddxs,
-  C7label : C7ddxs,
-  D1label : D1ddxs,
-  D2label : D2ddxs,
-  E1label : E1ddxs,
-  E2label : E2ddxs,
-  E3label : E3ddxs,
-  E4label : E4ddxs,
-  F1label : F1ddxs,
-  F2label : F2ddxs,
-  F3label : F3ddxs,
-  F4label : F4ddxs,
-  F5label : F5ddxs,
-  F6label : F6ddxs,
-  G1label : G1ddxs,
-  G2label : G2ddxs,
-  H1label : H1ddxs,
-  H2label : H2ddxs,
-  H3label : H3ddxs,
-  H4label : H4ddxs,
-  I1label : I1ddxs,
-  I2label : I2ddxs,
-  I3label : I3ddxs,
-  I4label : I4ddxs,
-  I5label : I5ddxs,
-  I6label : I6ddxs,
-  J1label : J1ddxs,
-  J2label : J2ddxs,
-  J3label : J3ddxs,
-  J4label : J4ddxs,
-  J5label : J5ddxs,
-  J6label : J6ddxs,
-  J7label : J7ddxs,
-  J8label : J8ddxs,
-  J9label : J9ddxs,
-  J10label : J10ddxs,
-  J11label : J11ddxs,
-  J12label : J12ddxs,
-  J13label : J13ddxs,
-  J14label : J14ddxs,
-  J15label : J15ddxs,
-  J16label : J16ddxs,
-  J17label : J17ddxs,
-  J18label : J18ddxs,
-  K1label : K1ddxs,
-  K2label : K2ddxs,
-  K3label : K3ddxs,
-  K4label : K4ddxs,
-  K5label : K5ddxs,
-  K6label : K6ddxs,
-  K7label : K7ddxs,
-  L1label : L1ddxs,
-  L2label : L2ddxs,
-  L3label : L3ddxs,
-  L4label : L4ddxs,
-  L5label : L5ddxs,
-  L6label : L6ddxs,
-  L7label : L7ddxs,
-  L8label : L8ddxs,
-  L9label : L9ddxs,
-  L10label : L10ddxs,
-  L11label : L11ddxs,
-  L12label : L12ddxs,
-  M1label : M1ddxs,
-  M2label : M2ddxs 
-}
-const redflaglist = {
-  A1label : A1flags,
-  A2label : A2flags,
-  A3label : A3flags,
-  A4label : A4flags,
-  A5label : A5flags,
-  B1label : B1flags,
-  B2label : B2flags,
-  B3label : B3flags,
-  B4label : B4flags,
-  B5label : B5flags,
-  B6label : B6flags,
-  B7label : B7flags,
-  B8label : B8flags,
-  B9label : B9flags,
-  B10label : B10flags,
-  B11label : B11flags,
-  C1label : C1flags,
-  C2label : C2flags,
-  C3label : C3flags,
-  C4label : C4flags,
-  C5label : C5flags,
-  C6label : C6flags,
-  C7label : C7flags,
-  D1label : D1flags,
-  D2label : D2flags,
-  E1label : E1flags,
-  E2label : E2flags,
-  E3label : E3flags,
-  E4label : E4flags,
-  F1label : F1flags,
-  F2label : F2flags,
-  F3label : F3flags,
-  F4label : F4flags,
-  F5label : F5flags,
-  F6label : F6flags,
-  G1label : G1flags,
-  G2label : G2flags,
-  H1label : H1flags,
-  H2label : H2flags,
-  H3label : H3flags,
-  H4label : H4flags,
-  I1label : I1flags,
-  I2label : I2flags,
-  I3label : I3flags,
-  I4label : I4flags,
-  I5label : I5flags,
-  I6label : I6flags,
-  J1label : J1flags,
-  J2label : J2flags,
-  J3label : J3flags,
-  J4label : J4flags,
-  J5label : J5flags,
-  J6label : J6flags,
-  J7label : J7flags,
-  J8label : J8flags,
-  J9label : J9flags,
-  J10label : J10flags,
-  J11label : J11flags,
-  J12label : J12flags,
-  J13label : J13flags,
-  J14label : J14flags,
-  J15label : J15flags,
-  J16label : J16flags,
-  J17label : J17flags,
-  J18label : J18flags,
-  K1label : K1flags,
-  K2label : K2flags,
-  K3label : K3flags,
-  K4label : K4flags,
-  K5label : K5flags,
-  K6label : K6flags,
-  K7label : K7flags,
-  L1label : L1flags,
-  L2label : L2flags,
-  L3label : L3flags,
-  L4label : L4flags,
-  L5label : L5flags,
-  L6label : L6flags,
-  L7label : L7flags,
-  L8label : L8flags,
-  L9label : L9flags,
-  L10label : L10flags,
-  L11label : L11flags,
-  L12label : L12flags,
-  M1label : M1flags,
-  M2label : M2flags 
-}
-//Green button to show cat III at the beginning of screening
-function c3it(){
-  const a = event.target;
-  console.log(a)
-  const b = document.querySelector(".ADTsheet.open");
-  console.log(b)
-  document.querySelector(".green-btn").classList.toggle("closed");
-  functions[b.id]();
-
-}
-
-
-//append information to li and ul of ADTsheets
-//append ddxs
-var cont = document.getElementById('ddxb');
-var ul = document.createElement('ul');
-ul.setAttribute('style', 'padding: 0; margin: 0;');
-ul.setAttribute('id', 'theList');
-//append red flags
-var cont2 = document.getElementById('redf');
-var ul2 = document.createElement('ul');
-ul2.setAttribute('style', 'padding: 0; margin: 0;');
-ul2.setAttribute('id', 'theList');
-
-
-//button action triggering append if DOM exists
-const btns = document.querySelectorAll(".subtexts");
-btns.forEach(function(currentChild){
-  currentChild.addEventListener('click',()=> {
-    ul.innerHTML = '';
-    ul2.innerHTML = '';
-    const sheetnow = ADTMCSheets[currentChild.id];
-    if(document.querySelector("#jsul4") == null){console.log("doesn't exist")}else{document.querySelector("#jsul4").remove()};
-    if(document.querySelector("#jsul5") == null){console.log("doesn't exist")}else{document.querySelector("#jsul5").remove()};
-    if(document.querySelector("#jsul6") == null){console.log("doesn't exist")}else{document.querySelector("#jsul6").remove()};
-    if(document.querySelector("#jsul7") == null){console.log("doesn't exist")}else{document.querySelector("#jsul7").remove()};
-    if(document.querySelector("#jsul8") == null){console.log("doesn't exist")}else{document.querySelector("#jsul8").remove()};
-    if(document.querySelector("#jsul9") == null){console.log("doesn't exist")}else{document.querySelector("#jsul9").remove()};
-    if(document.querySelector("#jsul10") == null){console.log("doesn't exist")}else{document.querySelector("#jsul10").remove()};
-    if(document.querySelector("#jsul11") == null){console.log("doesn't exist")}else{document.querySelector("#jsul11").remove()};
-    if(document.querySelector("#jsul12") == null){console.log("doesn't exist")}else{document.querySelector("#jsul12").remove()};
-    if(document.querySelector("#jsul13") == null){console.log("doesn't exist")}else{document.querySelector("#jsul13").remove()};
-    if(document.querySelector("#jsul14") == null){console.log("doesn't exist")}else{document.querySelector("#jsul14").remove()};
-    if(document.querySelector("#jsul15") == null){console.log("doesn't exist")}else{document.querySelector("#jsul15").remove()};
-    if(document.querySelector("#jsul16") == null){console.log("doesn't exist")}else{document.querySelector("#jsul16").remove()};
-    const sheetid = sheetnow.id;
+const subItems = document.querySelectorAll(".catbtn")
+const Su = document.querySelector(".sub-page")
+const sheets = document.querySelectorAll(".ADTsheet");
+const title = document.querySelector(".sub-page-banner")
+//if has parent category open subcat, if parent subcat open ADT
+subItems.forEach(function(btn){
+  btn.addEventListener("click",() =>{
+    var btnid = btn.id
+    var sheet = subcatboxes[btnid];
+    if(btn.closest(".sel-box") == main){
+      main.classList.add("place-left");
+      main.classList.remove("selected");
+      banner1.classList.add("paged")
+      banner2.classList.add("open");
+      banner2.innerHTML = btn.innerText
+      sheet.classList.add("selected");
+      console.log(sheet)
+      reverse.classList.remove("engaged")
+      homebtn.classList.add("engaged")
+    }
+    else{
+      var daddy = btn.closest(".sel-box")
+      daddy.classList.remove("selected")
+      daddy.classList.add("place-left");
+      nav.classList.add("paged");
+      sheets.forEach(ele =>{
+        ele.classList.remove("open")
+      })
+      var looking = btn.querySelector(".texticon").innerHTML
+      var looking2 = btn.querySelector(".btn-text").innerHTML
+      var titles = looking +"<br>"+looking2
+      title.innerHTML = titles
+      infoTitle.innerHTML = looking + "<br>" +looking2
+      Su.classList.add("open");
+      var sheetid = sheet.id;
+      console.log(sheet)
+      sheet.classList.add("open");
+      const existing = document.getElementsByClassName("made")
+      while(existing.length > 0){
+        existing[0].parentNode.removeChild(existing[0])
+      }
       const a = link1[sheetid];
-      const just1 = a["DPRED"];
-      const just2 = a["DP1"];
-      const just3 = a["DP2"];
-      const just4 = a["DP3"];
-      const just5 = a["DP4"];
-      const just6 = a["DPRO"];
-      const just7 = a["DPRE"];
-      const just8 = a["DLIM"];
-      const just9 = a["DACT1"];
-      const just12 = a["DACT2"];
-      const just13 = a["GEN"];
-      const just10 =a["MED"];
-      const just11 =a["STP"];
-    if(sheetnow.querySelector(".JRED") == null){console.log("JRED does not exist")}else{
-      const cont4 = sheetnow.querySelector(".JRED");
-      var ul4 = document.createElement('ul');
-      ul4.innerHTML = '';
-      ul4.setAttribute('id', 'jsul4'); 
-      for (i = 0; i <= just1.length - 1; i++) {
-      var li4 = document.createElement('li');
-      li4.innerHTML = "";
-      li4.innerHTML = just1[i];
-      ul4.appendChild(li4);
-      }
-      cont4.appendChild(ul4);
-    };
-
-    if(sheetnow.querySelector(".JDP1") == null){console.log("JDP1 does not exist")}else{
-      const cont5 = sheetnow.querySelector(".JDP1");
-      var ul5 = document.createElement('ul');
-      ul5.innerHTML = '';
-      ul5.setAttribute('id', 'jsul5'); 
-      for (i = 0; i <= just2.length - 1; i++) {
-      var li5 = document.createElement('li');
-      li5.innerHTML = "";
-      li5.innerHTML = just2[i];
-      ul5.appendChild(li5);
-      }
-      cont5.appendChild(ul5);
-    }
-    if(sheetnow.querySelector(".JDP2") == null){console.log("JDP2 does not exist")}else{
-      const cont6 = sheetnow.querySelector(".JDP2");
-      var ul6 = document.createElement('ul');
-      ul6.innerHTML = '';
-      ul6.setAttribute('id', 'jsul6'); 
-      for (i = 0; i <= just3.length - 1; i++) {
-      var li6 = document.createElement('li');
-      li6.innerHTML = "";
-      li6.innerHTML = just3[i];
-      ul6.appendChild(li6);
-      }
-      cont6.appendChild(ul6);
-    }
-    if(sheetnow.querySelector(".JDP3") == null){console.log("JDP3 does not exist")}else{
-      console.log("JDP3 is working");
-      const cont7 = sheetnow.querySelector(".JDP3");
-      var ul7 = document.createElement('ul');
-      ul7.innerHTML = '';
-      ul7.setAttribute('id', 'jsul7'); 
-      for (i = 0; i <= just4.length - 1; i++) {
-      var li7 = document.createElement('li');
-      li7.innerHTML = "";
-      li7.innerHTML = just4[i];
-      ul7.appendChild(li7);
-      }
-      cont7.appendChild(ul7);
-    }
-    if(sheetnow.querySelector(".JDP4") == null){console.log("JDP4 does not exist")}else{
-      const cont8 = sheetnow.querySelector(".JDP4");
-      var ul8 = document.createElement('ul');
-      ul8.innerHTML = '';
-      ul8.setAttribute('id', 'jsul8'); 
-      for (i = 0; i <= just5.length - 1; i++) {
-      var li8 = document.createElement('li');
-      li8.innerHTML = "";
-      li8.innerHTML = just5[i];
-      ul8.appendChild(li8);
-      }
-      cont8.appendChild(ul8);
-    }
-    if(sheetnow.querySelector(".JPROT") == null){console.log("JRTD does not exist")}else{
-      const cont9 = sheetnow.querySelector(".JPROT");
-      var ul9 = document.createElement('ul');
-      ul9.innerHTML = '';
-      ul9.setAttribute('id', 'jsul9'); 
-      for (i = 0; i <= just6.length - 1; i++) {
-      var li9 = document.createElement('li');
-      li9.innerHTML = "";
-      li9.innerHTML = just6[i];
-      ul9.appendChild(li9);
-      }
-      cont9.appendChild(ul9);
-    }
-
-    if(sheetnow.querySelector(".JRETEST") == null){console.log("JRETEST does not exist")}else{
-      const cont10 = sheetnow.querySelector(".JRETEST");
-      var ul10 = document.createElement('ul');
-      ul10.innerHTML = '';
-      ul10.setAttribute('id', 'jsul10'); 
-      for (i = 0; i <= just7.length - 1; i++) {
-      var li10 = document.createElement('li');
-      li10.innerHTML = "";
-      li10.innerHTML = just7[i];
-      ul10.appendChild(li10);
-      }
-      cont10.appendChild(ul10);
-    }
-    if(sheetnow.querySelector(".JAM") == null){console.log("JAM does not exist")}else{
-      const cont11 = sheetnow.querySelector(".JAM");
-      var ul11 = document.createElement('ul');
-      ul11.innerHTML = '';
-      ul11.setAttribute('id', 'jsul11'); 
-      for (i = 0; i <= just8.length - 1; i++) {
-      var li11 = document.createElement('li');
-      li11.innerHTML = "";
-      li11.innerHTML = just8[i];
-      ul11.appendChild(li11);
-      }
-      cont11.appendChild(ul11);
-    }
-    if(sheetnow.querySelector(".ACT1") == null){console.log("ACT1 does not exist")}else{
-      console.log(sheetnow.querySelector(".ACT1"));
-      const cont12 = sheetnow.querySelector(".ACT1");
-      var ul12 = document.createElement('ul');
-      ul12.innerHTML = '';
-      ul12.setAttribute('id', 'jsul12'); 
-      for (i = 0; i <= just9.length - 1; i++) {
-      var li12 = document.createElement('li');
-      li12.innerHTML = "";
-      li12.innerHTML = just9[i];
-      ul12.appendChild(li12);
-      }
-      cont12.appendChild(ul12);
-    }
-    if(sheetnow.querySelector(".ACT2") == null){console.log("ACT2 does not exist")}else{
-      console.log(sheetnow.querySelector(".ACT2"));
-      const cont15 = sheetnow.querySelector(".ACT2");
-      var ul15 = document.createElement('ul');
-      ul15.innerHTML = '';
-      ul15.setAttribute('id', 'jsul15'); 
-      for (i = 0; i <= just12.length - 1; i++) {
-      var li15 = document.createElement('li');
-      li15.innerHTML = "";
-      li15.innerHTML = just12[i];
-      ul15.appendChild(li15);
-      }
-      cont15.appendChild(ul15);
-    }
-    if(document.querySelector(".box-1-text") == null){console.log(".box-1-text does not exist")}else{
-      console.log(document.querySelector(".box-1-text"));
-      const cont16 = document.querySelector(".box-1-text");
-      var ul16 = document.createElement('ul');
-      ul16.innerHTML = '';
-      ul16.setAttribute('id', 'jsul16'); 
-      for (i = 0; i <= just13.length - 1; i++) {
-      var li16 = document.createElement('li');
-      li16.innerHTML = "";
-      li16.innerHTML = just13[i];
-      ul16.appendChild(li16);
-      }
-      cont16.appendChild(ul16);
-    }
-    if(document.querySelector("#MEDCOM") == null){console.log("#MEDCOM does not exist")}else{
-      console.log(document.querySelector("#MEDCOM"));
-      const cont13 = document.querySelector("#MEDCOM");
-      var ul13 = document.createElement('ul');
-      ul13.innerHTML = '';
-      ul13.setAttribute('id', 'jsul13'); 
-      for (i = 0; i <= just10.length - 1; i++) {
-      var li13 = document.createElement('li');
-      li13.innerHTML = "";
-      li13.innerHTML = just10[i];
-      ul13.appendChild(li13);
-      }
-      cont13.appendChild(ul13);
-    }
-    if(document.querySelector("#STP") == null){console.log("MEDCOM does not exist")}else{
-      console.log(document.querySelector("#STP"));
-      const cont14 = document.querySelector("#STP");
-      var ul14 = document.createElement('ul');
-      ul14.innerHTML = '';
-      ul14.setAttribute('id', 'jsul14'); 
-      for (i = 0; i <= just11.length - 1; i++) {
-      var li14 = document.createElement('li');
-      li14.innerHTML = "";
-      li14.innerHTML = just11[i];
-      ul14.appendChild(li14);
-      }
-      cont14.appendChild(ul14);
-    }
-  
-//append ddx list with the cont    
-    const ddxarrayvalue = ddxslist[currentChild.id];
-    const redflagvalue = redflaglist[currentChild.id];
-    for (i = 0; i <= ddxarrayvalue.length - 1; i++) {
-      var li = document.createElement('li');
-      li.innerHTML = ddxarrayvalue[i];
-      li.setAttribute('style', 'display: block;');
-      console.log("ddx works")
-      ul.appendChild(li);
-  }
-  //append red flags with cont2
-    for (i = 0; i <= redflagvalue.length - 1; i++) {
-      var li2 = document.createElement('li');
-      li2.innerHTML = redflagvalue[i];
-      li2.setAttribute('style', 'display: block;');
-      ul2.appendChild(li2);
-      console.log("red f works")
-  }
- //append ddx and red flag li to their ul after validation
-  cont.appendChild(ul);
-  cont2.appendChild(ul2);
-
-});
-});
-//anchor justify
-//functions to link the id to the of the ADTSheet to how the disposition boxes pop up
-const functions = {
-  "A-1" : justifyA1,
-  "A-2" : justifyA2,
-  "A-3" : justifyA3,
-  "A-4" : justifyA4,
-  "A-5" : justifyA5,
-  "B-1" : justifyB1,
-  "B-2" : justifyB2,
-  "B-3" : justifyB3,
-  "B-4" : justifyB4,
-  "B-5" : justifyB5,
-  "B-6" : justifyB6,
-  "B-7" : justifyB7,
-  "B-8" : justifyB8,
-  "B-9" : justifyB9,
-  "B-10" : justifyB10,
-  "B-11" : justifyB11,
-  "C-1" : justifyC1,
-  "C-2" : justifyC2,
-  "C-3" : justifyC3,
-  "C-4" : justifyC4,
-  "C-5" : justifyC5,
-  "C-6" : justifyC6,
-  "C-7" : justifyC7,
-  "D-1" : justifyD1,
-  "D-2" : justifyD2,
-  "E-1" : justifyE1,
-  "E-2" : justifyE2,
-  "E-3" : justifyE3,
-  "E-4" : justifyE4,
-  "F-1" : justifyF1,
-  // "F-2" : justifyF2,
-  "F-3" : justifyF3,
-  "F-4" : justifyF4,
-  "F-5" : justifyF5,
-  "F-6" : justifyF6,
-  "G-1" : justifyG1,
-  "G-2" : justifyG2,
-  "H-1" : justifyH1,
-  "H-2" : justifyH2,
-  "H-3" : justifyH3,
-  "H-4" : justifyH4,
-  "I-1" : justifyI1,
-  "I-2" : justifyI2,
-  "I-3" : justifyI3,
-  "I-4" : justifyI4,
-  "I-5" : justifyI5,
-  "I-6" : justifyI6,
-  "J-1" : justifyJ1,
-  "J-2" : justifyJ2,
-  "J-3" : justifyJ3,
-  "J-4" : justifyJ4,
-  "J-5" : justifyJ5,
-  "J-6" : justifyJ6,
-  "J-7" : justifyJ7,
-  "J-8" : justifyJ8,
-  "J-9" : justifyJ9,
-  "J-10" : justifyJ10,
-  "J-11" : justifyJ11,
-  "J-12" : justifyJ12,
-  "J-13" : justifyJ13,
-  "J-14" : justifyJ14,
-  "J-15" : justifyJ15,
-  "J-16" : justifyJ16,
-  "J-17" : justifyJ17,
-  "J-18" : justifyJ18,
-  "K-1" : justifyK1,
-  "K-2" : justifyK2,
-  "K-3" : justifyK3,
-  "K-4" : justifyK4,
-  "K-5" : justifyK5,
-  "K-6" : justifyK6,
-  "K-7" : justifyK7,
-  "L-1" : justifyL1,
-  "L-2" : justifyL2,
-  "L-3" : justifyL3,
-  "L-4" : justifyL4,
-  "L-5" : justifyL5,
-  "L-6" : justifyL6,
-  "L-7" : justifyL7,
-  "L-8" : justifyL8,
-  "L-9" : justifyL9,
-  "L-10" : justifyL10,
-  "L-11" : justifyL11,
-  "L-12" : justifyL12,
-  "M-1" : justifyM1,
-  "M-2" : justifyM2 
-
-
-}
-
-//individual justification scripts for each. called when the toggle button is switched
-function justifyA1() {
-  var btnid = event.target.id;
-  console.log(btnid);
-  const hidden = A1.querySelector(".subQ");
-  const A1red = A1.querySelector("#A1-redbtn");
-  const A1c1 = A1.querySelector("#A1-1-btn");
-  const A1c2 = A1.querySelector("#A1-2-btn");
-  const A1c3 = A1.querySelector("#A1-3-btn");
-  const A1c4 = A1.querySelector("#A1-4-btn");
-  const A1c5 = A1.querySelector("#A1-5-btn");
-  const dispored = A1.querySelector("#A1dispo-red");
-  const dispo2 = A1.querySelector("#A1dispo-2");
-  const dispo3 = A1.querySelector("#A1dispo-3");
-  const dispo4 = A1.querySelector("#A1dispo-4");
-  const dispoRETEST = A1.querySelector("#A1dispo-RETEST");
-  const dispoRTD = A1.querySelector("#A1dispo-RTD");
-  if(A1c1.checked == true){
-    if(!hidden.classList.contains("selected")){hidden.classList.toggle("selected")}
-  }else{hidden.classList.remove("selected")}
-  if(A1red.checked == true){
-    console.log("it works");
-    A1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-      if(A1c2.checked == true){
-        A1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open"); greenbtn.classList.add("closed")}
-      }else{
-        if(A1c3.checked == true){
-            A1.querySelectorAll('.dispobox').forEach(el => {
-              el.classList.remove('open')});
-              if(!dispo3.classList.contains("open")){dispo3.classList.toggle("open"); greenbtn.classList.add("closed")}
+      const JY = [
+        JY1 = a["DACT1"],
+        JY2 = a["DACT2"],
+        JY3 = a["DACT3"],
+        JY4 = a["DPRED"],
+        JY5 = a["DP1"],
+        JY6 = a["DP2"],
+        JY7 = a["DP3"],
+        JY8 = a["DP4"],
+        JY9 = a["DPRE"],
+        JY10 = a["DPRO"],
+        JY11 = a["DLIM"],
+        JY12 = a["GEN"],
+        JY13 = a["MED"],
+        JY14 = a["STP"],
+        JY15 = a["RF"],
+        JY16 = a["DDX"],
+      ]
+      const JERK = [
+        JY1 = sheet.querySelector(".ACT1"),
+        JY2 = sheet.querySelector(".ACT2"),
+        JY3 = sheet.querySelector(".ACT3"),
+        JY4 = sheet.querySelector(".DPRED"),
+        JY5 = sheet.querySelector(".JDP1"),
+        JY6 = sheet.querySelector(".JDP2"),
+        JY7 = sheet.querySelector(".JDP3"),
+        JY8 = sheet.querySelector(".JDP4"),
+        JY9 = sheet.querySelector(".JRETEST"),
+        JY10 = sheet.querySelector(".JDPRO"),
+        JY11 = sheet.querySelector(".LIM"),
+        JY12 = document.querySelector(".GEN"),
+        JY13 = document.querySelector(".MED"),
+        JY14 = document.querySelector(".STP"),
+        JY15 = document.querySelector(".RF"),
+        JY16 = document.querySelector(".DDX")
+      ]
+      JY.forEach(ele => {
+        if(ele == null){null}else{
+          let position = JY.indexOf(ele)
+          if(JERK[position] == null){
+            null
           }else{
-        A1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(A1c4.checked == true){
-            A1.querySelectorAll('.dispobox').forEach(el => {
-              el.classList.remove('open')});
-              if(!dispo4.classList.contains("open")){dispo4.classList.toggle("open"); greenbtn.classList.add("closed")}
-          }else{
-            A1.querySelectorAll('.dispobox').forEach(el => {
-              el.classList.remove('open')});
-              if(A1c5.checked == true){
-                A1.querySelectorAll('.dispobox').forEach(el => {
-                  el.classList.remove('open')});
-                  if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
-              }else{
-                if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}}
-          }
-          }
+          const container = JERK[position]
+          var ul = document.createElement("ul");
+          ul.classList.add("made")
+          ul.innerHTML = ""
+          for (i = 0; i <= ele.length-1; i++){
+            var li = document.createElement('li')
+            li.innerHTML = ""
+            li.innerHTML = ele[i]
+            ul.appendChild(li)
+          } container.appendChild(ul)
         }
-      }
+        } 
+      });
     }
+  })
+})
 
-    const cent5 = document.querySelector("#cent5");
-    const criteria = document.querySelectorAll(".centor-crit");
-    const countbox = document.querySelector(".countcenter")
-    criteria.forEach(function(currentSwitch){
-        currentSwitch.addEventListener('click',()=> {
-                cent5.classList.remove("centsel");
-                currentSwitch.classList.toggle("centsel")
-                centorCheck()
-            })
-    
+
+
+var contentClosing = document.querySelectorAll(".contbox-close")
+contentClosing.forEach(function(el){
+        el.addEventListener("click",() =>{
+                var dad = el.closest(".sub-page-pre");
+                var box = dad.querySelector(".contbox-content");
+                if(box.classList.contains("closed")){
+                        box.classList.remove("closed")
+                        el.classList.remove("closed")
+                }else{
+                        box.classList.add("closed")
+                        el.classList.add("closed")
+                }
+        
         })
-    cent5.addEventListener('click',()=> {
-        document.querySelectorAll('.centsel').forEach(el => {
-            el.classList.remove('centsel');
-          })
-        cent5.classList.toggle("centsel")
-        centorCheck();
+})
+//open the information box
+var infoTitle = document.querySelector(".info-title")
+function openA(){
+        var container = document.querySelector("#cont1");
+        if(container.classList.contains("closed")){
+                container.classList.remove("closed")
+                document.querySelector(".bg").classList.remove("closed")
+        }else{
+                container.classList.add("closed")
+                document.querySelector(".bg").classList.add("closed")
+
+        }
+}
+// icon buttons for explanations
+var justbuttons = document.querySelectorAll(".dispo-icon")
+justbuttons.forEach(function(justbutton){
+  justbutton.addEventListener("click",()=>{
+    var c = justbutton.closest(".dispobox");
+    if(c.classList.contains("Yikes")){
+      var back = justbutton.closest(".Q").querySelector(".back1");
+    }else{
+      var back = justbutton.closest(".Q").querySelector(".back2")
+    }
+    var front = justbutton.closest(".Q").querySelector(".front");
+    back.classList.toggle("opened")
+    front.classList.toggle("closed") 
+    c.querySelector(".justbox").classList.toggle("open");
+    var border = c.querySelector(".dispobar");
+    const style = getComputedStyle(border);
+    const color = style.backgroundColor
+    back.style.backgroundColor = color;
+
+  })
+})
+
+//card close buttons
+var closers = document.querySelectorAll(".close")
+closers.forEach(function(currentcloser){
+  currentcloser.addEventListener("click",()=>{
+    var b = currentcloser.closest(".Q");
+    var c = b.querySelector(".dispobox.Yikes");
+    var d = c.querySelector(".justbox")
+    if(b.querySelector(".dispobox.Nah")==null){null}else{
+    var e= b.querySelector(".dispobox.Nah")
+    e.querySelector(".justbox").classList.remove("open")
+    }
+    d.classList.remove("open")
+    par = currentcloser.parentElement
+    grandpar = par.parentElement
+    if(grandpar.classList.contains("back2")){
+      var back = b.querySelector(".back2")
+    }else{
+      var back = b.querySelector(".back1")
+    }
+    var style = getComputedStyle(back)
+    var bg = style.backgroundColor
+    back.removeAttribute("style");
+    back.classList.toggle("opened");
+    b.querySelector(".front").classList.toggle("closed");
+    justify()
+  })
+})
+const head = document.querySelector(".sub-menu");
+  
+const sectionOne = document.querySelector(".wrap-marker");
+const sectionOneOptions = {};
+  const sectionOneObs = new IntersectionObserver(function(entries, sectionOneObs){
+    entries.forEach(entry => {
+      if(!entry.isIntersecting){
+        if(document.querySelector(".sub-page").classList.contains("open")){
+        head.classList.add("scrolled");
+
+        const ban = document.querySelector(".sub-menu-banner")
+        const ban1 = document.querySelector(".sub-page-banner")
+        ban.innerHTML = "";
+        ban.innerHTML = ban1.innerHTML
+        }
+      }else{
+        head.classList.remove("scrolled")
+      }
     });
-    
-    function centorCheck(){
-        let count = document.querySelectorAll(".centor-crit.centsel").length
-        if(cent5.classList.contains("centsel")){
-            count = 0
-        }
-        console.log(count)
-        if(count == 0 && !cent5.classList.contains("centsel")){
-            cent5.classList.toggle("centsel")
-        }
-        countbox.innerText = count
-        if(count >=3 && !document.querySelector(".subQ").classList.contains("selected")){
-            document.querySelector(".subQ").classList.toggle("selected");
-        }
-        if(count <= 2){
-            document.querySelector(".subQ").classList.remove("selected");
-        }
-    }
+  }, sectionOneOptions);
+  sectionOneObs.observe(sectionOne)
 
-function justifyA1() {
-  const A1red = A1.querySelector("#A1-redbtn");
-  const A1A1 = A1.querySelector("#A1-2-btn");
-  const A1c2 = A1.querySelector("#A1-3-btn");
-  const dispored = A1.querySelector("#A1dispo-red");
-  const dispo1 = A1.querySelector("#A1dispo-2");
-  const dispoRETEST = A1.querySelector("#A1dispo-RETEST");
-  const dispoRTD = A1.querySelector("#A1dispo-RTD");
-  if(A1red.checked == true){
-      console.log("it works");
-      A1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')}); 
-        if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
+//close the redbox
+function closeRed(){
+  var box = document.querySelector(".prebox-content")
+  var btn = document.querySelector(".prebox-close")
+  if(box.classList.contains("closed")){
+    box.classList.remove("closed")
+    btn.classList.remove("closed")
   }else{
-      A1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(A1A1.checked == true){
-        A1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
+    box.classList.add("closed")
+    btn.classList.add("closed")
+  }
   
-      }else{
-        if(A1c2.checked == true){
-          A1.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
-        }else{
-          A1.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-            }
-          }
-        }
-      }
-
-
-function justifyA2() {
-  var btnid = event.target.id;
-  console.log(btnid);
-  const hidden = A2.querySelector(".subQ");
-  const A2red = A2.querySelector("#A2-redbtn");
-  const A2c1 = A2.querySelector("#A2-1-btn");
-  const A2c2 = A2.querySelector("#A2-2-btn");
-  const A2c3 = A2.querySelector("#A2-3-btn");
-  const A2c4 = A2.querySelector("#A2-4-btn");
-  const A2c5 = A2.querySelector("#A2-5-btn");
-  const dispored = A2.querySelector("#A2dispo-red");
-  const dispo2 = A2.querySelector("#A2dispo-2");
-  const dispo3 = A2.querySelector("#A2dispo-3");
-  const dispo4 = A2.querySelector("#A2dispo-4");
-  const dispoRETEST = A2.querySelector("#A2dispo-RETEST");
-  const dispoRTD = A2.querySelector("#A2dispo-RTD");
-  if(A2c1.checked == true){
-    if(!hidden.classList.contains("selected")){hidden.classList.toggle("selected")}
-  }else{hidden.classList.remove("selected")}
-  if(A2red.checked == true){
-    console.log("it works");
-    A2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-      if(A2c2.checked == true){
-        A2.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open"); greenbtn.classList.add("closed")}
-      }else{
-        if(A2c3.checked == true){
-            A2.querySelectorAll('.dispobox').forEach(el => {
-              el.classList.remove('open')});
-              if(!dispo3.classList.contains("open")){dispo3.classList.toggle("open"); greenbtn.classList.add("closed")}
-          }else{
-        A2.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(A2c4.checked == true){
-            A2.querySelectorAll('.dispobox').forEach(el => {
-              el.classList.remove('open')});
-              if(!dispo4.classList.contains("open")){dispo4.classList.toggle("open"); greenbtn.classList.add("closed")}
-          }else{
-            A2.querySelectorAll('.dispobox').forEach(el => {
-              el.classList.remove('open')});
-              if(A2c5.checked == true){
-                A2.querySelectorAll('.dispobox').forEach(el => {
-                  el.classList.remove('open')});
-                  if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
-              }else{
-                if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}}
-          }
-          }
-        }
-      }
-    }
-//justification A-3
-function justifyA3() {
-  const A3red = A3.querySelector("#A3-redbtn");
-  const A3c1 = A3.querySelector("#A3-1-btn");
-  const A3c2 = A3.querySelector("#A3-2-btn");
-  const dispored = A3.querySelector("#A3dispo-red");
-  const dispo1 = A3.querySelector("#A3dispo-1");
-  const dispo2 = A3.querySelector("#A3dispo-2");
-  const dispoRTD = A3.querySelector("#A3dispo-RTD");
-  if(A3red.checked == true){
-      A3.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-      A3.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(A3c1.checked == true){
-        A3.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
-  
-      }else{
-        if(A3c2.checked == true){
-          A3.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open"); greenbtn.classList.add("closed")}
-        }else{
-          A3.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-        }
-      }
-    }
-  }
-//Justification A4
-  function justifyA4() {
-    var btnid = event.target.id;
-    const hidden = A4.querySelector(".subQ");
-    const A4red = A4.querySelector("#A4-redbtn");
-    const A4c1 = A4.querySelector("#A4-1-btn");
-    const A4c2 = A4.querySelector("#A4-2-btn");
-    const A4c3 = A4.querySelector("#A4-3-btn");
-    const A4c4 = A4.querySelector("#A4-4-btn");
-    const dispored = A4.querySelector("#A4dispo-red");
-    const dispo1 = A4.querySelector("#A4dispo-1");
-    const dispo3 = A4.querySelector("#A4dispo-3");
-    const dispoRETEST = A4.querySelector("#A4dispo-RETEST");
-    const dispoRTD = A4.querySelector("#A4dispo-RTD");
-    if(A4c2.checked == true){
-      if(!hidden.classList.contains("selected")){hidden.classList.toggle("selected")}
-    }else{hidden.classList.remove("selected")}
-    if(A4red.checked == true){
-      console.log("it works");
-      A4.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-    }else{
-        if(A4c1.checked == true){
-          A4.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
-        }else{
-          if(A4c3.checked == true){
-              A4.querySelectorAll('.dispobox').forEach(el => {
-                el.classList.remove('open')});
-                if(!dispo3.classList.contains("open")){dispo3.classList.toggle("open"); greenbtn.classList.add("closed")}
-            }else{
-          A4.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(A4c4.checked == true){
-              A4.querySelectorAll('.dispobox').forEach(el => {
-                el.classList.remove('open')});
-                if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
-            }else{
-                  if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}}
-            }
-            }
-          }
-        }
-
-//justification A-5
-function justifyA5(){ 
-  console.log("it works");
-  const A5red = A5.querySelector("#A5-redbtn");
-  const A5c1 = A5.querySelector("#A5-1-btn");
-  const A5c2 = A5.querySelector("#A5-2-btn");
-  const A5c3 = A5.querySelector("#A5-3-btn");
-  const dispored = A5.querySelector("#A5dispo-red");
-  const dispo1 = A5.querySelector("#A5dispo-1");
-  const dispo2 = A5.querySelector("#A5dispo-2");
-  const dispoRETEST = A5.querySelector("#A5dispo-RETEST")
-  const dispoRTD = A5.querySelector("#A5dispo-RTD");
-if(A5red.checked == true){
-  A5.querySelectorAll('.dispobox').forEach(el => {
-    el.classList.remove('open')});
-  if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")};
-}else{
-  A5.querySelectorAll('.dispobox').forEach(el => {
-    el.classList.remove('open')});  
-  if(A5c1.checked == true){
-      A5.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-      A5.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(A5c2.checked == true){
-        A5.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-        }else{
-        A5.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-    }}
-  }
-  }
-
-
-//justification B-1
-function justifyB1() {
-  const B1red = B1.querySelector("#B1-redbtn");
-  const B1c1 = B1.querySelector("#B1-1-btn");
-  const dispored = B1.querySelector("#B1dispo-red");
-  const dispo1 = B1.querySelector("#B1dispo-1");
-  const dispoRTD = B1.querySelector("#B1dispo-RTD");
-  if(B1red.checked == true){
-    console.log("it works");
-    B1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-    B1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(B1c1.checked == true){
-      B1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        B1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-    }
-  }
 }
 
-function justifyB2(){ 
-  console.log("it works");
-  const B2red = B2.querySelector("#B2-redbtn");
-  const B2c1 = B2.querySelector("#B2-1-btn");
-  const dispored = B2.querySelector("#B2dispo-red");
-  const dispo1 = B2.querySelector("#B2dispo-1");
-  const dispoRTD = B2.querySelector("#B2dispo-RTD");
-  if(B2red.checked == true){
-    console.log("it works");
-    B2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-    B2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(B2c1.checked == true){
-      B2.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        B2.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-    }
-  }
-}
-//Justification B-3
-function justifyB3(){ 
-  console.log("it works");
-  const B3red = B3.querySelector("#B3-redbtn");
-  const B3c1 = B3.querySelector("#B3-1-btn");
-  const dispored = B3.querySelector("#B3dispo-red");
-  const dispo1 = B3.querySelector("#B3dispo-1");
-  const dispoRTD = B3.querySelector("#B3dispo-RTD");
-  if(B3red.checked == true){
-    console.log("it works");
-    B3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-    B3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(B3c1.checked == true){
-      B3.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        B3.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-    }}
-  }
-//Justification B-4
-function justifyB4(){ 
-  console.log("it works");
-  const B4red = B4.querySelector("#B4-redbtn");
-  const B4c1 = B4.querySelector("#B4-1-btn");
-  const dispored = B4.querySelector("#B4dispo-red");
-  const dispo1 = B4.querySelector("#B4dispo-1");
-  const dispoRTD = B4.querySelector("#B4dispo-RTD");
-  if(B4red.checked == true){
-    console.log("it works");
-    B4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-    B4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(B4c1.checked == true){
-      B4.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        B4.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-    }}
-  }
-
-//Justification B5
-function justifyB5(){ 
-  console.log("it works");
-  const B5red = B5.querySelector("#B5-redbtn");
-  const B5c1 = B5.querySelector("#B5-1-btn");
-  const dispored = B5.querySelector("#B5dispo-red");
-  const dispo1 = B5.querySelector("#B5dispo-1");
-  const dispoRTD = B5.querySelector("#B5dispo-RTD");
-  if(B5red.checked == true){
-    console.log("it works");
-    B5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-    B5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(B5c1.checked == true){
-      B5.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        B5.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-    }}
-  }
-//Justification B-6
-function justifyB6(){ 
-  console.log("it works");
-  const B6red = B6.querySelector("#B6-redbtn");
-  const B6c1 = B6.querySelector("#B6-1-btn");
-  const dispored = B6.querySelector("#B6dispo-red");
-  const dispo1 = B6.querySelector("#B6dispo-1");
-  const dispoRTD = B6.querySelector("#B6dispo-RTD");
-  if(B6red.checked == true){
-    console.log("it works");
-    B6.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-    B6.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(B6c1.checked == true){
-      B6.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        B6.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-    }}
-  }
-//Justification B-7
-function justifyB7(){ 
-console.log("it works");
-const B7red = B7.querySelector("#B7-redbtn");
-const B7c1 = B7.querySelector("#B7-1-btn");
-const dispored = B7.querySelector("#B7dispo-red");
-const dispo1 = B7.querySelector("#B7dispo-1");
-const dispoRTD = B7.querySelector("#B7dispo-RTD");
-if(B7red.checked == true){
-  console.log("it works");
-  B7.querySelectorAll('.dispobox').forEach(el => {
-    el.classList.remove('open')}); 
-  if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-}else{
-  B7.querySelectorAll('.dispobox').forEach(el => {
-    el.classList.remove('open')});
-  if(B7c1.checked == true){
-    B7.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-  }else{
-      B7.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-        if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-  }}
-}
-
-function justifyB8(){ 
-console.log("it works");
-const B8red = B8.querySelector("#B8-redbtn");
-const B8c1 = B8.querySelector("#B8-1-btn");
-const dispored = B8.querySelector("#B8dispo-red");
-const dispo1 = B8.querySelector("#B8dispo-1");
-const dispoRTD = B8.querySelector("#B8dispo-RTD");
-if(B8red.checked == true){
-  console.log("it works");
-  B8.querySelectorAll('.dispobox').forEach(el => {
-    el.classList.remove('open')}); 
-  if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-}else{
-  B8.querySelectorAll('.dispobox').forEach(el => {
-    el.classList.remove('open')});
-  if(B8c1.checked == true){
-    B8.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-  }else{
-      B8.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-        if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
-  }}
-}
-
-function justifyB9(){ 
-  console.log("it works");
-  const B9red = B9.querySelector("#B9-redbtn");
-  const B9c1 = B9.querySelector("#B9-1-btn");
-  const dispored = B9.querySelector("#B9dispo-red");
-  const dispo1 = B9.querySelector("#B9dispo-1");
-  const dispoRTD = B9.querySelector("#B9dispo-RTD");
-  if(B9red.checked == true){
-    console.log("it works");
-    B9.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-    B9.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(B9c1.checked == true){
-      B9.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        B9.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
-    }}
-  }
-
-  function justifyB10(){ 
-    console.log("it works");
-    const B10red = B10.querySelector("#B10-redbtn");
-    const B10c1 = B10.querySelector("#B10-1-btn");
-    const dispored = B10.querySelector("#B10dispo-red");
-    const dispo1 = B10.querySelector("#B10dispo-1");
-    const dispoRTD = B10.querySelector("#B10dispo-RTD");
-    if(B10red.checked == true){
-      console.log("it works");
-      B10.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-    }else{
-      B10.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(B10c1.checked == true){
-        B10.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-  
-      }else{
-          B10.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
-      }}
-    }
-
-    
-function justifyB11(){ 
-console.log("it works");
-const B11red = B11.querySelector("#B11-redbtn");
-const B11c1 = B11.querySelector("#B11-1-btn");
-const dispored = B11.querySelector("#B11dispo-red");
-const dispo1 = B11.querySelector("#B11dispo-1");
-const dispoRTD = B11.querySelector("#B11dispo-RTD");
-if(B11red.checked == true){
-  console.log("it works");
-  B11.querySelectorAll('.dispobox').forEach(el => {
-    el.classList.remove('open')}); 
-  if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-}else{
-  B11.querySelectorAll('.dispobox').forEach(el => {
-    el.classList.remove('open')});
-  if(B11c1.checked == true){
-    B11.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-  }else{
-      B11.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-        if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open")}
-  }}
-}
-function justifyC1() {
-  const C1red = C1.querySelector("#C1-redbtn");
-  const C1c1 = C1.querySelector("#C1-1-btn");
-  const C1c2 = C1.querySelector("#C1-2-btn");
-  const dispored = C1.querySelector("#C1dispo-red");
-  const dispo1 = C1.querySelector("#C1dispo-1");
-  const dispo2 = C1.querySelector("#C1dispo-2");
-  const dispoRETEST = C1.querySelector("#C1dispo-RETEST");
-  const dispoRTD = C1.querySelector("#C1dispo-RTD");
-  if(C1red.checked == true){
-      console.log("it works");
-      C1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')}); 
-        if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-      C1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(C1c1.checked == true){
-        C1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
-  
-      }else{
-        if(C1c2.checked == true){
-          C1.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
-        }else{
-          C1.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-            }
-          }
-        }
-      }
-
-
-function justifyC2() {
-  const C2red = C2.querySelector("#C2-redbtn");
-  const C2c1 = C2.querySelector("#C2-1-btn");
-  const C2c2 = C2.querySelector("#C2-2-btn");
-  const dispored = C2.querySelector("#C2dispo-red");
-  const dispo1 = C2.querySelector("#C2dispo-1");
-  const dispo2 = C2.querySelector("#C2dispo-2");
-  const dispoRTD = C2.querySelector("#C2dispo-RTD");
-  if(C2red.checked == true){
-      console.log("it works");
-      C2.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-      C2.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(C2c1.checked == true){
-        C2.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
-  
-      }else{
-        if(C2c2.checked == true){
-          C2.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open"); greenbtn.classList.add("closed")}
-        }else{
-          C2.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-            }
-          }
-        }
-      }
-
-function justifyC3() {
-const C3red = C3.querySelector("#C3-redbtn");
-const C3c1 = C3.querySelector("#C3-1-btn");
-const C3c2 = C3.querySelector("#C3-2-btn");
-const dispored = C3.querySelector("#C3dispo-red");
-const dispo1 = C3.querySelector("#C3dispo-1");
-const dispoRETEST = C3.querySelector("#C3dispo-RETEST");
-const dispoRTD = C3.querySelector("#C3dispo-RTD");
-if(C3red.checked == true){
-    console.log("it works");
-    C3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-}else{
-    C3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(C3c1.checked == true){
-      C3.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
-
-    }else{
-      if(C3c2.checked == true){
-        C3.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
-      }else{
-        C3.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-    }
-
-function justifyC4() {
-const C4red = C4.querySelector("#C4-redbtn");
-const C4c1 = C4.querySelector("#C4-1-btn");
-const dispored = C4.querySelector("#C4dispo-red");
-const dispo1 = C4.querySelector("#C4dispo-1");
-const dispoRTD = C4.querySelector("#C4dispo-RTD");
-if(C4red.checked == true){
-    console.log("it works");
-    C4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-}else{
-    C4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(C4c1.checked == true){
-      C4.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
-
-    }else{
-        C4.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyC5() {
-const C5red = C5.querySelector("#C5-redbtn");
-const C5c1 = C5.querySelector("#C5-1-btn");
-const dispored = C5.querySelector("#C5dispo-red");
-const dispoRETEST = C5.querySelector("#C5dispo-RETEST");
-const dispoRTD = C5.querySelector("#C5dispo-RTD");
-if(C5red.checked == true){
-    console.log("it works");
-    C5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-}else{
-    C5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(C5c1.checked == true){
-      C5.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
-
-    }else{
-        C5.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyC6() {
-const C6red = C6.querySelector("#C6-redbtn");
-const C6c1 = C6.querySelector("#C6-1-btn");
-const C6c2 = C6.querySelector("#C6-2-btn");
-const dispored = C6.querySelector("#C6dispo-red");
-const dispo1 = C6.querySelector("#C6dispo-1");
-const dispoRETEST = C6.querySelector("#C6dispo-RETEST");
-const dispoRTD = C6.querySelector("#C6dispo-RTD");
-if(C6red.checked == true){
-    console.log("it works");
-    C6.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-}else{
-    C6.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(C6c1.checked == true){
-      C6.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
-
-    }else{
-      if(C6c2.checked == true){
-        C6.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
-      }else{
-        C6.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-    }
-function justifyC7() {
-  const C7red = C7.querySelector("#C7-redbtn");
-  const C7c1 = C7.querySelector("#C7-1-btn");
-  const C7c2 = C7.querySelector("#C7-2-btn");
-  const C7c3 = C7.querySelector("#C7-3-btn");
-  const dispored = C7.querySelector("#C7dispo-red");
-  const dispo1 = C7.querySelector("#C7dispo-1");
-  const dispo2 = C7.querySelector("#C7dispo-2");
-  const dispoRETEST = C7.querySelector("#C7dispo-RETEST");
-  const dispoRTD = C7.querySelector("#C7dispo-RTD");
-  if(C7red.checked == true){
-      console.log("it works");
-      C7.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-      C7.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(C7c1.checked == true){
-        C7.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
-      }else{
-        if(C7c2.checked == true){
-          C7.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open"); greenbtn.classList.add("closed")}
-        }else{
-          if(C7c3.checked == true){
-              C7.querySelectorAll('.dispobox').forEach(el => {
-                el.classList.remove('open')});
-                if(!dispoRETEST.classList.contains("open")){dispoRETEST.classList.toggle("open"); greenbtn.classList.add("closed")}
-            }else{
-          C7.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-            }
-          }
-        }
-      }
-  }
-
-function justifyD1() {
-  const D1red = D1.querySelector("#D1-redbtn");
-  const D1c1 = D1.querySelector("#D1-1-btn");
-  const D1c2 = D1.querySelector("#D1-2-btn");
-  const D1c3 = D1.querySelector("#D1-3-btn");
-  const dispored = D1.querySelector("#D1dispo-red");
-  const dispo1 = D1.querySelector("#D1dispo-1");
-  const dispo2 = D1.querySelector("#D1dispo-2");
-  const dispo3 = D1.querySelector("#D1dispo-3");
-  const dispoRTD = D1.querySelector("#D1dispo-RTD");
-  if(D1red.checked == true){
-      console.log("it works");
-      D1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-  }else{
-      D1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(D1c1.checked == true){
-        D1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
-  
-      }else{
-        if(D1c2.checked == true){
-          D1.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispo2.classList.contains("open")){dispo2.classList.toggle("open"); greenbtn.classList.add("closed")}
-        }else{
-          
-        if(D1c3.checked == true){
-          D1.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open"); greenbtn.classList.add("closed")}
-        }else{
-          D1.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispo3.classList.contains("open")&& greenbtn.classList.contains("closed")){dispo3.classList.toggle("open")}
-            }
-          }
-        }
-      }
-    }
-
-
-function justifyD2() {
-const D2red = D2.querySelector("#D2-redbtn");
-const D2c1 = D2.querySelector("#D2-1-btn");
-const D2c2 = D2.querySelector("#D2-2-btn");
-const dispored = D2.querySelector("#D2dispo-red");
-const dispo1 = D2.querySelector("#D2dispo-1");
-const dispo2 = D2.querySelector("#D2dispo-2");
-const dispo3 = D2.querySelector("#D2dispo-3");
-const dispoRTD = D2.querySelector("#D2dispo-RTD");
-if(D2red.checked == true){
-    console.log("it works");
-    D2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-}else{
-    D2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(D2c1.checked == true){
-      D2.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
-
-    }else{
-      if(D2c2.checked == true){
-        D2.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open"); greenbtn.classList.add("closed")}
-      }else{
-        D2.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispo2.classList.contains("open")&& greenbtn.classList.contains("closed")){dispo2.classList.toggle("open")}
-          }
-        }
-      }
-    }
-
-function justifyE1() {
-const E1red = E1.querySelector("#E1-redbtn");
-const E1c1 = E1.querySelector("#E1-1-btn");
-const dispored = E1.querySelector("#E1dispo-red");
-const dispo1 = E1.querySelector("#E1dispo-1");
-const dispoRTD = E1.querySelector("#E1dispo-RTD");
-if(E1red.checked == true){
-    console.log("it works");
-    E1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-}else{
-    E1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(E1c1.checked == true){
-      E1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")}
-
-    }else{
-        E1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyE2() {
-const E2red = E2.querySelector("#E2-redbtn");
-const E2c1 = E2.querySelector("#E2-1-btn");
-const dispored = E2.querySelector("#E2dispo-red");
-const dispo1 = E2.querySelector("#E2dispo-1");
-const dispoRTD = E2.querySelector("#E2dispo-RTD");
-if(E2red.checked == true){
-    console.log("it works");
-    E2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open"); greenbtn.classList.add("closed")}
-}else{
-    E2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(E2c1.checked == true){
-      E2.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        E2.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyE3() {
-const E3red = E3.querySelector("#E3-redbtn");
-const E3c1 = E3.querySelector("#E3-1-btn");
-const dispored = E3.querySelector("#E3dispo-red");
-const dispo1 = E3.querySelector("#E3dispo-1");
-const dispoRTD = E3.querySelector("#E3dispo-RTD");
-if(E3red.checked == true){
-    console.log("it works");
-    E3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    E3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(E3c1.checked == true){
-      E3.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open");greenbtn.classList.add("closed")}
-
-    }else{
-        E3.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyE4() {
-const E4red = E4.querySelector("#E4-redbtn");
-const E4c1 = E4.querySelector("#E4-1-btn");
-const dispored = E4.querySelector("#E4dispo-red");
-const dispo1 = E4.querySelector("#E4dispo-1");
-const dispoRTD = E4.querySelector("#E4dispo-RTD");
-const greenbtn = document.querySelector(".green-btn");
-if(E4red.checked == true){
-    console.log("it works");
-    E4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    E4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(E4c1.checked == true){
-      E4.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        E4.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyF1() {
-const F1red = F1.querySelector("#F1-redbtn");
-const F1c1 = F1.querySelector("#F1-1-btn");
-const dispored = F1.querySelector("#F1dispo-red");
-const dispo1 = F1.querySelector("#F1dispo-1");
-const dispoRTD = F1.querySelector("#F1dispo-RTD");
-if(F1red.checked == true){
-    console.log("it works");
-    F1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");
-    greenbtn.classList.add("closed")}
-}else{
-    F1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(F1c1.checked == true){
-      F1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        F1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyF3() {
-const F3red = F3.querySelector("#F3-redbtn");
-const F3c1 = F3.querySelector("#F3-1-btn");
-const dispored = F3.querySelector("#F3dispo-red");
-const dispo1 = F3.querySelector("#F3dispo-1");
-const dispoRTD = F3.querySelector("#F3dispo-RTD");
-if(F3red.checked == true){
-    console.log("it works");
-    F3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    F3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(F3c1.checked == true){
-      F3.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        F3.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyF4() {
-const F4red = F4.querySelector("#F4-redbtn");
-const F4c1 = F4.querySelector("#F4-1-btn");
-const dispored = F4.querySelector("#F4dispo-red");
-const dispo1 = F4.querySelector("#F4dispo-1");
-const dispoRTD = F4.querySelector("#F4dispo-RTD");
-if(F4red.checked == true){
-    console.log("it works");
-    F4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    F4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(F4c1.checked == true){
-      F4.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        F4.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyF4() {
-const F4red = F4.querySelector("#F4-redbtn");
-const F4c1 = F4.querySelector("#F4-1-btn");
-const dispored = F4.querySelector("#F4dispo-red");
-const dispo1 = F4.querySelector("#F4dispo-1");
-const dispoRTD = F4.querySelector("#F4dispo-RTD");
-if(F4red.checked == true){
-    console.log("it works");
-    F4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    F4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(F4c1.checked == true){
-      F4.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        F4.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-    
-function justifyF5() {
-const F5red = F5.querySelector("#F5-redbtn");
-const F5c1 = F5.querySelector("#F5-1-btn");
-const dispored = F5.querySelector("#F5dispo-red");
-const dispo1 = F5.querySelector("#F5dispo-1");
-const dispoRTD = F5.querySelector("#F5dispo-RTD");
-if(F5red.checked == true){
-    console.log("it works");
-    F5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    F5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(F5c1.checked == true){
-      F5.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        F5.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyF6() {
-const F6red = F6.querySelector("#F6-redbtn");
-const F6c1 = F6.querySelector("#F6-1-btn");
-const dispored = F6.querySelector("#F6dispo-red");
-const dispo1 = F6.querySelector("#F6dispo-1");
-const dispoRTD = F6.querySelector("#F6dispo-RTD");
-if(F6red.checked == true){
-    console.log("it works");
-    F6.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    F6.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(F6c1.checked == true){
-      F6.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        F6.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyG1() {
-const G1red = G1.querySelector("#G1-redbtn");
-const G1c1 = G1.querySelector("#G1-1-btn");
-const dispored = G1.querySelector("#G1dispo-red");
-const dispo1 = G1.querySelector("#G1dispo-RETEST");
-const dispoRTD = G1.querySelector("#G1dispo-RTD");
-if(G1red.checked == true){
-    console.log("it works");
-    G1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    G1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(G1c1.checked == true){
-      G1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        G1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-
-function justifyG2() {
-const G2red = G2.querySelector("#G2-redbtn");
-const G2c1 = G2.querySelector("#G2-1-btn");
-const dispored = G2.querySelector("#G2dispo-red");
-const dispo1 = G2.querySelector("#G2dispo-RETEST");
-const dispoRTD = G2.querySelector("#G2dispo-RTD");
-if(G2red.checked == true){
-    console.log("it works");
-    G2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    G2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(G2c1.checked == true){
-      G2.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        G2.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyH1() {
-const H1red = H1.querySelector("#H1-redbtn");
-const H1c1 = H1.querySelector("#H1-1-btn");
-const dispored = H1.querySelector("#H1dispo-red");
-const dispo1 = H1.querySelector("#H1dispo-1");
-const dispoRTD = H1.querySelector("#H1dispo-RTD");
-if(H1red.checked == true){
-    console.log("it works");
-    H1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    H1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(H1c1.checked == true){
-      H1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        H1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyH4() {
-const H4red = H4.querySelector("#H4-redbtn");
-const H4c1 = H4.querySelector("#H4-1-btn");
-const dispored = H4.querySelector("#H4dispo-red");
-const dispo1 = H4.querySelector("#H4dispo-2");
-const dispoRTD = H4.querySelector("#H4dispo-RTD");
-if(H4red.checked == true){
-    console.log("it works");
-    H4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    H4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(H4c1.checked == true){
-      H4.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        H4.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyH2() {
-const H2red = H2.querySelector("#H2-redbtn");
-const H2c1 = H2.querySelector("#H2-1-btn");
-const dispored = H2.querySelector("#H2dispo-red");
-const dispo1 = H2.querySelector("#H2dispo-2");
-const dispoRTD = H2.querySelector("#H2dispo-RTD");
-if(H2red.checked == true){
-    console.log("it works");
-    H2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    H2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(H2c1.checked == true){
-      H2.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        H2.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-
-function justifyH3() {
-const H3red = H3.querySelector("#H3-redbtn");
-const H3c1 = H3.querySelector("#H3-1-btn");
-const dispored = H3.querySelector("#H3dispo-red");
-const dispo1 = H3.querySelector("#H3dispo-2");
-const dispoRTD = H3.querySelector("#H3dispo-RTD");
-if(H3red.checked == true){
-    console.log("it works");
-    H3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    H3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(H3c1.checked == true){
-      H3.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        H3.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyI1() {
-const I1red = I1.querySelector("#I1-redbtn");
-const I1c1 = I1.querySelector("#I1-1-btn");
-const dispored = I1.querySelector("#I1dispo-red");
-const dispo1 = I1.querySelector("#I1dispo-2");
-const dispoRTD = I1.querySelector("#I1dispo-RTD");
-if(I1red.checked == true){
-    console.log("it works");
-    I1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    I1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(I1c1.checked == true){
-      I1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        I1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyI2() {
-const I2red = I2.querySelector("#I2-redbtn");
-const I2c1 = I2.querySelector("#I2-1-btn");
-const dispored = I2.querySelector("#I2dispo-red");
-const dispo1 = I2.querySelector("#I2dispo-2");
-const dispoRTD = I2.querySelector("#I2dispo-RTD");
-if(I2red.checked == true){
-    console.log("it works");
-    I2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    I2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(I2c1.checked == true){
-      I2.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        I2.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyI3() {
-const I3red = I3.querySelector("#I3-redbtn");
-const I3c1 = I3.querySelector("#I3-1-btn");
-const dispored = I3.querySelector("#I3dispo-red");
-const dispo1 = I3.querySelector("#I3dispo-2");
-const dispoRTD = I3.querySelector("#I3dispo-RTD");
-if(I3red.checked == true){
-    console.log("it works");
-    I3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    I3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(I3c1.checked == true){
-      I3.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        I3.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyI4() {
-const I4red = I4.querySelector("#I4-redbtn");
-const I4c1 = I4.querySelector("#I4-1-btn");
-const dispored = I4.querySelector("#I4dispo-red");
-const dispo1 = I4.querySelector("#I4dispo-2");
-const dispoRTD = I4.querySelector("#I4dispo-RTD");
-if(I4red.checked == true){
-    console.log("it works");
-    I4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    I4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(I4c1.checked == true){
-      I4.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        I4.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyI5() {
-const I5red = I5.querySelector("#I5-redbtn");
-const I5c1 = I5.querySelector("#I5-1-btn");
-const dispored = I5.querySelector("#I5dispo-red");
-const dispo1 = I5.querySelector("#I5dispo-2");
-const dispoRTD = I5.querySelector("#I5dispo-RTD");
-if(I5red.checked == true){
-    console.log("it works");
-    I5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    I5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(I5c1.checked == true){
-      I5.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        I5.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyI6() {
-const I6red = I6.querySelector("#I6-redbtn");
-const I6c1 = I6.querySelector("#I6-1-btn");
-const dispored = I6.querySelector("#I6dispo-red");
-const dispo1 = I6.querySelector("#I6dispo-2");
-const dispoRTD = I6.querySelector("#I6dispo-RTD");
-if(I6red.checked == true){
-    console.log("it works");
-    I6.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    I6.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(I6c1.checked == true){
-      I6.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispoRTD.classList.contains("open")){dispoRTD.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        I6.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyK1() {
-  const K1red = K1.querySelector("#K1-redbtn");
-  const K1c1 = K1.querySelector("#K1-1-btn");
-  const dispored = K1.querySelector("#K1dispo-red");
-  const dispo1 = K1.querySelector("#K1dispo-2");
-  const dispoRTD = K1.querySelector("#K1dispo-RTD");
-  if(K1red.checked == true){
-      console.log("it works");
-      K1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-  }else{
-      K1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(K1c1.checked == true){
-        K1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-  
-      }else{
-          K1.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-            }
-          }
-        }
-
-function justifyK2() {
-const K2red = K2.querySelector("#K2-redbtn");
-const K2c1 = K2.querySelector("#K2-1-btn");
-const dispored = K2.querySelector("#K2dispo-red");
-const dispo1 = K2.querySelector("#K2dispo-2");
-const dispoRTD = K2.querySelector("#K2dispo-RTD");
-if(K2red.checked == true){
-    console.log("it works");
-    K2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    K2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(K2c1.checked == true){
-      K2.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        K2.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyK3() {
-const K3red = K3.querySelector("#K3-redbtn");
-const K3c1 = K3.querySelector("#K3-1-btn");
-const dispored = K3.querySelector("#K3dispo-red");
-const dispo1 = K3.querySelector("#K3dispo-2");
-const dispoRTD = K3.querySelector("#K3dispo-RTD");
-if(K3red.checked == true){
-    console.log("it works");
-    K3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    K3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(K3c1.checked == true){
-      K3.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        K3.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyK4() {
-const K4red = K4.querySelector("#K4-redbtn");
-const K4c1 = K4.querySelector("#K4-1-btn");
-const dispored = K4.querySelector("#K4dispo-red");
-const dispo1 = K4.querySelector("#K4dispo-2");
-const dispoRTD = K4.querySelector("#K4dispo-RTD");
-if(K4red.checked == true){
-    console.log("it works");
-    K4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    K4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(K4c1.checked == true){
-      K4.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        K4.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyK5() {
-const K5red = K5.querySelector("#K5-redbtn");
-const K5c1 = K5.querySelector("#K5-1-btn");
-const dispored = K5.querySelector("#K5dispo-red");
-const dispo1 = K5.querySelector("#K5dispo-2");
-const dispoRTD = K5.querySelector("#K5dispo-RTD");
-if(K5red.checked == true){
-    console.log("it works");
-    K5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    K5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(K5c1.checked == true){
-      K5.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        K5.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyK5() {
-const K5red = K5.querySelector("#K5-redbtn");
-const K5c1 = K5.querySelector("#K5-1-btn");
-const dispored = K5.querySelector("#K5dispo-red");
-const dispo1 = K5.querySelector("#K5dispo-2");
-const dispoRTD = K5.querySelector("#K5dispo-RTD");
-if(K5red.checked == true){
-    console.log("it works");
-    K5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    K5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(K5c1.checked == true){
-      K5.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        K5.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-
-function justifyK6() {
-const K6red = K6.querySelector("#K6-redbtn");
-const K6c1 = K6.querySelector("#K6-1-btn");
-const dispored = K6.querySelector("#K6dispo-red");
-const dispo1 = K6.querySelector("#K6dispo-2");
-const dispoRTD = K6.querySelector("#K6dispo-RTD");
-if(K6red.checked == true){
-    console.log("it works");
-    K6.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    K6.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(K6c1.checked == true){
-      K6.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        K6.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyK7() {
-const K7red = K7.querySelector("#K7-redbtn");
-const K7c1 = K7.querySelector("#K7-1-btn");
-const dispored = K7.querySelector("#K7dispo-red");
-const dispo1 = K7.querySelector("#K7dispo-2");
-const dispoRTD = K7.querySelector("#K7dispo-RTD");
-if(K7red.checked == true){
-    console.log("it works");
-    K7.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    K7.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(K7c1.checked == true){
-      K7.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        K7.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyJ1() {
-const J1red = J1.querySelector("#J1-redbtn");
-const J1c1 = J1.querySelector("#J1-1-btn");
-const dispored = J1.querySelector("#J1dispo-red");
-const dispo1 = J1.querySelector("#J1dispo-2");
-const dispoRTD = J1.querySelector("#J1dispo-RTD");
-if(J1red.checked == true){
-    console.log("it works");
-    J1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J1c1.checked == true){
-      J1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyJ2() {
-const J2red = J2.querySelector("#J2-redbtn");
-const J2c1 = J2.querySelector("#J2-1-btn");
-const dispored = J2.querySelector("#J2dispo-red");
-const dispo1 = J2.querySelector("#J2dispo-2");
-const dispoRTD = J2.querySelector("#J2dispo-RTD");
-if(J2red.checked == true){
-    console.log("it works");
-    J2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J2c1.checked == true){
-      J2.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J2.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }  
-function justifyJ3() {
-const J3red = J3.querySelector("#J3-redbtn");
-const J3c1 = J3.querySelector("#J3-1-btn");
-const dispored = J3.querySelector("#J3dispo-red");
-const dispo1 = J3.querySelector("#J3dispo-2");
-const dispoRTD = J3.querySelector("#J3dispo-RTD");
-if(J3red.checked == true){
-    console.log("it works");
-    J3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J3c1.checked == true){
-      J3.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J3.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      } 
-function justifyJ4() {
-const J4red = J4.querySelector("#J4-redbtn");
-const J4c1 = J4.querySelector("#J4-1-btn");
-const dispored = J4.querySelector("#J4dispo-red");
-const dispo1 = J4.querySelector("#J4dispo-2");
-const dispoRTD = J4.querySelector("#J4dispo-RTD");
-if(J4red.checked == true){
-    console.log("it works");
-    J4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J4c1.checked == true){
-      J4.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J4.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }  
-function justifyJ5() {
-const J5red = J5.querySelector("#J5-redbtn");
-const J5c1 = J5.querySelector("#J5-1-btn");
-const dispored = J5.querySelector("#J5dispo-red");
-const dispo1 = J5.querySelector("#J5dispo-2");
-const dispoRTD = J5.querySelector("#J5dispo-RTD");
-if(J5red.checked == true){
-    console.log("it works");
-    J5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J5c1.checked == true){
-      J5.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J5.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }  
-function justifyJ6() {
-const J6red = J6.querySelector("#J6-redbtn");
-const J6c1 = J6.querySelector("#J6-1-btn");
-const dispored = J6.querySelector("#J6dispo-red");
-const dispo1 = J6.querySelector("#J6dispo-2");
-const dispoRTD = J6.querySelector("#J6dispo-RTD");
-if(J6red.checked == true){
-    console.log("it works");
-    J6.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J6.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J6c1.checked == true){
-      J6.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J6.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }  
-function justifyJ7() {
-const J7red = J7.querySelector("#J7-redbtn");
-const J7c1 = J7.querySelector("#J7-1-btn");
-const dispored = J7.querySelector("#J7dispo-red");
-const dispo1 = J7.querySelector("#J7dispo-1");
-const dispoRTD = J7.querySelector("#J7dispo-RTD");
-if(J7red.checked == true){
-    console.log("it works");
-    J7.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J7.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J7c1.checked == true){
-      J7.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J7.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }  
-
-function justifyJ8() {
-const J8red = J8.querySelector("#J8-redbtn");
-const J8c1 = J8.querySelector("#J8-1-btn");
-const dispored = J8.querySelector("#J8dispo-red");
-const dispo1 = J8.querySelector("#J8dispo-1");
-const dispoRTD = J8.querySelector("#J8dispo-RTD");
-if(J8red.checked == true){
-    console.log("it works");
-    J8.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J8.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J8c1.checked == true){
-      J8.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J8.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }  
-function justifyJ9() {
-const J9red = J9.querySelector("#J9-redbtn");
-const J9c1 = J9.querySelector("#J9-1-btn");
-const dispored = J9.querySelector("#J9dispo-red");
-const dispo1 = J9.querySelector("#J9dispo-1");
-const dispoRTD = J9.querySelector("#J9dispo-RTD");
-if(J9red.checked == true){
-    console.log("it works");
-    J9.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J9.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J9c1.checked == true){
-      J9.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J9.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      } 
-function justifyJ10() {
-const J10red = J10.querySelector("#J10-redbtn");
-const J10c1 = J10.querySelector("#J10-1-btn");
-const dispored = J10.querySelector("#J10dispo-red");
-const dispo1 = J10.querySelector("#J10dispo-1");
-const dispoRTD = J10.querySelector("#J10dispo-RTD");
-if(J10red.checked == true){
-    console.log("it works");
-    J10.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J10.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J10c1.checked == true){
-      J10.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J10.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      } 
-function justifyJ11() {
-const J11red = J11.querySelector("#J11-redbtn");
-const J11c1 = J11.querySelector("#J11-1-btn");
-const dispored = J11.querySelector("#J11dispo-red");
-const dispo1 = J11.querySelector("#J11dispo-1");
-const dispoRTD = J11.querySelector("#J11dispo-RTD");
-if(J11red.checked == true){
-    console.log("it works");
-    J11.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J11.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J11c1.checked == true){
-      J11.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J11.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      } 
- function justifyJ12() {
-const J12red = J12.querySelector("#J12-redbtn");
-const J12c1 = J12.querySelector("#J12-1-btn");
-const dispored = J12.querySelector("#J12dispo-red");
-const dispo1 = J12.querySelector("#J12dispo-1");
-const dispoRTD = J12.querySelector("#J12dispo-RTD");
-if(J12red.checked == true){
-    console.log("it works");
-    J12.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J12.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J12c1.checked == true){
-      J12.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J12.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      } 
-function justifyJ13() {
-const J13red = J13.querySelector("#J13-redbtn");
-const J13c1 = J13.querySelector("#J13-1-btn");
-const dispored = J13.querySelector("#J13dispo-red");
-const dispo1 = J13.querySelector("#J13dispo-1");
-const dispoRTD = J13.querySelector("#J13dispo-RTD");
-if(J13red.checked == true){
-    console.log("it works");
-    J13.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J13.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J13c1.checked == true){
-      J13.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J13.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      } 
-function justifyJ14() {
-const J14red = J14.querySelector("#J14-redbtn");
-const J14c1 = J14.querySelector("#J14-1-btn");
-const dispored = J14.querySelector("#J14dispo-red");
-const dispo1 = J14.querySelector("#J14dispo-1");
-const dispoRTD = J14.querySelector("#J14dispo-RTD");
-if(J14red.checked == true){
-    console.log("it works");
-    J14.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J14.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J14c1.checked == true){
-      J14.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J14.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      } 
-function justifyJ15() {
-const J15red = J15.querySelector("#J15-redbtn");
-const J15c1 = J15.querySelector("#J15-1-btn");
-const dispored = J15.querySelector("#J15dispo-red");
-const dispo1 = J15.querySelector("#J15dispo-1");
-const dispoRTD = J15.querySelector("#J15dispo-RTD");
-if(J15red.checked == true){
-    console.log("it works");
-    J15.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J15.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J15c1.checked == true){
-      J15.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J15.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      } 
-function justifyJ16() {
-const J16red = J16.querySelector("#J16-redbtn");
-const J16c1 = J16.querySelector("#J16-1-btn");
-const dispored = J16.querySelector("#J16dispo-red");
-const dispo1 = J16.querySelector("#J16dispo-1");
-const dispoRTD = J16.querySelector("#J16dispo-RTD");
-if(J16red.checked == true){
-    console.log("it works");
-    J16.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J16.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J16c1.checked == true){
-      J16.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J16.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      } 
-function justifyJ17() {
-const J17red = J17.querySelector("#J17-redbtn");
-const J17c1 = J17.querySelector("#J17-1-btn");
-const dispored = J17.querySelector("#J17dispo-red");
-const dispo1 = J17.querySelector("#J17dispo-1");
-const dispoRTD = J17.querySelector("#J17dispo-RTD");
-if(J17red.checked == true){
-    console.log("it works");
-    J17.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J17.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J17c1.checked == true){
-      J17.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J17.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      } 
-function justifyJ18() {
-const J18red = J18.querySelector("#J18-redbtn");
-const J18c1 = J18.querySelector("#J18-1-btn");
-const dispored = J18.querySelector("#J18dispo-red");
-const dispo1 = J18.querySelector("#J18dispo-1");
-const dispoRTD = J18.querySelector("#J18dispo-RTD");
-if(J18red.checked == true){
-    console.log("it works");
-    J18.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    J18.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(J18c1.checked == true){
-      J18.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        J18.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      } 
-
- 
-
-
-
-
-function justifyL1() {
-const L1red = L1.querySelector("#L1-redbtn");
-const L1c1 = L1.querySelector("#L1-1-btn");
-const dispored = L1.querySelector("#L1dispo-red");
-const dispo1 = L1.querySelector("#L1dispo-2");
-const dispoRTD = L1.querySelector("#L1dispo-RTD");
-if(L1red.checked == true){
-    console.log("it works");
-    L1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    L1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(L1c1.checked == true){
-      L1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        L1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      } 
-function justifyL2() {
-const L2red = L2.querySelector("#L2-redbtn");
-const L2c1 = L2.querySelector("#L2-1-btn");
-const dispored = L2.querySelector("#L2dispo-red");
-const dispo1 = L2.querySelector("#L2dispo-2");
-const dispoRTD = L2.querySelector("#L2dispo-RTD");
-if(L2red.checked == true){
-    console.log("it works");
-    L2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    L2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(L2c1.checked == true){
-      L2.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        L2.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyL3() {
-const L3red = L3.querySelector("#L3-redbtn");
-const L3c1 = L3.querySelector("#L3-1-btn");
-const dispored = L3.querySelector("#L3dispo-red");
-const dispo1 = L3.querySelector("#L3dispo-2");
-const dispoRTD = L3.querySelector("#L3dispo-RTD");
-if(L3red.checked == true){
-    console.log("it works");
-    L3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    L3.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(L3c1.checked == true){
-      L3.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        L3.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyL4() {
-const L4red = L4.querySelector("#L4-redbtn");
-const L4c1 = L4.querySelector("#L4-1-btn");
-const dispored = L4.querySelector("#L4dispo-red");
-const dispo1 = L4.querySelector("#L4dispo-2");
-const dispoRTD = L4.querySelector("#L4dispo-RTD");
-if(L4red.checked == true){
-    console.log("it works");
-    L4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    L4.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(L4c1.checked == true){
-      L4.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        L4.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyL5() {
-const L5red = L5.querySelector("#L5-redbtn");
-const L5c1 = L5.querySelector("#L5-1-btn");
-const dispored = L5.querySelector("#L5dispo-red");
-const dispo1 = L5.querySelector("#L5dispo-2");
-const dispoRTD = L5.querySelector("#L5dispo-RTD");
-if(L5red.checked == true){
-    console.log("it works");
-    L5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    L5.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(L5c1.checked == true){
-      L5.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        L5.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyL6() {
-const L6red = L6.querySelector("#L6-redbtn");
-const L6c1 = L6.querySelector("#L6-1-btn");
-const dispored = L6.querySelector("#L6dispo-red");
-const dispo1 = L6.querySelector("#L6dispo-2");
-const dispoRTD = L6.querySelector("#L6dispo-RTD");
-if(L6red.checked == true){
-    console.log("it works");
-    L6.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    L6.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(L6c1.checked == true){
-      L6.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        L6.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyL7() {
-const L7red = L7.querySelector("#L7-redbtn");
-const L7c1 = L7.querySelector("#L7-1-btn");
-const dispored = L7.querySelector("#L7dispo-red");
-const dispo1 = L7.querySelector("#L7dispo-2");
-const dispoRTD = L7.querySelector("#L7dispo-RTD");
-if(L7red.checked == true){
-    console.log("it works");
-    L7.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    L7.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(L7c1.checked == true){
-      L7.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        L7.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyL8() {
-  const L8red = L8.querySelector("#L8-redbtn");
-  const L8c1 = L8.querySelector("#L8-1-btn");
-  const dispored = L8.querySelector("#L8dispo-red");
-  const dispo1 = L8.querySelector("#L8dispo-2");
-  const dispoRTD = L8.querySelector("#L8dispo-RTD");
-  if(L8red.checked == true){
-      console.log("it works");
-      L8.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')}); 
-      if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-  }else{
-      L8.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(L8c1.checked == true){
-        L8.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-        if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-  
-      }else{
-          L8.querySelectorAll('.dispobox').forEach(el => {
-            el.classList.remove('open')});
-            if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-            }
-          }
-        }
-function justifyL9() {
-const L9red = L9.querySelector("#L9-redbtn");
-const L9c1 = L9.querySelector("#L9-1-btn");
-const dispored = L9.querySelector("#L9dispo-red");
-const dispo1 = L9.querySelector("#L9dispo-2");
-const dispoRTD = L9.querySelector("#L9dispo-RTD");
-if(L9red.checked == true){
-    console.log("it works");
-    L9.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    L9.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(L9c1.checked == true){
-      L9.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        L9.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyL10() {
-const L10red = L10.querySelector("#L10-redbtn");
-const L10c1 = L10.querySelector("#L10-1-btn");
-const dispored = L10.querySelector("#L10dispo-red");
-const dispo1 = L10.querySelector("#L10dispo-2");
-const dispoRTD = L10.querySelector("#L10dispo-RTD");
-if(L10red.checked == true){
-    console.log("it works");
-    L10.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    L10.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(L10c1.checked == true){
-      L10.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        L10.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyL11() {
-const L11red = L11.querySelector("#L11-redbtn");
-const L11c1 = L11.querySelector("#L11-1-btn");
-const dispored = L11.querySelector("#L11dispo-red");
-const dispo1 = L11.querySelector("#L11dispo-2");
-const dispoRTD = L11.querySelector("#L11dispo-RTD");
-if(L11red.checked == true){
-    console.log("it works");
-    L11.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    L11.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(L11c1.checked == true){
-      L11.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        L11.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyL12() {
-const L12red = L12.querySelector("#L12-redbtn");
-const L12c1 = L12.querySelector("#L12-1-btn");
-const dispored = L12.querySelector("#L12dispo-red");
-const dispo1 = L12.querySelector("#L12dispo-2");
-const dispoRTD = L12.querySelector("#L12dispo-RTD");
-if(L12red.checked == true){
-    console.log("it works");
-    L12.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    L12.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(L12c1.checked == true){
-      L12.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        L12.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyM1() {
-const M1red = M1.querySelector("#M1-redbtn");
-const M1c1 = M1.querySelector("#M1-1-btn");
-const dispored = M1.querySelector("#M1dispo-red");
-const dispo1 = M1.querySelector("#M1dispo-2");
-const dispoRTD = M1.querySelector("#M1dispo-RTD");
-if(M1red.checked == true){
-    console.log("it works");
-    M1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    M1.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(M1c1.checked == true){
-      M1.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        M1.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
-function justifyM2() {
-const M2red = M2.querySelector("#M2-redbtn");
-const M2c1 = M2.querySelector("#M2-1-btn");
-const dispored = M2.querySelector("#M2dispo-red");
-const dispo1 = M2.querySelector("#M2dispo-2");
-const dispoRTD = M2.querySelector("#M2dispo-RTD");
-if(M2red.checked == true){
-    console.log("it works");
-    M2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')}); 
-    if(!dispored.classList.contains("open")){dispored.classList.toggle("open");greenbtn.classList.add("closed")}
-}else{
-    M2.querySelectorAll('.dispobox').forEach(el => {
-      el.classList.remove('open')});
-    if(M2c1.checked == true){
-      M2.querySelectorAll('.dispobox').forEach(el => {
-        el.classList.remove('open')});
-      if(!dispo1.classList.contains("open")){dispo1.classList.toggle("open"); greenbtn.classList.add("closed")};
-
-    }else{
-        M2.querySelectorAll('.dispobox').forEach(el => {
-          el.classList.remove('open')});
-          if(!dispoRTD.classList.contains("open")&& greenbtn.classList.contains("closed")){dispoRTD.classList.toggle("open")}
-          }
-        }
-      }
