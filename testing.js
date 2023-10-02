@@ -1,14 +1,5 @@
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", function() {
-    navigator.serviceWorker
-      .register("/serviceWorker.js")
-      .then(res => console.log("service worker registered"))
-      .catch(err => console.log("service worker not registered", err))
-  })
-}
-
 const  
-  A1ACT1 = [],
+  A1ACT1 = ["Perform Rapid Strep + Culture Test (barracks, positive close contact, immunosuppressed contact, h/o ARF)"],
   A1ACT2 = [],
   A1ACT3 = [],  
   A1DP1 = ["DP2. 4 questions that look at the chance of having a Group A Streptococcal (GAS) infection. If 3 of the questions are positive, there is 32% chance of having GAS and a rapid antigen test (RADT) should be performed. The RADT is effective for ruling out GAS in adults but some Soldiers with GAS are missed. Culture test is performed when the RADT is negative and Soldiers or their contacts are at higher risk for complications from a GAS infection. Culture generally takes 24-48 hours for the results to return."],
@@ -280,7 +271,6 @@ const
   C1MEDCOM = ["Administer Antiemetic pg. 67(3)(g)","Obtain Laboratory Specimens pg. 69-70(2)(k)"],
   C1STP1 = ["N/A"],
   C1DDX = ["Medication","Infection","Intense Pain","Pregnancy","Concussion","Heartburn"],
-
 
   C2ACT1 = [],
   C2ACT2 = [],
@@ -1476,7 +1466,6 @@ L11FLAG = ["N/A"],
 L12FLAG = ["N/A"],
 M1FLAG = ["N/A"],
 M2FLAG = ["N/A"],
-
 End = [];
 
 const A1decision = {  
@@ -3092,8 +3081,7 @@ const F5decision = {
   "STP" : M2STP1,
   "RF" : M2FLAG,
   "DDX" : M2DDX
-  }
-
+  }  
 
 //Array linking main category buttons to the subcategory boxes
 const subcatboxes = {
@@ -3293,21 +3281,12 @@ var reverse = document.querySelector("#menu-back-box")
 var homebtn = document.querySelector("#menu-main-box")
 var infoTitle = document.querySelector(".info-title")
 
-homebtn.addEventListener("click", () =>{
-  if(main.classList.contains("selected")){
-    main.classList.remove("selected")
-    main.classList.add("place-up")
-  }else{
-    main.classList.remove("place-up");
-    main.classList.remove("place-left")
-    main.classList.add("selected")
-  }
-})
 
 const rtn = document.querySelector("#menu-icon3")
 function retn(){
   const subpage = document.querySelector(".sub-page");
   subpage.classList.remove("open");
+  if(sub3.classList.contains("open")){sub3.classList.remove("open")}
   var sheet = document.querySelectorAll(".ADTsheet.open");
   sheet.forEach(el => {
     el.classList.remove("open");
@@ -3324,6 +3303,29 @@ function retn(){
     el.querySelectorAll(".dispobox.Nah").forEach(el3 =>{
       el3.classList.remove("open")
     })
+    el.querySelectorAll(".close").forEach(el4 =>{
+      var b = el4.closest(".Q")
+      var c = b.querySelector(".dispobox.Yikes");
+      var d = c.querySelector(".justbox")
+      if(b.querySelector(".dispobox.Nah")==null){null}else{
+        var e= b.querySelector(".dispobox.Nah")
+        e.querySelector(".justbox").classList.remove("open")
+        }
+        d.classList.remove("open")
+        par = el4.parentElement
+        grandpar = par.parentElement
+        if(grandpar.classList.contains("back2")){
+          var back = b.querySelector(".back2")
+        }else{
+          var back = b.querySelector(".back1")
+        }
+        var style = getComputedStyle(back)
+        var bg = style.backgroundColor
+        back.removeAttribute("style");
+        back.classList.remove("opened");
+        b.querySelector(".front").classList.remove("closed");
+    })
+    
   })
   nav.classList.remove("paged");
   var sel = nav.innerText
@@ -3337,14 +3339,16 @@ function retn(){
     }
   })
 }
-
+var sub3 = document.querySelector(".submissionbox")
+var tag = document.querySelector(".submissiontag")
+var tagsheet = document.querySelector(".submissionsheet")
+var subpage = document.querySelector(".sub-page-bottom")
 //question yes-no slider action + justify() at end
 var btns = document.querySelectorAll(".Aa");
 btns.forEach(function(currentbtn){
   currentbtn.addEventListener("click",()=>{
-    scrollTo(currentbtn)
     var Qs = currentbtn.closest(".Q");
-    if(Qs.classList.contains("ACTY")){console.log("here")}
+    var ADT = Qs.closest(".ADTsheet.open")
     var slider = Qs.querySelector(".slider");
     var dispobox = Qs.querySelector(".dispobox.Yikes");
     var dispo = dispobox.querySelector(".iconbutton")
@@ -3353,6 +3357,7 @@ btns.forEach(function(currentbtn){
       if(Qs.querySelector(".dispobox.Nah") == null){null}else{
         var nah = Qs.querySelector(".dispobox.Nah");
         nah.classList.remove("open")
+        sub3.classList.remove("open")
       }
       slider.classList.add("yes")
       slider.classList.remove("no");
@@ -3362,32 +3367,60 @@ btns.forEach(function(currentbtn){
         const color = style.backgroundColor
         slider.style.backgroundColor = color;
         dispo.style.backgroundColor = color;
+        sub3.classList.add("open")
+        tagsheet.style.backgroundColor = color;
+        if(Qs.classList.contains("ACTN")||Qs.classList.contains("ACTY")||Qs.classList.contains("ACT")||Qs.nextElementSibling.classList.contains("ACTY")||Qs.nextElementSibling.classList.contains("ACTN")||Qs.nextElementSibling.classList.contains("ACT")){sub3.classList.remove("open")
+        }else{
+      }
         dispo.style.color = "#333"
         justify()
+        
+
     }
     if(currentbtn.classList.contains("N")){
       slider.classList.add("no")
       slider.classList.remove("yes");
       dispobox.classList.remove("open");
       if(Qs.querySelector(".dispobox.Nah") == null){
-        slider.removeAttribute('style')}
+        slider.removeAttribute('style')
+        sub3.classList.remove("open")
+      }
         else{
           var nah = Qs.querySelector(".dispobox.Nah");
           var nahbar = nah.querySelector(".dispobar")
           const style = getComputedStyle(nahbar);
           const color = style.backgroundColor
           var d = nah.querySelector(".iconbutton")
+          tagsheet.style.backgroundColor = color
           d.style.backgroundColor = color;
           slider.style.backgroundColor = color;
           nah.classList.add("open")
+          sub3.classList.add("open")
         }
         justify()
+        
+
+
+
     }
+    const sectionTwo = document.querySelector(".bottommarker");
+const sectionTwoOptions = {};
+  const sectionTwoObs = new IntersectionObserver(function(entries, sectionTwoObs){
+    entries.forEach(entry => {
+      if(!entry.isIntersecting){
+        if(document.querySelector(".sub-page").classList.contains("open")){
+          sectionTwo.scrollIntoView();
+        }
+      }
+    });
+  }, sectionTwoOptions);
+  sectionTwoObs.observe(sectionTwo)
   })
 })
 //justification for how cards appear and disappear
 function justify(){
   var ADT = document.querySelector(".ADTsheet.open")
+  var page = ADT.closest(".sub-page-bottom")
   var QRED = ADT.querySelector(".QRED")
   var Q1 = ADT.querySelector(".Q1")
   var Q2 = ADT.querySelector(".Q2")
@@ -3419,8 +3452,10 @@ function justify(){
         if(QRED.nextElementSibling.classList.contains("ACTN")){
           QRED.nextElementSibling.classList.add("open")
           Q1.classList.add("open")
+
         }else{
           Q1.classList.add("open")
+
         }
       }
     }
@@ -3563,10 +3598,12 @@ function clearboard(){
   CLP.classList.remove("open")
   CLP.querySelector(".slider").classList.remove("o","yes","no")
   if(CLP.querySelector(".dispobox.Yikes") == null){null}else{CLP.querySelector(".dispobox.Yikes").classList.remove("open")}
-  if(CLP.querySelector(".dispobox.Nah") == null){null}else{CLP.querySelector(".dispobox.Nah").classList.remove("open")}
-    CLP = CLP.nextElementSibling
+  if(CLP.querySelector(".dispobox.Nah") == null){null}else{CLP.querySelector(".dispobox.Nah").classList.remove("open")}  
+  CLP = CLP.nextElementSibling
   }
 }
+
+
 
 reverse.addEventListener("click", () =>{
   var cat = document.querySelector(".sel-box.selected")
@@ -3595,7 +3632,6 @@ subItems.forEach(function(btn){
       banner2.classList.add("open");
       banner2.innerHTML = btn.innerText
       sheet.classList.add("selected");
-      console.log(sheet)
       reverse.classList.remove("engaged")
       homebtn.classList.add("engaged")
     }
@@ -3610,11 +3646,12 @@ subItems.forEach(function(btn){
       var looking = btn.querySelector(".texticon").innerHTML
       var looking2 = btn.querySelector(".btn-text").innerHTML
       var titles = looking +"<br>"+looking2
+      var subtitle = document.querySelector(".SOAPtitle")
+      subtitle.innerHTML = looking +": "+ looking2
       title.innerHTML = titles
       infoTitle.innerHTML = looking + "<br>" +looking2
       Su.classList.add("open");
       var sheetid = sheet.id;
-      console.log(sheet)
       sheet.classList.add("open");
       const existing = document.getElementsByClassName("made")
       while(existing.length > 0){
@@ -3680,6 +3717,367 @@ subItems.forEach(function(btn){
   })
 })
 
+const med1 = [
+  {Category:["Trade Name"],Content:["Tylenol"]},
+  {Category:["Indications"],Content:["Pain or Fever"]},
+  {Category:["Adult Dosing"],Content:["325mg PO: Take 2 tabs every 6 hr daily as needed for fever or pain <br> (Maximum 2.6g in 24hrs)","235-650mg PO: Every 4-6 hr or 1000mg 3-4 times daily <br> (Maximum 4g in 24hrs)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["15mg/kg/dose: Every 4-6 hr as needed <br> (Maximum 2.6g in 24 hrs)"]},
+  {Category:["Contraindications"],Content:["Hypersensitiviy to acetaminophen or any component of the formulation","Hepatic impairment or liver disease"]},
+  {Category:["Lactation Safety"],Content:["Safe"]},
+  {Category:["Pregnancy Safety"],Content:["Class B - Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Avoid use in patient suffering alcohol toxicity, known alcohol abuse, or renal impairment","Nausea, vomiting","G6PD deficiency"]},
+  {Category:["Mechanism of Action"],Content:["Analgesic effect believed to be related to serotonergic inhibitory pathways in the CNS","Antipyresis from inhibition of the hypothalamic heat-regulating center"]},
+  {Category:["Aviation considerations"],Content:["Class 1 when used infrequently or in low dosage."]}]
+const med2 = [
+  {Category:["Trade Name"],Content:["Acetasol HC"]},
+  {Category:["Indications"],Content:["Otitis Externa"]},
+  {Category:["Adult Dosing"],Content:[""]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:[""]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to acetic acid, propylene glycol, hydrocortisone or any components of the formulation","Perforated tympanic membrane","HSV or varicella infection","Local reaction/ irritation develops"]},
+  {Category:["Lactation Safety"],Content:["Unknown- Considered Safe"]},
+  {Category:["Pregnancy Safety"],Content:["Class C– Potential for Harm"]},
+  {Category:["Adverse Reactions"],Content:["Stinging of ear, burning sensation","Local irritation"]},
+  {Category:["Mechanism of Action"],Content:["Acetic acid has bacteriostatic and fungistatic properties.","Hydrocortisone has anti-inflammatory, anti-pruritic, and vasoconstrictive properties.","Hydrocortisone induces phospholipase A2 inhibitory proteins and inhibits the release of arachidonic acid decreasing the mediators of inflammation."]},
+  {Category:["Aviation considerations"],Content:[""]}]
+const med3 = [
+  {Category:["Trade Name"],Content:["Aspirin","Bayer"]},
+  {Category:["Indications"],Content:["Acute Coronary Syndrome","Unstable Angina","Non-ST Segment Elevated Myocardial Infarction"]},
+  {Category:["Adult Dosing"],Content:["81mg PO: Chew 4 nonenteric coated baby aspirin in a single dose (4 x 81mg)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["N/A"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to salicylates, other NSAIDs, or any component of the formulation","Asthma, Rhinitis","History of stomach ulcer, bleeding problem, black or bloody stools","Children recovering from chickenpox or flu-like symptoms due to risk of Reye syndrome"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Class D - Unsafe"]},
+  {Category:["Adverse Reactions"],Content:["Not for use on trauma patients in the combat environment.","Risk of bleeding: Avoid use in patients with known or suspected, Bleeding disorders, GI Bleed, GI Ulcers, patients taking Coumadin, or within 24hrs of taking Alteplase (tPA) for suspected stroke"]},
+  {Category:["Mechanism of Action"],Content:["Blocks cyclooxygenase (COX 1 and 2) enzymes, resulting in reduced formation of prostaglandin precursors.","Blocks formation of prostaglandin derivative, thromboxane A2, resulting ininhibited platelet aggregation.","Antipyretic, analgesic, and anti-inflammatory properties."]},
+  {Category:["Aviation considerations"],Content:["None"]}]
+const med4 = [
+  {Category:["Trade Name"],Content:["Differin Cream, 0.1% Gel is OTC"]},
+  {Category:["Indications"],Content:[""]},
+  {Category:["Adult Dosing"],Content:["0.1% Topical: Apply a thin film once daily at bedtime <br> (nickel size amount for entire face)","0.1-0.3% Topical: Apply a thin film once daily at bedtime"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["N/A"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to adapalene or any component of the formulation","Not approved for children under 12 years old","Avoid contact with mucous membranes (eyes, nose, mouth, vaginal, and anal mucosa)","Avoid contact with broken, eczematous, or sunburned skin"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Class C - Potential Harm"]},
+  {Category:["Adverse Reactions"],Content:[""]},
+  {Category:["Mechanism of Action"],Content:["Dry skin, redness, burning or stinging of the skin, skin peeling","Skin itching","Increased susceptibility to sunburn"]},
+  {Category:["Aviation considerations"],Content:["None"]}]
+const med5 = [
+  {Category:["Trade Name"],Content:["Proventil","Ventolin"]},
+  {Category:["Indications"],Content:["Bronchospasm"]},
+  {Category:["Adult Dosing"],Content:["90 mcg/puff inhaler: 2 puffs every 6 hours as needed","5.0mg Nebulizer: Every 6 hours as needed"," 90mcg/puff inhaler: 4 puffs every 20min for up to 4hr then every 2hr as needed"," 2.5-5.0mg Nebulizer: Every 20 min for 3 doses; then 2.5-10mg every 1-4 hrs as needed OR 10-15mg/hour continuous"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["90 mcg/puff inhaler: 4 puffs every 20 min for 3 doses; then every 1-4 hr as needed","2.5-5.0mg Nebulizer: Every 4-8 hours as needed"," 90mcg/puff inhaler: 4 puffs every 20min for 3 doses then every 1-4 hr as needed"," 2.5-5.0mg Nebulizer: Every 20 min for 3 doses; then 0.15-0.3mg/kg every 1-4 hrs as needed (Maximum: 10mg) OR 0.5mg/kg/hour continuous"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to albuterol or any component of the formulation","Symptomatic tachycardia"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Class C - Uncertain safety"]},
+  {Category:["Adverse Reactions"],Content:["Risk of abortion during 1st or 2nd trimester","Headache, Dizziness, Flushing, Diaphoresis, Tremor,Weakness, Angina, A-Fib, Arrhythmia, Chest pain, Palpitations, Dyspnea, Bronchospasm in asthmatics"]},
+  {Category:["Mechanism of Action"],Content:["Beta2 Agonist (Bronchodilator)","Synthetic sympathomimetic that relaxes bronchial smoothmuscle, causing bronchodilation, with little cardiac impact."]},
+  {Category:["Aviation considerations"],Content:["None"]}
+]
+const med6 = [
+  {Category:["Trade Name"],Content:["Domeboro's Solution","Boro-packs","Pedi-Boro"]},
+  {Category:["Indications"],Content:["Contact Dermatitis","Skin Irritation"]},
+  {Category:["Adult Dosing"],Content:["1 packet topical: 1 packet/ 16 ounces water. Soak area or apply compress for 30 minutes. Repeat every 8 hours as needed. <br> 1 Boro-Pack = 0.16%","1 soak topical: Soak area every 8 hours as needed. Aplly compress for 15-30 min as needed for itching. 1-3 packets/16 ounces water (depending on brand)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["1-3 pkts topical: 1 packet/ 16 ounces water. Soak area every 8 hours as needed. Compress x 15-30 minutes as needed for itching <br> 1 Boro-Pack = 0.13%"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to aluminum acetate or any component of the formulation"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Unknown"]},
+  {Category:["Adverse Reactions"],Content:["Irritation or Rash","Avoid contact with eyes, mucous membranes"]},
+  {Category:["Mechanism of Action"],Content:["Astringent properties to relieve itching"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+]
+const med7 = [
+  {Category:["Trade Name"],Content:["Zithromax"]},
+  {Category:["Indications"],Content:["Cervicitis empiric therapy","Urethritis empiric therapy","Chlamydia trachomatis","Gonococcal infection"]},
+  {Category:["Adult Dosing"],Content:["1g PO: Gie one dose and observe while it is being taken (Give with Ceftriaxone)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["1g PO: if > 45.5kg 1g as single dose"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to azithromycin, erythromycin, other macrolide antibiotics or any component of the formulation","QT interval prolongation or history of arrhythmias","Liver Disease or Severe Renal Impairment"]},
+  {Category:["Lactation Safety"],Content:["Use caution; enters milk"]},
+  {Category:["Pregnancy Safety"],Content:["Class B - Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Diarrhea, nausea/ vomiting, GI upset"]},
+  {Category:["Mechanism of Action"],Content:["Macrolide Antibiotic","Inhibits RNA-dependent protein synthesis in susceptible organisms"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+]
+const med8 = [
+  {Category:["Trade Name"],Content:["Baciguent"]},
+  {Category:["Indications"],Content:["Skin infection","Cut, abrasion","Blister","Burn"]},
+  {Category:["Adult Dosing"],Content:["500 units/q Topical: Apply ointment 2-3 times per day to protect skin and help it heal","500 units/g Topical: Apply 1-3 times per day"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["500 units/g Topical: Apply 1-3 times per day"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to bacitracin or any component of the formulation"]},
+  {Category:["Lactation Safety"],Content:["Considered Safe"]},
+  {Category:["Pregnancy Safety"],Content:["Considered Safe"]},
+  {Category:["Adverse Reactions"],Content:["Limit use to 1 week. If condition remains after 1 week, Soldier should be seen by a provider."]},
+  {Category:["Mechanism of Action"],Content:["Inhibits bacterial cell wall synthesis by preventing the transfer of mucopeptides into the growing bacterial cell wall","Maintains a moist environment allowing for skin growth and repair"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+]
+const med9 = [
+  {Category:["Trade Name"],Content:["Cepacol Lozenge"]},
+  {Category:["Indications"],Content:["Sore Throat","Mouth Irritation"]},
+  {Category:["Adult Dosing"],Content:["1 lozenge PO: Allow 1 lozenge to dissolve slowly in mouth every 2 hours as needed","1 Lozenge PO: Every 2 hours as needed for sore throat"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:[">5 years old: Refer to Adult Dosing"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to benzocaine, para-aminobenzoic acid (PABA), or any component of the formulation","Children <5 years old, asthma, G6PD Deficiency due to risk of methemoglobinemia"]},
+  {Category:["Lactation Safety"],Content:["Unsafe"]},
+  {Category:["Pregnancy Safety"],Content:["Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Methemoglobinemia: blue lips/ nails, dizziness, headache, lethargy, shortness of breath"]},
+  {Category:["Mechanism of Action"],Content:["Blocks the initiation and conduction of nerve impulses","Decreases the neuronal membrane’s sodium ion permeability"]},
+  {Category:["Aviation considerations"],Content:["Acceptable provided the lozenge contains no prohibited medication. Benzocaine (or similar analgesic) containing throat spray or lozenge is acceptable. Long term use (more than 3 days) must be approved by the local flight surgeon."]}
+]
+
+const med10 = [
+  {Category:["Trade Name"],Content:["Acne-Clear","Acne Treatment"]},
+  {Category:["Indications"],Content:["Acne"]},
+  {Category:["Adult Dosing"],Content:["10% cream, gel topical: Apply to the affected area once a day in the morning for acne","2-10% Topical: Start daily and titrate up to 2-3/day as needed"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["N/A"]},
+  {Category:["Contraindications"],Content:[" Hypersensitivity to benzoyl peroxide or any other component of the formulation","Development of hives, itching, or signs of allergic reaction after use","Development of severe skin irritation after use"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Class C - Potential Risk"]},
+  {Category:["Adverse Reactions"],Content:[" Skin irritation, dry skin, skin peeling","Bleach hair, colored fabric","Combination with Dapsone may cause skin/ hair to turn a yellow/orange/tan color"]},
+  {Category:["Mechanism of Action"],Content:["Release of free radical oxygen which oxidizes bacterial proteins","Decreases number of anaerobic bacteria and irritating free fatty acids"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+]
+const med11 = [
+  {Category:["Trade Name"],Content:["Dulcolax"]},
+  {Category:["Indications"],Content:["Constipation"]},
+  {Category:["Adult Dosing"],Content:["5mg PO: Take 1-2 tabs daily <br> (Maximum: 1 week use)","5mg PO: Take 1-3 tabs daily"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["6-11 years old: 5mg daily"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to bisacodyl or any of its components","Signs of intestinal obstruction or bowel perforation: nausea, vomiting, pain, distension, abdominal rigidity"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Class B - Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Abdominal cramps, Abdominal pain, nausea, vomiting, headache","Do Not take within 1 hour of antacids, milk, or dairy products","Swallow the tab whole"]},
+  {Category:["Mechanism of Action"],Content:["Stimulated peristalsis by irritating the smooth muscles of the intestines and increases fluid accumulation in the intestines"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+]
+const med12 = [
+  {Category:["Trade Name"],Content:["Maalox","Pepto-Bismol"]},
+  {Category:["Indications"],Content:["Diarrhea","Indigestion"]},
+  {Category:["Adult Dosing"],Content:["262mg/15mL PO: Take 30mL every hour as needed for up to 2 days <br> (Maximum: 8 doses/24 hours","524mg PO: Take 1 dose every 30 minutes as needed (Maximum: 4,200mg or 8 doses)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["N/A"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to salicylates or taking other salicylates","History of stomach ulcer, bleeding problem, black or bloody stools","Children recovering from chickenpox or flu-like symptoms due to risk of Reye syndrome"]},
+  {Category:["Lactation Safety"],Content:["Unsafe"]},
+  {Category:["Pregnancy Safety"],Content:["Unsafe"]},
+  {Category:["Adverse Reactions"],Content:["Anxiety, confusion, tinnitus","Shake well prior to use (liquid), chew tablets well before swallowing (chewable tablets)","Can turn stools or tongue black"]},
+  {Category:["Mechanism of Action"],Content:["Salicylate has an antisecretory action.","Bismuth has an antimicrobial activity against bacterial and viral gastrointestinal pathogens."]},
+  {Category:["Aviation considerations"],Content:["Antacid (Maalox): When used occasionally or infrequently. Chronic use is Class 3.","Pepto Bismol: If used for minor diarrhea conditions and free of side effects for 24 hours."]}
+]
+
+const med13 = [
+  {Category:["Trade Name"],Content:["Caladryl","Calagesic"]},
+  {Category:["Indications"],Content:["Contact Dermatitis","Insect Bite"]},
+  {Category:["Adult Dosing"],Content:["Dab Topical: Clean and dry area. Cover affected area and let dry. Repeat every 6 hours as needed for itching.","Dab Topical: Apply as often as needed for itching."]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["Dab Topical: Apply to the affected area every 6 hours as needed for itching"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to Calamine, zinc oxide, or any of its components","Children less than 2 unless prescribed by a provider"]},
+  {Category:["Lactation Safety"],Content:["Presumed Safe - Not on Breast"]},
+  {Category:["Pregnancy Safety"],Content:["Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Hives, Irritation, Allergic Reaction","Shake well before use.","Avoid contact with eyes, mucous membranes, burns, or open wounds"]},
+  {Category:["Mechanism of Action"],Content:["Astringent and skin protectant properties to relieve itching."]},
+  {Category:["Aviation considerations"],Content:["None"]}
+]
+const med14 = [
+  {Category:["Trade Name"],Content:["Rocephin"]},
+  {Category:["Indications"],Content:["Cervicitis empiric therapy","Urethritis empiric therapy","Chlamydia trachomatis","Gonococcal infection"]},
+  {Category:["Adult Dosing"],Content:["250mg IM: Inject into a large muscle mass (gluteus) one time <br> (Dilute with sterile water or 1% lidocaine)","250-500mg IM: One time injection <br> -250mg for initial therapy <br> -500mg if failed initial therapy"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["50mg/kg IM/IV: Disseminated infection <45kg Daily for 7 days <br> (Max dose: 1,000mg)","1,000mg IM/IV: Disseminated, >45kg 1,000mg daily for 7 days"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to ceftriaxone, penicillin, or beta-lactam antibiotics","Do NOT use with neonates due to risk of hyperbilirubinemia","Do NOT use with calcium-containing solutions due to causing calcium-ceftriaxone precipitates"]},
+  {Category:["Lactation Safety"],Content:["Use Caution; Enters Milk"]},
+  {Category:["Pregnancy Safety"],Content:["Class B - Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Induration or warm sensation at injection site","Rash or Diarrhea","Pancreatitis, Hemolytic anemia, Elevated INR"]},
+  {Category:["Mechanism of Action"],Content:["3rd Generation Cephalosporin","Inhibits bacterial cell wall synthesis","Bacteria eventually lyse due to cell wall autolytic enzyme activity without concomitant synthesis activity"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+]
+const med15 = [
+  {Category:["Trade Name"],Content:["Benadryl"]},
+  {Category:["Indications"],Content:["Allergies","Hives","Motion Sickness","Anaphylactic Reaction"]},
+  {Category:["Adult Dosing"],Content:["25mg PO: Take 1 tablet every 8 hrs or at bedtime","50mg IV: ASAP after epinephrine auto-injector 50mg IV over 10minutes <br> (Maximum: 300mg in 24hrs)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["1.25 mg/kg PO/IM: 2-5y/o 6.25mg every 6 hrs","1.25 mg/kg PO/IM: 6-12 y/o 12.5-25mg every 6 hrs","1.25 mg/kg IV: ASAP after 0.15mg IM epinephrine <br> (Maximum: 50mg dose)"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to diphenhydramine or any component of the formulation","Acute Asthma","Use on Neonates, premature infants, Nursing mothers"]},
+  {Category:["Lactation Safety"],Content:["Unsafe"]},
+  {Category:["Pregnancy Safety"],Content:["Class B - Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Normally causes sedation, but may cause paradoxical excitation","May have increased sedative effects when used with other sedatives or alcohol","May cause hypotension (use with caution in patient with cardiovascular disease)","Dry mouth and may increase risk of heat injury"]},
+  {Category:["Mechanism of Action"],Content:["Competes with histamine for H1-receptor sites within the gastrointestinal tract, blood vessels, and respiratory tract.","Produces anticholinergic and sedative effects"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+]
+const med16 = [
+  {Category:["Trade Name"],Content:["Colace"]},
+  {Category:["Indications"],Content:["Constipation","Hemorrhoids","Anal Fissure"]},
+  {Category:["Adult Dosing"],Content:["100mg PO: Take 1 capsule twice a day <br> (Maximum: 7 days of use)","50-360mg PO: 50-360mg daily or in divided doses"]},
+  {Category:["Pediatric Dosing (Age 2-11)"],Content:["50-150mg PO: Once daily or in divided doses"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to docusate sodium or any component of the formulation","Children under the age of 2"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Not Preferred"]},
+  {Category:["Adverse Reactions"],Content:["Ensure adequate fluid intake"]},
+  {Category:["Mechanism of Action"],Content:["Reduces surface tension of stool resulting in increased absorption of water and fat into stool"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+]
+const med17 = [
+  {Category:["Trade Name"],Content:["Aoxa","Vibramycine"]},
+  {Category:["Indications"],Content:["Acne","Malaria chemoprophylaxis","Cellulitis"]},
+  {Category:["Adult Dosing"],Content:["100mg PO (Acne): 100mg daily (used with topical agents)","100mg PO (Malaria chemoprophylaxis): 100mg daily, start 2 days before leaving","100mg PO (Bite): 100mg Every 12 hrs x 3-5 days","100mg PO (Cellulitis): 100mg Every 12 hrs x 7-14 days","100mg PO (Lyme): 100mg Every 12 hrs x 10-28 days"]},
+  {Category:["Pediatric Dosing (> 8 yrs old)"],Content:["< 45kg, 2-4mg/kg/day PO: 2-4mg/kg/day in 1-2 divided doses <br> (maximum: 200mg/day)",">45kg, 100mg PO: Refer to adult dosing"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to doxycycline, other tetracyclines, or any component of the formulation"]},
+  {Category:["Lactation Safety"],Content:["Use Caution; Enters Milk"]},
+  {Category:["Pregnancy Safety"],Content:["CLASS D– Unsafe"]},
+  {Category:["Adverse Reactions"],Content:["Take medication with food or 8oz water and sit-up for 30minutes after taking (prevent esophagitis)","Photosensitivity with increased risk of sunburn","Diarrhea, Severe skin reactions, Liver toxicity, Intracranial hypertension (blurry vision, headache, double vision)"]},
+  {Category:["Mechanism of Action"],Content:["Tetracycline Antibiotic","Inhibits protein synthesis of ribosomal subunits of susceptible bacteria"]},
+  {Category:["Aviation considerations"],Content:["None"]}]
+  const med18 = [
+  {Category:["Trade Name"],Content:["EpiPen"]},
+  {Category:["Indications"],Content:["Anaphylactic Reaction"]},
+  {Category:["Adult Dosing"],Content:["1 EpiPen IM: Inject 1 epi pen into thigh and may repeat in 10 min if not improved; follow with diphenhydramine 50 mg IV and transport to emergency care","0.3-0.5mg IM/IV: Every 5-15 min until improvement; follow with diphenhydramine 50 mg IV"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["0.01mg/kg IM: 0.01 mg/ kg of 1 mg/ mL dose follow with diphenhydramine 1.25 mg/ kg IV and transport to emergency care <br> (Maximum single dose: 0.3 mg)"]},
+  {Category:["Contraindications"],Content:["Uncontrolled hypertension is a relative contraindication in more mild reactions"]},
+  {Category:["Lactation Safety"],Content:["Unsafe"]},
+  {Category:["Pregnancy Safety"],Content:["CLASS C- Unknown Safety"]},
+  {Category:["Adverse Reactions"],Content:["Chest Pain, Tachycardia, Arrhythmias, Palpitations, Sudden death","Anxiety, Cerebral Hemorrhage, Headache"]},
+  {Category:["Mechanism of Action"],Content:["Sympathomimetic, stimulates both alpha and beta adrenergic receptors, causing relaxation of the bronchial tree, cardiac stimulation (increasing myocardial oxygen consumption), and dilation of skeletal muscle blood vessels"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+]
+const med19 = [
+  {Category:["Trade Name"],Content:["Diflucan"]},
+  {Category:["Indications"],Content:["Vaginal Yeast Infection"]},
+  {Category:["Adult Dosing"],Content:["150mg PO: Take 1 tab by mouth one time","150mg PO (Severe): 150 mg every 72 hrs for 2-3 doses","150mg PO (Recurrent): 150 mg daily x 10-14 days, then 150 mg weekly x 6 months"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["N/A"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to fluconazole or any component of the formulation","QTc Prolongation, Heart Arrhythmia"]},
+  {Category:["Lactation Safety"],Content:["Safe; Enters Milk"]},
+  {Category:["Pregnancy Safety"],Content:["Unsafe"]},
+  {Category:["Adverse Reactions"],Content:["Dizziness or Seizures","Hepatotoxicity"]},
+  {Category:["Mechanism of Action"],Content:["Antifungal","Interferes with fungal cytochrome P450 activity inhibiting cell membrane formation"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+]
+const med20 = [
+  {Category:["Trade Name"],Content:["GlucaGen/ Glucagon Emergency Kit"]},
+  {Category:["Indications"],Content:["Esophageal Food Impaction","Hypoglycemia"]},
+  {Category:["Adult Dosing"],Content:["1mg IV: Inject 1 mg IV with 10 cc Normal Saline flush <br> For Hypoglycemia, follow with Dextrose IV and may repeat once in 20 minutes","1mg IM/IV: Every 20 minutes as needed <br> Hypoglycemia, give IV dextrose ASAP"]},
+  {Category:["Pediatric Dosing (< 12 years)"],Content:["(<20kg) 0.5mg IV/IM: Every 20 min as needed <br> Adult dosing if over 20 kg"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to glucagon or any component of theformulation","Insulinoma","Pheochromocytoma"]},
+  {Category:["Lactation Safety"],Content:["Safe"]},
+  {Category:["Pregnancy Safety"],Content:["Class B - Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Should NOT be used as 1st line treatment for Hypoglycemia, AMS, or Food Bolus Impaction","Hypoglycemia patients should receive dextrose. If IV access cannot be established or if dextrose is not available, glucagon may be used as alternate until dextrose can be given.","Thiamine should precede use in patient with suspected alcoholism ormalnutrition"]},
+  {Category:["Mechanism of Action"],Content:["Raises blood glucose levels by stimulating increased production of cyclic AMP","Promotes hepatic gluconeogenesis"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+]
+
+
+var banner3 = document.querySelector("#banner3")
+var banner4 = document.querySelector("#banner4")
+const meditems = document.querySelectorAll(".medbtn")
+//opens med list
+meditems.forEach(function(btn){
+  btn.addEventListener("click",() =>{
+    var btnid = btn.id
+    var sheet = medboxes[btnid];
+      var medsheet = document.querySelector(".medsheet")
+      const existing = document.getElementsByClassName("medmade")
+      while(existing.length > 0){
+        existing[0].parentNode.removeChild(existing[0])
+      }
+      var daddy = btn.closest(".bg2-mainbody")
+      var topmenubg2 = daddy.closest(".bg2")
+      topmenubg2.querySelector("#med-menu-main-box").classList.add("engaged")
+      topmenubg2.querySelector("#med-menu-back-box").classList.remove("engaged")
+      daddy.classList.add("left");
+      medsheet.classList.add("open")
+      var looking2 = btn.querySelector(".btn-text").innerHTML
+      banner4.innerHTML = looking2
+
+      banner3.classList.add("paged")
+      banner4.classList.add("open")
+      let i = 0
+      const cats = document.querySelector(".medsheet")
+      while (i< sheet.length){
+          var medpoint = document.createElement("div")
+          medpoint.classList.add("medpoint")
+          medpoint.classList.add("medmade")
+          cats.appendChild(medpoint);
+
+          var card = document.createElement("div")
+          card.classList.add("medcard")
+          card.classList.add("medmade")
+          medpoint.appendChild(card)
+          
+          var top = document.createElement("div")
+          top.classList.add("medtop")
+          top.classList.add("medmade")
+          card.appendChild(top)
+
+          var bottom = document.createElement("div")
+          bottom.classList.add("medcontent")
+          bottom.classList.add("medmade")
+          card.appendChild(bottom)
+
+          var cat = document.createElement("div");
+          cat.classList.add("medlabel")
+          cat.classList.add("medmade")
+          cat.innerHTML = sheet[i].Category;
+          top.appendChild(cat)
+          var content = document.createElement("div");
+          content.classList.add("medcontent")
+          content.classList.add("medmade")
+          medpoint.appendChild(content);
+              sheet[i].Content.forEach(el => {
+                  var def = document.createElement("li");
+                  def.classList.add("med-ul")
+                  def.classList.add("medmade")
+                  def.innerHTML = el
+                  bottom.appendChild(def)
+              });
+          i++
+      }
+      medsheet.classList.add("open");
+  })
+})
+
+
+
+
+
+
+
+const medboxes = {
+  "med1": med1,
+  "med2": med2,
+  "med3": med3,
+  "med4": med4,
+  "med5": med5,
+  "med6": med6,
+  "med7": med7,
+  "med8": med8,
+  "med9": med9,
+  "med10": med10,
+  "med11": med11,
+  "med12": med12,
+  "med13": med13,
+  "med14": med14,
+  "med15": med15,
+  "med16": med16,
+  "med17": med17,
+  "med18": med18,
+  "med19": med19,
+  "med20": med20,
+  // "med21": med21,
+  // "med22": med22,
+  // "med23": med23,
+  // "med24": med24,
+  // "med25": med25,
+  // "med26": med26,
+  // "med27": med27,
+  // "med28": med28,
+  // "med29": med29,
+  // "med30": med30,
+  // "med31": med31,
+  // "med32": med32,
+  // "med33": med33,
+  // "med34": med34,
+  // "med35": med35,
+  // "med36": med36,
+  // "med37": med37,
+  // "med38": med38,
+  // "med39": med39,
+  // "med40": med40,
+  // "med41": med41,
+  // "med42": med42,
+  // "med43": med43,
+  // "med44": med44,
+}
+
 
 
 var contentClosing = document.querySelectorAll(".contbox-close")
@@ -3704,10 +4102,22 @@ function openA(){
         if(container.classList.contains("closed")){
                 container.classList.remove("closed")
                 document.querySelector(".bg").classList.remove("closed")
+                cont1.style.backgroundColor = "#333"
         }else{
                 container.classList.add("closed")
                 document.querySelector(".bg").classList.add("closed")
-
+                var ADT = document.querySelector(".ADTsheet.open")
+                console.log(ADT)
+                var Qs = ADT.querySelectorAll(".dispobox")
+                Qs.forEach (el =>{
+                  if(el.classList.contains("open")){
+                    console.log(el)
+                    const slider = el.querySelector(".dispobar")
+                    const style = getComputedStyle(slider)
+                    const color = style.backgroundColor
+                    cont1.style.backgroundColor = color
+                  }
+                })
         }
 }
 // icon buttons for explanations
@@ -3731,6 +4141,7 @@ justbuttons.forEach(function(justbutton){
 
   })
 })
+
 
 //card close buttons
 var closers = document.querySelectorAll(".close")
@@ -3759,8 +4170,12 @@ closers.forEach(function(currentcloser){
     justify()
   })
 })
+
+
+
+
+//top banner on scroll
 const head = document.querySelector(".sub-menu");
-  
 const sectionOne = document.querySelector(".wrap-marker");
 const sectionOneOptions = {};
   const sectionOneObs = new IntersectionObserver(function(entries, sectionOneObs){
@@ -3768,7 +4183,6 @@ const sectionOneOptions = {};
       if(!entry.isIntersecting){
         if(document.querySelector(".sub-page").classList.contains("open")){
         head.classList.add("scrolled");
-
         const ban = document.querySelector(".sub-menu-banner")
         const ban1 = document.querySelector(".sub-page-banner")
         ban.innerHTML = "";
@@ -3795,3 +4209,142 @@ function closeRed(){
   
 }
 
+
+//open the medication bar and close the ADTMC
+function openB(){
+  var bg2 = document.querySelector(".bg2")
+  bg2.classList.remove("open")
+  if(sub3.classList.contains("open")){sub3.classList.remove("open")}
+}
+function ADTfont(){
+  var bg3 = document.querySelector(".bg3")
+  var botslider =bg3.querySelector(".Bb.adtmc")
+  const style = getComputedStyle(botslider)
+  botslider.style.color = "#333"
+}
+//toggle between medications and adtmc. also if tapped again will go back.
+var btns = document.querySelectorAll(".Bb");
+btns.forEach(function(currentbtn){
+currentbtn.addEventListener("click",()=>{
+var bg = document.querySelector(".bg")
+var bg2 = document.querySelector(".bg2")
+var slider = document.querySelector(".botslider")
+if(!slider.classList.contains("o")){slider.classList.toggle("o")}
+if(currentbtn.classList.contains("adtmc")){
+slider.classList.add("adtmc")
+slider.classList.remove("meds");
+bg.classList.remove("left")
+bg2.classList.remove("center")
+}
+if(currentbtn.classList.contains("meds")){
+  if(bg.classList.contains("closed")){
+      slider.classList.add("meds")
+      slider.classList.remove("adtmc");
+      bg2.classList.add("center")   
+  }else{
+      slider.classList.add("meds")
+      slider.classList.remove("adtmc");
+      bg.classList.add("left")
+      bg2.classList.add("center")
+  }
+}
+})
+})
+
+
+var cont1 = document.querySelector("#cont1");
+var bg = document.querySelector(".bg")
+var bg3 = document.querySelector(".bg3")
+var infoTitle = document.querySelector(".info-title")
+function submission(){
+        if(cont1.classList.contains("closed")){
+                cont1.classList.remove("closed")
+                bg.classList.remove("closed")
+                console.log("it works here")
+               
+        }else{
+                cont1.classList.add("closed")
+                bg.classList.add("closed")
+        }
+}
+
+function play(){
+  sub3.classList.toggle("clicked")
+  bg3.classList.toggle("augmented")
+  bg.classList.add("closed")
+  writenote()
+}
+function closeSOAP(){
+  sub3.classList.remove("clicked")
+  bg3.classList.remove("augmented")
+  bg.classList.remove("closed")
+  const date = new Date()
+  date.toLocaleString('en-us',{month:'short', year:'numeric'})
+}
+
+function writenote(){
+  var ADT = document.querySelector(".ADTsheet.open");
+  const date = document.querySelector(".SOAPdate")
+  date.innerText = new Date()
+  const existing = document.getElementsByClassName("submitmade")
+  while(existing.length > 0)
+  existing[0].parentNode.removeChild(existing[0])
+  var nodeslist = ADT.querySelectorAll(".Q.open")
+  let arr = Array.from(nodeslist)
+  let a = 0
+  while(a < arr.length){
+    const submission = document.querySelector(".SOAPbox")
+    var group = document.createElement("div")
+    group.classList.add("submitmade")
+    group.classList.add("SOAPgroup")
+    var current = arr[a]
+    var Qclasses = ["QRED","Q1","Q2","Q3","Q4","Q5","Q6"]
+    const Qclassesindex = {
+      "QRED" : ["RED FLAGS: "],
+      "Q1" : ["Q1: "],
+      "Q2" : ["Q2: "],
+      "Q3" : ["Q3: "],
+      "Q4" : ["Q4: "],
+      "Q5" : ["Q5: "],
+      "Q6" : ["Q6: "]
+    }
+    var slider = current.querySelector(".slider")
+    var classes = ["yes","no","0-2","3+"]
+    for (var i = 0; i < current.classList.length; i++) {
+      if (Qclasses.indexOf(current.classList[i]) > -1) { 
+          var point = document.createElement("div")
+          point.classList.add("submitmade")
+          point.classList.add("SOAPpoint")
+          var realpoint = Qclassesindex[current.classList[i]]
+          point.innerHTML = realpoint
+          group.appendChild(point);
+          }
+      }
+    for (var i = 0; i < slider.classList.length; i++) {
+      if (classes.indexOf(slider.classList[i]) > -1) {
+          var point = document.createElement("div")
+          point.classList.add("submitmade")
+          point.classList.add("SOAPpoint")
+          point.innerHTML = slider.classList[i]
+          group.appendChild(point);
+          }
+      }
+      submission.appendChild(group)
+      const dispobox = current.querySelectorAll(".dispobox")
+      dispobox.forEach(el =>{
+        if(el.classList.contains("open")){
+          console.log(el)
+          var thestuff = el.querySelector(".dispo-label")
+          var thestufflabel = thestuff.innerText
+          var dispo = document.createElement("div")
+          dispo.classList.add("SOAPdispo")
+          dispo.classList.add("submitmade")
+          console.log(thestufflabel)
+          dispo.innerText = thestufflabel
+          submission.appendChild(dispo)
+        }
+      })
+      a++
+  }
+
+}
