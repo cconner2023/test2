@@ -1,16 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+    <head>
         <!-- Required meta tags -->
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
         <link rel="stylesheet" type="text/css" href="testing.css">
         <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-        <title> SUBMIT BAR </title>
-        <script src="https://unpkg.com/feather-icons@4.10.0/dist/feather.min.js"></script>
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+        <link rel="manifest" href="manifest.json" />
 
-</head>
+        <title> ADTMC </title>
+        <script src="https://unpkg.com/feather-icons"></script>
+    </head>
 <body>
 <div class="bg3">
     <div class="bot">
@@ -14040,18 +14041,9 @@
 <div class="medsheet"></div>
 </div>
 
-<script>
-    $(document).ready(function(){
-       feather.replace();
-    
-       $('button').click(function(){
-          $('.alert').html('<i data-feather="activity"></i>');
-          feather.replace();
-       });
-    
-    });
+<script> feather.replace()
+</script>
+<script src="testing.js"></script>
 
-    </script>
-<script src="testing.js"></script>        
 </body>
 </html>
