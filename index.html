@@ -1,38 +1,61 @@
 <!DOCTYPE html>
 <html lang="en">
-    <head>
+<head>
         <!-- Required meta tags -->
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
-        <link rel="stylesheet" type="text/css" href="testing.css">
+        <link rel="stylesheet" type="text/css" href="A.01 Main.css">
         <link href='https://unpkg.com/boxicons@2.1.4/css/boxicons.min.css' rel='stylesheet'>
-        <link rel="manifest" href="manifest.json" />
+        <title> SUBMIT BAR </title>
+        <script src="https://unpkg.com/feather-icons@4.10.0/dist/feather.min.js"></script>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 
-        <title> ADTMC </title>
-        <script src="https://unpkg.com/feather-icons"></script>
-    </head>
+</head>
 <body>
+<div class="bg3">
+    <div class="bot">
+        <div class="Bbar">
+            <div class="botslider o adtmc"></div>
+                <div class="Bb adtmc">
+                    <i class='bx bxs-book'></i>
+                     ADTMC</div>
+                <div class="Bb meds">
+                    <i class='bx bxs-capsule'></i>   
+                    Medications
+                </div>
+        </div>
+    </div>
+    <div class="submissionbox">
+        <div class="submissionsheet">
+                <div class="submissiontag" onclick="play()">
+                        <div class="submitlabel" >Submit</div>
+                        <div class="submiticon"><i class='bx bxs-paper-plane'></i></div>
+                </div>
+                <div class="SOAPbox">
+                        <div class="SOAPclose" onclick="closeSOAP()"><i data-feather="x-circle" id="redfi"></i></div>
+                        <div class="SOAPdate"></div>
+                        <div class="SOAPtitle"></div>
+                        <div class="SOAPref"></div>
+                </div>
+        </div>
+    </div>
+</div>
 <div class="bg">
 <div class="mainpage">
   <div class="top-menu">
     <div class="menu-item-box" id="menu-box1">
       <div class="menu-icon" id="menu-main-box">
-        <i class='bx bx-plus' id="menu-item"></i>
+        <i class='bx bxs-book' id="menu-item"></i>
       </div>
       <div class="menu-icon engaged" id="menu-back-box">
         <i class='bx bx-chevron-left' id="menu-back"></i>
       </div>
     </div>
-    <div class="menu-item-box closed" id="menu-box2">
-      <div class="menu-icon">
-        <i class='bx bx-chevron-left' id="menu-item2"></i>
-      </div>
-    </div>
-    <div class="menu-banner open" id="banner1">ADTMC 2.0</div>
+    <div class="menu-banner open" id="banner1">ADTMC 2.1</div>
     <div class="menu-banner" id="banner2">TEST BANNER</div>
   </div>
-  <div class="sel-box place-up" id="main-categories">
+
+  <div class="sel-box selected" id="main-categories">
     <ul id="categories">
       <li>                            
         <div class="catbtn" id="btnA">
@@ -994,7 +1017,7 @@
   <div class="sub-page-top">
     <div class="menu-item-box" id="menu-box3">
       <div class="menu-icon" id="menu-icon3" onclick="retn()">
-          <i class='bx bx-chevron-left' id="menu-item2"></i>
+          <i class='bx bx-chevron-left'></i>
       </div>
     </div>
     <div class="sub-page-banner-box">
@@ -1017,6 +1040,158 @@
     </div>
   </div>
   <div class="sub-page-bottom">
+    <div class="ADTsheet" id="A-1">
+        <div class="Q QRED open"> <!-- A-1 -->
+            <div class="card">
+                <div class="front">
+                    <div class="front-top">
+                        <div class="Q-icon"></div>
+                        <div class="Qtext">Are red flags present?</div>
+                    </div>
+                    <div class="A">
+                        <div class="Abar">
+                            <div class="slider"></div>
+                                <div class="Aa Y">YES</div>
+                                <div class="Aa N">NO</div>
+                        </div>
+                    </div>
+                    <div class="dispobox Yikes">
+                        <div class="dispobar DR"></div>
+                        <div class="dispo-top">
+                            <div class="dispo-icon">
+                                <i class='bx bx-error iconbutton'></i>
+                            </div>
+                            <div class="dispo-label"> CAT I: Provider Now</div>
+                        </div>
+                        <div class="justbox">
+                            <label for="R">.</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="back1">
+                    <div class="back-top">
+                        <div class="close"><i data-feather="x-circle"></i></div>
+                        <div class="back-label">Decision Making</div>
+                    </div>
+                    <div class="just DPRED"></div>
+                </div>
+            </div>
+        </div>
+        <div class="Q Q1">  <!-- A-1 -->
+            <div class="card">
+                <div class="front">
+                    <div class="front-top">
+                        <div class="Q-icon">1. </div>
+                        <div class="Qtext">Do any of the following apply?</div>
+                    </div>
+                    <ul class="Q-UL">
+                        <li class="Q-LI" >Symptoms > 10 days</li>
+                        <li class="Q-LI">Immunosuppresion</li>
+                        <li class="Q-LI">Inhaled steroid</li>
+                        <li class="Q-LI">Fever</li>
+                    </ul>
+                    <div class="A">
+                        <div class="Abar">
+                            <div class="slider"></div>
+                                <div class="Aa Y">YES</div>
+                                <div class="Aa N">NO</div>
+                        </div>
+                    </div>
+                    <div class="dispobox Yikes">
+                      <div class="dispobar DR"></div>
+                      <div class="dispo-top">
+                          <div class="dispo-icon">
+                              <i class='bx bx-error iconbutton'></i>
+                          </div>
+                          <div class="dispo-label"> CAT I: Provider Now</div>
+                      </div>
+                      <div class="justbox">
+                          <label for="R">.</label>
+                      </div>
+                  </div>
+                </div>
+                <div class="back1">
+                    <div class="back-top">
+                        <div class="close"><i data-feather="x-circle"></i></div>
+                        <div class="back-label">Decision Making</div>
+                    </div>
+                    <div class="just JDP1"></div>
+                </div>
+            </div>
+        </div>
+        <div class="Q Q2">  <!-- A-2 -->
+            <div class="card">
+                <div class="front">
+                    <div class="front-top">
+                        <div class="Q-icon">2.</div>
+                        <div class="Qtext">Select all that apply</div>
+                    </div>
+                    <ul class="Q-UL ULSTREP">
+                        <li class="Q-LI LISTREP">Fever</li>
+                        <li class="Q-LI LISTREP">No Cough</li>
+                        <li class="Q-LI LISTREP">Tonsillar Exudate</li>
+                        <li class="Q-LI LISTREP">Swollen anterior cervical nodes</li>
+                    </ul>
+                    <div class="A A-STREP">
+                        <div class="Abar A-Abar">
+                            <div class="slider A-slider"></div>
+                            <div class="Aa Y STREPY">3+</div>
+                            <div class="Aa N STREPN">0-2</div>
+                        </div>
+                    </div>
+                    <div class="dispobox Yikes">
+                        <div class="dispobar DII"></div>
+                        <div class="dispo-top">
+                            <div class="dispo-icon">
+                                <i class='bx bx-error iconbutton'></i>
+                            </div>
+                            <div class="dispo-label">CAT II: AEM Now</div>
+                        </div>
+                        <div class="action-box ACT1"></div>
+                        <div class="justbox"><label for="R">.</label></div>
+                    </div>
+                    <div class="dispobox Nah">
+                        <div class="dispobar DIV"></div>
+                        <div class="dispo-top">
+                            <div class="dispo-icon">
+                                <i class='bx bx-capsule iconbutton'></i>
+                            </div>
+                            <div class="dispo-label">Sreen Cold sx. Ear Pain if present <br> CAT III: Treatment Protocol and RTD</div>
+                        </div>
+                        <div class="dispo">
+                          <div class="sub-page-pre">
+                              <div class="contbox">
+                                  <div class="contbox-top">
+                                  <div class="contbox-close closed">
+                                    <i class='bx bx-plus'></i>
+                                  </div>
+                                  <div class="back-label">Treatment Protocol</div>
+                                </div>
+                                <div class="contbox-content closed JDPRO">
+                                </div>
+                              </div>
+                          </div>
+                        </div>
+                        <div class="justbox"><label>.</label></div>
+                    </div>
+                </div>
+                <div class="back1">
+                    <div class="back-top">
+                        <div class="close"><i data-feather="x-circle"></i></div>
+                        <div class="back-label">Decision Making</div>
+                    </div>
+                    <div class="just JDP2"></div>
+                </div>
+                <div class="back2">
+                    <div class="back-top">
+                        <div class="close"><i data-feather="x-circle"></i></div>
+                        <div class="back-label">Decision Making</div>
+                    </div>
+                    <div class="just JDP3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="ADTsheet" id="A-2">
       <div class="Q QRED open"> <!-- A-2 -->
           <div class="card">
@@ -2151,7 +2326,7 @@
                       <div class="close"><i data-feather="x-circle"></i></div>
                       <div class="back-label">Decision Making</div>
                   </div>
-                  <div class="just JRETEST"></div>
+                  <div class="just JDP1"></div>
               </div>
               <div class="back2">
                   <div class="back-top">
@@ -13376,7 +13551,8 @@
       </div>
   </div>  <!-- End of M-2 -->
   <!-- END OF SECTION M. END OF ADTSHEETS -->
-  </div>
+    <div class="bottommarker" id="bottom"></div>  
+</div>
 </div>
 </div>
 <div class="info-container" id="cont1">
@@ -13400,7 +13576,7 @@
             </div>
     </div>
     <div class="sub-page-pre">
-            <div class="contbox" id="redf">
+            <div class="contbox" id="MEDCOM">
               <div class="contbox-top">
                 <div class="contbox-close closed">
                   <i class='bx bx-plus'></i>
@@ -13412,7 +13588,7 @@
             </div>
     </div>
     <div class="sub-page-pre">
-            <div class="contbox" id="redf">
+            <div class="contbox" id="STP">
               <div class="contbox-top">
                 <div class="contbox-close closed">
                     <i class='bx bx-plus'></i>
@@ -13423,10 +13599,459 @@
               </div>
             </div>
     </div>
+    <div class="sub-page-pre">
+        <div class="contbox" id="decisions">
+            <div class="contbox-top">
+                <div class="contbox-close closed">
+                    <i class='bx bx-plus'></i>
+            </div>
+            <div class="back-label">DECISION MAKING</div>
+            </div>
+            <div class="contbox-content closed">
+            </div>
+        </div>
+    </div>
+    <div class="sub-page-pre">
+        <div class="contbox" id="medref">
+            <div class="contbox-top">
+                <div class="contbox-close closed">
+                    <i class='bx bx-plus'></i>
+            </div>
+            <div class="back-label">MEDICATIONS</div>
+            </div>
+            <div class="contbox-content closed">
+            </div>
+        </div>
 </div>
-<script> feather.replace()
-</script>
-<script src="testing.js"></script>
+</div>
+<div class="bg2">
+    <div class="top-menu">
+        <div class="menu-item-box" id="menu-box1">
+          <div class="menu-icon" id="med-menu-main-box">
+            <i class='bx bxs-capsule' id="menu-item"></i>
+          </div>
+          <div class="menu-icon engaged" id="med-menu-back-box">
+            <i class='bx bx-chevron-left' id="med-menu-back"></i>
+          </div>
+        </div>
+        <div class="menu-banner open" id="banner3">Medications</div>
+        <div class="menu-banner" id="banner4">TEST BANNER</div>
+    </div>
+    <div class="bg2-mainbody">
+    <ul id="medlist">
+        <li> 
+            <div class ="medbtn" id = "med1">
+               <div class="btn-border"></div>
+               <div class="category-text-box">
+                    <div class="texticon"><i class='bx bxs-plane-alt'></i></div>
+                    <div class="btn-text"> Acetaminophen 325mg tab</div>
+               </div>
+            </div>
+            </li>
+            <li> 
+            <div class ="medbtn" id = "med2">
+               <div class="btn-border"></div>
+               <div class="category-text-box">
+                    <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                    <div class="btn-text"> Acetic Acid and Hydrocortisone Otic suspension</div>
+               </div>
+            </div>
+            </li>
+            <li> 
+            <div class ="medbtn" id = "med3">
+               <div class="btn-border"></div>
+               <div class="category-text-box">
+                    <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                    <div class="btn-text"> Acetylsalicylic Acid (chewable) 81mg</div>
+               </div>
+            </div>
+            </li>
+            <li> 
+            <div class ="medbtn" id = "med4">
+               <div class="btn-border"></div>
+               <div class="category-text-box">
+                    <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                    <div class="btn-text"> Adapalene 1%</div>
+               </div>
+            </div>
+            </li>
+            <li> 
+            <div class ="medbtn" id = "med5">
+               <div class="btn-border"></div>
+               <div class="category-text-box">
+                    <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                    <div class="btn-text"> Albuterol</div>
+               </div>
+            </div>
+            </li>
+            <li> 
+            <div class ="medbtn" id = "med6">
+               <div class="btn-border"></div>
+               <div class="category-text-box">
+                    <div class="texticon"></div>
+                    <div class="btn-text"> Aluminum Acetate</div>
+               </div>
+            </div>
+            </li>
+            <li> 
+            <div class ="medbtn" id = "med7">
+               <div class="btn-border"></div>
+               <div class="category-text-box">
+                    <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                    <div class="btn-text"> Azithromycin 1000mg</div>
+               </div>
+            </div>
+            </li>
+            <li> 
+            <div class ="medbtn" id = "med8">
+               <div class="btn-border"></div>
+               <div class="category-text-box">
+                    <div class="texticon"></div>
+                    <div class="btn-text"> Bacitracin 500 units/ gram</div>
+               </div>
+            </div>
+            </li>         
+            <li>
+            <div class="medbtn" id="med9">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-plane-alt'></i></div>
+                <div class="btn-text"> Benzocaine Lozenge</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med10">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"></div>
+                <div class="btn-text"> Benzoyl Peroxide 10%</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med11">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"></div>
+                <div class="btn-text"> Bisacodyl 5mg</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med12">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-plane-alt'></i></div>
+                <div class="btn-text"> Bismuth Subsalicylate 262 mg/ 15 mL</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med13">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"></div>
+                <div class="btn-text"> Calamine Lotion</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med14">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Ceftriaxone 250mg*</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med15">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"></div>
+                <div class="btn-text"> Diphenhydramine 25mg</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med16">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"></div>
+                <div class="btn-text"> Docusate Sodium 100mg</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med17">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Doxycycline 100mg*</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med18">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Epinephrine Auto Injector*</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med19">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Fluconazole 150mg*</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med20">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Glucagon 1mg IV*</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med21">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-plane-alt'></i></div>
+                <div class="btn-text"> Guaifenesin 100 mg/ 5 mL</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med22">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Hydrocortisone 1% Cream</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med23">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"></div>
+                <div class="btn-text"> Hydrocortisone 2.5% and Pramoxine 1% Cream</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med24">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"></div>
+                <div class="btn-text"> Ibuprofen 200mg</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med25">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Ketorolac 30mg*</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med26">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Lidocaine Gargle 2%*</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med27">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Loperamide 2mg*</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med28">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-plane-alt'></i></div>
+                <div class="btn-text"> Loratadine 10mg</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med29">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Menthyl Salicylate Menthol</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med30">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Metronidazole 250mg</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med31">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"></div>
+                <div class="btn-text"> Naproxen 250mg</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med32">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Nitrofurantoin 100mg</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med33">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-plane-alt'></i></div>
+                <div class="btn-text"> Oxymetazoline</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med34">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Permethrin 1%</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med35">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"></div>
+                <div class="btn-text"> Permethrin 5%*</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med36">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Phenazopyridine 100mg*</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med37">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"></div>
+                <div class="btn-text"> Polyethylene Glycol 17g</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med38">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"></div>
+                <div class="btn-text"> Povidone Iodine</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med39">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-plane-alt'></i></div>
+                <div class="btn-text"> Propylene glycol 0.6%</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med40">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i><i class='bx bxs-plane-alt'></i></div>
+                <div class="btn-text"> Pseudoephedrine 30mg*</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med41">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"></div>
+                <div class="btn-text"> Ranitidine 150mg</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med42">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"></div>
+                <div class="btn-text"> Terbinafine 1%</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med43">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Trimethoprim (TMP) Sulfamethoxazole (SMX)</div>
+            </div>
+            </div>
+            </li>
+            <li>
+            <div class="medbtn" id="med44">
+            <div class="btn-border"></div>
+            <div class="category-text-box">
+                <div class="texticon"><i class='bx bxs-phone-call'></i></div>
+                <div class="btn-text"> Valacyclovir</div>
+            </div>
+            </div>
+            </li>
+    </ul>
+</div>
+<div class="medsheet"></div>
+</div>
 
+<script>
+    $(document).ready(function(){
+       feather.replace();
+    
+       $('button').click(function(){
+          $('.alert').html('<i data-feather="activity"></i>');
+          feather.replace();
+       });
+    
+    });
+
+    </script>
+<script src="A.01 Main.js"></script>        
 </body>
 </html>
