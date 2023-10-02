@@ -5,23 +5,7 @@
   box-sizing: border-box;
   font-family: 'Poppins';
   scroll-behavior: smooth;
-  --BG2: #C6AC8F ;
-  --BG1:#22333B ;
-  --BG2a: rgb(198, 172, 143,0.5);
-  --BG2atext: black;
-  --BG2btext: white;
-  --BG2b: rgb(34, 51, 59);
-
-}
-
-*::-webkit-scrollbar{
-  display: none;
-}
-
-
-html{
-  -webkit-tap-highlight-color: transparent;
-  --BGorigin:rgba(226, 223, 223, 0.5);
+  overflow-x: hidden;
 }
 :root{
   --BG1:#ee8e8e;
@@ -34,25 +18,363 @@ html{
   display: none;
 }
 body{
-  min-height: 200vh;
   width: 100%;
+  height: 100%;
   overflow: hidden;
   background-color:#121212;
-  color: rgb(223, 223, 223);;
+  color: rgb(223, 223, 223);
 }
-.bg{
-  height: 100%;
-  width: 100%;
+
+/* bg4 is the submit button and window */
+
+.submissionbox{
   position: absolute;
-  transform: scale(1) translateY(0%);
+  height: 35px;
+  width: 120px;
+  bottom: 20%;
+  right: 15%;
+  z-index: 1;
+  font-size: 15px;
+  overflow: hidden;
+  transform: translateY(300%);
+  transition: all 0.3s ease;  
+}
+.submissionbox.open{
+  transform: translateY(0%);
   transition: all 0.3s ease;
 }
+.submissionbox.clicked{
+  height: 90%;
+  width: 100%;
+  right: 0;
+  top: 0;
+  overflow: scroll;
+  transform: translateY(0%);
+  transition: all 0.3s ease;  
+
+}
+.submissionsheet{
+  height: 34px;
+  width: 119px;
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  color: black;
+  transition: all 0.3s ease;  
+
+}
+
+.submissiontag{
+  height: 34px;
+  width: 119px;
+  position: relative;
+  display: flex;
+  border-radius: 10px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+.submissionbox.clicked .submissionsheet{
+  height: 100%;
+  width: 100%;
+  transition: all 0.3s ease;  
+
+}
+.submissionbox.clicked .submissiontag{
+  transform: translateX(-100%);
+  transition: all 0.3s ease;
+}
+.submitlabel{
+  font-size: 15px;
+}
+.submiticon{
+  font-size: 18px;
+  left: 0;
+  margin-top: 2px;
+}
+
+.SOAPbox{
+  margin-top: 10px;
+  position: absolute;
+  top: 0;
+  height: 100%;
+  width: 100%;
+  transform: translateX(100%);
+  transition: all 0.3s ease;
+
+}
+.SOAPgroup{
+  display: flex;
+}
+.SOAPdate{
+  margin-top: 10px;
+  margin-left: 20px;
+  margin-right: 60px;
+  margin-bottom: 20px;
+}
+.SOAPdispo{
+  position: absolute;
+  margin-top: 20px;
+  margin-right: 40px;
+  font-weight: bolder;
+}
+.submissionbox.clicked .SOAPbox{
+  transform: translateX(0%);
+  transition: all 0.3s ease;
+}
+
+.SOAPtitle{
+  margin-top: 10px;
+  margin-left: 20px;
+  margin-bottom: 20px;
+}
+.SOAPref{
+  margin-bottom: 2px;
+  text-align: center;
+}
+.SOAPpoint, .SOAPdispo{
+  margin-left: 20px;
+}
+.SOAPclose{
+  position: absolute;
+  right: 5%;
+  top: 2%;
+}
+
+/* bg3 - the bottom ADTMC or Medication slider.*/
+
+.bg3{
+  position: absolute;
+  height: 300px;
+  width: 100%;
+  bottom: 0;
+  font-size: 14px;
+  transition: all 0.3s ease;
+
+}
+.bg3.augmented{
+  height: 100%;
+  transition: all 0.3s ease;
+}
+
+.bot{
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  margin: 0;
+  z-index: 300;
+
+}
+.Bbar{
+  width: 100%;
+  height: 100%;
+  margin: auto;
+  align-items: center;
+  display: flex;
+  background-color: #242424;
+  position: relative;
+}
+.Bb{
+  width: 50%;
+  height: 100%;
+  padding: 5px;
+  text-align: center;
+  margin: auto;
+  color: #a5a4a4;
+  background-color: transparent;
+  position: relative;
+  border: none;
+  border-radius: 10px;
+}
+
+.botslider.o.adtmc ~ .Bb.adtmc{
+  font-weight: 500;
+  color: black;
+  transition: all 0.3s ease;
+}
+.botslider.o.meds ~ .Bb.meds{
+  font-weight: 500;
+  color: black;
+  transition: all 0.3s ease;
+}
+
+.botslider.o.adtmc{
+  position: absolute;
+  height: 100%;
+  width: 50%;
+  transition: all 0.3s ease;
+  transform: scaleY(1.1);
+  border-top-right-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
+.botslider.o.meds{
+  position: absolute;
+  height: 100%;
+  width: 50%;
+  transform: translateX(100%) scaleY(1.1);
+  transition: 0.3s ease;
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+}
+.botslider{
+  position: absolute;
+  height: 100%;
+  width: 0;
+  display: block;
+  background-color:#545454;
+  transition: 0.3s ease;
+}
+.botslider.closed{
+  height: 0;
+  display: none;
+  background-color:#b8b6b6;
+}
+
+/* bg2 is the meds side of the house */
+.bg2{
+  height: 94%;
+  width: 100%;
+  background-color:#121212;
+  transition: all 0.3s ease;
+  transform: translateX(-100%);
+  z-index: 299;
+  position: absolute;
+  overflow: hidden;
+}
+.bg2.center{
+  transform: translateX(0);
+  transition: all 0.3s ease;
+}
+.bg2-mainbody{
+  top: 11%;
+  height: 90%;
+  width: 100%;
+  padding-bottom: 20px;
+  position: absolute;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  transform: translateX(0);
+  transition: all 0.3s ease;
+}
+.bg2-mainbody.left{
+  transform: translateX(-100%);
+  transition: all 0.3s ease;
+}
+/* medbox is the medication list. slides left when you click on a button */
+.medbox.left{
+  transition: all 0.3s ease;
+  transform: translateX(-100%);
+  position: absolute;
+}
+.medbox{
+  height: 94%;
+  width: 100%;
+  background-color:#121212;
+  transition: all 0.3s ease;
+}
+#medlist{
+  list-style-type: none;
+}
+
+
+
+.medbtn{
+  position: relative;
+  height: 2.5rem;
+  margin-bottom: 4%;
+  margin-top: 2%;
+  margin-left: 4%;
+  width: 95%;
+  display: flex;
+  overflow: none;
+  align-items: center;
+}
+
+.medpoint{
+  grid-template-rows: 1fr;
+  width: 100%;
+  transition: all 0.5s ease;
+  opacity: 1;
+  position: relative;
+  margin-bottom: 10px;
+  margin-top: 10px;
+}
+.medcard{
+  width:95%;
+  margin: auto;
+  padding-bottom: 5px;
+  position: relative;
+  overflow-y: hidden;
+  background-color: #191919;
+  color: rgb(223, 223, 223);
+  display: grid;
+  grid-template-rows: 1fr;
+  border-radius: 16px;
+  box-shadow: 2px 4px 30px rgba(0, 0, 0, 0.1);
+}
+
+.medtop{
+  width: 100%;
+  height: 100%;
+  margin: auto;
+  margin-bottom: 10px;
+  justify-content: center;
+  align-items: center;
+  display: flex;
+  background-color: #333;
+  position: relative;
+}
+.medcontent{
+  margin-top: 10px;
+}
+.medcontent li{
+  margin-left: 15px;
+  margin-right: 15px;
+  list-style-type: none;
+}
+
+.medsheet{
+  top: 11%;
+  height: 87%;
+  width: 100%;
+  padding-bottom: 20px;
+  position: absolute;
+  overflow-y: scroll;
+  overflow-x: hidden;
+  transform: translateX(200%);
+  transition: all 0.3s ease;
+  font-size: 13px;
+}
+.medsheet.open{
+  transform: translateX(0);
+  transition: all 0.3s ease;
+}
+
+
+/* bg is the ADTMC side - including ADTsheets */
+.bg{
+  height: 93%;
+  width: 100%;
+  position: absolute;
+  transform: scale(1) translateY(0%) translateX(0);
+  transition: all 0.3s ease;
+  overflow: hidden;
+
+}
+/* bg closed is when the information box is open */
 .bg.closed{
-  transform: scale(0.9) translateY(5%);
+  transform: scale(0.9) translateY(5%) translateX(0);
   border-top-left-radius: 10px;
   border-top-right-radius: 10px;
   transition: all 0.3s ease;
 }
+/* bg left is when the medications tab is open */
+.bg.left{
+  transform: translateX(100%);
+  transition: all 0.3s ease;
+}
+
 
 
 /* Main page with a banner at the top and a sel-box for categories*/
@@ -63,7 +385,11 @@ body{
   position: absolute;
   overflow: hidden;
 }
-
+.mainpage-body{
+  height: 100px;
+  position: absolute;
+  top: 11%;
+}
 .top-menu{
   position: absolute;
   height: 10%;
@@ -71,7 +397,7 @@ body{
   top: 0px;
   display: flex;
   align-items: center;
-  overflow: hidden;
+  overflow-x: hidden;
   background-color:#121212;
   z-index: 200;
   opacity: 1;
@@ -86,21 +412,17 @@ body{
 }
 .menu-item-box{
   position: relative;
-  width: 5%;
+  width: 20%;
   visibility: visible;
+  margin-left: 10px;
+  margin-right: 20px;
 }
 .menu-item-box.closed{
   position: relative;
   visibility: collapse;
   width: 0%;
 }
-#menu-box1{
-  margin-left: 10px;
-  margin-right: 20px;
-}
-#menu-box2{
-  margin-right: 20px;
-}
+/* ADTsheet menu box */
 #menu-box3{
   position: absolute;
   margin-left: 15px;
@@ -111,10 +433,12 @@ body{
 #menu-icon3{
   background-color: rgba(18,18,18, 0.5);
   color: white;
-  height: 30px;
-  width: 30px;
+  height: 60px;
+  width: 60px;
   font-size: x-large;
+  z-index: 299;
 }
+/* slider wrapper back icon */
 #menu-icon4{
   background-color: rgba(18,18,18, 0.5);
   color: white;
@@ -122,43 +446,22 @@ body{
   width: 30px;
   font-size: x-large;
 }
-#menu-back-box{
+.menu-icon{
   display: flex;
   top: 0;
   height: 30px;
   width: 30px;
+  font-size: 22px;
   background-color: #242424;
   color: white;
-}
-#menu-back-box.engaged{
-  display: none;
-}
-#menu-main-box{
-  display: flex;
-  background-color: #242424;
-  color: white;
-  height: 30px;
-  width: 30px;
-
-}
-#menu-main-box.engaged{
-  display: none;
-  height: 0;
-  width: 0;
-}
-
-.menu-icon{
-  background-color: white;
-  color: black;
+  border-radius: 50%;
   align-items: center;
   justify-content: center;
-  display: flex;
-  height: 25px;
-  width: 25px;
-  border-radius: 50%;
-  font-size: 22px;
-
 }
+.menu-icon.engaged{
+  display: none;
+}
+
 .menu-banner.open{
   position: absolute;
   width: 80%;
@@ -177,7 +480,6 @@ body{
   visibility: collapse;
 
 }
-
 .menu-banner{
   transform: translateX(300%);
   transition: all 0.3s ease;
@@ -187,18 +489,6 @@ body{
   margin-left: 0%;
 }
 
- .sel-box.place-up{
-  position: absolute;
-  visibility: collapse;
-  opacity: 0;
-  overflow: none;
-  height: 90%;
-  width: 100%;
-  top: 10%;
-  background-color: #121212;
-  transform: translateY(-200%) translateX(0%);
-  transition: all 0.3s ease;
- }
  .sel-box{
   position: absolute;
   display: block;
@@ -241,9 +531,7 @@ body{
   transition: all 0.3s ease;
  }
 
- .sel-box ul{
-  list-style: none;
- }
+
  .sel-box ul li{
   list-style: none;
  }
@@ -259,6 +547,7 @@ body{
   overflow: none;
   align-items: center;
 }
+
 .btn-border{
   height: 97%;
   width: 8px;
@@ -284,7 +573,7 @@ li:nth-of-type(even) .btn-border{
   font-weight: 100;
   display: flex;
   align-items: center;
-  font-size: 14px;
+  font-size: 13px;
   background-color: #181818;
   border-top: 1px solid #181818;
   border-right: 1px solid #181818;
@@ -311,18 +600,15 @@ li:nth-of-type(even) .btn-border{
   background-color:#121212;
   color: rgb(223, 223, 223);
   position: absolute;
-  overflow-y: auto;
+  overflow-Y: scroll;
   transform: translateX(300%);
   transition: all 0.3s ease;
   
 }
 .sub-page.open{
-  height: 100%;
-  width: 100%;
+  position: absolute;
   opacity: 1;
   overflow-y: scroll;
-  background-color:#121212;
-  position: absolute;
   transform: translateX(0%);
   transition: all 0.3s ease;
 }
@@ -330,8 +616,7 @@ li:nth-of-type(even) .btn-border{
   position: relative;
   display: grid;
   grid-template-rows: 1fr;
-  background: rgb(88,88,88);
-  background: linear-gradient(180deg, rgba(88,88,88,1) 0%, rgba(18,18,18,1) 100%);
+  background: rgba(18,18,18,1);
 }
 
 .wrap-marker{
@@ -364,15 +649,18 @@ li:nth-of-type(even) .btn-border{
 .sub-page-bottom{
   position: relative;
   display: grid;
-  grid-template-rows: 1fr;
-  padding-bottom: 40px;
+  overflow-x: none;
+  font-size: 14px;
 }
-.sub-page-pre{
-  position: relative;
-  display: grid;
-  grid-template-rows: 1fr;
-  margin-bottom: 10px;
+
+.bottommarker{
+  height: 10px;
+  width: 20px;
+  padding-bottom: 130px;
+  bottom: 50px;
+  display: flex;
 }
+
 .prebox{
   width: 95%;
   display: grid;
@@ -446,8 +734,7 @@ li:nth-of-type(even) .btn-border{
   height: 70px;
   width: 100%;
   top: 0;
-  background: rgb(88,88,88);
-  background: linear-gradient(180deg, rgba(88,88,88,1) 0%, rgba(18,18,18,1) 100%);
+  background: rgba(18,18,18,1);
   display: flex;
   align-items: center;
   z-index: 300;
@@ -460,8 +747,7 @@ li:nth-of-type(even) .btn-border{
   top: 0%;
   height: 100px;
   width: 100%;
-  background: rgb(88,88,88);
-  background: linear-gradient(180deg, rgba(88,88,88,1) 0%, rgba(18,18,18,1) 100%);
+  background:  rgba(18,18,18,1);
   color: white;
   display: flex;
   align-items: center;
@@ -493,14 +779,14 @@ li:nth-of-type(even) .btn-border{
   width: 100%;
   display: block;
   position: relative;
-  margin-bottom: 10%;
+  margin-bottom: 2px;
 }
 .ADTsheet{
   height: 0%;
   width: 0%;
   display: none;
-  position: relative;
-  margin-bottom: 0%;
+  margin-bottom: 2px;
+  overflow: hidden;
 }
 
 
@@ -511,6 +797,7 @@ li:nth-of-type(even) .btn-border{
   grid-template-rows: 0fr;
   transition: all 0.5s ease;
   position: relative;
+  overflow-x: hidden;
 }
 
 .Q.open{
@@ -521,6 +808,7 @@ li:nth-of-type(even) .btn-border{
   position: relative;
   margin-bottom: 10px;
   margin-top: 10px;
+  overflow-x: none;
 }
 
 .ACTY .card, .ACTN .card{
@@ -549,6 +837,7 @@ li:nth-of-type(even) .btn-border{
   grid-template-rows: 1fr;
   transform: translateX(0%);
   transition: all 0.3s ease;
+  overflow: hidden;
 }
 .front ul{
   margin-left: 40px;
@@ -888,16 +1177,14 @@ background-color: #A9D0DD;
 
 
 .iconbutton{
-  animation: pulse 5s linear infinite;
+  animation: pulse 7s linear infinite;
 }
-
-
 
 @keyframes pulse {
   0%,
   50%,
   100% {
-    opacity: 1;
+    opacity: 0.6;
   }
   25%,
   75% {
@@ -940,14 +1227,14 @@ background-color: #A9D0DD;
 }
 /* information box */
 .info-container.closed{
-  min-height: 96%;
+  min-height: 92%;
   width: 98%;
-  top: 4%;
+  top: 0%;
+  bottom: 4%;
   position: absolute;
   visibility: visible;
   margin-left: 1%;
   border-radius: 10px;
-  background-image: linear-gradient(rgb(238, 185, 86, 0.99), rgb(238,185,86,0.99));
   color: black;
   overflow-y:scroll ;
   opacity: 1;
@@ -965,7 +1252,6 @@ background-color: #A9D0DD;
   border-top-right-radius: 10px;
   z-index: 3;
   overflow-y: none;
-  background-image: linear-gradient(rgb(238, 185, 86, 0.99), rgb(238,185,86,0.90));
   bottom: 0;
   opacity: 0;
   transform: scale(0.5) translateY(300%);
@@ -999,13 +1285,17 @@ background-color: #A9D0DD;
   margin-left: 5%;
   list-style-type: none;
 }
+
 .sub-page-pre{
   position: relative;
   display: grid;
   grid-template-rows: 1fr;
   margin-bottom: 10px;
+  font-size: 14px;
   visibility: visible;
 }
+
+
 .contbox{
   width: 95%;
   display: grid;
@@ -1104,3 +1394,4 @@ background-color: #A9D0DD;
   grid-template-rows: 0fr;
   margin-bottom: 0;
 }
+
