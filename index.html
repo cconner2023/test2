@@ -34,6 +34,8 @@
                 </div>
                 <div class="SOAPbox">
                         <div class="SOAPclose" onclick="closeSOAP()"><i data-feather="x-circle" id="redfi"></i></div>
+                        <div class="SOAPsoap">ADTMC Screening Algorithm</div>
+                        <div class="SOAPbreak"></div>
                         <div class="SOAPdate"></div>
                         <div class="SOAPtitle"></div>
                         <div class="SOAPref"></div>
@@ -1008,6 +1010,8 @@
   <div class="sub-icon" id="menu-icon4" onclick="retn()">
     <i class='bx bx-chevron-left'></i>
   </div>
+  <div class="sub-icon" id="menu-icon5" >
+  </div>
   <div class="sub-menu-banner">TEST</div>
   <div class="infobox2" onclick="openA()">
     <i class='bx bx-dots-horizontal-rounded'></i>
@@ -1030,9 +1034,6 @@
     <div class="sub-page-pre">
       <div class="prebox" id="redf">
         <div class="prebox-top">
-          <div class="prebox-close" onclick="closeRed()">
-            <i data-feather="x-circle" id="redfi"></i>
-          </div>
           <div class="back-label">RED FLAGS</div>
         </div>
         <div class="prebox-content RF">
@@ -4898,55 +4899,55 @@
                   <div class="A">
                       <div class="Abar">
                           <div class="slider"></div>
-                              <div class="Aa Y">NO</div>
-                              <div class="Aa N">YES</div>
+                              <div class="Aa Y">YES</div>
+                              <div class="Aa N">NO</div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
-                      <div class="dispobar DII"></div>
-                      <div class="dispo-top">
-                          <div class="dispo-icon">
-                              <i class='bx bx-error iconbutton'></i>
+                    <div class="dispobar DIV"></div>
+                    <div class="dispo-top">
+                        <div class="dispo-icon">
+                            <i class='bx bx-capsule iconbutton'></i>
+                        </div>
+                        <div class="dispo-label"> CAT III: Treatment Protocol and RTD</div>
+                    </div>
+                    <div class="dispo">
+                      <div class="sub-page-pre">
+                          <div class="contbox">
+                              <div class="contbox-top">
+                              <div class="contbox-close closed">
+                                <i class='bx bx-plus'></i>
+                              </div>
+                              <div class="back-label">Treatment Protocol</div>
+                            </div>
+                            <div class="contbox-content closed JDPRO">
+                            </div>
                           </div>
-                          <div class="dispo-label">CAT II: AEM Now</div>
                       </div>
-                      <div class="justbox"><label for="R">.</label></div>
+                      <div class="sub-page-pre">
+                          <div class="contbox">
+                              <div class="contbox-top">
+                              <div class="contbox-close closed">
+                                <i class='bx bx-plus'></i>
+                              </div>
+                              <div class="back-label">Activity Modification</div>
+                            </div>
+                            <div class="contbox-content closed LIM">
+                            </div>
+                          </div>
+                      </div>
+                    </div>
+                    <div class="justbox"><label>.</label></div>
                   </div>
                   <div class="dispobox Nah">
-                      <div class="dispobar DIV"></div>
-                      <div class="dispo-top">
-                          <div class="dispo-icon">
-                              <i class='bx bx-capsule iconbutton'></i>
-                          </div>
-                          <div class="dispo-label"> CAT III: Treatment Protocol and RTD</div>
-                      </div>
-                      <div class="dispo">
-                        <div class="sub-page-pre">
-                            <div class="contbox">
-                                <div class="contbox-top">
-                                <div class="contbox-close closed">
-                                  <i class='bx bx-plus'></i>
-                                </div>
-                                <div class="back-label">Treatment Protocol</div>
-                              </div>
-                              <div class="contbox-content closed JDPRO">
-                              </div>
-                            </div>
+                    <div class="dispobar DII"></div>
+                    <div class="dispo-top">
+                        <div class="dispo-icon">
+                            <i class='bx bx-error iconbutton'></i>
                         </div>
-                        <div class="sub-page-pre">
-                            <div class="contbox">
-                                <div class="contbox-top">
-                                <div class="contbox-close closed">
-                                  <i class='bx bx-plus'></i>
-                                </div>
-                                <div class="back-label">Activity Modification</div>
-                              </div>
-                              <div class="contbox-content closed LIM">
-                              </div>
-                            </div>
-                        </div>
-                      </div>
-                      <div class="justbox"><label>.</label></div>
+                        <div class="dispo-label">CAT II: AEM Now</div>
+                    </div>
+                    <div class="justbox"><label for="R">.</label></div>
                   </div>
               </div>
               <div class="back1">
@@ -4954,14 +4955,14 @@
                       <div class="close"><i data-feather="x-circle"></i></div>
                       <div class="back-label">Decision Making</div>
                   </div>
-                  <div class="just JDP4"></div>
+                  <div class="just JDP3"></div>
               </div>
               <div class="back2">
                   <div class="back-top">
                       <div class="close"><i data-feather="x-circle"></i></div>
                       <div class="back-label">Decision Making</div>
                   </div>
-                  <div class="just JDP3"></div>
+                  <div class="just JDP4"></div>
               </div>
           </div>
       </div>
@@ -6727,7 +6728,7 @@
                           <div class="dispo-icon">
                               <i class='bx bx-error iconbutton'></i>
                           </div>
-                          <div class="dispo-label">Screen bleeding, cold, sore throat, other symptoms if present</div>
+                          <div class="dispo-label">Screen bleeding, cold, sore throat,<br> other symptoms if present</div>
                       </div>
                       <div class="justbox">
                           <label for="R">.</label>
@@ -13557,12 +13558,13 @@
 </div>
 </div>
 <div class="info-container" id="cont1">
+    <div class="infobox-close" onclick="openA()" id="infoClose">
+        <i class='bx bx-plus'></i>
+</div>
     <div class="info-top-box">
-            <div class="infobox-close" onclick="openA()" id="infoClose">
-                    <i class='bx bx-plus'></i>
-            </div>
             <div class="info-title">TEST</div>  
     </div>
+    <div class="info-box-body">
     <div class="info-gen GEN"></div>
     <div class="sub-page-pre">
             <div class="contbox">
@@ -13600,29 +13602,6 @@
               </div>
             </div>
     </div>
-    <div class="sub-page-pre">
-        <div class="contbox" id="decisions">
-            <div class="contbox-top">
-                <div class="contbox-close closed">
-                    <i class='bx bx-plus'></i>
-            </div>
-            <div class="back-label">DECISION MAKING</div>
-            </div>
-            <div class="contbox-content closed">
-            </div>
-        </div>
-    </div>
-    <div class="sub-page-pre">
-        <div class="contbox" id="medref">
-            <div class="contbox-top">
-                <div class="contbox-close closed">
-                    <i class='bx bx-plus'></i>
-            </div>
-            <div class="back-label">MEDICATIONS</div>
-            </div>
-            <div class="contbox-content closed">
-            </div>
-        </div>
 </div>
 </div>
 <div class="bg2">
@@ -13631,7 +13610,7 @@
           <div class="menu-icon" id="med-menu-main-box">
             <i class='bx bxs-capsule' id="menu-item"></i>
           </div>
-          <div class="menu-icon engaged" id="med-menu-back-box">
+          <div class="menu-icon engaged" id="med-menu-back-box" onclick="medreturn()">
             <i class='bx bx-chevron-left' id="med-menu-back"></i>
           </div>
         </div>
