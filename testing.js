@@ -3368,6 +3368,7 @@ btns.forEach(function(currentbtn){
         slider.style.backgroundColor = color;
         dispo.style.backgroundColor = color;
         sub3.classList.add("open")
+        console.log("working here")
         tagsheet.style.backgroundColor = color;
         if(Qs.classList.contains("ACTN")||Qs.classList.contains("ACTY")||Qs.classList.contains("ACT")||Qs.nextElementSibling.classList.contains("ACTY")||Qs.nextElementSibling.classList.contains("ACTN")||Qs.nextElementSibling.classList.contains("ACT")){sub3.classList.remove("open")
         }else{
@@ -3954,7 +3955,19 @@ const med20 = [
   {Category:["Mechanism of Action"],Content:["Raises blood glucose levels by stimulating increased production of cyclic AMP","Promotes hepatic gluconeogenesis"]},
   {Category:["Aviation considerations"],Content:["None"]}
 ]
+function medreturn(){
+  var topmenubg2 = document.querySelector(".bg2")
+ const currentmed = document.querySelector(".medsheet")
+ currentmed.classList.remove("open")
+ var menu = document.querySelector(".bg2-mainbody")
+ menu.classList.remove("left")
+ banner3.classList.remove("paged")
+ banner4.classList.remove("open")
+ topmenubg2.querySelector("#med-menu-main-box").classList.remove("engaged")
+ topmenubg2.querySelector("#med-menu-back-box").classList.add("engaged")
 
+
+}
 
 var banner3 = document.querySelector("#banner3")
 var banner4 = document.querySelector("#banner4")
@@ -4301,17 +4314,20 @@ function writenote(){
     var Qclasses = ["QRED","Q1","Q2","Q3","Q4","Q5","Q6"]
     const Qclassesindex = {
       "QRED" : ["RED FLAGS: "],
-      "Q1" : ["Q1: "],
-      "Q2" : ["Q2: "],
-      "Q3" : ["Q3: "],
-      "Q4" : ["Q4: "],
-      "Q5" : ["Q5: "],
-      "Q6" : ["Q6: "]
+      "Q1" : ["1. "],
+      "Q2" : ["2. "],
+      "Q3" : ["3. "],
+      "Q4" : ["4. "],
+      "Q5" : ["5. "],
+      "Q6" : ["6. "]
     }
     var slider = current.querySelector(".slider")
     var classes = ["yes","no","0-2","3+"]
+    var Ay = current.querySelector(".Aa.Y")
+    var An = current.querySelector(".Aa.N");
     for (var i = 0; i < current.classList.length; i++) {
       if (Qclasses.indexOf(current.classList[i]) > -1) { 
+
           var point = document.createElement("div")
           point.classList.add("submitmade")
           point.classList.add("SOAPpoint")
@@ -4320,15 +4336,18 @@ function writenote(){
           group.appendChild(point);
           }
       }
-    for (var i = 0; i < slider.classList.length; i++) {
-      if (classes.indexOf(slider.classList[i]) > -1) {
-          var point = document.createElement("div")
-          point.classList.add("submitmade")
-          point.classList.add("SOAPpoint")
-          point.innerHTML = slider.classList[i]
-          group.appendChild(point);
-          }
-      }
+    if(slider.classList.contains("yes")){
+      var Afinal = Ay
+    }else{
+      var Afinal = An
+    }
+    var Atext = Afinal.innerText
+    console.log(Atext)
+    var point = document.createElement("div")
+    point.classList.add("submitmade")
+    point.classList.add("SOAPpoint")
+    point.innerHTML = Atext
+    group.appendChild(point);
       submission.appendChild(group)
       const dispobox = current.querySelectorAll(".dispobox")
       dispobox.forEach(el =>{
@@ -4348,3 +4367,5 @@ function writenote(){
   }
 
 }
+
+
