@@ -27,6 +27,10 @@ body{
 
 /* bg4 is the submit button and window */
 
+ul{
+  list-style-type: disc;
+}
+
 .submissionbox{
   position: absolute;
   height: 35px;
@@ -157,7 +161,7 @@ body{
 
 .bg3{
   position: absolute;
-  height: 300px;
+  height: 400px;
   width: 100%;
   bottom: 0;
   overflow-y: hidden;
@@ -186,18 +190,30 @@ body{
   display: flex;
   background-color: #242424;
   position: relative;
+  overflow-y: hidden;
 }
 .Bb{
   width: 50%;
   height: 100%;
   padding: 5px;
+  display: block;
   text-align: center;
-  margin: auto;
+  justify-content: center;
   color: #a5a4a4;
   background-color: transparent;
   position: relative;
   border: none;
   border-radius: 10px;
+}
+
+.Bbicon{
+  height: 70%;
+  font-size: 18px;
+}
+.Bbtitle{
+  position: relative;
+  font-size: 12px;
+  top: -20%;
 }
 
 .botslider.o.adtmc ~ .Bb.adtmc{
@@ -210,24 +226,30 @@ body{
   color: black;
   transition: all 0.3s ease;
 }
+.botslider.o.updates{
+  position: absolute;
+  height: 100%;
+  width: 33%;
+  transition: all 0.3s ease;
+  transform: translateX(0%) scaleY(1.1);
+  border-radius: 10px;
+}
 
 .botslider.o.adtmc{
   position: absolute;
   height: 100%;
-  width: 50%;
+  width: 33%;
   transition: all 0.3s ease;
-  transform: scaleY(1.1);
-  border-top-right-radius: 10px;
-  border-bottom-right-radius: 10px;
+  transform: translateX(100%) scaleY(1.1);
+  border-radius: 10px;
 }
 .botslider.o.meds{
   position: absolute;
   height: 100%;
-  width: 50%;
-  transform: translateX(100%) scaleY(1.1);
+  width: 33%;
+  transform: translateX(205%) scaleY(1.1);
   transition: 0.3s ease;
-  border-top-left-radius: 5px;
-  border-bottom-left-radius: 5px;
+  border-radius: 10px;
 }
 .botslider{
   position: absolute;
@@ -286,7 +308,8 @@ body{
   transition: all 0.3s ease;
 }
 #medlist{
-  list-style-type: none;
+  list-style-type: disc;
+  list-style-position: outside;
 }
 
 
@@ -343,7 +366,6 @@ body{
 .medcontent li{
   margin-left: 15px;
   margin-right: 15px;
-  list-style-type: none;
 }
 
 .medsheet{
@@ -434,6 +456,17 @@ body{
   visibility: collapse;
   width: 0%;
 }
+.menu-item-box.search{
+  position: absolute;
+  width: 10%;
+  visibility: visible;
+  right: 0;
+  display: flex;
+}
+.menu-item-box.search.closed{
+  display: none;
+}
+
 /* ADTsheet menu box */
 #menu-box3{
   position: absolute;
@@ -672,7 +705,7 @@ li:nth-of-type(even) .btn-border{
   width: 20px;
   padding-bottom: 130px;
   bottom: 50px;
-  display: flex;
+  position: relative;
 }
 
 .prebox{
@@ -824,6 +857,16 @@ li:nth-of-type(even) .btn-border{
   margin-top: 10px;
   overflow-x: none;
 }
+.Q.actopen{
+  grid-template-rows: 1fr;
+  width: 100%;
+  transition: all 0.5s ease;
+  opacity: 1;
+  position: relative;
+  margin-bottom: 10px;
+  margin-top: 10px;
+  overflow-x: none;
+}
 
 .ACTY .card, .ACTN .card{
   background-color:#181818;
@@ -896,6 +939,7 @@ li:nth-of-type(even) .btn-border{
   color: #a5a4a4;
 
 }
+
 .A{
   width: 100%;
   margin-top: 10px;
@@ -1309,7 +1353,6 @@ background-color: #A9D0DD;
 .info-gen li{
   width: 90%;
   margin-left: 5%;
-  list-style-type: none;
 }
 
 .sub-page-pre{
@@ -1335,6 +1378,7 @@ background-color: #A9D0DD;
   box-shadow: 2px 4px 30px rgba(0, 0, 0, 0.1);
   border: 1px solid rgb(184,182,182,0.6);
 }
+
 .contbox-close{
   display: flex;
   height: 30px;
@@ -1415,10 +1459,13 @@ background-color: #A9D0DD;
 }
 
 .contbox-content ul{
+  position: grid;
   margin-top: 2px;
-  margin-left: 18%;
+  margin-left: 6%;
   flex-wrap: wrap;
+  list-style-type: disc;
 }
+
 .back-label{
   margin-left: 10px;
 }
@@ -1428,3 +1475,14 @@ background-color: #A9D0DD;
   margin-bottom: 0;
 }
 
+
+.redflagcontainer{
+  position: relative;
+  background-color: blue;
+  display: flex;
+  max-height: 30px;
+  padding-bottom: 20px;
+  padding-top: 20px;
+  padding-left: 10px;
+  align-items: center;
+}
