@@ -1,10 +1,23 @@
 {
     "name": "ADTMC Beta",
     "short_name": "ADTMC",
+    "description": "Progressive Web App for Algorithm Directed Troop Medical Care MEDCOM PAM 70-7-21"
     "start_url": "index.html",
     "display": "standalone",
     "background_color": "#fdfdfd",
     "theme_color": "#fdfdfd",
     "orientation": "portrait-primary"
+    "icons": [
+        {
+            "src": "icon1.png",
+            "sizes":"32x32",
+            "type":"image/png",
+        }
+        {
+            "src": "icon2.png",
+            "sizes":"512x512",
+            "type":"image/png",
+        }
+    ]
   }
   
