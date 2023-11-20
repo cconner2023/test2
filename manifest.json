@@ -6,18 +6,7 @@
     "display": "standalone",
     "background_color": "#fdfdfd",
     "theme_color": "#fdfdfd",
-    "orientation": "portrait-primary",
-    "icons": [
-        {
-            "src": "icon1.png",
-            "sizes":"32x32",
-            "type":"image/png",
-        },
-        {
-            "src": "icon2.png",
-            "sizes":"512x512",
-            "type":"image/png",
-        }
-    ]
+    "orientation": "portrait-primary"
+    
   }
   
