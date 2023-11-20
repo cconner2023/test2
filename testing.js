@@ -1,3 +1,20 @@
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function() {
+    navigator.serviceWorker
+      .register("/serviceWorker.js")
+      .then(res => console.log("service worker registered"))
+      .catch(err => console.log("service worker not registered", err))
+  })
+}
+
+window.addEventListener('resize', function(){
+  let fixedWidth = 400;
+  let fixedHeight = 400;
+
+  window.resizeTo(fixedWidth, fixedHeight);
+});
+
+
 const  
   A1ACT1 = ["Perform Rapid Strep + Culture Test (barracks, positive close contact, immunosuppressed contact, h/o ARF)"],
   A1ACT2 = [],
