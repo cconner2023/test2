@@ -4673,6 +4673,7 @@ function writenote(){
         }
       })
       a++
+    navigator.clipboard.writeText(submission.innerText)
   }
 
 }
