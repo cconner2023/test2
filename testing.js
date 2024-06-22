@@ -4601,8 +4601,10 @@ function closeSOAP(){
 
 function writenote(){
   var ADT = document.querySelector(".ADTsheet.open");
+  var subtitle = document.querySelector(".SOAPtitle")
   const date = document.querySelector(".SOAPdate")
   date.innerText = new Date()
+  const Geeks = ["ADTMC Screening Algorithm",date.innerText,subtitle.innerText]
   const existing = document.getElementsByClassName("submitmade")
   while(existing.length > 0)
   existing[0].parentNode.removeChild(existing[0])
@@ -4618,12 +4620,12 @@ function writenote(){
     var Qclasses = ["QRED","Q1","Q2","Q3","Q4","Q5","Q6"]
     const Qclassesindex = {
       "QRED" : ["RED FLAGS: "],
-      "Q1" : ["1. "],
-      "Q2" : ["2. "],
-      "Q3" : ["3. "],
-      "Q4" : ["4. "],
-      "Q5" : ["5. "],
-      "Q6" : ["6. "]
+      "Q1" : ["1."],
+      "Q2" : ["2."],
+      "Q3" : ["3."],
+      "Q4" : ["4."],
+      "Q5" : ["5."],
+      "Q6" : ["6."]
     }
     var slider = current.querySelector(".slider")
     var classes = ["yes","no","0-2","3+"]
@@ -4636,7 +4638,7 @@ function writenote(){
           point.classList.add("SOAPpoint")
           var realpoint = Qclassesindex[current.classList[i]]
           point.innerHTML = realpoint
-          group.appendChild(point);
+          group.append(point);
           }
       }
     if(slider.classList.contains("yes")){
@@ -4644,12 +4646,25 @@ function writenote(){
     }else{
       var Afinal = An
     }
+  
     var Atext = Afinal.innerText
     var point = document.createElement("div")
     point.classList.add("submitmade")
     point.classList.add("SOAPpoint")
     point.innerHTML = Atext
-    group.appendChild(point);
+    group.append(point);
+    var Qquest = current.querySelector(".Qtext").innerText
+    
+    if(current.querySelector(".Q-UL")==null){}else{
+      const Qul = current.querySelector(".Q-UL").innerText
+      const Qulgroup = Qul.toString()
+      const Qfinal = Qulgroup.replace(/(\r\n|\n|\r)/gm, ", ")
+      console.log(Qfinal)
+      Geeks.push(Qfinal)
+    }  
+    var group2 = group.innerText
+    var groupf = group2.replace("<br>","//n")
+    Geeks.push(groupf)
       submission.appendChild(group)
       const dispobox = current.querySelectorAll(".dispobox")
       dispobox.forEach(el =>{
@@ -4661,9 +4676,9 @@ function writenote(){
           dispo.classList.add("submitmade")
           dispo.innerText = thestufflabel
           submission.appendChild(dispo)
+          Geeks.push(dispo.innerText)
           var JDPRO = el.querySelector(".contbox-content.JDPRO")
-          if(JDPRO == null){console.log("does not exist")}else{
-            console.log(JDPRO)
+          if(JDPRO == null){}else{
             var tx = document.createElement("div")
             tx.classList.add("SOAPpoint")
             tx.classList.add("submitmade")
@@ -4673,9 +4688,9 @@ function writenote(){
         }
       })
       a++
-    navigator.clipboard.writeText(submission.innerText)
   }
-
+  const Geekssep = Geeks.join("\n")
+  navigator.clipboard.writeText(Geekssep)
 }
 
 
