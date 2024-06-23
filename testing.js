@@ -4666,8 +4666,8 @@ function writenote(){
     if(current.querySelector(".Q-UL")==null){}else{
       const Qul = current.querySelector(".Q-UL").innerText
       const Qulgroup = Qul.toString()
-      const Qfinal = Qulgroup.replace(/(\r\n|\n|\r)/gm, ", ")
-      console.log(Qfinal)
+      const NumComb = Qulgroup.concat("?")
+      const Qfinal = NumComb.replace(/(\r\n|\n|\r)/gm, ", ")
       Geeks.push(Qfinal)
     }  
     var group2 = group.innerText
