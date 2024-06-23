@@ -4612,7 +4612,7 @@ function writenote(){
   var subtitle = document.querySelector(".SOAPtitle")
   const date = document.querySelector(".SOAPdate")
   date.innerText = new Date()
-  const Geeks = ["ADTMC Screening Algorithm",date.innerText,subtitle.innerText]
+  const Geeks = [subtitle.innerText]
   const existing = document.getElementsByClassName("submitmade")
   while(existing.length > 0)
   existing[0].parentNode.removeChild(existing[0])
