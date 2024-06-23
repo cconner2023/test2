@@ -8,7 +8,7 @@ if ("serviceWorker" in navigator) {
 }
 
 window.addEventListener('resize', function(){
-  let fixedWidth = 350;
+  let fixedWidth = 300;
   let fixedHeight = 900;
 
   window.resizeTo(fixedWidth, fixedHeight);
