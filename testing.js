@@ -4636,7 +4636,6 @@ function writenote(){
       "Q6" : ["6."]
     }
     var slider = current.querySelector(".slider")
-    var classes = ["yes","no","0-2","3+"]
     var Ay = current.querySelector(".Aa.Y")
     var An = current.querySelector(".Aa.N");
     for (var i = 0; i < current.classList.length; i++) {
@@ -4646,33 +4645,44 @@ function writenote(){
           point.classList.add("SOAPpoint")
           var realpoint = Qclassesindex[current.classList[i]]
           point.innerHTML = realpoint
-          group.append(point);
+          var numbtostring = realpoint.toString()
+          console.log(numbtostring)
+        group.append(point);
           }
       }
     if(slider.classList.contains("yes")){
-      var Afinal = Ay
+      var ans = Ay
+      var Afinal = ans
+      var Atx = ans.innerHTML
     }else{
+      var ans = An
       var Afinal = An
+      var Atx = ans.innerHTML
+
     }
-  
+
     var Atext = Afinal.innerText
     var point = document.createElement("div")
     point.classList.add("submitmade")
     point.classList.add("SOAPpoint")
     point.innerHTML = Atext
-    group.append(point);
-    var Qquest = current.querySelector(".Qtext").innerText
-    
-    if(current.querySelector(".Q-UL")==null){}else{
+    group.append(point) 
+    if(current.querySelector(".Q-UL")==null){
+      const Qul = current.querySelector(".Qtext").innerText
+      const NumComb = Qul.toString()
+      const Qfinal = NumComb.replace(/(\r\n|\n|\r)/gm, ", ")
+      fstr = Qfinal.toString()
+      Geeks.push(fstr)
+      Geeks.push(Atx)
+    }else{
       const Qul = current.querySelector(".Q-UL").innerText
       const Qulgroup = Qul.toString()
       const NumComb = Qulgroup.concat("?")
       const Qfinal = NumComb.replace(/(\r\n|\n|\r)/gm, ", ")
-      Geeks.push(Qfinal)
-    }  
-    var group2 = group.innerText
-    var groupf = group2.replace("<br>","//n")
-    Geeks.push(groupf)
+      fstr = Qfinal.toString()
+      Geeks.push(fstr)
+      Geeks.push(Atx)
+    }
       submission.appendChild(group)
       const dispobox = current.querySelectorAll(".dispobox")
       dispobox.forEach(el =>{
@@ -4684,7 +4694,7 @@ function writenote(){
           dispo.classList.add("submitmade")
           dispo.innerText = thestufflabel
           submission.appendChild(dispo)
-          Geeks.push(dispo.innerText)
+          Geeks.push("",dispo.innerText)
           var JDPRO = el.querySelector(".contbox-content.JDPRO")
           if(JDPRO == null){}else{
             var tx = document.createElement("div")
