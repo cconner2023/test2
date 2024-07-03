@@ -3360,6 +3360,9 @@ var sub3 = document.querySelector(".submissionbox")
 var tag = document.querySelector(".submissiontag")
 var tagsheet = document.querySelector(".submissionsheet")
 var subpage = document.querySelector(".sub-page-bottom")
+var subwin = document.querySelector(".sub-page")
+const bottom = document.querySelector(".bottommarker");
+
 //question yes-no slider action + justify() at end
 var btns = document.querySelectorAll(".Aa");
 btns.forEach(function(currentbtn){
@@ -3391,11 +3394,7 @@ btns.forEach(function(currentbtn){
       }
         dispo.style.color = "#333"
         justify()
-        const sectionTwo = document.querySelector(".bottommarker");
-        sectionTwo.scrollIntoView();
-        
-
-    }
+      }
     if(currentbtn.classList.contains("N")){
       slider.classList.add("no")
       slider.classList.remove("yes");
@@ -3417,27 +3416,14 @@ btns.forEach(function(currentbtn){
           sub3.classList.add("open")
         }
         justify()
-
     }
-const sectionTwo = document.querySelector(".bottommarker");
-const sectionTwoOptions = {};
-  const sectionTwoObs = new IntersectionObserver(function(entries, sectionTwoObs){
-    entries.forEach(entry => {
-      if(!entry.isIntersecting){
-        if(document.querySelector(".sub-page").classList.contains("open")){
-          sectionTwo.scrollIntoView();
-        }
-      }
-    });
-  }, sectionTwoOptions);
-  sectionTwoObs.observe(sectionTwo)
-  sectionTwoObs.unobserve()
-  })
+  }) 
 })
+
 //justification for how cards appear and disappear
 function justify(){
   var ADT = document.querySelector(".ADTsheet.open")
-  var page = ADT.closest(".sub-page-bottom")
+  var bottom = document.querySelector(".bottommarker")
   var QRED = ADT.querySelector(".QRED")
   var Q1 = ADT.querySelector(".Q1")
   var Q2 = ADT.querySelector(".Q2")
@@ -3602,7 +3588,19 @@ function justify(){
         }
       }
     }
-  } // START OF Q5 JUSTIFY
+  }
+  const sectionTwo = document.querySelector(".bottommarker");
+const sectionTwoOptions = {};
+  const sectionTwoObs = new IntersectionObserver(function(entries, sectionTwoObs){
+    entries.forEach(entry => {
+      if(!entry.isIntersecting){
+        if(document.querySelector(".sub-page").classList.contains("open")){
+          sectionTwo.scrollIntoView();
+        }
+      }
+    });
+  }, sectionTwoOptions);
+  sectionTwoObs.observe(sectionTwo)
 }     
 
 // clears the board if something turns yes
@@ -4540,7 +4538,7 @@ function ADTfont(){
   const style = getComputedStyle(botslider)
   botslider.style.color = "#333"
 }
-//toggle between medications and adtmc. also if tapped again will go back.
+//toggle between medications and adtmc.
 var btns = document.querySelectorAll(".Bb");
 btns.forEach(function(currentbtn){
 currentbtn.addEventListener("click",()=>{
@@ -4590,7 +4588,7 @@ function play(){
   bg3.classList.toggle("augmented")
   bg.classList.add("closed")
   writenote()
-   // Get the snackbar DIV
+  // Get the snackbar DIV
 var x = document.getElementById("snackbar");
 
 // Add the "show" class to DIV
@@ -4710,5 +4708,3 @@ function writenote(){
   const Geekssep = Geeks.join("\n")
   navigator.clipboard.writeText(Geekssep)
 }
-
-
