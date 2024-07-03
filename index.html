@@ -17,6 +17,7 @@
     </head>
 <body>
     <div id="snackbar">Summary copied to clipboard</div>   
+
 <div class="bg3">
     <div class="bot">
         <div class="Bbar">
@@ -39,7 +40,7 @@
     <div class="submissionbox">
         <div class="submissionsheet">
                 <div class="submissiontag" onclick="play()">
-                        <div class="submitlabel" >Generate</div>
+                        <div class="submitlabel" ></div>
                         <div class="submiticon"><i class='bx bxs-paper-plane'></i></div>
                 </div>
                 <div class="SOAPbox">
@@ -68,7 +69,9 @@
     <div class="menu-banner" id="banner2">TEST BANNER</div>
   </div>
 
+
   <div class="sel-box selected" id="main-categories">
+    
     <ul id="categories">
       <li>                            
         <div class="catbtn" id="btnA">
@@ -3540,7 +3543,7 @@
                   </div>
                   <ul class="Q-UL">
                       <li class="Q-LI" >Chemotherapy</li>
-                      <li class="Q-LI" >BMI > 18</li>
+                      <li class="Q-LI" >BMI < 18</li>
                       <li class="Q-LI" >Diabetes</li>
                       <li class="Q-LI" >Recent head trauma w/in 72 hrs</li>
                   </ul>
@@ -13539,8 +13542,9 @@
       </div>
   </div>  <!-- End of M-2 -->
   <!-- END OF SECTION M. END OF ADTSHEETS -->
-    <div class="bottommarker" id="bottom"></div>  
+  <div class="bottommarker" id="bottom"></div>  
 </div>
+
 </div>
 </div>
 <div class="info-container" id="cont1">
@@ -14004,11 +14008,24 @@
     </ul>
 </div>
 <div class="medsheet"></div>
+<div class="htmlstore">
+    <div class="htmlyes"><b>(YES)</b></div>
+    <div class="htmlno"><b>(NO)</b></div>
+</div>
 </div>
 
-<script> feather.replace()
-</script>
-<script src="testing.js"></script>
+<script>
+    $(document).ready(function(){
+       feather.replace();
+    
+       $('button').click(function(){
+          $('.alert').html('<i data-feather="activity"></i>');
+          feather.replace();
+       });
+    
+    });
 
+    </script>
+<script src="A.01 Main.js"></script>        
 </body>
 </html>
