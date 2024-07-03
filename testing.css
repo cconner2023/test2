@@ -19,16 +19,16 @@
 }
  /* The snackbar - position it at the bottom and in the middle of the screen */
  #snackbar {
-  visibility: hidden; /* Hidden by default. Visible on click */
+  visibility: hidden;
   width: 100%;
   background-color: #333; /* Black background color */
   color: #fff; /* White text color */
   text-align: center; /* Centered text */
   border-radius: 15px; /* Rounded borders */
   padding: 16px; /* Padding */
-  position: fixed; /* Sit on top of the screen */
-  z-index: 200; /* Add a z-index if needed */
-  bottom: 45px; /* 30px from the bottom */
+  z-index: 600; /* Add a z-index if needed */
+  position: absolute;
+  bottom: 5px; /* 30px from the bottom */
 }
 
 /* Show the snackbar when clicking on a button (class added with JavaScript) */
@@ -42,30 +42,29 @@
 
 /* Animations to fade the snackbar in and out */
 @-webkit-keyframes fadein {
-  from {bottom: 0; opacity: 0;}
-  to {bottom: 30px; opacity: 1;}
+  from {bottom: -25px; opacity: 0;}
+  to {bottom: 5px; opacity: 1;}
 }
 
 @keyframes fadein {
-  from {bottom: 0; opacity: 0;}
-  to {bottom: 30px; opacity: 1;}
+  from {bottom: -25px; opacity: 0;}
+  to {bottom: 5px; opacity: 1;}
 }
 
 @-webkit-keyframes fadeout {
-  from {bottom: 30px; opacity: 1;}
-  to {bottom: 0; opacity: 0;}
+  from {bottom: 5px; opacity: 1;}
+  to {bottom: -25px; opacity: 0;}
 }
 
 @keyframes fadeout {
-  from {bottom: 30px; opacity: 1;}
-  to {bottom: 0; opacity: 0;}
+  from {bottom: 5px; opacity: 1;}
+  to {bottom: -25px; opacity: 0;}
 } 
-
 body{
   width: 100%;
   height: 100%;
-  overflow: hidden;
-  background-color:#121212;
+  overflow: none;
+  background-color: #282C29;
   color: rgb(223, 223, 223);
 }
 
@@ -76,45 +75,39 @@ ul{
 }
 
 .submissionbox{
-  position: absolute;
-  height: 35px;
-  width: 120px;
-  bottom: 20%;
-  right: 15%;
-  z-index: 1;
+  height: 70px;
+  width: 100%;
   font-size: 15px;
   overflow: hidden;
-  transform: translateY(350%);
+  transform: translateY(300%);
   transition: all 0.3s ease;  
 }
+
+
 .submissionbox.open{
-  transform: translateY(0%);
+  transform: translateY(30%);
   transition: all 0.3s ease;
 }
 .submissionbox.clicked{
-  height: 90%;
   width: 100%;
-  right: 0;
-  top: 0;
+  height: 70%;
   overflow: scroll;
-  transform: translateY(0%);
   transition: all 0.3s ease;  
 
 }
 .submissionsheet{
-  height: 34px;
-  width: 119px;
   position: relative;
-  border-radius: 10px;
   overflow: hidden;
   color: black;
+  height: 50%;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
   transition: all 0.3s ease;  
-
 }
 
 .submissiontag{
-  height: 34px;
-  width: 119px;
+  height: 100%;
+  width: 100%;
   position: relative;
   display: flex;
   border-radius: 10px;
@@ -131,7 +124,7 @@ ul{
 
 }
 .submissionbox.clicked .submissiontag{
-  transform: translateX(-100%);
+  transform: translatex(-300%);
   transition: all 0.3s ease;
 }
 .submitlabel{
@@ -206,17 +199,19 @@ ul{
 
 .bg3{
   position: absolute;
-  height: 400px;
+  height: 100px;
   width: 100%;
   bottom: 0;
-  overflow-y: hidden;
   font-size: 14px;
   transition: all 0.3s ease;
+  overflow: hidden;
+  z-index: 2;
 
 }
 .bg3.augmented{
-  height: 100%;
+  height: 70%;
   transition: all 0.3s ease;
+  overflow: hidden;
 }
 
 .bot{
@@ -224,71 +219,80 @@ ul{
   bottom: 0;
   width: 100%;
   margin: 0;
-  z-index: 300;
-
+  overflow: hidden;
 }
 .Bbar{
   width: 100%;
-  height: 20%;
   margin: auto;
   align-items: center;
   display: flex;
   background-color: #242424;
   position: relative;
-  overflow-y: hidden;
+  z-index: 2;
+  overflow: hidden;
+
+
 }
 .Bb{
   width: 50%;
-  height: 34px;
+  height: 100%;
+  position: relative;
   display: block;
   text-align: center;
   justify-content: center;
   align-items: baseline;
   color: #a5a4a4;
   background-color: transparent;
-  position: relative;
   border: none;
-  top: -20%;
   border-radius: 10px;
+  overflow: hidden;
+
 }
 
 .Bbicon{
+  top: 7px;
   position: relative;
-  height: 80%;
+  width: 100%;
   font-size: 18px;
+  overflow: none;
 }
 .Bbtitle{
   position: relative;
+  height: 50%;
   font-size: 12px;
-  bottom: 25%;
+  overflow: none;
 }
 
 .botslider.o.adtmc ~ .Bb.adtmc{
   font-weight: 500;
   color: black;
   transition: all 0.3s ease;
+  overflow: none;
 }
 .botslider.o.meds ~ .Bb.meds{
   font-weight: 500;
   color: black;
   transition: all 0.3s ease;
+  overflow: none;
 }
 
 .botslider.o.adtmc{
   position: absolute;
-  height: 100%;
   width: 50%;
   transition: all 0.3s ease;
   transform: translateX(0%) scaleY(1.1);
-  border-radius: 10px;
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+  overflow: none;
 }
 .botslider.o.meds{
   position: absolute;
-  height: 100%;
   width: 50%;
   transform: translateX(100%) scaleY(1.1);
   transition: 0.3s ease;
-  border-radius: 10px;
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+  overflow: none;
 }
 .botslider{
   position: absolute;
@@ -297,23 +301,26 @@ ul{
   display: block;
   background-color:#545454;
   transition: 0.3s ease;
+  overflow: none;
 }
 .botslider.closed{
   height: 0;
   display: none;
   background-color:#b8b6b6;
+  overflow: none;
 }
 
 /* bg2 is the meds side of the house */
 .bg2{
-  height: 94%;
+  height: 90%;
   width: 100%;
-  background-color:#121212;
+  overflow: hidden;
+  background-color: #282C29;
   transition: all 0.3s ease;
   transform: translateX(-100%);
   z-index: 299;
-  position: absolute;
   overflow: hidden;
+  position: absolute;
 }
 .bg2.center{
   transform: translateX(0);
@@ -323,7 +330,7 @@ ul{
   top: 11%;
   height: 90%;
   width: 100%;
-  padding-bottom: 20px;
+  padding-bottom: 30px;
   position: absolute;
   overflow-y: scroll;
   overflow-x: hidden;
@@ -343,7 +350,7 @@ ul{
 .medbox{
   height: 94%;
   width: 100%;
-  background-color:#121212;
+  background-color: #282C29;
   transition: all 0.3s ease;
 }
 #medlist{
@@ -355,13 +362,16 @@ ul{
 
 .medbtn{
   position: relative;
+  background-color: rgb(65,70,69, 0.1);
+  box-shadow: rgba(0, 0, 0, 0.11) 0px 4px 12px;
   height: 2.5rem;
-  margin-bottom: 4%;
-  margin-top: 2%;
+  border-radius: 5px;
+  margin-bottom: 1%;
+  margin-top: 1%;
   margin-left: 4%;
-  width: 95%;
+  width: 90%;
   display: flex;
-  overflow: none;
+  overflow: hidden;
   align-items: center;
 }
 
@@ -381,11 +391,11 @@ ul{
   position: relative;
   overflow-y: hidden;
   background-color: #191919;
+  box-shadow: rgba(0, 0, 0, 0.2) 0px 4px 12px;
   color: rgb(223, 223, 223);
   display: grid;
   grid-template-rows: 1fr;
-  border-radius: 16px;
-  box-shadow: 2px 4px 30px rgba(0, 0, 0, 0.1);
+  border-radius: 5px;
 }
 
 .medtop{
@@ -396,7 +406,7 @@ ul{
   justify-content: center;
   align-items: center;
   display: flex;
-  background-color: #333;
+  background-color: #242424;
   position: relative;
 }
 .medcontent{
@@ -433,7 +443,6 @@ ul{
   transform: scale(1) translateY(0%) translateX(0);
   transition: all 0.3s ease;
   overflow: hidden;
-
 }
 /* bg closed is when the information box is open */
 .bg.closed{
@@ -454,7 +463,7 @@ ul{
 .mainpage{
   height: 100%;
   width: 100%;
-  background-color:#121212;
+  background-color: #282C29;
   position: absolute;
   overflow: hidden;
 }
@@ -471,7 +480,7 @@ ul{
   display: flex;
   align-items: center;
   overflow-x: hidden;
-  background-color:#121212;
+  background-color: #282C29;
   z-index: 200;
   opacity: 1;
   transform: translateY(0%);
@@ -480,7 +489,7 @@ ul{
 .top-menu.paged{
   position: absolute;
   opacity: 0;
-  transform: translateY(-300%);
+  transform: translateX(-300%);
   transition: all 0.3s ease;
 }
 .menu-item-box{
@@ -584,7 +593,9 @@ ul{
   height: 90%;
   width: 100%;
   top: 10%;
-  background-color: #121212;
+  padding-bottom: 10px;
+  padding-top: 10px;
+  background-color: #282C29;
   transform: translateX(200%) translateY(0%);
   transition: all 0.3s ease;
  }
@@ -597,7 +608,7 @@ ul{
   height: 90%;
   width: 100%;
   top: 10%;
-  background-color: #121212;
+  background-color: #282C29;
   transform: translateX(-200%) translateY(0%);
   transition: all 0.3s ease;
  }
@@ -612,7 +623,7 @@ ul{
   top: 10%;
   margin-bottom: 5px;
   overflow-y: scroll;
-  background-color: #121212;
+  background-color: #282C29;
   transform: translateX(0%) translateY(0%);
   transition: all 0.3s ease;
  }
@@ -624,85 +635,73 @@ ul{
 
 .catbtn{
   position: relative;
+  background-color: rgb(65,70,69, 0.1);
+  box-shadow: rgba(0, 0, 0, 0.15) 0px 4px 12px;
   height: 2.5rem;
-  margin-bottom: 4%;
-  margin-top: 2%;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  border-radius: 5px;
+  margin-bottom: 1.2%;
+  margin-top: 1.2%;
   margin-left: 4%;
-  width: 95%;
+  width: 90%;
   display: flex;
-  overflow: none;
+  overflow: hidden;
   align-items: center;
 }
 
-.btn-border{
-  height: 97%;
-  width: 8px;
-  position: relative;
-  display: flex;
-  margin-top: auto;
-  margin-bottom: auto;
-  align-items: center;
-  justify-content: center;
-  border-bottom-left-radius: 10px;
-  border-top-left-radius: 10px;
-}
-li:nth-of-type(odd) .btn-border{
-  background-color:  #E9B8B8;
-  color: white;
-}
 
-li:nth-of-type(even) .btn-border{
-  background-color: #EED9B1;
-  color: white;
-}
 .category-text-box{
   font-weight: 100;
   display: flex;
   align-items: center;
   font-size: 13px;
-  background-color: #181818;
-  border-top: 1px solid #181818;
-  border-right: 1px solid #181818;
-  border-bottom: 1px solid #181818;
-  width: 90%;
-  height: 100%;
 }
 .texticon{
-  min-width: 30px;
-  max-width: 40px;
+  min-width: 40px;
+  height: 120px;
   position: relative;
   display: flex;
   align-items: center;
-  margin-left: 10px;
+  justify-content: center;
   margin-right: 10px;
+}
+
+li:nth-of-type(odd) .texticon{
+  background-color: #958A68;
+  color: #181818;
+  font-weight: bold;
+}
+li:nth-of-type(even) .texticon{
+  background-color: #5a613f;
+  color: #181818;
+  font-weight: bold;
 }
 
 
 /* sub-page with title, ddx, and red */
 .sub-page{
-  height: 100%;
+  height: 99%;
   width: 100%;
   opacity: 0;
-  background-color:#121212;
   color: rgb(223, 223, 223);
-  position: absolute;
-  overflow-Y: scroll;
+  overflow-y: scroll;
+  overflow-x: hidden;
   transform: translateX(300%);
   transition: all 0.3s ease;
   
 }
 .sub-page.open{
-  position: absolute;
   opacity: 1;
-  overflow-y: scroll;
   transform: translateX(0%);
   transition: all 0.3s ease;
 }
 .sub-page-top{
   position: relative;
   display: grid;
+  overflow: hidden;
   grid-template-rows: 1fr;
-  background: rgba(18,18,18,1);
+  background-color: #282C29; 
 }
 
 .wrap-marker{
@@ -714,7 +713,6 @@ li:nth-of-type(even) .btn-border{
 }
 
 .sub-page-banner-box{
-  position: sticky;
   display: flex;
   margin-top: 50px;
   margin-bottom: 20px;
@@ -733,18 +731,15 @@ li:nth-of-type(even) .btn-border{
 /* ADTsheet */
 
 .sub-page-bottom{
-  position: relative;
-  display: grid;
-  overflow-x: none;
   font-size: 14px;
+  overflow: hidden;
 }
 
 .bottommarker{
-  height: 10px;
-  width: 20px;
-  padding-bottom: 130px;
-  bottom: 50px;
-  position: relative;
+  height: 20px;
+  width: 100%;
+  bottom: 0;
+  padding-bottom: 200px;
 }
 
 .prebox{
@@ -754,11 +749,12 @@ li:nth-of-type(even) .btn-border{
   border-radius: 10px;
   margin-left: auto;
   margin-right: auto;
-  background-color: #242424;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  background-color: rgb(65,70,69, 0.3);
+  box-shadow: rgba(0, 0, 0, 0.3) 0px 4px 12px;
   color: rgb(223, 223, 223);
   border-radius: 10px;
-  box-shadow: 2px 4px 30px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgb(184,182,182,0.6);
 }
 .prebox-close{
   display: flex;
@@ -795,7 +791,7 @@ li:nth-of-type(even) .btn-border{
   max-height: 1000px;
   opacity: 1;
   visibility: visible;
-  background-color: #242424;
+  background-color: transparent;
   transition: all 0.4s ease;
 }
 .prebox-content.closed{
@@ -820,7 +816,7 @@ li:nth-of-type(even) .btn-border{
   height: 70px;
   width: 100%;
   top: 0;
-  background: rgba(18,18,18,1);
+  background-color: #282C29; 
   display: flex;
   align-items: center;
   z-index: 300;
@@ -833,7 +829,7 @@ li:nth-of-type(even) .btn-border{
   top: 0%;
   height: 100px;
   width: 100%;
-  background:  rgba(18,18,18,1);
+  background-color: #282C29; 
   color: white;
   display: flex;
   align-items: center;
@@ -894,7 +890,7 @@ li:nth-of-type(even) .btn-border{
   position: relative;
   margin-bottom: 10px;
   margin-top: 10px;
-  overflow-x: none;
+  overflow-x: hidden;
 }
 .Q.actopen{
   grid-template-rows: 1fr;
@@ -916,13 +912,13 @@ li:nth-of-type(even) .btn-border{
   width:95%;
   margin: auto;
   position: relative;
-  overflow-y: hidden;
-  background-color: #191919;
+  overflow-y: none;
+  background-color: #242424;
   color: rgb(223, 223, 223);
   display: grid;
   grid-template-rows: 1fr;
   border-radius: 16px;
-  box-shadow: 2px 4px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: rgba(0, 0, 0, 0.2) 0px 4px 12px;
 }
 
 .front{
@@ -998,6 +994,7 @@ li:nth-of-type(even) .btn-border{
   margin: auto;
   align-items: center;
   display: flex;
+  overflow: hidden;
   background-color: #333;
   position: relative;
 }
@@ -1058,7 +1055,6 @@ li:nth-of-type(even) .btn-border{
 }
 .slider.closed{
   height: 0;
-  display: none;
   background-color:#545454;
 }
 
@@ -1165,7 +1161,7 @@ margin-left: 0;
   border-radius: 0px;
   visibility: none;
   position: relative;
-  overflow: collapse;
+  overflow: none;
   transform: translateX(150%);
   max-height: 0px;
   transition: all 0.3s ease;
@@ -1265,16 +1261,16 @@ background-color: #ee8e8e;
 background-color: #ee8e8e;
 }
 .DII{
-background-color: #ffd484;
+background-color: #b4a36f;
 }
 .DIV{
-background-color: #7cb17c;
+background-color: #717a4d;
 }
 .DRTD{
-background-color: #C1DBC1;
+background-color: #717a4d;
 }
 .DRETEST{
-background-color: #A9D0DD;
+background-color: #b4a36f;
 }
 
 
@@ -1317,7 +1313,7 @@ background-color: #A9D0DD;
   height: 30px;
   width: 30px;
   border-radius: 50%;
-  background-color: black;
+  background-color: #171a18;
   align-items: center;
   justify-content: center;
   display: flex;
@@ -1340,7 +1336,7 @@ background-color: #A9D0DD;
   color: black;
   overflow:hidden ;
   opacity: 1;
-  transform: scale(1) translateY(0%);
+  transform: translateY(10%);
   transition: all 0.2s ease-in-out;
 }
 .info-container{
@@ -1352,13 +1348,13 @@ background-color: #A9D0DD;
   position: absolute;
   border-top-left-radius: 10px;
   border-top-right-radius: 10px;
-  z-index: 3;
+  z-index: 1;
   background-color: #333;
   overflow-y: scroll;
   bottom: 0;
   opacity: 0;
   margin-bottom: 10px;
-  transform: scale(0.5) translateY(300%);
+  transform:  translateY(10%);
   transition: all 0.5s ease-in-out;
 }
 
@@ -1411,7 +1407,7 @@ background-color: #A9D0DD;
   border-radius: 10px;
   margin-left: auto;
   margin-right: auto;
-  background-color: #242424;
+  background-color: #282C29;
   color: rgb(223, 223, 223);
   border-radius: 10px;
   box-shadow: 2px 4px 30px rgba(0, 0, 0, 0.1);
@@ -1517,7 +1513,6 @@ background-color: #A9D0DD;
 
 .redflagcontainer{
   position: relative;
-  background-color: blue;
   display: flex;
   max-height: 30px;
   padding-bottom: 20px;
