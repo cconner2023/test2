@@ -9,11 +9,10 @@ if ("serviceWorker" in navigator) {
 
 window.addEventListener('resize', function(){
   let fixedWidth = 290;
-  let fixedHeight = 950;
+  let fixedHeight = 980;
 
   window.resizeTo(fixedWidth, fixedHeight);
 });
-
 
 const  
   A1ACT1 = ["Perform Rapid Strep + Culture Test (barracks, positive close contact, immunosuppressed contact, h/o ARF)"],
@@ -1476,7 +1475,7 @@ L4FLAG = ["N/A"],
 L5FLAG = ["N/A"],
 L6FLAG = ["N/A"],
 L7FLAG = ["N/A"],
-L8FLAG = ["N/A","1"],
+L8FLAG = ["N/A"],
 L9FLAG = ["N/A"],
 L10FLAG = ["N/A"],
 L11FLAG = ["N/A"],
@@ -3297,19 +3296,26 @@ var nav = document.querySelector(".top-menu")
 var reverse = document.querySelector("#menu-back-box")
 var homebtn = document.querySelector("#menu-main-box")
 var infoTitle = document.querySelector(".info-title")
-
+var sub3 = document.querySelector("#cont2")
 
 const rtn = document.querySelector("#menu-icon3")
 function retn(){
   const subpage = document.querySelector(".sub-page");
   subpage.classList.remove("open");
-  if(sub3.classList.contains("open")){sub3.classList.remove("open")}
+  if(sub3.classList.contains("keyed")){sub3.classList.remove("keyed")}
   var sheet = document.querySelectorAll(".ADTsheet.open");
+  const classlist = ["ACT","ACTN","ACTY"]
   sheet.forEach(el => {
+    var currentel = el
+    var daughter = currentel.firstElementChild
+    var sister = daughter.nextElementSibling
     el.classList.remove("open");
     el.querySelectorAll(".Q").forEach(ele =>{
       ele.classList.remove("open")
       if(ele == el.firstElementChild){ele.classList.add("open")}
+      if(classlist.some(classlist => daughter.classList.contains(classlist))){
+        sister.classList.add("open")
+      }
     })
     el.querySelectorAll(".slider").forEach(el1 =>{
       el1.classList.remove('o','yes','no')
@@ -3327,7 +3333,7 @@ function retn(){
       if(b.querySelector(".dispobox.Nah")==null){null}else{
         var e= b.querySelector(".dispobox.Nah")
         e.querySelector(".justbox").classList.remove("open")
-        }
+        }  
         d.classList.remove("open")
         par = el4.parentElement
         grandpar = par.parentElement
@@ -3342,7 +3348,7 @@ function retn(){
         back.classList.remove("opened");
         b.querySelector(".front").classList.remove("closed");
     })
-    
+
   })
   nav.classList.remove("paged");
   var sel = nav.innerText
@@ -3356,9 +3362,7 @@ function retn(){
     }
   })
 }
-var sub3 = document.querySelector(".submissionbox")
-var tag = document.querySelector(".submissiontag")
-var tagsheet = document.querySelector(".submissionsheet")
+
 var subpage = document.querySelector(".sub-page-bottom")
 var subwin = document.querySelector(".sub-page")
 const bottom = document.querySelector(".bottommarker");
@@ -3377,7 +3381,7 @@ btns.forEach(function(currentbtn){
       if(Qs.querySelector(".dispobox.Nah") == null){null}else{
         var nah = Qs.querySelector(".dispobox.Nah");
         nah.classList.remove("open")
-        sub3.classList.remove("open")
+        sub3.classList.remove("keyed")
       }
       slider.classList.add("yes")
       slider.classList.remove("no");
@@ -3387,9 +3391,9 @@ btns.forEach(function(currentbtn){
         const color = style.backgroundColor
         slider.style.backgroundColor = color;
         dispo.style.backgroundColor = color;
-        sub3.classList.add("open")
-        tagsheet.style.backgroundColor = color;
-        if(Qs.classList.contains("ACTN")||Qs.classList.contains("ACTY")||Qs.classList.contains("ACT")||Qs.nextElementSibling.classList.contains("ACTY")||Qs.nextElementSibling.classList.contains("ACTN")||Qs.nextElementSibling.classList.contains("ACT")){sub3.classList.remove("open")
+        sub3.classList.add("keyed")
+        sub3 .style.backgroundColor = color;
+        if(Qs.classList.contains("ACTN")||Qs.classList.contains("ACTY")||Qs.classList.contains("ACT")||Qs.nextElementSibling.classList.contains("ACTY")||Qs.nextElementSibling.classList.contains("ACTN")||Qs.nextElementSibling.classList.contains("ACT")){sub3.classList.remove("keyed")
         }else{
       }
         dispo.style.color = "#333"
@@ -3401,7 +3405,7 @@ btns.forEach(function(currentbtn){
       dispobox.classList.remove("open");
       if(Qs.querySelector(".dispobox.Nah") == null){
         slider.removeAttribute('style')
-        sub3.classList.remove("open")
+        sub3.classList.remove("keyed")
       }
         else{
           var nah = Qs.querySelector(".dispobox.Nah");
@@ -3409,11 +3413,11 @@ btns.forEach(function(currentbtn){
           const style = getComputedStyle(nahbar);
           const color = style.backgroundColor
           var d = nah.querySelector(".iconbutton")
-          tagsheet.style.backgroundColor = color
+          sub3.style.backgroundColor = color
           d.style.backgroundColor = color;
           slider.style.backgroundColor = color;
           nah.classList.add("open")
-          sub3.classList.add("open")
+          sub3.classList.add("keyed")
         }
         justify()
     }
@@ -3606,7 +3610,10 @@ const sectionTwoOptions = {};
 // clears the board if something turns yes
 // + add clear submitbar and resubmit if applicable
 function clearboard(){
+  const classnames = ["ACT","ACTN","ACTY"]
   var Q = event.target.closest(".Q")
+  var dad = Q.closest(".ADTsheet")
+  var first = dad.firstElementChild
   let CL = Q
   let CLP = CL.nextElementSibling
   while(CLP){
@@ -3615,6 +3622,10 @@ function clearboard(){
   if(CLP.querySelector(".dispobox.Yikes") == null){null}else{CLP.querySelector(".dispobox.Yikes").classList.remove("open")}
   if(CLP.querySelector(".dispobox.Nah") == null){null}else{CLP.querySelector(".dispobox.Nah").classList.remove("open")}  
   CLP = CLP.nextElementSibling
+  }
+  if(classnames.some(classnames => first.classList.contains(classnames))){
+    var sister = first.nextElementSibling
+    sister.classList.add("open")
   }
 }
 
@@ -3661,8 +3672,8 @@ subItems.forEach(function(btn){
       var looking = btn.querySelector(".texticon").innerHTML
       var looking2 = btn.querySelector(".btn-text").innerHTML
       var titles = looking +"<br>"+looking2
-      var subtitle = document.querySelector(".SOAPtitle")
-      subtitle.innerHTML = looking +": "+ looking2
+      // // var subtitle = document.querySelector(".SOAPtitle")
+      // subtitle.innerHTML = looking +": "+ looking2
       title.innerHTML = titles
       infoTitle.innerHTML = looking + "<br>" +looking2
       Su.classList.add("open");
@@ -4397,17 +4408,18 @@ const medboxes = {
 
 
 
-var contentClosing = document.querySelectorAll(".contbox-close")
+var contentClosing = document.querySelectorAll(".contbox-top")
 contentClosing.forEach(function(el){
         el.addEventListener("click",() =>{
+                var son = el.querySelector(".contbox-close")
                 var dad = el.closest(".sub-page-pre");
                 var box = dad.querySelector(".contbox-content");
                 if(box.classList.contains("closed")){
                         box.classList.remove("closed")
-                        el.classList.remove("closed")
+                        son.classList.remove("closed")
                 }else{
                         box.classList.add("closed")
-                        el.classList.add("closed")
+                        son.classList.add("closed")
                 }
         
         })
@@ -4420,20 +4432,11 @@ function openA(){
         if(container.classList.contains("closed")){
                 container.classList.remove("closed")
                 document.querySelector(".bg").classList.remove("closed")
-                cont1.style.backgroundColor = "#333"
         }else{
                 container.classList.add("closed")
                 document.querySelector(".bg").classList.add("closed")
                 var ADT = document.querySelector(".ADTsheet.open")
                 var Qs = ADT.querySelectorAll(".dispobox")
-                Qs.forEach (el =>{
-                  if(el.classList.contains("open")){
-                    const slider = el.querySelector(".dispobar")
-                    const style = getComputedStyle(slider)
-                    const color = style.backgroundColor
-                    cont1.style.backgroundColor = color
-                  }
-                })
         }
 }
 // icon buttons for explanations
@@ -4530,7 +4533,7 @@ function closeRed(){
 function openB(){
   var bg2 = document.querySelector(".bg2")
   bg2.classList.remove("open")
-  if(sub3.classList.contains("open")){sub3.classList.remove("open")}
+  if(sub3.classList.contains("keyed")){sub3.classList.remove("keyed")}
 }
 function ADTfont(){
   var bg3 = document.querySelector(".bg3")
@@ -4570,7 +4573,6 @@ if(currentbtn.classList.contains("meds")){
 
 var cont1 = document.querySelector("#cont1");
 var bg = document.querySelector(".bg")
-var bg3 = document.querySelector(".bg3")
 var infoTitle = document.querySelector(".info-title")
 function submission(){
         if(cont1.classList.contains("closed")){
@@ -4583,33 +4585,33 @@ function submission(){
         }
 }
 
+const sub3tag = document.querySelector(".submittop")
 function play(){
-  sub3.classList.toggle("clicked")
-  bg3.classList.toggle("augmented")
+  if(sub3.classList.contains("clicked")){null}else{
+    if(sub3.classList.contains("keyed")){
+      sub3.classList.add("clicked")
+      bg.classList.add("closed")
+    }
+  }
   bg.classList.add("closed")
-  writenote()
-  // Get the snackbar DIV
+writenote()
 var x = document.getElementById("snackbar");
-
-// Add the "show" class to DIV
 x.className = "show";
-
-// After 3 seconds, remove the show class from DIV
 setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
 }
 function closeSOAP(){
   sub3.classList.remove("clicked")
-  bg3.classList.remove("augmented")
   bg.classList.remove("closed")
-  const date = new Date()
-  date.toLocaleString('en-us',{month:'short', year:'numeric'})
 }
 
 function writenote(){
   var ADT = document.querySelector(".ADTsheet.open");
-  var subtitle = document.querySelector(".SOAPtitle")
+  var subtitle = document.querySelector(".SOAPtitle");
+  subtitle.innerHTML = title.innerHTML
+  console.log(subtitle.innerText)
   const date = document.querySelector(".SOAPdate")
-  date.innerText = new Date()
+  const newday = new Date()  
+  date.innerText = newday
   const Geeks = [subtitle.innerText]
   const existing = document.getElementsByClassName("submitmade")
   while(existing.length > 0)
@@ -4631,7 +4633,7 @@ function writenote(){
       "Q3" : ["3."],
       "Q4" : ["4."],
       "Q5" : ["5."],
-      "Q6" : ["6."]
+      "Q6" : ["6."]     
     }
     var slider = current.querySelector(".slider")
     var Ay = current.querySelector(".Aa.Y")
@@ -4643,28 +4645,18 @@ function writenote(){
           point.classList.add("SOAPpoint")
           var realpoint = Qclassesindex[current.classList[i]]
           point.innerHTML = realpoint
-          var numbtostring = realpoint.toString()
-          console.log(numbtostring)
-        group.append(point);
           }
       }
     if(slider.classList.contains("yes")){
-      var ans = Ay
-      var Afinal = ans
-      var Atx = ans.innerHTML
+        var ans = Ay
+        var Afinal = ans
+        var Atx = ans.innerHTML
     }else{
       var ans = An
       var Afinal = An
       var Atx = ans.innerHTML
-
     }
 
-    var Atext = Afinal.innerText
-    var point = document.createElement("div")
-    point.classList.add("submitmade")
-    point.classList.add("SOAPpoint")
-    point.innerHTML = Atext
-    group.append(point) 
     if(current.querySelector(".Q-UL")==null){
       const Qul = current.querySelector(".Qtext").innerText
       const NumComb = Qul.toString()
@@ -4681,6 +4673,12 @@ function writenote(){
       Geeks.push(fstr)
       Geeks.push(Atx)
     }
+    var Atext = Afinal.innerText
+    var point = document.createElement("div")
+    point.classList.add("submitmade")
+    point.classList.add("SOAPpoint")
+    point.innerHTML = '<br>'+fstr +'<br>'+ Atext
+    group.append(point) 
       submission.appendChild(group)
       const dispobox = current.querySelectorAll(".dispobox")
       dispobox.forEach(el =>{
@@ -4699,7 +4697,7 @@ function writenote(){
             tx.classList.add("SOAPpoint")
             tx.classList.add("submitmade")
             tx.innerHTML = JDPRO.innerText
-            submission.appendChild(tx)
+            // submission.appendChild(tx)
           }
         }
       })
