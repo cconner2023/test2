@@ -6,6 +6,7 @@
   font-family: 'Poppins';
   scroll-behavior: smooth;
   overflow-x: hidden;
+  overflow-y: hidden;
 }
 :root{
   --BG1:#ee8e8e;
@@ -19,16 +20,28 @@
 }
  /* The snackbar - position it at the bottom and in the middle of the screen */
  #snackbar {
+  position: absolute;
+  display: flex;
   visibility: hidden;
   width: 100%;
-  background-color: #333; /* Black background color */
-  color: #fff; /* White text color */
-  text-align: center; /* Centered text */
-  border-radius: 15px; /* Rounded borders */
-  padding: 16px; /* Padding */
-  z-index: 600; /* Add a z-index if needed */
+  align-items: center;
+  justify-content: center;
+  color: #fff; 
+  text-align: center;
+  z-index: 600;
   position: absolute;
-  bottom: 5px; /* 30px from the bottom */
+  bottom: 0px
+}
+div.snackshow{
+  display: flex;
+  width: 100%;
+  height: 10vh;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px; /* Rounded borders */
+  padding: 16px; /* Padding */
+  background-color: rgb(65,70,69);
+  box-shadow: rgba(0, 0, 0, 0.11) 0px 4px 12px;
 }
 
 /* Show the snackbar when clicking on a button (class added with JavaScript) */
@@ -36,28 +49,27 @@
   visibility: visible; /* Show the snackbar */
   /* Add animation: Take 0.5 seconds to fade in and out the snackbar.
   However, delay the fade out process for 2.5 seconds */
-  -webkit-animation: fadein 0.5s, fadeout 0.5s 2.5s;
-  animation: fadein 0.5s, fadeout 0.5s 2.5s;
+  animation: fadein 0.3s, fadeout 0.5s 2.5s;
 }
 
 /* Animations to fade the snackbar in and out */
 @-webkit-keyframes fadein {
   from {bottom: -25px; opacity: 0;}
-  to {bottom: 5px; opacity: 1;}
+  to {bottom: 0px; opacity: 1;}
 }
 
 @keyframes fadein {
   from {bottom: -25px; opacity: 0;}
-  to {bottom: 5px; opacity: 1;}
+  to {bottom: 0px; opacity: 1;}
 }
 
 @-webkit-keyframes fadeout {
-  from {bottom: 5px; opacity: 1;}
+  from {bottom: 0px; opacity: 1;}
   to {bottom: -25px; opacity: 0;}
 }
 
 @keyframes fadeout {
-  from {bottom: 5px; opacity: 1;}
+  from {bottom: 0px; opacity: 1;}
   to {bottom: -25px; opacity: 0;}
 } 
 body{
@@ -66,73 +78,36 @@ body{
   overflow: none;
   background-color: #282C29;
   color: rgb(223, 223, 223);
+  overflow: hidden;
 }
 
-/* bg4 is the submit button and window */
 
 ul{
   list-style-type: disc;
 }
 
+
+
 .submissionbox{
-  height: 70px;
-  width: 100%;
-  font-size: 15px;
+  position: absolute;
+  width: 90px;
+  height: 50px;
+  font-size: small;
   overflow: hidden;
-  transform: translateY(300%);
-  transition: all 0.3s ease;  
+  transform: translateY(400%);
+  transition: 0.3s ease;  
 }
 
 
-.submissionbox.open{
-  transform: translateY(30%);
-  transition: all 0.3s ease;
-}
-.submissionbox.clicked{
-  width: 100%;
-  height: 70%;
-  overflow: scroll;
-  transition: all 0.3s ease;  
-
-}
-.submissionsheet{
-  position: relative;
-  overflow: hidden;
-  color: black;
-  height: 50%;
-  border-top-left-radius: 10px;
-  border-top-right-radius: 10px;
-  transition: all 0.3s ease;  
-}
-
-.submissiontag{
-  height: 100%;
-  width: 100%;
-  position: relative;
-  display: flex;
-  border-radius: 10px;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  transition: all 0.3s ease;
-
-}
-.submissionbox.clicked .submissionsheet{
-  height: 100%;
-  width: 100%;
-  transition: all 0.3s ease;  
-
-}
-.submissionbox.clicked .submissiontag{
-  transform: translatex(-300%);
-  transition: all 0.3s ease;
-}
 .submitlabel{
   font-size: 15px;
 }
+
 .submiticon{
-  font-size: 18px;
+  font-size: 26px;
   left: 0;
+  justify-content: center;
+  align-items: center;
   margin-top: 2px;
 }
 .SOAPsoap{
@@ -153,7 +128,6 @@ ul{
   top: 0;
   height: 100%;
   width: 100%;
-  transform: translateX(100%);
   transition: all 0.3s ease;
 
 }
@@ -164,23 +138,21 @@ ul{
   margin-top: 10px;
   margin-left: 20px;
   margin-right: 60px;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
 }
 .SOAPdispo{
   position: absolute;
   margin-top: 20px;
   margin-right: 40px;
+  margin-bottom: 200px;
   font-weight: bolder;
-}
-.submissionbox.clicked .SOAPbox{
-  transform: translateX(0%);
-  transition: all 0.3s ease;
 }
 
 .SOAPtitle{
   margin-top: 10px;
   margin-left: 20px;
-  margin-bottom: 20px;
+  margin-bottom: 10px;
+  font-weight: bold;
 }
 .SOAPref{
   margin-bottom: 2px;
@@ -188,6 +160,7 @@ ul{
 }
 .SOAPpoint, .SOAPdispo{
   margin-left: 20px;
+  margin-right: 20px;
 }
 .SOAPclose{
   position: absolute;
@@ -195,43 +168,32 @@ ul{
   top: 2%;
 }
 
+
 /* bg3 - the bottom ADTMC or Medication slider.*/
 
 .bg3{
   position: absolute;
-  height: 100px;
+  height: 60px;
   width: 100%;
   bottom: 0;
+  padding: 0px;
+  margin: 0px;
   font-size: 14px;
   transition: all 0.3s ease;
   overflow: hidden;
-  z-index: 2;
+  z-index: 5;
 
 }
-.bg3.augmented{
-  height: 70%;
-  transition: all 0.3s ease;
-  overflow: hidden;
-}
 
-.bot{
-  position: absolute;
-  bottom: 0;
-  width: 100%;
-  margin: 0;
-  overflow: hidden;
-}
+
 .Bbar{
   width: 100%;
-  margin: auto;
+  height: 100%;
   align-items: center;
   display: flex;
   background-color: #242424;
   position: relative;
-  z-index: 2;
   overflow: hidden;
-
-
 }
 .Bb{
   width: 50%;
@@ -253,46 +215,47 @@ ul{
   top: 7px;
   position: relative;
   width: 100%;
+  height: 60%;
   font-size: 18px;
-  overflow: none;
+  overflow: hidden;
 }
 .Bbtitle{
   position: relative;
   height: 50%;
-  font-size: 12px;
-  overflow: none;
+  font-size: 13px;
+  overflow: hidden;
 }
 
 .botslider.o.adtmc ~ .Bb.adtmc{
   font-weight: 500;
   color: black;
   transition: all 0.3s ease;
-  overflow: none;
+  overflow: hidden;
 }
 .botslider.o.meds ~ .Bb.meds{
   font-weight: 500;
   color: black;
   transition: all 0.3s ease;
-  overflow: none;
+  overflow: hidden;
 }
 
 .botslider.o.adtmc{
   position: absolute;
   width: 50%;
   transition: all 0.3s ease;
-  transform: translateX(0%) scaleY(1.1);
+  transform: translateX(0%);
   border-top-right-radius: 8px;
   border-bottom-right-radius: 8px;
-  overflow: none;
+  overflow: hidden;
 }
 .botslider.o.meds{
   position: absolute;
   width: 50%;
-  transform: translateX(100%) scaleY(1.1);
+  transform: translateX(100%);
   transition: 0.3s ease;
   border-top-left-radius: 8px;
   border-bottom-left-radius: 8px;
-  overflow: none;
+  overflow: hidden;
 }
 .botslider{
   position: absolute;
@@ -301,7 +264,7 @@ ul{
   display: block;
   background-color:#545454;
   transition: 0.3s ease;
-  overflow: none;
+  overflow: hidden;
 }
 .botslider.closed{
   height: 0;
@@ -312,13 +275,13 @@ ul{
 
 /* bg2 is the meds side of the house */
 .bg2{
-  height: 90%;
+  height: 93%;
+  margin-bottom: 40px;
   width: 100%;
-  overflow: hidden;
   background-color: #282C29;
   transition: all 0.3s ease;
   transform: translateX(-100%);
-  z-index: 299;
+  z-index: 4;
   overflow: hidden;
   position: absolute;
 }
@@ -390,8 +353,8 @@ ul{
   padding-bottom: 5px;
   position: relative;
   overflow-y: hidden;
-  background-color: #191919;
-  box-shadow: rgba(0, 0, 0, 0.2) 0px 4px 12px;
+  background-color: rgb(65,70,69, 0.1);
+  box-shadow: rgba(0, 0, 0, 0.3) 0px 4px 12px;
   color: rgb(223, 223, 223);
   display: grid;
   grid-template-rows: 1fr;
@@ -406,7 +369,7 @@ ul{
   justify-content: center;
   align-items: center;
   display: flex;
-  background-color: #242424;
+  background-color: rgb(65,70,69, 0.2);
   position: relative;
 }
 .medcontent{
@@ -443,6 +406,8 @@ ul{
   transform: scale(1) translateY(0%) translateX(0);
   transition: all 0.3s ease;
   overflow: hidden;
+  z-index: 2;
+  pointer-events: all;
 }
 /* bg closed is when the information box is open */
 .bg.closed{
@@ -450,6 +415,7 @@ ul{
   border-top-left-radius: 10px;
   border-top-right-radius: 10px;
   transition: all 0.3s ease;
+  pointer-events: none;
 }
 /* bg left is when the medications tab is open */
 .bg.left{
@@ -666,6 +632,10 @@ ul{
   justify-content: center;
   margin-right: 10px;
 }
+.medbtn .texticon{
+  font-size: medium;
+
+}
 
 li:nth-of-type(odd) .texticon{
   background-color: #958A68;
@@ -681,7 +651,7 @@ li:nth-of-type(even) .texticon{
 
 /* sub-page with title, ddx, and red */
 .sub-page{
-  height: 99%;
+  height: 100%;
   width: 100%;
   opacity: 0;
   color: rgb(223, 223, 223);
@@ -732,7 +702,6 @@ li:nth-of-type(even) .texticon{
 
 .sub-page-bottom{
   font-size: 14px;
-  overflow: hidden;
 }
 
 .bottommarker{
@@ -784,7 +753,10 @@ li:nth-of-type(even) .texticon{
 
 .prebox-top{
   display: flex;
+  margin-left: 20px;
+  text-decoration: underline;
   align-items: center;
+  margin-bottom: 15px;
 }
 .prebox-content{
   width: 100%;
@@ -804,12 +776,11 @@ li:nth-of-type(even) .texticon{
   transition: all 0.4s ease;
 }
 
-
-
 .prebox-content ul{
   margin-top: 2px;
-  margin-left: 12%;
+  margin-left: 31px;
   margin-right: 5px;
+  line-height: 1.6;
 }
 .sub-menu{
   position: fixed;
@@ -904,21 +875,21 @@ li:nth-of-type(even) .texticon{
 }
 
 .ACTY .card, .ACTN .card{
-  background-color:#181818;
-    color: rgb(223, 223, 223);
+  background-color: rgb(65,70,69, 0.2);
+  box-shadow: rgba(0, 0, 0, 0.3) 0px 4px 12px;
+  color: rgb(223, 223, 223);
 }
 
 .card{
   width:95%;
   margin: auto;
   position: relative;
-  overflow-y: none;
-  background-color: #242424;
+  background-color: rgb(65,70,69, 0.2);
+  box-shadow: rgba(0, 0, 0, 0.3) 0px 4px 12px;
   color: rgb(223, 223, 223);
   display: grid;
   grid-template-rows: 1fr;
   border-radius: 16px;
-  box-shadow: rgba(0, 0, 0, 0.2) 0px 4px 12px;
 }
 
 .front{
@@ -929,7 +900,7 @@ li:nth-of-type(even) .texticon{
   grid-template-rows: 1fr;
   transform: translateX(0%);
   transition: all 0.3s ease;
-  overflow: hidden;
+  overflow-x: hidden;
 }
 .front ul{
   margin-left: 40px;
@@ -945,7 +916,6 @@ li:nth-of-type(even) .texticon{
 .front-top{
   width: 100%;
   display: flex;
-  align-items: left;
 }
 
 .acticon{
@@ -961,16 +931,14 @@ li:nth-of-type(even) .texticon{
 
 }
 .Qtext{
-  margin-left: 10px;
-  margin-right: 10px;
+  width: 100%;
+  margin-left: 3%;
   margin-top: 10px;
   color: rgb(223, 223, 223);
 
 }
 .Q UL{
   margin-top: 10px;
-  margin-left: 35px;
-  margin-right: 5px;
   color: #a5a4a4;
 
 }
@@ -986,7 +954,7 @@ li:nth-of-type(even) .texticon{
 .Abar.closed{
   display: none;
   height: 0;
-  background-color: #242424;
+  background-color: rgb(65,70,69, 0.3);
 }
 .Abar{
   width: 100%;
@@ -995,7 +963,7 @@ li:nth-of-type(even) .texticon{
   align-items: center;
   display: flex;
   overflow: hidden;
-  background-color: #333;
+  background-color: rgb(65,70,69, 0.3);
   position: relative;
 }
 
@@ -1055,7 +1023,7 @@ li:nth-of-type(even) .texticon{
 }
 .slider.closed{
   height: 0;
-  background-color:#545454;
+  background-color: rgb(65,70,69, 0.1);
 }
 
 
@@ -1066,6 +1034,7 @@ li:nth-of-type(even) .texticon{
   margin-left: auto;
   margin-right: auto;
   visibility: visible;
+  overflow-y: scroll;
   background-color: #242424;
   transition: all 0.6s ease;
 }
@@ -1097,7 +1066,6 @@ li:nth-of-type(even) .texticon{
   flex-direction: row;
   align-items: center;
   position: relative;
-  overflow: hidden;
 }
 .dispo-icon{
   height: 100%;
@@ -1139,12 +1107,12 @@ margin-left: 0;
   width: 15px;
   right: 0;
   position: absolute;
-  overflow: hidden;
 }
 
 
 .dispo{
   margin-left: 30px;
+  overflow-y: scroll;
 }
 .dispo label{
   font-weight: 100;
@@ -1161,7 +1129,6 @@ margin-left: 0;
   border-radius: 0px;
   visibility: none;
   position: relative;
-  overflow: none;
   transform: translateX(150%);
   max-height: 0px;
   transition: all 0.3s ease;
@@ -1176,7 +1143,6 @@ margin-left: 0;
   border-radius: 10px;
   position: relative;
   visibility:visible;
-  overflow: hidden;
   transform: translateX(0%);
   max-height: 500px;
   transition: all 0.3s ease;
@@ -1188,13 +1154,13 @@ margin-left: 0;
   transform: translateX(100%);
   top: 0;
   transition: all 0.3s ease;
-  overflow: scroll;
+  overflow-y: scroll;
 }
 .back1.opened, .back2.opened{
   transform: translateX(0%);
   position: relative;
   transition: all 0.3s ease;
-  overflow: scroll;
+  overflow-y: scroll;
 }
 .back-top{
   height: 30px;
@@ -1208,12 +1174,14 @@ margin-left: 0;
   margin-top: 2px;
 }
 .back1 ul{
+  overflow-y: scroll;
   color: #121212;
   margin-bottom: 3%;
   margin-right: 10%;
   margin-left: 13%;
 }
 .back2 ul{
+  overflow-y: scroll;
   color: #121212;
   margin-bottom: 3%;
   margin-right: 10%;
@@ -1226,7 +1194,7 @@ margin-left: 0;
   display: grid;
   grid-template-rows: 1fr;
   max-height: 200px;
-  overflow: scroll;
+  overflow-y: scroll;
   margin-bottom: 10px;
 }
 .close{
@@ -1323,40 +1291,108 @@ background-color: #b4a36f;
   color: white;
   font-weight: normal;
 }
-/* information box */
+/* information box and the screening note box. cont1 is infobox. cont2 is note box */
+
+#cont1{
+  z-index: 5;
+  font-size: 11pt;
+  background-color: #282C29;
+  color: rgb(223, 223, 223);
+}
 .info-container.closed{
-  min-height: 92%;
-  width: 98%;
-  top: 0%;
-  bottom: 4%;
+  height: 90%;
+  width: 100%;
+  left: 0;
+  bottom: 0%;
   position: absolute;
   visibility: visible;
-  margin-left: 1%;
   border-radius: 10px;
   color: black;
   overflow:hidden ;
   opacity: 1;
-  transform: translateY(10%);
-  transition: all 0.2s ease-in-out;
+  pointer-events: all;
+  transition: all 0.3s ease-in-out;
 }
 .info-container{
-  min-height: 0%;
-  max-height: 0%;
-  width: 98%;
+  width: 100%;
+  height: 0;
   visibility: collapse;
-  margin: auto;
   position: absolute;
   border-top-left-radius: 10px;
   border-top-right-radius: 10px;
-  z-index: 1;
-  background-color: #333;
-  overflow-y: scroll;
+  z-index: 4;
+  overflow: hidden;
+  pointer-events: all;
   bottom: 0;
-  opacity: 0;
-  margin-bottom: 10px;
-  transform:  translateY(10%);
-  transition: all 0.5s ease-in-out;
+  transition: all 0.3s ease-in-out;
 }
+.info-container.keyed{
+  width: 100%;
+  height: 13vh;
+  visibility: visible;
+  position: absolute;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  background-color: #282C29;
+  z-index: 4;
+  overflow: hidden;
+  pointer-events: all;
+  bottom: 0;
+  transition: all 0.3s ease-in-out;
+}
+
+.info-container.clicked{
+  width: 100%;
+  height: 90%;
+  visibility: visible;
+  position: absolute;
+  border-top-left-radius: 10px;
+  border-top-right-radius: 10px;
+  z-index: 4;
+  background-color: #333;
+  overflow: hidden;
+  pointer-events: all;
+  bottom: 0;
+  transition: all 0.3s ease-in-out;
+}
+
+
+/* submission box stuff and the screening note */
+.submittop{
+  position: relative;
+  display: flex;
+  height: 50%;
+  width: 100%;
+  background-color: transparent;
+  color: black;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.info-container.clicked .submittop{
+  height: 0;
+  transition: all 0.3s ease;
+}
+
+.submitbottom{
+  font-size: small;
+  color: black;
+  position: relative;
+  display: flex;
+  height: 100%;
+  width: 100%;
+  transition: all 0.3s ease;
+}
+.infocontainer.clicked .submitbottom{
+  position: relative;
+  height: 90%;
+  width: 100%;
+  transition: all 0.3s ease;
+}
+
+
 
 .info-top-box{
   position: relative;
@@ -1396,6 +1432,7 @@ background-color: #b4a36f;
   grid-template-rows: 1fr;
   margin-bottom: 10px;
   font-size: 14px;
+  overflow-y: scroll;
   visibility: visible;
 }
 
@@ -1407,11 +1444,10 @@ background-color: #b4a36f;
   border-radius: 10px;
   margin-left: auto;
   margin-right: auto;
-  background-color: #282C29;
+  background-color: rgb(65,70,69, 0.2);
+  box-shadow: rgba(0, 0, 0, 0.3) 0px 4px 12px;
   color: rgb(223, 223, 223);
   border-radius: 10px;
-  box-shadow: 2px 4px 30px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgb(184,182,182,0.6);
 }
 
 .contbox-close{
@@ -1476,7 +1512,7 @@ background-color: #b4a36f;
   display: grid;
   grid-template-rows: 1fr;
   max-height: 200px;
-  overflow: scroll;
+  overflow-y: scroll;
   margin-bottom: 10px;
   margin-right: 10px;
   transition: all 0.3s ease;
@@ -1494,6 +1530,7 @@ background-color: #b4a36f;
 }
 
 .contbox-content ul{
+  overflow-y: scroll;
   position: grid;
   margin-top: 2px;
   margin-left: 6%;
