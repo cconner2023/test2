@@ -16,16 +16,13 @@
         <script src="https://unpkg.com/feather-icons"></script>
     </head>
 <body>
-    <div id="snackbar">Summary copied to clipboard</div>   
+    <div id="snackbar">
+        <div class="snackshow">Summary copied to clipboard</div>
+    </div>   
 
 <div class="bg3">
-    <div class="bot">
         <div class="Bbar">
             <div class="botslider o adtmc"></div>
-            <!-- <div class="Bb updates">
-                <div class="Bbicon"><i class='bx bx-info-circle'></i></div>   
-                <div class="Bbtitle">Updates</div>
-            </div> -->
                 <div class="Bb adtmc">
                     <div class="Bbicon"><i class='bx bxs-book'></i></div>
                     <div class="Bbtitle">ADTMC</div>
@@ -34,24 +31,6 @@
                     <div class="Bbicon"><i class='bx bxs-capsule'></i></div>   
                     <div class="Bbtitle">Medications</div>
                 </div>
-
-        </div>
-    </div>
-    <div class="submissionbox">
-        <div class="submissionsheet">
-                <div class="submissiontag" onclick="play()">
-                        <div class="submitlabel" ></div>
-                        <div class="submiticon"><i class='bx bxs-paper-plane'></i></div>
-                </div>
-                <div class="SOAPbox">
-                        <div class="SOAPclose" onclick="closeSOAP()"><i data-feather="x-circle" id="redfi"></i></div>
-                        <div class="SOAPsoap">ADTMC Screening Algorithm</div>
-                        <div class="SOAPbreak"></div>
-                        <div class="SOAPdate"></div>
-                        <div class="SOAPtitle"></div>
-                        <div class="SOAPref"></div>
-                </div>
-        </div>
     </div>
 </div>
 <div class="bg">
@@ -1139,7 +1118,7 @@
                 <div class="front">
                     <div class="front-top">
                         <div class="Q-icon">2.</div>
-                        <div class="Qtext">Select all that apply</div>
+                        <div class="Qtext">How many Apply?</div>
                     </div>
                     <ul class="Q-UL ULSTREP">
                         <li class="Q-LI LISTREP">Fever</li>
@@ -1150,8 +1129,8 @@
                     <div class="A A-STREP">
                         <div class="Abar A-Abar">
                             <div class="slider A-slider"></div>
-                            <div class="Aa Y STREPY">3+</div>
-                            <div class="Aa N STREPN">0-2</div>
+                            <div class="Aa Y STREPY">3+ CENTOR</div>
+                            <div class="Aa N STREPN">0-2 CENTOR</div>
                         </div>
                     </div>
                     <div class="dispobox Yikes">
@@ -1297,9 +1276,9 @@
                   </ul>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -1775,9 +1754,9 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -1922,7 +1901,7 @@
       </div>
   </div>  <!-- End A-4 -->
   <div class="ADTsheet" id="A-5">
-      <div class="Q ACTY open">  <!-- A-5 -->
+      <div class="Q ACTY open ">  <!-- A-5 -->
           <div class="card"> 
               <div class="front">
                   <div class="front-top">
@@ -1937,9 +1916,9 @@
                   </ul>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -3625,9 +3604,9 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -3911,9 +3890,9 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -4990,9 +4969,9 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -5196,9 +5175,9 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -5479,9 +5458,9 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -5674,9 +5653,9 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -5965,9 +5944,9 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -6046,9 +6025,9 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -6171,9 +6150,9 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -6252,9 +6231,9 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -6509,9 +6488,9 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -6982,9 +6961,9 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
-                              <div class="Aa Y">YES</div>
-                              <div class="Aa N">NO</div>
+                          <div class="slider actionable"></div>
+                              <div class="Aa Y"></div>
+                              <div class="Aa N"></div>
                       </div>
                   </div>
                   <div class="dispobox Yikes">
@@ -7152,7 +7131,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -7315,7 +7294,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -7481,7 +7460,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -7774,7 +7753,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -7927,7 +7906,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -8006,7 +7985,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -8132,7 +8111,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -8298,7 +8277,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -8438,7 +8417,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -8742,7 +8721,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -10530,7 +10509,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -10696,7 +10675,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -10863,7 +10842,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -11194,7 +11173,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -11394,7 +11373,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -12170,7 +12149,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -12424,7 +12403,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -12521,7 +12500,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -12619,7 +12598,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -12719,7 +12698,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -12857,7 +12836,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -13286,7 +13265,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -13417,7 +13396,7 @@
                   </div>
                   <div class="A closed">
                       <div class="Abar closed">
-                          <div class="slider"></div>
+                          <div class="slider actionable"></div>
                               <div class="Aa Y">YES</div>
                               <div class="Aa N">NO</div>
                       </div>
@@ -13593,6 +13572,23 @@
             </div>
     </div>
 </div>
+</div>
+<div class="info-container" id="cont2">
+    <div class="submittop" onclick="play()">
+        <div class="submitlabel" ></div>
+        <div class="submiticon"><i class='bx bxs-paper-plane'></i></div>
+    </div>
+    <div class="submitbottom">
+        <div class="SOAPbox">
+            <div class="SOAPclose" onclick="closeSOAP()"><i data-feather="x-circle" id="redfi"></i></div>
+            <div class="SOAPsoap">ADTMC Screening Note</div>
+            <div class="SOAPbreak"></div>
+            <div class="SOAPdate"></div>
+            <div class="SOAPtitle"></div>
+            <div class="SOAPref"></div>
+    </div>
+    </div>
+
 </div>
 <div class="bg2">
     <div class="top-menu">
@@ -14013,7 +14009,6 @@
     <div class="htmlno"><b>(NO)</b></div>
 </div>
 </div>
-
 <script>
     $(document).ready(function(){
        feather.replace();
