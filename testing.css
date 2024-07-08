@@ -18,6 +18,38 @@
 *::-webkit-scrollbar{
   display: none;
 }
+
+#snackbar2{
+  width: 90%;
+  max-height: 90%;
+  border-radius: 10px;
+  margin-left: 5%;
+  padding: 10px;
+  display: grid;
+  visibility: collapse;
+  position: absolute;
+  z-index: 9;
+  top: 10vh;
+  font-size: 1.5vh;
+  background-color: rgb(65,70,69);
+  box-shadow: rgba(0, 0, 0, 0.11) 0px 4px 12px;
+  transition: all 0.2s ease;
+}
+
+#snackbar2.show{
+  visibility: visible;
+  transition: all 0.2s ease;
+}
+.boop{
+  position: absolute;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 4vh;
+  width: 4vh;
+}
+
  /* The snackbar - position it at the bottom and in the middle of the screen */
  #snackbar {
   position: absolute;
@@ -26,7 +58,7 @@
   width: 100%;
   align-items: center;
   justify-content: center;
-  color: #fff; 
+  color: #fff;
   text-align: center;
   z-index: 600;
   position: absolute;
@@ -46,9 +78,7 @@ div.snackshow{
 
 /* Show the snackbar when clicking on a button (class added with JavaScript) */
 #snackbar.show {
-  visibility: visible; /* Show the snackbar */
-  /* Add animation: Take 0.5 seconds to fade in and out the snackbar.
-  However, delay the fade out process for 2.5 seconds */
+  visibility: visible;
   animation: fadein 0.3s, fadeout 0.5s 2.5s;
 }
 
@@ -71,7 +101,7 @@ div.snackshow{
 @keyframes fadeout {
   from {bottom: 0px; opacity: 1;}
   to {bottom: -25px; opacity: 0;}
-} 
+}
 body{
   width: 100%;
   height: 100%;
@@ -95,7 +125,7 @@ ul{
   font-size: small;
   overflow: hidden;
   transform: translateY(400%);
-  transition: 0.3s ease;  
+  transition: 0.3s ease;
 }
 
 
@@ -112,13 +142,13 @@ ul{
 }
 .SOAPsoap{
   margin-top: 10px;
-  margin-left: 20px;
+  margin-left: 1.4rem;
 }
 .SOAPbreak{
   position: relative;
   height: 2%;
   width: 75%;
-  margin-left: 20px;
+  margin-left: 3vh;
   border-bottom: 2px solid black;
   cursor:copy;
 }
@@ -133,24 +163,31 @@ ul{
 }
 .SOAPgroup{
   display: flex;
+  margin-left: 3rem;
 }
 .SOAPdate{
-  margin-top: 10px;
-  margin-left: 20px;
-  margin-right: 60px;
+  margin-top: 1rem;
+  margin-left: 1.4rem;
+  margin-right: 5vh;
   margin-bottom: 10px;
 }
 .SOAPdispo{
   position: absolute;
   margin-top: 20px;
-  margin-right: 40px;
+  margin-left: 1.4rem;
+  margin-right: 5vh;
   margin-bottom: 200px;
   font-weight: bolder;
+}
+.SOAPnumb{
+  position: absolute;
+  width: 3vh;
+  left: 1.6rem;
 }
 
 .SOAPtitle{
   margin-top: 10px;
-  margin-left: 20px;
+  margin-left: 1.4rem;
   margin-bottom: 10px;
   font-weight: bold;
 }
@@ -159,8 +196,8 @@ ul{
   text-align: center;
 }
 .SOAPpoint, .SOAPdispo{
-  margin-left: 20px;
-  margin-right: 20px;
+  display: flex;
+  margin-right: 5vh;
 }
 .SOAPclose{
   position: absolute;
@@ -173,7 +210,7 @@ ul{
 
 .bg3{
   position: absolute;
-  height: 60px;
+  height: 7.2vh;
   width: 100%;
   bottom: 0;
   padding: 0px;
@@ -198,6 +235,8 @@ ul{
 .Bb{
   width: 50%;
   height: 100%;
+  padding-top: 1.2vh;
+  padding-bottom: 1.5vh;
   position: relative;
   display: block;
   text-align: center;
@@ -206,22 +245,24 @@ ul{
   color: #a5a4a4;
   background-color: transparent;
   border: none;
-  border-radius: 10px;
+  border-radius: 5px;
   overflow: hidden;
 
 }
 
 .Bbicon{
-  top: 7px;
   position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   width: 100%;
-  height: 60%;
+  height: 40%;
   font-size: 18px;
   overflow: hidden;
 }
 .Bbtitle{
   position: relative;
-  height: 50%;
+  height: 70%;
   font-size: 13px;
   overflow: hidden;
 }
@@ -460,9 +501,10 @@ ul{
 }
 .menu-item-box{
   position: relative;
-  width: 20%;
+  display: flex;
+  width: 15%;
+  justify-content: center;
   visibility: visible;
-  margin-left: 10px;
   margin-right: 20px;
 }
 .menu-item-box.closed{
@@ -481,6 +523,15 @@ ul{
   display: none;
 }
 
+#menu-box1.animated{
+  animation: pulse2 4s linear infinite;
+}
+#menu-box1.animated #menu-item{
+  color: #5a613f;
+}
+
+
+
 /* ADTsheet menu box */
 #menu-box3{
   position: absolute;
@@ -490,10 +541,11 @@ ul{
   margin-top: 25px;
 }
 #menu-icon3{
-  background-color: rgba(18,18,18, 0.5);
+  background-color: rgb(65,70,69, 0.1);
+  box-shadow: rgba(0, 0, 0, 0.2) 0px 4px 12px;
   color: white;
-  height: 30px;
-  width: 30px;
+  height: 35px;
+  width: 35px;
   z-index: 301;
   margin-top: 10px;
   top: -2%;
@@ -501,19 +553,21 @@ ul{
 }
 /* slider wrapper back icon */
 #menu-icon4{
-  background-color: rgba(18,18,18, 0.5);
+  background-color: rgb(65,70,69, 0.1);
+  box-shadow: rgba(0, 0, 0, 0.1) 0px 4px 12px;
   color: white;
-  height: 30px;
-  width: 30px;
+  height: 35px;
+  width: 35px;
   font-size: x-large;
 }
 .menu-icon{
   display: flex;
   top: 0;
-  height: 30px;
-  width: 30px;
-  font-size: 22px;
-  background-color: #242424;
+  height: 35px;
+  width: 35px;
+  font-size: 26px;
+  background-color: rgb(65,70,69, 0.1);
+  box-shadow: rgba(0, 0, 0, 0.2) 0px 4px 12px;
   color: white;
   border-radius: 50%;
   align-items: center;
@@ -527,6 +581,7 @@ ul{
   position: absolute;
   width: 80%;
   overflow: hidden;
+  display: flex;
   margin-left: 15%;
   opacity: 1;
   transform: translateX(0%);
@@ -659,7 +714,7 @@ li:nth-of-type(even) .texticon{
   overflow-x: hidden;
   transform: translateX(300%);
   transition: all 0.3s ease;
-  
+
 }
 .sub-page.open{
   opacity: 1;
@@ -671,7 +726,7 @@ li:nth-of-type(even) .texticon{
   display: grid;
   overflow: hidden;
   grid-template-rows: 1fr;
-  background-color: #282C29; 
+  background-color: #282C29;
 }
 
 .wrap-marker{
@@ -787,7 +842,7 @@ li:nth-of-type(even) .texticon{
   height: 70px;
   width: 100%;
   top: 0;
-  background-color: #282C29; 
+  background-color: #282C29;
   display: flex;
   align-items: center;
   z-index: 300;
@@ -800,7 +855,7 @@ li:nth-of-type(even) .texticon{
   top: 0%;
   height: 100px;
   width: 100%;
-  background-color: #282C29; 
+  background-color: #282C29;
   color: white;
   display: flex;
   align-items: center;
@@ -1258,6 +1313,22 @@ background-color: #b4a36f;
   }
 }
 
+@keyframes pulse2 {
+  0%,
+  50%,
+  100% {
+    opacity: 0.4;
+    transform: scale(1);
+  }
+  25%,
+  75% {
+    opacity: 1;
+    transform: scale(1.1);
+
+  }
+}
+
+
 .navcont{
   height: 80px;
   width: 100%;
@@ -1297,6 +1368,7 @@ background-color: #b4a36f;
   z-index: 5;
   font-size: 11pt;
   background-color: #282C29;
+  box-shadow: rgba(0, 0, 0, 0.6) 0px 4px 12px;
   color: rgb(223, 223, 223);
 }
 .info-container.closed{
