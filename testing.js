@@ -13,7 +13,6 @@ window.addEventListener('resize', function(){
 
   window.resizeTo(fixedWidth, fixedHeight);
 });
-
 const  
   A1ACT1 = ["Perform Rapid Strep + Culture Test (barracks, positive close contact, immunosuppressed contact, h/o ARF)"],
   A1ACT2 = [],
@@ -4627,7 +4626,7 @@ function writenote(){
     var current = arr[a]
     var Qclasses = ["QRED","Q1","Q2","Q3","Q4","Q5","Q6"]
     const Qclassesindex = {
-      "QRED" : ["RED FLAGS: "],
+      "QRED" : ["   "],
       "Q1" : ["1."],
       "Q2" : ["2."],
       "Q3" : ["3."],
@@ -4642,9 +4641,10 @@ function writenote(){
       if (Qclasses.indexOf(current.classList[i]) > -1) { 
           var point = document.createElement("div")
           point.classList.add("submitmade")
-          point.classList.add("SOAPpoint")
+          point.classList.add("SOAPnumb")
           var realpoint = Qclassesindex[current.classList[i]]
           point.innerHTML = realpoint
+          group.append(point)
           }
       }
     if(slider.classList.contains("yes")){
@@ -4677,7 +4677,7 @@ function writenote(){
     var point = document.createElement("div")
     point.classList.add("submitmade")
     point.classList.add("SOAPpoint")
-    point.innerHTML = '<br>'+fstr +'<br>'+ Atext
+    point.innerHTML =fstr +'<br>'+ Atext
     group.append(point) 
       submission.appendChild(group)
       const dispobox = current.querySelectorAll(".dispobox")
@@ -4691,18 +4691,21 @@ function writenote(){
           dispo.innerText = thestufflabel
           submission.appendChild(dispo)
           Geeks.push("",dispo.innerText)
-          var JDPRO = el.querySelector(".contbox-content.JDPRO")
-          if(JDPRO == null){}else{
-            var tx = document.createElement("div")
-            tx.classList.add("SOAPpoint")
-            tx.classList.add("submitmade")
-            tx.innerHTML = JDPRO.innerText
-            // submission.appendChild(tx)
-          }
         }
       })
       a++
   }
   const Geekssep = Geeks.join("\n")
   navigator.clipboard.writeText(Geekssep)
+}
+
+function stopanime(){
+  const notify = document.querySelector("#menu-box1") 
+  if(notify.classList.contains("animated")){
+  document.querySelector("#menu-box1").classList.remove("animated")
+  document.querySelector("#snackbar2").classList.add("show")
+}else{null}
+}
+function hidenotes(){
+  document.querySelector("#snackbar2").classList.remove("show")
 }
