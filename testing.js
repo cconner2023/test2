@@ -17,12 +17,12 @@ const
   A1ACT1 = ["Perform Rapid Strep + Culture Test (barracks, positive close contact, immunosuppressed contact, h/o ARF)"],
   A1ACT2 = [],
   A1ACT3 = [],  
-  A1DP1 = ["DP2. 4 questions that look at the chance of having a Group A Streptococcal (GAS) infection. If 3 of the questions are positive, there is 32% chance of having GAS and a rapid antigen test (RADT) should be performed. The RADT is effective for ruling out GAS in adults but some Soldiers with GAS are missed. Culture test is performed when the RADT is negative and Soldiers or their contacts are at higher risk for complications from a GAS infection. Culture generally takes 24-48 hours for the results to return."],
-  A1DP2 = ["Other protocols. Sore throat and hoarseness that are associated with a virus should be treated with minor-care. The other symptoms should be treated according to their associated protocols.","MCP for sore throat. A sore throat is often due to a viral infection. Minor-care consist of pain control, measures to decrease inflammation, getting plenty of rest and drinking plenty of fluids (water). Return for signs of the infection getting worse or progressing.","MCP for hoarseness. Hoarseness is often due to a virus or irritant. Minor-care consists of resting the vocal cords and avoidance of irritants (cigarette smoking, yelling, heartburn, post-nasal drip). This is a good opportunity to discuss the negative effects of tobacco use and encourage the Soldier to quit using tobacco, if applicable."],
+  A1DP1 = ["DP1. Symptoms greater than 10 days, immunosuppression, inhaled steroid medications are related to diseases that are unlikely to go away without treatment. Hoarseness longer than 2 weeks requires a full laryngeal exam."],
+  A1DP2 = ["DP2. 4 questions that look at the chance of having a Group A Streptococcal (GAS) infection. If 3 of the questions are positive, there is 32% chance of having GAS and a rapid antigen test (RADT) should be performed. The RADT is effective for ruling out GAS in adults but some Soldiers with GAS are missed. Culture test is performed when the RADT is negative and Soldiers or their contacts are at higher risk for complications from a GAS infection. Culture generally takes 24-48 hours for the results to return."],
   A1DP3 = ["Other protocols. Sore throat and hoarseness that are associated with a virus should be treated with minor-care. The other symptoms should be treated according to their associated protocols.","MCP for sore throat. A sore throat is often due to a viral infection. Minor-care consist of pain control, measures to decrease inflammation, getting plenty of rest and drinking plenty of fluids (water). Return for signs of the infection getting worse or progressing.","MCP for hoarseness. Hoarseness is often due to a virus or irritant. Minor-care consists of resting the vocal cords and avoidance of irritants (cigarette smoking, yelling, heartburn, post-nasal drip). This is a good opportunity to discuss the negative effects of tobacco use and encourage the Soldier to quit using tobacco, if applicable."],
   A1DP4 = [],
   A1DPRE = ["DP3.  CENTOR score < 2 low risk of strep throat, screen other symptoms if present"],
-  A1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” One-sided severe sore throat with fever, trouble swallowing as shown by drooling, uvula displacement, hoarseness (hot potato voice), trismus (lock jaw), and enlarged, tender tonsils are signs of a deep neck space infection like a peritonsillar abscess. Shortness of breath and stridor are signs of upper airway obstruction due to severe pharyngeal inflammation.","DP1. Symptoms greater than 10 days, immunosuppression, inhaled steroid medications are related to diseases that are unlikely to go away without treatment. Hoarseness longer than 2 weeks requires a full laryngeal exam."],
+  A1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” One-sided severe sore throat with fever, trouble swallowing as shown by drooling, uvula displacement, hoarseness (hot potato voice), trismus (lock jaw), and enlarged, tender tonsils are signs of a deep neck space infection like a peritonsillar abscess. Shortness of breath and stridor are signs of upper airway obstruction due to severe pharyngeal inflammation.",],
   A1PRO = ["MCP sore throat: For pain: lozenge first line, ibuprofen second line, for elevated temperature: acetaminophen, salt water gargles and drink warm fluids for inflammation","MCP hoarseness: rest vocal cords and avoid irritants (cigarette smoking, yelling, heartburn","Return if not improving in 3 days or immediately if worsening symptoms or red flags (above)."],
   A1LIMITATIONS = ["None"],
   A1GEN = ["pg. 19-20:","A sore throat is often due to a viral infection. Bacterial infections and other causes need to also be considered."],
@@ -83,7 +83,7 @@ const
   A5DP4 = [],
   A5DPRE = ["DP3. Cold symptoms often result in nosebleeds from recurrent blowing of the nose, rubbing the nose with a tissue after blowing it, picking the nose from congestion, and prominent blood vessels from allergies or inflammation. ","Soldiers with symptoms of runny nose, congestion, or allergies should be screened with the cold symptoms protocol."],
   A5DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Orthostatic hypotension is a sign of volume depletion and can represent a significant amount of blood loss.","Nosebleeds normally result from the rupture of small blood vessels inside the nose related to mucosal trauma (nose picking) or irritation (dry climate, blowing nose). 90% occur in the front of septum in the nose and can be controlled by applying external pressure. If the bleeding does not stop, then the nosebleed likely is coming from the back of the nose and needs to be controlled by a privileged provider."],
-  A5PRO = ["Do not blow the nose vigorously or wipe the middle of the nose, as it can cause a nosebleed.","Medications: nasal saline for prevention if the air is dry, oxymetazoline if recurrent with nasal sx.","Humidifier can also be used if the air is dry.","Return if unable to get a recurrent nosevleed to stop, notice bleeding from other sites, feeling lightheaded or tired, losing a significant amount of blood, or recurrent without common cold sx."],
+  A5PRO = ["Do not blow the nose vigorously or wipe the middle of the nose, as it can cause a nosebleed.","Medications: nasal saline for prevention if the air is dry, oxymetazoline if recurrent with nasal sx.","Humidifier can also be used if the air is dry.","Return if unable to get a recurrent nosebleed to stop, notice bleeding from other sites, feeling lightheaded or tired, losing a significant amount of blood, or recurrent without common cold sx."],
   A5LIMITATIONS = [],
   A5GEN = ["pg. 27-28: ","Nosebleeds normally result from the rupture of small blood vessels inside the nose related to mucosal trauma (nose picking) or irritation (dry climate, blowing nose). 90% occur in the front of septum in the nose and can be controlled by applying external pressure. If the bleeding does not stop, then the nosebleed likely is coming from the back of the nose and needs to be controlled by a privileged provider."],
   A5MEDCOM = ["N/A"],
@@ -3365,7 +3365,6 @@ function retn(){
 var subpage = document.querySelector(".sub-page-bottom")
 var subwin = document.querySelector(".sub-page")
 const bottom = document.querySelector(".bottommarker");
-
 //question yes-no slider action + justify() at end
 var btns = document.querySelectorAll(".Aa");
 btns.forEach(function(currentbtn){
@@ -4589,29 +4588,78 @@ function play(){
   if(sub3.classList.contains("clicked")){null}else{
     if(sub3.classList.contains("keyed")){
       sub3.classList.add("clicked")
-      bg.classList.add("closed")
     }
   }
+}
+
+function addHPI(){
   bg.classList.add("closed")
-writenote()
-var x = document.getElementById("snackbar");
-x.className = "show";
-setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
+  sub3.classList.add("clickfull")
+}
+function saveHPI(){
+  sub3.classList.remove("clickfull")
+  sub3.classList.add("clickquick")
+  writenote()
+  var x = document.getElementById("snackbar");
+  x.className = "show";
+  setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
+}
+function quick(){
+  bg.classList.add("closed")
+  sub3.classList.add("clickquick")
+  writenote()
+  var x = document.getElementById("snackbar");
+  x.className = "show";
+  setTimeout(function(){ x.className = x.className.replace("show", ""); }, 3000);
 }
 function closeSOAP(){
   sub3.classList.remove("clicked")
+  sub3.classList.remove("clickquick")
+  sub3.classList.remove("clickfull")
   bg.classList.remove("closed")
+  const HPI = document.querySelector("textarea")
+  HPI.value = ""
+
 }
+
+
+function getScrollHeight(elm){
+  var savedValue = elm.value
+  elm.value = ''
+  elm._baseScrollHeight = elm.scrollHeight
+  elm.value = savedValue
+}
+
+function onExpandableTextareaInput({ target:elm }){
+  // make sure the input event originated from a textarea and it's desired to be auto-expandable
+  if( !elm.classList.contains('autoExpand') || !elm.nodeName == 'TEXTAREA' ) return
+  
+  var minRows = elm.getAttribute('data-min-rows')|0, rows;
+  !elm._baseScrollHeight && getScrollHeight(elm)
+
+  elm.rows = minRows
+  rows = Math.ceil((elm.scrollHeight - elm._baseScrollHeight) / 16)
+  elm.rows = minRows + rows
+}
+
+
+// global delegated event listener
+document.addEventListener('input', onExpandableTextareaInput)
+
+
 
 function writenote(){
   var ADT = document.querySelector(".ADTsheet.open");
   var subtitle = document.querySelector(".SOAPtitle");
   subtitle.innerHTML = title.innerHTML
-  console.log(subtitle.innerText)
   const date = document.querySelector(".SOAPdate")
   const newday = new Date()  
   date.innerText = newday
-  const Geeks = [subtitle.innerText]
+  const HPIinsert = document.querySelector("textarea")
+  const Geeks = [HPIinsert.value]
+  Geeks.push("","SCREENED IAW ADTMC MEDCOM PAM 40-7-21",subtitle.innerText)
+  var HPI = document.querySelector(".SOAPHPI")
+  HPI.innerHTML = HPIinsert.value
   const existing = document.getElementsByClassName("submitmade")
   while(existing.length > 0)
   existing[0].parentNode.removeChild(existing[0])
@@ -4619,7 +4667,7 @@ function writenote(){
   let arr = Array.from(nodeslist)
   let a = 0
   while(a < arr.length){
-    const submission = document.querySelector(".SOAPbox")
+    const submission = document.querySelector("#quickSOAP")
     var group = document.createElement("div")
     group.classList.add("submitmade")
     group.classList.add("SOAPgroup")
@@ -4699,13 +4747,3 @@ function writenote(){
   navigator.clipboard.writeText(Geekssep)
 }
 
-function stopanime(){
-  const notify = document.querySelector("#menu-box1") 
-  if(notify.classList.contains("animated")){
-  document.querySelector("#menu-box1").classList.remove("animated")
-  document.querySelector("#snackbar2").classList.add("show")
-}else{null}
-}
-function hidenotes(){
-  document.querySelector("#snackbar2").classList.remove("show")
-}
