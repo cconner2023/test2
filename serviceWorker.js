@@ -3,7 +3,10 @@ const assets = [
   "/",
   "/index.html",
   "/testing.css",
-  "/testing.js"
+  "/testing.js",
+  "/windows11",
+  "/ios",
+  "/android"
 ];
 
 self.addEventListener("install", installEvent => {
@@ -21,3 +24,4 @@ self.addEventListener("fetch", fetchEvent => {
       })
     )
   })
+
