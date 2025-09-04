@@ -3359,7 +3359,6 @@ function updateInfoContentText() {
               var looking2 = btn.querySelector(".btn-text").textContent.trim()
               var titles = looking +" "+ looking2
               infoLabel.textContent = titles
-
               // Update menu icon
               updateMenuIcon();
               updateInfoContentText();
@@ -3373,6 +3372,9 @@ function updateInfoContentText() {
               var looking = btn.querySelector(".texticon").innerHTML
               var looking2 = btn.querySelector(".btn-text").innerHTML
               var titles = looking +"<br>"+looking2
+              var subtitle = looking + " "+looking2
+              var subtitlebox = document.querySelector(".sub-page-banner")
+              subtitlebox.innerText = subtitle
               infoTitle.innerHTML = titles
               if (window.innerWidth < 769) {
                   container.classList.add('active');
@@ -4138,11 +4140,12 @@ const newday = new Date()
 date.innerText = newday
 const date_for_text = date.innerText
 var subtitle = document.querySelector(".SOAPtitle")
-var titletext = document.querySelector(".info-title").innerText
-subtitle.innerHTML = titletext
-const subtitle_text = subtitle.innerText
+var title = document.querySelector(".sub-page-banner")
+var title_text = title.innerText
+subtitle.innerText = title_text
+console.log(title_text)
 const Geeks = []
-Geeks.push(date_for_text,subtitle_text,"")
+Geeks.push("SCREENED IAW ADTMC MEDCOM PAM 40-7-21",date_for_text,"",title_text)
 console.log(Geeks)
 const existing = document.getElementsByClassName("submitmade")
   while(existing.length > 0)
