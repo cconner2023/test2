@@ -163,6 +163,15 @@
         @media (max-width: 768px) {
 
           *{
+            font-size: 10.5pt;
+          }
+          .submitbottom{
+            font-size: 11pt
+          }
+          .submitbottom_button{
+            font-size: 11pt;
+          }
+          .notification-text{
             font-size: 11pt;
           }
 
@@ -200,10 +209,16 @@
         /* Desktop styles (screen >= 769px) */
         @media (min-width: 769px) {
             *{
-              font-size: 12.5pt
+              font-size: 11.5pt
             }
             .submitbottom{
-              font-size: 13pt;
+              font-size: 12pt;
+            }
+            .submitbottom_button{
+              font-size: 12.5pt;
+            }
+            .notification-text{
+              font-size: 12.5pt;
             }
             body {
                 padding: 15px;
@@ -655,6 +670,7 @@
   border-radius: 50%;
   font-size: x-large;
   padding: 10px;
+  color: var(--Backgroundwhite);
 
 }
 .dispo-label{
@@ -687,10 +703,9 @@ margin-left: 0;
 }
 
 .contbox{
-    width: 90%;
+  width: 95%;
   display: grid;
   grid-template-rows: 1fr;
-  margin-left: 5%;
   border-radius: 10px;
   background-color: var(--Backgroundwhite);
   color: var(--TextColor1);
@@ -766,6 +781,8 @@ margin-left: 0;
 }
 .made li{
   line-height: 1rem;
+  padding-top: 2px;
+  padding-bottom: 2px;
 }
 .redf{
   position: relative;
@@ -915,11 +932,18 @@ margin-left: 0;
   margin-top: 50px;
 }
 
+.dispo > .sub-page-pre{
+  position: relative;
+  margin-bottom: 10px;
+  margin-left: 0;
+  overflow-y: scroll;
+  visibility: visible;
+}
+
 .sub-page-pre{
   position: relative;
-  width: 95%;
-  margin-left: 2.5%;
   margin-bottom: 10px;
+  margin-left: 15px;
   overflow-y: scroll;
   visibility: visible;
 }
@@ -928,7 +952,7 @@ margin-left: 0;
   position: grid;
   width: 80%;
   margin-top: 5px;
-  margin-left: 45px;
+  margin-left: 15px;
   flex-wrap: wrap;
   list-style-type: disc;
 }
@@ -1006,6 +1030,8 @@ margin-left: 0;
 }
 .back-label{
   margin-left: 10px;
+  align-self: center;
+  display: flex;
 }
 
 .just ul{
@@ -1185,7 +1211,7 @@ color: var(--TextColor1)
 
 .contbox-top{
   display: flex;
-  align-items: center;
+  align-items: cenrer;
 }
 
         @media (min-width: 769px) {
@@ -1452,6 +1478,9 @@ color: var(--TextColor1)
       .sub-page-banner-box{
         display:none;
 }
+.SOAPsoap{
+  font-weight: 500;
+}
 .SOAPbox{
   height: 90%;
   width: 97%;
@@ -1467,6 +1496,7 @@ color: var(--TextColor1)
 }
 .SOAPtitle{
   margin-bottom: 10px;
+  font-weight: 500;
 }
 
 .rf_list{
@@ -1477,7 +1507,6 @@ color: var(--TextColor1)
   display: none;
 }
 .rf_list li{
-  margin-left: 15px;
   margin-top: 2px;
   margin-bottom: 2px
 }
@@ -1502,4 +1531,8 @@ color: var(--TextColor1)
 }
 .ref_ul{
   margin-top: 10px;
+}
+
+.transition-div {
+  transition: opacity 0.3s ease-in-out;
 }
