@@ -3,7 +3,7 @@
             padding: 0;
             box-sizing: border-box;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-size: 0.8rem;
+            font-size: 0.9rem;
             scroll-behavior: smooth;
             overflow-x: hidden;
             overflow-y: hidden;
@@ -1514,5 +1514,6 @@ color: var(--TextColor1)
 .ref_ul{
   margin-top: 10px;
 }
+
 
 
