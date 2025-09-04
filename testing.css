@@ -78,7 +78,7 @@
         .menu-banner {
             color: var(--TextColor1);
             font-weight: 600;
-            font-size: 1.1rem;
+            font-size: 1rem;
             height: 100%;
             align-items: center;
             display: flex;
@@ -95,7 +95,7 @@
             padding: 10px 0 10px 0;
             background-color: var(--Backgroundwhite);
             color: var(--TextColor1);
-            font-size: 1rem;
+            font-size: 0.8rem;
             border-radius: 8px;
             z-index: 11;
             border: 1px solid rgba(255, 255, 255, 0.3);
@@ -221,7 +221,7 @@
             background-color: var(--Backgroundbluelight);
             border: none;
             padding: 15px 40px;
-            font-size: 18px;
+            font-size: 16px;
             color: white;
             border-radius: 50px;
             cursor: pointer;
@@ -301,8 +301,6 @@
 
         .category-text-box {
             display: flex;
-            font-weight: 300;
-            font-size: 12pt;
             align-items: center;
             z-index: 2;
         }
@@ -319,7 +317,7 @@
         }
         
         .btn-text {
-            font-size: 1rem;
+            font-size: 0.8rem;
             color: var(--TextColor1);
             font-weight: 500;
         }
@@ -361,14 +359,14 @@
         }
         
         .info-content p {
-            font-size: 12pt;
+            font-size: 0.8rem;
             line-height: 1.6;
             margin-bottom: 20px;
             text-align: justify;
         }
         
         .info-content h2 {
-            font-size: 1.4rem;
+            font-size: 1.2rem;
         }
         
         .info-list {
@@ -378,7 +376,7 @@
         
         .info-list li {
             margin-bottom: 10px;
-            font-size: 1.1rem;
+            font-size: 1rem;
         }
         
         /* ADTsheet styles */
@@ -654,7 +652,7 @@
 }
 .dispo-label{
 font-weight: 400;
-font-size: 1rem;
+font-size: 0.8rem;
 margin-left: 0;
 }
 
@@ -711,7 +709,7 @@ margin-left: 0;
 .contbox-close i{
   position: absolute;
   display: flex;
-  font-size: 1rem;
+  font-size: 0.8rem;
   height: 30px;
   width: 30px;
   border-radius: 50%;
@@ -896,7 +894,7 @@ margin-left: 0;
   justify-content: center;
   width: 100%;
   height: 50px;
-  font-size: 1.2rem;
+  font-size: 0.8rem;
   font-weight: 500 ;
   margin-top: 2px;
   margin-bottom: 20px;
@@ -905,7 +903,7 @@ margin-left: 0;
 }
 
 .sub-page-bottom {
-  font-size: 12pt;
+  font-size: 0.8rem;
 }
 
 
@@ -922,7 +920,7 @@ margin-left: 0;
   width: 95%;
   margin-left: 2.5%;
   margin-bottom: 10px;
-  font-size: 11pt;
+  font-size: 0.8rem;
   overflow-y: scroll;
   visibility: visible;
 }
@@ -1004,7 +1002,7 @@ margin-left: 0;
   height: 30px;
   width: 100%;
   margin-top: 5px;
-  font-size: 1rem;
+  font-size: 0.8rem;
   display: flex;
   align-items: center;
 }
@@ -1048,7 +1046,7 @@ margin-left: 0;
 .close i{
   position: relative;
   display: flex;
-  font-size: 1.2rem;
+  font-size: 0.8rem;
   align-self: center;
   background-color: transparent;
   justify-self: center;
@@ -1124,7 +1122,7 @@ color: var(--TextColor1)
   color: black;
   justify-content: center;
   align-items: center;
-  font-size: 1rem;
+  font-size: 0.8rem;
   font-weight: 500;
   display: flex;
 }
@@ -1327,13 +1325,13 @@ color: var(--TextColor1)
         }
         
         .item-tag label {
-            font-size: 14pt;
+            font-size: 0.8rem;
             font-weight: 400;
         }
         
         .panel-title {
             font-weight: 400;
-            font-size: 14pt;
+            font-size: 0.8rem;
             width: 100%;
             height: 100%;
             display: flex;
@@ -1357,7 +1355,7 @@ color: var(--TextColor1)
             color: var(--TextColor1);
             border: none;
             border-radius: 0 0 10px 10px;
-            font-size: 16px;
+            font-size: 0.8rem;
             font-weight: 500;
             cursor: pointer;
             transition: background-color 0.3s;
@@ -1373,7 +1371,7 @@ color: var(--TextColor1)
         
         .notification-text {
             display: none;
-            font-size: 14pt;
+            font-size: 0.8rem;
             font-weight: 400;
             text-align: center;
             padding: 20px;
@@ -1442,7 +1440,7 @@ color: var(--TextColor1)
         margin-left: auto;
         margin-right: auto;
         text-align: center;
-        font-size: 1.1rem;
+        font-size: 0.8rem;
         font-weight: 500;
       }
       .info-box-body{
