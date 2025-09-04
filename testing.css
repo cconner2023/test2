@@ -401,6 +401,7 @@
   opacity: 0;
   width: 90%;
   grid-template-rows: 0fr;
+  font-size: 0.8rem;
   transition: all 0.5s ease;
   position: relative;
   overflow:hidden;
@@ -1511,3 +1512,4 @@ color: var(--TextColor1)
 .ref_ul{
   margin-top: 10px;
 }
+
