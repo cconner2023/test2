@@ -3,7 +3,6 @@
             padding: 0;
             box-sizing: border-box;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            font-size: 0.9rem;
             scroll-behavior: smooth;
             overflow-x: hidden;
             overflow-y: hidden;
@@ -19,8 +18,8 @@
             --BannerRedOp: rgba(168,72,72,0.6);
             --Backgroundbluelight: rgba(0,66,92,1);
             --Backgroundbluedark: rgba(129,161,181,255);
-    
         }
+
 
         *::-webkit-scrollbar{
             display: none;
@@ -162,6 +161,12 @@
         }        
         /* Mobile styles (screen < 769px) */
         @media (max-width: 768px) {
+
+          *{
+            font-size: 11pt;
+          }
+
+
             .content-wrapper {
                 flex-direction: column;
             }
@@ -194,6 +199,12 @@
         
         /* Desktop styles (screen >= 769px) */
         @media (min-width: 769px) {
+            *{
+              font-size: 12.5pt
+            }
+            .submitbottom{
+              font-size: 13pt;
+            }
             body {
                 padding: 15px;
             }
@@ -223,8 +234,8 @@
             background-color: var(--Backgroundbluelight);
             border: none;
             padding: 15px 40px;
-            font-size: 16px;
             color: white;
+            font-size: initial;
             border-radius: 50px;
             cursor: pointer;
             margin-top: 30px;
@@ -319,7 +330,6 @@
         }
         
         .btn-text {
-            font-size: 0.8rem;
             color: var(--TextColor1);
             font-weight: 500;
         }
@@ -361,15 +371,11 @@
         }
         
         .info-content p {
-            font-size: 0.8rem;
             line-height: 1.6;
             margin-bottom: 20px;
             text-align: justify;
         }
-        
-        .info-content h2 {
-            font-size: 1.2rem;
-        }
+
         
         .info-list {
             padding-left: 20px;
@@ -378,7 +384,6 @@
         
         .info-list li {
             margin-bottom: 10px;
-            font-size: 1rem;
         }
         
         /* ADTsheet styles */
@@ -403,7 +408,6 @@
   opacity: 0;
   width: 90%;
   grid-template-rows: 0fr;
-  font-size: 0.8rem;
   transition: all 0.5s ease;
   position: relative;
   overflow:hidden;
@@ -655,7 +659,6 @@
 }
 .dispo-label{
 font-weight: 400;
-font-size: 0.8rem;
 margin-left: 0;
 }
 
@@ -712,7 +715,6 @@ margin-left: 0;
 .contbox-close i{
   position: absolute;
   display: flex;
-  font-size: 0.8rem;
   height: 30px;
   width: 30px;
   border-radius: 50%;
@@ -897,16 +899,11 @@ margin-left: 0;
   justify-content: center;
   width: 100%;
   height: 50px;
-  font-size: 0.8rem;
   font-weight: 500 ;
   margin-top: 2px;
   margin-bottom: 20px;
   justify-content: center;
   align-items: center;
-}
-
-.sub-page-bottom {
-  font-size: 0.8rem;
 }
 
 
@@ -923,7 +920,6 @@ margin-left: 0;
   width: 95%;
   margin-left: 2.5%;
   margin-bottom: 10px;
-  font-size: 0.8rem;
   overflow-y: scroll;
   visibility: visible;
 }
@@ -1005,7 +1001,6 @@ margin-left: 0;
   height: 30px;
   width: 100%;
   margin-top: 5px;
-  font-size: 0.8rem;
   display: flex;
   align-items: center;
 }
@@ -1037,7 +1032,7 @@ margin-left: 0;
 .close{
   margin-left: 15px;
   width: 30px;
-  height: 30px;
+  height: 45px;
   border-radius: 50px;
   position: relative;
   display: flex;
@@ -1049,7 +1044,7 @@ margin-left: 0;
 .close i{
   position: relative;
   display: flex;
-  font-size: 0.8rem;
+  font-size: 1rem;
   align-self: center;
   background-color: transparent;
   justify-self: center;
@@ -1125,7 +1120,6 @@ color: var(--TextColor1)
   color: black;
   justify-content: center;
   align-items: center;
-  font-size: 0.8rem;
   font-weight: 500;
   display: flex;
 }
@@ -1328,13 +1322,11 @@ color: var(--TextColor1)
         }
         
         .item-tag label {
-            font-size: 0.8rem;
             font-weight: 400;
         }
         
         .panel-title {
             font-weight: 400;
-            font-size: 0.8rem;
             width: 100%;
             height: 100%;
             display: flex;
@@ -1358,7 +1350,6 @@ color: var(--TextColor1)
             color: var(--TextColor1);
             border: none;
             border-radius: 0 0 10px 10px;
-            font-size: 0.8rem;
             font-weight: 500;
             cursor: pointer;
             transition: background-color 0.3s;
@@ -1374,7 +1365,6 @@ color: var(--TextColor1)
         
         .notification-text {
             display: none;
-            font-size: 0.8rem;
             font-weight: 400;
             text-align: center;
             padding: 20px;
@@ -1443,7 +1433,6 @@ color: var(--TextColor1)
         margin-left: auto;
         margin-right: auto;
         text-align: center;
-        font-size: 0.8rem;
         font-weight: 500;
       }
       .info-box-body{
@@ -1514,6 +1503,3 @@ color: var(--TextColor1)
 .ref_ul{
   margin-top: 10px;
 }
-
-
-
