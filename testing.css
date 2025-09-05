@@ -92,8 +92,7 @@
     flex-direction: column;
     top: 65px;
     left: 15px;
-    width: 30%;
-    padding: 10px 0;
+    padding: 10px 15px;
     background-color: var(--Backgroundwhite);
     color: var(--TextColor1);
     border-radius: 8px;
@@ -576,19 +575,20 @@ box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 .slider.o.yes{
   background-color: var(--Backgroundsecondgray);
   border-radius: 0 10px 10px 0;
-  transform: translateX(0) scaleY(1.1);
+  transform: translateX(0);
 }
 
 .slider.o.no{
   background-color: var(--Backgroundbluelight);
   border-radius: 5px 0 0 5px;
-  transform: translateX(100%) scaleY(1.1);
+  transform: translateX(100%);
 }
 .slider{
   position: absolute;
   height: 100%;
   width: 50%;
   transform: translateX(-100%);
+  display: block;
   transition: transform 0.3s ease;
   will-change: transform;
 }
