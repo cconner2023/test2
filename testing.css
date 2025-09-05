@@ -569,6 +569,7 @@ box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   position: relative;
   border: none;
   border-radius: 10px;
+   z-index:2
 }
 
 
@@ -591,6 +592,7 @@ box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   display: block;
   transition: transform 0.3s ease;
   will-change: transform;
+   z-index: 1;
 }
 .slider.closed{
   height: 0;
@@ -1484,3 +1486,4 @@ color: var(--TextColor1)
 .transition-div {
   transition: opacity 0.3s ease-in-out;
 }
+
