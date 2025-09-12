@@ -1,14 +1,31 @@
 //install service worker
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", ()=> {
-    navigator.serviceWorker.register("/serviceWorker.js")
-      .then(registration =>{
-        console.log("sw registered: ", registration)
+// Service Worker Registration for GitHub Pages
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    // Get the correct path for GitHub Pages
+    const baseUrl = window.location.pathname.includes('/index.html') 
+      ? window.location.pathname.replace('/index.html', '') 
+      : window.location.pathname;
+    
+    const swPath = `${baseUrl}/service-worker.js`;
+    
+    navigator.serviceWorker.register(swPath)
+      .then(function(registration) {
+        console.log('SW registered successfully with scope: ', registration.scope);
       })
-      .catch(registrationerror => {
-        console.log("SW registration failed: ", registrationerror)
-      })
-  })
+      .catch(function(error) {
+        console.log('SW registration failed: ', error);
+        
+        // Fallback: try relative path
+        navigator.serviceWorker.register('/service-worker.js')
+          .then(function(registration) {
+            console.log('SW registered with fallback path: ', registration.scope);
+          })
+          .catch(function(error) {
+            console.log('Fallback registration also failed: ', error);
+          });
+      });
+  });
 }
     var container = document.querySelector('.container');
     var backBtn = document.getElementById('backBtn');
@@ -4271,4 +4288,5 @@ if(document.querySelector("#checkbox1").checked === true){
   const Geekssep = Geeks.join("\n")
   navigator.clipboard.writeText(Geekssep)
 }
+
 
