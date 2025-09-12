@@ -1,31 +1,64 @@
 //install service worker
-// Service Worker Registration for GitHub Pages
+// In your testing.js file
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    // Get the correct path for GitHub Pages
-    const baseUrl = window.location.pathname.includes('/index.html') 
-      ? window.location.pathname.replace('/index.html', '') 
-      : window.location.pathname;
+    // Get the correct path for your specific repository
+    const repoName = 'test2'; // Your repository name
+    const swPath = `/${repoName}/service-worker.js`;
     
-    const swPath = `${baseUrl}/service-worker.js`;
+    console.log('Attempting to register service worker at:', swPath);
     
-    navigator.serviceWorker.register(swPath)
-      .then(function(registration) {
-        console.log('SW registered successfully with scope: ', registration.scope);
+    // First, check if the service worker file exists
+    fetch(swPath)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Service worker not found: ${response.status}`);
+        }
+        return response.text();
       })
-      .catch(function(error) {
-        console.log('SW registration failed: ', error);
-        
-        // Fallback: try relative path
-        navigator.serviceWorker.register('/service-worker.js')
-          .then(function(registration) {
-            console.log('SW registered with fallback path: ', registration.scope);
+      .then(script => {
+        // If we get the script content, try to register it
+        navigator.serviceWorker.register(swPath, { scope: `/${repoName}/` })
+          .then(registration => {
+            console.log('SW registered successfully with scope: ', registration.scope);
           })
-          .catch(function(error) {
-            console.log('Fallback registration also failed: ', error);
+          .catch(error => {
+            console.log('SW registration failed: ', error);
           });
+      })
+      .catch(error => {
+        console.log('Service worker file not accessible: ', error);
+        console.log('Trying alternative paths...');
+        
+        // Try alternative paths
+        const alternativePaths = [
+          '/service-worker.js',
+          'service-worker.js',
+          './service-worker.js'
+        ];
+        
+        tryAlternativePaths(alternativePaths, 0);
       });
   });
+}
+
+function tryAlternativePaths(paths, index) {
+  if (index >= paths.length) {
+    console.log('All service worker registration attempts failed');
+    return;
+  }
+  
+  const path = paths[index];
+  console.log('Trying alternative path:', path);
+  
+  navigator.serviceWorker.register(path)
+    .then(registration => {
+      console.log('SW registered with alternative path: ', registration.scope);
+    })
+    .catch(error => {
+      console.log('Registration failed with path', path, error);
+      tryAlternativePaths(paths, index + 1);
+    });
 }
     var container = document.querySelector('.container');
     var backBtn = document.getElementById('backBtn');
@@ -4288,5 +4321,6 @@ if(document.querySelector("#checkbox1").checked === true){
   const Geekssep = Geeks.join("\n")
   navigator.clipboard.writeText(Geekssep)
 }
+
 
 
