@@ -1,10 +1,10 @@
 const CACHE_NAME = "adtmc_cache_v1"
 const urlsToCache = [
-  "/",
-  "/index.html",
-  "/testing.css",
-  "/testing.js",
-  "/manifest.json"
+  "./",
+  "./index.html",
+  "./testing.css",
+  "./testing.js",
+  "./manifest.json"
 ];
 
 // Install event - cache all necessary files
@@ -46,3 +46,4 @@ self.addEventListener('activate', event => {
     })
   );
 });
+
