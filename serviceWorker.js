@@ -1,11 +1,12 @@
 // service-worker.js
 const CACHE_NAME = 'pwa-cache-v1';
+const REPO_PATH = "/test2/";
 const urlsToCache = [
-  './',
-  './index.html',
-  './testing.css',
-  './testing.js',
-  './manifest.json'
+  REPO_PATH,
+  REPO_PATH + 'index.html',
+  REPO_PATH + 'testing.css',
+  REPO_PATH + 'testing.js',
+  REPO_PATH + 'manifest.json'
   // Add other assets you need to cache
 ];
 
@@ -27,3 +28,4 @@ self.addEventListener('fetch', function(event) {
       })
   );
 });
+
