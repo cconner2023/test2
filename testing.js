@@ -1,94 +1,37 @@
 //install service worker
-// In your testing.js file
+// Simple, direct service worker registration
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    // Get the correct base path for your repository
-    const getBasePath = () => {
-      const path = window.location.pathname;
-      // If we're at the root of the repository
-      if (path === '/test2/' || path === '/test2/index.html') {
-        return '/test2/';
-      }
-      // If we're at the repository root without trailing slash
-      if (path === '/test2') {
-        return '/test2/';
-      }
-      return '/';
-    };
-
-    const basePath = getBasePath();
-    const swPath = `${basePath}serviceWorker.js`;
+    // Direct path to your service worker
+    const swPath = '/test2/serviceWorker.js';
+    const scope = '/test2/';
     
-    console.log('Attempting to register service worker at:', swPath);
+    console.log('Registering service worker at:', swPath);
     
-    // Register the service worker
-    navigator.serviceWorker.register(swPath, { scope: basePath })
-      .then(registration => {
-        console.log('SW registered successfully with scope:', registration.scope);
-        
-        // Check the state of the service worker
-        if (registration.installing) {
-          console.log('Service worker installing');
-          registration.installing.addEventListener('statechange', function(e) {
-            console.log('Service worker state changed:', e.target.state);
-          });
-        } else if (registration.waiting) {
-          console.log('Service worker installed');
-        } else if (registration.active) {
-          console.log('Service worker active');
+    // First, verify the service worker file exists
+    fetch(swPath)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Service worker not found (${response.status})`);
         }
+        return response.text();
+      })
+      .then(script => {
+        console.log('Service worker file found, attempting registration...');
+        
+        // Register with the correct scope
+        navigator.serviceWorker.register(swPath, { scope: scope })
+          .then(registration => {
+            console.log('SW registered successfully with scope:', registration.scope);
+          })
+          .catch(error => {
+            console.log('SW registration failed:', error);
+          });
       })
       .catch(error => {
-        console.log('SW registration failed:', error);
-        
-        // Try alternative paths if the first attempt fails
-        const alternativePaths = [
-          'serviceWorker.js',
-          '/test2/serviceWorker.js',
-          './serviceWorker.js'
-        ];
-        
-        tryAlternativeRegistration(alternativePaths, 0, basePath);
+        console.log('Service worker file not accessible:', error);
       });
   });
-}
-
-function tryAlternativeRegistration(paths, index, scope) {
-  if (index >= paths.length) {
-    console.log('All service worker registration attempts failed');
-    return;
-  }
-  
-  const path = paths[index];
-  console.log('Trying alternative path:', path);
-  
-  navigator.serviceWorker.register(path, { scope: scope })
-    .then(registration => {
-      console.log('SW registered with alternative path:', registration.scope);
-    })
-    .catch(error => {
-      console.log('Registration failed with path', path, error);
-      tryAlternativeRegistration(paths, index + 1, scope);
-    });
-}
-
-function tryAlternativePaths(paths, index) {
-  if (index >= paths.length) {
-    console.log('All service worker registration attempts failed');
-    return;
-  }
-  
-  const path = paths[index];
-  console.log('Trying alternative path:', path);
-  
-  navigator.serviceWorker.register(path)
-    .then(registration => {
-      console.log('SW registered with alternative path: ', registration.scope);
-    })
-    .catch(error => {
-      console.log('Registration failed with path', path, error);
-      tryAlternativePaths(paths, index + 1);
-    });
 }
     var container = document.querySelector('.container');
     var backBtn = document.getElementById('backBtn');
@@ -3673,7 +3616,6 @@ justbuttons.forEach(function(justbutton) {
     c.querySelector(".justbox").classList.toggle("open");
     
     var border = c.querySelector(".dispobar");
-    console.log(border)
     const style = getComputedStyle(border);
     const backgroundcolor = style.backgroundColor;    
     back.style.backgroundColor = backgroundcolor;
@@ -4151,14 +4093,14 @@ window.addEventListener('resize', function() {
         if(main.classList.contains("place-left")){
          app_state = "subcategory"
         }else{
-          console.log("main")
+
          app_state = "main"
         }
         }
 
         //Mobile
         if (window.innerWidth < 768) {
-            console.log('Mobile view');
+
               infoContent.classList.add("active")
               info_container.classList.remove("active")
               if(app_state === "ADTsheet"){
@@ -4175,7 +4117,7 @@ window.addEventListener('resize', function() {
         } else {
 
         //for desktop view
-            console.log('Desktop view');
+
             pagetop.classList.remove("min")
             container.classList.remove("active");
             if(app_state === "ADTsheet"){
@@ -4191,7 +4133,6 @@ window.addEventListener('resize', function() {
               infoContent.classList.remove("hidden")
             }
         }
-        console.log(app_state)
     }, 100);
 });
 
@@ -4226,10 +4167,10 @@ var subtitle = document.querySelector(".SOAPtitle")
 var title = document.querySelector(".sub-page-banner")
 var title_text = title.innerText
 subtitle.innerText = title_text
-console.log(title_text)
+
 const Geeks = []
 Geeks.push("SCREENED IAW ADTMC MEDCOM PAM 40-7-21",date_for_text,"",title_text)
-console.log(Geeks)
+
 const existing = document.getElementsByClassName("submitmade")
   while(existing.length > 0)
   existing[0].parentNode.removeChild(existing[0])
@@ -4237,7 +4178,7 @@ if(document.querySelector("#checkbox2").checked === true){
     Geeks.push("RED FLAGS:")
     rf_list.classList.remove("no")
     JY15.forEach(rf =>{
-      console.log(rf)
+
       var redflag = document.createElement("li")
       redflag.classList.add("submitmade")
       redflag.classList.add("rf_tag")
@@ -4351,6 +4292,7 @@ if(document.querySelector("#checkbox1").checked === true){
   const Geekssep = Geeks.join("\n")
   navigator.clipboard.writeText(Geekssep)
 }
+
 
 
 
