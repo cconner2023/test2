@@ -1,10 +1,13 @@
 //install service worker
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", function() {
-    navigator.serviceWorker
-      .register("/serviceWorker.js")
-      .then(res => console.log("service worker registered"))
-      .catch(err => console.log("service worker not registered", err))
+  window.addEventListener("load", ()=> {
+    navigator.serviceWorker.register("/serviceWorker.js")
+      .then(registration =>{
+        console.log("sw registered: ", registration)
+      })
+      .catch(registrationerror => {
+        console.log("SW registration failed: ", registrationerror)
+      })
   })
 }
     var container = document.querySelector('.container');
@@ -4268,3 +4271,4 @@ if(document.querySelector("#checkbox1").checked === true){
   const Geekssep = Geeks.join("\n")
   navigator.clipboard.writeText(Geekssep)
 }
+
