@@ -4,7 +4,7 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     // Get the correct path for your specific repository
     const repoName = 'test2'; // Your repository name
-    const swPath = `/${repoName}/service-worker.js`;
+    const swPath = `/${repoName}serviceWorker.js`;
     
     console.log('Attempting to register service worker at:', swPath);
     
@@ -18,7 +18,7 @@ if ('serviceWorker' in navigator) {
       })
       .then(script => {
         // If we get the script content, try to register it
-        navigator.serviceWorker.register(swPath, { scope: `/${repoName}/` })
+        navigator.serviceWorker.register(swPath, { scope: `/${repoName}` })
           .then(registration => {
             console.log('SW registered successfully with scope: ', registration.scope);
           })
@@ -32,9 +32,9 @@ if ('serviceWorker' in navigator) {
         
         // Try alternative paths
         const alternativePaths = [
-          '/service-worker.js',
-          'service-worker.js',
-          './service-worker.js'
+          '/serviceWorker.js',
+          'serviceWorker.js',
+          './serviceWorker.js'
         ];
         
         tryAlternativePaths(alternativePaths, 0);
@@ -4321,6 +4321,7 @@ if(document.querySelector("#checkbox1").checked === true){
   const Geekssep = Geeks.join("\n")
   navigator.clipboard.writeText(Geekssep)
 }
+
 
 
 
