@@ -2,44 +2,74 @@
 // In your testing.js file
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    // Get the correct path for your specific repository
-    const repoName = 'test2'; // Your repository name
-    const swPath = `/${repoName}serviceWorker.js`;
+    // Get the correct base path for your repository
+    const getBasePath = () => {
+      const path = window.location.pathname;
+      // If we're at the root of the repository
+      if (path === '/test2/' || path === '/test2/index.html') {
+        return '/test2/';
+      }
+      // If we're at the repository root without trailing slash
+      if (path === '/test2') {
+        return '/test2/';
+      }
+      return '/';
+    };
+
+    const basePath = getBasePath();
+    const swPath = `${basePath}serviceWorker.js`;
     
     console.log('Attempting to register service worker at:', swPath);
     
-    // First, check if the service worker file exists
-    fetch(swPath)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Service worker not found: ${response.status}`);
-        }
-        return response.text();
-      })
-      .then(script => {
-        // If we get the script content, try to register it
-        navigator.serviceWorker.register(swPath, { scope: `/${repoName}` })
-          .then(registration => {
-            console.log('SW registered successfully with scope: ', registration.scope);
-          })
-          .catch(error => {
-            console.log('SW registration failed: ', error);
+    // Register the service worker
+    navigator.serviceWorker.register(swPath, { scope: basePath })
+      .then(registration => {
+        console.log('SW registered successfully with scope:', registration.scope);
+        
+        // Check the state of the service worker
+        if (registration.installing) {
+          console.log('Service worker installing');
+          registration.installing.addEventListener('statechange', function(e) {
+            console.log('Service worker state changed:', e.target.state);
           });
+        } else if (registration.waiting) {
+          console.log('Service worker installed');
+        } else if (registration.active) {
+          console.log('Service worker active');
+        }
       })
       .catch(error => {
-        console.log('Service worker file not accessible: ', error);
-        console.log('Trying alternative paths...');
+        console.log('SW registration failed:', error);
         
-        // Try alternative paths
+        // Try alternative paths if the first attempt fails
         const alternativePaths = [
-          '/serviceWorker.js',
           'serviceWorker.js',
+          '/test2/serviceWorker.js',
           './serviceWorker.js'
         ];
         
-        tryAlternativePaths(alternativePaths, 0);
+        tryAlternativeRegistration(alternativePaths, 0, basePath);
       });
   });
+}
+
+function tryAlternativeRegistration(paths, index, scope) {
+  if (index >= paths.length) {
+    console.log('All service worker registration attempts failed');
+    return;
+  }
+  
+  const path = paths[index];
+  console.log('Trying alternative path:', path);
+  
+  navigator.serviceWorker.register(path, { scope: scope })
+    .then(registration => {
+      console.log('SW registered with alternative path:', registration.scope);
+    })
+    .catch(error => {
+      console.log('Registration failed with path', path, error);
+      tryAlternativeRegistration(paths, index + 1, scope);
+    });
 }
 
 function tryAlternativePaths(paths, index) {
@@ -4321,6 +4351,7 @@ if(document.querySelector("#checkbox1").checked === true){
   const Geekssep = Geeks.join("\n")
   navigator.clipboard.writeText(Geekssep)
 }
+
 
 
 
