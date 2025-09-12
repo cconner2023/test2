@@ -1,49 +1,29 @@
-const CACHE_NAME = "adtmc_cache_v1"
+// service-worker.js
+const CACHE_NAME = 'pwa-cache-v1';
 const urlsToCache = [
-  "./",
-  "./index.html",
-  "./testing.css",
-  "./testing.js",
-  "./manifest.json"
+  './',
+  './index.html',
+  './testing.css',
+  './testing.js',
+  './manifest.json'
+  // Add other assets you need to cache
 ];
 
-// Install event - cache all necessary files
-self.addEventListener('install', event => {
-  console.log('Service Worker installing.');
+self.addEventListener('install', function(event) {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('Opened cache');
+      .then(function(cache) {
         return cache.addAll(urlsToCache);
       })
   );
 });
 
-// Fetch event - serve from cache if available
-self.addEventListener('fetch', event => {
+self.addEventListener('fetch', function(event) {
   event.respondWith(
     caches.match(event.request)
-      .then(response => {
+      .then(function(response) {
         // Return cached version or fetch from network
         return response || fetch(event.request);
       })
   );
 });
-
-// Activate event - clean up old caches
-self.addEventListener('activate', event => {
-  console.log('Service Worker activating.');
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
-  );
-});
-
