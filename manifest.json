@@ -1,5 +1,5 @@
 {
-    "name": "ADTMC Beta",
+    "name": "ADTMC PWA V2.5",
     "short_name": "ADTMC",
     "icons": [
 {
@@ -570,6 +570,7 @@
     "orientation": "portrait-primary"
   }
   
+
 
 
 
