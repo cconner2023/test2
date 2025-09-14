@@ -60,46 +60,6 @@ function checkForUpdates() {
   }
 }
 
-// Function to show update notification
-function showUpdateNotification() {
-  // Create a simple notification UI
-  const notification = document.createElement('div');
-  notification.style.cssText = `
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    background: #3498db;
-    color: white;
-    padding: 15px;
-    border-radius: 5px;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-    z-index: 1000;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  `;
-  
-  notification.innerHTML = `
-    <span>New version available!</span>
-    <button onclick="window.location.reload()" style="
-      background: white;
-      color: #3498db;
-      border: none;
-      padding: 5px 10px;
-      border-radius: 3px;
-      cursor: pointer;
-    ">Refresh</button>
-    <button onclick="this.parentElement.remove()" style="
-      background: transparent;
-      color: white;
-      border: none;
-      cursor: pointer;
-      margin-left: 5px;
-    ">×</button>
-  `;
-  
-  document.body.appendChild(notification);
-}
     var container = document.querySelector('.container');
     var backBtn = document.getElementById('backBtn');
     var main = document.querySelector("#main-categories");
@@ -4378,6 +4338,7 @@ med_button.addEventListener('click', function(){
     }
   }
 })
+
 
 
 
