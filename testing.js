@@ -1,4 +1,5 @@
 //install service worker
+// Install service worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     const swPath = '/test2/serviceWorker.js';
@@ -31,7 +32,7 @@ if ('serviceWorker' in navigator) {
               
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  'New content available, please refresh.');
+                  console.log('New content available, please refresh.');
                   // Optional: show update notification to user
                   showUpdateNotification();
                 }
@@ -39,11 +40,11 @@ if ('serviceWorker' in navigator) {
             });
           })
           .catch(error => {
-            'SW registration failed:', error);
+            console.log('SW registration failed:', error);
           });
       })
       .catch(error => {
-        'Service worker file not accessible:', error);
+        console.log('Service worker file not accessible:', error);
       });
   });
 }
@@ -53,7 +54,7 @@ function checkForUpdates() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready.then(registration => {
       registration.update().then(() => {
-        'Manually checked for updates');
+        console.log('Manually checked for updates');
       });
     });
   }
@@ -99,13 +100,6 @@ function showUpdateNotification() {
   
   document.body.appendChild(notification);
 }
-
-// Listen for messages from service worker
-navigator.serviceWorker.addEventListener('message', event => {
-  if (event.data.type === 'NEW_CONTENT_AVAILABLE') {
-    showUpdateNotification();
-  }
-});
     var container = document.querySelector('.container');
     var backBtn = document.getElementById('backBtn');
     var main = document.querySelector("#main-categories");
@@ -4384,6 +4378,7 @@ med_button.addEventListener('click', function(){
     }
   }
 })
+
 
 
 
