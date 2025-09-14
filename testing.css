@@ -683,7 +683,6 @@ box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   margin-left: 10px;
   margin-right: 10px;
   border-radius: 50%;
-  background-color: red;
 }
 
 .dispo-label{
@@ -1521,7 +1520,6 @@ color: var(--TextColor1)
 .SOAPbreak{
   position: relative;
   height: 2px;
-  background-color: red;
   margin-top: 2px;
   margin-bottom: 2px;
   width: 95%;
@@ -1537,4 +1535,5 @@ color: var(--TextColor1)
 .transition-div {
   transition: opacity 0.3s ease-in-out;
 }
+
 
