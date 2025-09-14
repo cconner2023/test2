@@ -1,40 +1,39 @@
 //install service worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
-    // Direct path to your service worker
     const swPath = '/test2/serviceWorker.js';
     const scope = '/test2/';
     
     console.log('Registering service worker at:', swPath);
     
-    // First, verify the service worker file exists
-    fetch(swPath)
+    // Add cache buster to service worker URL
+    const swUrl = `${swPath}?cb=${Date.now()}`;
+    
+    fetch(swUrl)
       .then(response => {
-        if (!response.ok) {
-          throw new Error(`Service worker not found (${response.status})`);
-        }
+        if (!response.ok) throw new Error(`SW not found (${response.status})`);
         return response.text();
       })
       .then(script => {
         console.log('Service worker file found, attempting registration...');
         
-        // Register with the correct scope
         navigator.serviceWorker.register(swPath, { scope: scope })
           .then(registration => {
             console.log('SW registered successfully with scope:', registration.scope);
             
-            // Add update detection
+            // Check for updates on registration
+            registration.update();
+            
+            // Listen for updates
             registration.addEventListener('updatefound', () => {
               const newWorker = registration.installing;
               console.log('New service worker found:', newWorker.state);
               
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  // New content available
                   console.log('New content available, please refresh.');
-                  if (confirm('A new version is available. Refresh now?')) {
-                    window.location.reload();
-                  }
+                  // Optional: show update notification to user
+                  showUpdateNotification();
                 }
               });
             });
@@ -46,24 +45,67 @@ if ('serviceWorker' in navigator) {
       .catch(error => {
         console.log('Service worker file not accessible:', error);
       });
-      
-    // Check for updates on navigation
-    navigator.serviceWorker.ready.then(registration => {
-      registration.update();
-    });
   });
 }
 
-// Function to manually check for updates
-function checkForUpdate() {
+// Function to check for updates
+function checkForUpdates() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready.then(registration => {
       registration.update().then(() => {
-        console.log('Checked for updates');
+        console.log('Manually checked for updates');
       });
     });
   }
 }
+
+// Function to show update notification
+function showUpdateNotification() {
+  // Create a simple notification UI
+  const notification = document.createElement('div');
+  notification.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: #3498db;
+    color: white;
+    padding: 15px;
+    border-radius: 5px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  `;
+  
+  notification.innerHTML = `
+    <span>New version available!</span>
+    <button onclick="window.location.reload()" style="
+      background: white;
+      color: #3498db;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 3px;
+      cursor: pointer;
+    ">Refresh</button>
+    <button onclick="this.parentElement.remove()" style="
+      background: transparent;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin-left: 5px;
+    ">×</button>
+  `;
+  
+  document.body.appendChild(notification);
+}
+
+// Listen for messages from service worker
+navigator.serviceWorker.addEventListener('message', event => {
+  if (event.data.type === 'NEW_CONTENT_AVAILABLE') {
+    showUpdateNotification();
+  }
+});
     var container = document.querySelector('.container');
     var backBtn = document.getElementById('backBtn');
     var main = document.querySelector("#main-categories");
@@ -4349,6 +4391,7 @@ med_button.addEventListener('click', function(){
     }
   }
 })
+
 
 
 
