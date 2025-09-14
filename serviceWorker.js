@@ -1,21 +1,21 @@
-// serviceWorker.js
-const CACHE_NAME = 'pwa-cache-v2'; // Update version to force refresh
+const CACHE_NAME = 'pwa-cache-v1';
 const BASE_PATH = self.location.pathname.replace(/serviceWorker\.js$/, '');
+const CACHE_BUSTER = 'v3'; // UPDATE THIS WHEN FILES CHANGE
 
 const urlsToCache = [
   BASE_PATH,
-  BASE_PATH + 'index.html',
-  BASE_PATH + 'testing.css',
-  BASE_PATH + 'testing.js',
-  BASE_PATH + 'manifest.json'
+  `${BASE_PATH}index.html?cb=${CACHE_BUSTER}`,
+  `${BASE_PATH}testing.css?cb=${CACHE_BUSTER}`,
+  `${BASE_PATH}testing.js?cb=${CACHE_BUSTER}`,
+  `${BASE_PATH}manifest.json?cb=${CACHE_BUSTER}`
 ];
 
 self.addEventListener('install', function(event) {
-  console.log('Service worker installing for path:', BASE_PATH);
+  console.log('Service worker installing with cache buster:', CACHE_BUSTER);
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(function(cache) {
-        console.log('Cache opened, adding files:', urlsToCache);
+        console.log('Cache opened, adding files with cache buster');
         return cache.addAll(urlsToCache);
       })
       .then(function() {
@@ -44,24 +44,42 @@ self.addEventListener('activate', function(event) {
 self.addEventListener('fetch', function(event) {
   // Only handle requests to our own origin
   if (event.request.url.startsWith(self.location.origin)) {
-    event.respondWith(
-      caches.open(CACHE_NAME).then(cache => {
-        return cache.match(event.request).then(response => {
-          // Always fetch from network first
-          const fetchPromise = fetch(event.request).then(networkResponse => {
-            // Update cache with fresh response
-            cache.put(event.request, networkResponse.clone());
-            return networkResponse;
-          }).catch(err => {
-            console.log('Fetch failed; returning cached version', err);
-            // Return cached version if network fails
+    // Network-first strategy for HTML requests
+    if (event.request.url.includes('index.html') || 
+        event.request.method !== 'GET') {
+      event.respondWith(
+        fetch(event.request)
+          .then(response => {
+            // Update cache
+            const responseClone = response.clone();
+            caches.open(CACHE_NAME)
+              .then(cache => cache.put(event.request, responseClone));
             return response;
-          });
-          
-          // Return cached version immediately while fetching update
-          return response || fetchPromise;
-        });
-      })
-    );
+          })
+          .catch(() => caches.match(event.request))
+      );
+    } else {
+      // Stale-while-revalidate for other assets
+      event.respondWith(
+        caches.match(event.request)
+          .then(cachedResponse => {
+            // Always fetch from network in background
+            const fetchPromise = fetch(event.request)
+              .then(networkResponse => {
+                // Update cache
+                const responseClone = networkResponse.clone();
+                caches.open(CACHE_NAME)
+                  .then(cache => cache.put(event.request, responseClone));
+                return networkResponse;
+              })
+              .catch(err => {
+                console.log('Fetch failed:', err);
+              });
+            
+            // Return cached response immediately, then update
+            return cachedResponse || fetchPromise;
+          })
+      );
+    }
   }
 });
