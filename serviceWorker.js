@@ -1,5 +1,5 @@
 // serviceWorker.js
-const CACHE_NAME = 'pwa-cache-v1';
+const CACHE_NAME = 'pwa-cache-v2'; // Update version to force refresh
 const BASE_PATH = self.location.pathname.replace(/serviceWorker\.js$/, '');
 
 const urlsToCache = [
@@ -45,11 +45,23 @@ self.addEventListener('fetch', function(event) {
   // Only handle requests to our own origin
   if (event.request.url.startsWith(self.location.origin)) {
     event.respondWith(
-      caches.match(event.request)
-        .then(function(response) {
-          // Return cached version or fetch from network
-          return response || fetch(event.request);
-        })
+      caches.open(CACHE_NAME).then(cache => {
+        return cache.match(event.request).then(response => {
+          // Always fetch from network first
+          const fetchPromise = fetch(event.request).then(networkResponse => {
+            // Update cache with fresh response
+            cache.put(event.request, networkResponse.clone());
+            return networkResponse;
+          }).catch(err => {
+            console.log('Fetch failed; returning cached version', err);
+            // Return cached version if network fails
+            return response;
+          });
+          
+          // Return cached version immediately while fetching update
+          return response || fetchPromise;
+        });
+      })
     );
   }
 });
