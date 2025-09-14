@@ -3686,7 +3686,7 @@ btns.forEach(function(currentbtn){
     var frontcard = Qs.querySelector(".dispobar")
     var slider = Qs.querySelector(".slider");
     var dispobox = Qs.querySelector(".dispobox.Yikes");
-    var dispo = dispobox.querySelector(".iconbutton")
+    var dispo = dispobox.querySelector(".dispo-icon")
     var box = document.querySelector(".SOAPbox")
     var note_content = document.querySelector(".item-box")
     var note_break = document.querySelector(".SOAPbreak")
@@ -3713,7 +3713,6 @@ btns.forEach(function(currentbtn){
         slider.style.backgroundColor = color;
         slider.style.color = text
         dispo.style.backgroundColor = color;
-        dispo.setAttribute('fill', text)
         dispo.style.color = text
         bottombar.style.backgroundColor = color
         bottombar.style.color = text
@@ -3771,7 +3770,6 @@ btns.forEach(function(currentbtn){
         slider.style.backgroundColor = color
         slider.style.color = text
         dispo.style.backgroundColor = color;
-        dispo.setAttribute('fill', text)
         dispo.style.color = text
         bottombar.style.backgroundColor = color
         bottombar.style.color = text
@@ -4335,6 +4333,7 @@ med_button.addEventListener('click', function(){
     }
   }
 })
+
 
 
 
