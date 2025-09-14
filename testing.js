@@ -3332,9 +3332,9 @@ const link1 ={
   // Function to update menu icon
   function updateMenuIcon() {
       if (main.classList.contains('active')) {
-          menuIcon.className = 'fa-solid fa-bars';
+          menuIcon.innerHTML ='<path d="M5 7h14M5 12h14M5 17h14"/>';
       } else {
-          menuIcon.className = 'fa-solid fa-arrow-left';
+          menuIcon.innerHTML = '<path d="M5 12h14M5 12l4-4m-4 4 4 4"/>'
       }
   }
   // Function to show the appropriate ADTsheet
@@ -3356,15 +3356,18 @@ const link1 ={
 // Update the text based on current navigation state
 function updateInfoContentText() {
     const infoSubtext = infoContent.querySelector('p');
-    
     if (main.classList.contains('active')) {
         // Main categories view
         infoContent.querySelector('h2').textContent = 'Algorithm Directed Troop Medical Care';
         infoSubtext.textContent = 'Select a category';
     } else {
         // Category view (not main)
+        if(med_bar.classList.contains("active")){
+          infoSubtext.textContent = 'Select a Medication'
+        } else {
+          infoSubtext.textContent = 'Select a subcategory';
+        }
         
-        infoSubtext.textContent = 'Select a subcategory';
     }
 }
 
@@ -3477,6 +3480,7 @@ function updateInfoContentText() {
   });
 
   const main_menu = document.querySelector(".main_menu")
+  const med_button = document.querySelector("#section_tag")
 
 // Menu icon click functionality (acts as back button)
 menuIconBox.addEventListener('click', function() {
@@ -3666,6 +3670,7 @@ btns.forEach(function(currentbtn){
     var back2 = Qs.querySelector(".back2")
     var close = Qs.querySelectorAll(".close i")
     var close_content = Qs.querySelectorAll(".just li")
+    const at = dispo.attributes
     if(!slider.classList.contains("o")){slider.classList.toggle("o")}
     if(currentbtn.classList.contains("Y")){
       if(Qs.querySelector(".dispobox.Nah") == null){null}else{
@@ -3684,6 +3689,8 @@ btns.forEach(function(currentbtn){
         slider.style.backgroundColor = color;
         slider.style.color = text
         dispo.style.backgroundColor = color;
+        dispo.setAttribute('fill', text)
+        console.log(at)
         dispo.style.color = text
         bottombar.style.backgroundColor = color
         bottombar.style.color = text
@@ -3741,6 +3748,8 @@ btns.forEach(function(currentbtn){
         slider.style.backgroundColor = color
         slider.style.color = text
         dispo.style.backgroundColor = color;
+        console.log(at)
+        dispo.setAttribute('fill', text)
         dispo.style.color = text
         bottombar.style.backgroundColor = color
         bottombar.style.color = text
@@ -3762,6 +3771,8 @@ btns.forEach(function(currentbtn){
           back2.style.color = text
         }
         sub3.style.backgroundColor = color
+        dispo.setAttribute('fill', text)
+        console.log(at)
         sub3.style.color = text
         box.style.color = text
         note_content.style.color = text      
@@ -4024,6 +4035,7 @@ const checkbox3 = document.getElementById("checkbox3");
 const helper = document.querySelector(".bg-helper")
 const bottombar = document.querySelector(".submitbottom")
 const finalbutton = document.querySelector(".submitbottom_button")
+const med_bar = document.querySelector("#med_sel")
 
 //show copy button
 function quick(){
@@ -4293,7 +4305,19 @@ if(document.querySelector("#checkbox1").checked === true){
   navigator.clipboard.writeText(Geekssep)
 }
 
+med_button.addEventListener('click', function(){
+  if(main_menu.classList.contains("active")){
+    if(main.classList.contains("active")){
+      main_menu.classList.remove("active")
+      main.classList.remove("active")
+      main.classList.add("place-left")
+      med_bar.classList.add("active")
+      updateInfoContentText()
+      updateMenuIcon()
 
+    }
+  }
+})
 
 
 
