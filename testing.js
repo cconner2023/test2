@@ -1,5 +1,4 @@
 //install service worker
-// Simple, direct service worker registration
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     // Direct path to your service worker
@@ -23,6 +22,22 @@ if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register(swPath, { scope: scope })
           .then(registration => {
             console.log('SW registered successfully with scope:', registration.scope);
+            
+            // Add update detection
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              console.log('New service worker found:', newWorker.state);
+              
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New content available
+                  console.log('New content available, please refresh.');
+                  if (confirm('A new version is available. Refresh now?')) {
+                    window.location.reload();
+                  }
+                }
+              });
+            });
           })
           .catch(error => {
             console.log('SW registration failed:', error);
@@ -31,7 +46,23 @@ if ('serviceWorker' in navigator) {
       .catch(error => {
         console.log('Service worker file not accessible:', error);
       });
+      
+    // Check for updates on navigation
+    navigator.serviceWorker.ready.then(registration => {
+      registration.update();
+    });
   });
+}
+
+// Function to manually check for updates
+function checkForUpdate() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.ready.then(registration => {
+      registration.update().then(() => {
+        console.log('Checked for updates');
+      });
+    });
+  }
 }
     var container = document.querySelector('.container');
     var backBtn = document.getElementById('backBtn');
@@ -4318,6 +4349,7 @@ med_button.addEventListener('click', function(){
     }
   }
 })
+
 
 
 
