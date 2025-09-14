@@ -350,6 +350,7 @@ li {
 
 .texticon {
     min-width: 40px;
+    max-width: 40px
     height: 40px;
     position: relative;
     display: flex;
@@ -1535,5 +1536,6 @@ color: var(--TextColor1)
 .transition-div {
   transition: opacity 0.3s ease-in-out;
 }
+
 
 
