@@ -31,7 +31,7 @@ if ('serviceWorker' in navigator) {
               
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  console.log('New content available, please refresh.');
+                  'New content available, please refresh.');
                   // Optional: show update notification to user
                   showUpdateNotification();
                 }
@@ -39,11 +39,11 @@ if ('serviceWorker' in navigator) {
             });
           })
           .catch(error => {
-            console.log('SW registration failed:', error);
+            'SW registration failed:', error);
           });
       })
       .catch(error => {
-        console.log('Service worker file not accessible:', error);
+        'Service worker file not accessible:', error);
       });
   });
 }
@@ -53,7 +53,7 @@ function checkForUpdates() {
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.ready.then(registration => {
       registration.update().then(() => {
-        console.log('Manually checked for updates');
+        'Manually checked for updates');
       });
     });
   }
@@ -3763,7 +3763,6 @@ btns.forEach(function(currentbtn){
         slider.style.color = text
         dispo.style.backgroundColor = color;
         dispo.setAttribute('fill', text)
-        console.log(at)
         dispo.style.color = text
         bottombar.style.backgroundColor = color
         bottombar.style.color = text
@@ -3821,7 +3820,6 @@ btns.forEach(function(currentbtn){
         slider.style.backgroundColor = color
         slider.style.color = text
         dispo.style.backgroundColor = color;
-        console.log(at)
         dispo.setAttribute('fill', text)
         dispo.style.color = text
         bottombar.style.backgroundColor = color
@@ -3845,7 +3843,6 @@ btns.forEach(function(currentbtn){
         }
         sub3.style.backgroundColor = color
         dispo.setAttribute('fill', text)
-        console.log(at)
         sub3.style.color = text
         box.style.color = text
         note_content.style.color = text      
@@ -4221,10 +4218,6 @@ window.addEventListener('resize', function() {
     }, 100);
 });
 
-// Also trigger once on initial load
-window.addEventListener('load', function() {
-    console.log('Initial window size:', window.innerWidth, 'x', window.innerHeight);
-});
 
 
 
@@ -4391,6 +4384,7 @@ med_button.addEventListener('click', function(){
     }
   }
 })
+
 
 
 
