@@ -1,5 +1,4 @@
 //install service worker
-// Install service worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
     const swPath = '/test2/serviceWorker.js';
@@ -25,7 +24,7 @@ if ('serviceWorker' in navigator) {
             // Check for updates on registration
             registration.update();
             
-            // Listen for updates
+            // Listen for updates (optional - just logs to console)
             registration.addEventListener('updatefound', () => {
               const newWorker = registration.installing;
               console.log('New service worker found:', newWorker.state);
@@ -33,8 +32,7 @@ if ('serviceWorker' in navigator) {
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
                   console.log('New content available, please refresh.');
-                  // Optional: show update notification to user
-                  showUpdateNotification();
+                  // Removed the showUpdateNotification() call
                 }
               });
             });
@@ -59,7 +57,6 @@ function checkForUpdates() {
     });
   }
 }
-
     var container = document.querySelector('.container');
     var backBtn = document.getElementById('backBtn');
     var main = document.querySelector("#main-categories");
@@ -4338,6 +4335,7 @@ med_button.addEventListener('click', function(){
     }
   }
 })
+
 
 
 
