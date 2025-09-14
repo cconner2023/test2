@@ -1,17 +1,15 @@
 ADTMC PWA for mobile/desktop usage.
 
-**Release 04SEP2025**
-- If you have a previous build downloaded to your device you will have to re-download. Sorry.
+**Release 14SEP2025**
+- Service Worker is functional - you can now view offline after initial site visit.
 - responsive to desktop/mobile.
-- updated color scheme - set to add dark mode based on device preference at later date
-- service worker updated - you should be able to view now offline after first install
-- Menu - top left button when on the main pages.
+- Menu in process - top left of ADTMC main page.
 
 **Medications are temporarily inaccessible. ETA OCT 2025. Contact me if you have suggestions on features you would like to see in ADTMC.**
 
 **DISCLAIMER**
-While ADTMC is the only authorized screening algorithm, this product is not sponsored by any Government or DoD agency,
-nor should it be used for medical purposes without the express permission of your credentialed provider.
+ADTMC is the only authorized screening algorithm, this product is not sponsored by any Government or DoD agency,
+nor should it be used for medical purposes without the express permission of your credentialed provider. I do not own any of the doctrine and any appearance or similarity to others is strictly coincidental.
 
 **DISCLAIMER**
 ADTMC currently does not have any algorithm regarding headache. Until at which point it is created, that algorithm is blank
