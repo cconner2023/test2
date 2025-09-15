@@ -18,6 +18,10 @@
             --BannerRedOp: rgba(168,72,72,0.6);
             --Backgroundbluelight: rgba(0,66,92,1);
             --Backgroundbluedark: rgba(129,161,181,255);
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
         }
 
 
@@ -44,7 +48,7 @@
             position: relative;
         }
         .top-menu {
-            height: 60px; /* Fixed height for top menu */
+            height: 55px; /* Fixed height for top menu */
             width: 100%;
             background-color: var(--Backgroundwhite);
             display: flex;
@@ -59,7 +63,7 @@
             display: flex;
             justify-content: center;
             margin-right: 10px;
-            margin-left: 10px;
+            margin-left: 8px;
             border-radius: 5px;
             cursor: pointer;
         }
@@ -98,7 +102,9 @@
             height: 100%;
             align-items: center;
             display: flex;
-
+        }
+        .menu-banner-label{
+          transition: all 0.3s ease;
         }
 .main_menu {
     opacity: 0;
@@ -107,7 +113,7 @@
     flex-direction: column;
     top: 65px;
     left: 15px;
-    padding: 10px 15px;
+    padding: 10px 0px 15px 0px;
     background-color: var(--Backgroundwhite);
     color: var(--TextColor1);
     border-radius: 8px;
@@ -131,15 +137,14 @@
     transform: translateY(0) scale(1);
 }
         .main_menu_content{
-            margin-left: 10px;
-            margin-right: 10px;
-            height: 100%;
+            display: flex;
+            flex-direction: column;
+            width: 100%;
         }
         .main_menu_choice{
-            padding: 10px 10px 10px 0;
-            margin: 3px 3px 3px 0;
+            padding: 4px 15px 4px 15px;
+            margin: 3px 0px 3px 0px;
             transition: all 0.2s ease;
-            border-radius: 10px;
         }
         .main_menu_choice:hover{
             background-color: var(--Backgroundlightgray);
@@ -309,7 +314,9 @@ button {
     transform: translateX(-100%);
     opacity: 0; /* Still 0 but will transition */
 }
-
+.sub_page_marker{
+  height: 2px;
+}
 ul {
     list-style: none;
     width: 100%;
@@ -333,7 +340,7 @@ li {
     padding-bottom: 5px;
     border-radius: 5px;
     margin-bottom: 1%;
-    margin-left: 5%;
+    margin-left:20px;
     margin-top: 1%;
     width: 90%;
     display: flex;
@@ -346,6 +353,7 @@ li {
     display: flex;
     align-items: center;
     z-index: 2;
+    width: 100%;
 }
 
 .texticon {
@@ -579,11 +587,13 @@ box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   font-weight: 500;
   color: var(--TextColor2);
   transition: all 0.3s ease;
+  z-index: 9
 }
 .slider.o.no ~ .Aa.N{
   font-weight: 500;
   color: var(--TextColor2);
   transition: all 0.3s ease;
+  z-index: 9;
 }
 
 .Aa{
@@ -618,7 +628,7 @@ box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   width: 50%;
   transform: translateX(-100%);
   display: block;
-  transition: transform 0.3s ease;
+  transition: transform 0.3s ease, background-color 0.5s ease;
   will-change: transform;
    z-index: 1;
 }
@@ -1540,5 +1550,4 @@ color: var(--TextColor1)
 .transition-div {
   transition: opacity 0.3s ease-in-out;
 }
-
 
