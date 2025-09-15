@@ -349,7 +349,7 @@ li {
 }
 
 .texticon {
-    min-width: 40px;
+    width: 40px;
     height: 40px;
     position: relative;
     display: flex;
@@ -367,6 +367,9 @@ li {
 }
 
 .btn-text {
+    position: relative;
+    display: flex;
+    flex: 1;
     color: var(--TextColor1);
     font-weight: 500;
 }
@@ -1537,4 +1540,5 @@ color: var(--TextColor1)
 .transition-div {
   transition: opacity 0.3s ease-in-out;
 }
+
 
