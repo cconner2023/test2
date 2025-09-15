@@ -6,56 +6,28 @@ if ('serviceWorker' in navigator) {
     
     console.log('Registering service worker at:', swPath);
     
-    // Add cache buster to service worker URL
-    const swUrl = `${swPath}?cb=${Date.now()}`;
-    
-    fetch(swUrl)
-      .then(response => {
-        if (!response.ok) throw new Error(`SW not found (${response.status})`);
-        return response.text();
-      })
-      .then(script => {
-        console.log('Service worker file found, attempting registration...');
-        
-        navigator.serviceWorker.register(swPath, { scope: scope })
-          .then(registration => {
-            console.log('SW registered successfully with scope:', registration.scope);
-            
-            // Check for updates on registration
-            registration.update();
-            
-            // Listen for updates (optional - just logs to console)
-            registration.addEventListener('updatefound', () => {
-              const newWorker = registration.installing;
-              console.log('New service worker found:', newWorker.state);
-              
-              newWorker.addEventListener('statechange', () => {
-                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  console.log('New content available, please refresh.');
-                  // Removed the showUpdateNotification() call
-                }
-              });
-            });
-          })
-          .catch(error => {
-            console.log('SW registration failed:', error);
+    // Unregister any existing service workers first
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      for (let registration of registrations) {
+        registration.unregister();
+        console.log('Unregistered old service worker');
+      }
+      
+      // Register the new service worker
+      navigator.serviceWorker.register(swPath, { scope: scope })
+        .then(registration => {
+          console.log('SW registered successfully with scope:', registration.scope);
+          
+          // Check for updates
+          registration.addEventListener('updatefound', () => {
+            console.log('New service worker found, installing...');
           });
-      })
-      .catch(error => {
-        console.log('Service worker file not accessible:', error);
-      });
-  });
-}
-
-// Function to check for updates
-function checkForUpdates() {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.ready.then(registration => {
-      registration.update().then(() => {
-        console.log('Manually checked for updates');
-      });
+        })
+        .catch(error => {
+          console.log('SW registration failed:', error);
+        });
     });
-  }
+  });
 }
     var container = document.querySelector('.container');
     var backBtn = document.getElementById('backBtn');
@@ -4333,6 +4305,7 @@ med_button.addEventListener('click', function(){
     }
   }
 })
+
 
 
 
