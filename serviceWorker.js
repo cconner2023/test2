@@ -1,23 +1,24 @@
-// serviceWorker.js
-const CACHE_NAME = 'pwa-cache-v3'; // Increment version
+const CACHE_NAME = 'pwa-cache-v2'; // Change version to bust cache
 const BASE_PATH = self.location.pathname.replace(/serviceWorker\.js$/, '');
 
-// Add timestamp to cache name to force refresh
 const urlsToCache = [
   BASE_PATH,
-  `${BASE_PATH}index.html?t=${Date.now()}`,
-  `${BASE_PATH}testing.css?t=${Date.now()}`,
-  `${BASE_PATH}testing.js?t=${Date.now()}`,
-  `${BASE_PATH}manifest.json?t=${Date.now()}`
+  BASE_PATH + 'index.html',
+  BASE_PATH + 'testing.css',
+  BASE_PATH + 'testing.js', 
+  BASE_PATH + 'manifest.json'
 ];
 
 self.addEventListener('install', function(event) {
-  console.log('Service worker installing');
+  console.log('Service worker installing for path:', BASE_PATH);
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(function(cache) {
-        console.log('Cache opened, adding files');
-        return cache.addAll(urlsToCache);
+        console.log('Cache opened, adding files:', urlsToCache);
+        return cache.addAll(urlsToCache.map(url => {
+          // Add cache-busting parameter to each request
+          return `${url}?v=${CACHE_NAME.replace(/\D/g, '')}`;
+        }));
       })
       .then(function() {
         console.log('All resources cached successfully');
@@ -32,7 +33,6 @@ self.addEventListener('activate', function(event) {
     caches.keys().then(cacheNames => {
       return Promise.all(
         cacheNames.map(cacheName => {
-          // Delete all old caches
           if (cacheName !== CACHE_NAME) {
             console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
@@ -44,16 +44,26 @@ self.addEventListener('activate', function(event) {
 });
 
 self.addEventListener('fetch', function(event) {
-  // Network-first strategy
-  event.respondWith(
-    fetch(event.request)
-      .then(response => {
-        // Update cache
-        const responseClone = response.clone();
-        caches.open(CACHE_NAME)
-          .then(cache => cache.put(event.request, responseClone));
-        return response;
-      })
-      .catch(() => caches.match(event.request))
-  );
+  // Only handle requests to our own origin
+  if (event.request.url.startsWith(self.location.origin)) {
+    event.respondWith(
+      caches.match(event.request)
+        .then(function(response) {
+          // Always fetch from network first, fall back to cache
+          return fetch(event.request)
+            .then(networkResponse => {
+              // Update cache with fresh response
+              return caches.open(CACHE_NAME)
+                .then(cache => {
+                  cache.put(event.request, networkResponse.clone());
+                  return networkResponse;
+                });
+            })
+            .catch(() => {
+              // If network fails, return cached version
+              return response;
+            });
+        })
+    );
+  }
 });
