@@ -1,32 +1,36 @@
 //install service worker
+// Simple, direct service worker registration
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', function() {
+    // Direct path to your service worker
     const swPath = '/test2/serviceWorker.js';
     const scope = '/test2/';
     
     console.log('Registering service worker at:', swPath);
     
-    // Unregister any existing service workers first
-    navigator.serviceWorker.getRegistrations().then(registrations => {
-      for (let registration of registrations) {
-        registration.unregister();
-        console.log('Unregistered old service worker');
-      }
-      
-      // Register the new service worker
-      navigator.serviceWorker.register(swPath, { scope: scope })
-        .then(registration => {
-          console.log('SW registered successfully with scope:', registration.scope);
-          
-          // Check for updates
-          registration.addEventListener('updatefound', () => {
-            console.log('New service worker found, installing...');
+    // First, verify the service worker file exists
+    fetch(swPath)
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`Service worker not found (${response.status})`);
+        }
+        return response.text();
+      })
+      .then(script => {
+        console.log('Service worker file found, attempting registration...');
+        
+        // Register with the correct scope
+        navigator.serviceWorker.register(swPath, { scope: scope })
+          .then(registration => {
+            console.log('SW registered successfully with scope:', registration.scope);
+          })
+          .catch(error => {
+            console.log('SW registration failed:', error);
           });
-        })
-        .catch(error => {
-          console.log('SW registration failed:', error);
-        });
-    });
+      })
+      .catch(error => {
+        console.log('Service worker file not accessible:', error);
+      });
   });
 }
     var container = document.querySelector('.container');
@@ -38,9 +42,6 @@ if ('serviceWorker' in navigator) {
     var infoLabel = document.querySelector(".subcategory-header")
 
 const  
-  A1ACT1 = ["Perform Rapid Strep + Culture Test (barracks, positive close contact, immunosuppressed contact, h/o ARF)"],
-  A1ACT2 = [],
-  A1ACT3 = [],  
   A1DP1 = ["DP1. Symptoms greater than 10 days, immunosuppression, inhaled steroid medications are related to diseases that are unlikely to go away without treatment. Hoarseness longer than 2 weeks requires a full laryngeal exam."],
   A1DP2 = ["DP2. 4 questions that look at the chance of having a Group A Streptococcal (GAS) infection. If 3 of the questions are positive, there is 32% chance of having GAS and a rapid antigen test (RADT) should be performed. The RADT is effective for ruling out GAS in adults but some Soldiers with GAS are missed. Culture test is performed when the RADT is negative and Soldiers or their contacts are at higher risk for complications from a GAS infection. Culture generally takes 24-48 hours for the results to return."],
   A1DP3 = ["Other protocols. Sore throat and hoarseness that are associated with a virus should be treated with minor-care. The other symptoms should be treated according to their associated protocols.","MCP for sore throat. A sore throat is often due to a viral infection. Minor-care consist of pain control, measures to decrease inflammation, getting plenty of rest and drinking plenty of fluids (water). Return for signs of the infection getting worse or progressing.","MCP for hoarseness. Hoarseness is often due to a virus or irritant. Minor-care consists of resting the vocal cords and avoidance of irritants (cigarette smoking, yelling, heartburn, post-nasal drip). This is a good opportunity to discuss the negative effects of tobacco use and encourage the Soldier to quit using tobacco, if applicable."],
@@ -1509,11 +1510,11 @@ End = [];
 
 //Map the variables to html tags
 const A1decision = {  
-  "DACT1" : A1ACT1,
-  "DACT2" : A1ACT2,
-  "DACT3" : A1ACT3,
-  "DPRED" : A1DPRED,
-  "DP1" : A1DP1,
+  "DACT1" : ["Perform Rapid Strep + Culture Test (barracks, positive close contact, immunosuppressed contact, h/o ARF)"],
+  "DACT2" : [],
+  "DACT3" : [],
+  "DPRED" : ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” One-sided severe sore throat with fever, trouble swallowing as shown by drooling, uvula displacement, hoarseness (hot potato voice), trismus (lock jaw), and enlarged, tender tonsils are signs of a deep neck space infection like a peritonsillar abscess. Shortness of breath and stridor are signs of upper airway obstruction due to severe pharyngeal inflammation.",],
+  "DP1" : ["DP1. Symptoms greater than 10 days, immunosuppression, inhaled steroid medications are related to diseases that are unlikely to go away without treatment. Hoarseness longer than 2 weeks requires a full laryngeal exam."],
   "DP2" : A1DP2,
   "DP3" : A1DP3,
   "DP4" : A1DP4,
@@ -1523,7 +1524,7 @@ const A1decision = {
   "GEN" : A1GEN,
   "MED" : A1MEDCOM,
   "STP" : A1STP1,
-  "RF" : A1FLAG,
+  "RF" : ["SOB", "Stridor", "Deviated Uvula", "Drooling/ Trouble Swallowing ", "Stiff Neck"],
   "DDX" : A1DDX
   }
 
@@ -3323,16 +3324,91 @@ const link1 ={
   const bottom = document.querySelector(".bottommarker");
   const tags = document.querySelectorAll(".item_tag")
   const pagetop = document.querySelector(".sub-page-banner-box");
+  const line1 = document.getElementById('mainline1');
+  const line2 = document.getElementById('mainline2');
+  const line3 = document.getElementById('mainline3');
+  var menu_banner = document.querySelector(".menu-banner-label")
+  var menu_text = menu_banner.textContent
 
+
+  function setOpacity(element, opacity) {
+            element.style.transition = 'all 0.5s ease';
+            element.style.opacity = opacity;
+            // Also set stroke opacity for better browser support
+            if (opacity === '0') {
+                element.style.stroke = 'transparent';
+            } else {
+                element.style.stroke = 'currentColor';
+            }
+        }
   
+  let currentIconState = "Menu"
   // Function to update menu icon
   function updateMenuIcon() {
       if (main.classList.contains('active')) {
-          menuIcon.innerHTML ='<path d="M5 7h14M5 12h14M5 17h14"/>';
-      } else {
-          menuIcon.innerHTML = '<path d="M5 12h14M5 12l4-4m-4 4 4 4"/>'
+        showMenu()
+        menu_banner.innerHTML = "ADTMC 2.5"
+      } else if(med_bar.classList.contains("active")){
+        showClose()
+        menu_banner.innerHTML = "ADTMC Medications List"
+      }else {
+        showArrow()
+        menu_banner.innerHTML = "ADTMC 2.5"
       }
   }
+
+  let currentMenuText = "ADTMC 2.5"
+  function updateMenuText(){
+    if(main.classList.contains("active")){
+      menu_banner.innerText = "ADTMC 2.5"
+    } else if(med_bar.classList.contains("active")){
+      menu_banner.innerHTML = "ADTMC Medications List"
+    } else {
+      menu_banner.innerText = "ADTMC 2.5"
+    }
+  }
+
+          function showMenu() {
+            line1.setAttribute('d', 'M5 7 L19 7');
+            line2.setAttribute('d', 'M5 12 L19 12');
+            line3.setAttribute('d', 'M5 17 L19 17');
+            setOpacity(line1, '1');
+            setOpacity(line2, '1');
+            setOpacity(line3, '1');
+            currentIconState = 'Menu'
+        }
+        
+        function showArrow() {
+            line1.setAttribute('d', 'M5 12 L19 12'); // Top becomes baseline
+            line2.setAttribute('d', 'M5 12 L9 8');   // Middle becomes top arrow
+            line3.setAttribute('d', 'M5 12 L9 16');  // Bottom becomes bottom arrow
+            setOpacity(line1, '1');
+            setOpacity(line2, '1');
+            setOpacity(line3, '1');
+            currentIconState = 'Back Arrow';
+        }
+        
+        function showClose() {
+            if (currentIconState === 'Menu') {
+                // Hamburger to X
+                line1.setAttribute('d', 'M5 5 L19 19'); // Top becomes left-to-right
+                line2.setAttribute('d', 'M5 12 L19 12'); // Middle stays in place but will be hidden
+                line3.setAttribute('d', 'M5 19 L19 5'); // Bottom becomes right-to-left
+                setOpacity(line1, '1');
+                setOpacity(line2, '0'); // Middle fades out
+                setOpacity(line3, '1');
+            } else if (currentIconState === 'Back Arrow') {
+                // Arrow to X
+                line1.setAttribute('d', 'M5 19 L19 5'); // Baseline becomes right-to-left
+                line2.setAttribute('d', 'M5 12 L9 8');  // Top arrow stays but will be hidden
+                line3.setAttribute('d', 'M5 5 L19 19'); // Bottom arrow becomes left-to-right
+                setOpacity(line1, '1');
+                setOpacity(line2, '0'); // Top arrow fades out
+                setOpacity(line3, '1');
+            }
+            currentIconState = 'close';
+        }
+
   // Function to show the appropriate ADTsheet
   function showADTsheet(sheetId) {
       // Hide all sheets first
@@ -3653,6 +3729,7 @@ closers.forEach(function(currentcloser){
 var btns = document.querySelectorAll(".Aa");
 btns.forEach(function(currentbtn){
   currentbtn.addEventListener("click",()=>{
+    //name variables based on button
     var Qs = currentbtn.closest(".Q");
     var ADT = Qs.closest(".ADTsheet.selected")
     var frontcard = Qs.querySelector(".dispobar")
@@ -3667,7 +3744,9 @@ btns.forEach(function(currentbtn){
     var close = Qs.querySelectorAll(".close i")
     var close_content = Qs.querySelectorAll(".just li")
     const at = dispo.attributes
+    //if the slider is not active make it active
     if(!slider.classList.contains("o")){slider.classList.toggle("o")}
+    //if yes - close the no dispobox, open the yes dispobox, and hide the note button
     if(currentbtn.classList.contains("Y")){
       if(Qs.querySelector(".dispobox.Nah") == null){null}else{
         var nah = Qs.querySelector(".dispobox.Nah");
@@ -3677,6 +3756,7 @@ btns.forEach(function(currentbtn){
       }
       slider.classList.add("yes")
       slider.classList.remove("no");
+    //styling
       var border = Qs.querySelector(".dispobar");
         dispobox.classList.add("open")
         const style = getComputedStyle(border);
@@ -3720,6 +3800,7 @@ btns.forEach(function(currentbtn){
         }else{
       }
         justify()
+        CheckTopMarker()
       }
     if(currentbtn.classList.contains("N")){
       slider.classList.add("no")
@@ -3742,6 +3823,8 @@ btns.forEach(function(currentbtn){
         slider.style.backgroundColor = color
         slider.style.color = text
         dispo.style.backgroundColor = color;
+        console.log(at)
+        dispo.setAttribute('fill', text)
         dispo.style.color = text
         bottombar.style.backgroundColor = color
         bottombar.style.color = text
@@ -3764,6 +3847,7 @@ btns.forEach(function(currentbtn){
         }
         sub3.style.backgroundColor = color
         dispo.setAttribute('fill', text)
+        console.log(at)
         sub3.style.color = text
         box.style.color = text
         note_content.style.color = text      
@@ -3771,6 +3855,7 @@ btns.forEach(function(currentbtn){
           sub3.classList.remove("closed")
         }
         justify()
+        CheckTopMarker()
     }
   }) 
 })
@@ -3946,7 +4031,7 @@ function justify(){
       }
     }
   }
-    const sectionTwo = document.querySelector(".bottommarker");
+  const sectionTwo = document.querySelector(".bottommarker");
   if (sectionTwo) {
       // First, disconnect any existing observer to prevent multiple observers
       if (window.sectionTwoObserver) {
@@ -3971,10 +4056,40 @@ function justify(){
               }
           });
       }, sectionTwoOptions);
-      
       window.sectionTwoObserver.observe(sectionTwo);
   }
   
+}
+
+function CheckTopMarker(){
+  const TopMarker = document.querySelector(".sub_page_marker");
+  if (TopMarker) {
+      // First, disconnect any existing observer to prevent multiple observers
+      if (window.TopMarkerObserver) {
+          window.TopMarkerObserver.disconnect();
+      }
+      const TopMarkerOptions = {
+          threshold: 0.1 // Adjust as needed - triggers when 10% of element is out of view
+      };
+      
+      window.TopMarkerObserver = new IntersectionObserver(function(entries, observer) {
+          entries.forEach(entry => {
+              if (!entry.isIntersecting) {
+                  if(window.innerWidth<768){
+                  if (document.querySelector(".sub-page.open")) {
+                    var sub_page_banner = document.querySelector(".sub-page-banner").innerText
+                    menu_banner.innerHTML = sub_page_banner
+                      // Stop observing after handling this event
+                      observer.disconnect();
+                      window.TopMarkerObserver = null;
+                  }}
+              } else if(entry.isIntersecting){
+                menu_banner.innerHTML = "ADTMC 2.5"
+              }
+          });
+      }, TopMarkerOptions);
+      window.TopMarkerObserver.observe(TopMarker);
+  }
 }
 
 // clears the board if something turns yes
@@ -4140,16 +4255,12 @@ window.addEventListener('resize', function() {
 });
 
 
-
-
-
 const date = document.querySelector(".SOAPdate")
 const rf_list = document.querySelector(".rf_list")
 const rf_ul = document.querySelector(".rf_ul")
 const submission = document.querySelector(".dispo_ul")
 const group = document.querySelector(".SOAPgroup")
 const doc_ul = document.querySelector(".doc_ul")
-
 
 
 function writenote(){
@@ -4305,14 +4416,6 @@ med_button.addEventListener('click', function(){
     }
   }
 })
-
-
-
-
-
-
-
-
 
 
 
