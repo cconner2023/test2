@@ -93,10 +93,10 @@ if ('serviceWorker' in navigator) {
     var infoLabel = document.querySelector(".subcategory-header")
 
 const  
-  A1DP1 = ["DP1. Symptoms greater than 10 days, immunosuppression, inhaled steroid medications are related to diseases that are unlikely to go away without treatment. Hoarseness longer than 2 weeks requires a full laryngeal exam."],
-  A1DP2 = ["DP2. 4 questions that look at the chance of having a Group A Streptococcal (GAS) infection. If 3 of the questions are positive, there is 32% chance of having GAS and a rapid antigen test (RADT) should be performed. The RADT is effective for ruling out GAS in adults but some Soldiers with GAS are missed. Culture test is performed when the RADT is negative and Soldiers or their contacts are at higher risk for complications from a GAS infection. Culture generally takes 24-48 hours for the results to return."],
-  A1DP3 = ["Other protocols. Sore throat and hoarseness that are associated with a virus should be treated with minor-care. The other symptoms should be treated according to their associated protocols.","MCP for sore throat. A sore throat is often due to a viral infection. Minor-care consist of pain control, measures to decrease inflammation, getting plenty of rest and drinking plenty of fluids (water). Return for signs of the infection getting worse or progressing.","MCP for hoarseness. Hoarseness is often due to a virus or irritant. Minor-care consists of resting the vocal cords and avoidance of irritants (cigarette smoking, yelling, heartburn, post-nasal drip). This is a good opportunity to discuss the negative effects of tobacco use and encourage the Soldier to quit using tobacco, if applicable."],
-  A1DP4 = [],
+  A1DP1 =["DP1. Symptoms greater than 10 days, immunosuppression, inhaled steroid medications are related to diseases that are unlikely to go away without treatment. Hoarseness longer than 2 weeks requires a full laryngeal exam."],
+  A1DP2 =["DP2. 4 questions that look at the chance of having a Group A Streptococcal (GAS) infection. If 3 of the questions are positive, there is 32% chance of having GAS and a rapid antigen test (RADT) should be performed. The RADT is effective for ruling out GAS in adults but some Soldiers with GAS are missed. Culture test is performed when the RADT is negative and Soldiers or their contacts are at higher risk for complications from a GAS infection. Culture generally takes 24-48 hours for the results to return."],
+  A1DP3 =["Other protocols. Sore throat and hoarseness that are associated with a virus should be treated with minor-care. The other symptoms should be treated according to their associated protocols.","MCP for sore throat. A sore throat is often due to a viral infection. Minor-care consist of pain control, measures to decrease inflammation, getting plenty of rest and drinking plenty of fluids (water). Return for signs of the infection getting worse or progressing.","MCP for hoarseness. Hoarseness is often due to a virus or irritant. Minor-care consists of resting the vocal cords and avoidance of irritants (cigarette smoking, yelling, heartburn, post-nasal drip). This is a good opportunity to discuss the negative effects of tobacco use and encourage the Soldier to quit using tobacco, if applicable."],
+  A1DP4 =[],
   A1DPRE = ["DP3.  CENTOR score < 2 low risk of strep throat, screen other symptoms if present"],
   A1DPRED = ["Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” One-sided severe sore throat with fever, trouble swallowing as shown by drooling, uvula displacement, hoarseness (hot potato voice), trismus (lock jaw), and enlarged, tender tonsils are signs of a deep neck space infection like a peritonsillar abscess. Shortness of breath and stridor are signs of upper airway obstruction due to severe pharyngeal inflammation.",],
   A1PRO = ["MCP sore throat: For pain: lozenge first line, ibuprofen second line, for elevated temperature: acetaminophen, salt water gargles and drink warm fluids for inflammation","MCP hoarseness: rest vocal cords and avoid irritants (cigarette smoking, yelling, heartburn","Return if not improving in 3 days or immediately if worsening symptoms or red flags (above)."],
@@ -3380,6 +3380,8 @@ const link1 ={
   const line3 = document.getElementById('mainline3');
   var menu_banner = document.querySelector(".menu-banner-label")
   var menu_text = menu_banner.textContent
+  const medsheet = document.querySelector(".medsheet")
+  const med_btns = document.querySelectorAll(".medbtn")
 
 
   function setOpacity(element, opacity) {
@@ -3607,6 +3609,7 @@ function updateInfoContentText() {
 
 // Menu icon click functionality (acts as back button)
 menuIconBox.addEventListener('click', function() {
+    medsheet.classList.remove("open")
     if(main.classList.contains("active")){
         main_menu.classList.toggle("active")
         main_menu.querySelector("#section_tag").innerText = "MEDICATIONS LIST"
@@ -4469,6 +4472,575 @@ med_button.addEventListener('click', function(){
 })
 
 
+// medication side of the house
 
 
+const medboxes = {
+med1 : [
+  {Category:["Trade Name"],Content:["Tylenol"]},
+  {Category:["Indications"],Content:["Pain or Fever"]},
+  {Category:["Adult Dosing"],Content:["325mg PO: Take 2 tabs every 6 hr daily as needed for fever or pain <br> (Maximum 2.6g in 24hrs)","235-650mg PO: Every 4-6 hr or 1000mg 3-4 times daily <br> (Maximum 4g in 24hrs)"]},
+  {Category:["Pediatric Dosing"],Content:["15mg/kg/dose: Every 4-6 hr as needed <br> (Maximum 2.6g in 24 hrs)"]},
+  {Category:["Contraindications"],Content:["Hypersensitiviy to acetaminophen or any component of the formulation","Hepatic impairment or liver disease"]},
+  {Category:["Lactation Safety"],Content:["Safe"]},
+  {Category:["Pregnancy Safety"],Content:["Class B - Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Avoid use in patient suffering alcohol toxicity, known alcohol abuse, or renal impairment","Nausea, vomiting","G6PD deficiency"]},
+  {Category:["Mechanism of Action"],Content:["Analgesic effect believed to be related to serotonergic inhibitory pathways in the CNS","Antipyresis from inhibition of the hypothalamic heat-regulating center"]},
+  {Category:["Aviation Considerations"],Content:["Class 1 when used infrequently or in low dosage."]}]
+,
+med2 :[
+  {Category:["Trade Name"],Content:["Acetasol HC"]},
+  {Category:["Indications"],Content:["Otitis Externa"]},
+  {Category:["Adult Dosing"],Content:["ADTMC PREFERRED: AA2%, HC1% Otic: 5 drops in affected ear(s) every 6 hours",">3 years old: 3-5 drops in affected ear every 4-6 hrs while cotton wick inserted (24 hrs)","5 drops in affected ear every 6-8 hrs daily after 24 hours"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["None. >3 years old use adult dosing"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to acetic acid, propylene glycol, hydrocortisone or any components of the formulation","Perforated tympanic membrane","HSV or varicella infection","Local reaction/ irritation develops"]},
+  {Category:["Lactation Safety"],Content:["Unknown- Considered Safe"]},
+  {Category:["Pregnancy Safety"],Content:["Class C– Potential for Harm"]},
+  {Category:["Adverse Reactions"],Content:["Stinging of ear, burning sensation","Local irritation"]},
+  {Category:["Mechanism of Action"],Content:["Acetic acid has bacteriostatic and fungistatic properties.","Hydrocortisone has anti-inflammatory, anti-pruritic, and vasoconstrictive properties.","Hydrocortisone induces phospholipase A2 inhibitory proteins and inhibits the release of arachidonic acid decreasing the mediators of inflammation."]},
+  {Category:["Aviation considerations"],Content:["None"]}],
+med3 :[
+  {Category:["Trade Name"],Content:["Aspirin","Bayer"]},
+  {Category:["Indications"],Content:["Acute Coronary Syndrome","Unstable Angina","Non-ST Segment Elevated Myocardial Infarction"]},
+  {Category:["Adult Dosing"],Content:["81mg PO: Chew 4 nonenteric coated baby aspirin in a single dose (4 x 81mg)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["N/A"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to salicylates, other NSAIDs, or any component of the formulation","Asthma, Rhinitis","History of stomach ulcer, bleeding problem, black or bloody stools","Children recovering from chickenpox or flu-like symptoms due to risk of Reye syndrome"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Class D - Unsafe"]},
+  {Category:["Adverse Reactions"],Content:["Not for use on trauma patients in the combat environment.","Risk of bleeding: Avoid use in patients with known or suspected, Bleeding disorders, GI Bleed, GI Ulcers, patients taking Coumadin, or within 24hrs of taking Alteplase (tPA) for suspected stroke"]},
+  {Category:["Mechanism of Action"],Content:["Blocks cyclooxygenase (COX 1 and 2) enzymes, resulting in reduced formation of prostaglandin precursors.","Blocks formation of prostaglandin derivative, thromboxane A2, resulting ininhibited platelet aggregation.","Antipyretic, analgesic, and anti-inflammatory properties."]},
+  {Category:["Aviation considerations"],Content:["None"]}],
+med4 :[
+  {Category:["Trade Name"],Content:["Differin Cream, 0.1% Gel is OTC"]},
+  {Category:["Indications"],Content:["Acne"]},
+  {Category:["Adult Dosing"],Content:["0.1% Topical: Apply a thin film once daily at bedtime <br> (nickel size amount for entire face)","0.1-0.3% Topical: Apply a thin film once daily at bedtime"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["N/A"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to adapalene or any component of the formulation","Not approved for children under 12 years old","Avoid contact with mucous membranes (eyes, nose, mouth, vaginal, and anal mucosa)","Avoid contact with broken, eczematous, or sunburned skin"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Class C - Potential Harm"]},
+  {Category:["Adverse Reactions"],Content:["Dry skin, redness, burning or stinging of the skin, skin peeling","Skin itching","Increased susceptibility to sunburn"]},
+  {Category:["Mechanism of Action"],Content:["Modulates cellular differentiation, keratinization, and the inflammatory process"]},
+  {Category:["Aviation considerations"],Content:["None"]}]
+  ,
+med5 :[
+  {Category:["Trade Name"],Content:["Proventil","Ventolin"]},
+  {Category:["Indications"],Content:["Bronchospasm"]},
+  {Category:["Adult Dosing"],Content:["90 mcg/puff inhaler: 2 puffs every 6 hours as needed","5.0mg Nebulizer: Every 6 hours as needed"," 90mcg/puff inhaler: 4 puffs every 20min for up to 4hr then every 2hr as needed"," 2.5-5.0mg Nebulizer: Every 20 min for 3 doses; then 2.5-10mg every 1-4 hrs as needed OR 10-15mg/hour continuous"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["90 mcg/puff inhaler: 4 puffs every 20 min for 3 doses; then every 1-4 hr as needed","2.5-5.0mg Nebulizer: Every 4-8 hours as needed"," 90mcg/puff inhaler: 4 puffs every 20min for 3 doses then every 1-4 hr as needed"," 2.5-5.0mg Nebulizer: Every 20 min for 3 doses; then 0.15-0.3mg/kg every 1-4 hrs as needed (Maximum: 10mg) OR 0.5mg/kg/hour continuous"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to albuterol or any component of the formulation","Symptomatic tachycardia"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Class C - Uncertain safety"]},
+  {Category:["Adverse Reactions"],Content:["Risk of abortion during 1st or 2nd trimester","Headache, Dizziness, Flushing, Diaphoresis, Tremor,Weakness, Angina, A-Fib, Arrhythmia, Chest pain, Palpitations, Dyspnea, Bronchospasm in asthmatics"]},
+  {Category:["Mechanism of Action"],Content:["Beta2 Agonist (Bronchodilator)","Synthetic sympathomimetic that relaxes bronchial smoothmuscle, causing bronchodilation, with little cardiac impact."]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med6 :[
+  {Category:["Trade Name"],Content:["Domeboro's Solution","Boro-packs","Pedi-Boro"]},
+  {Category:["Indications"],Content:["Contact Dermatitis","Skin Irritation"]},
+  {Category:["Adult Dosing"],Content:["1 packet topical: 1 packet/ 16 ounces water. Soak area or apply compress for 30 minutes. Repeat every 8 hours as needed. <br> 1 Boro-Pack = 0.16%","1 soak topical: Soak area every 8 hours as needed. Aplly compress for 15-30 min as needed for itching. 1-3 packets/16 ounces water (depending on brand)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["1-3 pkts topical: 1 packet/ 16 ounces water. Soak area every 8 hours as needed. Compress x 15-30 minutes as needed for itching <br> 1 Boro-Pack = 0.13%"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to aluminum acetate or any component of the formulation"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Unknown"]},
+  {Category:["Adverse Reactions"],Content:["Irritation or Rash","Avoid contact with eyes, mucous membranes"]},
+  {Category:["Mechanism of Action"],Content:["Astringent properties to relieve itching"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med7 :[
+  {Category:["Trade Name"],Content:["Zithromax"]},
+  {Category:["Indications"],Content:["Cervicitis empiric therapy","Urethritis empiric therapy","Chlamydia trachomatis","Gonococcal infection"]},
+  {Category:["Adult Dosing"],Content:["1g PO: Gie one dose and observe while it is being taken (Give with Ceftriaxone)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["1g PO: if > 45.5kg 1g as single dose"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to azithromycin, erythromycin, other macrolide antibiotics or any component of the formulation","QT interval prolongation or history of arrhythmias","Liver Disease or Severe Renal Impairment"]},
+  {Category:["Lactation Safety"],Content:["Use caution; enters milk"]},
+  {Category:["Pregnancy Safety"],Content:["Class B - Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Diarrhea, nausea/ vomiting, GI upset"]},
+  {Category:["Mechanism of Action"],Content:["Macrolide Antibiotic","Inhibits RNA-dependent protein synthesis in susceptible organisms"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med8 :[
+  {Category:["Trade Name"],Content:["Baciguent"]},
+  {Category:["Indications"],Content:["Skin infection","Cut, abrasion","Blister","Burn"]},
+  {Category:["Adult Dosing"],Content:["500 units/q Topical: Apply ointment 2-3 times per day to protect skin and help it heal","500 units/g Topical: Apply 1-3 times per day"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["500 units/g Topical: Apply 1-3 times per day"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to bacitracin or any component of the formulation"]},
+  {Category:["Lactation Safety"],Content:["Considered Safe"]},
+  {Category:["Pregnancy Safety"],Content:["Considered Safe"]},
+  {Category:["Adverse Reactions"],Content:["Limit use to 1 week. If condition remains after 1 week, Soldier should be seen by a provider."]},
+  {Category:["Mechanism of Action"],Content:["Inhibits bacterial cell wall synthesis by preventing the transfer of mucopeptides into the growing bacterial cell wall","Maintains a moist environment allowing for skin growth and repair"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med9 :[
+  {Category:["Trade Name"],Content:["Cepacol Lozenge"]},
+  {Category:["Indications"],Content:["Sore Throat","Mouth Irritation"]},
+  {Category:["Adult Dosing"],Content:["1 lozenge PO: Allow 1 lozenge to dissolve slowly in mouth every 2 hours as needed","1 Lozenge PO: Every 2 hours as needed for sore throat"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:[">5 years old: Refer to Adult Dosing"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to benzocaine, para-aminobenzoic acid (PABA), or any component of the formulation","Children <5 years old, asthma, G6PD Deficiency due to risk of methemoglobinemia"]},
+  {Category:["Lactation Safety"],Content:["Unsafe"]},
+  {Category:["Pregnancy Safety"],Content:["Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Methemoglobinemia: blue lips/ nails, dizziness, headache, lethargy, shortness of breath"]},
+  {Category:["Mechanism of Action"],Content:["Blocks the initiation and conduction of nerve impulses","Decreases the neuronal membrane’s sodium ion permeability"]},
+  {Category:["Aviation considerations"],Content:["Acceptable provided the lozenge contains no prohibited medication. Benzocaine (or similar analgesic) containing throat spray or lozenge is acceptable. Long term use (more than 3 days) must be approved by the local flight surgeon."]}
+]
+,
+med10 : [
+  {Category:["Trade Name"],Content:["Acne-Clear","Acne Treatment"]},
+  {Category:["Indications"],Content:["Acne"]},
+  {Category:["Adult Dosing"],Content:["10% cream, gel topical: Apply to the affected area once a day in the morning for acne","2-10% Topical: Start daily and titrate up to 2-3/day as needed"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["N/A"]},
+  {Category:["Contraindications"],Content:[" Hypersensitivity to benzoyl peroxide or any other component of the formulation","Development of hives, itching, or signs of allergic reaction after use","Development of severe skin irritation after use"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Class C - Potential Risk"]},
+  {Category:["Adverse Reactions"],Content:[" Skin irritation, dry skin, skin peeling","Bleach hair, colored fabric","Combination with Dapsone may cause skin/ hair to turn a yellow/orange/tan color"]},
+  {Category:["Mechanism of Action"],Content:["Release of free radical oxygen which oxidizes bacterial proteins","Decreases number of anaerobic bacteria and irritating free fatty acids"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med11 : [
+  {Category:["Trade Name"],Content:["Dulcolax"]},
+  {Category:["Indications"],Content:["Constipation"]},
+  {Category:["Adult Dosing"],Content:["5mg PO: Take 1-2 tabs daily <br> (Maximum: 1 week use)","5mg PO: Take 1-3 tabs daily"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["6-11 years old: 5mg daily"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to bisacodyl or any of its components","Signs of intestinal obstruction or bowel perforation: nausea, vomiting, pain, distension, abdominal rigidity"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Class B - Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Abdominal cramps, Abdominal pain, nausea, vomiting, headache","Do Not take within 1 hour of antacids, milk, or dairy products","Swallow the tab whole"]},
+  {Category:["Mechanism of Action"],Content:["Stimulated peristalsis by irritating the smooth muscles of the intestines and increases fluid accumulation in the intestines"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med12 : [
+  {Category:["Trade Name"],Content:["Maalox","Pepto-Bismol"]},
+  {Category:["Indications"],Content:["Diarrhea","Indigestion"]},
+  {Category:["Adult Dosing"],Content:["262mg/15mL PO: Take 30mL every hour as needed for up to 2 days <br> (Maximum: 8 doses/24 hours","524mg PO: Take 1 dose every 30 minutes as needed (Maximum: 4,200mg or 8 doses)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["N/A"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to salicylates or taking other salicylates","History of stomach ulcer, bleeding problem, black or bloody stools","Children recovering from chickenpox or flu-like symptoms due to risk of Reye syndrome"]},
+  {Category:["Lactation Safety"],Content:["Unsafe"]},
+  {Category:["Pregnancy Safety"],Content:["Unsafe"]},
+  {Category:["Adverse Reactions"],Content:["Anxiety, confusion, tinnitus","Shake well prior to use (liquid), chew tablets well before swallowing (chewable tablets)","Can turn stools or tongue black"]},
+  {Category:["Mechanism of Action"],Content:["Salicylate has an antisecretory action.","Bismuth has an antimicrobial activity against bacterial and viral gastrointestinal pathogens."]},
+  {Category:["Aviation considerations"],Content:["Antacid (Maalox): When used occasionally or infrequently. Chronic use is Class 3.","Pepto Bismol: If used for minor diarrhea conditions and free of side effects for 24 hours."]}
+]
+,
+med13 : [
+  {Category:["Trade Name"],Content:["Caladryl","Calagesic"]},
+  {Category:["Indications"],Content:["Contact Dermatitis","Insect Bite"]},
+  {Category:["Adult Dosing"],Content:["Dab Topical: Clean and dry area. Cover affected area and let dry. Repeat every 6 hours as needed for itching.","Dab Topical: Apply as often as needed for itching."]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["Dab Topical: Apply to the affected area every 6 hours as needed for itching"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to Calamine, zinc oxide, or any of its components","Children less than 2 unless prescribed by a provider"]},
+  {Category:["Lactation Safety"],Content:["Presumed Safe - Not on Breast"]},
+  {Category:["Pregnancy Safety"],Content:["Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Hives, Irritation, Allergic Reaction","Shake well before use.","Avoid contact with eyes, mucous membranes, burns, or open wounds"]},
+  {Category:["Mechanism of Action"],Content:["Astringent and skin protectant properties to relieve itching."]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med14 : [
+  {Category:["Trade Name"],Content:["Rocephin"]},
+  {Category:["Indications"],Content:["Cervicitis empiric therapy","Urethritis empiric therapy","Chlamydia trachomatis","Gonococcal infection"]},
+  {Category:["Adult Dosing"],Content:["250mg IM: Inject into a large muscle mass (gluteus) one time <br> (Dilute with sterile water or 1% lidocaine)","250-500mg IM: One time injection <br> -250mg for initial therapy <br> -500mg if failed initial therapy"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["50mg/kg IM/IV: Disseminated infection <45kg Daily for 7 days <br> (Max dose: 1,000mg)","1,000mg IM/IV: Disseminated, >45kg 1,000mg daily for 7 days"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to ceftriaxone, penicillin, or beta-lactam antibiotics","Do NOT use with neonates due to risk of hyperbilirubinemia","Do NOT use with calcium-containing solutions due to causing calcium-ceftriaxone precipitates"]},
+  {Category:["Lactation Safety"],Content:["Use Caution; Enters Milk"]},
+  {Category:["Pregnancy Safety"],Content:["Class B - Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Induration or warm sensation at injection site","Rash or Diarrhea","Pancreatitis, Hemolytic anemia, Elevated INR"]},
+  {Category:["Mechanism of Action"],Content:["3rd Generation Cephalosporin","Inhibits bacterial cell wall synthesis","Bacteria eventually lyse due to cell wall autolytic enzyme activity without concomitant synthesis activity"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med15 : [
+  {Category:["Trade Name"],Content:["Benadryl"]},
+  {Category:["Indications"],Content:["Allergies","Hives","Motion Sickness","Anaphylactic Reaction"]},
+  {Category:["Adult Dosing"],Content:["25mg PO: Take 1 tablet every 8 hrs or at bedtime","50mg IV: ASAP after epinephrine auto-injector 50mg IV over 10minutes <br> (Maximum: 300mg in 24hrs)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["1.25 mg/kg PO/IM: 2-5y/o 6.25mg every 6 hrs","1.25 mg/kg PO/IM: 6-12 y/o 12.5-25mg every 6 hrs","1.25 mg/kg IV: ASAP after 0.15mg IM epinephrine <br> (Maximum: 50mg dose)"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to diphenhydramine or any component of the formulation","Acute Asthma","Use on Neonates, premature infants, Nursing mothers"]},
+  {Category:["Lactation Safety"],Content:["Unsafe"]},
+  {Category:["Pregnancy Safety"],Content:["Class B - Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Normally causes sedation, but may cause paradoxical excitation","May have increased sedative effects when used with other sedatives or alcohol","May cause hypotension (use with caution in patient with cardiovascular disease)","Dry mouth and may increase risk of heat injury"]},
+  {Category:["Mechanism of Action"],Content:["Competes with histamine for H1-receptor sites within the gastrointestinal tract, blood vessels, and respiratory tract.","Produces anticholinergic and sedative effects"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med16 : [
+  {Category:["Trade Name"],Content:["Colace"]},
+  {Category:["Indications"],Content:["Constipation","Hemorrhoids","Anal Fissure"]},
+  {Category:["Adult Dosing"],Content:["100mg PO: Take 1 capsule twice a day <br> (Maximum: 7 days of use)","50-360mg PO: 50-360mg daily or in divided doses"]},
+  {Category:["Pediatric Dosing (Age 2-11)"],Content:["50-150mg PO: Once daily or in divided doses"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to docusate sodium or any component of the formulation","Children under the age of 2"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Not Preferred"]},
+  {Category:["Adverse Reactions"],Content:["Ensure adequate fluid intake"]},
+  {Category:["Mechanism of Action"],Content:["Reduces surface tension of stool resulting in increased absorption of water and fat into stool"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med17 : [
+  {Category:["Trade Name"],Content:["Aoxa","Vibramycine"]},
+  {Category:["Indications"],Content:["Acne","Malaria chemoprophylaxis","Cellulitis"]},
+  {Category:["Adult Dosing"],Content:["100mg PO (Acne): 100mg daily (used with topical agents)","100mg PO (Malaria chemoprophylaxis): 100mg daily, start 2 days before leaving","100mg PO (Bite): 100mg Every 12 hrs x 3-5 days","100mg PO (Cellulitis): 100mg Every 12 hrs x 7-14 days","100mg PO (Lyme): 100mg Every 12 hrs x 10-28 days"]},
+  {Category:["Pediatric Dosing (> 8 yrs old)"],Content:["< 45kg, 2-4mg/kg/day PO: 2-4mg/kg/day in 1-2 divided doses <br> (maximum: 200mg/day)",">45kg, 100mg PO: Refer to adult dosing"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to doxycycline, other tetracyclines, or any component of the formulation"]},
+  {Category:["Lactation Safety"],Content:["Use Caution; Enters Milk"]},
+  {Category:["Pregnancy Safety"],Content:["CLASS D– Unsafe"]},
+  {Category:["Adverse Reactions"],Content:["Take medication with food or 8oz water and sit-up for 30minutes after taking (prevent esophagitis)","Photosensitivity with increased risk of sunburn","Diarrhea, Severe skin reactions, Liver toxicity, Intracranial hypertension (blurry vision, headache, double vision)"]},
+  {Category:["Mechanism of Action"],Content:["Tetracycline Antibiotic","Inhibits protein synthesis of ribosomal subunits of susceptible bacteria"]},
+  {Category:["Aviation considerations"],Content:["None"]}]
+ , med18 : [
+  {Category:["Trade Name"],Content:["EpiPen"]},
+  {Category:["Indications"],Content:["Anaphylactic Reaction"]},
+  {Category:["Adult Dosing"],Content:["1 EpiPen IM: Inject 1 epi pen into thigh and may repeat in 10 min if not improved; follow with diphenhydramine 50 mg IV and transport to emergency care","0.3-0.5mg IM/IV: Every 5-15 min until improvement; follow with diphenhydramine 50 mg IV"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["0.01mg/kg IM: 0.01 mg/ kg of 1 mg/ mL dose follow with diphenhydramine 1.25 mg/ kg IV and transport to emergency care <br> (Maximum single dose: 0.3 mg)"]},
+  {Category:["Contraindications"],Content:["Uncontrolled hypertension is a relative contraindication in more mild reactions"]},
+  {Category:["Lactation Safety"],Content:["Unsafe"]},
+  {Category:["Pregnancy Safety"],Content:["CLASS C- Unknown Safety"]},
+  {Category:["Adverse Reactions"],Content:["Chest Pain, Tachycardia, Arrhythmias, Palpitations, Sudden death","Anxiety, Cerebral Hemorrhage, Headache"]},
+  {Category:["Mechanism of Action"],Content:["Sympathomimetic, stimulates both alpha and beta adrenergic receptors, causing relaxation of the bronchial tree, cardiac stimulation (increasing myocardial oxygen consumption), and dilation of skeletal muscle blood vessels"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med19 : [
+  {Category:["Trade Name"],Content:["Diflucan"]},
+  {Category:["Indications"],Content:["Vaginal Yeast Infection"]},
+  {Category:["Adult Dosing"],Content:["150mg PO: Take 1 tab by mouth one time","150mg PO (Severe): 150 mg every 72 hrs for 2-3 doses","150mg PO (Recurrent): 150 mg daily x 10-14 days, then 150 mg weekly x 6 months"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["N/A"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to fluconazole or any component of the formulation","QTc Prolongation, Heart Arrhythmia"]},
+  {Category:["Lactation Safety"],Content:["Safe; Enters Milk"]},
+  {Category:["Pregnancy Safety"],Content:["Unsafe"]},
+  {Category:["Adverse Reactions"],Content:["Dizziness or Seizures","Hepatotoxicity"]},
+  {Category:["Mechanism of Action"],Content:["Antifungal","Interferes with fungal cytochrome P450 activity inhibiting cell membrane formation"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med20 : [
+  {Category:["Trade Name"],Content:["GlucaGen/ Glucagon Emergency Kit"]},
+  {Category:["Indications"],Content:["Esophageal Food Impaction","Hypoglycemia"]},
+  {Category:["Adult Dosing"],Content:["1mg IV: Inject 1 mg IV with 10 cc Normal Saline flush <br> For Hypoglycemia, follow with Dextrose IV and may repeat once in 20 minutes","1mg IM/IV: Every 20 minutes as needed <br> Hypoglycemia, give IV dextrose ASAP"]},
+  {Category:["Pediatric Dosing (< 12 years)"],Content:["(<20kg) 0.5mg IV/IM: Every 20 min as needed <br> Adult dosing if over 20 kg"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to glucagon or any component of theformulation","Insulinoma","Pheochromocytoma"]},
+  {Category:["Lactation Safety"],Content:["Safe"]},
+  {Category:["Pregnancy Safety"],Content:["Class B - Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Should NOT be used as 1st line treatment for Hypoglycemia, AMS, or Food Bolus Impaction","Hypoglycemia patients should receive dextrose. If IV access cannot be established or if dextrose is not available, glucagon may be used as alternate until dextrose can be given.","Thiamine should precede use in patient with suspected alcoholism ormalnutrition"]},
+  {Category:["Mechanism of Action"],Content:["Raises blood glucose levels by stimulating increased production of cyclic AMP","Promotes hepatic gluconeogenesis"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med21 : [
+  {Category:["Trade Name"],Content:["Mucinex Childrens","Robitussin","Tussin"]},
+  {Category:["Indications"],Content:["Cough"]},
+  {Category:["Adult Dosing"],Content:["100mg / 5ml PO: 1 tablespoon (15mL) every 6 hours as needed for excess mucous (Max: 8 tablespoons/24 hours)","600mg PO: 1-2 tabs every 12 hours as needed for excess mucous (Max: 2400 mg/24 hours"]},
+  {Category:["Pediatric Dosing (< 12 years)"],Content:["2-3 y/o: 50-100mg PO: 50mg every 4 hr as needed","4-5 y/o: 100mg every 4 hrs as needed (Maximum: 600mg / 24hrs)"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to guaifenesin or any component of the formulation","Do Not use extended release tablets in children under 12 years old","Chronic cough productive for phlegm"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Dizziness","drowsiness"]},
+  {Category:["Mechanism of Action"],Content:["Increase the hydration of the respiratory tract, thus decreasing viscosity of respiratory mucous","Inhibits the cough reflex sensitivity in subjects with upper respiratory tract infections"]},
+  {Category:["Aviation considerations"],Content:["Must just be guaifenesin. Many OTC cough syrups contain sedating antihistamines or Dextromethorphan (DM) and are prohibited for aviation duty."]}
+],
+med22 : [
+  {Category:["Trade Name"],Content:["Westcort Cream"]},
+  {Category:["Indications"],Content:["Irritant Dermatitis","Contact Dermatitis","Skin Inflammation/ Irritation"]},
+  {Category:["Adult Dosing"],Content:["1% Topical: Apply a thin film twice a day as needed for itching or inflammation (Max: 2 weeks)","1% Topical: Apply a thin film 2-3 time per day as needed for itching or inflammation"]},
+  {Category:["Pediatric Dosing (< 12 years)"],Content:[">2 years old: 1% Topical. Apply a thin film twice a day as needed for itching or inflammation"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to hydrocortisone or any component of its formulation.","OTC hydrocortisone is not labeled for use in children under 2 years old.","Diffuse areas larger than patient’s hands, occlusive dressing, heating source can result in increased doses.","Adrenal suppression can progress to adrenal crisis"]},
+  {Category:["Lactation Safety"],Content:["Unknown - Considered Safe"]},
+  {Category:["Pregnancy Safety"],Content:["Class C - Potential for Harm"]},
+  {Category:["Adverse Reactions"],Content:["Skin atrophy, atrophic striae, hypopigmentation, burning sensation","Secondary skin infection"]},
+  {Category:["Mechanism of Action"],Content:["Anti-inflammatory, anti-pruritic, and vasoconstrictive properties","Induces phospholipase A2 inhibitory proteins and inhibits the release of arachidonic acid decreasing the mediators of inflammation."]},
+  {Category:["Aviation considerations"],Content:["N/A"]}
+],
+med23 : [
+  {Category:["Trade Name"],Content:["Analpram- HC"]},
+  {Category:["Indications"],Content:["Hemorrhoid","Anal Itching"]},
+  {Category:["Adult Dosing"],Content:["1 dab Topical: Apply to clean, dry area 4 times/ day (Maximum: 1 week)"]},
+  {Category:["Pediatric Dosing (< 12 years)"],Content:["N/A"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to hydrocortisone, pramoxine, or any component of the formulation","Caution when used in patients with heart disease or diabetes","Not approved for use in children <12 years old","Adrenal suppression can progress to adrenal crisis"]},
+  {Category:["Lactation Safety"],Content:["Unknown - Not Recommended"]},
+  {Category:["Pregnancy Safety"],Content:["Class C - Potential for Harm (Hydrocortisone)"]},
+  {Category:["Adverse Reactions"],Content:["Skin atrophy, atrophic striae, hypopigmentation, burning sensation","Secondary skin infection"]},
+  {Category:["Mechanism of Action"],Content:["Hydrocortisone has anti-inflammatory, anti-pruritic, and vasoconstrictive properties","Pramoxine is an anesthetic that interferes with pain signals sent from the nerves to the brain."]},
+  {Category:["Aviation considerations"],Content:["N/A"]}
+],
+med24 : [
+  {Category:["Trade Name"],Content:["Motrin","Advil"]},
+  {Category:["Indications"],Content:["Pain","Osteoarthritis","Rheumatoid Arthritis","Antipyretic"]},
+  {Category:["Adult Dosing"],Content:["200mg PO: Take 2 tabs every 6 hours as needed for pain (Maximum: 1600 mg/ day)","200-800mg PO: Every 6 hours as needed (Maximum: 3200 mg/day"]},
+  {Category:["Pediatric Dosing (< 12 years)"],Content:["10mg/kg/dose: Every 6 - 8 hrs as needed (Maximum single dose: 400 mg)"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to ibuprofen or any component of the formulation","History of asthma, urticarial, or allergic-type reaction to aspirin or other NSAIDs","Aspirin triad (bronchial asthma, aspirin intolerance, rhinitis)","Use in the setting of coronary artery bypass graft (CABG) surgery or gastrointestinal bleeding"]},
+  {Category:["Lactation Safety"],Content:["Enters Milk-Preferred"]},
+  {Category:["Pregnancy Safety"],Content:["CLASS C - Avoid 1st, 3rd Trimester"]},
+  {Category:["Adverse Reactions"],Content:["Dizziness, headache, and tinnitus","Skin rash, itching","Epigastric pain, heartburn, and nausea"]},
+  {Category:["Mechanism of Action"],Content:["Reversibly inhibits cyclooxygenase-1 and 2 (COX-1 and 2) enzymes, which results in decreased formation of prostaglandin precursors","Has antipyretic, analgesic, and anti-inflammatory properties"]},
+  {Category:["Aviation considerations"],Content:["N/A"]}
+],
+med25 : [
+  {Category:["Trade Name"],Content:["Toradol"]},
+  {Category:["Indications"],Content:["Moderate Pain"]},
+  {Category:["Adult Dosing"],Content:["30mg IM: Inject one dose at presentation if needed for moderate pain","30mg IM/IV: 30-60mg IM or 30mg IV every 6 hours as needed (Maximum: 120mg /day, 5 days total"]},
+  {Category:["Pediatric Dosing (< 12 years)"],Content:["N/A"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to ketorolac, aspirin, other NSAIDs or any component of the formulation","History of CABG, cardiovascular disease, gastrointestinal bleeding, cerebrovascular bleeding, or bleeding risk","History of asthma, urticarial, or allergic-type reaction to aspirin or other NSAIDs","Aspirin triad (bronchial asthma, aspirin intolerance, rhinitis)","Renal disease or volume depletion, receiving other NSAIDs or aspirin","During labor and delivery"]},
+  {Category:["Lactation Safety"],Content:["Enters Milk-Not Preferred"]},
+  {Category:["Pregnancy Safety"],Content:["CLASS C - Unsafe"]},
+  {Category:["Adverse Reactions"],Content:["Headache","Gastrointestinal pain, heartburn, nausea","Drowsiness, dizziness, blurred vision"]},
+  {Category:["Mechanism of Action"],Content:["Inhibits cyclooxygenase-1 and 2 (COX-1 and 2) enzymes","Has antipyretic, analgesic, and anti-inflammatory properties."]},
+  {Category:["Aviation considerations"],Content:["N/A"]}
+],
+med26 : [
+  {Category:["Trade Name"],Content:["Viscous Lidocaine 2%"]},
+  {Category:["Indications"],Content:["Severe Sore Throat","Mouth Sores"]},
+  {Category:["Adult Dosing"],Content:["15mL PO: Swish and spit every 6 hours as needed for pain (Maximum: 4 doses/24hrs"]},
+  {Category:["Pediatric Dosing (< 3 years old)"],Content:["<1.2mL PO: Every 3 hours with cotton applicator (Maximum: 4 doses/ 12 hours)","4.5mg/kg: PO Every 3 hours swish and spit as needed. Do not swallow. (Maximum: 300mg/ dose, 4 doses/ 12 hours)"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to lidocaine to any component of the formulation.","Do not use for teething in children. Seizures and death reported in children when not administered by strict adherence to dosing recommendations."]},
+  {Category:["Lactation Safety"],Content:["Enters Milk- Safe"]},
+  {Category:["Pregnancy Safety"],Content:["Class B- Limited Risk"]},
+  {Category:["Adverse Reactions"],Content:["Severely traumatized mucosa increases the risk of rapid systemic absorption","May impair swallowing and increase aspiration risk. Avoid food for 60min after use","Tongue/ buccal biting after use"]},
+  {Category:["Mechanism of Action"],Content:["Blocks the conduction of nerve impulses by decreasing the neuronal membrane’s permeability to sodium ions, resulting in inhibition of depolarization and blockage of conduction."]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med27 : [
+  {Category:["Trade Name"],Content:["Imodium"]},
+  {Category:["Indications"],Content:["Diarrhea"]},
+  {Category:["Adult Dosing"],Content:["2mg PO: Take 2 tabs and then 1 tab after each loose stool as needed (Maximum: 8 mg/ 4 tabs)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["2-5 yrs (13-20 kg): 1 mg three times per day","6-8 yrs (20-30 kg): 2 mg twice a day","8-12 yrs (>30 kg): 2 mg three times per day"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to loperamide or any component of the formulation","Doses higher than recommended can cause heart arrhythmia (Torsades de Pointes) and death","Children under 2 years of age","Dysentery, abdominal pain, ulcerative colitis, bacterial enterocolitis, antibiotic associated diarrhea"]},
+  {Category:["Lactation Safety"],Content:["Not Recommended"]},
+  {Category:["Pregnancy Safety"],Content:["CLASS C – Potential Harm"]},
+  {Category:["Adverse Reactions"],Content:["Constipation, abdominal cramps, nausea","Dizziness, drowsiness"]},
+  {Category:["Mechanism of Action"],Content:["Anti-diarrheal","Inhibits peristalsis of intestinal muscles resulting in prolonged stool transit time and increased stool viscosity"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med28 : [
+  {Category:["Trade Name"],Content:["Claritin"]},
+  {Category:["Indications"],Content:["Seasonal Allergies","Hives"]},
+  {Category:["Adult Dosing"],Content:["10mg PO: Take 1 tab daily for allergies"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["2-5 y/o: 5 mg PO once daily for allergies","6+ y/o: use adult dosing"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to loratadine or any component of the formulation"]},
+  {Category:["Lactation Safety"],Content:["Use Caution- Monitor"]},
+  {Category:["Pregnancy Safety"],Content:["Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Headache","Sedation and may have increased sedative effects when used with other sedatives or alcohol","In breast fed infant, monitor for drowsiness, irritability, agitation","May increase risk of heat injury"]},
+  {Category:["Mechanism of Action"],Content:["Competes with histamine for H1-receptor sites within the gastrointestinal tract, blood vessels, and respiratory tract.","Second Generation, Less sedating than First Generation (diphenhydramine)"]},
+  {Category:["Aviation considerations"],Content:["Short term use by individual aircrew is authorized but the aircrew member must report use of this medication to the FS/APA as soon as possible. FS/APA should be concerned not only with the use of this medication but also the underlying problem that the individual is self-treating (for example, allergic rhinitis) and the aeromedical implications of the diagnosis."]}
+],
+med29 : [
+  {Category:["Trade Name"],Content:["BenGay, Icy Hot"]},
+  {Category:["Indications"],Content:["Pain, Muscle Soreness"]},
+  {Category:["Adult Dosing"],Content:["Balm Topical: Apply every 6-8 hours as needed for muscle soreness","1.5% menthol patch: Every 6-8 hrs as needed for pain (Do not leave in place for over 8 hrs)","3% Menthol Patch: Every 8-12 hours as needed for pain (Maximum: 2 uses/ day x 3 days)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["None"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to aspirin, NSAIDS, menthol or any component of the formulation","Signs or symptoms of pain, swelling, blistering after application"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Do Not use in last 3 months of pregnancy"]},
+  {Category:["Adverse Reactions"],Content:["Do not apply to wounds, rashes, damaged skin, mucous membranes, or right after bathing","Do not use a heating pad after application","Can cause chemical burns at application site"]},
+  {Category:["Mechanism of Action"],Content:["Analgesic and anti-inflammatory properties"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med30 : [
+  {Category:["Trade Name"],Content:["Flagyl"]},
+  {Category:["Indications"],Content:["Bacterial Vaginosis"]},
+  {Category:["Adult Dosing"],Content:["250mg PO: Take 2 tabs twice a day for 7 days","250-1000mg PO: Different conditions: 250-1000 mg 2-4 times/ day"]},
+  {Category:["Pediatric Dosing (< 12 years)"],Content:["30-50mg/kg PO: Divided over 3 doses (Maximum: 2,250 mg/ day)"]},
+  {Category:["Contraindications"],Content:["Do Not use alcohol when taking or within 3 days of taking. Can cause disulfiram-like reaction (flushing, tachycardia, nausea, vomiting)","Do not take during 1st Trimester of pregnancy.","History of seizures"]},
+  {Category:["Lactation Safety"],Content:["Unsafe- Stop nursing for 3 days after"]},
+  {Category:["Pregnancy Safety"],Content:["CLASS B– Not in 1st Trimester"]},
+  {Category:["Adverse Reactions"],Content:["GI: nausea, vomiting, diarrhea, constipation, stomach cramps, anorexia","Neuropathic: neuropathy, confusion, dizziness, metallic taste, headache"]},
+  {Category:["Mechanism of Action"],Content:["Cytotoxic to anaerobic bacteria","Disrupts DNA structure resulting in DNA strand breakage and inhibition of protein synthesis with resulting cell death in susceptible organisms"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med31 : [
+  {Category:["Trade Name"],Content:["Aleve, Naprosyn"]},
+  {Category:["Indications"],Content:["Pain Osteoarthritis","Gout","Primary Dysmenorrhea"]},
+  {Category:["Adult Dosing"],Content:["ADTMC Preferred: 250mg PO: Take 1 tab every 12 hrs as needed for pain (Maximum: 500 mg/ day)","250-500mg PO: Every 12 hours as needed (Maximum: 1000 mg/ day)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["Every 12 hours as needed (Maximum: 10 mg/ kg/ day"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to naproxen or any component of the formulation","History of asthma, uricarial, or allergic-type reaction to aspirin or other NSAIDs","Aspirin triad (bronchial asthma, aspirin intolerance, rhinitis)","Use in the setting of coronary artery bypass graft (CABG) surgery, kidney disease, or gastrointestinal bleeding"]},
+  {Category:["Lactation Safety"],Content:["Enters Milk- Not Preferred"]},
+  {Category:["Pregnancy Safety"],Content:["Avoid 1st, 3rd Trimester"]},
+  {Category:["Adverse Reactions"],Content:["Dizziness, drowsiness, headache, andtinnitus","Skin rash, itching","Epigastric pain, heartburn, nausea, constipation"]},
+  {Category:["Mechanism of Action"],Content:["Reversibly inhibits cyclooxygenase-1 and 2 (COX-1 and 2) enzymes, which results in decreased formation of prostaglandin precursors","Has antipyretic, analgesic, and anti-inflammatory properties"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med32 : [
+  {Category:["Trade Name"],Content:["Macrobid"]},
+  {Category:["Indications"],Content:["Urinary Tract Infection"]},
+  {Category:["Adult Dosing"],Content:["ADTMC PREFERRED: 100mg PO: Take 1 capsule twice a day for 5 days","Nitrofurantoin monohydrate: 100 mg every 12 hrs x 5 days","Nitrofurantoin macrocrystals:    50-100 mg every 6hrs x 7 days","UTI prophylaxis: 50-100 mg daily at Bedtime"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["6-7mg/kg/day PO: Nitrofurantoin macrocrystals: Divide in 4 doses (every 6 hrs) x 7 days (max: 400 mg /day)"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to Nitrofurantoin or any component of the formulation","Pregnancy close to term/ delivery and neonates due to risk of hemolytic anemia","Renal impairment (anuria, oliguria), history of cholestatic jaundice or hepatic dysfunction from previous use"]},
+  {Category:["Lactation Safety"],Content:["Safe with Monitoring"]},
+  {Category:["Pregnancy Safety"],Content:["CLASS B– Not at Term"]},
+  {Category:["Adverse Reactions"],Content:["Liver failure, Peripheral neuropathy, Pulmonary toxicity"]},
+  {Category:["Mechanism of Action"],Content:["Antibiotic","Alter bacterial ribosomal proteins inhibiting protein synthesis, aerobic energy metabolism, and cell wall synthesis"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med33 : [
+  {Category:["Trade Name"],Content:["Afrin"]},
+  {Category:["Indications"],Content:["Nasal Congestion","Nosebleed"]},
+  {Category:["Adult Dosing"],Content:["0.05% Nasal Spray: 2 sprays in affected side twice a day for 3 days (Max: 2 doses/ 24 hours)"]},
+  {Category:["Pediatric Dosing (< 6 years old)"],Content:["None. > 6 refer to adult dosing"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to oxymetazoline or any component of its formulation","Child 5 years old or younger- ingestion can cause coma, bradycardia, respiratory depression, sedation"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Unknown, Chronic Use Unsafe"]},
+  {Category:["Adverse Reactions"],Content:["Rebound nasal congestion from use >3 days","Nasal irritation, burning"]},
+  {Category:["Mechanism of Action"],Content:["Stimulates alpha-adrenergic receptors causing vasoconstriction"]},
+  {Category:["Aviation considerations"],Content:["Long-acting nasal sprays are restricted to no more than 3 days. Use of oxymetazoline for longer than the above time must be validated and approved by a flight surgeon. Recurrent need for nasal sprays must be evaluated by the flight surgeon. Use requires the aircrew member to be free of side effects."]}
+],
+med34 : [
+  {Category:["Trade Name"],Content:["Nix"]},
+  {Category:["Indications"],Content:["Head Lice","Pubic Lice"]},
+  {Category:["Adult Dosing"],Content:["1% Topical: Head Lice, leave on 10 min then rinse. Remove nits with comb. Repeat in 7 days.","Pubic Lice- 1%, leave on 10 min then rinse."]},
+  {Category:["Pediatric Dosing (< 2 months old)"],Content:["None. > 2 months old adult dosing"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to any pyrethrin or pyrethroid, or any component of the formulation","Do Not come in contact with mucosal surfaces (eyes, inside nose, mouth, ear, or vagina)","Ragweed allergy- consult provider because can cause difficulty breathing"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["CLASS B– Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Skin irritation","Localized numbness, tingling"]},
+  {Category:["Mechanism of Action"],Content:["Antiparasitic Agent","Inhibits sodium membrane channels in parasites resulting in paralysis and death"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med35 : [
+  {Category:["Trade Name"],Content:["Elimite"]},
+  {Category:["Indications"],Content:["Scabies"]},
+  {Category:["Adult Dosing"],Content:["Scabies- 5%, apply 30 g from head to soles, leave on 8-14 hrs then rinse. May repeat in 14 days"]},
+  {Category:["Pediatric Dosing (< 2 months old)"],Content:["None. >2 months old, adult dosing"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to any pyrethrin or pyrethroid, or any component of the formulation","Do Not come in contact with mucosal surfaces (eyes, inside nose, mouth, ear, or vagina)","Ragweed allergy- consult provider because can cause difficulty breathing"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["CLASS B– Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Skin irritation","Localized numbness, tingling"]},
+  {Category:["Mechanism of Action"],Content:["Antiparasitic Agent","Inhibits sodium membrane channels in parasites resulting in paralysis and death"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med36 : [
+  {Category:["Trade Name"],Content:["Pyridium"]},
+  {Category:["Indications"],Content:["Dysuria"]},
+  {Category:["Adult Dosing"],Content:["100mg PO: Take 2 tabs every 8 hours after meals as needed for pain with urination"," Use with an antibiotic (Maximum: 600 mg per day for 2 days)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["None"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to phenazopyridine or any component of the formulation","Discontinue if skin or sclera develop a yellow color","Kidney Disease/ Renal Impairment","G6PD deficiency"]},
+  {Category:["Lactation Safety"],Content:["UNKNOWN"]},
+  {Category:["Pregnancy Safety"],Content:["CLASS B – PRESUMED SAFE"]},
+  {Category:["Adverse Reactions"],Content:["Headache, Dizziness","Stomach Cramps","Discolor urine, fabric or clothing, contacts (if touching after touching tablets)"]},
+  {Category:["Mechanism of Action"],Content:["An azo dye that is excreted in the urine and has analgesic effect on urinary tract mucosa","Unknown mechanism"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med37 : [
+  {Category:["Trade Name"],Content:["Miralax"]},
+  {Category:["Indications"],Content:["Constipation","Hemorrhoids","Anal Fissure"]},
+  {Category:["Adult Dosing"],Content:["17grams PO: 17 g (1 heaping tablespoon) in 4-8 ounces of beverage daily (Maximum: 2 weeks)"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["0.2-1gram/kg: Daily dose titrated to effect (Max: 17 g/ day)"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to polyethylene glycol or any component of the formulation","Suspected bowel obstruction (symptoms of nausea, vomiting, abdominal pain or distension)","Renal impairment/ kidney disease due to risk of electrolyte imbalance"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["Unknown"]},
+  {Category:["Adverse Reactions"],Content:["Nausea, diarrhea, gas, stomach cramping, stomach bloating"]},
+  {Category:["Mechanism of Action"],Content:["Osmotic agent causes water retention in the stool increasing stool frequency and decreasing stool consistency"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med38 : [
+  {Category:["Trade Name"],Content:["Betadine"]},
+  {Category:["Indications"],Content:["Antiseptic"]},
+  {Category:["Adult Dosing"],Content:["Topical: Apply to affected area as needed to clean the skin/ as needed for antiseptic"]},
+  {Category:["Pediatric Dosing (< 12 years)"],Content:["N/A"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to iodine, shellfish, or any component of the formulation","Use with caution in patients with renal impairment or thyroid disorders","Do not use with deep puncture wounds or serious burns"]},
+  {Category:["Lactation Safety"],Content:["Use Caution; Enters Milk"]},
+  {Category:["Pregnancy Safety"],Content:["Class B - Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Irritation, itching, rash"]},
+  {Category:["Mechanism of Action"],Content:["Broad spectrum germicidal agent effective against bacteria, viruses, fungi, protozoa, and spores"]},
+  {Category:["Aviation considerations"],Content:["N/A"]}
+],
+med39 : [
+  {Category:["Trade Name"],Content:["Systane Balance"]},
+  {Category:["Indications"],Content:["Dry Eyes"]},
+  {Category:["Adult Dosing"],Content:["1-2 drops ophthalmic: Apply 1-2 drops in affected eye every hour as needed"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["1-2 drops opthalmic: Apply 1-2 drops in affected eye"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to any components of the formulation."]},
+  {Category:["Lactation Safety"],Content:["Safe"]},
+  {Category:["Pregnancy Safety"],Content:["Safe"]},
+  {Category:["Adverse Reactions"],Content:["Mild stinging of eye, eyelid crusting, or blurred vision.","Remove contact lenses prior to use.","Do not touch tip of applicator to any surface to avoid contamination."]},
+  {Category:["Mechanism of Action"],Content:["Demulcents have protection and lubrication properties."]},
+  {Category:["Aviation considerations"],Content:["Saline or other lubricating solution only. Visine or other vasoconstrictor agents are prohibited for aviation duty."]}
+],
+med40 : [
+  {Category:["Trade Name"],Content:["Sudafed"]},
+  {Category:["Indications"],Content:["Nasal Congestion"]},
+  {Category:["Adult Dosing"],Content:["30mg PO: Take 2 tab every 6 hours as needed for congestion","30mg PO:Take 60 mg every 4-6 hrs as needed for congestion.","120mg PO: Take 120 mg extended release every 12 hrs as needed for congestion"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["4-5 years old 15mg PO: 15 mg every 4-6 hrs as needed for congestion","6-11 years old: 30mg PO every 4-6 hours as needed for congestion"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to pseudoephedrine or any component of its formulation","Children <4 years old","Administering with or within 2 weeks of taking a MAO Inhibitor","Hypertension, Ischemic heart disease, Diabetes, Seizure disorder"]},
+  {Category:["Lactation Safety"],Content:["Use Caution; Enters Milk"]},
+  {Category:["Pregnancy Safety"],Content:["Unsafe"]},
+  {Category:["Adverse Reactions"],Content:["Palpitations, hypertension, tachycardia","Insomnia, feeling jittery","Urinary retention","Increased risk of heat injury"]},
+  {Category:["Mechanism of Action"],Content:["Stimulates alpha-adrenergic receptors causing vasoconstriction"]},
+  {Category:["Aviation considerations"],Content:["When used for mild nasal congestion in the presence of normal ventilation of the sinuses and middle ears (normal valsalva). ","Must notify supervising provider that patient is on flight status when requesting prescription."]}
+],
+med41 : [
+  {Category:["Trade Name"],Content:["Zantac"]},
+  {Category:["Indications"],Content:["Heartburn","Gastroesophageal Reflux Disease (GERD)","Erosive Esophagitis"]},
+  {Category:["Adult Dosing"],Content:["ADTMC PREFERRED: 150mg PO: Take 1 tab twice a day as needed for heartburn","150mg PO: Take 1 tab 1-4 times daily as needed for GERD or erosive esophagitis"]},
+  {Category:["Pediatric Dosing (< 16 years old)"],Content:["75mg-150mg PO 30 min before eating (Max 2 times/day. Max 14 days)","5-10 mg/kg/day PO: Divided into 2 doses 12 hrs apart (Maximum: 300mg/day)"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to ranitidine or any component of the formulation"]},
+  {Category:["Lactation Safety"],Content:["Unknown"]},
+  {Category:["Pregnancy Safety"],Content:["CLASS B- Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Vitamin B12 deficiency when used for over 2 years"]},
+  {Category:["Mechanism of Action"],Content:["Competes with histamine for H2-receptor sites within the gastrointestinal tract","Inhibits gastric acid secretion and gastric volume"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med42 : [
+  {Category:["Trade Name"],Content:["Lamisil"]},
+  {Category:["Indications"],Content:["Athlete’s Foot (Tinea pedis)","Jock Itch (Tinea cruris)","Body Fungal Infection (Tinea corporis)"]},
+  {Category:["Adult Dosing"],Content:["1% Topical: Apply to affected area x 1 week Twice a day (Tinea pedis) ","1% Topical: Apply to affected area x 1 weekDaily (Tinea cruris, corporis)","1% Topical: Apply to affected area Twice a day x 2 weeks (sides and soles of feet)"]},
+  {Category:["Pediatric Dosing (< 12 years)"],Content:["N/A"]},
+  {Category:["Contraindications"],Content:["Local irritation develops","If dosage form contains benzyl alcohol, can cause a fatal toxicity in neonates."]},
+  {Category:["Lactation Safety"],Content:["Do Not apply near the breast"]},
+  {Category:["Pregnancy Safety"],Content:["Safe"]},
+  {Category:["Adverse Reactions"],Content:["Contact dermatitis, burning sensation, irritation","Not intended for use on nails, scalp, or mucosa"]},
+  {Category:["Mechanism of Action"],Content:["Synthetic allylamine derivative inhibits squalene epoxidase, a key enzyme in the sterol biosynthesis in fungi.","Results in fungal cell death."]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med43 : [
+  {Category:["Trade Name"],Content:["Septra, Bactrim"]},
+  {Category:["Indications"],Content:["Urinary Tract Infection","REVIEW LOCAL ANTIBIOGRAM FOR POTENTIAL RESISTANCE"]},
+  {Category:["Adult Dosing"],Content:["160mg/800mg PO: Take 1 double strength (DS) tab (160mg/800mg) twice a day for 3 days",""]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["6-12mg TMP/kg/day PO/IV: Divided over 2 doses (every 12 hours) (Maximum: 160mg TMP/dose)"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to Trimethoprim sulfamethoxazole, sulfonamides antibiotics, G6PD deficiency, or any component of the formulation","Pregnancy during 1st Trimester or after 32 weeks, infant <2 months","Do Not use in patient with megaloblastic anemia from folate deficiency or H=hyperkalemia"]},
+  {Category:["Lactation Safety"],Content:["Avoid if baby has G6PD Def, Jaundice"]},
+  {Category:["Pregnancy Safety"],Content:["Class D- not in 1st trimester"]},
+  {Category:["Adverse Reactions"],Content:["Nausea/ Vomiting","Rash/ Itching","Take with 8 oz of water"]},
+  {Category:["Mechanism of Action"],Content:["ContentAntibiotic against aerobic gram positive and gram negative","Inhibits bacterial folic acid synthesis and growth"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+],
+med44 : [
+  {Category:["Trade Name"],Content:["Valtrex"]},
+  {Category:["Indications"],Content:["Cold sores (Herpes labialis)","Herpes simplex virus (HSV)","Shingles (Herpes zoster)","Treatment should start within 72hours of symptoms"]},
+  {Category:["Adult Dosing"],Content:["2grams PO: Take 2 grams twice 12 hours apart","Cold Sores: 2g PO twice every 12 hours","HSV (initial): 1g twice a day x 10 days","HSV (recurrent): 1g daily x 5 days"]},
+  {Category:["Pediatric Dosing (< 12 years old)"],Content:["Varicella > 2 y/o: 20mg/kg PO three times per day x 5 days (Maximum: 1 g/dose)"]},
+  {Category:["Contraindications"],Content:["Hypersensitivity to valcyclovir, acyclovir, or any component of the formulation"]},
+  {Category:["Lactation Safety"],Content:["Use Caution; Enters Milk"]},
+  {Category:["Pregnancy Safety"],Content:["CLASS B– Presumed Safe"]},
+  {Category:["Adverse Reactions"],Content:["Headache, confusion, agitation","Nausea, abdominal pain"]},
+  {Category:["Mechanism of Action"],Content:["Converts to Acyclovir,Inhibits DHA synthesis and viral replication"]},
+  {Category:["Aviation considerations"],Content:["None"]}
+]
+}
 
+
+//medbtn listener for all medications to open their respective sheet and populate the information.
+
+med_btns.forEach(function(med_btn){
+      med_btn.addEventListener("click", () => {
+        const med_id = med_btn.id
+        console.log("MED ID:", med_id)
+        const medicationData = medboxes[med_id];
+        const med_title = med_btn.innerText
+        const banner = document.querySelector(".med_banner")
+        banner.innerText = med_title
+        container.classList.add('active');
+        if(banner.classList.contains("open")){null}else{medsheet.classList.add("open")}
+        // Iterate through each category item
+        medicationData.forEach((item, index) => {
+            // Get the content for this category
+            const content = item.Content;
+            console.log(content);
+            updateCategoryContent(index, content)
+        })
+      })
+})
+
+function updateCategoryContent(categoryIndex, contentArray) {
+    const contentContainers = document.querySelectorAll('.med_content_content');
+    
+    if (contentContainers[categoryIndex]) {
+        // Clear previous content
+        contentContainers[categoryIndex].innerHTML = '';
+        
+        // Add new content
+        contentArray.forEach(contentItem => {
+            const paragraph = document.createElement('div');
+            paragraph.classList.add("med_content_opt")
+            paragraph.innerHTML = contentItem;
+            contentContainers[categoryIndex].appendChild(paragraph);
+        });
+    }
+}
