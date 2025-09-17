@@ -1,28 +1,24 @@
-const CACHE_NAME = 'pwa-cache-v2'; // Change version to bust cache
+const CACHE_NAME = 'pwa-cache-v1';
 const BASE_PATH = self.location.pathname.replace(/serviceWorker\.js$/, '');
 
 const urlsToCache = [
   BASE_PATH,
   BASE_PATH + 'index.html',
   BASE_PATH + 'testing.css',
-  BASE_PATH + 'testing.js', 
+  BASE_PATH + 'testing.js',
   BASE_PATH + 'manifest.json'
 ];
 
 self.addEventListener('install', function(event) {
   console.log('Service worker installing for path:', BASE_PATH);
+  // Force the waiting service worker to become active immediately
+  self.skipWaiting();
+  
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(function(cache) {
         console.log('Cache opened, adding files:', urlsToCache);
-        return cache.addAll(urlsToCache.map(url => {
-          // Add cache-busting parameter to each request
-          return `${url}?v=${CACHE_NAME.replace(/\D/g, '')}`;
-        }));
-      })
-      .then(function() {
-        console.log('All resources cached successfully');
-        return self.skipWaiting();
+        return cache.addAll(urlsToCache);
       })
   );
 });
@@ -39,7 +35,10 @@ self.addEventListener('activate', function(event) {
           }
         })
       );
-    }).then(() => self.clients.claim())
+    }).then(() => {
+      // Take control of all clients (tabs) immediately
+      return self.clients.claim();
+    })
   );
 });
 
@@ -49,21 +48,16 @@ self.addEventListener('fetch', function(event) {
     event.respondWith(
       caches.match(event.request)
         .then(function(response) {
-          // Always fetch from network first, fall back to cache
-          return fetch(event.request)
-            .then(networkResponse => {
-              // Update cache with fresh response
-              return caches.open(CACHE_NAME)
-                .then(cache => {
-                  cache.put(event.request, networkResponse.clone());
-                  return networkResponse;
-                });
-            })
-            .catch(() => {
-              // If network fails, return cached version
-              return response;
-            });
+          // Return cached version or fetch from network
+          return response || fetch(event.request);
         })
     );
+  }
+});
+
+// Listen for messages from the main thread
+self.addEventListener('message', (event) => {
+  if (event.data === 'skipWaiting') {
+    self.skipWaiting();
   }
 });
