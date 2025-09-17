@@ -1,36 +1,87 @@
-//install service worker
-// Simple, direct service worker registration
+// Register service worker with update handling
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    // Direct path to your service worker
-    const swPath = '/test2/serviceWorker.js';
-    const scope = '/test2/';
-    
-    console.log('Registering service worker at:', swPath);
-    
-    // First, verify the service worker file exists
-    fetch(swPath)
-      .then(response => {
-        if (!response.ok) {
-          throw new Error(`Service worker not found (${response.status})`);
-        }
-        return response.text();
-      })
-      .then(script => {
-        console.log('Service worker file found, attempting registration...');
-        
-        // Register with the correct scope
-        navigator.serviceWorker.register(swPath, { scope: scope })
-          .then(registration => {
-            console.log('SW registered successfully with scope:', registration.scope);
-          })
-          .catch(error => {
-            console.log('SW registration failed:', error);
-          });
-      })
-      .catch(error => {
-        console.log('Service worker file not accessible:', error);
+  // Direct path to your service worker
+  const swPath = '/test2/serviceWorker.js';
+  const scope = '/test2/';
+  
+  let registration;
+  
+  // Function to check for updates
+  function checkForUpdates() {
+    if (registration) {
+      registration.update().then(() => {
+        console.log('Checked for service worker update');
+      }).catch(error => {
+        console.log('Service worker update check failed:', error);
       });
+    }
+  }
+  
+  // Register service worker
+  navigator.serviceWorker.register(swPath, { scope: scope })
+    .then(reg => {
+      registration = reg;
+      console.log('SW registered successfully with scope:', reg.scope);
+      
+      // Check for updates when page becomes visible
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          checkForUpdates();
+        }
+      });
+      
+      // Listen for controller change (when a new SW takes control)
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        console.log('New service worker activated, reloading page');
+        window.location.reload();
+      });
+      
+      // If there's a waiting service worker, prompt user to update
+      if (reg.waiting) {
+        console.log('New service worker waiting to activate');
+        // You can show an update notification to the user here
+        showUpdateNotification(reg.waiting);
+      }
+      
+      // Listen for updates
+      reg.addEventListener('updatefound', () => {
+        console.log('New service worker found');
+        const newWorker = reg.installing;
+        
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed') {
+            if (navigator.serviceWorker.controller) {
+              // New content is available, show update notification
+              console.log('New content is available; please refresh.');
+              showUpdateNotification(newWorker);
+            } else {
+              // Content is now cached for offline use
+              console.log('Content is cached for offline use.');
+            }
+          }
+        });
+      });
+    })
+    .catch(error => {
+      console.log('SW registration failed:', error);
+    });
+  
+  // Function to show update notification and handle update
+  function showUpdateNotification(worker) {
+    // You can implement a UI notification here
+    if (confirm('A new version is available. Update now?')) {
+      // Post message to waiting service worker to skip waiting
+      worker.postMessage({ action: 'skipWaiting' });
+    }
+  }
+  
+  // Check for updates on page load
+  window.addEventListener('load', function() {
+    if (registration) {
+      registration.update().then(() => {
+        console.log('Checked for updates on page load');
+      });
+    }
   });
 }
     var container = document.querySelector('.container');
@@ -4416,6 +4467,7 @@ med_button.addEventListener('click', function(){
     }
   }
 })
+
 
 
 
