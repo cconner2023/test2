@@ -1,18 +1,22 @@
-// Register service worker with update handling
+// Register service worker with content update handling
 if ('serviceWorker' in navigator) {
-  // Direct path to your service worker
   const swPath = '/test2/serviceWorker.js';
   const scope = '/test2/';
   
   let registration;
   
-  // Function to check for updates
-  function checkForUpdates() {
+  // Function to check for content updates
+  function checkForContentUpdates() {
     if (registration) {
-      registration.update().then(() => {
-        console.log('Checked for service worker update');
-      }).catch(error => {
-        console.log('Service worker update check failed:', error);
+      // Send message to service worker to check for updates
+      registration.active.postMessage({
+        type: 'CHECK_UPDATES',
+        urls: [
+          '/test2/index.html',
+          '/test2/testing.css',
+          '/test2/testing.js',
+          '/test2/manifest.json'
+        ]
       });
     }
   }
@@ -23,14 +27,30 @@ if ('serviceWorker' in navigator) {
       registration = reg;
       console.log('SW registered successfully with scope:', reg.scope);
       
-      // Check for updates when page becomes visible
+      // Check for content updates when page becomes visible
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') {
-          checkForUpdates();
+          checkForContentUpdates();
         }
       });
       
-      // Listen for controller change (when a new SW takes control)
+      // Check for content updates on page load
+      window.addEventListener('load', function() {
+        checkForContentUpdates();
+      });
+      
+      // Listen for content update messages from service worker
+      navigator.serviceWorker.addEventListener('message', event => {
+        if (event.data.type === 'CONTENT_UPDATED') {
+          console.log('Content updated:', event.data.url);
+          // You can show a notification to the user here
+          if (confirm('New content is available. Reload to see changes?')) {
+            window.location.reload();
+          }
+        }
+      });
+      
+      // Listen for controller change
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         console.log('New service worker activated, reloading page');
         window.location.reload();
@@ -38,25 +58,17 @@ if ('serviceWorker' in navigator) {
       
       // If there's a waiting service worker, prompt user to update
       if (reg.waiting) {
-        console.log('New service worker waiting to activate');
-        // You can show an update notification to the user here
         showUpdateNotification(reg.waiting);
       }
       
       // Listen for updates
       reg.addEventListener('updatefound', () => {
-        console.log('New service worker found');
         const newWorker = reg.installing;
         
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed') {
             if (navigator.serviceWorker.controller) {
-              // New content is available, show update notification
-              console.log('New content is available; please refresh.');
               showUpdateNotification(newWorker);
-            } else {
-              // Content is now cached for offline use
-              console.log('Content is cached for offline use.');
             }
           }
         });
@@ -66,23 +78,22 @@ if ('serviceWorker' in navigator) {
       console.log('SW registration failed:', error);
     });
   
-  // Function to show update notification and handle update
+  // Function to show update notification
   function showUpdateNotification(worker) {
-    // You can implement a UI notification here
     if (confirm('A new version is available. Update now?')) {
-      // Post message to waiting service worker to skip waiting
       worker.postMessage({ action: 'skipWaiting' });
     }
   }
   
-  // Check for updates on page load
-  window.addEventListener('load', function() {
+  // Manual update check function (can be called from a button)
+  window.checkForUpdates = function() {
     if (registration) {
       registration.update().then(() => {
-        console.log('Checked for updates on page load');
+        checkForContentUpdates();
+        alert('Update check completed');
       });
     }
-  });
+  };
 }
     var container = document.querySelector('.container');
     var backBtn = document.getElementById('backBtn');
@@ -5044,3 +5055,4 @@ function updateCategoryContent(categoryIndex, contentArray) {
         });
     }
 }
+
