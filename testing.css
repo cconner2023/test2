@@ -131,20 +131,27 @@
     backface-visibility: hidden;
 }
 
+
 .main_menu.active {
     opacity: 1;
     visibility: visible;
     transform: translateY(0) scale(1);
 }
         .main_menu_content{
-            display: flex;
+            display:flexbox;
             flex-direction: column;
             width: 100%;
         }
         .main_menu_choice{
             padding: 4px 15px 4px 15px;
-            margin: 3px 0px 3px 0px;
+            margin: 7px 0px 7px 0px;
             transition: all 0.2s ease;
+            opacity: 1;
+            display: flex;
+        }
+        .main_menu_choice.menu_close{
+          opacity: 0;
+          display: none;
         }
         .main_menu_choice:hover{
             background-color: var(--Backgroundlightgray);
@@ -230,6 +237,9 @@
                 transition: opacity 0.3s ease-in-out;
 
             }
+            .container.active .med_top{
+               margin-top: 25px;
+}
         }
         
         /* Desktop styles (screen >= 769px) */
@@ -637,6 +647,8 @@ box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
   background-color: var(--Backgroundsecondgray);
 }
 
+
+
 .dispobox {
   width: 100%;
   opacity: 0;
@@ -911,6 +923,10 @@ margin-right: 10px;
   transform: translateX(0%);
   opacity: 1;
 }
+.med_marker{
+  height: 2px;
+  width: 100%;
+}
 .med_top{
   position: relative;
   display: flex;
@@ -918,10 +934,13 @@ margin-right: 10px;
   height: 70px;
   margin-right: 20px;
   margin-left: 15px;
+  margin-top: 0px;
   border-radius: 10px;
   align-items: center;
   padding-top: 10px;
 }
+
+
 .med_banner{
   font-weight: 500;
   padding-top: 10px;
