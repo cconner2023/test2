@@ -95,6 +95,7 @@ if ('serviceWorker' in navigator) {
     }
   };
 }
+
     var container = document.querySelector('.container');
     var backBtn = document.getElementById('backBtn');
     var main = document.querySelector("#main-categories");
@@ -3888,7 +3889,6 @@ btns.forEach(function(currentbtn){
         slider.style.backgroundColor = color
         slider.style.color = text
         dispo.style.backgroundColor = color;
-        console.log(at)
         dispo.setAttribute('fill', text)
         dispo.style.color = text
         bottombar.style.backgroundColor = color
@@ -3912,7 +3912,6 @@ btns.forEach(function(currentbtn){
         }
         sub3.style.backgroundColor = color
         dispo.setAttribute('fill', text)
-        console.log(at)
         sub3.style.color = text
         box.style.color = text
         note_content.style.color = text      
@@ -4144,6 +4143,7 @@ function CheckTopMarker(){
                   if (document.querySelector(".sub-page.open")) {
                     var sub_page_banner = document.querySelector(".sub-page-banner").innerText
                     menu_banner.innerHTML = sub_page_banner
+                    console.log("this works")
                       // Stop observing after handling this event
                       observer.disconnect();
                       window.TopMarkerObserver = null;
@@ -4156,6 +4156,154 @@ function CheckTopMarker(){
       window.TopMarkerObserver.observe(TopMarker);
   }
 }
+
+let medTimeout;
+window.addEventListener('resize', function() {
+    clearTimeout(medTimeout);
+    medTimeout = setTimeout(function() {
+
+        // get viewtype
+        var app_state;
+        if(document.querySelector(".sub-page").classList.contains("open") || medsheet.classList.contains("open")){
+        // if sub-page with algorithms is open
+        app_state = "ADTsheet| medsheet"
+        }else{
+        //we have to determine if main or if a sel-box is place-left
+        if(main.classList.contains("place-left")){
+         app_state = "subcategory"
+        }else{
+
+         app_state = "main"
+        }
+        }
+
+        //Mobile
+        if (window.innerWidth < 768) {
+
+              infoContent.classList.add("active")
+              info_container.classList.remove("active")
+              if(app_state === "ADTsheet| medsheet"){
+                if(!container.classList.contains("active")){
+                container.classList.add("active")
+                }
+                if(!pagetop.classList.contains("min")){
+                pagetop.classList.add("min")
+                }
+            }else 
+              if(app_state === "subcategory" || app_state === "main"){
+              container.classList.remove("active")
+            }
+        } else {
+
+        //for desktop view
+
+            pagetop.classList.remove("min")
+            container.classList.remove("active");
+            if(app_state === "ADTsheet| medsheet"){
+              if(!info_container.classList.contains("active")){
+                info_container.classList.add("active")
+              }
+            }else
+            if(app_state ==="subcategory"){
+              updateInfoContentText()
+              infoContent.classList.remove("hidden")
+            }else if(app_state === "main"){
+              updateInfoContentText()
+              infoContent.classList.remove("hidden")
+            }
+        }
+    }, 100);
+});
+
+// Initialize variables
+let MedMarkerObserver = null;
+
+// Function to check med marker visibility
+function checkmedmarker() {
+  const MedMarker = document.querySelector(".med_marker");
+  const medsheet = document.querySelector(".medsheet");
+  const menu_banner = document.querySelector(".menu-banner-label");
+  const med_banner = document.querySelector(".med_banner");
+  
+  
+  if (!medsheet.classList.contains("open")) {
+    // If medsheet is not open, disconnect observer if it exists
+    if (MedMarkerObserver) {
+      MedMarkerObserver.disconnect();
+      MedMarkerObserver = null;
+    }
+    return;
+  }
+  
+  // Disconnect any existing observer
+  if (MedMarkerObserver) {
+    MedMarkerObserver.disconnect();
+  }
+  
+  // Set up the Intersection Observer
+  const MedMarkerOptions = {
+    threshold: 0.1 // Adjust as needed
+  };
+  
+  MedMarkerObserver = new IntersectionObserver(function(medentries, observer) {
+    medentries.forEach(medentry => {
+      // Only execute if window width is less than 768px
+      if (window.innerWidth < 768) {
+        if (!medentry.isIntersecting) {
+          menu_banner.innerText = med_banner.innerHTML
+        } else {
+          menu_banner.innerHTML = "ADTMC Medications List";
+        }
+      }
+    });
+  }, MedMarkerOptions);
+  
+  MedMarkerObserver.observe(MedMarker);
+}
+
+// Set up a MutationObserver to watch for changes to medsheet's class
+function setupMedsheetObserver() {
+  const medsheet = document.querySelector(".medsheet");
+  if (!medsheet) {
+    return;
+  }
+  
+  const config = { attributes: true, attributeFilter: ['class'] };
+  
+  const medsheetObserver = new MutationObserver(function(mutations) {
+    mutations.forEach(function(mutation) {
+      if (mutation.attributeName === 'class') {
+        if (medsheet.classList.contains("open")) {
+          checkmedmarker();
+        } else {
+          if (MedMarkerObserver) {
+            MedMarkerObserver.disconnect();
+            MedMarkerObserver = null;
+          }
+        }
+      }
+    });
+  });
+  
+  medsheetObserver.observe(medsheet, config);
+}
+
+// Initialize on DOM content loaded
+document.addEventListener('DOMContentLoaded', function() {
+  // Set up the medsheet observer
+  setupMedsheetObserver();
+  
+  // Also set up resize listener to recheck when window is resized
+  window.addEventListener('resize', function() {
+    const medsheet = document.querySelector(".medsheet");
+    if (medsheet && medsheet.classList.contains("open")) {
+      console.log("Window resized while medsheet is open, rechecking MedMarker");
+      checkmedmarker();
+    }
+  });
+});
+
+
 
 // clears the board if something turns yes
 // + add clear submitbar and resubmit if applicable
@@ -4268,9 +4416,9 @@ window.addEventListener('resize', function() {
 
         // get viewtype
         var app_state;
-        if(document.querySelector(".sub-page").classList.contains("open")){
+        if(document.querySelector(".sub-page").classList.contains("open") || medsheet.classList.contains("open")){
         // if sub-page with algorithms is open
-        app_state = "ADTsheet"
+        app_state = "ADTsheet| medsheet"
         }else{
         //we have to determine if main or if a sel-box is place-left
         if(main.classList.contains("place-left")){
@@ -4286,7 +4434,7 @@ window.addEventListener('resize', function() {
 
               infoContent.classList.add("active")
               info_container.classList.remove("active")
-              if(app_state === "ADTsheet"){
+              if(app_state === "ADTsheet| medsheet"){
                 if(!container.classList.contains("active")){
                 container.classList.add("active")
                 }
@@ -4303,7 +4451,7 @@ window.addEventListener('resize', function() {
 
             pagetop.classList.remove("min")
             container.classList.remove("active");
-            if(app_state === "ADTsheet"){
+            if(app_state === "ADTsheet| medsheet"){
               if(!info_container.classList.contains("active")){
                 info_container.classList.add("active")
               }
@@ -5022,7 +5170,6 @@ med44 : [
 med_btns.forEach(function(med_btn){
       med_btn.addEventListener("click", () => {
         const med_id = med_btn.id
-        console.log("MED ID:", med_id)
         const medicationData = medboxes[med_id];
         const med_title = med_btn.innerText
         const banner = document.querySelector(".med_banner")
@@ -5033,7 +5180,6 @@ med_btns.forEach(function(med_btn){
         medicationData.forEach((item, index) => {
             // Get the content for this category
             const content = item.Content;
-            console.log(content);
             updateCategoryContent(index, content)
         })
       })
@@ -5055,4 +5201,3 @@ function updateCategoryContent(categoryIndex, contentArray) {
         });
     }
 }
-
