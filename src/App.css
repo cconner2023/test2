@@ -1,0 +1,336 @@
+@import "tailwindcss";
+@media (prefers-color-scheme:light){
+    :root([data-theme]) {
+    --color-themeredred: rgb(170, 65, 65,1);
+  --color-themeyellow: rgba(255,194,34,1);
+  --color-themeyellowlow: rgba(255,194,34,0.7);
+  --color-themegreen: rgba(96,146,92,1);
+  --color-themewhite: rgba(255,251,251,1);
+  --color-themewhite2:rgba(240,242,245,1);
+  --color-themewhite3:rgba(255,251,251,1);
+  --color-themegray1: rgba(196,190,190,1);
+  --color-themegray2: rgba(196,190,190);
+  --color-themeblue1:rgba(129,161,181,1);
+  --color-themeblue2: rgba(21, 142, 172,1);
+  --color-themeblue3: rgba(0,66,92,1);
+  --color-primary: rgba(30, 30, 35, 1);    /* Near-black for primary color */
+  --color-secondary: rgba(70, 70, 80, 1); 
+  --color-tertiary: rgba(70, 70, 80, 1); 
+    }
+}
+[data-theme="light"] {
+    --color-themeredred: rgb(170, 65, 65,1);
+  --color-themeyellow: rgba(255,194,34,1);
+  --color-themeyellowlow: rgba(255,194,34,0.7);
+  --color-themegreen: rgba(96,146,92,1);
+  --color-themewhite: rgba(255,251,251,1);
+  --color-themewhite2:rgba(240,242,245,1);
+  --color-themewhite3:rgba(255,251,251,1);
+  --color-themegray1: rgba(196,190,190,1);
+  --color-themegray2: rgba(196,190,190);
+  --color-themeblue1:rgba(129,161,181,1);
+  --color-themeblue2: rgba(21, 142, 172,1);
+  --color-themeblue3: rgba(0,66,92,1);
+  --color-primary: rgba(30, 30, 35, 1);    /* Near-black for primary color */
+  --color-secondary: rgba(70, 70, 80, 1); 
+  --color-tertiary: rgba(132, 139, 146, 1); 
+}
+[data-theme="dark"] {
+  --color-themeredred: rgb(170, 65, 65, 1);
+  --color-themeyellow: rgba(255, 194, 34, 1);
+  --color-themeyellowlow: rgba(255, 194, 34, 0.7);
+  --color-themegreen: rgba(96, 146, 92, 1);
+  --color-themewhite: rgba(15, 25, 35, 1);         /* Deep blue-black */
+  --color-themewhite2: rgba(25, 35, 45, 1);
+  --color-themewhite3: rgba(20,30,40,1);        /* Slightly lighter */
+  --color-themegray1: rgba(55, 65, 75, 1);         /* Medium blue-gray */
+  --color-themegray2: rgba(75, 85, 95, 1);         /* Lighter blue-gray */
+  --color-themeblue1: rgba(129, 161, 181, 1);
+  --color-themeblue2: rgba(21, 142, 172, 1);
+  --color-themeblue3: rgba(0, 66, 92, 1);
+  --color-primary: rgba(203,209,214,1);
+  --color-secondary: rgba(179,186,201,1);
+  --color-tertiary:rgba(132, 139, 146, 1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+  --color-themeredred: rgb(170, 65, 65, 1);
+  --color-themeyellow: rgba(255, 194, 34, 1);
+  --color-themeyellowlow: rgba(255, 194, 34, 0.7);
+  --color-themegreen: rgba(96, 146, 92, 1);
+  --color-themewhite: rgba(15, 25, 35, 1);
+  --color-themewhite2: rgba(25, 35, 45, 1);
+  --color-themewhite3: rgba(20,30,40,1);
+  --color-themegray1: rgba(55, 65, 75, 1);
+  --color-themegray2: rgba(75, 85, 95, 1);
+  --color-themeblue1: rgba(129, 161, 181, 1);
+  --color-themeblue2: rgba(21, 142, 172, 1);
+  --color-themeblue3: rgba(0, 66, 92, 1);
+  --color-primary: rgba(203,209,214,1);
+  --color-secondary: rgba(179,186,201,1);
+  --color-tertiary: rgba(132, 139, 146, 1);
+  }
+}
+@theme {
+  --color-themeredred: var(--color-themeredred);
+  --color-themeyellow: var(--color-themeyellow);
+  --color-themeyellowlow: var(--color-themeyellowlow);
+  --color-themegreen: var(--color-themegreen);
+  --color-themewhite: var(--color-themewhite);
+  --color-themewhite2:var(--color-themewhite2);
+  --color-themewhite3: var(--color-themewhite3);
+  --color-themegray1: var(--color-themegray1);
+  --color-themegray2: var(--color-themegray2);
+  --color-themeblue1:var(--color-themeblue1);
+  --color-themeblue2: var(--color-themeblue2);
+  --color-themeblue3: var(--color-themeblue3);
+  --color-primary: var(--color-primary); 
+  --color-secondary: var(--color-secondary);
+  --color-tertiary: var(--color-tertiary);
+}
+
+
+@custom-variant hover (&:hover);
+
+@supports (view-transition-name: none) {
+  ::view-transition-old(note-import-view),
+  ::view-transition-new(note-import-view) {
+    animation-duration: 0.4s;
+    animation-timing-function: ease-in-out;
+    /* Allow the height/width to smoothly animate to the new size */
+    height: auto;
+    width: auto;
+  }
+}
+
+
+* {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+    [type="search"]::-webkit-search-cancel-button,
+[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
+}
+
+*::-webkit-scrollbar{
+display: none;
+}
+
+body {
+    background-color: var(--color-themewhite);
+    position: absolute;
+    width: 100vw;
+}
+
+/* Mobile search animations */
+@keyframes expandSearch {
+  from {
+    width: 2.75rem; /* Width of search icon */
+    max-width: 2.75rem;
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    width: 100%;
+    max-width: 100%;
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-expandSearch {
+  animation: expandSearch 0.1s ease-out forwards;
+  will-change: width, opacity, transform;
+}
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* Import Note animation */
+@keyframes AppearIn {
+  from {
+    display: hidden;
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    display: block;
+    opacity: 1;
+    transform: translateY(0px);
+  }
+}
+
+.animate-AppearIn {
+  animation: AppearIn 0.3s ease-out forwards;
+  will-change: opacity, transform;
+}
+
+
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(-1px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slideInRight {
+  animation: slideInRight 0.3s ease-out forwards;
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 1;
+    transform: translateX(1px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slideInLeft {
+  animation: slideInLeft 0.3s ease-out forwards;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-slideInUp {
+  animation: slideInUp 0.3s ease-out forwards;
+  opacity: 0;
+  animation-fill-mode: forwards;
+  will-change: opacity;
+}
+
+
+
+/* Hide scrollbar for mobile search overlay */
+.mobile-search-results-overlay {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.mobile-search-results-overlay::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, Opera */
+}
+
+
+
+/* Fix for animation on mobile */
+@media (max-width: 767px) {
+  .mobile-expanded-search {
+    z-index: 50; /* Ensure it's above other content */
+  }
+  
+  .animate-expandSearch {
+    position: relative;
+  }
+}
+
+@keyframes fadeSlideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideOut {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+}
+
+.animate-fadeSlideOut{
+  animation: fadeSlideOut 0.3s ease-out forwards;
+  animation-fill-mode: forwards;
+}
+
+/* Smooth width transitions */
+.transition-max-width {
+  transition: max-width 0.3s ease-out;
+}
+
+/* For mobile search expansion */
+.mobile-expanded-search {
+  margin-right: 0 !important;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+@keyframes dispoIn {
+  from {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-dispoIn{
+  animation: dispoIn 0.5s ease-out forwards;
+}
+
+/* App.css - Add grid animations */
+.grid-column-transition {
+  transition: grid-template-columns 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Smooth column appearance */
+.animate-columnAppear {
+  animation: columnAppear 300ms ease-out;
+}
+
+@keyframes columnAppear {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

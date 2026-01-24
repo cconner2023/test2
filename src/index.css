@@ -1,0 +1,25 @@
+@import "tailwindcss";
+@theme {
+  --color-themered1: rgba(168,72,72,1);
+  --color-themered2: rgba(168,72,72,0.6);
+  --color-themeyellow: rgba(255,194,34,1);
+  --color-themegreen: rgba(96,146,92,1);
+  --color-themewhite: rgba(255,251,251,1);
+  --color-themewhite2:rgba(240,242,245,1);
+  --color-themegray1: rgba(196,190,190,1);
+  --color-themegray2: rgba(196,190,190);
+  --color-themeblue1:rgba(129,161,181,1);
+  --color-themeblue2: rgba(21, 142, 172,1);
+  --color-themeblue3: rgba(0,66,92,1);
+
+}
+
+:root {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+body {
+  background-color: var(--color-themewhite2);
+}
