@@ -23,6 +23,7 @@
     "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "react-swipeable": "^7.0.2",
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {

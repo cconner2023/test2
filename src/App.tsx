@@ -1,4 +1,4 @@
-// App.tsx - COMPLETE WITH AUTO-ANIMATE BETWEEN GRIDS
+// App.tsx - UPDATED TO USE YOUR LAYOUT HOOK
 import { useState, useRef, useEffect } from 'react'
 import './App.css'
 import { SideMenu } from './Components/SideMenu'
@@ -13,6 +13,7 @@ import type { SearchResultType } from './Types/CatTypes'
 import { medList } from './Data/MedData'
 import { useLayout } from './Hooks/useLayoutState'
 import { useAutoAnimate } from '@formkit/auto-animate/react'
+import { useSwipeGesture } from './Hooks/useSwipeGesture'
 
 function AppContent() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -21,14 +22,42 @@ function AppContent() {
   const searchInputRef = useRef<HTMLInputElement>(null!)
   const { toggleTheme } = useTheme()
 
+  // Use your existing layout hook
+  const layout = useLayout() as any
+
   // Single auto-animate for switching between main and medication grids
   const [contentRef] = useAutoAnimate<HTMLDivElement>({
     duration: 300,
     easing: 'ease-in-out',
   })
 
-  // Use simple layout hook
-  const layout = useLayout()
+  // Swipe gesture for CategoryList navigation (right swipe to go back)
+  const {
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+    handleMouseDown,
+    handleMouseMove,
+    handleMouseUp,
+    isSwiping,
+    swipeDirection,
+    swipeProgress
+  } = useSwipeGesture({
+    onSwipeRight: () => {
+      // Only handle right swipe when we're in a nested view and no search/import
+      if (!layout.hasSearchInput && !showNoteImport) {
+        if (layout.selectedSymptom) {
+          console.log("↪️ Swipe right: Going back from symptom to category")
+          layout.handleSymptomSelect(null)
+        } else if (layout.selectedCategory && !layout.selectedSymptom) {
+          console.log("↪️ Swipe right: Going back to main categories")
+          layout.handleCategorySelect(null)
+        }
+      }
+    },
+    threshold: 60,
+    minVelocity: 0.2
+  })
 
   // Close menu on desktop resize, reset search expansion
   useEffect(() => {
@@ -42,7 +71,7 @@ function AppContent() {
     return () => window.removeEventListener('resize', handleResize)
   }, [isMenuOpen, isSearchExpanded])
 
-  // Simple event handlers
+  // Use your layout's back functionality
   const handleBackClick = () => {
     if (showNoteImport) {
       setShowNoteImport(false)
@@ -51,22 +80,25 @@ function AppContent() {
       if (layout.isMobile && isSearchExpanded) {
         setIsSearchExpanded(false)
       }
-    } else if (layout.selectedMedication) {
-      layout.handleMedicationSelect(null)
-    } else if (layout.isMedicationView) {
-      // If we're in medications view, go back to main
-      layout.handleShowMedications()
-    } else if (layout.selectedSymptom) {
-      layout.handleSymptomSelect(null)
-    } else if (layout.selectedCategory) {
-      layout.handleCategorySelect(null)
+    } else {
+      // Use your layout hook's methods
+      if (layout.selectedMedication) {
+        layout.handleMedicationSelect(null)
+      } else if (layout.selectedSymptom) {
+        layout.handleSymptomSelect(null)
+      } else if (layout.selectedCategory) {
+        layout.handleCategorySelect(null)
+      } else if (layout.isMedicationView) {
+        // Exit medication view
+        layout.handleShowMedications()
+      }
     }
   }
 
   const handleMedicationClick = () => {
-    console.log("Medication button clicked");
-    layout.handleShowMedications(); // This should toggle properly now
-  };
+    console.log("Medication button clicked")
+    layout.handleShowMedications()
+  }
 
   const handleImportClick = () => {
     layout.clearSearch()
@@ -90,7 +122,6 @@ function AppContent() {
 
   const handleSearchResultClick = (result: SearchResultType) => {
     layout.handleSearchResultClick(result)
-
     setShowNoteImport(false)
     if (layout.isMobile && isSearchExpanded) {
       setIsSearchExpanded(false)
@@ -110,14 +141,39 @@ function AppContent() {
     }
   }
 
-  // Title logic
+  // Title logic - use your layout's dynamic title if available
   const getTitle = () => {
     if (layout.hasSearchInput) return { title: "", show: false }
     if (showNoteImport) return { title: "Import Note", show: false }
-    return layout.dynamicTitle
+
+    // Check if your layout hook has dynamicTitle
+    if ('dynamicTitle' in layout) {
+      return {
+        title: (layout as any).dynamicTitle?.title || "",
+        show: (layout as any).dynamicTitle?.show || false
+      }
+    }
+
+    // Fallback logic
+    if (layout.selectedMedication) {
+      return { title: layout.selectedMedication.text, show: true }
+    }
+    if (layout.selectedSymptom) {
+      return { title: layout.selectedSymptom.text, show: true }
+    }
+    if (layout.selectedCategory) {
+      return { title: layout.selectedCategory.text, show: true }
+    }
+
+    return { title: "", show: false }
   }
 
   const title = getTitle()
+
+  // Check if we should show swipe indicators
+  const showSwipeBackIndicator = !layout.hasSearchInput &&
+    !showNoteImport &&
+    (layout.selectedSymptom || layout.selectedCategory)
 
   return (
     <div className='h-screen bg-themewhite2 items-center flex justify-center overflow-hidden'>
@@ -172,14 +228,46 @@ function AppContent() {
 
         {/* Main Content - Animated grid switching */}
         {!showNoteImport && (
-          <div ref={contentRef} className='h-[94%] mt-2 mx-2'>
+          <div
+            ref={contentRef}
+            className='h-[94%] mt-2 mx-2 relative'
+          >
+            {/* Swipe Progress Indicator */}
+            {showSwipeBackIndicator && isSwiping && swipeDirection === 'right' && (
+              <div
+                className="absolute left-0 top-0 bottom-0 w-2 bg-themeblue3/30 z-10 rounded-r-md transition-all duration-150"
+                style={{ width: `${swipeProgress * 0.5}%` }}
+              />
+            )}
 
-            {/* ADTMC Grid - KEY on the grid div itself */}
+            {/* ADTMC Grid */}
             {layout.showMainGrid && (
-              <div key="main-grid" className="h-full">
+              <div
+                key="main-grid"
+                className="h-full"
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={() => {
+                  // Reset on mouse leave
+                  if (isSwiping) {
+                    setTimeout(() => {
+                      handleMouseUp({ clientX: 0 } as React.MouseEvent);
+                    }, 0);
+                  }
+                }}
+              >
                 <div
                   className="h-full grid transition-[grid-template-columns] md:gap-1"
-                  style={{ gridTemplateColumns: layout.mainGridTemplate }}
+                  style={{
+                    gridTemplateColumns: layout.mainGridTemplate,
+                    transform: isSwiping && swipeDirection === 'right' ?
+                      `translateX(${swipeProgress * 0.3}px)` : 'translateX(0)',
+                    transition: isSwiping ? 'none' : 'transform 0.2s ease-out'
+                  }}
                 >
 
                   {/* Column 1: Categories */}
@@ -215,7 +303,7 @@ function AppContent() {
                     {layout.showQuestionCard && (
                       <AlgorithmPage
                         selectedSymptom={layout.selectedSymptom}
-                        onMedicationClick={layout.handleMedicationSelect} // This should already be there
+                        onMedicationClick={layout.handleMedicationSelect}
                       />
                     )}
                     {layout.showMedicationDetail && !layout.isMedicationView && layout.selectedMedication && (
@@ -226,7 +314,7 @@ function AppContent() {
               </div>
             )}
 
-            {/* Medications Grid - KEY on the grid div itself */}
+            {/* Medications Grid */}
             {layout.showMedicationGrid && (
               <div key="medication-grid" className="h-full">
                 <div

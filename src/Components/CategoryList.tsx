@@ -22,6 +22,10 @@ interface CategoryListProps {
         id: number;
         symptomId: number
     } | null) => void
+    // New swipe props
+    isSwiping?: boolean
+    swipeDirection?: 'left' | 'right' | null
+    swipeProgress?: number
 }
 
 export function CategoryList({
@@ -31,6 +35,9 @@ export function CategoryList({
     onCategorySelect,
     onSymptomSelect,
     onGuidelineSelect,
+    isSwiping = false,
+    swipeDirection = null,
+    swipeProgress = 0,
 }: CategoryListProps) {
     const [selectedSymptomId, setSelectedSymptomId] = useState<number | null>(null)
     const [parentRef] = useAutoAnimate({ duration: 200, easing: 'ease-in-out' })
@@ -55,6 +62,16 @@ export function CategoryList({
 
     return (
         <div ref={parentRef} className="h-full w-full">
+            {(selectedSymptom || selectedCategory) && typeof window !== 'undefined' && window.innerWidth < 768 && (
+                <div className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10 opacity-30">
+                    <div className="flex items-center space-x-1 animate-pulse">
+                        <div className="w-1 h-1 bg-themeblue3 rounded-full"></div>
+                        <div className="w-1 h-1 bg-themeblue3 rounded-full"></div>
+                        <div className="w-1 h-1 bg-themeblue3 rounded-full"></div>
+                        <div className="text-[8px] text-themeblue3 ml-1">← swipe back</div>
+                    </div>
+                </div>
+            )}
             {/* SAFETY CHECK */}
             {(!catData || !Array.isArray(catData)) ? (
                 <div key="error" className="h-full flex items-center justify-center text-primary">

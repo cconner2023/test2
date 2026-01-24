@@ -1,4 +1,8 @@
+/* App.css - COMPLETE WITH SWIPE ANIMATIONS */
+
 @import "tailwindcss";
+
+/* Theme definitions (keep your existing theme code) */
 @media (prefers-color-scheme:light){
     :root([data-theme]) {
     --color-themeredred: rgb(170, 65, 65,1);
@@ -89,8 +93,6 @@
   --color-tertiary: var(--color-tertiary);
 }
 
-
-
 @custom-variant hover (&:hover);
 
 @supports (view-transition-name: none) {
@@ -103,7 +105,6 @@
     width: auto;
   }
 }
-
 
 * {
     scroll-behavior: smooth;
@@ -125,6 +126,96 @@ body {
     width: 100vw;
 }
 
+/* ============================================
+   SWIPE ANIMATIONS - ADDED SECTION
+   ============================================ */
+
+/* Swipe animation classes */
+.swipe-transition {
+  transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+.swipe-back-hint {
+  animation: swipeHint 2s infinite;
+}
+
+.swipe-up-hint {
+  animation: swipeUpHint 2s infinite;
+}
+
+.swipe-down-hint {
+  animation: swipeDownHint 2s infinite;
+}
+
+@keyframes swipeHint {
+  0%, 100% { 
+    opacity: 0.3; 
+    transform: translateX(0); 
+  }
+  50% { 
+    opacity: 0.7; 
+    transform: translateX(-5px); 
+  }
+}
+
+@keyframes swipeUpHint {
+  0%, 100% { 
+    opacity: 0.4; 
+    transform: translateY(0); 
+  }
+  50% { 
+    opacity: 0.8; 
+    transform: translateY(-3px); 
+  }
+}
+
+@keyframes swipeDownHint {
+  0%, 100% { 
+    opacity: 0.4; 
+    transform: translateY(0); 
+  }
+  50% { 
+    opacity: 0.8; 
+    transform: translateY(3px); 
+  }
+}
+
+/* Swipe header styles */
+.swipe-header {
+  user-select: none; /* Prevent text selection during swipe */
+  touch-action: pan-y; /* Allow vertical panning */
+}
+
+.swipe-header:active {
+  opacity: 0.9;
+}
+
+/* Visual feedback for swipeable header */
+@media (max-width: 767px) {
+  .swipe-header {
+    cursor: grab;
+  }
+  
+  .swipe-header:active {
+    cursor: grabbing;
+  }
+}
+
+/* Smooth swipe progress transitions */
+.swipe-progress-transition {
+  transition: all 0.15s ease-out;
+}
+
+/* Prevent content shift during swipe */
+.swipe-content {
+  will-change: transform;
+  backface-visibility: hidden;
+}
+
+/* ============================================
+   EXISTING ANIMATIONS
+   ============================================ */
+
 /* Mobile search animations */
 @keyframes expandSearch {
   from {
@@ -145,6 +236,7 @@ body {
   animation: expandSearch 0.1s ease-out forwards;
   will-change: width, opacity, transform;
 }
+
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -153,6 +245,7 @@ body {
     opacity: 1;
   }
 }
+
 /* Import Note animation */
 @keyframes AppearIn {
   from {
@@ -171,7 +264,6 @@ body {
   animation: AppearIn 0.3s ease-out forwards;
   will-change: opacity, transform;
 }
-
 
 @keyframes slideInUp {
   from {
@@ -225,31 +317,6 @@ body {
   will-change: opacity;
 }
 
-
-
-/* Hide scrollbar for mobile search overlay */
-.mobile-search-results-overlay {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
-}
-
-.mobile-search-results-overlay::-webkit-scrollbar {
-  display: none;  /* Chrome, Safari, Opera */
-}
-
-
-
-/* Fix for animation on mobile */
-@media (max-width: 767px) {
-  .mobile-expanded-search {
-    z-index: 50; /* Ensure it's above other content */
-  }
-  
-  .animate-expandSearch {
-    position: relative;
-  }
-}
-
 @keyframes fadeSlideDown {
     from {
         opacity: 0;
@@ -288,18 +355,6 @@ body {
   animation-fill-mode: forwards;
 }
 
-/* Smooth width transitions */
-.transition-max-width {
-  transition: max-width 0.3s ease-out;
-}
-
-/* For mobile search expansion */
-.mobile-expanded-search {
-  margin-right: 0 !important;
-  padding-left: 1rem;
-  padding-right: 1rem;
-}
-
 @keyframes dispoIn {
   from {
     opacity: 0;
@@ -333,6 +388,47 @@ body {
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+/* Smooth width transitions */
+.transition-max-width {
+  transition: max-width 0.3s ease-out;
+}
+
+/* For mobile search expansion */
+.mobile-expanded-search {
+  margin-right: 0 !important;
+  padding-left: 1rem;
+  padding-right: 1rem;
+}
+
+/* Hide scrollbar for mobile search overlay */
+.mobile-search-results-overlay {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.mobile-search-results-overlay::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari, Opera */
+}
+
+/* ============================================
+   MOBILE OPTIMIZATIONS
+   ============================================ */
+
+/* Fix for animation on mobile */
+@media (max-width: 767px) {
+  .mobile-expanded-search {
+    z-index: 50; /* Ensure it's above other content */
+  }
+  
+  .animate-expandSearch {
+    position: relative;
   }
 }
 
@@ -377,4 +473,10 @@ html {
   overflow: hidden;
   height: 100vh;
   width: 100vw;
+}
+
+/* Smooth scrolling for swipeable areas */
+.swipe-scroll-area {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
 }
