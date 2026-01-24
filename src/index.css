@@ -5,11 +5,12 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow:hidden;
 }
 body {
   background-color: var(--color-themewhite2);
 }
-/* Prevent zoom on input focus in iOS */
+
 input, select, textarea {
   font-size: 16px; /* Prevent iOS zoom on focus */
   touch-action: manipulation; /* Disable double-tap zoom */
@@ -43,11 +44,13 @@ html {
 /* Disable double-tap zoom */
 * {
   touch-action: pan-y;
+  scroll-behavior: smooth;
+  overflow-x: hidden;
+  overflow-y: hidden;   
+  -webkit-tap-highlight-color: transparent;
+  [type="search"]::-webkit-search-cancel-button,
+  [type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
 }
-
-/* Ensure the app container doesn't scroll */
-#root {
-  overflow: hidden;
-  height: 100vh;
-  width: 100vw;
 }
