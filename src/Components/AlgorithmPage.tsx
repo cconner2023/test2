@@ -7,11 +7,10 @@ import { QuestionCard } from './QuestionCard';
 import { WriteNotePage } from './WriteNotePage';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import type { medListTypes } from '../Data/MedData';
-import { useSwipeGesture } from '../Hooks/useSwipeGesture';
 
 interface AlgorithmProps {
     selectedSymptom: subCatDataTypes | null;
-    onMedicationClick?: (medication: medListTypes) => void;
+    onMedicationClick?: (medication: medListTypes) => void; // ADD THIS
 }
 
 type ViewState = 'algorithm' | 'note-expanded';
@@ -30,25 +29,6 @@ export function AlgorithmPage({ selectedSymptom, onMedicationClick }: AlgorithmP
         easing: 'ease-in-out',
     });
 
-    // Swipe gesture for expanding note (up swipe on disposition button)
-    const {
-        handleTouchStart: handleDispositionTouchStart,
-        handleTouchMove: handleDispositionTouchMove,
-        handleTouchEnd: handleDispositionTouchEnd,
-        isSwiping: isDispositionSwiping,
-        swipeDirection: dispositionSwipeDirection,
-        swipeProgress: dispositionSwipeProgress
-    } = useSwipeGesture({
-        onSwipeUp: () => {
-            if (currentDisposition && viewState === 'algorithm') {
-                console.log("⬆️ Swipe up: Expanding note")
-                handleExpandNote()
-            }
-        },
-        threshold: 40,
-        minVelocity: 0.3
-    })
-
     const algorithm = AlgorithmData.find(algo => algo.id === selectedSymptom?.icon);
     const algorithmOptions = algorithm?.options || [];
 
@@ -59,25 +39,23 @@ export function AlgorithmPage({ selectedSymptom, onMedicationClick }: AlgorithmP
         handleAnswer: hookHandleAnswer,
         getVisibleCards
     } = useAlgorithm(algorithmOptions);
-
     // Update view when disposition disappears
     useEffect(() => {
         if (!currentDisposition && viewState === 'note-expanded') {
             setViewState('algorithm');
         }
     }, [currentDisposition, viewState]);
-
     // Track disposition changes - ONLY when in algorithm view
     useEffect(() => {
         const dispositionChanged = prevDispositionRef.current !== currentDisposition;
         prevDispositionRef.current = currentDisposition;
+        // Only trigger scroll if we're in algorithm view and disposition changed
         if (currentDisposition && dispositionChanged && viewState === 'algorithm') {
             setTimeout(() => {
                 setScrollTrigger(prev => prev + 1);
             }, 100);
         }
-    }, [currentDisposition, viewState]);
-
+    }, [currentDisposition, viewState]); // Added viewState dependency
     // Scroll function
     const scrollToMarker = useCallback(() => {
         if (!markerRef.current || !containerRef.current) {
@@ -139,6 +117,7 @@ export function AlgorithmPage({ selectedSymptom, onMedicationClick }: AlgorithmP
 
     // Handle expand/collapse of note
     const handleExpandNote = () => {
+        // Save scroll position before switching
         if (containerRef.current) {
             setSavedScrollPosition(containerRef.current.scrollTop);
         }
@@ -147,11 +126,12 @@ export function AlgorithmPage({ selectedSymptom, onMedicationClick }: AlgorithmP
 
     const handleCollapseNote = () => {
         setViewState('algorithm');
+        // Restore scroll position after switching back to algorithm view
         setTimeout(() => {
             if (containerRef.current) {
                 containerRef.current.scrollTop = savedScrollPosition;
             }
-        }, 50);
+        }, 50); // Small delay to ensure container is rendered
     };
 
     // Initial scroll when algorithm loads
@@ -179,9 +159,8 @@ export function AlgorithmPage({ selectedSymptom, onMedicationClick }: AlgorithmP
         );
     }
     const visibleCards = getVisibleCards();
+    // Get colors for disposition if it exists
     const colors = currentDisposition ? getColorClasses(currentDisposition.type) : null;
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-
     return (
         <div
             ref={parentRef}
@@ -211,19 +190,9 @@ export function AlgorithmPage({ selectedSymptom, onMedicationClick }: AlgorithmP
                         />
                     </div>
 
-                    {/* Disposition Header with swipe */}
+                    {/* Disposition Header */}
                     {currentDisposition && colors && (
-                        <div
-                            className="flex-none border-t border-themegray1/20 relative"
-                            onTouchStart={handleDispositionTouchStart}
-                            onTouchMove={handleDispositionTouchMove}
-                            onTouchEnd={handleDispositionTouchEnd}
-                            style={{
-                                transform: isDispositionSwiping && dispositionSwipeDirection === 'up'
-                                    ? `translateY(-${dispositionSwipeProgress * 0.3}px)`
-                                    : 'translateY(0)'
-                            }}
-                        >
+                        <div className="flex-none border-t border-themegray1/20">
                             <div className="p-4 bg-themewhite2 rounded-md">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center space-x-3">
@@ -243,23 +212,11 @@ export function AlgorithmPage({ selectedSymptom, onMedicationClick }: AlgorithmP
                                     </div>
                                     <button
                                         onClick={handleExpandNote}
-                                        className={`px-4 py-2 rounded-md text-sm font-medium shrink-0 ${colors.buttonClass} relative`}
-                                        title="Swipe up or tap to write note"
+                                        className={`px-4 py-2 rounded-md text-sm font-medium shrink-0 ${colors.buttonClass}`}
                                     >
-                                        {isMobile && (
-                                            <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 flex items-center space-x-1 opacity-50 text-[8px]">
-                                                ↑ swipe
-                                            </div>
-                                        )}
                                         Write Note
                                     </button>
                                 </div>
-                                {isDispositionSwiping && dispositionSwipeDirection === 'up' && (
-                                    <div
-                                        className="absolute left-0 right-0 bottom-0 h-1 bg-themeblue3/30 rounded-b-md transition-all duration-150"
-                                        style={{ height: `${Math.min(dispositionSwipeProgress * 0.3, 4)}px` }}
-                                    />
-                                )}
                             </div>
                         </div>
                     )}
@@ -279,8 +236,8 @@ export function AlgorithmPage({ selectedSymptom, onMedicationClick }: AlgorithmP
                             console.log('Note saved:', note);
                         }}
                         onMedicationClick={onMedicationClick}
-                        onSwipeDown={handleCollapseNote}
                     />
+
                 </div>
             )}
         </div>

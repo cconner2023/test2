@@ -1,3 +1,4 @@
+// components/WriteNotePage.tsx - UPDATED with proper copied state navigation
 import { useState, useEffect, useRef } from 'react';
 import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
@@ -8,7 +9,6 @@ import { NoteBarcodeGenerator } from './Barcode';
 import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { DecisionMaking } from './DecisionMaking';
 import type { medListTypes } from '../Data/MedData';
-import { useSwipeGesture } from '../Hooks/useSwipeGesture';
 
 export type DispositionType = dispositionType['type'];
 export type NoteViewState = 'input' | 'preview' | 'copied' | 'share';
@@ -25,7 +25,7 @@ interface WriteNoteProps {
     isExpanded: boolean;
     onExpansionChange: (expanded: boolean) => void;
     onNoteSave?: (note: string) => void;
-    onMedicationClick?: (medication: medListTypes) => void;
+    onMedicationClick?: (medication: medListTypes) => void
     onSwipeDown?: () => void;
 }
 
@@ -35,8 +35,6 @@ export const WriteNotePage = ({
     cardStates = [],
     onExpansionChange,
     onNoteSave,
-    onMedicationClick,
-    onSwipeDown,
 }: WriteNoteProps) => {
     const [viewState, setViewState] = useState<NoteViewState>('input');
     const [activeTab, setActiveTab] = useState<TabType>('decision-making');
@@ -46,27 +44,6 @@ export const WriteNotePage = ({
     const [includeHPI, setIncludeHPI] = useState<boolean>(false);
     const [previousViewState, setPreviousViewState] = useState<Exclude<NoteViewState, 'copied'>>('input');
     const inputRef = useRef<HTMLTextAreaElement>(null);
-
-    // Swipe gesture for closing (down swipe) - ONLY on the header
-    const {
-        handleTouchStart,
-        handleTouchMove,
-        handleTouchEnd,
-        isSwiping,
-        swipeDirection,
-        swipeProgress
-    } = useSwipeGesture({
-        onSwipeDown: () => {
-            console.log("⬇️ Swipe down: Closing note")
-            if (onSwipeDown) {
-                onSwipeDown()
-            } else {
-                onExpansionChange(false)
-            }
-        },
-        threshold: 40, // Lower threshold since it's just the header
-        minVelocity: 0.3
-    })
 
     const { generateNote } = useNoteCapture(algorithmOptions, cardStates);
     const colors = getColorClasses(disposition.type);
@@ -127,37 +104,18 @@ export const WriteNotePage = ({
         }
     };
 
-    // Get encoded value from NoteBarcodeGenerator
+    // Get encoded value from NoteBarcodeGenerator (you'll need to implement this)
     const getEncodedValue = () => {
+        // This is a placeholder - you'll need to extract the actual encoded value
+        // from your NoteBarcodeGenerator component
         return `[Encoded Note Data - Algorithm: ${algorithmOptions.length}, Cards: ${cardStates.length}]`;
     };
 
-    const isMobile = typeof window !== 'undefined' && window.innerWidth < 768;
-
     return (
         <div className="flex flex-col bg-themewhite2 h-full w-full">
-            {/* Header with swipe gesture - ONLY THIS AREA SWIPES */}
-            <div
-                className="p-4 rounded-t-md border-b border-themegray1/20 relative"
-                onTouchStart={handleTouchStart}
-                onTouchMove={handleTouchMove}
-                onTouchEnd={handleTouchEnd}
-                style={{
-                    transform: isSwiping && swipeDirection === 'down'
-                        ? `translateY(${swipeProgress * 0.5}px)`
-                        : 'translateY(0)',
-                    cursor: isMobile ? 'grab' : 'default'
-                }}
-            >
-                {isMobile && (
-                    <div className="absolute top-2 left-1/2 transform -translate-x-1/2 flex items-center space-x-1 opacity-40">
-                        <div className="w-4 h-0.5 bg-tertiary rounded-full"></div>
-                        <span className="text-[8px] text-tertiary">swipe down to close</span>
-                        <div className="w-4 h-0.5 bg-tertiary rounded-full"></div>
-                    </div>
-                )}
-
-                <div className="flex items-center justify-between mb-4 mt-4">
+            {/* Header with disposition info */}
+            <div className="p-4 rounded-t-md border-b border-themegray1/20">
+                <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-3">
                         <div className={`px-3 py-2 rounded-md flex items-center justify-center ${colors.badgeBg} font-bold text-sm ${colors.badgeText}`}>
                             {disposition.type}
@@ -185,14 +143,6 @@ export const WriteNotePage = ({
                     </button>
                 </div>
 
-                {/* Swipe progress indicator */}
-                {isSwiping && swipeDirection === 'down' && (
-                    <div
-                        className="absolute left-0 right-0 top-0 h-1 bg-themeblue3/30 rounded-t-md transition-all duration-150"
-                        style={{ height: `${Math.min(swipeProgress * 0.3, 4)}px` }}
-                    />
-                )}
-
                 {/* Tabs */}
                 <div className="flex border-b border-themegray1/20">
                     <button
@@ -216,7 +166,7 @@ export const WriteNotePage = ({
                 </div>
             </div>
 
-            {/* Main Content Area - Scrollable, NO SWIPE GESTURES HERE */}
+            {/* Main Content Area - Scrollable */}
             <div
                 ref={parentRef}
                 className="flex-1 overflow-y-auto p-2 bg-themewhite2"
@@ -239,10 +189,11 @@ export const WriteNotePage = ({
                                 key={'input'}
                                 className="space-y-6"
                             >
-                                {/* Toggle Section */}
+                                {/* Toggle Section - Grouped visually */}
                                 <div className="p-4">
                                     <div className="text-xs font-normal text-primary mb-3">Additional Note Content:</div>
                                     <div className="space-y-3">
+                                        {/* Decision Making Toggle */}
                                         <div
                                             onClick={() => setIncludeAlgorithm(!includeAlgorithm)}
                                             className={`text-xs p-3 rounded border transition-all duration-300 cursor-pointer
@@ -268,6 +219,7 @@ export const WriteNotePage = ({
                                             </div>
                                         </div>
 
+                                        {/* HPI Toggle - Manual control only */}
                                         <div
                                             onClick={() => setIncludeHPI(!includeHPI)}
                                             className={`text-xs p-3 rounded border transition-all duration-300 cursor-pointer
@@ -337,6 +289,7 @@ export const WriteNotePage = ({
                                         noteOptions={{ includeAlgorithm: includeAlgorithm, customNote: note }}
                                         symptomCode="A1"
                                     />
+                                    {/* Copy icon for the entire barcode/encoded value */}
                                     <button
                                         onClick={() => handleCopyToClipboard(getEncodedValue(), 'share')}
                                         className="absolute top-3 right-3 p-2 text-tertiary hover:text-themeblue3 transition-colors md:top-2 md:right-2 md:p-1"
@@ -376,10 +329,12 @@ export const WriteNotePage = ({
                                         )}
                                     </div>
                                 </div>
+                                {/* Scrollable note preview area with copy icon */}
                                 <div className="relative">
                                     <div className="w-full max-h-96 p-3 rounded-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap overflow-y-auto">
                                         {previewNote || "No content selected"}
                                     </div>
+                                    {/* Copy icon in top-right corner - larger on mobile */}
                                     <button
                                         onClick={() => handleCopyToClipboard(previewNote, 'preview')}
                                         className="absolute top-2 right-2 p-2 text-tertiary hover:text-primary transition-colors md:top-1 md:right-1 md:p-1"
@@ -426,9 +381,10 @@ export const WriteNotePage = ({
                 )}
             </div>
 
-            {/* Action Buttons */}
+            {/* Action Buttons - Fixed at bottom (only for write-note tab) */}
             {activeTab === 'write-note' && (
                 <div className="flex items-center justify-end gap-3 p-4 border-t border-themegray1/30 flex-none bg-themewhite2">
+                    {/* Back/Edit button - only shown when applicable */}
                     {(viewState === 'preview' || viewState === 'share') && (
                         <TextButton
                             text="← Back"
@@ -443,6 +399,7 @@ export const WriteNotePage = ({
                         />
                     )}
 
+                    {/* Primary action button - use dispo-specific variant with buttonClass */}
                     {viewState === 'input' && (
                         <TextButton
                             text="View Note"
