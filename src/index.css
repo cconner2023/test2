@@ -1,18 +1,4 @@
 @import "tailwindcss";
-@theme {
-  --color-themered1: rgba(168,72,72,1);
-  --color-themered2: rgba(168,72,72,0.6);
-  --color-themeyellow: rgba(255,194,34,1);
-  --color-themegreen: rgba(96,146,92,1);
-  --color-themewhite: rgba(255,251,251,1);
-  --color-themewhite2:rgba(240,242,245,1);
-  --color-themegray1: rgba(196,190,190,1);
-  --color-themegray2: rgba(196,190,190);
-  --color-themeblue1:rgba(129,161,181,1);
-  --color-themeblue2: rgba(21, 142, 172,1);
-  --color-themeblue3: rgba(0,66,92,1);
-
-}
 
 :root {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -22,4 +8,46 @@
 }
 body {
   background-color: var(--color-themewhite2);
+}
+/* Prevent zoom on input focus in iOS */
+input, select, textarea {
+  font-size: 16px; /* Prevent iOS zoom on focus */
+  touch-action: manipulation; /* Disable double-tap zoom */
+}
+
+/* Prevent zoom when focusing on inputs on mobile */
+@media screen and (max-width: 768px) {
+  input:focus,
+  textarea:focus,
+  select:focus {
+    font-size: 16px !important;
+  }
+}
+
+/* Disable pull-to-refresh and overscroll behavior */
+html, body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+/* Prevent text size adjustment */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Disable double-tap zoom */
+* {
+  touch-action: pan-y;
+}
+
+/* Ensure the app container doesn't scroll */
+#root {
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
 }

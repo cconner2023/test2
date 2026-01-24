@@ -120,7 +120,7 @@ function AppContent() {
   const title = getTitle()
 
   return (
-    <div className='h-screen bg-themewhite2 items-center flex justify-center'>
+    <div className='h-screen bg-themewhite2 items-center flex justify-center overflow-hidden'>
       <div className='bg-themewhite max-w-315 shrink flex-col w-full rounded-md border pb-10 border-[rgba(0,0,0,0.03)] shadow-[0px_2px_4px] shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1'>
         {/* Navbar */}
         <div className='relative h-13.75 w-full rounded-t-md flex justify-end'>
