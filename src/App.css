@@ -90,6 +90,7 @@
 }
 
 
+
 @custom-variant hover (&:hover);
 
 @supports (view-transition-name: none) {
@@ -333,4 +334,47 @@ body {
     opacity: 1;
     transform: translateX(0);
   }
+}
+
+/* Prevent zoom on input focus in iOS */
+input, select, textarea {
+  font-size: 16px; /* Prevent iOS zoom on focus */
+  touch-action: manipulation; /* Disable double-tap zoom */
+}
+
+/* Prevent zoom when focusing on inputs on mobile */
+@media screen and (max-width: 768px) {
+  input:focus,
+  textarea:focus,
+  select:focus {
+    font-size: 16px !important;
+  }
+}
+
+/* Disable pull-to-refresh and overscroll behavior */
+html, body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: auto;
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+  height: 100%;
+}
+
+/* Prevent text size adjustment */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Disable double-tap zoom */
+* {
+  touch-action: pan-y;
+}
+
+/* Ensure the app container doesn't scroll */
+#root {
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
 }
