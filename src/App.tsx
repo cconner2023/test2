@@ -172,7 +172,7 @@ function AppContent() {
 
         {/* Main Content - Animated grid switching */}
         {!showNoteImport && (
-          <div ref={contentRef} className='h-[94%] mt-2 mx-2 overflow-hidden'>
+          <div ref={contentRef} className='h-[94%] mt-2 mx-2'>
 
             {/* ADTMC Grid - KEY on the grid div itself */}
             {layout.showMainGrid && (
@@ -183,7 +183,7 @@ function AppContent() {
                 >
 
                   {/* Column 1: Categories */}
-                  <div className="h-full overflow-hidden">
+                  <div className="h-full overflow-y-scroll">
                     {!layout.hasSearchInput && (
                       <CategoryList
                         selectedCategory={layout.selectedCategory}

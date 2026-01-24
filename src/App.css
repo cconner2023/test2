@@ -103,19 +103,6 @@
   }
 }
 
-
-* {
-  scroll-behavior: smooth;
-  overflow-x: hidden;
-  overflow-y: hidden;   
-  -webkit-tap-highlight-color: transparent;
-  [type="search"]::-webkit-search-cancel-button,
-  [type="search"]::-webkit-search-decoration {
-  -webkit-appearance: none;
-  appearance: none;
-}
-}
-
 *::-webkit-scrollbar{
 display: none;
 }
