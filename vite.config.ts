@@ -16,27 +16,26 @@ export default defineConfig({
         theme_color: '#646cff',
         background_color: '#ffffff',
         display: 'standalone',
-        start_url: '/ADTMC/',  // ← ADD THIS
-        scope: '/ADTMC/',      // ← ADD THIS
+        start_url: '/ADTMC/',
+        scope: '/ADTMC/',
         icons: [
           {
-            src: '/ADTMC/icon-192.png',  // ← ADD BASE PATH
+            src: '/ADTMC/icon-192.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: '/ADTMC/icon-512.png',  // ← ADD BASE PATH
+            src: '/ADTMC/icon-512.png',
             sizes: '512x512',
             type: 'image/png'
           }
         ],
-        // Add shortcuts for iOS
         shortcuts: [
           {
             name: 'Scan QR Code',
             short_name: 'Scan',
             description: 'Quickly scan a QR code',
-            url: '/ADTMC/?scan',  // ← FULL PATH
+            url: '/ADTMC/?scan',
             icons: [
               {
                 src: '/ADTMC/icon-192.png',
@@ -46,6 +45,14 @@ export default defineConfig({
             ]
           }
         ]
+      },
+      // Disable the default service worker generation
+      injectRegister: false,
+      // Let's handle the service worker manually
+      workbox: undefined,
+      devOptions: {
+        enabled: true,
+        type: 'module'
       }
     })
   ]

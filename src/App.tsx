@@ -13,6 +13,7 @@ import type { SearchResultType } from './Types/CatTypes'
 import { medList } from './Data/MedData'
 import { useLayout } from './Hooks/useLayoutState'
 import { useAutoAnimate } from '@formkit/auto-animate/react'
+import UpdateNotification from './Components/UpdateNotification'
 
 function AppContent() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
@@ -274,7 +275,9 @@ function AppContent() {
           </div>
         )}
       </div>
+      <UpdateNotification />
     </div>
+
   )
 }
 

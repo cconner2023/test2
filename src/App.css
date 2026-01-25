@@ -102,19 +102,22 @@ display: none;
   user-select: none !important;
   -webkit-user-drag: none !important;
   -webkit-tap-highlight-color: transparent !important;
-    touch-action: pan-y;
+  touch-action: pan-y;
+  overflow-x: hidden;
+  overflow-y: hidden;
 }
 
 
 body {
     background-color: var(--color-themewhite);
-    position: absolute;
     width: 100vw;
-    height: 100vh;
+    display: flex;
+    min-height: 100vh;
+    justify-content: center;
+    align-items: center;
     overflow: hidden;
 }
 
-/* Prevent zoom on all interactive elements */
 input, textarea, select, button {
   font-size: 16px !important;
   max-width: 100%;
@@ -131,16 +134,10 @@ input, textarea, select, button {
   }
 }
 
-html {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-}
-
 html, body, #root {
   overflow: hidden !important;
   overscroll-behavior: none !important;
   -webkit-overflow-scrolling: auto !important;
-  touch-action: none !important;
 }
 
 
