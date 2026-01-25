@@ -7,8 +7,7 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico'],
+      // Only generate manifest, no service worker
       manifest: {
         name: 'ADTMC V2.6',
         short_name: 'ADTMC',
@@ -46,30 +45,13 @@ export default defineConfig({
           }
         ]
       },
-      // Use a minimal workbox configuration or disable it
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        navigateFallback: '/ADTMC/index.html',
-        cleanupOutdatedCaches: true,
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/cconner2023\.github\.io\/ADTMC\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'adtmc-pages',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 24 * 60 * 60 // 24 hours
-              }
-            }
-          }
-        ]
-      },
-      // Let's use the default injection but customize
-      injectRegister: 'auto',
+      // Disable all service worker features
+      workbox: undefined,
+      injectRegister: false,
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.ico'],
       devOptions: {
-        enabled: true,
-        type: 'module'
+        enabled: false
       }
     })
   ]
