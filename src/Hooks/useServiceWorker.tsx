@@ -18,7 +18,7 @@ export function useServiceWorker() {
 
             const baseUrl = import.meta.env.BASE_URL || '/ADTMC/';
             const swUrl = `${baseUrl}sw.js`;
-
+            console.log(swUrl)
             navigator.serviceWorker
                 .register(swUrl, { scope: baseUrl })
                 .then((reg) => {
@@ -32,11 +32,8 @@ export function useServiceWorker() {
                     if (reg.waiting) {
                         setUpdateAvailable(true);
                     }
-
-                    // Listen for new service worker installation
                     reg.addEventListener('updatefound', () => {
                         const newWorker = reg.installing;
-
                         if (newWorker) {
                             newWorker.addEventListener('statechange', () => {
                                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
@@ -45,8 +42,6 @@ export function useServiceWorker() {
                             });
                         }
                     });
-
-                    // Listen for controller change (page reload needed)
                     let refreshing = false;
                     navigator.serviceWorker.addEventListener('controllerchange', () => {
                         if (!refreshing) {

@@ -14,7 +14,6 @@
     "@formkit/auto-animate": "^0.9.0",
     "@tailwindcss/vite": "^4.1.18",
     "@zxing/library": "^0.21.3",
-    "framer-motion": "^12.26.2",
     "lucide-react": "^0.562.0",
     "motion": "^12.23.26",
     "pdf417": "^0.1.5",
@@ -23,7 +22,6 @@
     "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "react-swipeable": "^7.0.2",
     "tailwindcss": "^4.1.18"
   },
   "devDependencies": {
@@ -41,7 +39,6 @@
     "globals": "^16.5.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vite": "^7.2.4",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite": "^7.2.4"
   }
 }
