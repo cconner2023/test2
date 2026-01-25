@@ -1,5 +1,5 @@
 // public/service-worker.js
-const CACHE_NAME = 'adtmc-cache-v1'; // Changed to simpler name
+const CACHE_NAME = 'adtmc-cache-v1.1';
 const BASE_PATH = '/ADTMC/';
 const CONTENT_VERSION = 'v1';
 
@@ -7,7 +7,6 @@ const CONTENT_VERSION = 'v1';
 const urlsToCache = [
     BASE_PATH, // This is the same as BASE_PATH + 'index.html' for Vite apps
     BASE_PATH + 'manifest.json'
-    // Remove duplicate entries
 ];
 
 self.addEventListener('install', function (event) {
@@ -58,49 +57,64 @@ self.addEventListener('fetch', function (event) {
     // Skip if not in our base path
     if (!url.pathname.startsWith(BASE_PATH)) return;
 
-    // For Vite apps, BASE_PATH often serves index.html
-    // So we need to handle the root path specially
-    const requestUrl = url.pathname === BASE_PATH || url.pathname === BASE_PATH.slice(0, -1)
-        ? BASE_PATH
-        : event.request.url;
-
     event.respondWith(
-        caches.match(requestUrl)
-            .then(function (response) {
-                // Return cached response if found
-                if (response) {
-                    console.log('Serving from cache:', requestUrl);
-                    return response;
+        (async () => {
+            try {
+                // First, try to get from cache
+                const cachedResponse = await caches.match(event.request);
+
+                // Always try to fetch from network
+                const fetchPromise = fetch(event.request);
+
+                if (cachedResponse) {
+                    console.log('Serving from cache:', event.request.url);
+
+                    // Check for updates in background
+                    fetchPromise.then(async (networkResponse) => {
+                        if (networkResponse && networkResponse.status === 200) {
+                            const cache = await caches.open(CACHE_NAME);
+                            const cachedText = await cachedResponse.text();
+                            const networkText = await networkResponse.clone().text();
+
+                            if (cachedText !== networkText) {
+                                console.log('Content updated:', event.request.url);
+                                await cache.put(event.request, networkResponse.clone());
+
+                                // Notify clients about update
+                                const clients = await self.clients.matchAll();
+                                clients.forEach(client => {
+                                    client.postMessage({
+                                        type: 'CONTENT_UPDATED',
+                                        url: event.request.url
+                                    });
+                                });
+                            }
+                        }
+                    }).catch(() => {
+                        // Network failed, ignore
+                    });
+
+                    return cachedResponse;
                 }
 
-                // Otherwise fetch from network
-                console.log('Fetching from network:', requestUrl);
-                return fetch(event.request)
-                    .then(function (networkResponse) {
-                        // Don't cache if not successful
-                        if (!networkResponse || networkResponse.status !== 200) {
-                            return networkResponse;
-                        }
+                // Not in cache, fetch from network
+                console.log('Fetching from network:', event.request.url);
+                const networkResponse = await fetchPromise;
 
-                        // Clone the response
-                        const responseToCache = networkResponse.clone();
+                if (networkResponse && networkResponse.status === 200) {
+                    // Cache the new response
+                    const cache = await caches.open(CACHE_NAME);
+                    await cache.put(event.request, networkResponse.clone());
+                    console.log('Cached:', event.request.url);
+                }
 
-                        // Add to cache
-                        caches.open(CACHE_NAME)
-                            .then(function (cache) {
-                                cache.put(requestUrl, responseToCache);
-                                console.log('Cached:', requestUrl);
-                            });
-
-                        return networkResponse;
-                    })
-                    .catch(function (error) {
-                        console.log('Fetch failed for:', requestUrl, error);
-                        // For offline, you could return a custom offline page
-                        // return caches.match(BASE_PATH + 'offline.html');
-                        throw error;
-                    });
-            })
+                return networkResponse;
+            } catch (error) {
+                console.log('Fetch failed for:', event.request.url, error);
+                // Could return an offline page here
+                throw error;
+            }
+        })()
     );
 });
 
@@ -113,60 +127,4 @@ self.addEventListener('message', (event) => {
     if (event.data === 'checkForUpdates') {
         self.registration.update();
     }
-});
-
-// Simple content check on fetch
-self.addEventListener('fetch', function (event) {
-    // Only for GET requests to our origin
-    if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
-        return;
-    }
-
-    // Let the first fetch handler above handle the response
-    // This second handler just monitors for updates
-    event.respondWith(
-        (async () => {
-            try {
-                const response = await fetch(event.request);
-
-                // If response is good, check if content changed
-                if (response.status === 200) {
-                    const cache = await caches.open(CACHE_NAME);
-                    const cachedResponse = await cache.match(event.request);
-
-                    if (cachedResponse) {
-                        const cachedText = await cachedResponse.text();
-                        const networkText = await response.clone().text();
-
-                        if (cachedText !== networkText) {
-                            console.log('Content updated:', event.request.url);
-                            // Update cache
-                            await cache.put(event.request, response.clone());
-
-                            // Notify clients
-                            const clients = await self.clients.matchAll();
-                            clients.forEach(client => {
-                                client.postMessage({
-                                    type: 'CONTENT_UPDATED',
-                                    url: event.request.url
-                                });
-                            });
-                        }
-                    } else {
-                        // New resource, cache it
-                        await cache.put(event.request, response.clone());
-                    }
-                }
-
-                return response;
-            } catch (error) {
-                // Network failed, try cache
-                const cachedResponse = await caches.match(event.request);
-                if (cachedResponse) {
-                    return cachedResponse;
-                }
-                throw error;
-            }
-        })()
-    );
 });

@@ -32,19 +32,12 @@
     // Only register service worker in production
     if (window.location.hostname !== 'localhost' && 'serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        // Clear any existing service workers first
-        navigator.serviceWorker.getRegistrations().then(function (registrations) {
-          for (let registration of registrations) {
-            registration.unregister();
-          }
-          // Now register new one
-          navigator.serviceWorker.register('/ADTMC/service-worker.js', {
-            scope: '/ADTMC/'
-          }).then(function (registration) {
-            console.log('ServiceWorker registered with scope:', registration.scope);
-          }).catch(function (err) {
-            console.log('ServiceWorker registration failed:', err);
-          });
+        navigator.serviceWorker.register('/ADTMC/service-worker.js', {
+          scope: '/ADTMC/'
+        }).then(function (registration) {
+          console.log('ServiceWorker registered with scope:', registration.scope);
+        }).catch(function (err) {
+          console.log('ServiceWorker registration failed:', err);
         });
       });
     }
