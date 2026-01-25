@@ -11,7 +11,14 @@
         "productivity",
         "utilities"
     ],
+    "scope": "/ADTMC/",
     "icons": [
+        {
+            "src": "/ADTMC/icon-144.png",
+            "sizes": "144x144",
+            "type": "image/png",
+            "purpose": "any"
+        },
         {
             "src": "/ADTMC/icon-192.png",
             "sizes": "192x192",
@@ -45,6 +52,5 @@
                 }
             ]
         }
-    ],
-    "scope": "/ADTMC/"
+    ]
 }
