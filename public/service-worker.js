@@ -1,212 +1,218 @@
-// public/service-worker.js - FIXED VERSION
-const CACHE_NAME = 'adtmc-cache-v1';
+// public/service-worker.js - PRODUCTION VERSION
+const CACHE_NAME = 'adtmc-cache-v3';
 const BASE_PATH = '/ADTMC/';
-const CONTENT_VERSION = 'v1';
+const CONTENT_VERSION = 'v3';
 
-const urlsToCache = [
-    BASE_PATH, // This serves index.html
+// Static assets to cache
+const STATIC_ASSETS = [
+    BASE_PATH, // index.html
     BASE_PATH + 'manifest.json'
 ];
 
-self.addEventListener('install', function (event) {
-    console.log('Service worker installing for path:', BASE_PATH);
+self.addEventListener('install', (event) => {
+    console.log('[SW] Installing version:', CONTENT_VERSION);
     self.skipWaiting();
 
     event.waitUntil(
         caches.open(CACHE_NAME)
-            .then(function (cache) {
-                console.log('Cache opened');
-
-                // Cache each URL individually
-                const cachePromises = urlsToCache.map(url => {
-                    return cache.add(url).catch(error => {
-                        console.log('Failed to cache:', url, error);
-                        return Promise.resolve(); // Don't fail the whole install
+            .then((cache) => {
+                console.log('[SW] Caching static assets');
+                // Cache each asset individually to avoid duplicates
+                const cachePromises = STATIC_ASSETS.map(asset => {
+                    const request = new Request(asset, {
+                        credentials: 'same-origin',
+                        redirect: 'follow'
+                    });
+                    return cache.add(request).catch(err => {
+                        console.warn('[SW] Failed to cache:', asset, err);
                     });
                 });
-
                 return Promise.all(cachePromises);
             })
-            .catch(function (error) {
-                console.error('Cache opening failed:', error);
+            .then(() => {
+                console.log('[SW] Install completed');
             })
     );
 });
 
-self.addEventListener('activate', function (event) {
-    console.log('Service worker activating');
+self.addEventListener('activate', (event) => {
+    console.log('[SW] Activating');
+
     event.waitUntil(
         caches.keys().then(cacheNames => {
             return Promise.all(
                 cacheNames.map(cacheName => {
-                    if (cacheName !== CACHE_NAME) {
-                        console.log('Deleting old cache:', cacheName);
+                    if (cacheName !== CACHE_NAME && cacheName.startsWith('adtmc-cache-')) {
+                        console.log('[SW] Deleting old cache:', cacheName);
                         return caches.delete(cacheName);
                     }
                 })
             );
-        }).then(() => self.clients.claim())
+        })
+            .then(() => self.clients.claim())
+            .then(() => {
+                console.log('[SW] Activation completed');
+            })
     );
 });
 
-self.addEventListener('fetch', function (event) {
-    // Skip non-GET requests
-    if (event.request.method !== 'GET') return;
-
+self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // Only handle requests to our own origin AND our base path
-    if (!url.origin.startsWith(self.location.origin)) return;
+    // Skip non-GET requests and cross-origin requests
+    if (event.request.method !== 'GET') return;
+    if (url.origin !== self.location.origin) return;
+
+    // Only handle our app's requests
     if (!url.pathname.startsWith(BASE_PATH)) return;
 
-    // Special handling for navigation requests
+    // Handle HTML navigation requests separately
     if (event.request.mode === 'navigate') {
-        event.respondWith(
-            (async () => {
-                try {
-                    // Try network first for navigation
-                    const networkResponse = await fetch(event.request);
-                    if (networkResponse.ok) {
-                        // Update cache in background
-                        const cache = await caches.open(CACHE_NAME);
-                        await cache.put(BASE_PATH, networkResponse.clone());
-                    }
-                    return networkResponse;
-                } catch (error) {
-                    console.log('Network failed, falling back to cache');
-                    // Network failed, try cache
-                    const cachedResponse = await caches.match(BASE_PATH);
-                    if (cachedResponse) {
-                        return cachedResponse;
-                    }
-                    // If no cache, throw the error
-                    throw error;
-                }
-            })()
-        );
+        event.respondWith(handleNavigationRequest(event.request));
         return;
     }
 
-    // For non-navigation requests (assets, etc.)
-    event.respondWith(
-        (async () => {
-            // Try cache first
-            const cachedResponse = await caches.match(event.request);
-
-            if (cachedResponse) {
-                console.log('Serving from cache:', event.request.url);
-
-                // Check for updates in background
-                fetch(event.request)
-                    .then(async (networkResponse) => {
-                        if (networkResponse && networkResponse.ok) {
-                            const cache = await caches.open(CACHE_NAME);
-                            const cachedText = await cachedResponse.text();
-                            const networkText = await networkResponse.clone().text();
-
-                            if (cachedText !== networkText) {
-                                console.log('Content updated:', event.request.url);
-                                await cache.put(event.request, networkResponse.clone());
-
-                                // Notify clients
-                                const clients = await self.clients.matchAll();
-                                clients.forEach(client => {
-                                    client.postMessage({
-                                        type: 'CONTENT_UPDATED',
-                                        url: event.request.url
-                                    });
-                                });
-                            }
-                        }
-                    })
-                    .catch(() => {
-                        // Network failed, ignore
-                    });
-
-                return cachedResponse;
-            }
-
-            // Not in cache, fetch from network
-            console.log('Fetching from network:', event.request.url);
-            try {
-                const networkResponse = await fetch(event.request);
-
-                if (networkResponse.ok) {
-                    // Cache the response
-                    const cache = await caches.open(CACHE_NAME);
-                    await cache.put(event.request, networkResponse.clone());
-                    console.log('Cached:', event.request.url);
-                }
-
-                return networkResponse;
-            } catch (error) {
-                console.log('Fetch failed:', event.request.url, error);
-
-                // For JS/CSS files that fail, you could return a fallback
-                if (event.request.destination === 'script' ||
-                    event.request.destination === 'style') {
-                    // Return empty response or custom fallback
-                    return new Response('', {
-                        status: 408,
-                        statusText: 'Offline'
-                    });
-                }
-
-                throw error;
-            }
-        })()
-    );
+    // Handle all other requests
+    event.respondWith(handleAssetRequest(event.request));
 });
 
-// Listen for messages from the main thread
+async function handleNavigationRequest(request) {
+    const cache = await caches.open(CACHE_NAME);
+    const cachedResponse = await cache.match(BASE_PATH);
+
+    try {
+        // Always try network first for navigation
+        const networkResponse = await fetch(request);
+
+        if (networkResponse.ok) {
+            // Update cache in background
+            cache.put(BASE_PATH, networkResponse.clone()).catch(err => {
+                console.warn('[SW] Failed to update cache:', err);
+            });
+        }
+
+        return networkResponse;
+    } catch (error) {
+        console.log('[SW] Network failed, using cached HTML');
+
+        // If we have cached HTML, use it
+        if (cachedResponse) {
+            return cachedResponse;
+        }
+
+        // Otherwise, return offline page or error
+        return new Response('<h1>You are offline</h1><p>Please check your connection.</p>', {
+            headers: { 'Content-Type': 'text/html' }
+        });
+    }
+}
+
+async function handleAssetRequest(request) {
+    const cache = await caches.open(CACHE_NAME);
+    const cachedResponse = await cache.match(request);
+
+    // If we have it cached, return it
+    if (cachedResponse) {
+        console.log('[SW] Serving from cache:', request.url);
+
+        // Check for updates in background
+        fetch(request)
+            .then(async (networkResponse) => {
+                if (networkResponse && networkResponse.ok) {
+                    const responseClone = networkResponse.clone();
+                    const cachedText = await cachedResponse.text();
+                    const networkText = await responseClone.text();
+
+                    if (cachedText !== networkText) {
+                        console.log('[SW] Content updated:', request.url);
+                        await cache.put(request, networkResponse.clone());
+
+                        // Notify clients
+                        const clients = await self.clients.matchAll();
+                        clients.forEach(client => {
+                            client.postMessage({
+                                type: 'CONTENT_UPDATED',
+                                url: request.url
+                            });
+                        });
+                    }
+                }
+            })
+            .catch(() => {
+                // Network failed, ignore
+            });
+
+        return cachedResponse;
+    }
+
+    // Not in cache, try network
+    console.log('[SW] Fetching from network:', request.url);
+    try {
+        const networkResponse = await fetch(request);
+
+        if (networkResponse.ok) {
+            // Cache the response
+            await cache.put(request, networkResponse.clone());
+            console.log('[SW] Cached:', request.url);
+        }
+
+        return networkResponse;
+    } catch (error) {
+        console.log('[SW] Network failed:', request.url, error);
+
+        // For JS/CSS files, return empty response to prevent crashes
+        if (request.destination === 'script' || request.destination === 'style') {
+            return new Response('// Offline', {
+                headers: { 'Content-Type': 'text/javascript' }
+            });
+        }
+
+        throw error;
+    }
+}
+
+// Listen for messages
 self.addEventListener('message', (event) => {
-    console.log('Service worker received message:', event.data);
+    console.log('[SW] Message received:', event.data);
 
     if (event.data === 'skipWaiting' || event.data.action === 'skipWaiting') {
-        console.log('Skipping waiting');
         self.skipWaiting();
     }
 
     if (event.data.type === 'CHECK_UPDATES') {
-        console.log('Checking for updates');
+        checkForUpdates(event.data.urls || []);
+    }
+});
 
-        // Normalize URLs - only check unique ones
-        const uniqueUrls = [...new Set(event.data.urls)];
+async function checkForUpdates(urls) {
+    const cache = await caches.open(CACHE_NAME);
+    const uniqueUrls = [...new Set(urls)];
 
-        uniqueUrls.forEach(url => {
-            fetch(url, { cache: 'no-store' })
-                .then(response => {
-                    if (response.ok) {
-                        return caches.open(CACHE_NAME).then(cache => {
-                            return cache.match(url).then(cachedResponse => {
-                                if (cachedResponse) {
-                                    return Promise.all([
-                                        cachedResponse.text(),
-                                        response.clone().text()
-                                    ]).then(([cachedText, networkText]) => {
-                                        if (cachedText !== networkText) {
-                                            console.log('Update found for:', url);
-                                            cache.put(url, response.clone());
+    for (const url of uniqueUrls) {
+        try {
+            const response = await fetch(url, { cache: 'no-store' });
+            if (response.ok) {
+                const cachedResponse = await cache.match(url);
+                if (cachedResponse) {
+                    const cachedText = await cachedResponse.text();
+                    const networkText = await response.clone().text();
 
-                                            // Notify clients
-                                            self.clients.matchAll().then(clients => {
-                                                clients.forEach(client => {
-                                                    client.postMessage({
-                                                        type: 'CONTENT_UPDATED',
-                                                        url: url
-                                                    });
-                                                });
-                                            });
-                                        }
-                                    });
-                                }
+                    if (cachedText !== networkText) {
+                        console.log('[SW] Update found:', url);
+                        await cache.put(url, response.clone());
+
+                        const clients = await self.clients.matchAll();
+                        clients.forEach(client => {
+                            client.postMessage({
+                                type: 'CONTENT_UPDATED',
+                                url: url
                             });
                         });
                     }
-                })
-                .catch(error => {
-                    console.log('Update check failed for:', url, error);
-                });
-        });
+                }
+            }
+        } catch (error) {
+            console.warn('[SW] Update check failed:', url, error);
+        }
     }
-});
+}
