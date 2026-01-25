@@ -1,7 +1,6 @@
 // Hooks/useServiceWorker.ts
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
-// Custom type for our message data
 interface ServiceWorkerMessageData {
     type: string;
     url?: string;
@@ -15,10 +14,14 @@ export function useServiceWorker() {
     const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
     const [isUpdating, setIsUpdating] = useState(false);
 
+    // Use refs to track state without triggering re-renders
+    const updateAvailableRef = useRef(false);
+    const skipWaitingCalledRef = useRef(false);
+
     // Set up content update checking
     const setupContentUpdateChecking = useCallback((reg: ServiceWorkerRegistration) => {
         const checkForContentUpdates = () => {
-            if (reg?.active) {
+            if (reg?.active && !skipWaitingCalledRef.current) {
                 console.log('[App] Checking for content updates...');
                 const message: ServiceWorkerMessageData = {
                     type: 'CHECK_UPDATES',
@@ -33,13 +36,15 @@ export function useServiceWorker() {
         };
 
         const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible') {
+            if (document.visibilityState === 'visible' && !skipWaitingCalledRef.current) {
                 checkForContentUpdates();
             }
         };
 
         const handleLoad = () => {
-            checkForContentUpdates();
+            if (!skipWaitingCalledRef.current) {
+                checkForContentUpdates();
+            }
         };
 
         // Check when page becomes visible
@@ -68,6 +73,9 @@ export function useServiceWorker() {
             return;
         }
 
+        // Prevent multiple registrations
+        if (registration) return;
+
         const swUrl = '/ADTMC/sw.js';
 
         navigator.serviceWorker.register(swUrl, {
@@ -79,8 +87,9 @@ export function useServiceWorker() {
                 setRegistration(reg);
 
                 // Check for waiting service worker (app update)
-                if (reg.waiting) {
+                if (reg.waiting && !updateAvailableRef.current && !skipWaitingCalledRef.current) {
                     console.log('[App] App update waiting');
+                    updateAvailableRef.current = true;
                     setUpdateAvailable(true);
                 }
 
@@ -91,8 +100,12 @@ export function useServiceWorker() {
 
                     const handleStateChange = () => {
                         if (newWorker.state === 'installed') {
-                            if (navigator.serviceWorker.controller) {
+                            // Don't show update notification on first install
+                            if (navigator.serviceWorker.controller &&
+                                !updateAvailableRef.current &&
+                                !skipWaitingCalledRef.current) {
                                 console.log('[App] New app version available');
+                                updateAvailableRef.current = true;
                                 setUpdateAvailable(true);
                             }
                         }
@@ -119,7 +132,7 @@ export function useServiceWorker() {
         // Listen for content update messages from service worker
         const handleMessage = (event: MessageEvent) => {
             const data = event.data as ServiceWorkerMessageData;
-            if (data?.type === 'CONTENT_UPDATED') {
+            if (data?.type === 'CONTENT_UPDATED' && !skipWaitingCalledRef.current) {
                 console.log('[App] Content updated:', data.url);
                 setContentUpdated(true);
                 if (data.url) {
@@ -131,6 +144,9 @@ export function useServiceWorker() {
         // Listen for controller change (app update applied)
         const handleControllerChange = () => {
             console.log('[App] New service worker activated, reloading...');
+            // Clear the update flag before reloading
+            updateAvailableRef.current = false;
+            skipWaitingCalledRef.current = false;
             window.location.reload();
         };
 
@@ -141,18 +157,27 @@ export function useServiceWorker() {
             navigator.serviceWorker.removeEventListener('message', handleMessage);
             navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
         };
-    }, [setupContentUpdateChecking]);
+    }, [setupContentUpdateChecking, registration]);
 
     const skipWaiting = useCallback(() => {
-        if (registration?.waiting) {
+        if (registration?.waiting && !skipWaitingCalledRef.current) {
             console.log('[App] Skipping waiting phase for app update');
             setIsUpdating(true);
+            skipWaitingCalledRef.current = true;
+            updateAvailableRef.current = false;
             registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+
+            // Auto-reload after 1 second if controllerchange doesn't fire
+            setTimeout(() => {
+                if (!skipWaitingCalledRef.current) {
+                    window.location.reload();
+                }
+            }, 1000);
         }
     }, [registration]);
 
     const checkForUpdate = useCallback(() => {
-        if (registration) {
+        if (registration && !skipWaitingCalledRef.current) {
             console.log('[App] Checking for app update...');
             registration.update();
         }
