@@ -1,5 +1,5 @@
 // Service Worker for ADTMC App - Vite Compatible
-const CACHE_NAME = 'adtmc-cache-v2.6';
+const CACHE_NAME = 'adtmc-cache-v2.7';
 const APP_VERSION = '2.6';
 
 self.addEventListener('install', (event) => {
