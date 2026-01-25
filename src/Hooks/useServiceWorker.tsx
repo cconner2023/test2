@@ -5,38 +5,41 @@ export function useServiceWorker() {
     const [updateAvailable, setUpdateAvailable] = useState(false);
     const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
     const [isUpdating, setIsUpdating] = useState(false);
+    const [waitingWorker, setWaitingWorker] = useState<ServiceWorker | null>(null);
 
     useEffect(() => {
         if ('serviceWorker' in navigator) {
-            const swUrl = '/ADTMC/sw.js?v=2.6.1'; // Add version query string
+            const swUrl = '/ADTMC/sw.js?v=2.6.1';
             const scope = '/ADTMC/';
 
             navigator.serviceWorker
-                .register(swUrl, { scope, updateViaCache: 'none' }) // Important for iOS
+                .register(swUrl, { scope, updateViaCache: 'none' })
                 .then((reg) => {
                     console.log('[App] Service Worker registered:', reg.scope);
                     setRegistration(reg);
 
-                    // Handle updates
+                    // Check if there's already a waiting worker
                     if (reg.waiting) {
-                        console.log('[App] Update waiting');
+                        console.log('[App] Found waiting service worker');
+                        setWaitingWorker(reg.waiting);
                         setUpdateAvailable(true);
                     }
 
-                    // Listen for installing service worker
+                    // Listen for updates
                     reg.addEventListener('updatefound', () => {
                         const newWorker = reg.installing;
                         if (newWorker) {
                             newWorker.addEventListener('statechange', () => {
                                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                    console.log('[App] New content is available');
+                                    console.log('[App] New service worker installed and waiting');
+                                    setWaitingWorker(newWorker);
                                     setUpdateAvailable(true);
                                 }
                             });
                         }
                     });
 
-                    // Check for updates on page focus
+                    // Check for updates periodically
                     const handleVisibilityChange = () => {
                         if (!document.hidden && reg) {
                             reg.update();
@@ -46,37 +49,45 @@ export function useServiceWorker() {
                     document.addEventListener('visibilitychange', handleVisibilityChange);
                     window.addEventListener('focus', handleVisibilityChange);
 
+                    // Set up periodic update check (every 30 minutes)
+                    const updateInterval = setInterval(() => {
+                        reg.update();
+                    }, 30 * 60 * 1000);
+
                     return () => {
                         document.removeEventListener('visibilitychange', handleVisibilityChange);
                         window.removeEventListener('focus', handleVisibilityChange);
+                        clearInterval(updateInterval);
                     };
                 })
                 .catch((error) => {
                     console.error('[App] Service Worker registration failed:', error);
                 });
 
-            // Listen for messages from service worker
+            // Listen for custom messages from service worker
             navigator.serviceWorker.addEventListener('message', (event) => {
-                if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
+                if (event.data?.type === 'UPDATE_AVAILABLE') {
                     console.log('[App] Update detected from service worker');
                     setUpdateAvailable(true);
                 }
-            });
-
-            // Handle controller change (when new SW takes over)
-            navigator.serviceWorker.addEventListener('controllerchange', () => {
-                console.log('[App] Controller changed, reloading...');
-                window.location.reload();
             });
         }
     }, []);
 
     const skipWaiting = useCallback(() => {
-        if (registration && registration.waiting) {
-            setIsUpdating(true);
-            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+        if (waitingWorker) {
+            console.log('[App] Telling waiting worker to skip waiting');
+            waitingWorker.postMessage({ type: 'SKIP_WAITING' });
+
+            // Listen for state change to know when it's activated
+            waitingWorker.addEventListener('statechange', (e) => {
+                if ((e.target as ServiceWorker).state === 'activated') {
+                    console.log('[App] Waiting worker activated, reloading page');
+                    window.location.reload();
+                }
+            });
         }
-    }, [registration]);
+    }, [waitingWorker]);
 
     const checkForUpdate = useCallback(() => {
         if (registration) {
@@ -84,11 +95,18 @@ export function useServiceWorker() {
         }
     }, [registration]);
 
+    const dismissUpdate = useCallback(() => {
+        setUpdateAvailable(false);
+        // Optionally store dismissal in localStorage for a period
+        localStorage.setItem('updateDismissed', Date.now().toString());
+    }, []);
+
     return {
         updateAvailable,
         skipWaiting,
         checkForUpdate,
+        dismissUpdate,
         registration,
-        isUpdating
+        waitingWorker
     };
 }
