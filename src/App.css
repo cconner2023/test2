@@ -107,12 +107,56 @@
 display: none;
 }
 
+
+* {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
+  -webkit-user-drag: none !important;
+  -webkit-tap-highlight-color: transparent !important;
+    touch-action: pan-y;
+}
+
+
 body {
     background-color: var(--color-themewhite);
     position: absolute;
     width: 100vw;
     overflow: hidden;
 }
+
+/* Prevent zoom on all interactive elements */
+input, textarea, select, button {
+  font-size: 16px !important;
+  max-width: 100%;
+  touch-action: manipulation;
+}
+
+/* Specifically prevent zoom on focus */
+@media screen and (max-width: 768px) {
+  input:focus,
+  textarea:focus,
+  select:focus,
+  [contenteditable]:focus {
+    font-size: 16px !important;
+  }
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html, body, #root {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  -webkit-overflow-scrolling: auto !important;
+  touch-action: none !important;
+}
+
 
 /* Mobile search animations */
 @keyframes expandSearch {
@@ -323,54 +367,5 @@ body {
     opacity: 1;
     transform: translateX(0);
   }
-}
-
-/* Prevent zoom on all interactive elements */
-input, textarea, select, button {
-  font-size: 16px !important;
-  max-width: 100%;
-  touch-action: manipulation;
-}
-
-/* Specifically prevent zoom on focus */
-@media screen and (max-width: 768px) {
-  input:focus,
-  textarea:focus,
-  select:focus,
-  [contenteditable]:focus {
-    font-size: 16px !important;
-  }
-}
-
-* {
-  -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none !important;
-  -webkit-user-select: none !important;
-  -moz-user-select: none !important;
-  -ms-user-select: none !important;
-  user-select: none !important;
-  -webkit-user-drag: none !important;
-  -webkit-tap-highlight-color: transparent !important;
-    touch-action: pan-y;
-}
-
-html {
-  -webkit-text-size-adjust: 100%;
-  text-size-adjust: 100%;
-}
-
-#root {
-  overflow: hidden;
-  height: 100vh;
-  width: 100vw;
-}
-
-
-html, body, #root {
-  position: fixed !important;
-  overflow: hidden !important;
-  overscroll-behavior: none !important;
-  -webkit-overflow-scrolling: auto !important;
-  touch-action: none !important;
 }
 
