@@ -254,7 +254,7 @@ export const WriteNotePage = ({
                                             ref={inputRef}
                                             value={note}
                                             onChange={handleNoteChange}
-                                            className="w-full h-40 p-3 rounded border border-themegray1 focus:border-themeblue2/30 text-sm focus:outline-none bg-white text-tertiary pr-10 resize-none transition-all duration-100"
+                                            className="w-full h-40 p-3 rounded border border-themegray1 focus:border-themeblue2/30 text-[16px] focus:outline-none bg-white text-tertiary pr-10 resize-none transition-all duration-100"
                                             placeholder="Enter your clinical notes here..."
                                         />
                                         {note && (

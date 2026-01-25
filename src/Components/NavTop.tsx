@@ -195,7 +195,7 @@ export function NavTop({
                             onChange={(e) => onSearchChange(e.target.value)}
                             onFocus={handleSearchFocus}
                             onBlur={handleSearchBlur}
-                            className="text-tertiary bg-transparent outline-none text-xs w-full px-4 py-2 rounded-l-full"
+                            className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full"
                         />
 
                         <div
