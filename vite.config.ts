@@ -46,10 +46,27 @@ export default defineConfig({
           }
         ]
       },
-      // Disable the default service worker generation
-      injectRegister: false,
-      // Let's handle the service worker manually
-      workbox: undefined,
+      // Use a minimal workbox configuration or disable it
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        navigateFallback: '/ADTMC/index.html',
+        cleanupOutdatedCaches: true,
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/cconner2023\.github\.io\/ADTMC\/.*/i,
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'adtmc-pages',
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 24 * 60 * 60 // 24 hours
+              }
+            }
+          }
+        ]
+      },
+      // Let's use the default injection but customize
+      injectRegister: 'auto',
       devOptions: {
         enabled: true,
         type: 'module'

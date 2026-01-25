@@ -5,34 +5,35 @@ export function useServiceWorker() {
     const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
 
     useEffect(() => {
-        // In Vite, we use import.meta.env instead of process.env
-        const isProduction = import.meta.env.PROD; // or import.meta.env.MODE === 'production'
+        // Use Vite's environment detection
+        const isProduction = import.meta.env.PROD;
 
-        if ('serviceWorker' in navigator && isProduction) {
+        if ('serviceWorker' in navigator) {
+            // Always register in production, optional in development
+            if (!isProduction) {
+                // In dev, we might not want to use service worker
+                console.log('[App] Skipping service worker in development');
+                return;
+            }
+
             const baseUrl = import.meta.env.BASE_URL || '/ADTMC/';
-            const swUrl = `${baseUrl}service-worker.js`;
+            const swUrl = `${baseUrl}sw.js`;
 
             navigator.serviceWorker
                 .register(swUrl, { scope: baseUrl })
                 .then((reg) => {
-                    console.log('[App] Service Worker registered:', reg);
+                    console.log('[App] Service Worker registered:', reg.scope);
                     setRegistration(reg);
 
-                    // Check for updates on page load
+                    // Check for updates
                     reg.update();
 
-                    // Listen for controller change
-                    navigator.serviceWorker.addEventListener('controllerchange', () => {
-                        console.log('[App] New service worker activated, reloading...');
-                        window.location.reload();
-                    });
-
-                    // Listen for waiting service worker
+                    // Handle waiting service worker
                     if (reg.waiting) {
                         setUpdateAvailable(true);
                     }
 
-                    // Listen for new worker installation
+                    // Listen for new service worker installation
                     reg.addEventListener('updatefound', () => {
                         const newWorker = reg.installing;
 
@@ -44,6 +45,16 @@ export function useServiceWorker() {
                             });
                         }
                     });
+
+                    // Listen for controller change (page reload needed)
+                    let refreshing = false;
+                    navigator.serviceWorker.addEventListener('controllerchange', () => {
+                        if (!refreshing) {
+                            refreshing = true;
+                            // You can choose to auto-reload or let user decide
+                            // window.location.reload();
+                        }
+                    });
                 })
                 .catch((error) => {
                     console.error('[App] Service Worker registration failed:', error);
@@ -52,24 +63,23 @@ export function useServiceWorker() {
             // Listen for messages from service worker
             navigator.serviceWorker.addEventListener('message', (event) => {
                 if (event.data?.type === 'UPDATE_AVAILABLE') {
-                    console.log('[App] Update detected');
+                    console.log('[App] Update detected from service worker');
                     setUpdateAvailable(true);
                 }
             });
 
             // Check for updates when page becomes visible
-            document.addEventListener('visibilitychange', () => {
+            const handleVisibilityChange = () => {
                 if (document.visibilityState === 'visible' && registration) {
                     registration.update();
                 }
-            });
+            };
 
-            // Also listen for window focus as an additional trigger
-            window.addEventListener('focus', () => {
-                if (registration) {
-                    registration.update();
-                }
-            });
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+
+            return () => {
+                document.removeEventListener('visibilitychange', handleVisibilityChange);
+            };
         }
     }, []);
 
@@ -77,6 +87,8 @@ export function useServiceWorker() {
         if (registration?.waiting) {
             registration.waiting.postMessage('skipWaiting');
             setUpdateAvailable(false);
+            // Optionally reload immediately
+            setTimeout(() => window.location.reload(), 100);
         }
     };
 
