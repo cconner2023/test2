@@ -66,11 +66,6 @@ export const WriteNotePage = ({
         };
     }, [viewState, previousViewState]);
 
-    useEffect(() => {
-        if (activeTab === 'write-note' && viewState === 'input' && inputRef.current) {
-            inputRef.current.focus();
-        }
-    }, [activeTab, viewState]);
 
     // Generate preview
     useEffect(() => {
@@ -147,8 +142,8 @@ export const WriteNotePage = ({
                 <div className="flex border-b border-themegray1/20">
                     <button
                         onClick={() => setActiveTab('decision-making')}
-                        className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'decision-making'
-                            ? `${colors.badgeText} border-b-2 ${colors.badgeBorder || colors.badgeBg}`
+                        className={`flex-1 py-3 text-sm font-normal transition-all duration-100 ${activeTab === 'decision-making'
+                            ? `text-primary border-b-2 ${colors.badgeBorder || colors.badgeBg}`
                             : 'text-tertiary hover:text-primary'
                             }`}
                     >
@@ -156,8 +151,8 @@ export const WriteNotePage = ({
                     </button>
                     <button
                         onClick={() => setActiveTab('write-note')}
-                        className={`flex-1 py-3 text-sm font-medium transition-colors ${activeTab === 'write-note'
-                            ? `${colors.badgeText} border-b-2 ${colors.badgeBorder || colors.badgeBg}`
+                        className={`flex-1 py-3 text-sm font-normal transition-all duration-100 ${activeTab === 'write-note'
+                            ? `text-primary border-b-2 ${colors.badgeBorder || colors.badgeBg}`
                             : 'text-tertiary hover:text-primary'
                             }`}
                     >

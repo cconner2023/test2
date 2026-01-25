@@ -394,7 +394,7 @@ export function NavTop({
                         {/* Import button - with text on large screens */}
                         <button
                             onClick={onImportClick}
-                            className="flex items-center justify-center gap-2 px-3 py-1.5 rounded-full bg-themewhite2 hover:bg-themewhite transition-all duration-300 min-h-8"
+                            className="flex items-center justify-center gap-2 px-3 py-3 rounded-full bg-themewhite2 hover:bg-themewhite transition-all duration-300 min-h-8"
                             aria-label="Import"
                         >
                             <svg
@@ -413,7 +413,7 @@ export function NavTop({
                         {/* Theme toggle - with text on large screens */}
                         <button
                             onClick={toggleTheme}
-                            className="flex items-center justify-center gap-2 px-3 py-2 rounded-full bg-themewhite2 hover:bg-themewhite transition-all duration-300 min-h-8"
+                            className="flex items-center justify-center gap-2 px-3 py-3 rounded-full bg-themewhite2 hover:bg-themewhite transition-all duration-300 min-h-8"
                             aria-label="Toggle theme"
                         >
                             {theme === 'light' ? (
