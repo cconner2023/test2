@@ -89,9 +89,7 @@
   --color-tertiary: var(--color-tertiary);
 }
 
-
 @custom-variant hover (&:hover);
-
 @supports (view-transition-name: none) {
   ::view-transition-old(note-import-view),
   ::view-transition-new(note-import-view) {
@@ -106,7 +104,6 @@
 *::-webkit-scrollbar{
 display: none;
 }
-
 
 * {
   -webkit-tap-highlight-color: transparent;
