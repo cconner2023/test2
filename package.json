@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && cp public/sw.js dist/sw.js",
+    "build": "vite build && copy public\\sw.js dist\\sw.js && copy public\\manifest.json dist\\manifest.json",
     "lint": "eslint .",
     "preview": "vite preview",
     "deploy": "npm run build && gh-pages -d dist"
