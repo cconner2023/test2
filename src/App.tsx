@@ -1,7 +1,6 @@
 // App.tsx - COMPLETE WITH AUTO-ANIMATE BETWEEN GRIDS
 import { useState, useRef, useEffect } from 'react'
 import './App.css'
-import { ServiceWorkerUpdater } from './Components/ServiceWorkerUpdater'
 import { SideMenu } from './Components/SideMenu'
 import { NavTop } from './Components/NavTop'
 import { CategoryList } from './Components/CategoryList'
@@ -281,13 +280,9 @@ function AppContent() {
 
 function App() {
   return (
-    <>
-      <ThemeProvider>
-        <ServiceWorkerUpdater></ServiceWorkerUpdater>
-        <AppContent />
-      </ThemeProvider>
-
-    </>
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
   )
 }
 
