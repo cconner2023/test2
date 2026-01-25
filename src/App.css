@@ -96,11 +96,6 @@ display: none;
 * {
   -webkit-tap-highlight-color: transparent;
   -webkit-touch-callout: none !important;
-  -webkit-user-select: none !important;
-  -moz-user-select: none !important;
-  -ms-user-select: none !important;
-  user-select: none !important;
-  -webkit-user-drag: none !important;
   -webkit-tap-highlight-color: transparent !important;
   touch-action: pan-y;
 }
@@ -109,6 +104,12 @@ display: none;
 body {
     background-color: var(--color-themewhite);
     width: 100vw;
+}
+
+html {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  -webkit-overflow-scrolling: auto !important;
 }
 
 
