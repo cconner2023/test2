@@ -4,20 +4,37 @@
 <head>
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/ADTMC/icon-144.png" />
-  <meta name="viewport"
-    content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, shrink-to-fit=no">
+
+  <!-- Viewport fix -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+
   <title>ADTMC 2.6</title>
+
   <!-- Manually link to manifest -->
   <link rel="manifest" href="/ADTMC/manifest.json" />
-  <meta name="theme-color" content="#646cff" />
+
+  <!-- Theme colors -->
+  <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1a1a1a">
+
+  <!-- PWA capabilities -->
   <meta name="mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-capable" content="yes">
+
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="ADTMC">
-  <link rel="apple-touch-startup-image" href="/ADTMC/icon-512.png"
+
+  <!-- iOS splash screens -->
+  <link rel="apple-touch-startup-image" href="/ADTMC/icon-192.png"
     media="(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)">
+
+  <!-- iOS touch icon -->
   <link rel="apple-touch-icon" href="/ADTMC/icon-192.png" />
+
+  <!-- Windows tiles -->
   <meta name="msapplication-TileColor" content="#646cff" />
   <meta name="msapplication-TileImage" content="/ADTMC/icon-144.png" />
+
 </head>
 
 <body>
