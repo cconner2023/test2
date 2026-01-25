@@ -20,7 +20,7 @@ export default defineConfig({
 
       // Minimal injectManifest config
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,json,png,ico}'],
+        globPatterns: ['**/*.{js,css,html,json,png,ico,svg}'],
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
       },
 
@@ -40,7 +40,8 @@ export default defineConfig({
 
   build: {
     outDir: 'dist',
-    sourcemap: false
+    sourcemap: false,
+    copyPublicDir: true  // ADD THIS - copies public/ files to dist/
   },
 
   server: {

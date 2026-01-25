@@ -10,7 +10,7 @@ const precacheManifest = self.__WB_MANIFEST;
 const CRITICAL_ASSETS = [
     BASE_PATH,
     BASE_PATH + 'index.html',
-    BASE_PATH + 'manifest.json'  // Your existing manifest
+    BASE_PATH + 'manifest.json'  // FIXED: removed 'public/'
 ];
 
 // Install event - cache critical assets
@@ -88,11 +88,14 @@ self.addEventListener('fetch', (event) => {
 
     const url = new URL(event.request.url);
 
-    // Only handle same-origin requests and our base path
+    // Only handle same-origin requests
     if (url.origin !== self.location.origin) return;
 
     // Skip Chrome extensions
     if (url.protocol === 'chrome-extension:') return;
+
+    // Check if it's within our base path
+    if (!url.pathname.startsWith(BASE_PATH)) return;
 
     // Handle different types of requests
     if (event.request.destination === 'document' ||
@@ -285,11 +288,4 @@ async function performUpdateCheck() {
     } catch (error) {
         console.log('[Service Worker] Update check failed:', error);
     }
-}
-
-// Background fetch (if supported)
-if ('backgroundFetch' in self) {
-    self.addEventListener('backgroundfetchsuccess', (event) => {
-        console.log('[Service Worker] Background fetch succeeded:', event.registration.id);
-    });
 }
