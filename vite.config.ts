@@ -7,30 +7,19 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     VitePWA({
-      // Use your custom service worker
       strategies: 'injectManifest',
       srcDir: 'public',
       filename: 'serviceWorker.js',
-
-      // Simple registration
       registerType: 'autoUpdate',
-
-      // Don't generate manifest, use yours
       manifest: false,
-
-      // Minimal injectManifest config
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,json,png,ico,svg}'],
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024,
       },
-
-      // Minimal workbox config
       workbox: {
         cleanupOutdatedCaches: true,
         sourcemap: false
       },
-
-      // Disable in dev
       devOptions: {
         enabled: false,
         type: 'module'
@@ -41,7 +30,7 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: false,
-    copyPublicDir: true  // ADD THIS - copies public/ files to dist/
+    copyPublicDir: true
   },
 
   server: {
@@ -51,6 +40,8 @@ export default defineConfig({
 
   preview: {
     port: 4173,
-    host: true
+    host: true,
+    // ADD THIS for preview to handle base path
+    open: '/ADTMC/'
   }
 })
