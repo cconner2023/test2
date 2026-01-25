@@ -164,42 +164,54 @@ export function AlgorithmPage({ selectedSymptom, onMedicationClick }: AlgorithmP
     return (
         <div
             ref={parentRef}
-            className="w-full h-full flex flex-col"
+            className="w-full h-full relative" // Changed to relative for positioning
         >
             {/* ALGORITHM VIEW */}
             {viewState === 'algorithm' && (
-                <div key="algorithm-view" className="flex flex-col h-full">
-                    {/* Algorithm Content */}
+                <div key="algorithm-view" className="h-full flex flex-col">
+                    {/* Algorithm Content - Takes remaining space */}
                     <div
                         ref={containerRef}
-                        className={`flex-1 overflow-y-scroll ${isTransitioning ? 'transition-none' : ''}`}
+                        className={`flex-1 overflow-y-auto ${isTransitioning ? 'transition-none' : ''}
+                            ${currentDisposition ? 'pb-20 md:pb-4' : ''}`} // Add padding for fixed disposition
                     >
-                        <QuestionCard
-                            algorithmOptions={algorithmOptions}
-                            cardStates={cardStates}
-                            visibleCards={visibleCards}
-                            isTransitioning={isTransitioning}
-                            onAnswer={handleAnswer}
-                            onQuestionOption={handleQuestionOption}
-                        />
-                        <div
-                            ref={markerRef}
-                            className="h-2 w-full pointer-events-none"
-                            aria-hidden="true"
-                            style={{ marginTop: '1rem', marginBottom: '1rem' }}
-                        />
+                        <div className="pb-4"> {/* Inner container padding */}
+                            <QuestionCard
+                                algorithmOptions={algorithmOptions}
+                                cardStates={cardStates}
+                                visibleCards={visibleCards}
+                                isTransitioning={isTransitioning}
+                                onAnswer={handleAnswer}
+                                onQuestionOption={handleQuestionOption}
+                            />
+                            <div
+                                ref={markerRef}
+                                className="h-2 w-full pointer-events-none"
+                                aria-hidden="true"
+                                style={{ marginTop: '1rem', marginBottom: '1rem' }}
+                            />
+                        </div>
                     </div>
 
-                    {/* Disposition Header */}
+                    {/* Disposition Header - Fixed at bottom on mobile */}
                     {currentDisposition && colors && (
-                        <div className="flex-none border-t border-themegray1/20">
-                            <div className="p-4 bg-themewhite2 rounded-md">
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center space-x-3">
-                                        <div className={`px-3 py-2 shrink-0 rounded-md flex items-center justify-center ${colors.badgeBg} font-bold text-sm ${colors.badgeText}`}>
+                        <div className={`
+                            md:static md:mt-auto
+                            fixed bottom-0 left-0 right-0 
+                            border-t border-themegray1/20
+                            bg-themewhite z-10
+                            md:border-none
+                        `}>
+                            <div className="p-4 bg-themewhite2 md:rounded-md">
+                                <div className="flex flex-col md:flex-row md:items-center 
+                                    md:justify-between space-y-3 md:space-y-0">
+                                    <div className="flex items-start md:items-center space-x-3">
+                                        <div className={`px-3 py-2 shrink-0 rounded-md 
+                                            flex items-center justify-center ${colors.badgeBg} 
+                                            font-bold text-sm ${colors.badgeText}`}>
                                             {currentDisposition.type}
                                         </div>
-                                        <div className="min-w-0 flex flex-col">
+                                        <div className="min-w-0 flex-1 flex flex-col">
                                             <p className="text-sm text-primary wrap-break-word">
                                                 {currentDisposition.text}
                                             </p>
@@ -237,7 +249,6 @@ export function AlgorithmPage({ selectedSymptom, onMedicationClick }: AlgorithmP
                         }}
                         onMedicationClick={onMedicationClick}
                     />
-
                 </div>
             )}
         </div>
