@@ -103,37 +103,12 @@ display: none;
   -webkit-user-drag: none !important;
   -webkit-tap-highlight-color: transparent !important;
   touch-action: pan-y;
-  overflow-x: hidden;
-  overflow-y: hidden;
 }
 
 
 body {
     background-color: var(--color-themewhite);
     width: 100vw;
-    overflow: hidden;
-}
-
-input, textarea, select, button {
-  font-size: 16px !important;
-  max-width: 100%;
-  touch-action: manipulation;
-}
-
-/* Specifically prevent zoom on focus */
-@media screen and (max-width: 768px) {
-  input:focus,
-  textarea:focus,
-  select:focus,
-  [contenteditable]:focus {
-    font-size: 16px !important;
-  }
-}
-
-html, body, #root {
-  overflow: hidden !important;
-  overscroll-behavior: none !important;
-  -webkit-overflow-scrolling: auto !important;
 }
 
 
