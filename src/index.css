@@ -2,4 +2,52 @@
 
 :root {
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+body {
+  background-color: var(--color-themewhite2);
+}
+
+input, select, textarea {
+  font-size: 16px; /* Prevent iOS zoom on focus */
+  touch-action: manipulation; /* Disable double-tap zoom */
+}
+
+/* Prevent zoom when focusing on inputs on mobile */
+@media screen and (max-width: 768px) {
+  input:focus,
+  textarea:focus,
+  select:focus {
+    font-size: 16px !important;
+  }
+}
+
+html, body {
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+  position: fixed; /* Keep this for mobile */
+  width: 100%;
+  height: 100%;
+  overflow: hidden; /* Hide body overflow, but allow elements inside to scroll */
+}
+
+
+/* Prevent text size adjustment */
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+/* Disable double-tap zoom */
+* {
+  touch-action: pan-y;
+  scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
+  [type="search"]::-webkit-search-cancel-button,
+  [type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
+}
 }
