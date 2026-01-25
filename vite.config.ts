@@ -7,145 +7,101 @@ export default defineConfig({
   plugins: [
     tailwindcss(),
     VitePWA({
+      // Use your custom service worker
+      strategies: 'injectManifest',
+      srcDir: 'public',
+      filename: 'serviceWorker.js', // Changed from sw.js to match your file
+
+      // Auto register and update
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico'],
+      injectRegister: 'auto',
 
-      // Add workbox configuration for aggressive updates
-      workbox: {
-        // Cache all static assets
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,woff,woff2}'],
+      // Include additional assets
+      includeAssets: [
+        'favicon.ico',
+        'apple-touch-icon.png',
+        'mask-icon.svg',
+        'icon-192.png',
+        'icon-512.png',
+        'icon-512-maskable.png'
+      ],
 
-        // Skip waiting immediately (like your old skipWaiting())
-        skipWaiting: true,
-        clientsClaim: true,
+      // Use your existing manifest.json
+      manifest: false, // Disable Vite PWA's manifest generation
 
-        // IMPORTANT: Set navigateFallback to your base path
-        navigateFallback: '/ADTMC/index.html',
-
-        // Maximum file size to cache (5MB)
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-
-        // Runtime caching strategies
-        runtimeCaching: [
-          {
-            // HTML files - always check network first
-            urlPattern: ({ request }) => request.destination === 'document',
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'html-cache',
-              networkTimeoutSeconds: 3,
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
-              }
-            }
-          },
-          {
-            // JS and CSS - StaleWhileRevalidate to check for updates
-            urlPattern: ({ request }) =>
-              request.destination === 'script' ||
-              request.destination === 'style',
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'static-resources',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-              }
-            }
-          },
-          {
-            // Images and fonts - CacheFirst
-            urlPattern: ({ request }) =>
-              request.destination === 'image' ||
-              request.destination === 'font',
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'assets-cache',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-              }
-            }
-          },
-          {
-            // API calls (if any) - NetworkFirst
-            urlPattern: ({ url }) => url.pathname.includes('/api/'),
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'api-cache',
-              networkTimeoutSeconds: 10,
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 // 1 hour
-              }
-            }
-          }
+      // Inject manifest into your custom SW
+      injectManifest: {
+        globPatterns: [
+          '**/*.{js,css,html,ico,png,svg,jpg,jpeg,gif,webp,woff,woff2,ttf,eot,json}'
         ],
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024, // 10MB
+        globIgnores: [
+          '**/node_modules/**',
+          '**/src/**',
+          '**/*.map'
+        ],
+        // Ensure your manifest.json is included in precache
+        injectionPoint: 'self.__WB_MANIFEST'
+      },
 
-        // Clean up old caches
+      // Workbox configuration (minimal since we're using custom SW)
+      workbox: {
         cleanupOutdatedCaches: true,
-
-        // Disable sourcemap for service worker in production
-        sourcemap: false
+        sourcemap: false,
+        mode: 'production'
       },
 
       // Development options
       devOptions: {
-        enabled: false, // Disable in dev to see network requests
+        enabled: false, // Disable PWA in dev to see network requests
         type: 'module',
         navigateFallback: '/ADTMC/index.html'
-      },
-
-      // Inject manifest into service worker
-      injectManifest: {
-        injectionPoint: undefined // Auto-inject
-      },
-
-      manifest: {
-        name: 'ADTMC V2.6',
-        short_name: 'ADTMC',
-        description: 'ADTMC documentation and barcode generation',
-        theme_color: '#646cff',
-        background_color: '#ffffff',
-        display: 'standalone',
-        start_url: '/ADTMC/',
-        scope: '/ADTMC/',
-        icons: [
-          {
-            src: '/ADTMC/icon-192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/ADTMC/icon-512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          },
-          {
-            // Maskable icon for Android
-            src: '/ADTMC/maskable-icon.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'maskable any'
-          }
-        ],
-        shortcuts: [
-          {
-            name: 'Scan QR Code',
-            short_name: 'Scan',
-            description: 'Quickly scan a QR code',
-            url: '/ADTMC/?scan',
-            icons: [
-              {
-                src: '/ADTMC/icon-192.png',
-                sizes: '192x192',
-                type: 'image/png'
-              }
-            ]
-          }
-        ]
       }
     })
-  ]
+  ],
+
+  // Build configuration
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    rollupOptions: {
+      input: {
+        main: 'index.html'
+      },
+      output: {
+        manualChunks: undefined,
+        entryFileNames: 'assets/[name].[hash].js',
+        chunkFileNames: 'assets/[name].[hash].js',
+        assetFileNames: 'assets/[name].[hash].[ext]'
+      }
+    },
+    // Ensure assets are properly hashed for cache busting
+    assetsInlineLimit: 4096,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true
+      }
+    }
+  },
+
+  // Server configuration for development
+  server: {
+    port: 3000,
+    open: true,
+    host: true
+  },
+
+  // Preview configuration (for npm run preview)
+  preview: {
+    port: 4173,
+    open: true,
+    host: true
+  },
+
+  // Optimize dependencies
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'framer-motion', 'qr-scanner']
+  }
 })

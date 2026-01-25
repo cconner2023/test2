@@ -2,7 +2,7 @@
     "name": "ADTMC V2.6",
     "short_name": "ADTMC",
     "description": "ADTMC documentation and barcode generation",
-    "start_url": "/ADTMC",
+    "start_url": "/ADTMC/",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#646cff",
@@ -13,19 +13,19 @@
     ],
     "icons": [
         {
-            "src": "/ADTMC/public/icon-192.png",
+            "src": "/ADTMC/icon-192.png",
             "sizes": "192x192",
             "type": "image/png",
             "purpose": "any maskable"
         },
         {
-            "src": "/ADTMC/public/icon-512.png",
+            "src": "/ADTMC/icon-512.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "any maskable"
         },
         {
-            "src": "/ADTMC/public/icon-512-maskable.png",
+            "src": "/ADTMC/icon-512-maskable.png",
             "sizes": "512x512",
             "type": "image/png",
             "purpose": "maskable"
@@ -45,5 +45,6 @@
                 }
             ]
         }
-    ]
+    ],
+    "scope": "/ADTMC/"
 }
