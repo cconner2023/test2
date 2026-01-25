@@ -1,158 +1,213 @@
 // useServiceWorker.tsx
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 
 const isDevelopment = window.location.hostname === 'localhost' ||
     window.location.hostname === '127.0.0.1';
+
+// Define the APP_VERSION that matches your service worker
+const APP_VERSION = '3.0.1';
 
 export function useServiceWorker() {
     const [updateAvailable, setUpdateAvailable] = useState(false);
     const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
     const [isUpdating, setIsUpdating] = useState(false);
     const [swError, setSwError] = useState<string | null>(null);
+    const [swState, setSwState] = useState<string>('idle');
+
+    const isInitialMount = useRef(true);
+    const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
 
     useEffect(() => {
-        // Don't register in dev mode
         if (isDevelopment) {
-            console.log('[App] Dev mode - cleaning up any existing SW');
-            navigator.serviceWorker?.getRegistrations()
-                .then(regs => {
-                    regs.forEach(reg => {
-                        console.log('[App] Unregistering SW:', reg.scope);
-                        reg.unregister();
+            console.log('[App] Dev mode - cleaning up SW');
+            // Clean up any existing SW
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations()
+                    .then(regs => {
+                        regs.forEach(reg => {
+                            console.log('[App] Unregistering:', reg.scope);
+                            reg.unregister();
+                        });
                     });
-                });
+            }
             return;
         }
 
-        // Check if service workers are supported
+        // Production mode
         if (!('serviceWorker' in navigator)) {
-            console.log('[App] Service Worker not supported');
+            console.log('[App] SW not supported');
             return;
         }
 
-        // Ensure we're in HTTPS or localhost
-        if (!window.isSecureContext && window.location.hostname !== 'localhost') {
-            console.warn('[App] Service Worker requires HTTPS in production');
+        // Don't run on initial mount to prevent double registration
+        if (!isInitialMount.current) {
             return;
         }
 
-        const registerSW = async () => {
+        isInitialMount.current = false;
+
+        const initServiceWorker = async () => {
             try {
-                // First, clean up any existing registrations
-                const existingReg = await navigator.serviceWorker.getRegistration('/ADTMC/');
+                setSwState('registering');
+
+                // Use the correct path for GitHub Pages
+                // Make sure this path matches where your sw.js is actually located
+                const swUrl = `/ADTMC/sw.js?v=${APP_VERSION}`;
+                const scope = '/ADTMC/';
+
+                console.log('[App] Registering SW:', swUrl, 'with version:', APP_VERSION);
+
+                // Check if already registered
+                const existingReg = await navigator.serviceWorker.getRegistration(scope);
                 if (existingReg) {
-                    await existingReg.unregister();
-                    console.log('[App] Unregistered existing SW');
+                    console.log('[App] Found existing registration');
+                    registrationRef.current = existingReg;
+                    setRegistration(existingReg);
+
+                    // Check if the existing SW is the right version
+                    if (existingReg.active) {
+                        console.log('[App] Active SW version:', existingReg.active.scriptURL);
+                    }
+                } else {
+                    // Register new
+                    const reg = await navigator.serviceWorker.register(swUrl, {
+                        scope: scope,
+                        updateViaCache: 'none'
+                    });
+
+                    console.log('[App] SW registered successfully');
+                    registrationRef.current = reg;
+                    setRegistration(reg);
                 }
 
-                // Register new service worker
-                const swUrl = './sw.js?v=' + Date.now(); // Add timestamp to prevent caching
-                const reg = await navigator.serviceWorker.register(swUrl, {
-                    scope: './',
-                    updateViaCache: 'none' // Important for GitHub Pages
-                });
-
-                console.log('[App] Service Worker registered:', reg.scope);
-                setRegistration(reg);
-                setSwError(null);
+                const reg = registrationRef.current;
+                if (!reg) return;
 
                 // Check for waiting worker
                 if (reg.waiting) {
-                    console.log('[App] Found waiting worker');
+                    console.log('[App] Waiting worker found');
                     setUpdateAvailable(true);
                 }
 
                 // Listen for updates
-                reg.addEventListener('updatefound', () => {
+                const handleUpdateFound = () => {
                     const newWorker = reg.installing;
                     if (newWorker) {
-                        console.log('[App] New SW installing:', newWorker.state);
+                        setSwState('installing');
 
                         newWorker.addEventListener('statechange', () => {
-                            console.log('[App] SW state changed:', newWorker.state);
-                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                console.log('[App] Update ready');
-                                setUpdateAvailable(true);
+                            console.log('[App] SW state:', newWorker.state);
+                            setSwState(newWorker.state);
+
+                            if (newWorker.state === 'installed') {
+                                if (navigator.serviceWorker.controller) {
+                                    console.log('[App] New content available');
+                                    setUpdateAvailable(true);
+                                } else {
+                                    console.log('[App] First install');
+                                }
                             }
                         });
                     }
-                });
+                };
+
+                reg.addEventListener('updatefound', handleUpdateFound);
 
                 // Listen for controller changes
-                navigator.serviceWorker.addEventListener('controllerchange', () => {
-                    console.log('[App] Controller changed, reloading...');
-                    // Wait a bit for new controller to be ready
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 100);
-                });
+                const handleControllerChange = () => {
+                    console.log('[App] Controller changed');
+                    // Show update banner instead of auto-reloading
+                    setUpdateAvailable(true);
+                };
 
-                // Listen for messages from SW
-                navigator.serviceWorker.addEventListener('message', (event) => {
-                    if (event.data?.type === 'RELOAD_PAGE') {
-                        console.log('[App] Received RELOAD_PAGE message');
-                        window.location.reload();
-                    }
-                });
+                navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
 
-                // Check for updates on page focus
-                const checkForUpdate = () => {
-                    if (!document.hidden && reg) {
-                        console.log('[App] Checking for updates...');
+                // Check for updates periodically (every 30 minutes)
+                const updateCheckInterval = setInterval(() => {
+                    if (reg) {
                         reg.update().catch(err => {
-                            console.log('[App] Update check:', err.message);
+                            console.log('[App] Periodic update check failed:', err.message);
+                        });
+                    }
+                }, 30 * 60 * 1000);
+
+                // Check for updates when page becomes visible
+                const handleVisibilityChange = () => {
+                    if (!document.hidden && reg) {
+                        console.log('[App] Page visible - checking for updates');
+                        reg.update().catch(err => {
+                            console.log('[App] Visibility update check failed:', err.message);
                         });
                     }
                 };
 
-                document.addEventListener('visibilitychange', checkForUpdate);
-                window.addEventListener('focus', checkForUpdate);
+                document.addEventListener('visibilitychange', handleVisibilityChange);
 
                 // Cleanup
                 return () => {
-                    document.removeEventListener('visibilitychange', checkForUpdate);
-                    window.removeEventListener('focus', checkForUpdate);
+                    clearInterval(updateCheckInterval);
+                    document.removeEventListener('visibilitychange', handleVisibilityChange);
+                    reg.removeEventListener('updatefound', handleUpdateFound);
+                    navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
                 };
 
             } catch (error) {
-                console.error('[App] SW registration failed:', error);
-                setSwError(error instanceof Error ? error.message : 'Unknown error');
+                console.error('[App] SW registration error:', error);
+                setSwError(error instanceof Error ? error.message : 'Registration failed');
+                setSwState('error');
             }
         };
 
-        registerSW();
+        initServiceWorker();
     }, []);
 
-    const skipWaiting = useCallback(() => {
-        if (registration?.waiting) {
+    const skipWaiting = useCallback(async () => {
+        if (registrationRef.current?.waiting) {
             setIsUpdating(true);
-            console.log('[App] Sending SKIP_WAITING to SW');
-            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+            console.log('[App] Skipping waiting...');
 
-            // Fallback reload after 3 seconds
+            // Post message to SW
+            registrationRef.current.waiting.postMessage({ type: 'SKIP_WAITING' });
+
+            // Force reload after a short delay
             setTimeout(() => {
-                if (isUpdating) {
-                    console.log('[App] Fallback reload');
-                    window.location.reload();
-                }
-            }, 3000);
+                console.log('[App] Forcing reload after update');
+                window.location.reload();
+            }, 1000);
         }
-    }, [registration, isUpdating]);
+    }, []);
 
     const checkForUpdate = useCallback(() => {
-        if (registration) {
-            return registration.update();
+        if (registrationRef.current) {
+            console.log('[App] Manual update check initiated');
+            return registrationRef.current.update();
         }
         return Promise.reject('No registration');
-    }, [registration]);
+    }, []);
+
+    const unregisterSW = useCallback(async () => {
+        if ('serviceWorker' in navigator) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            for (const reg of regs) {
+                await reg.unregister();
+                console.log('[App] Unregistered:', reg.scope);
+            }
+            setRegistration(null);
+            registrationRef.current = null;
+            setUpdateAvailable(false);
+        }
+    }, []);
 
     return {
         updateAvailable,
         skipWaiting,
         checkForUpdate,
-        registration,
+        unregisterSW,
+        registration: registrationRef.current,
         isUpdating,
         swError,
-        isDevelopment
+        swState,
+        isDevelopment,
+        appVersion: APP_VERSION // Expose version for debugging
     };
 }
