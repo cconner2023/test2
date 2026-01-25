@@ -6,8 +6,8 @@ export default defineConfig({
   base: '/ADTMC/',
   plugins: [
     tailwindcss(),
+    // Minimal PWA config - just manifest generation
     VitePWA({
-      // Only generate manifest, no service worker
       manifest: {
         name: 'ADTMC V2.6',
         short_name: 'ADTMC',
@@ -28,31 +28,13 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png'
           }
-        ],
-        shortcuts: [
-          {
-            name: 'Scan QR Code',
-            short_name: 'Scan',
-            description: 'Quickly scan a QR code',
-            url: '/ADTMC/?scan',
-            icons: [
-              {
-                src: '/ADTMC/icon-192.png',
-                sizes: '192x192',
-                type: 'image/png'
-              }
-            ]
-          }
         ]
       },
-      // Disable all service worker features
-      workbox: undefined,
-      injectRegister: false,
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico'],
-      devOptions: {
-        enabled: false
-      }
+      // Disable ALL service worker features
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
+      injectRegister: false
     })
   ]
 })
