@@ -8,50 +8,134 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['icon-144.png', 'icon-192.png', 'icon-512.png'],
+      includeAssets: ['favicon.ico'],
+
+      // Add workbox configuration for aggressive updates
+      workbox: {
+        // Cache all static assets
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,json,woff,woff2}'],
+
+        // Skip waiting immediately (like your old skipWaiting())
+        skipWaiting: true,
+        clientsClaim: true,
+
+        // IMPORTANT: Set navigateFallback to your base path
+        navigateFallback: '/ADTMC/index.html',
+
+        // Maximum file size to cache (5MB)
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+
+        // Runtime caching strategies
+        runtimeCaching: [
+          {
+            // HTML files - always check network first
+            urlPattern: ({ request }) => request.destination === 'document',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'html-cache',
+              networkTimeoutSeconds: 3,
+              expiration: {
+                maxEntries: 10,
+                maxAgeSeconds: 60 * 60 * 24 * 7 // 7 days
+              }
+            }
+          },
+          {
+            // JS and CSS - StaleWhileRevalidate to check for updates
+            urlPattern: ({ request }) =>
+              request.destination === 'script' ||
+              request.destination === 'style',
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'static-resources',
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+              }
+            }
+          },
+          {
+            // Images and fonts - CacheFirst
+            urlPattern: ({ request }) =>
+              request.destination === 'image' ||
+              request.destination === 'font',
+            handler: 'CacheFirst',
+            options: {
+              cacheName: 'assets-cache',
+              expiration: {
+                maxEntries: 100,
+                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
+              }
+            }
+          },
+          {
+            // API calls (if any) - NetworkFirst
+            urlPattern: ({ url }) => url.pathname.includes('/api/'),
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'api-cache',
+              networkTimeoutSeconds: 10,
+              expiration: {
+                maxEntries: 50,
+                maxAgeSeconds: 60 * 60 // 1 hour
+              }
+            }
+          }
+        ],
+
+        // Clean up old caches
+        cleanupOutdatedCaches: true,
+
+        // Disable sourcemap for service worker in production
+        sourcemap: false
+      },
+
+      // Development options
+      devOptions: {
+        enabled: false, // Disable in dev to see network requests
+        type: 'module',
+        navigateFallback: '/ADTMC/index.html'
+      },
+
+      // Inject manifest into service worker
+      injectManifest: {
+        injectionPoint: undefined // Auto-inject
+      },
+
       manifest: {
         name: 'ADTMC V2.6',
         short_name: 'ADTMC',
         description: 'ADTMC documentation and barcode generation',
-        start_url: '/ADTMC/',
-        display: 'standalone',
-        background_color: '#ffffff',
         theme_color: '#646cff',
-        orientation: 'portrait-primary',
-        categories: ['productivity', 'utilities'],
+        background_color: '#ffffff',
+        display: 'standalone',
+        start_url: '/ADTMC/',
         scope: '/ADTMC/',
         icons: [
           {
-            src: '/ADTMC/icon-144.png',
-            sizes: '144x144',
-            type: 'image/png',
-            purpose: 'any'
-          },
-          {
             src: '/ADTMC/icon-192.png',
             sizes: '192x192',
-            type: 'image/png',
-            purpose: 'any maskable'
+            type: 'image/png'
           },
           {
             src: '/ADTMC/icon-512.png',
             sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
+            type: 'image/png'
           },
           {
-            src: '/ADTMC/icon-512-maskable.png',
+            // Maskable icon for Android
+            src: '/ADTMC/maskable-icon.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'maskable'
+            purpose: 'maskable any'
           }
         ],
         shortcuts: [
           {
-            name: 'Scan Note',
+            name: 'Scan QR Code',
             short_name: 'Scan',
-            description: 'Quickly scan a Note Barcode',
-            url: '/ADTMC/scan',
+            description: 'Quickly scan a QR code',
+            url: '/ADTMC/?scan',
             icons: [
               {
                 src: '/ADTMC/icon-192.png',
@@ -61,55 +145,7 @@ export default defineConfig({
             ]
           }
         ]
-      },
-      workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,json}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365
-              }
-            }
-          },
-          {
-            urlPattern: /\.(?:png|jpg|jpeg|svg|gif|webp|ico)$/,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'images',
-              expiration: {
-                maxEntries: 100,
-                maxAgeSeconds: 60 * 60 * 24 * 30
-              }
-            }
-          }
-        ],
-        skipWaiting: false, // Set to false so we can show notification
-        clientsClaim: true,
-        cleanupOutdatedCaches: true,
-        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024
-      },
-      devOptions: {
-        enabled: false
       }
     })
-  ],
-  build: {
-    outDir: 'dist',
-    sourcemap: false,
-    copyPublicDir: true
-  },
-  server: {
-    port: 3000,
-    host: true
-  },
-  preview: {
-    port: 4173,
-    host: true,
-    open: '/ADTMC/'
-  }
+  ]
 })

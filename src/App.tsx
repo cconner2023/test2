@@ -1,7 +1,7 @@
 // App.tsx - COMPLETE WITH AUTO-ANIMATE BETWEEN GRIDS
 import { useState, useRef, useEffect } from 'react'
 import './App.css'
-import { ServiceWorkerUpdater } from './Components/ServiceWorkerUpdater' // Fixed typo in import
+import { ServiceWorkerUpdater } from './Components/ServiceWorkerUpdater'
 import { SideMenu } from './Components/SideMenu'
 import { NavTop } from './Components/NavTop'
 import { CategoryList } from './Components/CategoryList'
@@ -122,9 +122,6 @@ function AppContent() {
 
   return (
     <div className='h-screen bg-themewhite2 items-center flex justify-center overflow-hidden'>
-      {/* Service Worker Updater - renders update notifications */}
-      <ServiceWorkerUpdater />
-
       <div className='bg-themewhite max-w-315 shrink flex-col w-full rounded-md border pb-10 border-[rgba(0,0,0,0.03)] shadow-[0px_2px_4px] shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1'>
         {/* Navbar */}
         <div className='relative h-13.75 w-full rounded-t-md flex justify-end'>
@@ -284,9 +281,13 @@ function AppContent() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <AppContent />
-    </ThemeProvider>
+    <>
+      <ThemeProvider>
+        <ServiceWorkerUpdater></ServiceWorkerUpdater>
+        <AppContent />
+      </ThemeProvider>
+
+    </>
   )
 }
 
