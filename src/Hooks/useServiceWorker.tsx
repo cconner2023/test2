@@ -1,55 +1,55 @@
-import { useEffect, useState } from 'react';
+// useServiceWorker.tsx
+import { useEffect, useState, useCallback } from 'react';
 
 export function useServiceWorker() {
     const [updateAvailable, setUpdateAvailable] = useState(false);
     const [registration, setRegistration] = useState<ServiceWorkerRegistration | null>(null);
+    const [isUpdating, setIsUpdating] = useState(false);
 
     useEffect(() => {
-        // Use Vite's environment detection
-        const isProduction = import.meta.env.PROD;
-
         if ('serviceWorker' in navigator) {
-            // Always register in production, optional in development
-            if (!isProduction) {
-                // In dev, we might not want to use service worker
-                console.log('[App] Skipping service worker in development');
-                return;
-            }
+            const swUrl = '/ADTMC/sw.js?v=2.6.1'; // Add version query string
+            const scope = '/ADTMC/';
 
-            const baseUrl = import.meta.env.BASE_URL || '/ADTMC/';
-            const swUrl = `${baseUrl}sw.js`;
-            console.log(swUrl)
             navigator.serviceWorker
-                .register(swUrl, { scope: baseUrl })
+                .register(swUrl, { scope, updateViaCache: 'none' }) // Important for iOS
                 .then((reg) => {
                     console.log('[App] Service Worker registered:', reg.scope);
                     setRegistration(reg);
 
-                    // Check for updates
-                    reg.update();
-
-                    // Handle waiting service worker
+                    // Handle updates
                     if (reg.waiting) {
+                        console.log('[App] Update waiting');
                         setUpdateAvailable(true);
                     }
+
+                    // Listen for installing service worker
                     reg.addEventListener('updatefound', () => {
                         const newWorker = reg.installing;
                         if (newWorker) {
                             newWorker.addEventListener('statechange', () => {
                                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    console.log('[App] New content is available');
                                     setUpdateAvailable(true);
                                 }
                             });
                         }
                     });
-                    let refreshing = false;
-                    navigator.serviceWorker.addEventListener('controllerchange', () => {
-                        if (!refreshing) {
-                            refreshing = true;
-                            // You can choose to auto-reload or let user decide
-                            // window.location.reload();
+
+                    // Check for updates on page focus
+                    const handleVisibilityChange = () => {
+                        if (!document.hidden && reg) {
+                            reg.update();
                         }
-                    });
+                    };
+
+                    document.addEventListener('visibilitychange', handleVisibilityChange);
+                    window.addEventListener('focus', handleVisibilityChange);
+
+                    return () => {
+                        document.removeEventListener('visibilitychange', handleVisibilityChange);
+                        window.removeEventListener('focus', handleVisibilityChange);
+                    };
                 })
                 .catch((error) => {
                     console.error('[App] Service Worker registration failed:', error);
@@ -57,46 +57,38 @@ export function useServiceWorker() {
 
             // Listen for messages from service worker
             navigator.serviceWorker.addEventListener('message', (event) => {
-                if (event.data?.type === 'UPDATE_AVAILABLE') {
+                if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
                     console.log('[App] Update detected from service worker');
                     setUpdateAvailable(true);
                 }
             });
 
-            // Check for updates when page becomes visible
-            const handleVisibilityChange = () => {
-                if (document.visibilityState === 'visible' && registration) {
-                    registration.update();
-                }
-            };
-
-            document.addEventListener('visibilitychange', handleVisibilityChange);
-
-            return () => {
-                document.removeEventListener('visibilitychange', handleVisibilityChange);
-            };
+            // Handle controller change (when new SW takes over)
+            navigator.serviceWorker.addEventListener('controllerchange', () => {
+                console.log('[App] Controller changed, reloading...');
+                window.location.reload();
+            });
         }
     }, []);
 
-    const skipWaiting = () => {
-        if (registration?.waiting) {
-            registration.waiting.postMessage('skipWaiting');
-            setUpdateAvailable(false);
-            // Optionally reload immediately
-            setTimeout(() => window.location.reload(), 100);
+    const skipWaiting = useCallback(() => {
+        if (registration && registration.waiting) {
+            setIsUpdating(true);
+            registration.waiting.postMessage({ type: 'SKIP_WAITING' });
         }
-    };
+    }, [registration]);
 
-    const checkForUpdate = () => {
+    const checkForUpdate = useCallback(() => {
         if (registration) {
             registration.update();
         }
-    };
+    }, [registration]);
 
     return {
         updateAvailable,
         skipWaiting,
         checkForUpdate,
-        registration
+        registration,
+        isUpdating
     };
 }
