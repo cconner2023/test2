@@ -89,18 +89,6 @@
   --color-tertiary: var(--color-tertiary);
 }
 
-@custom-variant hover (&:hover);
-@supports (view-transition-name: none) {
-  ::view-transition-old(note-import-view),
-  ::view-transition-new(note-import-view) {
-    animation-duration: 0.4s;
-    animation-timing-function: ease-in-out;
-    /* Allow the height/width to smoothly animate to the new size */
-    height: auto;
-    width: auto;
-  }
-}
-
 *::-webkit-scrollbar{
 display: none;
 }
@@ -122,6 +110,7 @@ body {
     background-color: var(--color-themewhite);
     position: absolute;
     width: 100vw;
+    height: 100vh;
     overflow: hidden;
 }
 
