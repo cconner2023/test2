@@ -107,12 +107,12 @@
 display: none;
 }
 
-/* body {
+body {
     background-color: var(--color-themewhite);
     position: absolute;
     width: 100vw;
     overflow: hidden;
-} */
+}
 
 /* Mobile search animations */
 @keyframes expandSearch {
@@ -325,53 +325,6 @@ display: none;
   }
 }
 
-/* Prevent zoom on input focus in iOS */
-input, select, textarea {
-  font-size: 16px; /* Prevent iOS zoom on focus */
-  touch-action: manipulation; /* Disable double-tap zoom */
-}
-
-/* Prevent zoom when focusing on inputs on mobile */
-@media screen and (max-width: 768px) {
-  input:focus,
-  textarea:focus,
-  select:focus {
-    font-size: 16px !important;
-  }
-}
-
-
-
-/* Disable double-tap zoom */
-* {
-  touch-action: pan-y;
-}
-
-/* Ensure the app container doesn't scroll */
-#root {
-  overflow: hidden;
-  height: 100vh;
-  width: 100vw;
-}
-
-html, body, #root {
-  overscroll-behavior: none;
-  -webkit-overflow-scrolling: auto;
-  position: fixed;
-  width: 100%;
-  height: 100%;
-  overflow: hidden;
-  touch-action: none; /* Disable all gestures on root */
-}
-
-/* Allow scrolling ONLY on specific containers */
-.scroll-container {
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  touch-action: pan-y; /* Only allow vertical panning */
-}
-
 /* Prevent zoom on all interactive elements */
 input, textarea, select, button {
   font-size: 16px !important;
@@ -398,6 +351,7 @@ input, textarea, select, button {
   user-select: none !important;
   -webkit-user-drag: none !important;
   -webkit-tap-highlight-color: transparent !important;
+    touch-action: pan-y;
 }
 
 html {
@@ -405,12 +359,18 @@ html {
   text-size-adjust: 100%;
 }
 
+#root {
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+}
+
+
 html, body, #root {
   position: fixed !important;
-  width: 100% !important;
-  height: 100% !important;
   overflow: hidden !important;
   overscroll-behavior: none !important;
   -webkit-overflow-scrolling: auto !important;
   touch-action: none !important;
 }
+
