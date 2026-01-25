@@ -35,9 +35,6 @@ export function CategoryList({
     onCategorySelect,
     onSymptomSelect,
     onGuidelineSelect,
-    isSwiping = false,
-    swipeDirection = null,
-    swipeProgress = 0,
 }: CategoryListProps) {
     const [selectedSymptomId, setSelectedSymptomId] = useState<number | null>(null)
     const [parentRef] = useAutoAnimate({ duration: 200, easing: 'ease-in-out' })
@@ -62,16 +59,6 @@ export function CategoryList({
 
     return (
         <div ref={parentRef} className="h-full w-full">
-            {(selectedSymptom || selectedCategory) && typeof window !== 'undefined' && window.innerWidth < 768 && (
-                <div className="absolute left-0 top-1/2 transform -translate-y-1/2 z-10 opacity-30">
-                    <div className="flex items-center space-x-1 animate-pulse">
-                        <div className="w-1 h-1 bg-themeblue3 rounded-full"></div>
-                        <div className="w-1 h-1 bg-themeblue3 rounded-full"></div>
-                        <div className="w-1 h-1 bg-themeblue3 rounded-full"></div>
-                        <div className="text-[8px] text-themeblue3 ml-1">← swipe back</div>
-                    </div>
-                </div>
-            )}
             {/* SAFETY CHECK */}
             {(!catData || !Array.isArray(catData)) ? (
                 <div key="error" className="h-full flex items-center justify-center text-primary">
@@ -90,10 +77,10 @@ export function CategoryList({
                                             className="flex py-3 px-2 w-full rounded-md wrap-normal border-b border-themewhite2/90 cursor-pointer"
                                             onClick={() => onCategorySelect(category)}
                                         >
-                                            <div className="md:w-10 w-10 flex text-[10pt] font-normal items-center justify-center shrink-0 bg-themeblue3 text-white rounded-full">
+                                            <div className="w-10 flex text-[10pt] font-normal items-center justify-center shrink-0 bg-themeblue3 text-white rounded-full">
                                                 {category.icon}
                                             </div>
-                                            <div className="h-full w-full p-[4px_10px_4px_10px] text-primary text-[11pt] flex items-center">
+                                            <div className="h-full w-full shrink p-[4px_10px_4px_10px] text-primary text-[10pt] flex items-center">
                                                 {category.text}
                                             </div>
                                         </div>
@@ -117,10 +104,10 @@ export function CategoryList({
                                                 onSymptomSelect(symptom, selectedCategory)
                                             }}
                                         >
-                                            <div className="md:w-10 w-10 flex text-[10pt] font-normal items-center justify-center shrink-0 bg-themeblue3 text-white rounded-full">
+                                            <div className="w-10 flex text-[10pt] font-normal items-center justify-center shrink-0 bg-themeblue3 text-white rounded-full">
                                                 {symptom.icon || "?"}
                                             </div>
-                                            <div className="h-full w-full rounded-r-md bg-themewhite text-primary text-[11pt] p-[4px_10px_4px_10px] flex items-center">
+                                            <div className="h-full w-full shrink bg-themewhite text-primary text-[10pt] p-[4px_10px_4px_10px] flex items-center">
                                                 {symptom.text || "Untitled Symptom"}
                                             </div>
                                         </div>

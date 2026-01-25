@@ -69,14 +69,55 @@ export function NoteImport({ onClose }: NoteImportProps) {
         setViewState('copied');
     };
 
+    // Get title based on view state
+    const getTitle = () => {
+        switch (viewState) {
+            case 'input':
+                return 'Import Note';
+            case 'decoded':
+                return 'Screening Note';
+            case 'copied':
+                return 'Import Note';
+            default:
+                return 'Import Note';
+        }
+    };
+
     return (
         <div>
             <div
                 ref={parentRef}
                 className="w-max md:min-w-110 min-w-[94%] max-w-[94%] md:max-w-180 mx-auto mt-4 mb-4 rounded-md border border-themegray1/30 bg-themewhite overflow-hidden transition-[height,width,opacity] duration-200 ease-in-out"
             >
+                {/* Header with close button on left and title on right */}
+                <div className="flex items-center justify-between p-3 md:p-4 border-b border-themegray1/20">
+                    <div className="flex items-center">
+                        {onClose && (
+                            <button
+                                onClick={onClose}
+                                className="p-1 text-tertiary hover:text-primary transition-colors mr-2"
+                                title="Close"
+                                aria-label="Close note import"
+                            >
+                                <svg className="w-5 h-5 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        )}
+                    </div>
+
+                    <div className="flex-1 text-center">
+                        <h2 className="text-sm font-normal text-primary">
+                            {getTitle()}
+                        </h2>
+                    </div>
+
+                    {/* Spacer to balance the layout */}
+                    <div className="w-8"></div>
+                </div>
+
                 {viewState === 'input' && (
-                    <div className="flex flex-col md:p-4 p-3 h-max min-h-20">
+                    <div className="flex flex-col p-4 md:p-5 h-max min-h-20">
                         <div className="mb-4 relative">
                             <div className="relative">
                                 <input
@@ -115,18 +156,15 @@ export function NoteImport({ onClose }: NoteImportProps) {
                             <TextButton
                                 text="Decode"
                                 onClick={handleSubmit}
-                                variant='primary'
+                                variant='dispo-specific'
+                                className='bg-themeblue3 text-white rounded-full'
                             />
                         </div>
                     </div>
                 )}
 
                 {viewState === 'decoded' && (
-                    <div className="flex flex-col p-3 md:p-4 min-h-20 h-max">
-                        <div className="mt-2 mb-4 w-full flex flex-col justify-start">
-                            <h2 className="text-sm font-normal text-primary">Screening Note</h2>
-                        </div>
-
+                    <div className="flex flex-col p-4 md:p-5 min-h-20 h-max">
                         <div className="mb-4">
                             <div className="w-full h-max p-2 md:p-2 rounded border border-themegray1/20 bg-themewhite2 text-tertiary text-sm whitespace-pre-wrap wrap-break-word overflow-y-auto">
                                 {decodedText || "No decoded text available"}
@@ -137,13 +175,15 @@ export function NoteImport({ onClose }: NoteImportProps) {
                             <TextButton
                                 text="← Back"
                                 onClick={handleBack}
-                                variant='secondary'
+                                variant='dispo-specific'
+                                className='bg-themewhite2 text-secondary rounded-full'
                             />
                             <div className="flex gap-3 w-auto">
                                 <TextButton
                                     text="Copy Text"
                                     onClick={handleCopyText}
-                                    variant='primary'
+                                    variant='dispo-specific'
+                                    className='bg-themeblue3 text-white rounded-full'
                                 />
                             </div>
                         </div>

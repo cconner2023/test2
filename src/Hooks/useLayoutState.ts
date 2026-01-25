@@ -10,28 +10,20 @@ export function useLayout() {
     })
 
     const hasSearchInput = search.searchInput.trim() !== ""
-
-    // FIXED: Medication view should ONLY be based on viewState
     const isMedicationView = navigation.viewState === 'medications' && !hasSearchInput
-
-    // FIXED: Medication detail is shown when a medication is selected
     const showMedicationDetail = navigation.selectedMedication !== null && !hasSearchInput
-
-    // FIXED: Question card is shown when a symptom is selected, but NOT in medication view
     const showQuestionCard = navigation.selectedSymptom !== null &&
         !hasSearchInput &&
         !isMedicationView &&
         !showMedicationDetail
 
-    // Simple nested ifs for grid templates - UPDATED
     const getGridTemplates = () => {
         const { isMobile } = navigation
-
         if (isMobile) {
             // Mobile: Single column layout
             if (isMedicationView) {
                 return {
-                    mainTemplate: '0fr 0fr 0fr', // Hidden
+                    mainTemplate: '0fr 0fr 0fr',
                     medTemplate: showMedicationDetail ? '0fr 1fr' : '1fr 0fr',
                     showMain: false,
                     showMedication: true
@@ -98,7 +90,6 @@ export function useLayout() {
             }
         }
     }
-
     const gridTemplates = getGridTemplates()
 
     return useMemo(() => ({
@@ -125,12 +116,11 @@ export function useLayout() {
         showMainGrid: gridTemplates.showMain,
         showMedicationGrid: gridTemplates.showMedication,
 
-        // Boolean getters (fixed with !! for boolean conversion)
         shouldShowBackButton: (showNoteImport: boolean) => {
             // Never show back when searching (search has its own X)
             if (hasSearchInput) return false
 
-            if (showNoteImport) return true
+            if (showNoteImport) return false
 
             if (navigation.isMobile) {
                 // Mobile: Show back when in detail view
@@ -151,14 +141,19 @@ export function useLayout() {
         },
 
         shouldShowMenuButton: (showNoteImport: boolean) => {
-            // Don't show menu when importing note or searching
             if (showNoteImport || hasSearchInput) return false
 
-            // Always show menu on mobile (for switching between ADTMC/Medications)
-            // On desktop, only show when not in medication view
             if (navigation.isMobile) {
-                return true
+                // On mobile: hide menu when back button should show
+                const shouldShowBack = Boolean(
+                    navigation.selectedCategory ||
+                    navigation.selectedSymptom ||
+                    (isMedicationView && navigation.selectedMedication) ||
+                    showMedicationDetail
+                )
+                return !shouldShowBack
             } else {
+                // Desktop: Only show menu when not in medication view
                 return !isMedicationView
             }
         },

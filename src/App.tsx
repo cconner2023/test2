@@ -173,7 +173,7 @@ function AppContent() {
 
         {/* Main Content - Animated grid switching */}
         {!showNoteImport && (
-          <div ref={contentRef} className='h-[94%] mt-2 mx-2'>
+          <div ref={contentRef} className='md:h-[94%] h-full mt-2 mx-2'>
 
             {/* ADTMC Grid - KEY on the grid div itself */}
             {layout.showMainGrid && (

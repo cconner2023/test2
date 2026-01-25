@@ -32,7 +32,7 @@ export function TextButton({
 
     return (
         <button
-            className={`h-7 w-max flex items-center justify-center p-4 text-sm font-normal transition-all duration-300 ${getVariant()} ${variant !== 'dispo-specific' ? className : ''}`}
+            className={`h-7 w-max flex items-center justify-center p-4 text-[9pt] font-normal transition-all duration-300 ${getVariant()} ${variant !== 'dispo-specific' ? className : ''}`}
             onClick={textButtonClick}
         >
             <span>{displayText}</span>
