@@ -7,7 +7,7 @@
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>ADTMC 2.6</title>
 
-  <!-- Manifest -->
+  <!-- Manifest (will be auto-injected by VitePWA) -->
   <link rel="manifest" href="/ADTMC/manifest.json" />
 
   <!-- PWA meta tags -->
@@ -17,16 +17,14 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="ADTMC">
 
-  <!-- Icons - absolute paths -->
-  <meta name="msapplication-TileImage" content="/ADTMC/icon-144.png" />
-  <link rel="apple-touch-icon" href="/ADTMC/icon-192.png" />
+  <!-- Icons -->
   <link rel="icon" href="/ADTMC/favicon.ico" type="image/x-icon" />
+  <link rel="apple-touch-icon" href="/ADTMC/icon-192.png" />
 </head>
 
-<body style="overflow: hidden;">
+<body style="margin: 0; padding: 0; height: 100%; overflow: hidden;">
   <div id="root" style="height: 100%;"></div>
   <script type="module" src="/src/main.tsx"></script>
-
 </body>
 
 </html>
