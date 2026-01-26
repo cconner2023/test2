@@ -15,7 +15,7 @@ interface AlgorithmProps {
 
 type ViewState = 'algorithm' | 'note-expanded';
 
-export function AlgorithmPage({ selectedSymptom, onMedicationClick }: AlgorithmProps) {
+export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const markerRef = useRef<HTMLDivElement>(null);
     const prevDispositionRef = useRef<any>(null);
@@ -247,7 +247,11 @@ export function AlgorithmPage({ selectedSymptom, onMedicationClick }: AlgorithmP
                         onNoteSave={(note: string) => {
                             console.log('Note saved:', note);
                         }}
-                        onMedicationClick={onMedicationClick}
+                        selectedSymptom={{
+                            icon: 'A-1',
+                            text: 'Sore Throat/Hoarseness'
+                        }}
+
                     />
                 </div>
             )}

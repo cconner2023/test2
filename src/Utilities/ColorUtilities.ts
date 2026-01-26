@@ -1,4 +1,5 @@
 import type { dispositionType } from '../Types/AlgorithmTypes';
+
 export const getColorClasses = (type?: dispositionType['type']) => {
     switch (type) {
         case 'CAT I':
