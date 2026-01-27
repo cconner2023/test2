@@ -112,6 +112,68 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "3+ Centor",
                         decisionMaking: [
+                        ],
+                        disposition: [],
+                        next: [4, 5],
+                        selectAll: true
+                    },
+                    {
+                        text: "0-2 CENTOR",
+                        disposition: [
+                            Disposition[2]
+                        ],
+                        decisionMaking: [
+                            // general DP for this step
+                            {
+                                type: 'dmp',
+                                ddx: ['viral infection'],
+                                text: 'Sore throat and hoarseness that are associated with a virus should be treated with minor-care. The other symptoms should be treated according to their associated protocols.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['sore throat'],
+                                text: 'A sore throat is often due to a viral infection. Minor-care consist of pain control, measures to decrease inflammation, getting plenty of rest and drinking plenty of fluids (water). Return for signs of the infection getting worse or progressing.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'For pain: lozenge first line, ibuprofen second line, for elevated temperature: acetaminophen, salt water gargles and drink warm fluids for inflammation',
+                                    medFind: [
+                                        { ...medList[8] },
+                                        { ...medList[0] },
+                                        { ...medList[23] }
+                                    ]
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['hoarseness'],
+                                text: 'Hoarseness is often due to a virus or irritant. Minor-care consists of resting the vocal cords and avoidance of irritants (cigarette smoking, yelling, heartburn, post-nasal drip). This is a good opportunity to discuss the negative effects of tobacco use and encourage the Soldier to quit using tobacco, if applicable.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'rest vocal cords and avoid irritants (cigarette smoking, yelling, heartburn). Return if not improving in 3 days or immediately if worsening symptoms or red flags (above).'
+                                }
+                            }
+                        ],
+                        next: null,
+                        selectAll: false
+                    }
+                ]
+            },
+            {
+                text: "Perform Rapid Strep + Culture Test (barracks, positive close contact, immunosuppressed contact, h/o ARF",
+                type: "action",
+                questionOptions: [
+                ],
+                answerOptions: []
+            },
+            {
+                text: "What is the test result?",
+                type: "choice",
+                questionOptions: [
+                ],
+                answerOptions: [
+                    {
+                        text: "Positive",
+                        decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: ['Streptococcal Infection'],
@@ -131,7 +193,7 @@ export const Algorithm: AlgorithmType[] = [
                         selectAll: true
                     },
                     {
-                        text: "0-2 CENTOR",
+                        text: "Negative",
                         disposition: [
                             Disposition[2]
                         ],
