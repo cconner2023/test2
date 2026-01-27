@@ -27,6 +27,7 @@ interface WriteNoteProps {
         icon: string;
         text: string;
     };
+    isMobile?: boolean; // Add this line
 }
 
 export const WriteNotePage = ({
@@ -36,6 +37,7 @@ export const WriteNotePage = ({
     onExpansionChange,
     onNoteSave,
     selectedSymptom = { icon: '', text: '' },
+    isMobile = false, // Add this with default value
 }: WriteNoteProps) => {
     // State
     const [viewState, setViewState] = useState<NoteViewState>('input');
@@ -247,7 +249,7 @@ export const WriteNotePage = ({
 
     // Main render
     return (
-        <div className="flex flex-col bg-themewhite2 h-max pb-20 w-full rounded-md">
+        <div className={`flex flex-col bg-themewhite2 h-full w-full rounded-md ${isMobile && activeTab === 'write-note' ? 'pb-10' : ''}`}>
             {/* Header */}
             <div className="p-4 rounded-t-md border-b border-themegray1/20">
                 <HeaderSection
@@ -329,20 +331,6 @@ const ToggleOption: React.FC<{
     </div>
 );
 
-const ClearButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
-    <button
-        type="button"
-        onClick={onClick}
-        className="p-2 text-tertiary hover:text-primary transition-colors flex items-center justify-center"
-        title="Clear notes"
-        aria-label="Clear notes"
-    >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-    </button>
-);
-
 const CopyButton: React.FC<{ onClick: () => void; title: string }> = ({ onClick, title }) => (
     <button
         onClick={onClick}
@@ -421,7 +409,7 @@ const ActionButtons: React.FC<{
     onShare: () => void;
     onDone: () => void;
 }> = ({ viewState, colors, onBack, onViewNote, onShare, onDone }) => (
-    <div className="flex items-center justify-end gap-3 p-4 border-t border-themegray1/30 flex-none bg-themewhite2">
+    <div className={`flex items-start gap-2 justify-end p-4 shrink-0`}>
         {/* Back/Edit button - only shown when applicable */}
         {(viewState === 'preview' || viewState === 'share') && (
             <TextButton

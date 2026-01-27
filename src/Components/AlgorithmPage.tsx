@@ -255,6 +255,7 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
                             icon: 'A-1',
                             text: 'Sore Throat/Hoarseness'
                         }}
+                        isMobile={isMobile}
                     />
                 </div>
             )}

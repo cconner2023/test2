@@ -2,8 +2,9 @@
 export interface TextButtonProps {
     text?: string;
     onClick?: () => void;
-    variant?: 'primary' | 'secondary' | 'special' | 'dispo-specific';
+    variant?: 'primary' | 'secondary' | 'special' | 'dispo-specific' | 'mobile';
     className?: string;
+    isMobile?: boolean
 }
 
 export function TextButton({
@@ -11,6 +12,7 @@ export function TextButton({
     onClick,
     variant = 'primary',
     className = '',
+    isMobile = false
 }: TextButtonProps) {
     const displayText = text;
     const textButtonClick = onClick;
@@ -25,6 +27,8 @@ export function TextButton({
                 return 'bg-themeblue3 text-white hover:bg-themeblue3/80 rounded-full';
             case 'dispo-specific':
                 return className;
+            case 'mobile':
+                return className;
             default:
                 return 'bg-themeblue3 text-themewhite2 hover:bg-themeblue3/80';
         }
@@ -32,7 +36,7 @@ export function TextButton({
 
     return (
         <button
-            className={`h-7 w-max flex items-center justify-center p-4 text-[9pt] font-normal transition-all duration-300 ${getVariant()} ${variant !== 'dispo-specific' ? className : ''}`}
+            className={`${isMobile ? '' : 'h-7 p-4'} w-max flex items-center justify-center text-[9pt] font-normal transition-all duration-300 ${getVariant()} ${variant !== 'dispo-specific' ? className : ''}`}
             onClick={textButtonClick}
         >
             <span>{displayText}</span>
