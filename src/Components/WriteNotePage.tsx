@@ -247,7 +247,7 @@ export const WriteNotePage = ({
 
     // Main render
     return (
-        <div className="flex flex-col bg-themewhite2 h-full w-full rounded-md">
+        <div className="flex flex-col bg-themewhite2 h-max pb-20 w-full rounded-md">
             {/* Header */}
             <div className="p-4 rounded-t-md border-b border-themegray1/20">
                 <HeaderSection

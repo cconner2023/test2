@@ -10,7 +10,7 @@ import type { medListTypes } from '../Data/MedData';
 
 interface AlgorithmProps {
     selectedSymptom: subCatDataTypes | null;
-    onMedicationClick?: (medication: medListTypes) => void; // ADD THIS
+    onMedicationClick?: (medication: medListTypes) => void;
 }
 
 type ViewState = 'algorithm' | 'note-expanded';
@@ -23,6 +23,7 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
     const [isTransitioning, setIsTransitioning] = useState(false);
     const [viewState, setViewState] = useState<ViewState>('algorithm');
     const [scrollTrigger, setScrollTrigger] = useState(0);
+    const [isMobile, setIsMobile] = useState(false);
 
     const [parentRef] = useAutoAnimate<HTMLDivElement>({
         duration: 300,
@@ -39,23 +40,26 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
         handleAnswer: hookHandleAnswer,
         getVisibleCards
     } = useAlgorithm(algorithmOptions);
+
     // Update view when disposition disappears
     useEffect(() => {
         if (!currentDisposition && viewState === 'note-expanded') {
             setViewState('algorithm');
         }
     }, [currentDisposition, viewState]);
-    // Track disposition changes - ONLY when in algorithm view
+
+    // Track disposition changes
     useEffect(() => {
         const dispositionChanged = prevDispositionRef.current !== currentDisposition;
         prevDispositionRef.current = currentDisposition;
-        // Only trigger scroll if we're in algorithm view and disposition changed
+
         if (currentDisposition && dispositionChanged && viewState === 'algorithm') {
             setTimeout(() => {
                 setScrollTrigger(prev => prev + 1);
             }, 100);
         }
-    }, [currentDisposition, viewState]); // Added viewState dependency
+    }, [currentDisposition, viewState]);
+
     // Scroll function
     const scrollToMarker = useCallback(() => {
         if (!markerRef.current || !containerRef.current) {
@@ -64,7 +68,7 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
         }
         const marker = markerRef.current;
         const container = containerRef.current;
-        const targetPosition = Math.max(0, marker.offsetTop - 100);
+        const targetPosition = Math.max(0, marker.offsetTop);
         container.scrollTo({
             top: targetPosition,
             behavior: 'smooth'
@@ -72,14 +76,14 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
         setIsTransitioning(false);
     }, []);
 
-    // Scroll effect - ONLY when in algorithm view
+    // Scroll effect
     useEffect(() => {
         if (scrollTrigger > 0 && viewState === 'algorithm') {
             scrollToMarker();
         }
     }, [scrollTrigger, viewState, scrollToMarker]);
 
-    // IntersectionObserver - ONLY when in algorithm view
+    // IntersectionObserver
     useEffect(() => {
         if (!containerRef.current || !markerRef.current || viewState !== 'algorithm') return;
 
@@ -101,7 +105,15 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
         observer.observe(markerRef.current);
         return () => observer.disconnect();
     }, [isTransitioning, viewState, scrollToMarker]);
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768);
+        };
 
+        checkMobile();
+        window.addEventListener('resize', checkMobile);
+        return () => window.removeEventListener('resize', checkMobile);
+    }, []);
     // Wrapper handlers
     const handleAnswer = (cardIndex: number, answerIndex: number) => {
         setIsTransitioning(true);
@@ -117,7 +129,6 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
 
     // Handle expand/collapse of note
     const handleExpandNote = () => {
-        // Save scroll position before switching
         if (containerRef.current) {
             setSavedScrollPosition(containerRef.current.scrollTop);
         }
@@ -126,12 +137,11 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
 
     const handleCollapseNote = () => {
         setViewState('algorithm');
-        // Restore scroll position after switching back to algorithm view
         setTimeout(() => {
             if (containerRef.current) {
                 containerRef.current.scrollTop = savedScrollPosition;
             }
-        }, 50); // Small delay to ensure container is rendered
+        }, 50);
     };
 
     // Initial scroll when algorithm loads
@@ -158,24 +168,25 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
             </div>
         );
     }
+
     const visibleCards = getVisibleCards();
-    // Get colors for disposition if it exists
     const colors = currentDisposition ? getColorClasses(currentDisposition.type) : null;
+
     return (
         <div
             ref={parentRef}
-            className="w-full h-full relative" // Changed to relative for positioning
+            className="w-full h-full relative"
         >
             {/* ALGORITHM VIEW */}
             {viewState === 'algorithm' && (
                 <div key="algorithm-view" className="h-full flex flex-col">
-                    {/* Algorithm Content - Takes remaining space */}
+                    {/* Algorithm Content */}
                     <div
                         ref={containerRef}
                         className={`flex-1 overflow-y-auto ${isTransitioning ? 'transition-none' : ''}
-                            ${currentDisposition ? 'pb-20 md:pb-4' : ''}`} // Add padding for fixed disposition
+                            ${currentDisposition ? 'pb-24' : ''}`}
                     >
-                        <div className="pb-4"> {/* Inner container padding */}
+                        <div className="pb-4">
                             <QuestionCard
                                 algorithmOptions={algorithmOptions}
                                 cardStates={cardStates}
@@ -193,19 +204,12 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
                         </div>
                     </div>
 
-                    {/* Disposition Header - Fixed at bottom on mobile */}
+                    {/* Disposition Header - Simple relative positioning */}
                     {currentDisposition && colors && (
-                        <div className={`
-                            md:static md:mt-auto
-                            fixed bottom-0 left-0 right-0 
-                            border-t border-themegray1/20
-                            bg-themewhite z-10
-                            md:border-none
-                        `}>
-                            <div className="p-4 bg-themewhite2 md:rounded-md">
-                                <div className="flex flex-col md:flex-row md:items-center 
-                                    md:justify-between space-y-3 md:space-y-0">
-                                    <div className="flex items-start md:items-center space-x-3">
+                        <div className={`relative rounded-md bg-themewhite`}>
+                            <div className={`p-4 bg-themewhite2 ${isMobile ? 'pb-20' : ''}`}>
+                                <div className="flex items-center justify-between">
+                                    <div className="flex items-center space-x-3">
                                         <div className={`px-3 py-2 shrink-0 rounded-md 
                                             flex items-center justify-center ${colors.badgeBg} 
                                             font-bold text-sm ${colors.badgeText}`}>
@@ -235,9 +239,9 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
                 </div>
             )}
 
-            {/* EXPANDED NOTE VIEW */}
+            {/* NOTE VIEW - Takes full container */}
             {viewState === 'note-expanded' && currentDisposition && (
-                <div key="note-expanded-view" className="h-full">
+                <div className="absolute inset-0 h-full w-full">
                     <WriteNotePage
                         disposition={currentDisposition}
                         algorithmOptions={algorithmOptions}
@@ -251,10 +255,9 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
                             icon: 'A-1',
                             text: 'Sore Throat/Hoarseness'
                         }}
-
                     />
                 </div>
             )}
         </div>
     );
-};
+}
