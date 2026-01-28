@@ -2768,24 +2768,19 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['hypothyroidism'],
+                                text: 'These are symptoms of hypothyroidism. Soldiers that screen positive for possible hypothyroidism should be referred for further evaluation.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -2799,16 +2794,17 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[3],
                                 text: "Screen rectal bleeding or other symptoms if present"
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['internal bleed'],
+                                text: 'Rectal bleeding can be a sign of significant internal bleeding that requires further evaluation.'
                             }
                         ],
                         next: null,
@@ -2816,13 +2812,19 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['constipation'],
+                                text: 'The most important step in treating constipation is to alter the diet so that it contains plenty of fiber. Fiber is that part of food which is not absorbed into the body but instead remains in the intestines and absorbs water to form the bulk of the bowel movements. Without proper bulk, the large and small intestines cannot work properly, and this causes constipation. Fiber is present in bran cereal, whole wheat bread, fresh fruits, and vegetables. Ensure that the Soldier is taking adequate water (8 glasses a day). Laxatives can be used on a one-time basis but should not be used repeatedly because the body can become dependent on them. After the bisacodyl, use polyethylene glycol for two weeks (1st line) or docusate sodium for one week (2nd line) to prevent recurrence. Not everyone has a bowel movement every day. Bowel movements may occur as often as three times a day or once every three days and still be normal. Discomfort and a change in pattern are more reliable guides to a diagnosis of constipation. Instruct the Soldier to return for medical assistance if abdominal pain develops, if the interval between movements is three days or longer, or if blood appears in his or her stool.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Counsel the Soldier to drink 8 glasses of water per day and eat foods that are high in fiber. Medication: bisacodyl for acute constipation followed by a polyethylene glycol for 2 weeks (1st line) or docusate sodium for 1 week (2nd line). Return to clinic for blood in stool, abdominal pain, or not having a BM for 3 days',
+                                    medFind: [medList[36], medList[15]]
+                                }
                             }
                         ],
-                        disposition: [Disposition[2]],
                         next: null,
                         selectAll: false
                     }
@@ -2843,71 +2845,53 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Red Flags?",
+                text: "Do any of the following apply",
                 type: "initial",
-                questionOptions: [],
-                answerOptions: [
-                    {
-                        text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[0],
-                                modifier: "[ACT1 PLACEHOLDER]"
-                            }
-                        ],
-                        next: null,
-                        selectAll: true
-                    },
-                    {
-                        text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [],
-                        next: 2,
-                        selectAll: false
-                    }
-                ]
-            },
-            {
-                text: "Do any of the following apply?",
-                type: "choice",
                 questionOptions: [
-                    { text: "Sudden onset during eating" },
-                    { text: "Inability to swallow (drooling)" }
+                    { text: 'Red Flags' },
+                    { text: 'Sudden onset during eating' },
+                    { text: 'Inability to swallow (drooling)' }
                 ],
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [
+                            {
+                                ...Disposition[0],
+                                modifier: "Include glucagon if unable to transport within 24 hours of onset"
+                            }
+                        ],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['airway compromise'],
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Airway compromise is an emergency. Coughing, choking, or nasal regurgitation when initiating a swallow is a sign of decreased ability to maintain the airway. The Soldier is at risk for aspiration.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['acute food obstruction'],
+                                text: 'Most common cause of dysphagia in an adult is an acute food obstruction. It is often due to swallowing a piece of meat that has not been fully chewed. Food obstruction will present with a feeling of something stuck in the throat and decreased or inability to swallow. The obstruction must be removed promptly. Complete obstruction should undergo an emergent endoscopy. A partial obstruction should undergo endoscopy within 24 hours. The esophagus can start to ulcerate and the risk of esophageal perforation increases after 24 hours. If endoscopic evaluation/ treatment is not available within 24 hours, see the treatment protocol below.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Do not administer meat tenderizers to Soldiers with an esophageal food impaction. It could cause serious esophageal injury. Glucagon can be administered to relax the esophagus as an initial attempt for the Soldier to spontaneously pass the food bolus when a referral for an endoscopic evaluation/ treatment is not available. Treatment must be prescribed by a supervising privileged provider.',
+                                    medFind: [medList[19]],
+                                    ancillaryFind: [
+                                        {
+                                            type: 'refer',
+                                            modifier: 'endoscopy'
+                                        }
+                                    ]
+                                }
                             }
+
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
-                        next: 3,
+                        next: 2,
                         selectAll: false
                     }
                 ]
@@ -2919,66 +2903,35 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'Other causes of dysphagia not related to a sore throat should be evaluated by the AEM.'
                             }
                         ],
-                        disposition: [Disposition[1]], // CAT II: AEM Now
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [],
-                        next: 4,
-                        selectAll: false
-                    }
-                ]
-            },
-            {
-                text: "Sore throat started first?",
-                type: "choice",
-                questionOptions: [],
-                answerOptions: [
-                    {
-                        text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[3],
                                 text: "Screen sore throat or other symptoms if present"
                             }
                         ],
-                        next: null,
-                        selectAll: true
-                    },
-                    {
-                        text: "No",
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'Dysphagia frequently accompanies a severe sore throat. However, MAKE CERTAIN that dysphagia did not precede the sore throat. Causes of dysphagia not associated with a sore throat may require a more extensive evaluation.'
                             }
                         ],
-                        disposition: [Disposition[2]],
-                        next: null,
+                        next: 3,
                         selectAll: false
                     }
                 ]
-            }
+            },
         ]
     },
     {
@@ -3003,16 +2956,18 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "[ACT1 PLACEHOLDER]"
+                                modifier: 'Oxygen, EKG, chewable aspirin'
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['myocardial infarction', 'bleeding ulcer', 'dissecting aortic aneurysm'],
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems. DP 1. Angina (substernal chest pressure, worse with exercise), shortness of breath, tachycardia, lightheaded, sweating, shoulder or jaw pain can be signs and symptoms of a myocardial infarction. Obtain an EKG and give aspirin (if no signs of bleeding). Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider. Vomiting blood or coffee grinds and melena are signs of a bleeding ulcer. Tearing pain that radiates to the back is a sign of a dissecting aortic aneurysm.',
+                                ancillaryFind: []
                             }
                         ],
                         next: null,
