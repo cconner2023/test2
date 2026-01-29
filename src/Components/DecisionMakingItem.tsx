@@ -100,7 +100,8 @@ export function DecisionMakingItem({
             'lab': 'Lab',
             'refer': 'Referral',
             'med': 'Other Medication',
-            'rad': 'Imaging'
+            'rad': 'Imaging',
+            'protocol': 'Other Protocol'
         };
         return labels[type || ''] || type || 'Test';
     };

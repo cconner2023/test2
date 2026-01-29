@@ -159,9 +159,10 @@ export const Algorithm: AlgorithmType[] = [
                 ]
             },
             {
-                text: "Perform Rapid Strep + Culture Test (barracks, positive close contact, immunosuppressed contact, h/o ARF",
+                text: "Collect the following labs",
                 type: "action",
                 questionOptions: [
+                    { text: 'Rapid Strep + Culture Test (barracks, positive close contact, immunosuppressed contact, h/o ARF)' }
                 ],
                 answerOptions: []
             },
@@ -1697,7 +1698,13 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 type: 'dmp',
                                 ddx: ['hip fracture', 'stress injury'],
-                                text: 'Significant force of trauma to include car accident can cause a hip fracture. Immobilize the affected extremity prior to transport. Pain with weight bearing or starts after a certain point during exercise can be a sign of a stress injury. Increase in exercise, long endurance training, or recent modification to training can be risk factors of a stress injury. Place the Soldier on crutches with toe touch weight bearing until a bone stress injury is ruled out.'
+                                text: 'Significant force of trauma to include car accident can cause a hip fracture. Immobilize the affected extremity prior to transport. Pain with weight bearing or starts after a certain point during exercise can be a sign of a stress injury. Increase in exercise, long endurance training, or recent modification to training can be risk factors of a stress injury. Place the Soldier on crutches with toe touch weight bearing until a bone stress injury is ruled out.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'protocol',
+                                        modifier: 'crutches, toe touch weight bearing'
+                                    }
+                                ]
                             }
                         ],
                         next: null,
@@ -2247,7 +2254,7 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[1],
-                                modifier: "Pregnancy Screen/Test"
+                                modifier: " \u2640 Pregnancy Screen/Test"
                             }
                         ],
                         decisionMaking: [
@@ -2275,7 +2282,7 @@ export const Algorithm: AlgorithmType[] = [
                 ]
             },
             {
-                text: "Pregnancy Screen/Test",
+                text: "\u2640 Pregnancy Screen/Test",
                 type: "action",
                 questionOptions: [],
                 answerOptions: []
@@ -2472,7 +2479,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Pregnancy Screen/ Test",
+                text: "\u2640 Pregnancy Screen/ Test",
                 type: "action",
                 questionOptions: [],
                 answerOptions: [],
@@ -2973,7 +2980,7 @@ export const Algorithm: AlgorithmType[] = [
                                         modifier: 'aspirin'
                                     },
                                     {
-                                        type: 'rad',
+                                        type: 'protocol',
                                         modifier: 'ekg'
                                     }
                                 ]
@@ -3018,7 +3025,7 @@ export const Algorithm: AlgorithmType[] = [
                                         modifier: 'aspirin'
                                     },
                                     {
-                                        type: 'rad',
+                                        type: 'protocol',
                                         modifier: 'ekg'
                                     }
                                 ]
@@ -3151,8 +3158,12 @@ export const Algorithm: AlgorithmType[] = [
                                         modifier: 'aspirin'
                                     },
                                     {
-                                        type: 'rad',
+                                        type: 'protocol',
                                         modifier: 'EKG'
+                                    },
+                                    {
+                                        type: 'protocol',
+                                        modifier: 'IV and IVF at TKO'
                                     }
                                 ]
                             }
@@ -3203,8 +3214,12 @@ export const Algorithm: AlgorithmType[] = [
                                         modifier: 'aspirin'
                                     },
                                     {
-                                        type: 'rad',
+                                        type: 'protocol',
                                         modifier: 'EKG'
+                                    },
+                                    {
+                                        type: 'protocol',
+                                        modifier: 'Oxygen'
                                     }
                                 ]
                             }
@@ -3286,7 +3301,7 @@ export const Algorithm: AlgorithmType[] = [
                                             modifier: 'Behavioral Health'
                                         },
                                         {
-                                            type: 'rad',
+                                            type: 'protocol',
                                             modifier: 'EKG'
                                         }
                                     ]
@@ -3351,7 +3366,7 @@ export const Algorithm: AlgorithmType[] = [
                                 text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now”. Start them on oxygen with a nasal cannula at four-six liters/ minute, start an IV and IVF at TKO, give a chewable aspirin. These can be signs of significant underlying medical problems., ',
                                 ancillaryFind: [
                                     {
-                                        type: 'rad',
+                                        type: 'protocol',
                                         modifier: 'EKG'
                                     },
                                     {
@@ -3359,11 +3374,11 @@ export const Algorithm: AlgorithmType[] = [
                                         modifier: 'Aspirin'
                                     },
                                     {
-                                        type: 'med',
+                                        type: 'protocol',
                                         modifier: 'O2 nasal cannula 4-6 liters/min'
                                     },
                                     {
-                                        type: 'med',
+                                        type: 'protocol',
                                         modifier: 'IV / IVF TKO'
                                     }
                                 ]
@@ -3560,7 +3575,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Pregnancy Test",
+                text: "\u2640  Pregnancy Test",
                 type: "action",
                 questionOptions: [],
                 answerOptions: []
@@ -3635,7 +3650,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: ['kidney stone', 'recurrent urinary tract infection', 'atypical bacterial infection', 'hematuria'],
+                                ddx: ['kidney stone', 'recurrent urinary tract infection', 'atypical bacterial infection', 'STD', 'hematuria'],
                                 text: 'Urinary complaints in a male are more likely to be something other than a urinary tract infection. Recurrent urinary tract infections (UTIs), recent urinary catheterization, and immunocompromised are more likely to have an atypical bacterial infection.',
                                 ancillaryFind: [
                                     {
@@ -3699,6 +3714,12 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [
+                            {
+                                ...Disposition[0],
+                                modifier: 'Stress fracture: crutches with toe touching weight bearing'
+                            }
+                        ],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -3710,16 +3731,10 @@ export const Algorithm: AlgorithmType[] = [
                                 text: 'Severe pain at rest with the testes supported can be a sign of testicular torsion or a hernia. Immediate referral is needed for further evaluation and potential treatment. Pain with standing or increasing during exercise can be a sign of a stress fracture of the hip. Change in activity or endurance training are risk factors for a stress fracture. Suspected stress fractures should be toe touch weight bearing and get immediate evaluation. Nausea and vomiting could represent severe pain or be a sign of a hernia.',
                                 ancillaryFind: [
                                     {
-                                        type: 'refer',
+                                        type: 'protocol',
                                         modifier: 'crutches. toe touching weight bearing'
                                     }
                                 ]
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[0],
-                                modifier: 'Stress fracture: crutches with toe touching weight bearing'
                             }
                         ],
                         next: null,
@@ -3748,15 +3763,11 @@ export const Algorithm: AlgorithmType[] = [
                                 ancillaryFind: [
                                     {
                                         type: 'lab',
-                                        modifier: 'urinalysis, urine culture'
+                                        modifier: 'UA, urine culture'
                                     },
                                     {
                                         type: 'lab',
-                                        modifier: 'GC/CT urine'
-                                    },
-                                    {
-                                        type: 'lab',
-                                        modifier: 'RPR/Syphilis Screen'
+                                        modifier: 'STD screen'
                                     },
                                 ]
                             }
@@ -3772,13 +3783,58 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['epididymitis'],
+                                text: 'Pain is often improved with testicular support. Instruct the Soldier on the importance of wearing supportive underwear (briefs, jock strap), application of ice to decrease the swelling. Medication: ibuprofen, acetaminophen, topical muscle balm, ice and heat as needed for pain, inflammation, and swelling or ketorolac for moderate pain.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Intermittent ice and testicular support if improved with support Activity modification as appropriate Medication: Ibuprofen (1st line) and ketorolac (2nd line) as needed for moderate pain Provide screening, treatment, and counseling if present with urologic symptoms. RTC if worsening pain, new symptoms arise, or not improved within 1 week',
+                                    medFind: [medList[23], medList[24]],
+                                    specLim: ['Walk at own pace/distance', 'No running, jumping, riding in military vehicle over uneven terrain', 'May stand for up to 15min']
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['muscle/tendon strain'],
+                                text: 'Pain is often worse with activity. Instruct the Soldier on the home exercise program in accordance with local protocol. Medication: ibuprofen, acetaminophen, topical muscle balm, ice and heat as needed for pain, inflammation, and swelling or ketorolac for moderate pain. Activity modification. Return to clinic if symptoms are not improving within 48 hours, development of new symptoms, or worsening symptoms',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Provide home exercise program, intermittent ice or heat IAW local protocol if worse with activity',
+                                    medFind: [medList[23], medList[0], medList[28]],
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['gonorrhea', 'chlamydia'],
+                                text: 'Request an order for a urinalysis and gonorrhea/chlamydia urine screen. If urethral discharge is present, 2+ white blood cells (WBCs) on urinalysis, leukocyte esterase positive on urinalysis, or recent known STI exposure, treat for potential gonorrhea/chlamydia infection with ceftriaxone and azithromycin. Instruct the Soldier that the condition is contagious and to abstain from intercourse for 1 week after treatment. Notify the supervising privileged provider so that he or she can track. Refer to community health. Return to clinic if symptoms are not improving within 48 hours, development of new symptoms, or worsening symptoms.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Provide screening. if urethral discharge is present, or recent known STI exposure, treat for potential Gonorrheal/Chlamydia infection with ceftriaxone and azithromycin. Instruct the Soldier that the condition is contagious and to abstain from intercourse for 1 week after treatment. Notify provider, Refer to community health. RTC if symptoms are not improving within 48 hours, development of new symptoms or worsening symptoms',
+                                    ancillaryFind: [
+                                        {
+                                            type: 'refer',
+                                            modifier: 'community health'
+                                        },
+                                        {
+                                            type: 'lab',
+                                            modifier: 'urinalysis'
+                                        },
+                                        {
+                                            type: 'lab',
+                                            modifier: 'Gonorrhea'
+                                        },
+                                        {
+                                            type: 'lab',
+                                            modifier: 'Chlamydia'
+                                        },
+                                    ],
+                                    medFind: [medList[13], medList[6]],
+                                }
                             }
                         ],
-                        disposition: [Disposition[2]],
                         next: null,
                         selectAll: false
                     }
@@ -3800,7 +3856,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Pregnancy Test",
+                text: "\u2640  Pregnancy Test",
                 type: "action",
                 questionOptions: [],
                 answerOptions: []
@@ -3938,9 +3994,12 @@ export const Algorithm: AlgorithmType[] = [
                 ]
             },
             {
-                text: "Urinalysis / Pregnancy Test",
-                type: "action",
-                questionOptions: [],
+                text: 'Draw the following labs if applicable',
+                type: 'action',
+                questionOptions: [
+                    { text: 'Urinalysis' },
+                    { text: '\u2640 Pregnancy Test' },
+                ],
                 answerOptions: []
             },
             {
@@ -4136,7 +4195,7 @@ export const Algorithm: AlgorithmType[] = [
                 ]
             },
             {
-                text: "Pregnancy Test",
+                text: "\u2640 Pregnancy Test",
                 type: "action",
                 questionOptions: [],
                 answerOptions: []

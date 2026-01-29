@@ -41,6 +41,6 @@ export interface decisionMakingType {
 
 // Other types remain the same
 export interface ancillaryFindType {
-    type?: 'lab' | 'med' | 'rad' | 'refer';
+    type?: 'lab' | 'med' | 'rad' | 'refer' | 'protocol';
     modifier?: string;
 }
