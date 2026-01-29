@@ -1,4 +1,4 @@
-// components/DecisionMakingItem.tsx
+// components/DecisionMakingItem.tsx - WITH STICKY DIFFERENTIAL HEADER
 import type { decisionMakingType } from '../Types/AlgorithmTypes'
 import type { getColorClasses } from '../Utilities/ColorUtilities'
 import type { medListTypes } from '../Data/MedData'
@@ -9,12 +9,12 @@ interface DecisionMakingItemProps {
     onMedicationClick: (medication: medListTypes) => void;
     onDdxClick?: (diagnosis: string) => void;
     isNested?: boolean;
+    showDdxHeader?: boolean; // NEW: Control whether to show DDx as sticky header
 }
 
-function DecisionMakingHeader({ item, colors, onDdxClick }: {
+// Type badge component - stays with paragraph on right
+function TypeBadge({ item }: {
     item: decisionMakingType;
-    colors: ReturnType<typeof getColorClasses>;
-    onDdxClick?: (diagnosis: string) => void;
 }) {
     const getTypeText = (type?: string) => {
         switch (type) {
@@ -25,51 +25,50 @@ function DecisionMakingHeader({ item, colors, onDdxClick }: {
         }
     };
 
-    const hasDDx = item.ddx && item.ddx.length > 0;
-    const headerClass = hasDDx
-        ? 'sticky top-0 z-10 bg-inherit -mx-3 -mt-3 mb-2 px-3 pt-3 pb-2 border-b border-themegray1/20'
-        : 'mb-2';
+    const typeText = getTypeText(item.type);
+
+    if (!typeText) {
+        return null;
+    }
 
     return (
-        <div className={headerClass}>
-            <div className="flex justify-between items-start min-h-[28px]">
-                {/* Differential Diagnosis when exists */}
-                <div className="flex-1">
-                    {hasDDx && (
-                        <>
-                            <div className="text-xs font-medium text-tertiary mb-1">
-                                {item.ddx!.length === 1 ? 'Differential Diagnosis:' : 'Differential Diagnoses:'}
-                            </div>
-                            <div className="flex flex-wrap gap-1">
-                                {item.ddx!.map((diagnosis, index) => (
-                                    onDdxClick ? (
-                                        <button
-                                            key={index}
-                                            onClick={() => onDdxClick(diagnosis)}
-                                            className="px-2 py-0.5 text-xs bg-themewhite text-primary rounded border border-themegray1/30 hover:bg-themewhite2 hover:border-themegray1/50 transition-colors cursor-pointer"
-                                            title={`Click to view ${diagnosis} details`}
-                                            type="button"
-                                        >
-                                            {diagnosis}
-                                        </button>
-                                    ) : (
-                                        <span
-                                            key={index}
-                                            className="px-2 py-0.5 text-xs bg-themewhite text-primary rounded border border-themegray1/30"
-                                        >
-                                            {diagnosis}
-                                        </span>
-                                    )
-                                ))}
-                            </div>
-                        </>
-                    )}
-                </div>
+        <div className={`px-2 py-2 text-xs font-medium rounded bg-themewhite text-secondary border border-themegray1/30 flex-shrink-0`}>
+            {typeText}
+        </div>
+    );
+}
 
-                {/* Type badge */}
-                <div className={`ml-2 px-2 py-2 text-xs font-medium rounded bg-themewhite text-secondary border border-themegray1/30 flex-shrink-0`}>
-                    {getTypeText(item.type)}
-                </div>
+// Sticky Differential Header Component
+function DifferentialHeader({ ddx, onDdxClick }: {
+    ddx: string[];
+    onDdxClick?: (diagnosis: string) => void;
+}) {
+    return (
+        <div className="sticky top-0 z-10 bg-inherit -mx-3 -mt-3 mb-3 px-3 pt-3 pb-2 border-b border-themegray1/20">
+            <div className="text-xs font-medium text-tertiary mb-1">
+                {ddx.length === 1 ? 'Differential Diagnosis:' : 'Differential Diagnoses:'}
+            </div>
+            <div className="flex flex-wrap gap-1">
+                {ddx.map((diagnosis, index) => (
+                    onDdxClick ? (
+                        <button
+                            key={index}
+                            onClick={() => onDdxClick(diagnosis)}
+                            className="px-2 py-0.5 text-xs bg-themewhite text-primary rounded border border-themegray1/30 hover:bg-themewhite2 hover:border-themegray1/50 transition-colors cursor-pointer"
+                            title={`Click to view ${diagnosis} details`}
+                            type="button"
+                        >
+                            {diagnosis}
+                        </button>
+                    ) : (
+                        <span
+                            key={index}
+                            className="px-2 py-0.5 text-xs bg-themewhite text-primary rounded border border-themegray1/30"
+                        >
+                            {diagnosis}
+                        </span>
+                    )
+                ))}
             </div>
         </div>
     );
@@ -81,6 +80,7 @@ export function DecisionMakingItem({
     onMedicationClick,
     onDdxClick,
     isNested = false,
+    showDdxHeader = true, // Default to showing DDx header
 }: DecisionMakingItemProps) {
     const getAncillaryLabel = (type?: string) => {
         const labels: Record<string, string> = {
@@ -92,7 +92,9 @@ export function DecisionMakingItem({
         return labels[type || ''] || type || 'Test';
     };
 
+    // Check if this item should show its own DDx header
     const hasDDx = item.ddx && item.ddx.length > 0;
+    const shouldShowDdxHeader = showDdxHeader && hasDDx;
 
     return (
         <div className={`${isNested ? 'ml-1 pl-1 relative' : 'mb-3'}`}>
@@ -103,89 +105,101 @@ export function DecisionMakingItem({
 
             {/* Main Content Card */}
             <div className={`rounded border border-themegray1/20 ${isNested ? 'bg-themewhite2' : 'bg-themewhite3'} p-3 relative`}>
-                {/* Header with conditional sticky behavior */}
-                <DecisionMakingHeader
-                    item={item}
-                    colors={colors}
-                    onDdxClick={onDdxClick}
-                />
 
-                {/* Main Content Area */}
-                <div className={hasDDx ? 'pt-1' : ''}>
-                    {/* Text Content */}
-                    {item.text && (
-                        <div className="text-sm text-primary leading-relaxed py-2 px-2">
-                            {item.text}
-                        </div>
-                    )}
+                {/* STICKY DIFFERENTIAL HEADER (if this item has DDx) */}
+                {shouldShowDdxHeader && (
+                    <DifferentialHeader
+                        ddx={item.ddx!}
+                        onDdxClick={onDdxClick}
+                    />
+                )}
 
-                    {/* Ancillary Findings */}
-                    {item.ancillaryFind && item.ancillaryFind.length > 0 && (
-                        <div className="mb-2">
-                            <div className="text-xs text-tertiary mb-1">
-                                {item.ancillaryFind.length === 1
-                                    ? `${getAncillaryLabel(item.ancillaryFind[0].type)}:`
-                                    : ''}
+                {/* Content with Type Badge on Right */}
+                <div className={shouldShowDdxHeader ? 'pt-1' : ''}>
+                    {/* Header row with paragraph and badge */}
+                    <div className="flex justify-between items-start mb-2">
+                        {/* Paragraph text */}
+                        {item.text && (
+                            <div className="text-sm text-primary leading-relaxed flex-1 pr-4">
+                                {item.text}
                             </div>
-                            <div className="flex flex-wrap gap-1">
-                                {item.ancillaryFind.map((anc, index) => (
-                                    <span
-                                        key={index}
-                                        className="px-2 py-0.5 text-xs bg-themewhite text-primary rounded border border-themegray1/30"
-                                    >
-                                        {anc.modifier ? `${anc.modifier}` : ''}
-                                    </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                        )}
 
-                    {/* Medications */}
-                    {item.medFind && item.medFind.length > 0 && (
-                        <div className="mb-2">
-                            <div className="text-xs font-medium text-tertiary mb-1">Medications:</div>
-                            <div className="flex flex-wrap gap-1">
-                                {item.medFind.map((med, medIndex) => (
-                                    <button
-                                        key={medIndex}
-                                        onClick={() => onMedicationClick(med)}
-                                        className="px-2 py-0.5 text-xs bg-themewhite text-primary rounded border border-themegray1/30 hover:bg-themewhite2 hover:border-themegray1/50 transition-colors cursor-pointer"
-                                        title={`Click to view ${med.text} details`}
-                                        type="button"
-                                    >
-                                        {med.text}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
+                        {/* Type badge on the right */}
+                        <TypeBadge item={item} />
+                    </div>
 
-                    {/* Special Limitations */}
-                    {item.specLim && item.specLim.length > 0 && (
-                        <div className="mb-2">
-                            <div className="text-xs font-medium text-tertiary mb-1">Special Limitations:</div>
-                            <div className="space-y-1">
-                                {item.specLim.map((lim, limIndex) => (
-                                    <div key={limIndex} className="text-sm text-primary pl-2 border-l-2 border-themegray1/40">
-                                        {lim}
-                                    </div>
-                                ))}
+                    {/* Content below (ancillary, medications, etc.) */}
+                    <div className="ml-2">
+                        {/* Ancillary Findings */}
+                        {item.ancillaryFind && item.ancillaryFind.length > 0 && (
+                            <div className="mb-2 mt-2">
+                                <div className="text-xs text-tertiary mb-1">
+                                    {item.ancillaryFind.length === 1
+                                        ? `${getAncillaryLabel(item.ancillaryFind[0].type)}:`
+                                        : ''}
+                                </div>
+                                <div className="flex flex-wrap gap-1">
+                                    {item.ancillaryFind.map((anc, index) => (
+                                        <span
+                                            key={index}
+                                            className="px-2 py-0.5 text-xs bg-themewhite text-primary rounded border border-themegray1/30"
+                                        >
+                                            {anc.modifier ? `${anc.modifier}` : ''}
+                                        </span>
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    {/* Nested Associated MCP */}
-                    {item.assocMcp && (
-                        <div className="mt-3 pt-3 border-t border-themegray1/20">
-                            <DecisionMakingItem
-                                item={item.assocMcp}
-                                colors={colors}
-                                onMedicationClick={onMedicationClick}
-                                onDdxClick={onDdxClick}
-                                isNested={true}
-                            />
-                        </div>
-                    )}
+                        {/* Medications */}
+                        {item.medFind && item.medFind.length > 0 && (
+                            <div className="mb-2 mt-2">
+                                <div className="text-xs font-medium text-tertiary mb-1">Medications:</div>
+                                <div className="flex flex-wrap gap-1">
+                                    {item.medFind.map((med, medIndex) => (
+                                        <button
+                                            key={medIndex}
+                                            onClick={() => onMedicationClick(med)}
+                                            className="px-2 py-0.5 text-xs bg-themewhite text-primary rounded border border-themegray1/30 hover:bg-themewhite2 hover:border-themegray1/50 transition-colors cursor-pointer"
+                                            title={`Click to view ${med.text} details`}
+                                            type="button"
+                                        >
+                                            {med.text}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Special Limitations */}
+                        {item.specLim && item.specLim.length > 0 && (
+                            <div className="mb-2 mt-2">
+                                <div className="text-xs font-medium text-tertiary mb-1">Special Limitations:</div>
+                                <div className="space-y-1">
+                                    {item.specLim.map((lim, limIndex) => (
+                                        <div key={limIndex} className="text-sm text-primary pl-2 border-l-2 border-themegray1/40">
+                                            {lim}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Nested Associated MCP */}
+                        {item.assocMcp && (
+                            <div className="mt-3 pt-3 border-t border-themegray1/20">
+                                <DecisionMakingItem
+                                    item={item.assocMcp}
+                                    colors={colors}
+                                    onMedicationClick={onMedicationClick}
+                                    onDdxClick={onDdxClick}
+                                    isNested={true}
+                                    showDdxHeader={false} // Nested items don't show DDx header
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
         </div>
