@@ -3702,13 +3702,24 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['testicular torsion', 'hernia', 'stress fracture'],
+                                text: 'Severe pain at rest with the testes supported can be a sign of testicular torsion or a hernia. Immediate referral is needed for further evaluation and potential treatment. Pain with standing or increasing during exercise can be a sign of a stress fracture of the hip. Change in activity or endurance training are risk factors for a stress fracture. Suspected stress fractures should be toe touch weight bearing and get immediate evaluation. Nausea and vomiting could represent severe pain or be a sign of a hernia.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'refer',
+                                        modifier: 'crutches. toe touching weight bearing'
+                                    }
+                                ]
                             }
                         ],
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "[ACT1 PLACEHOLDER]"
+                                modifier: 'Stress fracture: crutches with toe touching weight bearing'
                             }
                         ],
                         next: null,
@@ -3716,12 +3727,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -3738,13 +3743,28 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['Sexually transmitted Infection', 'hip injury'],
+                                text: 'Pain that has lasted for over 2 weeks is less likely to be an acute muscle strain and could represent an injury to the hip joint requiring further evaluation. Urologic symptoms, like hematuria, require further evaluation.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'lab',
+                                        modifier: 'urinalysis, urine culture'
+                                    },
+                                    {
+                                        type: 'lab',
+                                        modifier: 'GC/CT urine'
+                                    },
+                                    {
+                                        type: 'lab',
+                                        modifier: 'RPR/Syphilis Screen'
+                                    },
+                                ]
                             }
                         ],
                         disposition: [
                             {
                                 ...Disposition[1],
-                                modifier: "[ACT2 PLACEHOLDER]"
+                                modifier: 'STD Screen and UA'
                             }
                         ],
                         next: null,

@@ -21,7 +21,11 @@ export interface subCatDataTypes {
 
 
 export interface subCatGen {
-    text?: string,
+    pg?: {
+        start?: number,
+        end?: number
+    }
+    text?: string
 }
 export interface medcom {
     id?: number,

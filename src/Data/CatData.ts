@@ -1257,7 +1257,10 @@ export const catData: catDataTypes[] = [
                 id: 1,
                 icon: "E-1",
                 text: "Painful/ Frequent Urination",
-                gen: [{}],
+                gen: [{
+                    pg: { start: 69, end: 70 },
+                    text: 'Painful urination is most commonly a sign of a urinary tract infection, kidney stone, sexually transmitted infection, or yeast infection. Frequent urination can be associated with these but can also be one of the initial signs of hyperglycemia from diabetes. UA and urine culture should be completed if resources are available. A Soldier with symptoms consistent with a UTI can be empirically treated without a urinalysis after ruling out any history that would increase the Soldier’s risk and determining any allergies to medications.'
+                }],
                 medcom: [medcomTrainingData[23]],
                 stp: [],
                 redFlags: [

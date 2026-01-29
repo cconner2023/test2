@@ -86,7 +86,7 @@ function DifferentialHeader({ ddx, onDdxClick }: {
         </div>
     );
 }
-
+// components/DecisionMakingItem.tsx - UPDATED VERSION
 export function DecisionMakingItem({
     item,
     colors,
@@ -107,6 +107,16 @@ export function DecisionMakingItem({
 
     const hasDDx = item.ddx && item.ddx.length > 0;
     const shouldShowDdxHeader = showDdxHeader && hasDDx;
+
+    // Group ancillary findings by type for better organization
+    const groupedAncillaryFind = item.ancillaryFind?.reduce((acc, anc) => {
+        const type = anc.type || 'other';
+        if (!acc[type]) {
+            acc[type] = [];
+        }
+        acc[type].push(anc);
+        return acc;
+    }, {} as Record<string, typeof item.ancillaryFind>) || {};
 
     return (
         <div className={`${isNested ? 'mt-3 pt-3 border-t border-themegray1/20' : 'mb-3'}`}>
@@ -137,21 +147,23 @@ export function DecisionMakingItem({
 
                     {/* Content sections */}
                     <div className="space-y-2">
-                        {/* Ancillary Findings */}
-                        {item.ancillaryFind && item.ancillaryFind.length > 0 && (
-                            <div className="mb-2 mt-2">
-                                <div className="text-xs text-tertiary mb-1">
-                                    {item.ancillaryFind.length === 1
-                                        ? `${getAncillaryLabel(item.ancillaryFind[0].type)}:`
-                                        : ''}
-                                </div>
-                                <div className="flex flex-wrap gap-1">
-                                    {item.ancillaryFind.map((anc, index) => (
-                                        <Pill key={index}>
-                                            {anc.modifier ? `${anc.modifier}` : ''}
-                                        </Pill>
-                                    ))}
-                                </div>
+                        {/* Ancillary Findings - GROUPED BY TYPE */}
+                        {Object.keys(groupedAncillaryFind).length > 0 && (
+                            <div className="mb-2 mt-2 space-y-2">
+                                {Object.entries(groupedAncillaryFind).map(([type, items]) => (
+                                    <div key={type} className="space-y-1">
+                                        <div className="text-xs font-medium text-tertiary">
+                                            {getAncillaryLabel(type)}:
+                                        </div>
+                                        <div className="flex flex-wrap gap-1">
+                                            {items.map((anc, index) => (
+                                                <Pill key={index}>
+                                                    {anc.modifier ? `${anc.modifier}` : anc.modifier || ''}
+                                                </Pill>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
                         )}
 
@@ -190,7 +202,7 @@ export function DecisionMakingItem({
                 </div>
             </div>
 
-            {/* Nested Associated MCP - Renders itself recursively */}
+            {/* Nested Associated MCP */}
             {item.assocMcp && (
                 <DecisionMakingItem
                     item={item.assocMcp}
@@ -198,7 +210,7 @@ export function DecisionMakingItem({
                     onMedicationClick={onMedicationClick}
                     onDdxClick={onDdxClick}
                     isNested={true}
-                    showDdxHeader={false} // Nested items don't show DDx header
+                    showDdxHeader={false}
                 />
             )}
         </div>
