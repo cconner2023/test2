@@ -13,8 +13,6 @@ interface QuestionCardProps {
 }
 
 // components/QuestionCard.tsx
-// ... other imports
-
 export const QuestionCard = ({
     algorithmOptions,
     visibleCards,
@@ -36,6 +34,7 @@ export const QuestionCard = ({
                 const isChoice = question.type === 'choice';
                 const isCount = question.type === 'count';
                 const isInitial = question.type === 'initial';
+                const isAction = question.type === 'action';
 
                 return (
                     <div
@@ -45,12 +44,20 @@ export const QuestionCard = ({
               bg-themewhite2 border
               ${isRF
                                 ? 'border-2 border-dashed border-themeredred/30'
-                                : 'border-themewhite/20'
+                                : isAction
+                                    ? 'border-3 border-dashed border-themeblue2/30'
+                                    : 'border-themewhite/10'
                             }
             `}
                     >
                         {/* Question Header */}
-                        <div className={`px-4 py-3 ${isRF ? 'text-center text-themeredred' : 'text-primary/80'}`}>
+                        <div className={`px-4 py-3 ${isRF ? 'text-center text-themeredred' : isAction ? 'text-center text-themeblue2' : 'text-primary/80'}`}>
+                            {/* Title for RF and Action cards */}
+                            {(isRF || isAction) && (
+                                <div className="text-[9pt] font-semibold mb-1 uppercase tracking-wider">
+                                    {isRF ? '' : 'Action Required'}
+                                </div>
+                            )}
                             <div className="text-[10pt] font-normal">
                                 {question.text}
                             </div>
@@ -66,22 +73,24 @@ export const QuestionCard = ({
                                             <div
                                                 key={optIndex}
                                                 onClick={() => {
-                                                    if (isRF || isChoice || isCount || isInitial) {
+                                                    if (isRF || isChoice || isCount || isInitial || isAction) {
                                                         onQuestionOption(card.index, optIndex);
                                                     }
                                                 }}
                                                 className={`
                                                 text-xs p-2 rounded-md cursor-pointer transition-all duration-200
                                                 ${isSelected
-                                                        ? `${cardColors.symptomClass} border-dashed`
+                                                        ? isRF
+                                                            ? 'bg-themeredred text-white' // RF selected style
+                                                            : `${cardColors.symptomClass} border-dashed`
                                                         : 'bg-themewhite3 text-tertiary'
                                                     }
-                                            ${(isRF || isChoice || isCount || isInitial) ? 'cursor-pointer' : 'cursor-default'}
+                                                ${(isRF || isChoice || isCount || isInitial || isAction) ? 'cursor-pointer' : 'cursor-default'}
                                             `}
                                             >
                                                 <div className="font-normal flex items-center">
                                                     {isSelected && (
-                                                        <span className={`mr-2 ${cardColors.symptomCheck}`}>
+                                                        <span className={`mr-2 ${isRF ? 'text-white' : cardColors.symptomCheck}`}>
                                                             ✓
                                                         </span>
                                                     )}

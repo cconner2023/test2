@@ -9,7 +9,7 @@ interface DecisionMakingItemProps {
     onMedicationClick: (medication: medListTypes) => void;
     onDdxClick?: (diagnosis: string) => void;
     isNested?: boolean;
-    showDdxHeader?: boolean; // NEW: Control whether to show DDx as sticky header
+    showDdxHeader?: boolean;
 }
 
 // Type badge component - stays with paragraph on right
@@ -32,7 +32,7 @@ function TypeBadge({ item }: {
     }
 
     return (
-        <div className={`px-2 py-2 text-xs font-medium rounded bg-themewhite text-secondary border border-themegray1/30 flex-shrink-0`}>
+        <div className={`px-2 py-2 text-xs font-medium rounded bg-themewhite text-secondary border border-themegray1/30 shrink-0`}>
             {typeText}
         </div>
     );
