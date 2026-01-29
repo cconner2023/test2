@@ -1,4 +1,4 @@
-// Updated WriteNotePage.tsx with improved HPI display
+// Updated WriteNotePage.tsx with clean underlined tabs at close button level
 import { useState, useEffect, useRef, useCallback } from 'react';
 import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
@@ -27,7 +27,7 @@ interface WriteNoteProps {
         icon: string;
         text: string;
     };
-    isMobile?: boolean; // Add this line
+    isMobile?: boolean;
 }
 
 export const WriteNotePage = ({
@@ -37,7 +37,7 @@ export const WriteNotePage = ({
     onExpansionChange,
     onNoteSave,
     selectedSymptom = { icon: '', text: '' },
-    isMobile = false, // Add this with default value
+    isMobile = false,
 }: WriteNoteProps) => {
     // State
     const [viewState, setViewState] = useState<NoteViewState>('input');
@@ -250,18 +250,55 @@ export const WriteNotePage = ({
     // Main render
     return (
         <div className={`flex flex-col bg-themewhite2 h-full w-full rounded-md ${isMobile && activeTab === 'write-note' ? 'pb-10' : ''}`}>
-            {/* Header */}
-            <div className="p-4 rounded-t-md border-b border-themegray1/20">
-                <HeaderSection
-                    disposition={disposition}
-                    colors={colors}
-                    onClose={() => onExpansionChange(false)}
-                />
-                <TabNavigation
-                    activeTab={activeTab}
-                    onTabChange={setActiveTab}
-                    colors={colors}
-                />
+            {/* Clean Header with Underlined Tabs and Close Button */}
+            <div className="sticky top-0 z-10 bg-themewhite2 rounded-t-md border-b border-themegray1/20">
+                <div className="flex items-center justify-between px-4 pt-4">
+                    {/* Underlined Tab Navigation */}
+                    <div className="flex-1 flex">
+                        {(['decision-making', 'write-note'] as const).map((tab) => (
+                            <button
+                                key={tab}
+                                onClick={() => setActiveTab(tab)}
+                                className={`relative flex-1 py-2 text-sm font-medium transition-all duration-200
+                                    ${activeTab === tab
+                                        ? 'text-primary'
+                                        : 'text-tertiary hover:text-primary'
+                                    }`}
+                            >
+                                {tab === 'decision-making' ? 'Decision Making' : 'Write Note'}
+
+                                {/* Active indicator line */}
+                                {activeTab === tab && (
+                                    <div
+                                        className={`absolute bottom-0 left-0 right-0 h-0.5 rounded-full transition-all duration-200 ${colors.symptomClass}`}
+                                    />
+                                )}
+
+                                {/* Hover indicator line */}
+                                {activeTab !== tab && (
+                                    <div
+                                        className="absolute bottom-0 left-1/2 right-1/2 h-0.5 bg-themegray1/30 rounded-full opacity-0 hover:opacity-100 hover:left-1/4 hover:right-1/4 transition-all duration-200"
+                                    />
+                                )}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Close Button */}
+                    <button
+                        onClick={() => onExpansionChange(false)}
+                        className="shrink-0 ml-4 p-2 text-tertiary hover:text-primary transition-colors rounded-full hover:bg-themewhite3"
+                        title="Close"
+                        aria-label="Close"
+                    >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
+                </div>
+
+                {/* Subtle spacing below tabs */}
+                <div className="pb-2"></div>
             </div>
 
             {/* Main Content */}
@@ -301,7 +338,7 @@ export const WriteNotePage = ({
     );
 };
 
-// Helper Components
+// Helper Components (remain the same)
 const ToggleOption: React.FC<{
     checked: boolean;
     onChange: () => void;
@@ -347,58 +384,6 @@ const CheckIcon: React.FC = () => (
     <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
     </svg>
-);
-
-const HeaderSection: React.FC<{
-    disposition: WriteNoteProps['disposition'];
-    colors: any;
-    onClose: () => void;
-}> = ({ disposition, colors, onClose }) => (
-    <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center space-x-3">
-            <div className={`px-3 py-2 rounded-md ${colors.badgeBg} font-bold text-sm ${colors.badgeText}`}>
-                {disposition.type}
-            </div>
-            <div className="min-w-0">
-                <p className="text-sm text-primary wrap-break-word">{disposition.text}</p>
-                {disposition.addendum && (
-                    <p className="text-xs text-secondary mt-1 wrap-break-word">{disposition.addendum}</p>
-                )}
-            </div>
-        </div>
-        <button
-            onClick={onClose}
-            className="p-2 text-tertiary hover:text-primary transition-colors"
-            title="Close"
-        >
-            <div className='w-8 h-8 rounded-full bg-themewhite/20 border border-tertiary/30 flex items-center justify-center'>
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </div>
-        </button>
-    </div>
-);
-
-const TabNavigation: React.FC<{
-    activeTab: 'decision-making' | 'write-note';
-    onTabChange: (tab: 'decision-making' | 'write-note') => void;
-    colors: any;
-}> = ({ activeTab, onTabChange, colors }) => (
-    <div className="flex">
-        {(['decision-making', 'write-note'] as const).map((tab) => (
-            <button
-                key={tab}
-                onClick={() => onTabChange(tab)}
-                className={`flex-1 py-3 text-sm font-normal transition-all duration-100 ${activeTab === tab
-                    ? `text-primary border-b-2 ${colors.badgeBorder || colors.badgeBg}`
-                    : 'text-tertiary hover:text-primary'
-                    }`}
-            >
-                {tab === 'decision-making' ? 'Decision Making' : 'Write Note'}
-            </button>
-        ))}
-    </div>
 );
 
 const ActionButtons: React.FC<{

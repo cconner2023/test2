@@ -230,7 +230,7 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
                                         onClick={handleExpandNote}
                                         className={`px-4 py-2 rounded-md text-sm font-medium shrink-0 ${colors.buttonClass}`}
                                     >
-                                        Write Note
+                                        Continue  &gt;
                                     </button>
                                 </div>
                             </div>

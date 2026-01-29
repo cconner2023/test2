@@ -2966,8 +2966,17 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 type: 'dmp',
                                 ddx: ['myocardial infarction', 'bleeding ulcer', 'dissecting aortic aneurysm'],
-                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems. DP 1. Angina (substernal chest pressure, worse with exercise), shortness of breath, tachycardia, lightheaded, sweating, shoulder or jaw pain can be signs and symptoms of a myocardial infarction. Obtain an EKG and give aspirin (if no signs of bleeding). Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider. Vomiting blood or coffee grinds and melena are signs of a bleeding ulcer. Tearing pain that radiates to the back is a sign of a dissecting aortic aneurysm.',
-                                ancillaryFind: []
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems. Angina (substernal chest pressure, worse with exercise), shortness of breath, tachycardia, lightheaded, sweating, shoulder or jaw pain can be signs and symptoms of a myocardial infarction. Obtain an EKG and give aspirin (if no signs of bleeding). Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider. Vomiting blood or coffee grinds and melena are signs of a bleeding ulcer. Tearing pain that radiates to the back is a sign of a dissecting aortic aneurysm.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'med',
+                                        modifier: 'aspirin'
+                                    },
+                                    {
+                                        type: 'rad',
+                                        modifier: 'ekg'
+                                    }
+                                ]
                             }
                         ],
                         next: null,
@@ -2975,12 +2984,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -2998,16 +3001,27 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
                                 modifier: "Oxygen, EKG, chewable aspirin"
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['myocardial infarction', 'bleeding ulcer', 'dissecting aortic aneurysm'],
+                                text: 'Oxygen, EKG, and chewable aspirin. Angina (substernal chest pressure, worse with exercise), shortness of breath, tachycardia, lightheaded, sweating, shoulder or jaw pain can be signs and symptoms of a myocardial infarction. Obtain an EKG and give aspirin (if no signs of bleeding). Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider. Vomiting blood or coffee grinds and melena are signs of a bleeding ulcer. Tearing pain that radiates to the back is a sign of a dissecting aortic aneurysm.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'med',
+                                        modifier: 'aspirin'
+                                    },
+                                    {
+                                        type: 'rad',
+                                        modifier: 'ekg'
+                                    }
+                                ]
                             }
                         ],
                         next: null,
@@ -3015,12 +3029,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -3044,21 +3052,16 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['gastritis', 'ulcer', 'cancer', 'pancreatitis', 'esophagitis', 'GERD'],
+                                text: 'These are symptoms that suggest a more chronic condition than just heartburn. History of an ulcer suggests gastritis or another ulcer. Unexplained weight loss is a sign of cancer. Anorexia and vomiting are signs of pancreatitis. Dysphagia and odynophagia are signs of esophagitis and chronic gastroesophageal reflux disease.'
                             }
                         ],
-                        disposition: [Disposition[1]], // CAT II: AEM Now
+                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 4,
                         selectAll: false
@@ -3072,16 +3075,21 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [
+                            {
+                                ...Disposition[2],
+                            }
+                        ],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[3],
-                                text: "Screen other symptoms if present"
+                                ddx: ['GERD'],
+                                text: 'It occurs due to the passage of gastric contents into the esophagus. It is a normal physiologic process that can result in brief episodes of heartburn. Overeating, tobacco, alcohol, overweight, stress, certain foods can act as triggers to increase the frequency of heartburn.", "Instruct Soldier on lifestyle modifications: weight loss if overweight, smoking cessation if indicated, and elevation of head of bed, avoidance of chocolate/caffeine/spicy foods/ alcohol/other foods that exacerbate symptoms. Ranitidine (histamine 2 receptor antagonist) as needed for symptoms. Ranitidine reaches peak of action about 2.5 hours after taking and lasts around 8 hours. Return if symptoms are not controlled with minor-care measures, new symptoms arise, or Soldier is having to take the over the counter medication more than once per week.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: '*NOTE: updated clinical practice - Ranitidine is no longer used* Medication: Ranitidine as needed (up to 2 doses in 24 hours) Lifestyle modification: weight loss if indicated, smoking cessation if indicated, elevation of head of bed, avoidance of foods that make it worse. Return to clinic if any of the red flags or other symptoms develop, not improved with Minor Care Protocol, or taking ranitidine more than once per week on average.',
+                                    medFind: [medList[40]]
+                                }
                             }
                         ],
                         next: null,
@@ -3089,13 +3097,18 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [
+                            {
+                                ...Disposition[3],
+                                text: "Screen other symptoms if present"
+                            }
+                        ],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'Soldier without the previous concerning symptoms and classic heartburn symptoms can be treated with over the counter medications and lifestyle changes. If other symptoms are present, he or she should be screened for those symptoms.'
                             }
                         ],
-                        disposition: [Disposition[2]], // CAT III
                         next: null,
                         selectAll: false
                     }
@@ -3127,29 +3140,39 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[0], modifier: "Oxygen, EKG, IV" }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now”. Start the Soldier on oxygen with non-rebreather mask at 10 Liters/ minute, start an IV and IVF at TKO and obtain EKG if available. They can be signs of significant underlying medical problems.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'med',
+                                        modifier: 'aspirin'
+                                    },
+                                    {
+                                        type: 'rad',
+                                        modifier: 'EKG'
+                                    }
+                                ]
                             }
                         ],
-                        disposition: [Disposition[0]], // CAT I: Provider Now
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
                     }
                 ]
+            },
+            {
+                text: "EKG",
+                type: "action",
+                questionOptions: [],
+                answerOptions: []
             },
             {
                 text: "Do any of the following apply?",
@@ -3163,16 +3186,27 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
                                 modifier: "Oxygen, EKG, Aspirin 325mg"
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['myocardial infarction', 'pulmonary embolism', 'arrhythmia'],
+                                text: 'Tachycardia, sweating, pain or pressure in the chest, shoulder, or jaw can be symptoms of a myocardial infarction. Chest pain and tachycardia can also be signs of a pulmonary embolism. Irregular pulse identifies an arrhythmia. Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'med',
+                                        modifier: 'aspirin'
+                                    },
+                                    {
+                                        type: 'rad',
+                                        modifier: 'EKG'
+                                    }
+                                ]
                             }
                         ],
                         next: null,
@@ -3180,12 +3214,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -3207,21 +3235,16 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['pneumonia', 'viral illness', 'asthma'],
+                                text: 'Screens for other medical conditions requiring further evaluation. Productive cough and elevated temperature are signs of pneumonia. Symptoms lasting longer than 10 days may not be viral. History of asthma or wheezing screens for an asthma exacerbation.'
                             }
                         ],
-                        disposition: [Disposition[1]], // CAT II: AEM Now
+                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 4,
                         selectAll: false
@@ -3239,13 +3262,38 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['cold'],
+                                text: 'Counsel the Soldier to drink plenty of fluids and rest, cover their mouth when they cough and wash hands to prevent spread. Ibuprofen for pain, acetaminophen for elevated temperature, decongestant for nasal congestion, guaifenesin for mucous, or antihistamine for allergies. Return to clinic if not improving within one week, worsening symptoms, fever, new sinus pain, lightheadedness, or pain in the neck.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Cold or allergy symptoms: A-3 Minor Care Protocol',
+                                    medFind: [medList[23], medList[0], medList[32], medList[20], medList[27]]
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['panic attack'],
+                                text: 'Check EKG. If EKG is normal, initiate observed deep breathing exercises. Place a pulse oximeter on the Soldier’s finger. Have the Soldier lay back at a 45 degree angle with legs uncrossed and initiate diaphragmatic breathing exercises with deep, slow inhalation over 4 seconds and exhalation over another 4 second count. If the SpO2 starts to drop, disposition the Soldier as “Provider Now”. Refer Soldier to Behavioral Health after initial panic attack decreases in intensity.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    ancillaryFind: [
+                                        {
+                                            type: 'refer',
+                                            modifier: 'Behavioral Health'
+                                        },
+                                        {
+                                            type: 'rad',
+                                            modifier: 'EKG'
+                                        }
+                                    ]
+
+                                }
                             }
                         ],
-                        disposition: [Disposition[2]], // CAT III: Treatment Protocol and RTD
                         next: null,
                         selectAll: true
                     },
@@ -3254,10 +3302,10 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'Identifies conditions that are self-limited or can be treated with a minor-care protocol.'
                             }
                         ],
-                        disposition: [Disposition[1]], // CAT II: AEM Now
+                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: false
                     }
