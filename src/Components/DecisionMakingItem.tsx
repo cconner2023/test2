@@ -1,4 +1,4 @@
-// components/DecisionMakingItem.tsx - WITH STICKY DIFFERENTIAL HEADER
+// components/DecisionMakingItem.tsx - SIMPLIFIED VERSION
 import type { decisionMakingType } from '../Types/AlgorithmTypes'
 import type { getColorClasses } from '../Utilities/ColorUtilities'
 import type { medListTypes } from '../Data/MedData'
@@ -12,27 +12,51 @@ interface DecisionMakingItemProps {
     showDdxHeader?: boolean;
 }
 
-// Type badge component - stays with paragraph on right
+// Consolidated badge/pill component
+function Pill({
+    children,
+    onClick,
+    className,
+}: {
+    children: React.ReactNode;
+    onClick?: () => void;
+    className?: string;
+    title?: string | undefined;
+}) {
+    const baseClasses = 'px-2 py-0.5 text-xs bg-themewhite text-primary rounded border border-themegray1/30';
+    const interactiveClasses = onClick ? 'hover:bg-themewhite2 hover:border-themegray1/50 transition-colors cursor-pointer' : '';
+
+    const Component = onClick ? 'button' : 'span';
+
+    return (
+        <Component
+            className={`${baseClasses} ${interactiveClasses} ${className}`}
+            onClick={onClick}
+            type={onClick ? 'button' : undefined}
+        >
+            {children}
+        </Component>
+    );
+}
+
+// Type badge component
 function TypeBadge({ item }: {
     item: decisionMakingType;
 }) {
-    const getTypeText = (type?: string) => {
-        switch (type) {
-            case 'dmp': return 'Decision Making';
-            case 'mcp': return 'Minor Care Protocol';
-            case 'lim': return 'Limitations';
-            default: return '';
-        }
+    const typeTextMap: Record<string, string> = {
+        'dmp': 'Decision Making',
+        'mcp': 'Minor Care Protocol',
+        'lim': 'Limitations',
     };
 
-    const typeText = getTypeText(item.type);
+    const typeText = typeTextMap[item.type || ''];
 
     if (!typeText) {
         return null;
     }
 
     return (
-        <div className={`px-2 py-2 text-xs font-medium rounded bg-themewhite text-secondary border border-themegray1/30 shrink-0`}>
+        <div className="px-2 py-2 text-xs font-medium rounded bg-themewhite text-secondary border border-themegray1/30 shrink-0">
             {typeText}
         </div>
     );
@@ -50,24 +74,13 @@ function DifferentialHeader({ ddx, onDdxClick }: {
             </div>
             <div className="flex flex-wrap gap-1">
                 {ddx.map((diagnosis, index) => (
-                    onDdxClick ? (
-                        <button
-                            key={index}
-                            onClick={() => onDdxClick(diagnosis)}
-                            className="px-2 py-0.5 text-xs bg-themewhite text-primary rounded border border-themegray1/30 hover:bg-themewhite2 hover:border-themegray1/50 transition-colors cursor-pointer"
-                            title={`Click to view ${diagnosis} details`}
-                            type="button"
-                        >
-                            {diagnosis}
-                        </button>
-                    ) : (
-                        <span
-                            key={index}
-                            className="px-2 py-0.5 text-xs bg-themewhite text-primary rounded border border-themegray1/30"
-                        >
-                            {diagnosis}
-                        </span>
-                    )
+                    <Pill
+                        key={index}
+                        onClick={onDdxClick ? () => onDdxClick(diagnosis) : undefined}
+                        title={onDdxClick ? `Click to view ${diagnosis} details` : undefined}
+                    >
+                        {diagnosis}
+                    </Pill>
                 ))}
             </div>
         </div>
@@ -80,7 +93,7 @@ export function DecisionMakingItem({
     onMedicationClick,
     onDdxClick,
     isNested = false,
-    showDdxHeader = true, // Default to showing DDx header
+    showDdxHeader = true,
 }: DecisionMakingItemProps) {
     const getAncillaryLabel = (type?: string) => {
         const labels: Record<string, string> = {
@@ -92,21 +105,14 @@ export function DecisionMakingItem({
         return labels[type || ''] || type || 'Test';
     };
 
-    // Check if this item should show its own DDx header
     const hasDDx = item.ddx && item.ddx.length > 0;
     const shouldShowDdxHeader = showDdxHeader && hasDDx;
 
     return (
-        <div className={`${isNested ? 'ml-1 pl-1 relative' : 'mb-3'}`}>
-            {/* Left connecting line for nested items */}
-            {isNested && (
-                <div className="absolute top-0 -left-1 w-1 h-full border-l border-themegray1/20" />
-            )}
-
+        <div className={`${isNested ? 'mt-3 pt-3 border-t border-themegray1/20' : 'mb-3'}`}>
             {/* Main Content Card */}
-            <div className={`rounded border border-themegray1/20 ${isNested ? 'bg-themewhite2' : 'bg-themewhite3'} p-3 relative`}>
-
-                {/* STICKY DIFFERENTIAL HEADER (if this item has DDx) */}
+            <div className={`rounded border border-themegray1/20 ${isNested ? 'bg-themewhite2' : 'bg-themewhite3'} p-3`}>
+                {/* STICKY DIFFERENTIAL HEADER */}
                 {shouldShowDdxHeader && (
                     <DifferentialHeader
                         ddx={item.ddx!}
@@ -129,8 +135,8 @@ export function DecisionMakingItem({
                         <TypeBadge item={item} />
                     </div>
 
-                    {/* Content below (ancillary, medications, etc.) */}
-                    <div className="ml-2">
+                    {/* Content sections */}
+                    <div className="space-y-2">
                         {/* Ancillary Findings */}
                         {item.ancillaryFind && item.ancillaryFind.length > 0 && (
                             <div className="mb-2 mt-2">
@@ -141,12 +147,9 @@ export function DecisionMakingItem({
                                 </div>
                                 <div className="flex flex-wrap gap-1">
                                     {item.ancillaryFind.map((anc, index) => (
-                                        <span
-                                            key={index}
-                                            className="px-2 py-0.5 text-xs bg-themewhite text-primary rounded border border-themegray1/30"
-                                        >
+                                        <Pill key={index}>
                                             {anc.modifier ? `${anc.modifier}` : ''}
-                                        </span>
+                                        </Pill>
                                     ))}
                                 </div>
                             </div>
@@ -158,15 +161,13 @@ export function DecisionMakingItem({
                                 <div className="text-xs font-medium text-tertiary mb-1">Medications:</div>
                                 <div className="flex flex-wrap gap-1">
                                     {item.medFind.map((med, medIndex) => (
-                                        <button
+                                        <Pill
                                             key={medIndex}
                                             onClick={() => onMedicationClick(med)}
-                                            className="px-2 py-0.5 text-xs bg-themewhite text-primary rounded border border-themegray1/30 hover:bg-themewhite2 hover:border-themegray1/50 transition-colors cursor-pointer"
                                             title={`Click to view ${med.text} details`}
-                                            type="button"
                                         >
                                             {med.text}
-                                        </button>
+                                        </Pill>
                                     ))}
                                 </div>
                             </div>
@@ -185,23 +186,21 @@ export function DecisionMakingItem({
                                 </div>
                             </div>
                         )}
-
-                        {/* Nested Associated MCP */}
-                        {item.assocMcp && (
-                            <div className="mt-3 pt-3 border-t border-themegray1/20">
-                                <DecisionMakingItem
-                                    item={item.assocMcp}
-                                    colors={colors}
-                                    onMedicationClick={onMedicationClick}
-                                    onDdxClick={onDdxClick}
-                                    isNested={true}
-                                    showDdxHeader={false} // Nested items don't show DDx header
-                                />
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>
+
+            {/* Nested Associated MCP - Renders itself recursively */}
+            {item.assocMcp && (
+                <DecisionMakingItem
+                    item={item.assocMcp}
+                    colors={colors}
+                    onMedicationClick={onMedicationClick}
+                    onDdxClick={onDdxClick}
+                    isNested={true}
+                    showDdxHeader={false} // Nested items don't show DDx header
+                />
+            )}
         </div>
     );
 }

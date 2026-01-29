@@ -3347,7 +3347,49 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['myocardial infarction', 'pulmonary embolism', 'arrhythmia'],
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now”. Start them on oxygen with a nasal cannula at four-six liters/ minute, start an IV and IVF at TKO, give a chewable aspirin. These can be signs of significant underlying medical problems., ',
+                                ancillaryFind: [
+                                    {
+                                        type: 'rad',
+                                        modifier: 'EKG'
+                                    },
+                                    {
+                                        type: 'med',
+                                        modifier: 'Aspirin'
+                                    },
+                                    {
+                                        type: 'med',
+                                        modifier: 'O2 nasal cannula 4-6 liters/min'
+                                    },
+                                    {
+                                        type: 'med',
+                                        modifier: 'IV / IVF TKO'
+                                    }
+                                ]
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['myocardial infarction', 'pulmonary embolism', 'arrhythmia'],
+                                text: 'Obtain an EKG if available. Tachycardia, sweating, pain, and pressure in the chest, shoulder, or jaw can be symptoms of a myocardial infarction. Note that diabetics and women can present atypically. Chest pain and tachycardia can also be signs of a pulmonary embolism or arrhythmia. Do not wait to provide oxygen, give aspirin, and start IV before notifying the supervising privileged provider.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'rad',
+                                        modifier: 'EKG'
+                                    },
+                                    {
+                                        type: 'med',
+                                        modifier: 'Aspirin'
+                                    },
+                                    {
+                                        type: 'med',
+                                        modifier: 'O2 nasal cannula 4-6 liters/min'
+                                    },
+                                    {
+                                        type: 'med',
+                                        modifier: 'IV / IVF TKO'
+                                    }
+                                ]
                             }
                         ],
                         disposition: [
@@ -3387,7 +3429,14 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['pneumonia', 'rib fracture'],
+                                text: 'Elevated temperature and productive cough screens for pneumonia. Recent chest trauma screens for multiple etiologies to include a rib fracture.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'rad',
+                                        modifier: 'chest x-ray'
+                                    }
+                                ]
                             }
                         ],
                         disposition: [Disposition[1]],
@@ -3396,12 +3445,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 4,
                         selectAll: false
@@ -3423,10 +3466,66 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['cold'],
+                                text: 'See Protocol A-3. Must discuss with supervising privileged provider before Soldier leaves screening area.',
+                                assocMcp: {
+                                    text: 'Counsel the Soldier to drink plenty of fluids, get plenty of rest, and to cover their mouth when coughing and wash their hands to prevent spread. Stop or limit smoking. Ibuprofen for pain, Acetaminophen for elevated temperature, decongestant for nasal congestion, guaifenesin for mucous, or antihistamine for allergies. Return if it does not improve in 7 days, worsening symptoms, develop sinus pain, lightheaded, neck pain, or fever.',
+                                    medFind: [
+                                        { ...medList[23] },
+                                        { ...medList[0] },
+                                        { ...medList[32] },
+                                        { ...medList[20] }
+                                    ],
+                                    specLim: [
+                                        'Consider quarters/ contagious precautions while febrile',
+                                        'Aerobic training at own pace/distance x 3 days',
+                                        'Limit exposure to temperatures below <50 degrees F'
+                                    ]
+                                },
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['panic attack'],
+                                text: '(chest tightness, palpitations, anxious, lightheaded): Check EKG. If EKG is normal, initiate observed deep breathing exercises. Place a pulse oximeter on the Soldier’s finger. Have the Soldier lay back at a 45 degree angle with legs uncrossed and initiate diaphragmatic breathing exercises with deep, slow inhalation over 4 seconds and exhalation over another 4 second count. If the SpO2 starts to drop, disposition the Soldier as “Provider Now”. Refer Soldier to behavioral health after initial panic attack decreases in intensity. Must discuss with supervising privileged provider before Soldier leaves screening area',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Check EKG. Monitor pulse oximeter. Supervised deep breathing exercises. Referral to provider now if oxygenation decreases or symptoms do not resolve. Refer to behavioral health after dyspnea symptoms have resolved',
+                                    ancillaryFind: [
+                                        {
+                                            type: 'refer',
+                                            modifier: 'behavioral health'
+                                        }
+                                    ],
+                                    specLim: [
+                                        'Limit exposure to temperatures below <50 degrees F'
+                                    ]
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['costochondritis', 'Tietze Syndrome'],
+                                text: 'Pain must be reproducible and directly correspond to a supporting history. Medications: ibuprofen as needed for muscle complaints. Return to clinic if pain increases, lasts longer than three days, shortness of breath/ dizziness/ or new symptoms develop. Must discuss with supervising privileged provider before Soldier leaves screening area.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'ibuprofen or acetaminophen for pain, analgesic balm for muscle/tendons. Temporary profile x 3 days if needed. Return to the clinic if pain increases, not improved in four days, shortness of breath/dizziness/or new symptoms develop.',
+                                    ancillaryFind: [],
+                                    specLim: [
+                                        'May lift, push up to 25 lbs'
+                                    ]
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['GERD', 'heartburn'],
+                                text: 'Must discuss with supervising privileged provider before Soldier leaves screening area. This occurs due to the passage of gastric contents into the esophagus. It is a normal physiologic process that can result in brief episodes of heartburn. Overeating, tobacco, alcohol, overweight, stress, certain foods can act as triggers to increase the frequency of heartburn.", "Instruct Soldier on lifestyle modifications: weight loss if overweight, smoking cessation if indicated, and elevation of head of bed, avoidance of chocolate/caffeine/spicy foods/ alcohol/other foods that exacerbate symptoms. Ranitidine (histamine 2 receptor antagonist) as needed for symptoms. Ranitidine reaches peak of action about 2.5 hours after taking and lasts around 8 hours. Return if symptoms are not controlled with minor-care measures, new symptoms arise, or Soldier is having to take the over the counter medication more than once per week.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: '*NOTE: updated clinical practice - Ranitidine is no longer used* Medication: Ranitidine as needed (up to 2 doses in 24 hours) Lifestyle modification: weight loss if indicated, smoking cessation if indicated, elevation of head of bed, avoidance of foods that make it worse. Return to clinic if any of the red flags or other symptoms develop, not improved with Minor Care Protocol, or taking ranitidine more than once per week on average.',
+                                    medFind: [medList[40]]
+                                }
                             }
                         ],
-                        disposition: [Disposition[1]],
+                        disposition: [Disposition[2]],
                         next: null,
                         selectAll: true
                     },
@@ -3435,10 +3534,10 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: ' Conditions that are not identified should be referred to the AEM for further evaluation.'
                             }
                         ],
-                        disposition: [Disposition[2]],
+                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: false
                     }
@@ -3485,13 +3584,28 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems. '
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['urinary tract infection', 'kidney infection', 'systemic infection', 'diabetes'],
+                                text: 'Urinary tract infections can get worse if not promptly treated. Urinary tract infection can progress to a kidney infection and then a systemic infection through the blood. Uncontrolled diabetes can present with increased urination and nausea with vomiting. Complaints requiring an invasive exam are referred to the supervising privileged provider.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'lab',
+                                        modifier: "urinalysis, urine culture if available"
+                                    },
+                                    {
+                                        type: 'lab',
+                                        modifier: "pregnancy test"
+                                    }
+                                ]
                             }
                         ],
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "[ACT1 PLACEHOLDER]"
+                                modifier: "UA, urine culture if available"
                             }
                         ],
                         next: null,
@@ -3499,12 +3613,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -3527,13 +3635,20 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['kidney stone', 'recurrent urinary tract infection', 'atypical bacterial infection', 'hematuria'],
+                                text: 'Urinary complaints in a male are more likely to be something other than a urinary tract infection. Recurrent urinary tract infections (UTIs), recent urinary catheterization, and immunocompromised are more likely to have an atypical bacterial infection.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'lab',
+                                        modifier: 'urinalysis, urine culture'
+                                    }
+                                ]
                             }
                         ],
                         disposition: [
                             {
                                 ...Disposition[1],
-                                modifier: "[ACT2 PLACEHOLDER]"
+                                modifier: "UA, urine culture if available"
                             }
                         ],
                         next: null,
@@ -3544,7 +3659,13 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['cystitis (urinary tract infection)'],
+                                text: 'UA and urine culture should be completed if resources are available. A Soldier with symptoms consistent with a UTI can be empirically treated without a urinalysis after ruling out any history that would increase the Soldier’s risk and determining any allergies to medications. Instruct the Soldier about the importance of increasing fluid intake to flush out the bacteria. OTC medication: phenazopyridine as needed for pain. Instruct the Soldier that it will likely dye his or her urine orange. It may also stain contact lenses from transferring the dye from the fingers to the contacts, if worn. Antibiotics: Trimethoprim/ Sulfamethoxazole is the first line agent. Nitrofurantoin is the second line agent if the Soldier is allergic to sulfa drugs or there is local resistance to the first line agent. Return to clinic if symptoms are not improving within 24 hours, development of new symptoms, or worsening symptoms despite treatment.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'drink 8+ glasses of water/day. Phenazopyridine as needed. Counsel on it changing urine orange and potential to dye contacts. First line agent: trimethoprim/sulfamethoxazole. if the MTF antibiotic resistance is greater than 20% or patient has sulfa allergy, use second line agent. Second line agent: nitrofurantoin, if the patient reports an allergy to nitrofurantoin. refer to AEM. Return to clinic if symptoms not improving within 24 hours, development of new symptoms, worsening symptoms ',
+                                    medFind: [medList[35], medList[42], medList[31]]
+                                }
                             }
                         ],
                         disposition: [Disposition[2]],
