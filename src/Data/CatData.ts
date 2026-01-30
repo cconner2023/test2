@@ -1366,7 +1366,10 @@ export const catData: catDataTypes[] = [
                 id: 1,
                 icon: "F-1",
                 text: "Dizziness/Faintness/ Blackout ",
-                gen: [{}],
+                gen: [{
+                    pg: { start: 77, end: 78 },
+                    text: 'It is useful to try and distinguish among different presentations of dizziness: faintness, blackouts, vertigo, confusion, malaise, muscle weakness, and other sensations. True vertigo refers to an illusion where the room seems to be spinning about or the floor seems to be moving. It may be likened to the feeling experienced immediately after getting off a fast merry-go-round and is often accompanied by nausea. Faintness or light-headedness is a feeling of unsteadiness or beginning to fall. Blackout refers to a complete loss of consciousness and observers should also be questioned about potential causes of the event and any unusual observations during the event'
+                }],
                 medcom: [
                     medcomTrainingData[15],
                     medcomTrainingData[17],
