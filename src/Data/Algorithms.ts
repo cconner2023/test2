@@ -3856,9 +3856,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "\u2640  Pregnancy Test",
+                text: "Draw the following labs",
                 type: "action",
-                questionOptions: [],
+                questionOptions: [
+                    { text: '\u2640  Pregnancy Test' },
+                    { text: 'STD Screen' },
+                    { text: 'Urinalysis' },
+                ],
                 answerOptions: []
             },
             {
@@ -3876,26 +3880,39 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                ddx: ['Testicular Torsion', 'Hernia', 'Stress Fracture', 'Hip Injury', 'STD'],
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
                             {
-                                ...Disposition[0],
-                                modifier: "[ACT1 PLACEHOLDER]"
+                                type: 'dmp',
+                                ddx: ['Ectopic Pregnancy', 'Syphilis', 'Gonorrhea', 'Chlamydia', 'Pelvic Inflammatory Disease', 'Sepsis'],
+                                text: 'All Soldiers will be screened with a pregnancy test (if female), UA, and STI screen. STI screen will consist of a RPR, gonorrhea/chlamydia urine screen, and HIV screen. Pelvic pain with intercourse may be pelvic inflammatory disease. Orthostatic symptoms, fever, and signs of a severe illness can represent a more significant problem. Signs of a severe illness includes abnormal vital signs, appearing pale, sweaty, lethargic, or visually in pain. Failure of initial treatment may be a drug resistant organism. Females with vaginal symptoms to include discharge will be referred to a privileged provider for a pelvic examination.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'lab',
+                                        modifier: 'pregnancy test'
+                                    },
+                                    {
+                                        type: 'lab',
+                                        modifier: 'gonorrhea/chlamydia urine screen'
+                                    },
+                                    {
+                                        type: 'lab',
+                                        modifier: 'HIV screen'
+                                    },
+                                    {
+                                        type: 'lab',
+                                        modifier: 'Urinalysis'
+                                    }
+                                ]
                             }
                         ],
+                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -3912,25 +3929,51 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['syphilis', 'HSV', 'genital warts', 'chancroid', 'molluscum contagiosum'],
+                                text: 'Skin lesions/rash may represent a chancre (syphilis), HSV ulcers, genital warts (HPV), chancroid, or molluscum contagiosum. Further evaluation is necessary to determine the necessary treatment modality (freezing, medication, or referral)'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['gonorrhea', 'chlamydia'],
+                                text: 'Request an order for a urinalysis and gonorrhea/chlamydia urine screen. If urethral discharge is present, 2+ WBC on urinalysis, leukocyte esterase positive on urinalysis, or recent known STI exposure, treat for potential gonorrhea/chlamydia infection with ceftriaxone and azithromycin. Instruct the Soldier to abstain from intercourse for one week after treatment due to contagious risk and counsel on safe sex practices and risks of high risk sexual behavior. Notify the supervising privileged provider so that he or she can track. Refer to community health. Return to clinic if symptoms are not improving within 48 hours, development of new symptoms, or worsening symptoms.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    // updated empiric treatment guideline if unknown GC/CT - ceftriaxone 500mg IM x 1 in clinic + doxycycline 100mg PO BID x 7 days.
+                                    text: '*NOTE: updated empiric treatment for GC/CT involves ceftriaxone with doxycycline in place of azithromycin* Counsel on avoidance of sexual contact till diagnosis has been confirmed/ruled-out, safe sex practices, and risks of high risk sexual behavior. STD Screen. Provide treatment with ceftriaxone and arithromycin if positive or symptomatic. Notify provider. Refer to community health. RTC if worsening symptoms, new symptoms arise, or not improving within 2 days ',
+                                    ancillaryFind: [
+                                        {
+                                            type: 'lab',
+                                            modifier: 'gonorrhea/chlamydia urine screen'
+                                        },
+                                        {
+                                            type: 'lab',
+                                            modifier: 'HIV screen'
+                                        },
+                                        {
+                                            type: 'lab',
+                                            modifier: 'Urinalysis'
+                                        },
+                                        {
+                                            type: 'refer',
+                                            modifier: 'Community Health'
+                                        }
+                                    ],
+                                    medFind: [medList[13], medList[6], medList[16]]
+                                }
                             }
                         ],
-                        disposition: [Disposition[2]],
                         next: null,
                         selectAll: false
                     }
@@ -3967,13 +4010,14 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['urinary obstruction', 'benign prostatic hypertrophy', 'UTI', 'STI'],
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems. Inability to void can represent an obstruction of the ureter. Do to the risks to the kidneys, it is a medical emergency.'
                             }
                         ],
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "[ACT1 PLACEHOLDER]"
+                                modifier: "Urinalysis, \u2640 Pregnancy Test"
                             }
                         ],
                         next: null,
@@ -4015,7 +4059,13 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['benign prostatic hyperplasia'],
+                                text: 'A man’s prostate can become enlarged later in life resulting in urinary symptoms of post-void urine dribbling, a weak stream, or difficulty initiating a urinary stream that requires further evaluation and treatment by a qualified provider.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['pregnancy'],
+                                text: 'See algorithm I-2: Refer Soldiers with a positive pregnancy test to the AEM. The Soldier will need to receive initial pregnancy counseling that includes medications and foods to avoid, importance of a daily prenatal vitamin, avoidance of alcohol, pregnancy profile, and referral to obstetrics-gynecology clinic. These services are also sometimes provided by the clinic nurse depending on local protocol'
                             }
                         ],
                         disposition: [Disposition[1]],
@@ -4027,7 +4077,51 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['gonorrhea', 'chlamydia'],
+                                text: 'For Urethral Discharge See Protocol E-3. Check a first morning void urinalysis and gonorrhea/chlamydia urine screen. If indicated, treat for potential gonorrhea/chlamydia infection with ceftriaxone and azithromycin. Instruct the Soldier to abstain from sex due to the contagious risk. Notify the supervising privileged provider. Refer to community health. RTC if symptoms have not improved in 1 week, symptoms worsen, or new symptoms develop.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    // updated empiric treatment guideline if unknown GC/CT - ceftriaxone 500mg IM x 1 in clinic + doxycycline 100mg PO BID x 7 days.
+                                    text: '*NOTE: updated empiric treatment for GC/CT involves ceftriaxone with doxycycline in place of azithromycin* Counsel on avoidance of sexual contact till diagnosis has been confirmed/ruled-out, safe sex practices, and risks of high risk sexual behavior. STD Screen. Provide treatment with ceftriaxone and arithromycin if positive or symptomatic. Notify provider. Refer to community health. RTC if worsening symptoms, new symptoms arise, or not improving within 2 days ',
+                                    ancillaryFind: [
+                                        {
+                                            type: 'lab',
+                                            modifier: 'gonorrhea/chlamydia urine screen'
+                                        },
+                                        {
+                                            type: 'lab',
+                                            modifier: 'HIV screen'
+                                        },
+                                        {
+                                            type: 'lab',
+                                            modifier: 'Urinalysis'
+                                        },
+                                        {
+                                            type: 'refer',
+                                            modifier: 'Community Health'
+                                        }
+                                    ],
+                                    medFind: [medList[13], medList[6], medList[16]]
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['UTI'],
+                                text: 'UTI : See Protocol E-1. OTC medication: phenazopyridine as needed for pain. Antibiotics: trimethoprim/sulfamethoxazole is the first line agent. Nitrofurantoin is the second line agent. Return to clinic in 24 hours if symptoms are not improving, worsening symptoms, or developing new symptoms.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'drink 8+ glasses of water/day. Phenazopyridine as needed. Counsel on it changing urine orange and potential to dye contacts. First line agent: trimethoprim/sulfamethoxazole. if the MTF antibiotic resistance is greater than 20% or patient has sulfa allergy, use second line agent. Second line agent: nitrofurantoin, if the patient reports an allergy to nitrofurantoin. refer to AEM. Return to clinic if symptoms not improving within 24 hours, development of new symptoms, worsening symptoms ',
+                                    medFind: [medList[35], medList[42], medList[31]]
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['urinary incontinence', 'stress incontinence'],
+                                text: 'If leaking urine during episodes of increased intra-abdominal pressure (sneezing, coughing, laughing, jumping), it is stress incontinence. Instruct the Soldier on performing Kegel exercises at home. Contact the clinic if not improving and would like a referral. Return for worsening or development of new symptoms.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'if leaking urine when coughing, sneeing, jumping, counsel patient on home exercises. RTC if worsening symptoms, new symptoms arise, or not improved within stated timeframe'
+                                }
                             }
                         ],
                         disposition: [Disposition[2]],

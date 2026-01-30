@@ -117,12 +117,6 @@ function AppContent() {
     setShowSettings(true)
     if (isMenuOpen) setIsMenuOpen(false)
   }
-
-  // Export click handler
-  const handleExportClick = () => {
-    console.log('Exporting data...')
-  }
-
   // Title logic
   const getTitle = () => {
     if (layout.hasSearchInput) return { title: "", show: false }
@@ -187,9 +181,7 @@ function AppContent() {
             <NoteImport onClose={() => setShowNoteImport(false)} />
           </div>
         )}
-
-        {/* Settings - Using z-index to overlay */}
-        {showSettings && (
+        {showSettings && !layout.hasSearchInput && (
           <div className="absolute inset-0 z-50 bg-themewhite">
             <Settings
               isVisible={showSettings}
@@ -203,9 +195,6 @@ function AppContent() {
             />
           </div>
         )}
-
-        {/* Main Content - Animated grid switching */}
-        {/* Conditionally render without animation when settings is open to prevent choppiness */}
         <div ref={showSettings ? undefined : contentRef} className='md:h-[94%] h-full mt-2 mx-2'>
           {!showNoteImport && !showSettings && (
             <>

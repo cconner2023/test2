@@ -1,7 +1,6 @@
 // NavTop.tsx - Simplified approach with conditional info button in search container
-import { Search, X, Menu, ChevronLeft, Upload, Moon, Sun, Info, List, Settings } from "lucide-react";
+import { Search, X, Menu, ChevronLeft, Upload, Info, List, Settings } from "lucide-react";
 import { useRef, useEffect } from "react";
-import { useTheme } from "../Utilities/ThemeContext";
 export type MobileViewState = 'visible' | 'hidden'
 
 interface NavTopProps {
@@ -15,7 +14,7 @@ interface NavTopProps {
     onBackClick?: () => void;
     onImportClick?: () => void;
     onMedicationClick?: () => void;
-    onSettingsClick?: () => void; // NEW PROP
+    onSettingsClick?: () => void;
     dynamicTitle?: string;
     showDynamicTitle?: boolean;
     searchInputRef?: React.RefObject<HTMLInputElement>;
@@ -37,7 +36,7 @@ export function NavTop({
     onBackClick,
     onImportClick,
     onMedicationClick,
-    onSettingsClick, // NEW PROP
+    onSettingsClick,
     dynamicTitle,
     showDynamicTitle = false,
     searchInputRef,
@@ -49,7 +48,6 @@ export function NavTop({
     const hasSearchInput = searchInput.trim().length > 0;
     const internalInputRef = useRef<HTMLInputElement>(null);
     const inputRef = searchInputRef || internalInputRef;
-    const { toggleTheme, theme } = useTheme();
 
     // Determine if we should show info button next to search in mobile
     const shouldShowInfoWithSearch = isMobile && showBack && showDynamicTitle && !isSearchExpanded;
@@ -320,7 +318,7 @@ export function NavTop({
                 )}
             </div>
 
-            {/* Right container - Desktop only buttons (Import, Theme, Settings) */}
+            {/* Right container - Desktop only buttons (Import, Settings) */}
             {!isMobile && (
                 <div className="flex items-center justify-center transition-all duration-300 w-max opacity-100">
                     <div className="w-max h-full flex items-center justify-center gap-2">
@@ -351,23 +349,6 @@ export function NavTop({
                                 </span>
                             </button>
                         )}
-
-                        {/* Theme toggle - with text on large screens */}
-                        <button
-                            onClick={toggleTheme}
-                            className={desktopButtonClass}
-                            aria-label="Toggle theme"
-                            title="Toggle theme"
-                        >
-                            {theme === 'light' ? (
-                                <Moon className="w-4 h-4 stroke-themeblue1" />
-                            ) : (
-                                <Sun className="w-4 h-4 stroke-themeblue1" />
-                            )}
-                            <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
-                                {theme === 'light' ? 'Dark Mode' : 'Light Mode'}
-                            </span>
-                        </button>
                     </div>
                 </div>
             )}

@@ -1306,7 +1306,10 @@ export const catData: catDataTypes[] = [
                 id: 3,
                 icon: "E-3",
                 text: "Sexually Transmitted Infection (STI)",
-                gen: [{}],
+                gen: [{
+                    pg: { start: 73, end: 74 },
+                    text: 'Soldiers frequently show concern that they may have (STIs); however, they seldom use that term. For screening purposes, focus on the symptom(s), or in the absence of symptoms, the belief that they may have been exposed to infections through sexual contact. Sexually transmitted infections include but are not limited to those traditionally classified as venereal diseases. Some are potentially life-threatening; others are not. Some infections can be cured through treatment; others cannot be cured at the present time. Sometimes symptomatic relief is available. All Soldiers, with or without symptom(s), need to be evaluated.'
+                }],
                 medcom: [
                     medcomTrainingData[23],
                     medcomTrainingData[22]
@@ -1329,7 +1332,10 @@ export const catData: catDataTypes[] = [
                 id: 4,
                 icon: "E-4",
                 text: "Problems with Voiding",
-                gen: [{}],
+                gen: [{
+                    pg: { start: 75, end: 76 },
+                    text: 'Problems with voiding may include urinary incontinence (voiding unintentionally), difficulty initiating the urinary stream, decreased force of the stream, dribbling urination, complete inability to void.'
+                }],
                 medcom: [
                     medcomTrainingData[23],
                     medcomTrainingData[22]
