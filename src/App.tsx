@@ -1,4 +1,4 @@
-// App.tsx - COMPLETE WITH AUTO-ANIMATE BETWEEN GRIDS
+// App.tsx - UPDATED WITH Z-INDEX SETTINGS
 import { useState, useRef, useEffect } from 'react'
 import './App.css'
 import { SideMenu } from './Components/SideMenu'
@@ -134,7 +134,7 @@ function AppContent() {
 
   return (
     <div className='h-screen bg-themewhite2 items-center flex justify-center overflow-hidden'>
-      <div className='bg-themewhite max-w-315 shrink flex-col w-full rounded-md border pb-10 border-[rgba(0,0,0,0.03)] shadow-[0px_2px_4px] shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1'>
+      <div className='bg-themewhite max-w-315 shrink flex-col w-full rounded-md border pb-10 border-[rgba(0,0,0,0.03)] shadow-[0px_2px_4px] shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1 relative'>
         {/* Navbar */}
         <div className='relative h-13.75 w-full rounded-t-md flex justify-end'>
           <NavTop
@@ -188,123 +188,127 @@ function AppContent() {
           </div>
         )}
 
-        {/* Settings */}
+        {/* Settings - Using z-index to overlay */}
         {showSettings && (
-          <Settings
-            isVisible={showSettings}
-            onClose={() => setShowSettings(false)}
-            isDarkMode={theme === 'dark'}
-            onToggleTheme={toggleTheme}
-            onImportClick={() => {
-              setShowSettings(false)
-              handleImportClick()
-            }}
-          />
+          <div className="absolute inset-0 z-50 bg-themewhite">
+            <Settings
+              isVisible={showSettings}
+              onClose={() => setShowSettings(false)}
+              isDarkMode={theme === 'dark'}
+              onToggleTheme={toggleTheme}
+              onImportClick={() => {
+                setShowSettings(false)
+                handleImportClick()
+              }}
+            />
+          </div>
         )}
 
         {/* Main Content - Animated grid switching */}
-        {!showNoteImport && !showSettings && (
-          <div ref={contentRef} className='md:h-[94%] h-full mt-2 mx-2'>
+        {/* Conditionally render without animation when settings is open to prevent choppiness */}
+        <div ref={showSettings ? undefined : contentRef} className='md:h-[94%] h-full mt-2 mx-2'>
+          {!showNoteImport && !showSettings && (
+            <>
+              {/* ADTMC Grid */}
+              {layout.showMainGrid && (
+                <div key="main-grid" className="h-full">
+                  <div
+                    className="h-full grid transition-[grid-template-columns] md:gap-1"
+                    style={{ gridTemplateColumns: layout.mainGridTemplate }}
+                  >
 
-            {/* ADTMC Grid */}
-            {layout.showMainGrid && (
-              <div key="main-grid" className="h-full">
-                <div
-                  className="h-full grid transition-[grid-template-columns] md:gap-1"
-                  style={{ gridTemplateColumns: layout.mainGridTemplate }}
-                >
+                    {/* Column 1: Categories */}
+                    <div className="h-full overflow-y-scroll">
+                      {!layout.hasSearchInput && (
+                        <CategoryList
+                          selectedCategory={layout.selectedCategory}
+                          selectedSymptom={layout.selectedSymptom}
+                          selectedMedication={layout.selectedMedication}
+                          selectedGuideline={layout.selectedGuideline}
+                          onCategorySelect={layout.handleCategorySelect}
+                          onSymptomSelect={layout.handleSymptomSelect}
+                          onMedicationSelect={layout.handleMedicationSelect}
+                          onGuidelineSelect={layout.handleGuidelineSelect}
+                        />
+                      )}
+                    </div>
 
-                  {/* Column 1: Categories */}
-                  <div className="h-full overflow-y-scroll">
-                    {!layout.hasSearchInput && (
-                      <CategoryList
-                        selectedCategory={layout.selectedCategory}
-                        selectedSymptom={layout.selectedSymptom}
-                        selectedMedication={layout.selectedMedication}
-                        selectedGuideline={layout.selectedGuideline}
-                        onCategorySelect={layout.handleCategorySelect}
-                        onSymptomSelect={layout.handleSymptomSelect}
-                        onMedicationSelect={layout.handleMedicationSelect}
-                        onGuidelineSelect={layout.handleGuidelineSelect}
-                      />
-                    )}
-                  </div>
+                    {/* Column 2: Search Results */}
+                    <div className="h-full overflow-hidden">
+                      {layout.hasSearchInput && (
+                        <SearchResults
+                          results={layout.searchResults}
+                          searchTerm={layout.searchInput}
+                          onResultClick={handleSearchResultClick}
+                          isSearching={layout.isSearching}
+                        />
+                      )}
+                    </div>
 
-                  {/* Column 2: Search Results */}
-                  <div className="h-full overflow-hidden">
-                    {layout.hasSearchInput && (
-                      <SearchResults
-                        results={layout.searchResults}
-                        searchTerm={layout.searchInput}
-                        onResultClick={handleSearchResultClick}
-                        isSearching={layout.isSearching}
-                      />
-                    )}
-                  </div>
-
-                  {/* Column 3: Algorithm/Medication */}
-                  <div className="h-full overflow-hidden">
-                    {layout.showQuestionCard && (
-                      <AlgorithmPage
-                        selectedSymptom={layout.selectedSymptom}
-                        onMedicationClick={layout.handleMedicationSelect}
-                      />
-                    )}
-                    {layout.showMedicationDetail && !layout.isMedicationView && layout.selectedMedication && (
-                      <MedicationPage medication={layout.selectedMedication} />
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Medications Grid */}
-            {layout.showMedicationGrid && (
-              <div key="medication-grid" className="h-full">
-                <div
-                  className="h-full grid md:gap-2 transition-[grid-template-columns] duration-300"
-                  style={{ gridTemplateColumns: layout.medicationGridTemplate }}
-                >
-
-                  {/* Column 1: Medication List */}
-                  <div className=" rounded-md overflow-hidden">
-                    {(!layout.showMedicationDetail || !layout.isMobile) && (
-                      <div className="h-full flex-1 overflow-y-auto px-2 pb-4 bg-themewhite2">
-                        {medList.map((medication, index) => (
-                          <div
-                            key={`med-${index}`}
-                            className={`flex flex-col py-3 px-2 w-full border-b border-themewhite2/70 cursor-pointer rounded-md ${layout.selectedMedication?.text === medication.text ? 'bg-themewhite2' : ''
-                              }`}
-                            onClick={() => layout.handleMedicationSelect(medication)}
-                          >
-                            <div className="text-[10pt] font-normal text-primary">
-                              {medication.icon}
-                            </div>
-                            <div className="text-tertiary text-[9pt]">
-                              {medication.text}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Column 2: Medication Details */}
-                  <div className=" rounded-md overflow-hidden">
-                    {layout.showMedicationDetail && layout.selectedMedication ? (
-                      <MedicationPage medication={layout.selectedMedication} />
-                    ) : !layout.isMobile && (
-                      <div className="h-full flex flex-col items-center justify-center text-tertiary text-sm p-4">
-                        <div className="mb-2">Select a medication to view details</div>
-                        <div className="text-xs text-tertiary/70">Click on any medication in the list</div>
-                      </div>
-                    )}
+                    {/* Column 3: Algorithm/Medication */}
+                    <div className="h-full overflow-hidden">
+                      {layout.showQuestionCard && (
+                        <AlgorithmPage
+                          selectedSymptom={layout.selectedSymptom}
+                          onMedicationClick={layout.handleMedicationSelect}
+                        />
+                      )}
+                      {layout.showMedicationDetail && !layout.isMedicationView && layout.selectedMedication && (
+                        <MedicationPage medication={layout.selectedMedication} />
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
-        )}
+              )}
+
+              {/* Medications Grid */}
+              {layout.showMedicationGrid && (
+                <div key="medication-grid" className="h-full">
+                  <div
+                    className="h-full grid md:gap-2 transition-[grid-template-columns] duration-300"
+                    style={{ gridTemplateColumns: layout.medicationGridTemplate }}
+                  >
+
+                    {/* Column 1: Medication List */}
+                    <div className=" rounded-md overflow-hidden">
+                      {(!layout.showMedicationDetail || !layout.isMobile) && (
+                        <div className="h-full flex-1 overflow-y-auto px-2 pb-4 bg-themewhite2">
+                          {medList.map((medication, index) => (
+                            <div
+                              key={`med-${index}`}
+                              className={`flex flex-col py-3 px-2 w-full border-b border-themewhite2/70 cursor-pointer rounded-md ${layout.selectedMedication?.text === medication.text ? 'bg-themewhite2' : ''
+                                }`}
+                              onClick={() => layout.handleMedicationSelect(medication)}
+                            >
+                              <div className="text-[10pt] font-normal text-primary">
+                                {medication.icon}
+                              </div>
+                              <div className="text-tertiary text-[9pt]">
+                                {medication.text}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Column 2: Medication Details */}
+                    <div className=" rounded-md overflow-hidden">
+                      {layout.showMedicationDetail && layout.selectedMedication ? (
+                        <MedicationPage medication={layout.selectedMedication} />
+                      ) : !layout.isMobile && (
+                        <div className="h-full flex flex-col items-center justify-center text-tertiary text-sm p-4">
+                          <div className="mb-2">Select a medication to view details</div>
+                          <div className="text-xs text-tertiary/70">Click on any medication in the list</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
       </div>
       <UpdateNotification />
     </div>

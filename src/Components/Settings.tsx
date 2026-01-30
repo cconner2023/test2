@@ -48,7 +48,8 @@ export const Settings = ({
 
     const handleAction = (action: () => void, id: number) => {
         action();
-        if (id = 1) {
+        // Close settings if id > 1 (only Import Note at id=1 closes)
+        if (id > 1) {
             handleClose()
         }
     };
@@ -100,40 +101,40 @@ export const Settings = ({
     if (isMobile) {
         return (
             <>
-                {/* Backdrop */}
+                {/* Drawer - Almost full screen with top spacing */}
                 <div
-                    className={`fixed inset-0 bg-black z-40 transition-opacity duration-300 ${isVisible ? 'opacity-50' : 'opacity-0 pointer-events-none'
-                        }`}
-                    onClick={handleClose}
-                />
-
-                {/* Drawer */}
-                <div
-                    className={`fixed left-0 right-0 bottom-0 z-50 bg-themewhite rounded-t-2xl shadow-lg transform transition-transform duration-300 ease-out ${drawerOpen ? 'translate-y-0' : 'translate-y-full'
+                    className={`fixed left-0 right-0 z-50 bg-themewhite3 shadow-lg transform transition-transform duration-300 ease-out ${drawerOpen ? 'translate-y-0' : 'translate-y-full'
                         }`}
                     style={{
-                        maxHeight: '85vh',
+                        height: 'calc(100vh - 0.6rem)', // Leave space at top
+                        top: '0.6rem', // Start below top of screen
+                        borderTopLeftRadius: '2rem', // rounded-t-lg
+                        borderTopRightRadius: '2rem', // rounded-t-lg
+                        boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.15)', // Visible shadow at top
                     }}
                 >
-                    {/* Drag handle */}
-                    <div className="flex justify-center pt-3 pb-2">
+                    {/* iOS Drag Handle/Notch */}
+                    <div className="flex justify-center pt-3 pb-1">
                         <div className="w-12 h-1.5 bg-tertiary/20 rounded-full" />
                     </div>
 
                     {/* Header */}
-                    <div className="flex items-center justify-between px-5 py-4 border-b border-tertiary/10">
-                        <h2 className="text-lg font-semibold text-primary">Settings</h2>
+                    <div className="relative flex items-center justify-center px-5 py-4 border-b border-tertiary/10">
+                        {/* Absolutely positioned close button */}
                         <button
                             onClick={handleClose}
-                            className="p-2 rounded-full hover:bg-themewhite2 transition-colors"
+                            className="absolute right-4 p-2 rounded-full hover:bg-themewhite2 transition-colors"
                             aria-label="Close settings"
                         >
                             <X size={20} className="text-tertiary" />
                         </button>
+
+                        {/* Centered title */}
+                        <h2 className="text-lg font-semibold text-primary">Settings</h2>
                     </div>
 
                     {/* Settings List */}
-                    <div className="overflow-y-auto space-y-2 px-2 py-2" style={{ maxHeight: 'calc(85vh - 80px)' }}>
+                    <div className="overflow-y-auto space-y-2 px-2 py-2" style={{ height: 'calc(100vh - 2rem - 110px)' }}>
                         {settingsOptions.map((option, index) => (
                             <button
                                 key={index}
@@ -154,7 +155,7 @@ export const Settings = ({
                     </div>
 
                     {/* Version info at bottom */}
-                    <div className="px-5 py-4 border-t border-tertiary/10">
+                    <div className="absolute bottom-0 left-0 right-0 px-5 py-4 border-t border-tertiary/10 bg-themewhite">
                         <div className="text-center">
                             <p className="text-xs text-tertiary/60">Version 1.0.0</p>
                             <p className="text-xs text-tertiary/40 mt-1">© 2024 Your App Name</p>
