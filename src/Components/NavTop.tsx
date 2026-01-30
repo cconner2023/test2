@@ -1,5 +1,5 @@
 // NavTop.tsx - Simplified approach with conditional info button in search container
-import { Search, X, Menu, ChevronLeft, Upload, Moon, Sun, Info, List } from "lucide-react";
+import { Search, X, Menu, ChevronLeft, Upload, Moon, Sun, Info, List, Settings } from "lucide-react";
 import { useRef, useEffect } from "react";
 import { useTheme } from "../Utilities/ThemeContext";
 export type MobileViewState = 'visible' | 'hidden'
@@ -15,6 +15,7 @@ interface NavTopProps {
     onBackClick?: () => void;
     onImportClick?: () => void;
     onMedicationClick?: () => void;
+    onSettingsClick?: () => void; // NEW PROP
     dynamicTitle?: string;
     showDynamicTitle?: boolean;
     searchInputRef?: React.RefObject<HTMLInputElement>;
@@ -36,6 +37,7 @@ export function NavTop({
     onBackClick,
     onImportClick,
     onMedicationClick,
+    onSettingsClick, // NEW PROP
     dynamicTitle,
     showDynamicTitle = false,
     searchInputRef,
@@ -318,7 +320,7 @@ export function NavTop({
                 )}
             </div>
 
-            {/* Right container - Desktop only buttons (Import, Theme) */}
+            {/* Right container - Desktop only buttons (Import, Theme, Settings) */}
             {!isMobile && (
                 <div className="flex items-center justify-center transition-all duration-300 w-max opacity-100">
                     <div className="w-max h-full flex items-center justify-center gap-2">
@@ -334,6 +336,21 @@ export function NavTop({
                                 Import Note
                             </span>
                         </button>
+
+                        {/* Settings button - with text on large screens */}
+                        {onSettingsClick && (
+                            <button
+                                onClick={onSettingsClick}
+                                className={desktopButtonClass}
+                                aria-label="Settings"
+                                title="Settings"
+                            >
+                                <Settings className="w-4 h-4 stroke-themeblue1" />
+                                <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
+                                    Settings
+                                </span>
+                            </button>
+                        )}
 
                         {/* Theme toggle - with text on large screens */}
                         <button

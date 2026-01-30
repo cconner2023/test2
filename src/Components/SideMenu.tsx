@@ -1,6 +1,7 @@
 // Components/SideMenu.tsx
 import { useEffect, useState } from "react"
 import { menuData } from "../Data/CatData"
+import { Settings } from "lucide-react"
 
 interface SideMenuProps {
     isVisible?: boolean
@@ -8,6 +9,7 @@ interface SideMenuProps {
     onImportClick?: () => void
     onMedicationClick?: () => void
     onToggleTheme?: () => void
+    onSettingsClick?: () => void
 }
 
 export function SideMenu({
@@ -15,7 +17,8 @@ export function SideMenu({
     onClose,
     onImportClick,
     onMedicationClick,
-    onToggleTheme
+    onToggleTheme,
+    onSettingsClick
 }: SideMenuProps) {
     const [internalVisible, setInternalVisible] = useState(false)
     const [activeItem, setActiveItem] = useState<number | null>(null)
@@ -41,11 +44,15 @@ export function SideMenu({
             case 'toggleTheme':
                 onToggleTheme?.()
                 break
+            case 'settings':
+                onSettingsClick?.()
+                break
             default:
                 console.warn("Unknown menu action:", action)
         }
         onClose?.()
     }
+
     return (
         <>
             {/* Backdrop overlay for mobile */}
@@ -68,6 +75,21 @@ export function SideMenu({
                         <span>{item.text}</span>
                     </div>
                 ))}
+
+                {/* Settings Menu Item - Added at the bottom */}
+                <div className="border-t border-primary/5 mt-1 pt-1">
+                    <div
+                        onClick={() => {
+                            setActiveItem(null)
+                            onSettingsClick?.()
+                            onClose?.()
+                        }}
+                        className={`flex items-center pl-4.5 pr-4.5 pt-2.5 pb-2.5 rounded-md hover:bg-themewhite2 transition-all duration-500 cursor-pointer ${activeItem === null ? 'bg-themewhite2' : ''}`}
+                    >
+                        <Settings size={16} className="mr-3 text-primary/70" />
+                        <span className="text-primary/70">Settings</span>
+                    </div>
+                </div>
             </div>
         </>
     )

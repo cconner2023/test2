@@ -14,13 +14,15 @@ import { medList } from './Data/MedData'
 import { useLayout } from './Hooks/useLayoutState'
 import { useAutoAnimate } from '@formkit/auto-animate/react'
 import UpdateNotification from './Components/UpdateNotification'
+import { Settings } from './Components/Settings'
 
 function AppContent() {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [showNoteImport, setShowNoteImport] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
   const [isSearchExpanded, setIsSearchExpanded] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null!)
-  const { toggleTheme } = useTheme()
+  const { theme, toggleTheme } = useTheme()
 
   // Single auto-animate for switching between main and medication grids
   const [contentRef] = useAutoAnimate<HTMLDivElement>({
@@ -55,7 +57,6 @@ function AppContent() {
     } else if (layout.selectedMedication) {
       layout.handleMedicationSelect(null)
     } else if (layout.isMedicationView) {
-      // If we're in medications view, go back to main
       layout.handleShowMedications()
     } else if (layout.selectedSymptom) {
       layout.handleSymptomSelect(null)
@@ -66,7 +67,7 @@ function AppContent() {
 
   const handleMedicationClick = () => {
     console.log("Medication button clicked");
-    layout.handleShowMedications(); // This should toggle properly now
+    layout.handleShowMedications();
   };
 
   const handleImportClick = () => {
@@ -111,6 +112,17 @@ function AppContent() {
     }
   }
 
+  // Settings click handler
+  const handleSettingsClick = () => {
+    setShowSettings(true)
+    if (isMenuOpen) setIsMenuOpen(false)
+  }
+
+  // Export click handler
+  const handleExportClick = () => {
+    console.log('Exporting data...')
+  }
+
   // Title logic
   const getTitle = () => {
     if (layout.hasSearchInput) return { title: "", show: false }
@@ -135,6 +147,7 @@ function AppContent() {
             onBackClick={handleBackClick}
             onMenuClick={() => setIsMenuOpen(!isMenuOpen)}
             onImportClick={handleImportClick}
+            onSettingsClick={handleSettingsClick}
             medicationButtonText={layout.getMedicationButtonText()}
             onMedicationClick={handleMedicationClick}
             dynamicTitle={title.title}
@@ -157,6 +170,10 @@ function AppContent() {
               setIsMenuOpen(false)
               handleMedicationClick()
             }}
+            onSettingsClick={() => {
+              setIsMenuOpen(false)
+              handleSettingsClick()
+            }}
             onToggleTheme={() => {
               setIsMenuOpen(false)
               toggleTheme()
@@ -171,11 +188,26 @@ function AppContent() {
           </div>
         )}
 
+        {/* Settings */}
+        {showSettings && (
+          <Settings
+            isVisible={showSettings}
+            onClose={() => setShowSettings(false)}
+            isDarkMode={theme === 'dark'}
+            onToggleTheme={toggleTheme}
+            onImportClick={() => {
+              setShowSettings(false)
+              handleImportClick()
+            }}
+            onExportClick={handleExportClick}
+          />
+        )}
+
         {/* Main Content - Animated grid switching */}
-        {!showNoteImport && (
+        {!showNoteImport && !showSettings && (
           <div ref={contentRef} className='md:h-[94%] h-full mt-2 mx-2'>
 
-            {/* ADTMC Grid - KEY on the grid div itself */}
+            {/* ADTMC Grid */}
             {layout.showMainGrid && (
               <div key="main-grid" className="h-full">
                 <div
@@ -216,7 +248,7 @@ function AppContent() {
                     {layout.showQuestionCard && (
                       <AlgorithmPage
                         selectedSymptom={layout.selectedSymptom}
-                        onMedicationClick={layout.handleMedicationSelect} // This should already be there
+                        onMedicationClick={layout.handleMedicationSelect}
                       />
                     )}
                     {layout.showMedicationDetail && !layout.isMedicationView && layout.selectedMedication && (
@@ -227,7 +259,7 @@ function AppContent() {
               </div>
             )}
 
-            {/* Medications Grid - KEY on the grid div itself */}
+            {/* Medications Grid */}
             {layout.showMedicationGrid && (
               <div key="medication-grid" className="h-full">
                 <div
@@ -277,7 +309,6 @@ function AppContent() {
       </div>
       <UpdateNotification />
     </div>
-
   )
 }
 
