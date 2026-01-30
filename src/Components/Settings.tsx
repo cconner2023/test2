@@ -1,6 +1,6 @@
 // Components/SettingsDrawer.tsx
 import { useEffect, useState } from 'react';
-import { X, Moon, Sun, Download, Upload, Shield, Bell, HelpCircle } from 'lucide-react';
+import { X, Moon, Sun, Download, Shield, Bell, HelpCircle } from 'lucide-react';
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -8,7 +8,6 @@ interface SettingsDrawerProps {
     isDarkMode: boolean;
     onToggleTheme: () => void;
     onImportClick: () => void;
-    onExportClick: () => void;
 }
 
 export const Settings = ({
@@ -17,7 +16,6 @@ export const Settings = ({
     isDarkMode,
     onToggleTheme,
     onImportClick,
-    onExportClick,
 }: SettingsDrawerProps) => {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
@@ -76,25 +74,18 @@ export const Settings = ({
             id: 1
         },
         {
-            icon: <Upload size={18} />,
-            label: 'Export Data',
-            action: onExportClick,
-            color: 'text-primary',
-            id: 2
-        },
-        {
-            icon: <Bell size={18} />,
-            label: 'Notifications',
-            action: voidAction,
-            color: 'text-tertiary',
-            id: 3
-        },
-        {
             icon: <Shield size={18} />,
-            label: 'Privacy & Security',
+            label: 'Release Notes',
             action: voidAction,
             color: 'text-tertiary',
             id: 4
+        },
+        {
+            icon: <Bell size={18} />,
+            label: 'User Account',
+            action: voidAction,
+            color: 'text-tertiary',
+            id: 3
         },
         {
             icon: <HelpCircle size={18} />,
@@ -102,7 +93,7 @@ export const Settings = ({
             action: voidAction,
             color: 'text-tertiary',
             id: 5
-        },
+        }
     ];
 
     // For mobile view - iOS style drawer

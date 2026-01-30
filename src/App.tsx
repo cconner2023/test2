@@ -199,7 +199,6 @@ function AppContent() {
               setShowSettings(false)
               handleImportClick()
             }}
-            onExportClick={handleExportClick}
           />
         )}
 
