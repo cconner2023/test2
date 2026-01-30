@@ -9,9 +9,6 @@ interface SettingsDrawerProps {
     onToggleTheme: () => void;
     onImportClick: () => void;
     onExportClick: () => void;
-    onNotificationSettings?: () => void;
-    onHelpClick?: () => void;
-    onPrivacyClick?: () => void;
 }
 
 export const Settings = ({
@@ -21,9 +18,6 @@ export const Settings = ({
     onToggleTheme,
     onImportClick,
     onExportClick,
-    onNotificationSettings,
-    onHelpClick,
-    onPrivacyClick,
 }: SettingsDrawerProps) => {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
@@ -54,10 +48,16 @@ export const Settings = ({
         setTimeout(onClose, 300); // Wait for animation to complete
     };
 
-    const handleAction = (action: () => void) => {
+    const handleAction = (action: () => void, id: number) => {
         action();
-        handleClose();
+        if (id = 1) {
+            handleClose()
+        }
     };
+
+    const voidAction = () => {
+        null
+    }
 
     // Settings options
     const settingsOptions = [
@@ -66,36 +66,42 @@ export const Settings = ({
             label: isDarkMode ? 'Light Mode' : 'Dark Mode',
             action: onToggleTheme,
             color: 'text-primary',
+            id: 0
         },
         {
             icon: <Download size={18} />,
             label: 'Import Note',
             action: onImportClick,
             color: 'text-primary',
+            id: 1
         },
         {
             icon: <Upload size={18} />,
             label: 'Export Data',
             action: onExportClick,
             color: 'text-primary',
+            id: 2
         },
         {
             icon: <Bell size={18} />,
             label: 'Notifications',
-            action: onNotificationSettings || (() => console.log('Notifications')),
+            action: voidAction,
             color: 'text-tertiary',
+            id: 3
         },
         {
             icon: <Shield size={18} />,
             label: 'Privacy & Security',
-            action: onPrivacyClick || (() => console.log('Privacy')),
+            action: voidAction,
             color: 'text-tertiary',
+            id: 4
         },
         {
             icon: <HelpCircle size={18} />,
             label: 'Help & Support',
-            action: onHelpClick || (() => console.log('Help')),
+            action: voidAction,
             color: 'text-tertiary',
+            id: 5
         },
     ];
 
@@ -136,11 +142,11 @@ export const Settings = ({
                     </div>
 
                     {/* Settings List */}
-                    <div className="overflow-y-auto px-2 py-2" style={{ maxHeight: 'calc(85vh - 80px)' }}>
+                    <div className="overflow-y-auto space-y-2 px-2 py-2" style={{ maxHeight: 'calc(85vh - 80px)' }}>
                         {settingsOptions.map((option, index) => (
                             <button
                                 key={index}
-                                onClick={() => handleAction(option.action)}
+                                onClick={() => handleAction(option.action, option.id)}
                                 className="flex items-center w-full px-4 py-3 hover:bg-themewhite2 active:bg-themewhite2/70 transition-colors rounded-lg"
                             >
                                 <div className={`mr-3 ${option.color}`}>{option.icon}</div>
@@ -189,7 +195,7 @@ export const Settings = ({
                     {settingsOptions.map((option, index) => (
                         <button
                             key={index}
-                            onClick={() => handleAction(option.action)}
+                            onClick={() => handleAction(option.action, option.id)}
                             className="flex flex-col items-center justify-center p-6 bg-themewhite2 rounded-xl hover:bg-themewhite2/80 transition-all active:scale-95"
                         >
                             <div className={`mb-3 ${option.color}`}>{option.icon}</div>
