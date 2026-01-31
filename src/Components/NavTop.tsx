@@ -1,6 +1,7 @@
-// NavTop.tsx - Simplified approach with conditional info button in search container
+// NavTop.tsx - Updated with proper ref handling
 import { Search, X, Menu, ChevronLeft, Upload, Info, List, Settings } from "lucide-react";
 import { useRef, useEffect } from "react";
+
 export type MobileViewState = 'visible' | 'hidden'
 
 interface NavTopProps {
@@ -17,12 +18,13 @@ interface NavTopProps {
     onSettingsClick?: () => void;
     dynamicTitle?: string;
     showDynamicTitle?: boolean;
-    searchInputRef?: React.RefObject<HTMLInputElement>;
+    searchInputRef?: React.RefObject<HTMLInputElement | null>; // Updated type
     showMedicationList?: boolean;
     medicationButtonText?: string;
     isMobile: boolean;
     isSearchExpanded?: boolean;
     onSearchExpandToggle?: () => void;
+    menuButtonRef?: React.RefObject<HTMLButtonElement | null>; // Updated type
 }
 
 export function NavTop({
@@ -44,10 +46,15 @@ export function NavTop({
     isMobile,
     isSearchExpanded = false,
     onSearchExpandToggle,
+    menuButtonRef, // Added prop
 }: NavTopProps) {
     const hasSearchInput = searchInput.trim().length > 0;
     const internalInputRef = useRef<HTMLInputElement>(null);
     const inputRef = searchInputRef || internalInputRef;
+
+    // Internal menu button ref as fallback
+    const internalMenuButtonRef = useRef<HTMLButtonElement>(null);
+    const menuBtnRef = menuButtonRef || internalMenuButtonRef;
 
     // Determine if we should show info button next to search in mobile
     const shouldShowInfoWithSearch = isMobile && showBack && showDynamicTitle && !isSearchExpanded;
@@ -150,6 +157,7 @@ export function NavTop({
                     {/* Menu Button - shows on mobile when not showing back, hidden on desktop */}
                     {shouldShowMenuButton && (
                         <button
+                            ref={menuBtnRef} // Use the combined ref
                             onClick={onMenuClick}
                             className={`${isMobile ? mobileButtonClass : 'hidden'} ${!isMobile ? desktopButtonClass : ''}`}
                             aria-label="Open menu"

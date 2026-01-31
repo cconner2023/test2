@@ -1,4 +1,4 @@
-// App.tsx - UPDATED WITH Z-INDEX SETTINGS
+// App.tsx - UPDATED with position tracking
 import { useState, useRef, useEffect } from 'react'
 import './App.css'
 import { SideMenu } from './Components/SideMenu'
@@ -21,8 +21,11 @@ function AppContent() {
   const [showNoteImport, setShowNoteImport] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [isSearchExpanded, setIsSearchExpanded] = useState(false)
-  const searchInputRef = useRef<HTMLInputElement>(null!)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const menuButtonRef = useRef<HTMLButtonElement>(null)
   const { theme, toggleTheme } = useTheme()
+  const [menuButtonWidth, setMenuButtonWidth] = useState(44)
+  const [menuButtonPosition, setMenuButtonPosition] = useState({ x: 16, y: 56 })
 
   // Single auto-animate for switching between main and medication grids
   const [contentRef] = useAutoAnimate<HTMLDivElement>({
@@ -32,6 +35,38 @@ function AppContent() {
 
   // Use simple layout hook
   const layout = useLayout()
+
+  // Measure menu button size and position
+  useEffect(() => {
+    const updateMenuButtonInfo = () => {
+      if (menuButtonRef.current) {
+        const rect = menuButtonRef.current.getBoundingClientRect()
+        setMenuButtonWidth(rect.width)
+        setMenuButtonPosition({
+          x: rect.left,
+          y: rect.bottom + 4 // Add 4px gap below button
+        })
+      }
+    }
+
+    // Initial measurement
+    updateMenuButtonInfo()
+
+    // Update on resize
+    window.addEventListener('resize', updateMenuButtonInfo)
+
+    // Update on scroll
+    window.addEventListener('scroll', updateMenuButtonInfo)
+
+    // Use a short timeout to ensure DOM is rendered
+    const timer = setTimeout(updateMenuButtonInfo, 100)
+
+    return () => {
+      window.removeEventListener('resize', updateMenuButtonInfo)
+      window.removeEventListener('scroll', updateMenuButtonInfo)
+      clearTimeout(timer)
+    }
+  }, [isMenuOpen]) // Re-run when menu opens/closes
 
   // Close menu on desktop resize, reset search expansion
   useEffect(() => {
@@ -117,6 +152,7 @@ function AppContent() {
     setShowSettings(true)
     if (isMenuOpen) setIsMenuOpen(false)
   }
+
   // Title logic
   const getTitle = () => {
     if (layout.hasSearchInput) return { title: "", show: false }
@@ -151,29 +187,22 @@ function AppContent() {
             isMobile={layout.isMobile}
             isSearchExpanded={isSearchExpanded}
             onSearchExpandToggle={() => setIsSearchExpanded(!isSearchExpanded)}
+            menuButtonRef={menuButtonRef}
           />
+        </div>
 
+        {/* SideMenu - rendered at App level */}
+        {isMenuOpen && (
           <SideMenu
             isVisible={isMenuOpen}
             onClose={() => setIsMenuOpen(false)}
-            onImportClick={() => {
-              setIsMenuOpen(false)
-              handleImportClick()
-            }}
-            onMedicationClick={() => {
-              setIsMenuOpen(false)
-              handleMedicationClick()
-            }}
-            onSettingsClick={() => {
-              setIsMenuOpen(false)
-              handleSettingsClick()
-            }}
-            onToggleTheme={() => {
-              setIsMenuOpen(false)
-              toggleTheme()
-            }}
+            onImportClick={handleImportClick}
+            onMedicationClick={handleMedicationClick}
+            onSettingsClick={handleSettingsClick}
+            menuButtonWidth={menuButtonWidth}
+            menuButtonPosition={menuButtonPosition}
           />
-        </div>
+        )}
 
         {/* Note Import */}
         {showNoteImport && !layout.hasSearchInput && (
@@ -181,6 +210,7 @@ function AppContent() {
             <NoteImport onClose={() => setShowNoteImport(false)} />
           </div>
         )}
+
         {showSettings && !layout.hasSearchInput && (
           <div className="absolute inset-0 z-50 bg-themewhite">
             <Settings
@@ -188,15 +218,12 @@ function AppContent() {
               onClose={() => setShowSettings(false)}
               isDarkMode={theme === 'dark'}
               onToggleTheme={toggleTheme}
-              onImportClick={() => {
-                setShowSettings(false)
-                handleImportClick()
-              }}
             />
           </div>
         )}
-        <div ref={showSettings ? undefined : contentRef} className='md:h-[94%] h-full mt-2 mx-2'>
-          {!showNoteImport && !showSettings && (
+
+        <div ref={showSettings ? contentRef : undefined} className='md:h-[94%] h-full mt-2 mx-2'>
+          {!showNoteImport && (
             <>
               {/* ADTMC Grid */}
               {layout.showMainGrid && (
@@ -298,8 +325,8 @@ function AppContent() {
             </>
           )}
         </div>
+        <UpdateNotification />
       </div>
-      <UpdateNotification />
     </div>
   )
 }

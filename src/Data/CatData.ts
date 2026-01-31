@@ -10,12 +10,7 @@ export const menuData: sideMenuDataType[] = [
         text: "Import Note",
         icon: 'import',
         action: 'import'
-    },
-    {
-        text: "Toggle Theme",
-        icon: 'light',
-        action: 'toggleTheme'
-    },
+    }
 ]
 
 export const medcomTrainingData: medcom[] = [
