@@ -274,16 +274,14 @@ function AppContent() {
           )}
         </div>
 
-        {showSettings && !layout.hasSearchInput && (
-          <div className="absolute inset-0 z-50 bg-themewhite">
-            <Settings
-              isVisible={showSettings}
-              onClose={() => setShowSettings(false)}
-              isDarkMode={theme === 'dark'}
-              onToggleTheme={toggleTheme}
-            />
-          </div>
-        )}
+        {/* {showSettings && !layout.hasSearchInput && ( */}
+        <Settings
+          isVisible={showSettings}
+          onClose={() => setShowSettings(false)}
+          isDarkMode={theme === 'dark'}
+          onToggleTheme={toggleTheme}
+        />
+        {/* )} */}
         <UpdateNotification />
       </div>
     </div>
