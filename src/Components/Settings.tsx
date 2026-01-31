@@ -174,8 +174,7 @@ export const Settings = ({
         }
     ];
 
-    // Mobile Drawer
-    if (isMobile) {
+    if (isMobile && isVisible) {
         const translateY = 100 - drawerPosition;
         const opacity = Math.min(1, drawerPosition / 60 + 0.2);
 
@@ -259,29 +258,35 @@ export const Settings = ({
             </div>
         );
     }
-
-    // Desktop Modal - Using the same pattern as SideMenu
     return (
         <>
             {/* Desktop Modal Container - Always rendered, visibility controlled by classes */}
             <div
                 className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-300 ease-out ${isVisible
-                    ? 'opacity-100 pointer-events-auto'
-                    : 'opacity-0 pointer-events-none'
+                    ? 'visible pointer-events-auto'
+                    : 'invisible pointer-events-none'
                     }`}
                 onClick={onClose}
             >
                 {/* Modal Content - Using the same animation pattern as SideMenu */}
                 <div
-                    className={`border border-tertiary/20 shadow-[0_2px_4px_0] shadow-themewhite2/20 backdrop-blur-md bg-themewhite2/10 transform-gpu overflow-hidden text-primary/80 rounded-2xl max-w-md w-full transform transition-all duration-300 ease-out ${isVisible
-                        ? 'translate-y-0 scale-100 opacity-100'
-                        : 'translate-y-4 scale-70 opacity-0'
+                    className={`fixed right-16 top-15 z-50 py-3 pl-3 pr-5 
+                    flex flex-col rounded-xl
+                    border border-tertiary/20 
+                    shadow-[0_2px_4px_0] shadow-themewhite2/20
+                    backdrop-blur-md bg-themewhite2/10
+                    transform-gpu
+                    overflow-hidden
+                    text-primary/80 text-sm
+                    origin-top-right
+                    transition-all duration-300 ease-out
+                    max-w-md 
+                    w-full 
+                    ${isVisible
+                            ? "scale-x-100 scale-y-100 translate-x-0 translate-y-0"
+                            : "opacity-0 scale-x-20 scale-y-20 -translate-x-10 -translate-y-2 pointer-events-none"
                         }`}
                     onClick={(e) => e.stopPropagation()}
-                    style={{
-                        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-                        transformOrigin: 'top right'
-                    }}
                 >
                     {/* Header */}
                     <div className="px-6 py-5 border-b border-tertiary/10">
@@ -331,5 +336,5 @@ export const Settings = ({
                 </div>
             </div>
         </>
-    );
+    )
 };

@@ -28,7 +28,7 @@ const iconMap: Record<string, React.ReactNode> = {
     'import': <Upload size={16} className="mr-3 text-primary/70" />,
     'medications': <Pill size={16} className="mr-3 text-primary/70" />,
     'Settings': <Settings size={16} className="mr-3 text-primary/70" />,
-    'reports': <BarChart3 size={16} className="mr-3 text-primary/70" />,
+    'myNotes': <BarChart3 size={16} className="mr-3 text-primary/70" />,
     'patients': <Users size={16} className="mr-3 text-primary/70" />,
     'schedule': <Calendar size={16} className="mr-3 text-primary/70" />,
     'notifications': <Bell size={16} className="mr-3 text-primary/70" />,

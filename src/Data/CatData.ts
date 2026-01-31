@@ -7,9 +7,14 @@ export const menuData: sideMenuDataType[] = [
         action: 'medications'
     },
     {
-        text: "Import Note",
+        text: "Import New Note",
         icon: 'import',
         action: 'import'
+    },
+    {
+        text: "My Notes",
+        icon: 'myNotes',
+        action: 'myNotes'
     },
     {
         text: 'Settings',
