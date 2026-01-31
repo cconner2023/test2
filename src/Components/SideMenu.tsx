@@ -1,7 +1,18 @@
-// Components/SideMenu.tsx - Fixed version
+// Components/SideMenu.tsx
 import { useEffect, useState, useRef } from "react"
 import { menuData } from "../Data/CatData"
-import { Settings, Upload, Pill, FileText, HelpCircle, BarChart3, Users, Calendar, Bell, Shield } from "lucide-react"
+import {
+    Settings,
+    Upload,
+    Pill,
+    FileText,
+    HelpCircle,
+    BarChart3,
+    Users,
+    Calendar,
+    Bell,
+    Shield
+} from "lucide-react"
 
 interface SideMenuProps {
     isVisible?: boolean
@@ -10,55 +21,20 @@ interface SideMenuProps {
     onMedicationClick?: () => void
     onToggleTheme?: () => void
     onSettingsClick?: () => void
-    menuButtonWidth?: number
-    menuButtonPosition?: { x: number, y: number } // Add position prop
 }
 
 // Map menu actions to corresponding icons
 const iconMap: Record<string, React.ReactNode> = {
-    'import': <Upload size={16} className="mr-3 text-primary/70 transition-colors group-hover:text-primary/90" />,
-    'medications': <Pill size={16} className="mr-3 text-primary/70 transition-colors group-hover:text-primary/90" />,
-    'reports': <BarChart3 size={16} className="mr-3 text-primary/70 transition-colors group-hover:text-primary/90" />,
-    'patients': <Users size={16} className="mr-3 text-primary/70 transition-colors group-hover:text-primary/90" />,
-    'schedule': <Calendar size={16} className="mr-3 text-primary/70 transition-colors group-hover:text-primary/90" />,
-    'notifications': <Bell size={16} className="mr-3 text-primary/70 transition-colors group-hover:text-primary/90" />,
-    'security': <Shield size={16} className="mr-3 text-primary/70 transition-colors group-hover:text-primary/90" />,
-    'help': <HelpCircle size={16} className="mr-3 text-primary/70 transition-colors group-hover:text-primary/90" />,
-    'documents': <FileText size={16} className="mr-3 text-primary/70 transition-colors group-hover:text-primary/90" />,
-}
-
-// Reusable Menu Item Component
-interface MenuItemProps {
-    icon: React.ReactNode
-    text: string
-    onClick: () => void
-}
-
-function MenuItem({ icon, text, onClick }: MenuItemProps) {
-    return (
-        <button
-            onClick={onClick}
-            className={`
-                w-full text-left
-                flex items-center pl-3 pr-4 py-2.5 
-                rounded-lg 
-                transition-all duration-150
-                cursor-pointer
-                hover:bg-themewhite2/80
-                active:bg-themewhite2
-                border border-transparent
-                hover:border-themeblue3/20
-                group
-            `}
-        >
-            <div className="transition-transform duration-150 group-hover:scale-105">
-                {icon}
-            </div>
-            <span className="font-medium transition-all duration-150 group-hover:translate-x-0.5 group-hover:text-primary">
-                {text}
-            </span>
-        </button>
-    )
+    'import': <Upload size={16} className="mr-3 text-primary/70" />,
+    'medications': <Pill size={16} className="mr-3 text-primary/70" />,
+    'Settings': <Settings size={16} className="mr-3 text-primary/70" />,
+    'reports': <BarChart3 size={16} className="mr-3 text-primary/70" />,
+    'patients': <Users size={16} className="mr-3 text-primary/70" />,
+    'schedule': <Calendar size={16} className="mr-3 text-primary/70" />,
+    'notifications': <Bell size={16} className="mr-3 text-primary/70" />,
+    'security': <Shield size={16} className="mr-3 text-primary/70" />,
+    'help': <HelpCircle size={16} className="mr-3 text-primary/70" />,
+    'documents': <FileText size={16} className="mr-3 text-primary/70" />,
 }
 
 export function SideMenu({
@@ -66,21 +42,31 @@ export function SideMenu({
     onClose,
     onImportClick,
     onMedicationClick,
-    onSettingsClick,
-    menuButtonWidth = 44,
-    menuButtonPosition = { x: 16, y: 56 } // Default position
+    onSettingsClick
 }: SideMenuProps) {
     const [internalVisible, setInternalVisible] = useState(false)
     const [activeItem, setActiveItem] = useState<number | null>(null)
+    const [itemsVisible, setItemsVisible] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
 
     const isVisible = externalIsVisible !== undefined ? externalIsVisible : internalVisible
 
     useEffect(() => {
         if (externalIsVisible === undefined) {
-            setTimeout(() => setInternalVisible(true), 1000)
+            // Auto-show after delay
+            setTimeout(() => {
+                setInternalVisible(true)
+                // Delay the items fade-in slightly to sync with menu opening
+                setTimeout(() => setItemsVisible(true), 150)
+            }, 300)
+        } else if (externalIsVisible) {
+            // Show items when external visibility is set
+            setTimeout(() => setItemsVisible(true), 150)
+        } else {
+            // Hide items immediately when closing
+            setItemsVisible(false)
         }
-    }, [externalIsVisible])
+    }, [externalIsVisible, isVisible])
 
     // Handle clicks outside the menu
     useEffect(() => {
@@ -89,7 +75,6 @@ export function SideMenu({
                 onClose?.()
             }
         }
-
         if (isVisible) {
             document.addEventListener('mousedown', handleClickOutside)
             return () => document.removeEventListener('mousedown', handleClickOutside)
@@ -98,7 +83,12 @@ export function SideMenu({
 
     const handleItemClick = (index: number, action: string) => {
         setActiveItem(index)
-        switch (action) {
+        const button = document.querySelector(`[data-menu-item="${index}"]`)
+        button?.classList.add('scale-95')
+        setTimeout(() => button?.classList.remove('scale-95'), 150)
+
+        // Handle the click actions
+        switch (action.toLowerCase()) {
             case 'import':
                 onImportClick?.()
                 break
@@ -115,72 +105,100 @@ export function SideMenu({
     }
 
     const getIconForItem = (action: string) => {
-        return iconMap[action] || <HelpCircle size={16} className="mr-3 text-primary/70 transition-colors group-hover:text-primary/90" />
+        return iconMap[action] || <HelpCircle size={16} className="mr-3 text-primary/70" />;
     }
 
     return (
         <>
-            {/* Simple backdrop overlay */}
+            {/* Backdrop overlay for mobile */}
             {isVisible && (
                 <div
-                    className="fixed inset-0 z-40 md:hidden bg-transparent"
+                    className="fixed inset-0 z-40 md:hidden"
                     onClick={onClose}
                 />
             )}
+
+            {/* Menu Container with Simple Scale Animation */}
             <div
                 ref={menuRef}
                 className={`
-                    fixed z-50 pt-3 pb-3 pl-2 pr-5 
-                    flex flex-col rounded-xl
-                    border border-tertiary/10 
-                    shadow-lg shadow-tertiary/10
-                    backdrop-blur-md bg-themewhite/80
-                    transition-all duration-300 ease-out
-                    will-change-transform
+                    fixed left-5 top-3 z-50 py-3 pl-3 pr-5 
+                    w-56 flex flex-col rounded-xl
+                    border border-tertiary/20 
+                    shadow-[0_2px_4px_0] shadow-themewhite2/20
+                    backdrop-blur-md bg-themewhite2/10
+                    transform-gpu
                     overflow-hidden
                     text-primary/80 text-sm
                     origin-top-left
-                    transform-gpu
+                    transition-all duration-300 ease-out
                     ${isVisible
-                        ? "scale-100 opacity-100 visible w-auto h-auto"
-                        : "scale-75 opacity-0 h-44px"
+                        ? "opacity-100 scale-100 translate-x-0"
+                        : "opacity-0 scale-10 -translate-x-1 pointer-events-none"
                     }
                 `}
+                style={{
+                    transformOrigin: 'top left'
+                }}
             >
-                {/* Menu Items Container - Only visible when expanded */}
-                <div className={`overflow-hidden transition-all duration-300 ${isVisible ? 'opacity-100' : 'opacity-0 h-0'}`}>
-                    <div className="relative z-10 space-y-0.5 py-1">
-                        {menuData.map((item, index) => (
-                            <MenuItem
-                                key={index}
-                                icon={getIconForItem(item.action)}
-                                text={item.text}
-                                onClick={() => handleItemClick(index, item.action)}
-                            />
-                        ))}
-                    </div>
+                {/* Menu Items with fade animation */}
+                <div className="relative z-10 space-y-0.5">
+                    {menuData.map((item, index) => (
+                        <button
+                            key={index}
+                            data-menu-item={index}
+                            onClick={() => handleItemClick(index, item.action)}
+                            className={`
+                                w-full text-left
+                                flex items-center pl-3 pr-4 py-3 
+                                rounded-lg 
+                                transition-all duration-300 ease-out
+                                cursor-pointer
+                                hover:bg-themeblue bg-transparent
+                                active:scale-95
+                                transform-gpu
+                                ${itemsVisible
+                                    ? "opacity-100 translate-y-0"
+                                    : "opacity-0 translate-y-1"
+                                }
+                            `}
+                            style={{
+                                transitionDelay: itemsVisible
+                                    ? `${index * 30}ms`
+                                    : `${(menuData.length - index - 1) * 15}ms`,
+                                transformOrigin: 'center'
+                            }}
+                        >
+                            {/* Icon with subtle fade */}
+                            <div
+                                className="mr-3 text-primary/70 transition-all duration-300 ease-out"
+                                style={{
+                                    opacity: itemsVisible ? 1 : 0,
+                                    transform: itemsVisible ? 'scale(1)' : 'scale(0.8)',
+                                    transitionDelay: itemsVisible
+                                        ? `${index * 30 + 10}ms`
+                                        : `${(menuData.length - index - 1) * 15}ms`
+                                }}
+                            >
+                                {getIconForItem(item.action)}
+                            </div>
 
-                    {/* Subtle divider */}
-                    <div className="relative my-1.5">
-                        <div className="w-full border-t border-themeblue3/10" />
-                    </div>
-
-                    {/* Settings Menu Item */}
-                    <MenuItem
-                        icon={<Settings size={16} className="mr-3 text-primary/70 transition-colors group-hover:text-primary/90" />}
-                        text="Settings"
-                        onClick={() => {
-                            setActiveItem(null)
-                            onSettingsClick?.()
-                            onClose?.()
-                        }}
-                    />
+                            {/* Menu text with subtle fade */}
+                            <span
+                                className=" tracking-wide transition-all duration-300 ease-out"
+                                style={{
+                                    opacity: itemsVisible ? 1 : 0,
+                                    transform: itemsVisible ? 'translateX(0)' : 'translateX(-8px)',
+                                    transitionDelay: itemsVisible
+                                        ? `${index * 30 + 10}ms`
+                                        : `${(menuData.length - index - 1) * 15}ms`
+                                }}
+                            >
+                                {item.text}
+                            </span>
+                        </button>
+                    ))}
                 </div>
-
-                {/* Bottom accent - only show when expanded */}
-                {isVisible && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-themeblue3/20 to-transparent" />
-                )}
             </div>
         </>
     )

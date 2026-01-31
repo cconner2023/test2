@@ -1,4 +1,4 @@
-// App.tsx - UPDATED with position tracking
+// App.tsx - COMPLETE VERSION
 import { useState, useRef, useEffect } from 'react'
 import './App.css'
 import { SideMenu } from './Components/SideMenu'
@@ -21,11 +21,8 @@ function AppContent() {
   const [showNoteImport, setShowNoteImport] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [isSearchExpanded, setIsSearchExpanded] = useState(false)
-  const searchInputRef = useRef<HTMLInputElement>(null)
-  const menuButtonRef = useRef<HTMLButtonElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null!)
   const { theme, toggleTheme } = useTheme()
-  const [menuButtonWidth, setMenuButtonWidth] = useState(44)
-  const [menuButtonPosition, setMenuButtonPosition] = useState({ x: 16, y: 56 })
 
   // Single auto-animate for switching between main and medication grids
   const [contentRef] = useAutoAnimate<HTMLDivElement>({
@@ -35,38 +32,6 @@ function AppContent() {
 
   // Use simple layout hook
   const layout = useLayout()
-
-  // Measure menu button size and position
-  useEffect(() => {
-    const updateMenuButtonInfo = () => {
-      if (menuButtonRef.current) {
-        const rect = menuButtonRef.current.getBoundingClientRect()
-        setMenuButtonWidth(rect.width)
-        setMenuButtonPosition({
-          x: rect.left,
-          y: rect.bottom + 4 // Add 4px gap below button
-        })
-      }
-    }
-
-    // Initial measurement
-    updateMenuButtonInfo()
-
-    // Update on resize
-    window.addEventListener('resize', updateMenuButtonInfo)
-
-    // Update on scroll
-    window.addEventListener('scroll', updateMenuButtonInfo)
-
-    // Use a short timeout to ensure DOM is rendered
-    const timer = setTimeout(updateMenuButtonInfo, 100)
-
-    return () => {
-      window.removeEventListener('resize', updateMenuButtonInfo)
-      window.removeEventListener('scroll', updateMenuButtonInfo)
-      clearTimeout(timer)
-    }
-  }, [isMenuOpen]) // Re-run when menu opens/closes
 
   // Close menu on desktop resize, reset search expansion
   useEffect(() => {
@@ -187,22 +152,16 @@ function AppContent() {
             isMobile={layout.isMobile}
             isSearchExpanded={isSearchExpanded}
             onSearchExpandToggle={() => setIsSearchExpanded(!isSearchExpanded)}
-            menuButtonRef={menuButtonRef}
           />
         </div>
 
-        {/* SideMenu - rendered at App level */}
-        {isMenuOpen && (
-          <SideMenu
-            isVisible={isMenuOpen}
-            onClose={() => setIsMenuOpen(false)}
-            onImportClick={handleImportClick}
-            onMedicationClick={handleMedicationClick}
-            onSettingsClick={handleSettingsClick}
-            menuButtonWidth={menuButtonWidth}
-            menuButtonPosition={menuButtonPosition}
-          />
-        )}
+        <SideMenu
+          isVisible={isMenuOpen}
+          onClose={() => setIsMenuOpen(false)}
+          onImportClick={handleImportClick}
+          onMedicationClick={handleMedicationClick}
+          onSettingsClick={handleSettingsClick}
+        />
 
         {/* Note Import */}
         {showNoteImport && !layout.hasSearchInput && (
