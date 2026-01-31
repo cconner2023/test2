@@ -170,17 +170,6 @@ function AppContent() {
           </div>
         )}
 
-        {showSettings && !layout.hasSearchInput && (
-          <div className="absolute inset-0 z-50 bg-themewhite">
-            <Settings
-              isVisible={showSettings}
-              onClose={() => setShowSettings(false)}
-              isDarkMode={theme === 'dark'}
-              onToggleTheme={toggleTheme}
-            />
-          </div>
-        )}
-
         <div ref={showSettings ? contentRef : undefined} className='md:h-[94%] h-full mt-2 mx-2'>
           {!showNoteImport && (
             <>
@@ -284,6 +273,17 @@ function AppContent() {
             </>
           )}
         </div>
+
+        {showSettings && !layout.hasSearchInput && (
+          <div className="absolute inset-0 z-50 bg-themewhite">
+            <Settings
+              isVisible={showSettings}
+              onClose={() => setShowSettings(false)}
+              isDarkMode={theme === 'dark'}
+              onToggleTheme={toggleTheme}
+            />
+          </div>
+        )}
         <UpdateNotification />
       </div>
     </div>

@@ -1,5 +1,5 @@
-import { useEffect, useState, useRef } from 'react';
-import { X, Moon, Sun, Shield, HelpCircle } from 'lucide-react';
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { X, Moon, Sun, Shield, HelpCircle, ChevronUp } from 'lucide-react';
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -14,153 +14,194 @@ export const Settings = ({
     isDarkMode,
     onToggleTheme,
 }: SettingsDrawerProps) => {
-    const [drawerOpen, setDrawerOpen] = useState(false);
     const [isMobile, setIsMobile] = useState(false);
-    const [dragOffset, setDragOffset] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
-    const dragStartY = useRef(0);
+    const [drawerHeight, setDrawerHeight] = useState(0);
+    const [velocity, setVelocity] = useState(0);
     const drawerRef = useRef<HTMLDivElement>(null);
+    const dragStartY = useRef(0);
+    const dragStartTime = useRef(0);
+    const lastY = useRef(0);
+    const lastTime = useRef(0);
+    const animationFrame = useRef(0);
 
-    // Check if mobile on mount and resize
+    // Check if mobile
     useEffect(() => {
         const checkMobile = () => {
             setIsMobile(window.innerWidth < 768);
         };
-
         checkMobile();
         window.addEventListener('resize', checkMobile);
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
 
-    // Animate drawer open/close
+    // Reset drawer position when opened/closed
     useEffect(() => {
         if (isVisible) {
-            setDragOffset(0);
-            // Small delay for animation
-            setTimeout(() => setDrawerOpen(true), 10);
+            setDrawerHeight(isMobile ? 85 : 100); // 85% height on mobile, full on desktop
+            document.body.style.overflow = 'hidden';
         } else {
-            setDrawerOpen(false);
+            setDrawerHeight(0);
+            document.body.style.overflow = '';
         }
-    }, [isVisible]);
 
-    // Handle drag start
+        return () => {
+            document.body.style.overflow = '';
+            if (animationFrame.current) {
+                cancelAnimationFrame(animationFrame.current);
+            }
+        };
+    }, [isVisible, isMobile]);
+
+    const handleClose = useCallback(() => {
+        setDrawerHeight(0);
+        setTimeout(onClose, 300);
+    }, [onClose]);
+
+    // Touch/Mouse handlers with momentum
     const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
+        if (!isMobile) return;
+
         setIsDragging(true);
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
         dragStartY.current = clientY;
-        e.preventDefault();
+        dragStartTime.current = Date.now();
+        lastY.current = clientY;
+        lastTime.current = Date.now();
+
         e.stopPropagation();
     };
 
-    // Handle drag move
     const handleDragMove = (e: React.TouchEvent | React.MouseEvent) => {
-        if (!isDragging) return;
+        if (!isDragging || !isMobile) return;
 
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
         const deltaY = clientY - dragStartY.current;
 
-        // Only allow dragging downward
+        // Calculate velocity for momentum
+        const currentTime = Date.now();
+        const deltaTime = currentTime - lastTime.current;
+        if (deltaTime > 0) {
+            const currentVelocity = (clientY - lastY.current) / deltaTime;
+            setVelocity(currentVelocity * 100); // Scale for better sensitivity
+        }
+
+        lastY.current = clientY;
+        lastTime.current = currentTime;
+
+        // Only allow dragging downward (closing)
         if (deltaY > 0) {
-            setDragOffset(deltaY);
+            const newHeight = Math.max(85 - (deltaY / 10), 0); // Convert drag to height percentage
+            setDrawerHeight(newHeight);
         }
 
         e.preventDefault();
         e.stopPropagation();
     };
 
-    // Handle drag end
     const handleDragEnd = () => {
-        if (!isDragging) return;
+        if (!isDragging || !isMobile) return;
 
         setIsDragging(false);
 
-        // If dragged more than 100px, close the drawer
-        if (dragOffset > 100) {
+        // Apply momentum
+        const momentum = velocity * 5; // Scale momentum
+
+        if (momentum > 1.5 || drawerHeight < 70) {
+            // Close with momentum or if dragged more than 15%
             handleClose();
         } else {
-            // Animate back to position
-            setDragOffset(0);
+            // Snap back to original position
+            setDrawerHeight(85);
         }
+
+        setVelocity(0);
     };
 
-    const handleClose = () => {
-        setDrawerOpen(false);
-        setTimeout(onClose, 200);
-    };
+    // Smooth animation for non-drag changes
+    const animateHeight = useCallback((targetHeight: number) => {
+        const startHeight = drawerHeight;
+        const startTime = Date.now();
+        const duration = 300;
 
-    const handleAction = (action: () => void, id: number) => {
-        action();
-        // Close settings if id > 1 (only Import Note at id=1 closes)
-        if (id > 1) {
-            handleClose();
-        }
-    };
+        const animate = () => {
+            const currentTime = Date.now();
+            const elapsed = currentTime - startTime;
+            const progress = Math.min(elapsed / duration, 1);
 
-    const voidAction = () => {
-        // Do nothing for now
-    };
+            // Ease out cubic
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+            const currentHeight = startHeight + (targetHeight - startHeight) * easeProgress;
+
+            setDrawerHeight(currentHeight);
+
+            if (progress < 1) {
+                animationFrame.current = requestAnimationFrame(animate);
+            }
+        };
+
+        animationFrame.current = requestAnimationFrame(animate);
+    }, [drawerHeight]);
 
     // Settings options
     const settingsOptions = [
         {
-            icon: isDarkMode ? <Sun size={18} /> : <Moon size={18} />,
+            icon: isDarkMode ? <Sun size={20} /> : <Moon size={20} />,
             label: 'Toggle Theme',
             action: onToggleTheme,
             color: 'text-primary',
             id: 0
         },
         {
-            icon: <Shield size={18} />,
+            icon: <Shield size={20} />,
             label: 'Release Notes',
-            action: voidAction,
+            action: () => window.open('https://github.com/your-repo/releases', '_blank'),
             color: 'text-tertiary',
             id: 4
         },
         {
-            icon: <HelpCircle size={18} />,
+            icon: <HelpCircle size={20} />,
             label: 'Help & Support',
-            action: voidAction,
+            action: () => window.open('https://github.com/your-repo/issues', '_blank'),
             color: 'text-tertiary',
             id: 5
         }
     ];
 
-    // Calculate backdrop opacity based on drag offset
-    const backdropOpacity = Math.max(0.3 - (dragOffset / 500), 0);
+    if (!isVisible && !isMobile) return null;
 
-    // For mobile view - iOS style drawer with draggable handle
+    // Mobile Drawer
     if (isMobile) {
         return (
             <>
-                {/* Backdrop overlay */}
-                {isVisible && (
-                    <div
-                        className="fixed inset-0 bg-black z-40 transition-opacity duration-300"
-                        style={{
-                            opacity: isDragging ? backdropOpacity : (drawerOpen ? 0.3 : 0)
-                        }}
-                        onClick={handleClose}
-                    />
-                )}
-
-                {/* Drawer - Almost full screen with top spacing */}
+                {/* Backdrop with fade effect */}
                 <div
-                    ref={drawerRef}
-                    className={`fixed left-0 right-0 z-50 bg-themewhite3 shadow-lg transform transition-transform duration-300 ease-out ${isDragging ? '' : (drawerOpen ? 'translate-y-0' : 'translate-y-full')
+                    className={`fixed inset-0 z-[9998] transition-all duration-300 ${drawerHeight > 0 ? 'bg-black/30' : 'bg-transparent pointer-events-none'
                         }`}
                     style={{
-                        height: 'calc(100vh - 0.6rem)',
-                        top: '0.6rem',
-                        borderTopLeftRadius: '2rem',
-                        borderTopRightRadius: '2rem',
-                        boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.15)',
-                        transform: isDragging ? `translateY(${dragOffset}px)` :
-                            drawerOpen ? 'translate-y-0' : 'translate-y-full',
+                        opacity: drawerHeight / 85,
+                    }}
+                    onClick={handleClose}
+                />
+
+                {/* Drawer Container */}
+                <div
+                    ref={drawerRef}
+                    className={`fixed z-[9999] bg-themewhite3 rounded-t-3xl shadow-2xl transition-all duration-300 ease-out ${isDragging ? '' : 'transform'
+                        }`}
+                    style={{
+                        height: `${drawerHeight}vh`,
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        transform: isDragging ? 'none' : `translateY(${100 - drawerHeight}vh)`,
+                        touchAction: 'none',
+                        willChange: 'transform, height',
                     }}
                 >
-                    {/* iOS Drag Handle/Notch - Enhanced for dragging */}
+                    {/* Drag Handle Area */}
                     <div
-                        className="flex justify-center pt-3 pb-1 active:cursor-grab"
+                        className="flex justify-center pt-3 pb-2 active:cursor-grab active:bg-themewhite2/50 rounded-t-3xl"
                         onTouchStart={handleDragStart}
                         onTouchMove={handleDragMove}
                         onTouchEnd={handleDragEnd}
@@ -168,47 +209,52 @@ export const Settings = ({
                         onMouseMove={handleDragMove}
                         onMouseUp={handleDragEnd}
                         onMouseLeave={handleDragEnd}
-                        style={{ touchAction: 'none' }}
                     >
-                        <div className="w-12 h-1.5 bg-tertiary/30 rounded-full transition-all duration-200 hover:h-2 active:h-2 active:w-14" />
+                        <div className="w-14 h-1.5 bg-tertiary/30 rounded-full transition-all duration-200 active:scale-110 active:bg-tertiary/40" />
                     </div>
 
-                    {/* Header with iOS Liquid Glass Close Button */}
-                    <div className="relative flex items-center justify-center px-5 py-4 border-b border-tertiary/10">
-                        {/* Centered title */}
-                        <h2 className="text-lg font-semibold text-primary">Settings</h2>
-
-                        {/* iOS Liquid Glass Close Button */}
-                        <button
-                            onClick={handleClose}
-                            className="absolute right-4 p-2 rounded-full hover:bg-themewhite2 transition-colors"
-                            aria-label="Close settings"
-                        >
-                            <X size={20} className="text-tertiary" />
-                        </button>
-                    </div>
-
-                    {/* Settings List */}
-                    <div className="overflow-y-auto space-y-2 px-2 py-2" style={{ height: 'calc(100vh - 2rem - 110px)' }}>
-                        {settingsOptions.map((option, index) => (
+                    {/* Header */}
+                    <div className="px-6 py-4 border-b border-tertiary/10">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-xl font-semibold text-primary">Settings</h2>
                             <button
-                                key={index}
-                                onClick={() => handleAction(option.action, option.id)}
-                                className="flex items-center w-full px-4 py-3 hover:bg-themewhite2 active:bg-themewhite2/70 transition-colors rounded-lg"
+                                onClick={handleClose}
+                                className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
+                                aria-label="Close"
                             >
-                                <div className={`mr-3 ${option.color}`}>{option.icon}</div>
-                                <span className="flex-1 text-left text-sm text-primary font-normal">
-                                    {option.label}
-                                </span>
+                                <X size={24} className="text-tertiary" />
                             </button>
-                        ))}
+                        </div>
                     </div>
 
-                    {/* Version info at bottom */}
-                    <div className="absolute bottom-0 left-0 right-0 px-5 py-4 border-t border-tertiary/10 bg-themewhite">
-                        <div className="text-center">
-                            <p className="text-sm text-tertiary/60">Version 2.6.0</p>
-                            <p className="text-xs text-tertiary/40 mt-2">ADTMC MEDCOM PAM 40-7-21</p>
+                    {/* Settings Content */}
+                    <div className="overflow-y-auto h-[calc(100vh-140px)] px-4 py-3">
+                        <div className="space-y-1">
+                            {settingsOptions.map((option, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => {
+                                        option.action();
+                                        if (option.id > 1) handleClose();
+                                    }}
+                                    className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2 active:bg-themewhite2/70 
+                                             active:scale-[0.98] transition-all rounded-xl"
+                                >
+                                    <div className={`mr-4 ${option.color}`}>{option.icon}</div>
+                                    <span className="flex-1 text-left text-base text-primary font-medium">
+                                        {option.label}
+                                    </span>
+                                    <ChevronUp size={16} className="text-tertiary/40 rotate-90" />
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Version Info */}
+                        <div className="mt-8 pt-6 border-t border-tertiary/10">
+                            <div className="text-center">
+                                <p className="text-sm text-tertiary/60 font-medium">Version 2.6.0</p>
+                                <p className="text-xs text-tertiary/40 mt-1">ADTMC MEDCOM PAM 40-7-21</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -216,43 +262,68 @@ export const Settings = ({
         );
     }
 
-    // For desktop view - regular settings page with absolute positioning
+    // Desktop Modal
     return (
-        <div className="absolute inset-0 z-50 bg-themewhite">
-            <div className="h-full w-full animate-AppearIn">
-                <div className="bg-themewhite rounded-lg p-6 max-w-2xl mx-auto">
-                    {/* Header */}
-                    <button
-                        onClick={handleClose}
-                        className="absolute right-4 p-2 rounded-full hover:bg-themewhite2 transition-colors"
-                        aria-label="Close settings"
-                    >
-                        <X size={20} className="text-tertiary" />
-                    </button>
+        <>
+            {/* Backdrop */}
+            <div
+                className="fixed inset-0 z-[9998] bg-black/30 animate-fadeIn"
+                onClick={handleClose}
+            />
 
-                    {/* Settings Grid */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {settingsOptions.map((option, index) => (
+            {/* Modal */}
+            <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                <div
+                    className="bg-themewhite rounded-2xl shadow-2xl max-w-md w-full animate-slideUp"
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Header */}
+                    <div className="px-6 py-5 border-b border-tertiary/10">
+                        <div className="flex items-center justify-between">
+                            <h2 className="text-2xl font-semibold text-primary">Settings</h2>
                             <button
-                                key={index}
-                                onClick={() => handleAction(option.action, option.id)}
-                                className="flex flex-col items-center justify-center p-6 bg-themewhite2 rounded-xl hover:bg-themewhite2/80 transition-all active:scale-95"
+                                onClick={handleClose}
+                                className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
+                                aria-label="Close"
                             >
-                                <div className={`mb-3 ${option.color}`}>{option.icon}</div>
-                                <span className="text-sm font-medium text-primary">{option.label}</span>
+                                <X size={24} className="text-tertiary" />
                             </button>
-                        ))}
+                        </div>
                     </div>
 
-                    {/* Version info */}
-                    <div className="mt-12 pt-6 border-t border-tertiary/10">
-                        <div className="text-center">
-                            <p className="text-sm text-tertiary/60">Version 2.6.0</p>
-                            <p className="text-xs text-tertiary/40 mt-2">ADTMC MEDCOM PAM 40-7-21</p>
+                    {/* Content */}
+                    <div className="p-6">
+                        <div className="grid grid-cols-1 gap-3">
+                            {settingsOptions.map((option, index) => (
+                                <button
+                                    key={index}
+                                    onClick={() => {
+                                        option.action();
+                                        if (option.id > 1) handleClose();
+                                    }}
+                                    className="flex items-center px-5 py-4 hover:bg-themewhite2 active:scale-[0.98] 
+                                             transition-all rounded-xl group"
+                                >
+                                    <div className={`mr-4 ${option.color} group-hover:scale-110 transition-transform`}>
+                                        {option.icon}
+                                    </div>
+                                    <span className="flex-1 text-left text-lg text-primary font-medium">
+                                        {option.label}
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+
+                        {/* Version Info */}
+                        <div className="mt-10 pt-6 border-t border-tertiary/10">
+                            <div className="text-center">
+                                <p className="text-base text-tertiary/60 font-medium">Version 2.6.0</p>
+                                <p className="text-sm text-tertiary/40 mt-1">ADTMC MEDCOM PAM 40-7-21</p>
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 };
