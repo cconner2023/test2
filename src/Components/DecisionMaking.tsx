@@ -21,20 +21,13 @@ export function DecisionMaking({
     disposition,
     dispositionType,
 }: DecisionMakingProps) {
-    const [selectedMedication, setSelectedMedication] = useState<{
-        medication: medListTypes;
-        itemIndex: number;
-    } | null>(null)
-
-    // Auto-animate for smooth transitions
-    const [listRef] = useAutoAnimate<HTMLDivElement>({
-        duration: 300,
-        easing: 'ease-in-out',
-    })
-
+    const [selectedMedication, setSelectedMedication] = useState<medListTypes | null>(null)
+    const [listRef] = useAutoAnimate<HTMLDivElement>()
     const colors = getColorClasses(dispositionType as any)
 
     const findTriggeringDecisionMaking = (): decisionMakingType[] => {
+        const results: decisionMakingType[] = [];
+
         for (let i = cardStates.length - 1; i >= 0; i--) {
             const card = cardStates[i];
             const algorithmCard = algorithmOptions[i];
@@ -54,18 +47,18 @@ export function DecisionMaking({
             if (answerToCheck?.disposition?.some(d =>
                 d.type === disposition.type && d.text === disposition.text
             )) {
-                return answerToCheck.decisionMaking || [];
+                const decisionMaking = answerToCheck.decisionMaking || [];
+                results.push(...decisionMaking);
             }
         }
 
-        return [];
+        return results;
     };
 
     const decisionMakingContent = findTriggeringDecisionMaking()
 
-    // Handler for medication clicks from DecisionMakingItem
-    const handleMedicationClick = (medication: medListTypes, itemIndex: number) => {
-        setSelectedMedication({ medication, itemIndex })
+    const handleMedicationClick = (medication: medListTypes) => {
+        setSelectedMedication(medication)
     }
 
     const handleCloseMedication = () => {
@@ -74,37 +67,30 @@ export function DecisionMaking({
 
     return (
         <div className="h-full w-full">
-            {/* Separate container for animation to avoid layout jumps */}
             <div ref={listRef} className="h-full">
-                {/* Medication Details View */}
                 {selectedMedication ? (
-                    <div key="medication-view" className="h-full">
-                        <div className="h-full flex flex-col">
-                            {/* Fixed header that won't scroll away */}
-                            <div className="flex-none flex items-center justify-between p-4">
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={handleCloseMedication}
-                                        className="flex items-center gap-1 text-sm text-themeblue2 hover:text-themeblue1"
-                                    >
-                                        ← Back
-                                    </button>
-                                </div>
-                            </div>
-                            {/* Scrollable medication content */}
-                            <div className="flex-1 overflow-y-auto">
-                                <MedicationPage medication={selectedMedication.medication} />
-                            </div>
+                    <div className="h-full flex flex-col">
+                        <div className="flex-none p-3 border-b border-themegray1/20">
+                            <button
+                                onClick={handleCloseMedication}
+                                className="flex items-center gap-1 text-sm text-themeblue2 hover:text-themeblue1"
+                            >
+                                ← Back
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto">
+                            <MedicationPage medication={selectedMedication} />
                         </div>
                     </div>
                 ) : (
-                    <div key="decision-items-view" className="h-full w-full overflow-y-auto">
+                    <div className="h-full overflow-y-auto p-3 space-y-4">
                         {decisionMakingContent.map((item, index) => (
                             <DecisionMakingItem
                                 key={index}
                                 item={item}
                                 colors={colors}
-                                onMedicationClick={(med) => handleMedicationClick(med, index)}
+                                onMedicationClick={handleMedicationClick}
+                                onDdxClick={undefined}
                             />
                         ))}
                     </div>

@@ -1402,11 +1402,13 @@ export const catData: catDataTypes[] = [
                 id: 2,
                 icon: "F-2",
                 text: "Headache",
-                gen: [{}],
+                gen: [{
+                    pg: {},
+                    text: 'In the absence of fever, severe pain, or confusion, serious disease is extremely unlikely.Migraines often present with a gradual, increasing onset of a one sided, pulsatile moderate to severe headache worse with physical activity, noise, or light and associated with nausea and may have an aura. Tension-type headache often presents as a bilateral pressure that waxes and wanes lasting from 30 min to seven days. Cluster headache is rare. It presents with a rapid onset within minutes of unilateral deep, continuous severe pain around the eye or temple often associated with tearing, congestion, runny nose, pallor, or sweating.'
+                }],
                 medcom: [],
                 stp: [],
                 redFlags: [
-                    { text: "NO HEADACHE ALGORITHM EXISTS FOR THE CURRENT VERSION OF ADTMC. SEE BELOW RED FLAGS" },
                     { text: "Sudden Onset, Severe" },
                     { text: "Focal Neurologic Signs" },
                     { text: "Blown pupil" },
@@ -1426,7 +1428,10 @@ export const catData: catDataTypes[] = [
                 id: 3,
                 icon: "F-3",
                 text: "Numbness/Tingling/ Paralysis/Weakness ",
-                gen: [{}],
+                gen: [{
+                    pg: { start: 81, end: 82 },
+                    text: '“Numbness” may be used by the Soldier to describe muscle weakness, malaise, confusion, or abnormal sensation including tingling (a “pins and needles” sensation). Paralysis/weakness is a condition that refers to a loss of muscular strength resulting in difficulty or inability to move a body part. A complete loss of muscular strength is paralysis; a partial loss is weakness.'
+                }],
                 medcom: [medcomTrainingData[18]],
                 stp: [TrainingStpData[9].options[4]],
                 redFlags: [
@@ -1449,7 +1454,10 @@ export const catData: catDataTypes[] = [
                 id: 4,
                 icon: "F-4",
                 text: "Drowsiness/Confusion",
-                gen: [{}],
+                gen: [{
+                    pg: { start: 83, end: 84 },
+                    text: 'Drowsiness and confusion are symptoms that may be observed even when the Soldier is relating other complaints. Drowsiness and confusion may be related to many underlying issues to include systemic illness, organ dysfunction, drug intoxication/ withdrawal, psychiatric illness, trauma, or neurologic illness.'
+                }],
                 medcom: [
                     medcomTrainingData[18],
                     medcomTrainingData[19],
@@ -1478,7 +1486,10 @@ export const catData: catDataTypes[] = [
                 id: 5,
                 icon: "F-5",
                 text: "Depression/Nervousness/ Anxiety/Tension",
-                gen: [{}],
+                gen: [{
+                    pg: { start: 85, end: 86 },
+                    text: 'The terms “depression, nervousness, anxiety, tension” and complaints of “nerves” or “being upset” may all be used by Soldiers to describe problems with mood. Complaints such as these are often due to situational or behavioral health factors, but may also be due to a physical condition. Everyone experiences emotional distress from time to time. However, when symptoms become continuous or interfere with daily functioning, or when suicidal or homicidal thoughts or self-harm are reported, the complaint must be taken seriously and further evaluated.'
+                }],
                 medcom: [],
                 stp: [TrainingStpData[5].options[6]],
                 redFlags: [

@@ -4233,24 +4233,21 @@ export const Algorithm: AlgorithmType[] = [
             }
         ]
     },
+    // No current algorithm exists for headache F-2. Decision making points exist. This algorithm was made by working backwards from decision making points. 2009 version of ADTMC does not adequately address red flags.
     {
-        id: "F-3",
+        id: "F-2",
         options: [
             {
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "Localized to a Region or 1 sided" },
-                    { text: "Recent Trauma" },
-                    { text: "Loss of Consciousness" },
-                    { text: "Bowel/Bladder Incontinence" }
+                    { text: "Sudden Onset, Severe" },
+                    { text: "Focal Neurologic Signs" },
+                    { text: "Blown pupil" },
+                    { text: "Severe Hypertension" },
+                    { text: "Fever" },
+                    { text: "Vision Change/Loss" }
                 ],
-                answerOptions: []
-            },
-            {
-                text: "Finger Stick Glucose",
-                type: "action",
-                questionOptions: [],
                 answerOptions: []
             },
             {
@@ -4258,24 +4255,31 @@ export const Algorithm: AlgorithmType[] = [
                 type: "initial",
                 questionOptions: [
                     { text: "Red flags" },
-                    { text: "Back Pain" },
-                    { text: "Severe headache" },
-                    { text: "Blood glucose less than 70" },
-                    { text: "Diabetes using insulin" },
-                    { text: "Tick exposure" }
+                    { text: "Hypertension > 220/110" },
+                    { text: "Abnormal pupils" },
+                    { text: "sudden worst headache" },
+                    { text: "fever" },
+                    { text: "inability to touch chin to chest" },
+                    { text: "altered mental status" }
                 ],
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.',
+
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['hypertensive emergency', 'hypertensive urgency', 'increased intracranial pressure', 'intracranial hemorrhage', 'meningitis'],
+                                text: 'Severe hypertension is a blood pressure over 220 systolic or 110 diastolic. When a Soldier has severe hypertension, have them lay down in a quiet, dark room until able to transport them to a higher level of care. A blown pupil can be a sign of increased intracranial pressure. Sudden worst headache of the Soldier’s life and focal neurological sign can be a sign of an intracranial hemorrhage. Fever and inability to touch the chin the chest are signs of meningitis. Altered mental status can be a sign of a more significant problem. If there is some question as to whether or not the Soldier is confused, ask him simple questions such as his name, day of the week, the year, where he is now, or who is the President of the United States?',
                             }
                         ],
                         next: null,
@@ -4283,12 +4287,126 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [],
+                        next: 2,
+                        selectAll: false
+                    }
+                ]
+            },
+            {
+                text: "Do any of the following apply?",
+                type: "choice",
+                questionOptions: [
+                    { text: "nausea" },
+                    { text: "high blood pressure" },
+                    { text: "Failing initial treatment" },
+                    { text: "change from usual headache" },
+                    { text: "pregnant" }
+                ],
+                answerOptions: [
+                    {
+                        text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['migraine', 'increased intracranial pressure', 'hypertension', 'secondary headache', 'pre-eclampsia'],
+                                text: 'Nausea is a common symptom with a migraine headache but can also be a sign of increased intracranial pressure. Nausea requires a further evaluation to determine the most likely cause. Uncontrolled high blood pressure can result in a headache and requires additional treatment. Headaches that have failed initial treatment need to be evaluated for secondary causes and a different medication regiment. A change from a Soldier’s usual headache can represent a more significant underlying medical problem or new cause of the headache. Pregnancy limits the medications that can be used, and headache in pregnancy could represent pre-eclampsia if over 20 weeks pregnant.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'lab',
+                                        modifier: '\u2640 Pregnancy Test'
+                                    }
+                                ]
                             }
                         ],
+                        next: null,
+                        selectAll: true
+                    },
+                    {
+                        text: "No",
+                        disposition: [
+                            {
+                                ...Disposition[2],
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'mcp',
+                                ddx: ['migraine headache', 'tension headache', 'caffeine withdrawal'],
+                                text: 'Provide the Soldier with ibuprofen, naproxen, or ketorolac as needed for his or her headache. Return to clinic if confusion, vision problems, nausea, or fever develop, if the pain is so severe that performance of normal duties is impossible, or the headache lasts over 24 hours. May provide physical activity modification for one day, if necessary.',
+                                medFind: [medList[23], medList[30], medList[24]],
+                                specLim: ['May wear Sunglasses Indoors', 'Limit loud noises', 'Walk at own pace/distance', 'No running, rucking, jumping']
+                            }
+                        ],
+                        next: null,
+                        selectAll: false
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        id: "F-3",
+        options: [
+            {
+                text: "Red Flags",
+                type: "rf",
+                questionOptions: [
+                    { text: "Sudden Onset, Severe" },
+                    { text: "Focal Neurologic Signs" },
+                    { text: "Blown pupil" },
+                    { text: "Severe Hypertension" },
+                    { text: "Fever" },
+                    { text: "Vision Change/Loss" }
+                ],
+                answerOptions: []
+            },
+            {
+                text: "Draw the following labs",
+                type: "action",
+                questionOptions: [
+                    { text: "Finger stick glucose" },
+                ],
+                answerOptions: []
+            },
+            {
+                text: "Do any of the following apply?",
+                type: "initial",
+                questionOptions: [
+                    { text: "red flags" },
+                    { text: "back pain" },
+                    { text: "severe headache" },
+                    { text: "blood glucose < 70" },
+                    { text: "Diabetes / insulin" },
+                    { text: "tick exposure" },
+                ],
+                answerOptions: [
+                    {
+                        text: "Yes",
+                        disposition: [
+                            {
+                                ...Disposition[0],
+                                modifier: 'Glucose < 70 provide sugar/food if available'
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems',
+
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['neuropathy', 'herniated disc', 'intracranial lesion', 'hypoglycemia'],
+                                text: 'Localized issue is more likely to have a serious cause then generalized symptoms. Back pain can represent a herniated disc causing nerve compression. Severe headache can represent an intracranial lesion. Insulin use, or history of diabetes can present with symptomatic hypoglycemia. In hypoglycemic Soldiers, sugar or food should be provided if available.',
+                            }
+                        ],
+                        next: null,
+                        selectAll: true
+                    },
+                    {
+                        text: "No",
                         disposition: [],
                         next: [3, 4],
                         selectAll: false
@@ -4296,9 +4414,13 @@ export const Algorithm: AlgorithmType[] = [
                 ]
             },
             {
-                text: "\u2640 Pregnancy Test",
+                text: "Draw the following lab if applicable",
                 type: "action",
-                questionOptions: [],
+                questionOptions: [
+                    {
+                        text: '\u2640 Pregnancy Test'
+                    }
+                ],
                 answerOptions: []
             },
             {
@@ -4306,36 +4428,74 @@ export const Algorithm: AlgorithmType[] = [
                 type: "choice",
                 questionOptions: [
                     { text: "Fever" },
-                    { text: "Prevents normal activities" },
-                    { text: "First occurrence of symptoms" },
-                    { text: "Pregnant" },
-                    { text: "Depressed" },
+                    { text: "prevents normal activities" },
+                    { text: "first occurrence of symptoms" },
+                    { text: "pregnant" },
+                    { text: "depressed" },
                     { text: "35+ years old" }
                 ],
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['viral illess', 'depression', 'pregnancy-related pathology'],
+                                text: 'Fatigue from an infectious illness can be described as weakness. First occurrence of symptoms or being 35 years old or older may indicate a higher risk for a more serious condition. Depression can also present as weakness.',
+                                ancillaryFind: [
+                                    {
+                                        type: 'lab',
+                                        modifier: '\u2640 Pregnancy Test'
+                                    }
+                                ]
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['hyperventilation'],
+                                text: 'Provide reassurance to the patient. Have the Soldier practice relaxed breathing. If symptoms do not resolve within 10 minutes, refer to AEM. If symptoms resolve, refer to behavioral health if available.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'respiratory rate greater than 14 per minute. Provide reassurance to the patient. Have the Soldier practice relaxed breathing. If symptoms do not resolve within 10 minutes, refer to AEM. If symptoms resolve, refer to behavioral health if available.',
+                                    ancillaryFind: [{ type: 'refer', modifier: 'behavioral health' }]
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['viral syndrome'],
+                                text: 'Viral syndrome can present as fatigue described as weakness. It is a global feeling often associated with other symptoms and muscle aches. Treat in accordance with related protocol.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Viral Syndrome: ibuprofen as needed for fatigue/body aches. Drink plenty of water. Get plenty of sleep.',
+                                    medFind: [medList[23]],
+                                    specLim: ['PT training at own pace/ rep/ distance x 3 days']
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['Insomnia', 'fatigue', 'stress', 'other sleep issue'],
+                                text: 'Sleep issues can present as fatigue described as weakness. It can be a manifestation of depression or stress among other things. Provide education on sleep hygiene, consider providing diphenhydramine or melatonin nightly for three nights, consider activity modification, discuss stress management, and offer a routine referral to behavioral health asset for counseling and treatment',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'provide sleep hygiene education, recommend self-reflection to find a way to relieve stress, and offer a routine referral to a routine behavioral health asset, if available. Return to clinic if not improving, new symptoms arise, or symptoms are worsening',
+                                    medFind: [medList[14]],
+                                    ancillaryFind: [{
+                                        type: 'refer', modifier: 'behavioral health'
+                                    }],
+                                    specLim: ['Allow for 8 hours of uninterrupted sleep in 24 hour period']
+                                }
                             }
                         ],
                         next: null,
@@ -4379,24 +4539,31 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[0], modifier: 'Glucose < 70 - provide glucose. SpO2 <90 - start oxygen. H/O alcohol - give thiamine. H/O narcotics - give naloxone' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['shock', 'hypoglycemia', 'intracranial pathology', 'alcohol use', 'drug use', 'seizure'],
+                                text: 'Abnormal vital signs may represent a more significant condition to include shock. Soldiers with an altered mental status should have their finger stick blood sugar checked. Hypoglycemia can cause an altered mental status. Focal neurological deficits and a recent trauma suggest intracranial pathology. Alcohol, narcotics, and other drugs can cause confusion through intoxication or withdrawal. Seizures can cause confusion even if the rhythmic jerking movements are not presenting in the Soldier.',
+                                ancillaryFind: [
+                                    { type: 'lab', modifier: 'finger stick glucose' },
+                                    { type: 'lab', modifier: 'blood alcohol level' },
+                                    { type: 'med', modifier: 'H/O alcohol - thiamine' },
+                                    { type: 'med', modifier: 'H/O narcotics - naloxone' },
+                                    { type: 'med', modifier: 'Glucose < 70 - glucose' },
+                                    { type: 'protocol', modifier: 'SpO2 < 90 - oxygen' },
+                                ]
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: [3, 4],
                         selectAll: false
@@ -4404,9 +4571,9 @@ export const Algorithm: AlgorithmType[] = [
                 ]
             },
             {
-                text: "Blood Alcohol UDS",
+                text: 'draw the following labs',
                 type: "action",
-                questionOptions: [],
+                questionOptions: [{ text: 'blood alcohol' }, { text: 'urine drug screen (UDS)' }],
                 answerOptions: []
             },
             {
@@ -4422,27 +4589,47 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[1], modifier: 'Check rectal temp if heat exposure concern' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['heat injury', 'heat exhaustion', 'heat stroke', 'substance exposure', 'substance withdrawal'],
+                                text: 'Sudden onset of symptoms is more concerning. Heat exhaustion, heat injury, and heat stroke can be associated with drowsiness or confusion. If a heat exposure is of concern, then a rectal temperature must be checked. Alternative methods of checking the temperature can be inaccurate. Alcohol, drug, or medication exposure or withdrawal can cause drowsiness. Some medications that can cause drowsiness include antihistamines, sleep medications, muscle relaxants, analgesics, and psychiatric medications.',
+                                ancillaryFind: [{ type: 'protocol', modifier: 'rectal temp' }]
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                text: 'If drowsiness or confusion is not from a condition below, refer to AEM.'
+                            },
                             {
-                                ...Disposition[2],
+                                type: 'dmp',
+                                ddx: ['viral syndrome'],
+                                text: 'Viral syndrome can present as fatigue described as drowsiness. It is a global feeling often associated with other symptoms and muscle aches. Treat with ibuprofen as needed for fatigue/body aches. Treat other symptoms in accordance with the corresponding minor-care protocol.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'ibuprofen as needed for fatiguerbody aches. Drink plenty of water. Get plenty of sleep. Screen other symptoms as needed. Return to clinic if not improving, new symptoms arise, or symptoms are worsening',
+                                    medFind: [medList[23]],
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['sleep problems'],
+                                text: 'Sleep issues can present as fatigue described as weakness. It can be a manifestation of depression or stress among other things. Provide education on sleep hygiene, consider providing diphenhydramine or melatonin nightly for three nights, consider activity modification, discuss stress management, and offer a routine referral to behavioral health asset for counseling and treatment.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'provide sleep hygiene education, consider providing melatonin or activity modification, recommend self-reflection to find a way to relieve stress. and offer a routine referral to a behavioral health asset. if available. Return to clinic if not improving. new symptoms arise, or symptoms are worsening.',
+                                    medFind: [medList[14]],
+                                    ancillaryFind: [{ type: 'refer', modifier: 'behavioral health' }, { type: 'med', modifier: 'melatonin' }],
+                                    specLim: ['Allow for 8 Hours of uninterrupted sleep in any given 24 hour period']
+                                }
                             }
                         ],
                         next: null,
@@ -4478,24 +4665,23 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[0], modifier: 'inform leadership. Do not leave Soldier alone. Remove means of self-harm' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “provider now.” These can be signs of significant underlying medical or serious behavioral health problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['suicidal ideation', 'homicidal ideation', 'depression', 'anxiety'],
+                                text: 'Ask the following questions: In the past month, have you wished you were dead or wished you could go to sleep and not wake up? Have you had any thoughts about killing yourself? If YES to the second question, ask: Have you thought of how you might do this? Have you started to work out or have worked out the details of how to kill yourself? Do you have any intention of acting on these thoughts of killing yourself? Remain calm. Express concern and do not be dismissive. Do not be judgmental or argumentative. If YES to questions about suicidality, do not leave the Soldier alone. Remove means of self-harm. Do not leave the Soldier waiting alone for a long time in a busy waiting room, as this may increase the Soldier’s distress. Be aware that abnormal vital signs and/or anxiety or depression symptoms may represent an underlying medical issue'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -4515,27 +4701,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[1], modifier: 'Obtain list of all medications and amount taken. Ask if currently receiving BH services' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['depression', 'anxiety', 'emotional distress', 'suicidal gesture'],
+                                text: 'Ask the following questions for a depression screen: Over the past 2 weeks, have you often been bothered by feeling down, depressed, or hopeless? Over the past 2 weeks, have you often been bothered by having littler interest or pleasure in doing things? In addition to other situational, mental health, or medical causes, emotional distress may accompany injury and/or chronic pain and may merit a referral to behavioral health services. Ask Soldier how he or she is coping with the injury and/or pain. Other indicators of emotional distress may include disheveled appearance or poor hygiene, reported change in work performance, and risk-taking behavior. Obtain a list of all medications and the amounts taken to provide to the AEM. Taking significantly more of a medication than the prescribed amount may represent a suicidal gesture and should be inquired about if reported. If the Soldier was accompanied to the screening area by an escort, it may be due to high risk behavior or safety concerns. Inquire as to reason for escort, asking escort if necessary.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                ddx: ['mild mood symptoms'],
+                                text: 'Soldiers that are experiencing mood symptoms that are mild in nature and not associated with other symptoms or impairment should be offered assistance. As always, remain calm, express concern for the Soldier, and do not be judgmental or argumentative. Educate the Soldier on the many resources that are available in your area, to include: Behavioral Health, Chaplaincy, Army Community Services, Chain of Command, Military and Family Life Consultants, Military OneSource, and Army Wellness Center. Offer to walk the Soldier to the resource that they prefer. Do not allow the Soldier to leave the screening area until they have been cleared by the supervising medic.',
+                                specLim: ['Escort to Behavioral Health or Emergency Room if indicated']
                             }
                         ],
                         next: null,
@@ -4588,7 +4773,13 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'If the Soldier presents with any red flag, immediately disposition the Soldier as “Provider Now” as these can be signs of medical emergencies.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['concussion'],
+                                text: 'All Soldiers with a possible mTBI should be screened using the Military Acute Concussion Evaluation, version 2 (MACE 2) exam and results should be documented on the Soldier’s medical record. The MACE 2 assesses for red flags and the five predominate concussion sub-types (vestibular, oculomotor, headache/migraine, anxiety/mood, and cognitive). Presence of the following observable signs are suggestive of a concussion and prompt thorough evaluation: (1) lying motionless on the ground, (2) slow to get up after a direct or indirect blow to the head, (3) disorientation, confusion or inability to respond appropriately to questions, (4) blank or vacant look, (5) balance difficulties, stumbling, or slow labored movements, and (6) facial injury after head trauma. A positive initial screening on the MACE 2 indicates a concussive injury and often presents as alteration of consciousness (seeing stars, dazed, confused), loss of consciousness, or amnesia (trouble remembering the event). Positive screening with the following are recommended for a CT scan of the head: deteriorating level of consciousness, double vision, increased restlessness, combative or agitated behavior, severe or worsening headache, mental status (GCS<15), suspected skull fracture, sign of basilar skull fracture (hemotympanum, raccoon eyes, Battle sign, oto-/rhinorrhea), 2+ episodes of vomiting, amnesia for 30+ minutes before incident, neurologic deficit, seizure, severe incident (hit by motor vehicle, ejection from vehicle, fall >3 feet/ >5 stairs), or on an anticoagulant. The MACE 2 encompasses the following key areas: (1) concussion screening, (2) history questions (related to anxiety, migraine, and cervicogenic assessment), and (3) neurological, cognitive, and vestibular/oculomotor assessments. The neurological assessment includes speech fluency, word finding, single leg stance, tandem gait, pronator strength and eye tracking. The cognitive section includes scored evaluations of orientation and immediate and delayed recall. The vestibular/ocular-motor screening (VOMS) is a symptom-provoking exam that is necessary to detect patients at risk for delayed recovery due to oculomotor and vestibular deficits. Symptoms assessed are headache, dizziness, nausea, and fogginess.',
+                                ancillaryFind: [{ type: 'protocol', modifier: 'MACE 2 exam' }]
                             }
                         ],
                         disposition: [Disposition[0]],
@@ -4597,12 +4788,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -4628,7 +4813,8 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['concussion', 'mTBI'],
+                                text: 'A MACE 2 cognitive score less than or equal to 25, any abnormality on the neurological exam, any abnormality on the VOMS exam, presence of one or more symptoms, observed loss or alteration of consciousness, or a history of TBIs require additional evaluation and treatment'
                             }
                         ],
                         disposition: [Disposition[1]],
@@ -4637,15 +4823,18 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                ddx: ['mTBI'],
+                                text: 'MACE 2 screening that does not identify a concussion (screens negative) can be managed with reviewing the Acute Concussion Educational Brochure with Soldier, a mandatory 24 hour rest period followed by a re-evaluation after the 24 hour rest period prior to the Soldier returning to duty. Re-evaluation should include exertional testing if the Soldier is still asymptomatic. Exertional testing increases the cardiac output (blood pressure and heart rate) which can worsen symptoms by increasing swelling if present. Return to the clinic if symptoms worsen or new symptoms develop. More information is available at https://dvbic.dcoe.mil. Concussion treatment is guided by the results of the symptom cluster assessment generated by the MACE 2. A MACE 2 screening that identifies a concussion (screens positive) should prompt a minimum of 24-hour rest, with follow-up every 24 to 48 hours up to seven days. Additionally, concussions should be managed by initiation of the concussion management tool (CMT) and progressive return to activity (PRA) by a medical provider or other trained medical staff member. Results from the MACE 2 align to specific treatment protocols embedded within the CMT. Rapidly addressing vestibular and oculomotor deficits identified by the MACE 2 and daily evaluation of progress with the PRA will lead to faster recovery.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'All positive MACE 2 screens should be referred to the AEM or Provider for further evaluation. Negative MACE 2: 24 hour rest period, review Acute Concussion Educational Brochure with patient. and counsel Soldier to return after 24 hour rest for re-evaluation If no symptoms. perform exertional testing. Return to Clinic if worsening symptoms, new symptoms. More information is available at https://dvbic.dcoe.mil. See MACE 2 card, CMT, and PRA resources',
+                                    specLim: ['Use the Concussion Management Tool (CMT) and associated Progressive Return to Activity (PRA) for specific management. A minimum of 24 hour rest, defined as:', '1. Rest with extremely limited cognitive activity', '2. Limit physical activities to those of daily living and extremely light leisure activity', '3. Avoid working, exercising, playing video games, studying, or driving', '4. Avoid any potentially concussive events', '5. Avoid caffeine and alcohol', 'Reassess using the MACE 2 after 24 hours rest']
+
+                                }
                             }
                         ],
                         next: null,
@@ -4686,24 +4875,23 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['depression', 'adrenal or pituitary issue', 'hypo/hyperthyroidism', 'anemia', 'sleep apnea'],
+                                text: 'While fatigue is often not caused by a specific disease, it may be a presenting symptom of a potentially serious condition. Depression may only present as fatigue. Decreased libido could be a sign of an adrenal/pituitary issue. Weight change could represent hypo/hyperthyroidism. Menorrhagia often results in anemia. Snoring can be a sign of sleep apnea. USPSTF Screening/PHA is to look at age appropriate cancer and cardiovascular screening. Infections, inflammation, liver/kidney disease, and medication/drug use can also cause fatigue.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -4721,16 +4909,16 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 type: "OTHER",
                                 text: "Screen bleeding, cold, sore throat, other symptoms if present"
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                text: 'If the Soldier has other specific complaints or symptoms, the Soldier should be evaluated for that complaint. Otherwise, the minor-care protocol is appropriate.'
                             }
                         ],
                         next: null,
@@ -4738,15 +4926,24 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                ddx: ['fatigue'],
+                                text: 'Advise the Soldier that vitamins are rarely helpful, that “pep pills” do not work (the rebound usually makes the problem worse), and that tranquilizers generally intensify fatigue. Taking a vacation, if possible, or undertaking new activities are often helpful. Helpful Actions Include: Identifying potential sources of the fatigue such as work stress, marital discord, lack of rest or sleep (either quantity or quality of sleep), or a poor/not well balanced diet. Provide information on proper sleep hygiene and refer to sleep hygiene course if locally available. If not a suicidal risk (which would require immediate referral) suggest various available options for counseling, including behavioral health, Army community services, and the chaplain. Work on the problem rather than on the symptom. Seek medical assistance if symptoms worsen, other symptoms develop, fatigue makes normal activities difficult, difficulty staying awake while driving, or not improved within one week.'
+                            },
                             {
-                                ...Disposition[2],
+                                type: 'dmp',
+                                ddx: ['sleep problem'],
+                                text: 'Sleep issues can present as fatigue described as weakness. It can be a manifestation of depression or stress among other things. Provide education on sleep hygiene, consider providing diphenhydramine or melatonin nightly for three nights, consider activity modification, discuss stress management, and offer a routine referral to behavioral health asset for counseling and treatment.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: '',
+                                    medFind: [medList[14]],
+                                    ancillaryFind: [{ type: 'med', modifier: 'melatonin' }, { type: 'refer', modifier: 'behavioral health' }],
+                                    specLim: ['Allow for 8 hours of uninterrupted sleep with a 24 hour period']
+                                }
                             }
                         ],
                         next: null,
@@ -4779,24 +4976,18 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -4819,24 +5010,19 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['HIV', 'bacterial infection', 'zoonotic infection', 'malaria', 'endocarditis'],
+                                text: 'If the Soldier’s temperature is greater than 100.4°F, has symptoms for more than 48 hours, HIV infection, or immunosuppression, then there is a greater risk of the fever being caused by a bacterial infection. Overseas travel, tick or mosquito bite, animal exposure, and malaria endemic area, increase the risk of a zoonotic or malaria infection. IV drug use increases the risk of endocarditis.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -4856,16 +5042,16 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 type: "OTHER",
                                 text: "Screen other symptoms algorithm"
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                text: 'Before assuming the Soldier has isolated fever/chills, be sure to ask him/her specifically about other symptoms such as upper respiratory infection symptoms, cough, sore throat, ear pain, diarrhea, dysuria, rash, and muscle aches. If no associated symptoms can be identified, over half of Soldiers’ fever will resolve on its own without an underlying issue being identified.'
                             }
                         ],
                         next: null,
@@ -4873,15 +5059,17 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                text: 'Instruct the Soldier to stay well hydrated and get plenty of rest. He or she should drink fluids to keep their urine mostly clear and obtain at least eight hours of rest per day. Take acetaminophen as needed for temperature above 98.4°F (No more than eight tablets within 24 hours. No other medications with acetaminophen in them. No alcohol.) Soldier is contagious while he or she has an elevated temperature. He or she should avoid contact with healthy Soldiers as much as possible. If in training, refer to local SOP. Soldier may need to be placed in quarters. Return for medical assistance if symptoms do not improve with acetaminophen, other symptoms develop, or a fever develops (T > 100.4).',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'OTC Medication: acetaminophen as needed for elevated temperature (No other medications with acetaminophen. No alcohol.), ibuprofen as needed for malaise. Stay hydrated by drinking fluids to keep your urine mostly clear. Get plenty of rest. Return if red flags, new symptoms. lasts longer than 48 hours, or fever not controlled with acetaminophen',
+                                    medFind: [medList[0], medList[23]],
+                                    specLim: ['For a Fever: Consider Quarters x 24-48 hours (must discuss with supervising privileged provider)']
+                                }
                             }
                         ],
                         next: null,
