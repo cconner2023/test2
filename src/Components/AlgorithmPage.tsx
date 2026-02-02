@@ -168,9 +168,9 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
 
     return (
         <div className="w-full h-full relative overflow-hidden">
-            {/* ALGORITHM VIEW */}
-            {viewState === 'algorithm' && (
-                <div key="algorithm-view" className="h-full flex flex-col opacity-100 transition-opacity duration-200">
+            {/* ALGORITHM VIEW - stays mounted on mobile when note is expanded (for backdrop peek) */}
+            {(viewState === 'algorithm' || (viewState === 'note-expanded' && isMobile)) && (
+                <div key="algorithm-view" className="h-full flex flex-col">
                     {/* Algorithm Content */}
                     <div
                         ref={containerRef}
@@ -195,14 +195,14 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
                         </div>
                     </div>
 
-                    {/* Disposition Header - Simple relative positioning */}
+                    {/* Disposition Header */}
                     {currentDisposition && colors && (
                         <div className={`relative rounded-md bg-themewhite`}>
                             <div className={`p-4 bg-themewhite2 ${isMobile ? 'pb-20' : ''}`}>
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center space-x-3">
-                                        <div className={`px-3 py-2 shrink-0 rounded-md 
-                                            flex items-center justify-center ${colors.badgeBg} 
+                                        <div className={`px-3 py-2 shrink-0 rounded-md
+                                            flex items-center justify-center ${colors.badgeBg}
                                             font-bold text-sm ${colors.badgeText}`}>
                                             {currentDisposition.type}
                                         </div>
@@ -230,9 +230,9 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
                 </div>
             )}
 
-            {/* NOTE VIEW - Takes full container */}
+            {/* NOTE VIEW - overlays on mobile (bottom sheet), replaces on desktop */}
             {viewState === 'note-expanded' && currentDisposition && (
-                <div className="absolute inset-0 h-full w-full opacity-100 transition-opacity duration-200">
+                <div className="absolute inset-0 h-full w-full z-10">
                     <WriteNotePage
                         disposition={currentDisposition}
                         algorithmOptions={algorithmOptions}
@@ -243,8 +243,8 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
                             console.log('Note saved:', note);
                         }}
                         selectedSymptom={{
-                            icon: 'A-1',
-                            text: 'Sore Throat/Hoarseness'
+                            icon: selectedSymptom?.icon || '',
+                            text: selectedSymptom?.text || ''
                         }}
                         isMobile={isMobile}
                     />

@@ -120,7 +120,7 @@ export function CategoryList({
                                             className="flex py-3 px-2 w-full rounded-md border-b border-themewhite2/90 cursor-pointer hover:bg-themewhite2 min-w-0"
                                             onClick={() => onNavigate(categoryToResult(category))}
                                         >
-                                            <div className="w-10 flex text-[10pt] font-normal items-center justify-center shrink-0 bg-themeblue3 text-white rounded-full">
+                                            <div className="px-3 py-2 flex text-[10pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
                                                 {category.icon}
                                             </div>
                                             <div className="h-full flex-1 min-w-0 p-[4px_10px_4px_10px] text-primary text-[10pt] flex items-center truncate">
@@ -144,7 +144,7 @@ export function CategoryList({
                                             className="flex py-3 px-2 w-full rounded-sm border-b border-themewhite2/70 cursor-pointer hover:bg-themewhite2 min-w-0"
                                             onClick={() => onNavigate(symptomToResult(symptom, selectedCategory))}
                                         >
-                                            <div className="w-10 flex text-[10pt] font-normal items-center justify-center shrink-0 bg-themeblue3 text-white rounded-full">
+                                            <div className="px-3 py-2 flex text-[10pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
                                                 {symptom.icon || "?"}
                                             </div>
                                             <div className="h-full flex-1 min-w-0 bg-themewhite text-primary text-[10pt] p-[4px_10px_4px_10px] flex items-center truncate">
@@ -165,7 +165,7 @@ export function CategoryList({
                                 {/* Symptom Header */}
                                 <div className="mb-4 pb-4 border-b border-themewhite2">
                                     <div className="flex items-center gap-3 mb-2">
-                                        <div className="w-12 h-12 flex text-[12pt] font-semibold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-full">
+                                        <div className="px-4 py-3 flex text-[12pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
                                             {selectedSymptom.icon}
                                         </div>
                                         <h2 className="text-[11pt] font-semibold text-primary flex-1 min-w-0">
@@ -198,15 +198,13 @@ export function CategoryList({
                                     </div>
                                 )}
 
-                                {/* Training Guidelines Section */}
-                                {(selectedSymptom.medcom || selectedSymptom.stp || selectedSymptom.gen) && (
+                                {/* MEDCOM Training Section */}
+                                {selectedSymptom.medcom && selectedSymptom.medcom.length > 0 && (
                                     <div className="mb-3">
                                         <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide mb-2 pl-1">
-                                            Guidelines
+                                            MEDCOM Training
                                         </h3>
-
-                                        {/* Medcom Guidelines */}
-                                        {selectedSymptom.medcom?.map((guideline, index) => (
+                                        {selectedSymptom.medcom.map((guideline, index) => (
                                             <GuidelineItem
                                                 key={`medcom-${guideline.id || index}`}
                                                 guideline={guideline}
@@ -216,9 +214,16 @@ export function CategoryList({
                                                 onClick={() => onNavigate(guidelineToResult('medcom', guideline, index, selectedSymptom, selectedCategory))}
                                             />
                                         ))}
+                                    </div>
+                                )}
 
-                                        {/* STP Guidelines */}
-                                        {selectedSymptom.stp?.map((guideline, index) => (
+                                {/* STP Training Section */}
+                                {selectedSymptom.stp && selectedSymptom.stp.length > 0 && (
+                                    <div className="mb-3">
+                                        <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide mb-2 pl-1">
+                                            STP Training
+                                        </h3>
+                                        {selectedSymptom.stp.map((guideline, index) => (
                                             <GuidelineItem
                                                 key={`stp-${guideline.id || index}`}
                                                 guideline={guideline}
@@ -228,9 +233,16 @@ export function CategoryList({
                                                 onClick={() => onNavigate(guidelineToResult('stp', guideline, index, selectedSymptom, selectedCategory))}
                                             />
                                         ))}
+                                    </div>
+                                )}
 
-                                        {/* GEN Guidelines */}
-                                        {selectedSymptom.gen?.map((guideline, index) => (
+                                {/* General Guidelines Section */}
+                                {selectedSymptom.gen && selectedSymptom.gen.length > 0 && (
+                                    <div className="mb-3">
+                                        <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide mb-2 pl-1">
+                                            General Guidelines
+                                        </h3>
+                                        {selectedSymptom.gen.map((guideline, index) => (
                                             <GuidelineItem
                                                 key={`gen-${index}`}
                                                 guideline={guideline}

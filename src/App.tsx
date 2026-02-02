@@ -143,6 +143,7 @@ function AppContent() {
               showMedicationList: navigation.isMedicationView,
               medicationButtonText: navigation.getMedicationButtonText(),
               isMobile: navigation.isMobile,
+              isAlgorithmView: navigation.showQuestionCard,
             }}
           />
         </div>

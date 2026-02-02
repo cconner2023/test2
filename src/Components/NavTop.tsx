@@ -33,6 +33,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         showDynamicTitle = false,
         medicationButtonText = "Medications",
         isMobile,
+        isAlgorithmView = false,
     } = ui
     // Refs and computed values
     const internalInputRef = useRef<HTMLInputElement>(null);
@@ -40,7 +41,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
     const hasSearchInput = searchInput.trim().length > 0;
 
     // Mobile-specific UI flags
-    const shouldShowInfoWithSearch = isMobile && showBack && showDynamicTitle && !isSearchExpanded;
+    const shouldShowInfoButton = isMobile && isAlgorithmView && !isSearchExpanded;
     const shouldShowMenuButton = showMenu && (isMobile || !showBack);
 
     // Focus input when mobile search expands
@@ -90,17 +91,17 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         ? (isSearchExpanded ? (hasSearchInput ? 'clear' : 'collapse') : 'expand')
         : (hasSearchInput ? 'clear' : 'default');
 
-    // Button style constants
+    // Button style constants - iOS standard tap target is 44px (w-11 h-11)
     const BUTTON_CLASSES = {
-        mobile: "p-2 text-tertiary hover:text-primary justify-center items-center transition-colors",
-        mobileInner: "w-8 h-8 rounded-full backdrop-blur-md shadow-md shadow-themewhite2 bg-themewhite/20 border border-tertiary/30 flex items-center justify-center",
+        mobile: "p-2 text-tertiary hover:text-primary justify-center items-center transition-all duration-200",
+        mobileInner: "w-11 h-11 rounded-full backdrop-blur-md shadow-md shadow-themewhite2 bg-themewhite/20 border border-tertiary/30 flex items-center justify-center",
         desktop: "h-8 flex items-center justify-center px-3 lg:px-4 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
     };
 
     return (
-        <div className="flex items-center h-full w-full px-3 bg-themewhite transition-all duration-300">
-            {/* Left section: buttons and title */}
-            <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center h-full w-full px-2 bg-themewhite transition-all duration-300">
+            {/* Left section: buttons only */}
+            <div className="flex items-center gap-2 shrink-0">
                 {/* Menu/Back button */}
                 <div className="flex justify-center items-center space-x-2 shrink-0">
                     {/* Back Button */}
@@ -171,22 +172,23 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                     )}
                 </div>
 
-                {/* Title - Hide when mobile search is expanded */}
-                {(!isMobile || !isSearchExpanded) && (
-                    <div className={`truncate whitespace-nowrap transition-opacity duration-300 min-w-0 flex-1 ${isSearchExpanded ? 'opacity-0' : 'opacity-100'}`}>
-                        <span className={isMobile ? "md:hidden" : ""}>
-                            {showDynamicTitle && dynamicTitle ? (
-                                <span className="text-[9pt] md:hidden block text-primary font-normal shrink truncate">{dynamicTitle}</span>
-                            ) : (
-                                <span className="text-[9pt] md:hidden block text-primary font-normal shrink truncate">ADTMC 3.5</span>
-                            )}
-                        </span>
-                    </div>
-                )}
             </div>
 
-            {/* Search Container - Now also contains info button when appropriate */}
-            <div className="flex items-center justify-end md:justify-center flex-1 min-w-0">
+            {/* Title - Centered on mobile, hidden on desktop */}
+            {isMobile && !isSearchExpanded && (
+                <div className="flex-1 min-w-0 px-2 transition-opacity duration-300">
+                    <div className="truncate whitespace-nowrap text-center">
+                        {showDynamicTitle && dynamicTitle ? (
+                            <span className="text-[9pt] text-primary font-normal">{dynamicTitle}</span>
+                        ) : (
+                            <span className="text-[9pt] text-primary font-normal">ADTMC 3.5</span>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Search Container on the right - shrink-0 on mobile, flex-1 on desktop */}
+            <div className="flex items-center justify-end shrink-0 md:flex-1 md:justify-center min-w-0">
                 {/* Mobile expanded search */}
                 {isMobile && isSearchExpanded && (
                     <div
@@ -257,23 +259,23 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
                 {isMobile && !isSearchExpanded && (
                     <div className="flex items-center justify-end h-full">
-                        {/* Container acts as the "button with border" - has p-2 like individual buttons would */}
-                        <div className="rounded-full bg-transparent border border-tertiary/20 flex items-center justify-center p-0.5">
-                            {/* Info button wrapper that animates width */}
+                        {/* Container with border - wider for better mobile feel */}
+                        <div className="rounded-full bg-transparent border border-tertiary/20 flex items-center justify-center p-1">
+                            {/* Info button wrapper that animates width and opacity */}
                             <div className={`
-                transition-all duration-200 ease-out
-                ${shouldShowInfoWithSearch ? 'w-8 opacity-100' : 'w-0 opacity-0'}
+                transition-all duration-300 ease-out overflow-hidden
+                ${shouldShowInfoButton ? 'w-11 opacity-100' : 'w-0 opacity-0'}
                 flex items-center justify-center
             `}>
-                                {shouldShowInfoWithSearch && (
+                                {shouldShowInfoButton && (
                                     <button
                                         onClick={onInfoClick}
-                                        className="text-tertiary hover:text-primary transition-colors"
+                                        className="text-tertiary hover:text-primary transition-all duration-200"
                                         aria-label="Info"
                                         title="Info"
                                     >
                                         {/* No border on inner div since container has it */}
-                                        <div className="w-8 h-8 rounded-full flex items-center justify-center">
+                                        <div className="w-11 h-11 rounded-full flex items-center justify-center">
                                             <Info className="w-5 h-5 stroke-current" />
                                         </div>
                                     </button>
@@ -283,12 +285,12 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                             {/* Search button - always present */}
                             <button
                                 onClick={handleMobileSearchClick}
-                                className="text-tertiary hover:text-primary transition-colors"
+                                className="text-tertiary hover:text-primary transition-all duration-200"
                                 aria-label="Search"
                                 title="Search"
                             >
                                 {/* No border on inner div since container has it */}
-                                <div className="w-8 h-8 rounded-full flex items-center justify-center">
+                                <div className="w-11 h-11 rounded-full flex items-center justify-center">
                                     <Search className="w-5 h-5 stroke-current" />
                                 </div>
                             </button>

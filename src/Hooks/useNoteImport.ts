@@ -1,54 +1,299 @@
 // hooks/useNoteImport.ts
 import { useCallback } from 'react';
-import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
+import type { AlgorithmOptions, decisionMakingType } from '../Types/AlgorithmTypes';
 import { Algorithm } from '../Data/Algorithms';
-import { Disposition } from '../Data/Algorithms';
+
+interface DecodedBarcode {
+    symptomCode: string;
+    rfSelections: number[];
+    cardEntries: { index: number; selections: number[]; answerIndex: number }[];
+    hpiText: string;
+    flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean };
+}
+
+// Convert a bitmask integer to array of set bit indices
+function bitmaskToIndices(bitmask: number): number[] {
+    const indices: number[] = [];
+    for (let i = 0; i < 32; i++) {
+        if ((bitmask >> i) & 1) {
+            indices.push(i);
+        }
+    }
+    return indices;
+}
 
 export const useNoteImport = () => {
-    // Parse base36 red flags - '0' means no selections
-    const parseRedFlags = useCallback((base36Str: string): number[] => {
-        if (!base36Str || base36Str === '0') return [];
+    // Parse barcode string into structured data
+    const parseBarcode = useCallback((barcodeString: string): DecodedBarcode | null => {
+        if (!barcodeString.trim()) return null;
 
-        try {
-            const binaryValue = parseInt(base36Str, 36);
-            const selectedOptions: number[] = [];
+        const parts = barcodeString.split('|');
+        const result: DecodedBarcode = {
+            symptomCode: '',
+            rfSelections: [],
+            cardEntries: [],
+            hpiText: '',
+            flags: { includeAlgorithm: true, includeDecisionMaking: true, includeHPI: false }
+        };
 
-            // Convert binary to selected options (LSB first)
-            for (let i = 0; i < 32; i++) {
-                if ((binaryValue >> i) & 1) {
-                    selectedOptions.push(i);
+        // Track if we find new-format card entries vs legacy L/S parts
+        let legacyLastCard = -1;
+        let legacySelections: number[] = [];
+
+        for (const part of parts) {
+            if (!part) continue;
+            const prefix = part[0];
+            const value = part.substring(1);
+
+            if (prefix === 'A') {
+                result.symptomCode = part;
+            } else if (prefix === 'R') {
+                const bitmask = parseInt(value || '0', 36);
+                result.rfSelections = bitmaskToIndices(bitmask);
+            } else if (prefix === 'H') {
+                try {
+                    result.hpiText = decodeURIComponent(atob(value));
+                } catch {
+                    try {
+                        result.hpiText = atob(value);
+                    } catch {
+                        result.hpiText = decodeURIComponent(value);
+                    }
+                }
+            } else if (prefix === 'F') {
+                const flagsNum = parseInt(value, 10);
+                result.flags = {
+                    includeAlgorithm: !!(flagsNum & 1),
+                    includeDecisionMaking: !!(flagsNum & 2),
+                    includeHPI: !!(flagsNum & 4)
+                };
+            } else if (prefix === 'L') {
+                // Legacy format: last card index
+                legacyLastCard = parseInt(value, 10);
+            } else if (prefix === 'S') {
+                // Legacy format: selections on last card
+                legacySelections = value === '0' ? [] : value.split('').map(n => parseInt(n, 10));
+            } else if (/^\d/.test(part)) {
+                // New format card entry: index.selections.answer
+                const segments = part.split('.');
+                if (segments.length >= 3) {
+                    result.cardEntries.push({
+                        index: parseInt(segments[0], 10),
+                        selections: bitmaskToIndices(parseInt(segments[1], 36)),
+                        answerIndex: parseInt(segments[2], 10)
+                    });
+                }
+            }
+        }
+
+        // Legacy format fallback: convert L/S to a single card entry
+        if (result.cardEntries.length === 0 && legacyLastCard > 0) {
+            result.cardEntries = [{
+                index: legacyLastCard,
+                selections: legacySelections,
+                answerIndex: -1
+            }];
+            result.flags = { includeAlgorithm: true, includeDecisionMaking: false, includeHPI: false };
+        }
+
+        if (!result.symptomCode) return null;
+        return result;
+    }, []);
+
+    // Find algorithm options by symptom code
+    const findAlgorithmByCode = useCallback((code: string): AlgorithmOptions[] | null => {
+        const algorithmId = code.replace(/([A-Z])(\d+)/, '$1-$2');
+        const algorithm = Algorithm.find(item => item.id === algorithmId);
+        return algorithm?.options || null;
+    }, []);
+
+    // Generate algorithm content matching useNoteCapture format
+    const generateAlgorithmContent = useCallback((
+        algorithmOptions: AlgorithmOptions[],
+        decoded: DecodedBarcode
+    ): string => {
+        const sections: string[] = [];
+
+        // Red flags
+        const rfCard = algorithmOptions[0];
+        if (rfCard?.type === 'rf' && rfCard.questionOptions) {
+            const flags: string[] = [];
+            rfCard.questionOptions.forEach((option, optionIndex) => {
+                const flagText = option.text?.trim();
+                if (flagText) {
+                    const isSelected = decoded.rfSelections.includes(optionIndex);
+                    flags.push(`  • ${flagText} - [${isSelected ? 'YES' : 'NO'}]`);
+                }
+            });
+            if (flags.length > 0) {
+                sections.push(`Red Flags:\n${flags.join('\n')}`);
+            }
+        }
+
+        // Each card entry
+        for (const entry of decoded.cardEntries) {
+            const card = algorithmOptions[entry.index];
+            if (!card || card.type === 'rf') continue;
+
+            const cardLines: string[] = [card.text];
+
+            // Question options with YES/NO
+            if (card.questionOptions && card.questionOptions.length > 0) {
+                card.questionOptions.forEach((option, optIndex) => {
+                    const optionText = option.text?.trim();
+                    if (optionText) {
+                        const isSelected = entry.selections.includes(optIndex);
+                        cardLines.push(`  • ${optionText} - [${isSelected ? 'YES' : 'NO'}]`);
+                    }
+                });
+            }
+
+            // Answer
+            if (entry.answerIndex >= 0 && entry.answerIndex < card.answerOptions.length) {
+                const answer = card.answerOptions[entry.answerIndex];
+                cardLines.push(`Answer: ${answer.text}`);
+                if (answer.disposition && answer.disposition.length > 0) {
+                    const dispText = answer.disposition
+                        .map(d => `${d.type}: ${d.text}`)
+                        .join('; ');
+                    cardLines.push(`Disposition: ${dispText}`);
                 }
             }
 
-            return selectedOptions;
-        } catch (error) {
-            console.error('Error parsing red flags:', error);
-            return [];
-        }
-    }, []);
-
-    // Find algorithm by symptom code - Convert A1 to A-1
-    const findAlgorithmByCode = useCallback((code: string): AlgorithmOptions[] | null => {
-        if (!code) return null;
-
-        // Convert A1 to A-1 format
-        const algorithmId = code.replace(/([A-Z])(\d+)/, '$1-$2');
-
-        console.log('Looking for algorithm with ID:', algorithmId);
-
-        // Find in Algorithm array
-        const algorithm = Algorithm.find(item => item.id === algorithmId);
-
-        if (!algorithm) {
-            console.error(`Algorithm ${algorithmId} not found in Algorithm array`);
-            return null;
+            if (cardLines.length > 1) {
+                sections.push(cardLines.join('\n'));
+            }
         }
 
-        return algorithm.options || null;
+        return sections.join('\n');
     }, []);
 
-    // Generate timestamp header
-    const generateTimestamp = useCallback((): string => {
+    // Generate decision making content matching useNoteCapture format
+    const generateDecisionMakingContent = useCallback((
+        algorithmOptions: AlgorithmOptions[],
+        decoded: DecodedBarcode
+    ): string => {
+        // Find the current disposition from card entries
+        let currentDisposition: { type: string; text: string } | null = null;
+        for (let i = decoded.cardEntries.length - 1; i >= 0; i--) {
+            const entry = decoded.cardEntries[i];
+            const card = algorithmOptions[entry.index];
+            if (!card || entry.answerIndex < 0) continue;
+            const answer = card.answerOptions[entry.answerIndex];
+            if (answer?.disposition?.length > 0) {
+                currentDisposition = answer.disposition[0];
+                break;
+            }
+        }
+
+        // Also check initial card for RF-triggered disposition
+        if (!currentDisposition) {
+            for (const entry of decoded.cardEntries) {
+                const card = algorithmOptions[entry.index];
+                if (!card || card.type !== 'initial') continue;
+                if (entry.answerIndex >= 0 && entry.answerIndex < card.answerOptions.length) {
+                    const answer = card.answerOptions[entry.answerIndex];
+                    if (answer?.disposition?.length > 0) {
+                        currentDisposition = answer.disposition[0];
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (!currentDisposition) return '';
+
+        // Find decision making items (same logic as useNoteCapture/DecisionMaking component)
+        let decisionMakingItems: decisionMakingType[] = [];
+
+        for (let i = decoded.cardEntries.length - 1; i >= 0; i--) {
+            const entry = decoded.cardEntries[i];
+            const card = algorithmOptions[entry.index];
+            if (!card) continue;
+
+            // Check direct answer
+            if (entry.answerIndex >= 0 && entry.answerIndex < card.answerOptions.length) {
+                const answer = card.answerOptions[entry.answerIndex];
+                if (answer?.disposition?.some(d =>
+                    d.type === currentDisposition!.type && d.text === currentDisposition!.text
+                )) {
+                    if (answer.decisionMaking?.length) {
+                        decisionMakingItems = answer.decisionMaking;
+                        break;
+                    }
+                }
+            }
+
+            // Check selectAll answer (for cards with selections)
+            if (entry.selections.length > 0) {
+                const selectAllAnswer = card.answerOptions.find(a => a.selectAll);
+                if (selectAllAnswer?.disposition?.some(d =>
+                    d.type === currentDisposition!.type && d.text === currentDisposition!.text
+                )) {
+                    if (selectAllAnswer.decisionMaking?.length) {
+                        decisionMakingItems = selectAllAnswer.decisionMaking;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (decisionMakingItems.length === 0) return '';
+
+        // Format decision making items (matching useNoteCapture output)
+        const sections: string[] = [];
+        decisionMakingItems.forEach((item, index) => {
+            const itemLines: string[] = [];
+            if (index > 0) itemLines.push('---');
+
+            if (item.ddx && item.ddx.length > 0) {
+                itemLines.push(`DDx: ${item.ddx.join(', ')}`);
+            }
+            if (item.text) {
+                itemLines.push(item.text);
+            }
+            if (item.ancillaryFind && item.ancillaryFind.length > 0) {
+                const ancTexts = item.ancillaryFind.map(a => a.modifier).filter(Boolean);
+                if (ancTexts.length > 0) {
+                    itemLines.push(`Ancillary: ${ancTexts.join(', ')}`);
+                }
+            }
+            if (item.specLim && item.specLim.length > 0) {
+                itemLines.push('Limitations:');
+                item.specLim.forEach(lim => itemLines.push(`  • ${lim}`));
+            }
+            if (item.assocMcp) {
+                const mcpLines: string[] = [];
+                if (item.assocMcp.text) mcpLines.push(item.assocMcp.text);
+                if (item.assocMcp.specLim && item.assocMcp.specLim.length > 0) {
+                    mcpLines.push('Limitations:');
+                    item.assocMcp.specLim.forEach(lim => mcpLines.push(`  • ${lim}`));
+                }
+                if (mcpLines.length > 0) {
+                    itemLines.push('Associated MCP:');
+                    mcpLines.forEach(line => itemLines.push(`  ${line}`));
+                }
+            }
+            if (itemLines.length > 0) {
+                sections.push(itemLines.join('\n'));
+            }
+        });
+
+        return sections.join('\n\n');
+    }, []);
+
+    // Main import function - reconstructs full note matching useNoteCapture output
+    const importFromBarcode = useCallback((barcodeString: string): string => {
+        const decoded = parseBarcode(barcodeString);
+        if (!decoded) return 'Error: Could not parse barcode string';
+
+        const algorithmOptions = findAlgorithmByCode(decoded.symptomCode);
+        if (!algorithmOptions?.length) {
+            return `Error: Algorithm ${decoded.symptomCode} not found`;
+        }
+
+        // Build the note using the same format as useNoteCapture.generateNote
+        const fullNoteParts: string[] = [];
         const now = new Date();
         const day = now.getDate().toString().padStart(2, '0');
         const month = now.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
@@ -60,187 +305,40 @@ export const useNoteImport = () => {
             second: '2-digit'
         });
 
-        return `ADTMC ${day}${month}${year} ${time} UTC`;
-    }, []);
+        // HPI (if flagged and present)
+        if (decoded.flags.includeHPI && decoded.hpiText) {
+            fullNoteParts.push('HPI:');
+            fullNoteParts.push(decoded.hpiText);
+            fullNoteParts.push('');
+        }
 
-    // Find initial card index
-    const findInitialCardIndex = useCallback((algorithmOptions: AlgorithmOptions[]): number => {
-        return algorithmOptions.findIndex(card => card.type === 'initial');
-    }, []);
+        // Timestamp (matches useNoteCapture format)
+        fullNoteParts.push(`SCREENED IAW ADTMC MEDCOM PAM 40-7-21 ${day}${month}${year} ${time} UTC`);
+        fullNoteParts.push('');
 
-    // Main import function
-    const importFromBarcode = useCallback((barcodeString: string): string => {
-        if (!barcodeString.trim()) return '';
-
-        const parts = barcodeString.split('|');
-        const sections: string[] = [];
-
-        let symptomCode = '';
-        let rfSelections: number[] = [];
-        let lastCardIndex = -1;
-        let lastCardSelections: number[] = [];
-
-        // Parse each part
-        for (const part of parts) {
-            if (part.length === 0) continue;
-
-            const firstChar = part[0];
-            const value = part.substring(1);
-
-            switch (firstChar) {
-                case 'A': // Symptom code like A1
-                    symptomCode = part; // Keep as A1
-                    break;
-                case 'R': // Red flags (R0 = no selections)
-                    rfSelections = parseRedFlags(value);
-                    break;
-                case 'L': // Last card index
-                    lastCardIndex = parseInt(value, 10);
-                    break;
-                case 'S': // Selected options for last card
-                    if (value === '0') {
-                        lastCardSelections = [];
-                    } else {
-                        lastCardSelections = value.split('').map(num => parseInt(num, 10));
-                    }
-                    break;
-                default:
-                    console.warn(`Unknown barcode part: ${part}`);
+        // Algorithm content
+        if (decoded.flags.includeAlgorithm) {
+            const algoContent = generateAlgorithmContent(algorithmOptions, decoded);
+            if (algoContent.trim()) {
+                const algorithmId = decoded.symptomCode.replace(/([A-Z])(\d+)/, '$1-$2');
+                fullNoteParts.push(`${algorithmId}:`);
+                fullNoteParts.push(algoContent);
+                fullNoteParts.push('');
             }
         }
 
-        console.log('Parsed:', { symptomCode, rfSelections, lastCardIndex, lastCardSelections });
-
-        if (!symptomCode) {
-            return 'Error: No symptom code found in barcode';
-        }
-
-        // Find the algorithm
-        const algorithmOptions = findAlgorithmByCode(symptomCode);
-        if (!algorithmOptions || algorithmOptions.length === 0) {
-            return `Error: Algorithm ${symptomCode} not found`;
-        }
-
-        // Validate last card index
-        if (lastCardIndex < 0 || lastCardIndex >= algorithmOptions.length) {
-            return `Error: Invalid last card index ${lastCardIndex}`;
-        }
-
-        // Find initial card index
-        const initialCardIndex = findInitialCardIndex(algorithmOptions);
-        const hasRFSelections = rfSelections.length > 0;
-
-        // Start building note
-        sections.push(generateTimestamp());
-
-        // Process Red Flags card if it exists (index 0)
-        const rfCard = algorithmOptions[0];
-        if (rfCard && rfCard.type === 'rf' && rfCard.questionOptions) {
-            const flags: string[] = [];
-            rfCard.questionOptions.forEach((option, optionIndex) => {
-                const flagText = option.text?.trim();
-                if (flagText) {
-                    const isSelected = rfSelections.includes(optionIndex);
-                    flags.push(`  • ${flagText} - [${isSelected ? 'YES' : 'NO'}]`);
-                }
-            });
-
-            if (flags.length > 0) {
-                sections.push(`Red Flags:\n${flags.join('\n')}`);
+        // Decision making content
+        if (decoded.flags.includeDecisionMaking) {
+            const dmContent = generateDecisionMakingContent(algorithmOptions, decoded);
+            if (dmContent.trim()) {
+                fullNoteParts.push('DECISION MAKING:');
+                fullNoteParts.push(dmContent);
+                fullNoteParts.push('');
             }
         }
 
-        // Process all cards up to lastCardIndex
-        for (let cardIndex = 1; cardIndex <= lastCardIndex; cardIndex++) {
-            const card = algorithmOptions[cardIndex];
-            if (!card) continue;
-
-            const cardLines: string[] = [card.text];
-
-            // Determine if this is the last card
-            const isLastCard = cardIndex === lastCardIndex;
-
-            // Determine selections and answer
-            let selectedOptions: number[] = [];
-            let answer = null;
-
-            if (isLastCard) {
-                // This is the last card - use provided selections
-                selectedOptions = lastCardSelections;
-
-                if (card.answerOptions) {
-                    if (card.type === 'initial') {
-                        // For initial card, answer depends on RF selections
-                        answer = hasRFSelections ? card.answerOptions[0] : card.answerOptions[1];
-                    } else if (card.type === 'choice') {
-                        // For choice card, Yes if selections exist
-                        const answerIndex = selectedOptions.length > 0 ? 0 : 1;
-                        if (answerIndex < card.answerOptions.length) {
-                            answer = card.answerOptions[answerIndex];
-                        }
-                    } else if (card.type === 'count') {
-                        // For count card, determine based on selection count
-                        if (card.answerOptions.length > 1) {
-                            const answerIndex = selectedOptions.length >= 3 ? 0 : 1;
-                            answer = card.answerOptions[answerIndex];
-                        }
-                    }
-                }
-            } else {
-                // Previous cards - no selections, answer is "No" (index 1)
-                if (card.answerOptions && card.answerOptions.length > 1) {
-                    answer = card.answerOptions[1]; // Index 1 = "No"
-                }
-            }
-
-            // Add question options with YES/NO
-            if (card.questionOptions && card.questionOptions.length > 0) {
-                card.questionOptions.forEach((option, optionIndex) => {
-                    const optionText = option.text?.trim();
-                    if (optionText) {
-                        const isSelected = selectedOptions.includes(optionIndex);
-                        cardLines.push(`    - ${optionText} [${isSelected ? 'YES' : 'NO'}]`);
-                    }
-                });
-            }
-
-            // Add answer
-            if (answer) {
-                const answerText = answer.text?.trim();
-                if (answerText) {
-                    cardLines.push(`  Answer: ${answerText}`);
-                }
-
-                // Add count for count cards
-                if (card.type === 'count' && selectedOptions.length > 0) {
-                    cardLines.push(`  Count: ${selectedOptions.length}`);
-                }
-
-                // Add disposition if this card has one
-                if (answer.disposition?.[0]) {
-                    const disp = answer.disposition[0];
-                    let dispositionText = `Disposition: ${disp.type}`;
-
-                    if (disp.text && disp.text.trim()) {
-                        dispositionText += ` ${disp.text}`;
-                    }
-
-                    if (disp.modifier && disp.modifier.trim()) {
-                        dispositionText += ` (${disp.modifier})`;
-                    }
-
-                    sections.push(dispositionText);
-                }
-            }
-
-            // Add card to sections
-            if (cardLines.length > 1) {
-                sections.push(cardLines.join('\n'));
-            }
-        }
-
-        return sections.join('\n\n');
-    }, [parseRedFlags, findAlgorithmByCode, generateTimestamp, findInitialCardIndex]);
+        return fullNoteParts.join('\n').trim();
+    }, [parseBarcode, findAlgorithmByCode, generateAlgorithmContent, generateDecisionMakingContent]);
 
     return {
         importFromBarcode

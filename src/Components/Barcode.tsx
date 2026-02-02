@@ -3,15 +3,16 @@ import PDF417 from 'pdf417-generator';
 import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 
-interface NoteCaptureOptions {
+interface NoteBarcodeOptions {
     includeAlgorithm: boolean;
+    includeDecisionMaking: boolean;
     customNote: string;
 }
 
 interface NoteBarcodeGeneratorProps {
     algorithmOptions: AlgorithmOptions[];
     cardStates: CardState[];
-    noteOptions: NoteCaptureOptions;
+    noteOptions: NoteBarcodeOptions;
     symptomCode?: string;
     onEncodedValueChange?: (value: string) => void;
 }
@@ -25,54 +26,64 @@ export function NoteBarcodeGenerator({
 }: NoteBarcodeGeneratorProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [encodedValue, setEncodedValue] = useState<string>('');
-    const { includeAlgorithm } = noteOptions;
-
-    const getLastVisibleCard = () => {
-        for (let i = cardStates.length - 1; i >= 0; i--) {
-            if (cardStates[i]?.isVisible) {
-                return i;
-            }
-        }
-        return -1;
-    };
 
     const generateCompactString = () => {
-        if (!includeAlgorithm) {
-            const emptyValue = '';
-            setEncodedValue(emptyValue);
-            onEncodedValueChange?.(emptyValue);
-            return emptyValue;
-        }
-
         const parts: string[] = [];
+
+        // 1. Symptom code (e.g. "A1")
         parts.push(symptomCode);
 
-        if (cardStates[0]?.selectedOptions) {
-            const totalOptions = algorithmOptions[0]?.questionOptions?.length || 0;
-            let binary = '';
+        // 2. Red flag selections (card 0 if RF type)
+        const rfCard = algorithmOptions[0];
+        if (rfCard?.type === 'rf' && cardStates[0]?.selectedOptions) {
+            const totalOptions = rfCard.questionOptions?.length || 0;
+            let bitmask = 0;
             for (let i = 0; i < totalOptions; i++) {
-                binary += cardStates[0].selectedOptions.includes(i) ? '1' : '0';
-            }
-            parts.push(`R${parseInt(binary || '0', 2).toString(36)}`);
-        }
-
-        const lastCardIndex = getLastVisibleCard();
-        if (lastCardIndex > 0) {
-            const state = cardStates[lastCardIndex];
-            parts.push(`L${lastCardIndex}`);
-            if (state.selectedOptions.length > 0) {
-                parts.push(`S${[...state.selectedOptions].sort().join('')}`);
-            }
-            if (state.answer) {
-                const card = algorithmOptions[lastCardIndex];
-                const answerIndex = card?.questionOptions?.findIndex(
-                    opt => opt.text === state.answer?.text
-                );
-                if (answerIndex !== undefined && answerIndex >= 0) {
-                    parts.push(`A${answerIndex}`);
+                if (cardStates[0].selectedOptions.includes(i)) {
+                    bitmask |= (1 << i);
                 }
             }
+            parts.push(`R${bitmask.toString(36)}`);
+        } else {
+            parts.push('R0');
         }
+
+        // 3. Each visible non-RF card: {index}.{selBitmaskBase36}.{answerIndex}
+        for (let i = 0; i < cardStates.length; i++) {
+            const state = cardStates[i];
+            const card = algorithmOptions[i];
+            if (!state?.isVisible || !card || card.type === 'rf') continue;
+
+            let selBitmask = 0;
+            for (const optIdx of state.selectedOptions) {
+                selBitmask |= (1 << optIdx);
+            }
+
+            // Answer index from answerOptions (not questionOptions)
+            let answerIdx = -1;
+            if (state.answer) {
+                answerIdx = card.answerOptions.findIndex(a => a.text === state.answer?.text);
+            }
+
+            parts.push(`${i}.${selBitmask.toString(36)}.${answerIdx}`);
+        }
+
+        // 4. HPI text (base64 encoded for barcode safety)
+        const customNote = noteOptions.customNote?.trim();
+        if (customNote) {
+            try {
+                parts.push(`H${btoa(encodeURIComponent(customNote))}`);
+            } catch {
+                parts.push(`H${encodeURIComponent(customNote)}`);
+            }
+        }
+
+        // 5. Flags: bit0=includeAlgorithm, bit1=includeDM, bit2=includeHPI
+        let flags = 0;
+        if (noteOptions.includeAlgorithm) flags |= 1;
+        if (noteOptions.includeDecisionMaking) flags |= 2;
+        if (customNote) flags |= 4;
+        parts.push(`F${flags}`);
 
         const result = parts.join('|');
         setEncodedValue(result);
@@ -81,7 +92,7 @@ export function NoteBarcodeGenerator({
     };
 
     useEffect(() => {
-        if (!canvasRef.current || !includeAlgorithm) return;
+        if (!canvasRef.current) return;
 
         const dataString = generateCompactString();
         if (!dataString) return;
@@ -102,9 +113,8 @@ export function NoteBarcodeGenerator({
                 padding: 10
             });
         }
-    }, [algorithmOptions, cardStates, includeAlgorithm, symptomCode]);
+    }, [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.includeDecisionMaking, noteOptions.customNote, symptomCode]);
 
-    // Initial generation
     useEffect(() => {
         generateCompactString();
     }, []);

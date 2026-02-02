@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { X, Moon, Sun, Shield, HelpCircle, ChevronUp } from 'lucide-react';
+import { X, Moon, Sun, Shield, HelpCircle, ChevronUp, User, ChevronRight } from 'lucide-react';
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -45,6 +45,21 @@ const SettingsContent = ({ settingsOptions, onItemClick }: SettingsContentProps)
         {/* Content Area - Different layout for mobile/desktop */}
         <div className="overflow-y-auto h-[calc(85vh-80px)] md:overflow-visible md:h-auto">
             <div className="px-4 py-3 md:p-6">
+                {/* User Information Section */}
+                <div className="mb-4 pb-4 border-b border-tertiary/10">
+                    <div className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2 active:scale-[0.98]
+                                  transition-all rounded-xl cursor-pointer group
+                                  md:px-5 md:py-4">
+                        <div className="mr-4 w-12 h-12 rounded-full bg-themeblue3 flex items-center justify-center text-white shrink-0">
+                            <User size={24} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-base font-semibold text-primary md:text-lg">Guest User</p>
+                            <p className="text-xs text-tertiary/60 md:text-sm">Tap to sign in</p>
+                        </div>
+                        <ChevronRight size={20} className="text-tertiary/40 shrink-0" />
+                    </div>
+                </div>
                 {/* Mobile: space-y-1, Desktop: grid gap-3 */}
                 <div className="space-y-1 md:grid md:grid-cols-1 md:gap-3">
                     {settingsOptions.map((option, index) => (
@@ -266,6 +281,7 @@ export const Settings = ({
     // Mobile drawer styles
     const mobileTranslateY = 100 - drawerPosition;
     const mobileOpacity = Math.min(1, drawerPosition / 60 + 0.2);
+    const backdropOpacity = Math.min(0.4, drawerPosition / 100 * 0.4);
 
     // Shared content props
     const contentProps = {
@@ -280,20 +296,32 @@ export const Settings = ({
                 ref={drawerRef}
                 className="md:hidden"
             >
+                {/* Backdrop */}
+                {isVisible && (
+                    <div
+                        className={`fixed inset-0 z-30 bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
+                        style={{
+                            opacity: backdropOpacity,
+                            pointerEvents: drawerPosition > 10 ? 'auto' : 'none'
+                        }}
+                        onClick={handleClose}
+                    />
+                )}
+
                 <div
-                    className={`fixed left-0 right-0 z-40 bg-themewhite3 shadow-2xl ${isDragging ? '' : 'transition-all duration-200 ease-out'
+                    className={`fixed left-0 right-0 z-40 bg-themewhite3 shadow-2xl ${isDragging ? '' : 'transition-all duration-300 ease-out'
                         }`}
                     style={{
-                        height: '99vh',
-                        maxHeight: '100vh',
+                        height: '92vh',
+                        maxHeight: '92vh',
                         bottom: 0,
-                        transform: `translateY(${mobileTranslateY}vh)`,
+                        transform: `translateY(${mobileTranslateY}%)`,
                         opacity: mobileOpacity,
-                        borderTopLeftRadius: '1.5rem',
-                        borderTopRightRadius: '1.5rem',
+                        borderTopLeftRadius: '1.25rem',
+                        borderTopRightRadius: '1.25rem',
                         willChange: isDragging ? 'transform' : 'auto',
                         touchAction: 'none',
-                        boxShadow: '0 -10px 30px rgba(0, 0, 0, 0.15)',
+                        boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
                     }}
                     onTouchStart={handleDragStart}
                     onTouchMove={handleDragMove}

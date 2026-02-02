@@ -1,4 +1,5 @@
 import { X } from 'lucide-react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes';
 
 interface SymptomInfoDrawerProps {
@@ -16,6 +17,126 @@ export function SymptomInfoDrawer({
     selectedCategory,
     onNavigate
 }: SymptomInfoDrawerProps) {
+    const [drawerPosition, setDrawerPosition] = useState(0);
+    const [isDragging, setIsDragging] = useState(false);
+    const drawerRef = useRef<HTMLDivElement>(null);
+    const dragStartY = useRef(0);
+    const dragStartPosition = useRef(0);
+    const animationFrameId = useRef<number>(0);
+    const velocityRef = useRef(0);
+    const lastYRef = useRef(0);
+    const lastTimeRef = useRef(0);
+
+    // Handle visibility changes
+    useEffect(() => {
+        if (isVisible) {
+            setDrawerPosition(100);
+        } else {
+            setDrawerPosition(0);
+        }
+
+        return () => {
+            if (animationFrameId.current) {
+                cancelAnimationFrame(animationFrameId.current);
+                animationFrameId.current = 0;
+            }
+        };
+    }, [isVisible]);
+
+    // Smooth animation function
+    const animateToPosition = useCallback((targetPosition: number) => {
+        const startPosition = drawerPosition;
+        const startTime = performance.now();
+        const duration = 300;
+
+        const animate = (timestamp: number) => {
+            const elapsed = timestamp - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+
+            // Ease out cubic for iOS-like feel
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+            const currentPosition = startPosition + (targetPosition - startPosition) * easeProgress;
+
+            setDrawerPosition(currentPosition);
+
+            if (progress < 1) {
+                animationFrameId.current = requestAnimationFrame(animate);
+            } else {
+                animationFrameId.current = 0;
+                if (targetPosition === 0) {
+                    setTimeout(onClose, 50);
+                }
+            }
+        };
+
+        if (animationFrameId.current) {
+            cancelAnimationFrame(animationFrameId.current);
+        }
+        animationFrameId.current = requestAnimationFrame(animate);
+    }, [drawerPosition, onClose]);
+
+    // Handle drag start
+    const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
+        setIsDragging(true);
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+        dragStartY.current = clientY;
+        dragStartPosition.current = drawerPosition;
+        lastYRef.current = clientY;
+        lastTimeRef.current = performance.now();
+        velocityRef.current = 0;
+
+        e.stopPropagation();
+    };
+
+    // Handle drag move
+    const handleDragMove = (e: React.TouchEvent | React.MouseEvent) => {
+        if (!isDragging) return;
+
+        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+        const deltaY = clientY - dragStartY.current;
+
+        // Calculate velocity
+        const currentTime = performance.now();
+        const deltaTime = currentTime - lastTimeRef.current;
+        if (deltaTime > 0) {
+            velocityRef.current = (clientY - lastYRef.current) / deltaTime;
+        }
+
+        lastYRef.current = clientY;
+        lastTimeRef.current = currentTime;
+
+        const dragSensitivity = 0.8;
+        const newPosition = Math.min(100, Math.max(20, dragStartPosition.current - (deltaY * dragSensitivity)));
+
+        setDrawerPosition(newPosition);
+
+        e.preventDefault();
+        e.stopPropagation();
+    };
+
+    // Handle drag end with momentum
+    const handleDragEnd = () => {
+        if (!isDragging) return;
+
+        setIsDragging(false);
+
+        const shouldClose = velocityRef.current > 0.3 || drawerPosition < 40;
+        const shouldOpen = velocityRef.current < -0.3 || drawerPosition > 60;
+
+        if (shouldClose) {
+            animateToPosition(0);
+        } else if (shouldOpen) {
+            animateToPosition(100);
+        } else {
+            animateToPosition(drawerPosition > 50 ? 100 : 0);
+        }
+    };
+
+    // Handle close with animation
+    const handleClose = () => {
+        animateToPosition(0);
+    };
+
     if (!isVisible || !selectedSymptom || !selectedCategory) return null;
 
     const handleGuidelineClick = (
@@ -37,19 +158,49 @@ export function SymptomInfoDrawer({
                 guidelineId: item.id || index
             }
         });
-        onClose();
+        handleClose();
     };
+
+    const mobileTranslateY = 100 - drawerPosition;
+    const mobileOpacity = Math.min(1, drawerPosition / 60 + 0.2);
+    const backdropOpacity = Math.min(0.4, drawerPosition / 100 * 0.4);
 
     return (
         <>
             {/* Backdrop */}
             <div
-                className="fixed inset-0 bg-black/30 z-40 md:hidden"
-                onClick={onClose}
+                className={`fixed inset-0 bg-black z-40 md:hidden ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
+                style={{
+                    opacity: backdropOpacity,
+                    pointerEvents: drawerPosition > 10 ? 'auto' : 'none'
+                }}
+                onClick={handleClose}
             />
 
             {/* Drawer */}
-            <div className="fixed bottom-0 left-0 right-0 bg-themewhite rounded-t-3xl z-50 max-h-[85vh] flex flex-col md:hidden animate-slideInUp">
+            <div
+                ref={drawerRef}
+                className={`fixed left-0 right-0 z-50 bg-themewhite flex flex-col md:hidden ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
+                style={{
+                    height: '92vh',
+                    maxHeight: '92vh',
+                    bottom: 0,
+                    transform: `translateY(${mobileTranslateY}%)`,
+                    opacity: mobileOpacity,
+                    borderTopLeftRadius: '1.25rem',
+                    borderTopRightRadius: '1.25rem',
+                    willChange: isDragging ? 'transform' : 'auto',
+                    touchAction: 'none',
+                    boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
+                }}
+                onTouchStart={handleDragStart}
+                onTouchMove={handleDragMove}
+                onTouchEnd={handleDragEnd}
+                onMouseDown={handleDragStart}
+                onMouseMove={handleDragMove}
+                onMouseUp={handleDragEnd}
+                onMouseLeave={handleDragEnd}
+            >
                 {/* Drag Handle */}
                 <div className="flex justify-center pt-3 pb-2">
                     <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
@@ -63,7 +214,7 @@ export function SymptomInfoDrawer({
                             <h2 className="text-xl font-semibold text-primary">{selectedSymptom.text}</h2>
                         </div>
                         <button
-                            onClick={onClose}
+                            onClick={handleClose}
                             className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
                             aria-label="Close"
                         >

@@ -36,6 +36,7 @@ export interface UIState {
   showMedicationList?: boolean
   medicationButtonText?: string
   isMobile: boolean
+  isAlgorithmView?: boolean
 }
 
 /**
