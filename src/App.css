@@ -333,3 +333,64 @@ input, select, textarea {
     transform: translateX(0);
   }
 }
+
+/* Mobile Screen Stack Animations */
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInFromLeft {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slideOutToRight {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes slideOutToLeft {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+}
+
+.mobile-slide-in-right {
+  animation: slideInFromRight 0.3s ease-out forwards;
+}
+
+.mobile-slide-in-left {
+  animation: slideInFromLeft 0.3s ease-out forwards;
+}
+
+.mobile-slide-out-right {
+  animation: slideOutToRight 0.3s ease-out forwards;
+}
+
+.mobile-slide-out-left {
+  animation: slideOutToLeft 0.3s ease-out forwards;
+}

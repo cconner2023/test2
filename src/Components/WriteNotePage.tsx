@@ -6,7 +6,7 @@ import { useNoteCapture } from '../Hooks/useNoteCapture';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { TextButton } from './TextButton';
 import { NoteBarcodeGenerator } from './Barcode';
-import { useAutoAnimate } from '@formkit/auto-animate/react';
+import { useAppAnimate } from '../Utilities/AnimationConfig';
 import { DecisionMaking } from './DecisionMaking';
 
 export type DispositionType = dispositionType['type'];
@@ -54,7 +54,7 @@ export const WriteNotePage = ({
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const { generateNote } = useNoteCapture(algorithmOptions, cardStates);
     const colors = getColorClasses(disposition.type);
-    const [parentRef] = useAutoAnimate<HTMLDivElement>({ duration: 200 });
+    const [parentRef] = useAppAnimate<HTMLDivElement>('fast');
 
     // Effects
     useEffect(() => {

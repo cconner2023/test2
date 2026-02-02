@@ -1,57 +1,47 @@
-// NavTop.tsx - Original working version
+// NavTop.tsx - Simplified version with grouped props
 import { Search, X, Menu, ChevronLeft, Upload, Info, List, Settings } from "lucide-react";
 import { useRef, useEffect } from "react";
+import type { NavTopProps } from "../Types/NavTopTypes";
 
 export type MobileViewState = 'visible' | 'hidden'
 
-interface NavTopProps {
-    searchInput: string;
-    onSearchChange: (value: string) => void;
-    onSearchFocus?: () => void;
-    onSearchClear?: () => void;
-    showMenu?: boolean;
-    showBack?: boolean;
-    onMenuClick?: () => void;
-    onBackClick?: () => void;
-    onImportClick?: () => void;
-    onMedicationClick?: () => void;
-    onSettingsClick?: () => void;
-    dynamicTitle?: string;
-    showDynamicTitle?: boolean;
-    searchInputRef?: React.RefObject<HTMLInputElement>;
-    showMedicationList?: boolean;
-    medicationButtonText?: string;
-    isMobile: boolean;
-    isSearchExpanded?: boolean;
-    onSearchExpandToggle?: () => void;
-}
+export function NavTop({ search, actions, ui }: NavTopProps) {
+    // Destructure grouped props for cleaner usage
+    const {
+        searchInput,
+        onSearchChange,
+        onSearchFocus,
+        onSearchClear,
+        searchInputRef,
+        isSearchExpanded = false,
+        onSearchExpandToggle,
+    } = search
 
-export function NavTop({
-    searchInput,
-    onSearchChange,
-    onSearchFocus,
-    onSearchClear,
-    showMenu = false,
-    showBack = false,
-    onMenuClick,
-    onBackClick,
-    onImportClick,
-    onMedicationClick,
-    onSettingsClick,
-    dynamicTitle,
-    showDynamicTitle = false,
-    searchInputRef,
-    medicationButtonText = "Medications",
-    isMobile,
-    isSearchExpanded = false,
-    onSearchExpandToggle,
-}: NavTopProps) {
-    const hasSearchInput = searchInput.trim().length > 0;
+    const {
+        onBackClick,
+        onMenuClick,
+        onImportClick,
+        onMedicationClick,
+        onSettingsClick,
+        onInfoClick,
+    } = actions
+
+    const {
+        showBack = false,
+        showMenu = false,
+        dynamicTitle,
+        showDynamicTitle = false,
+        medicationButtonText = "Medications",
+        isMobile,
+    } = ui
+    // Refs and computed values
     const internalInputRef = useRef<HTMLInputElement>(null);
     const inputRef = searchInputRef || internalInputRef;
+    const hasSearchInput = searchInput.trim().length > 0;
 
-    // Determine if we should show info button next to search in mobile
+    // Mobile-specific UI flags
     const shouldShowInfoWithSearch = isMobile && showBack && showDynamicTitle && !isSearchExpanded;
+    const shouldShowMenuButton = showMenu && (isMobile || !showBack);
 
     // Focus input when mobile search expands
     useEffect(() => {
@@ -83,41 +73,29 @@ export function NavTop({
         }
     };
 
-    // Handle clear search
-    const handleClearSearch = () => {
+    // Handle clear search - unified for both mobile and desktop
+    const handleClearSearch = (shouldCollapse = false) => {
         onSearchChange("");
         onSearchClear?.();
-        inputRef.current?.focus();
-    };
 
-    // Handle mobile search collapse
-    const handleMobileSearchCollapse = () => {
-        onSearchChange("");
-        onSearchClear?.();
-        if (onSearchExpandToggle) {
+        if (shouldCollapse && onSearchExpandToggle) {
             onSearchExpandToggle();
-        }
-    };
-
-    // Determine search icon behavior
-    const getSearchIconBehavior = () => {
-        if (isMobile) {
-            if (isSearchExpanded) {
-                return hasSearchInput ? 'clear' : 'collapse';
-            }
-            return 'expand';
         } else {
-            return hasSearchInput ? 'clear' : 'default';
+            inputRef.current?.focus();
         }
     };
 
-    const searchIconBehavior = getSearchIconBehavior();
-    const mobileButtonClass = "p-2 text-tertiary hover:text-primary justify-center items-center transition-colors";
-    const mobileButtonInnerClass = "w-8 h-8 rounded-full backdrop-blur-md shadow-md shadow-themewhite2 bg-themewhite/20 border border-tertiary/30 flex items-center justify-center";
-    const desktopButtonClass = "h-8 flex items-center justify-center px-3 lg:px-4 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300";
+    // Determine search icon behavior - simplified
+    const searchIconBehavior = isMobile
+        ? (isSearchExpanded ? (hasSearchInput ? 'clear' : 'collapse') : 'expand')
+        : (hasSearchInput ? 'clear' : 'default');
 
-    // Determine if menu button should be shown
-    const shouldShowMenuButton = showMenu && (isMobile || !showBack);
+    // Button style constants
+    const BUTTON_CLASSES = {
+        mobile: "p-2 text-tertiary hover:text-primary justify-center items-center transition-colors",
+        mobileInner: "w-8 h-8 rounded-full backdrop-blur-md shadow-md shadow-themewhite2 bg-themewhite/20 border border-tertiary/30 flex items-center justify-center",
+        desktop: "h-8 flex items-center justify-center px-3 lg:px-4 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
+    };
 
     return (
         <div className="flex items-center h-full w-full px-3 bg-themewhite transition-all duration-300">
@@ -129,12 +107,12 @@ export function NavTop({
                     {showBack && (
                         <button
                             onClick={onBackClick}
-                            className={isMobile ? mobileButtonClass : desktopButtonClass}
+                            className={isMobile ? BUTTON_CLASSES.mobile : BUTTON_CLASSES.desktop}
                             aria-label="Go back"
                             title="Go back"
                         >
                             {isMobile ? (
-                                <div className={mobileButtonInnerClass}>
+                                <div className={BUTTON_CLASSES.mobileInner}>
                                     <ChevronLeft className="w-5 h-5 stroke-current" />
                                 </div>
                             ) : (
@@ -152,12 +130,12 @@ export function NavTop({
                     {shouldShowMenuButton && (
                         <button
                             onClick={onMenuClick}
-                            className={`${isMobile ? mobileButtonClass : 'hidden'} ${!isMobile ? desktopButtonClass : ''}`}
+                            className={`${isMobile ? BUTTON_CLASSES.mobile : 'hidden'} ${!isMobile ? BUTTON_CLASSES.desktop : ''}`}
                             aria-label="Open menu"
                             title="Open menu"
                         >
                             {isMobile ? (
-                                <div className={mobileButtonInnerClass}>
+                                <div className={BUTTON_CLASSES.mobileInner}>
                                     <Menu className="w-5 h-5 stroke-current" />
                                 </div>
                             ) : (
@@ -175,7 +153,7 @@ export function NavTop({
                     {!isMobile && (
                         <button
                             onClick={onMedicationClick}
-                            className={desktopButtonClass}
+                            className={BUTTON_CLASSES.desktop}
                             aria-label={medicationButtonText}
                             title={medicationButtonText}
                         >
@@ -229,9 +207,9 @@ export function NavTop({
                             className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
                             onClick={() => {
                                 if (searchIconBehavior === 'clear') {
-                                    handleClearSearch();
+                                    handleClearSearch(false);
                                 } else if (searchIconBehavior === 'collapse') {
-                                    handleMobileSearchCollapse();
+                                    handleClearSearch(true);
                                 }
                             }}
                         >
@@ -264,7 +242,7 @@ export function NavTop({
                             className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
                             onClick={() => {
                                 if (searchIconBehavior === 'clear') {
-                                    handleClearSearch();
+                                    handleClearSearch(false);
                                 }
                             }}
                         >
@@ -289,7 +267,7 @@ export function NavTop({
             `}>
                                 {shouldShowInfoWithSearch && (
                                     <button
-                                        onClick={() => { }}
+                                        onClick={onInfoClick}
                                         className="text-tertiary hover:text-primary transition-colors"
                                         aria-label="Info"
                                         title="Info"
@@ -326,7 +304,7 @@ export function NavTop({
                         {/* Import button - with text on large screens */}
                         <button
                             onClick={onImportClick}
-                            className={desktopButtonClass}
+                            className={BUTTON_CLASSES.desktop}
                             aria-label="Import note"
                             title="Import note"
                         >
@@ -340,7 +318,7 @@ export function NavTop({
                         {onSettingsClick && (
                             <button
                                 onClick={onSettingsClick}
-                                className={desktopButtonClass}
+                                className={BUTTON_CLASSES.desktop}
                                 aria-label="Settings"
                                 title="Settings"
                             >

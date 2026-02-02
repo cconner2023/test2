@@ -1,4 +1,5 @@
 export interface medListTypes {
+    id?: number,
     icon: string,
     text: string,
     indication: string,

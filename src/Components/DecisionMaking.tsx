@@ -1,6 +1,6 @@
 // components/DecisionMaking.tsx
 import { useState } from 'react'
-import { useAutoAnimate } from '@formkit/auto-animate/react'
+import { useAppAnimate } from '../Utilities/AnimationConfig'
 import { getColorClasses } from '../Utilities/ColorUtilities'
 import type { AlgorithmOptions, decisionMakingType } from '../Types/AlgorithmTypes'
 import type { CardState } from '../Hooks/useAlgorithm'
@@ -22,7 +22,7 @@ export function DecisionMaking({
     dispositionType,
 }: DecisionMakingProps) {
     const [selectedMedication, setSelectedMedication] = useState<medListTypes | null>(null)
-    const [listRef] = useAutoAnimate<HTMLDivElement>()
+    const [listRef] = useAppAnimate<HTMLDivElement>()
     const colors = getColorClasses(dispositionType as any)
 
     const findTriggeringDecisionMaking = (): decisionMakingType[] => {

@@ -1,5 +1,4 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { useAutoAnimate } from '@formkit/auto-animate/react';
 import { useAlgorithm } from '../Hooks/useAlgorithm';
 import type { subCatDataTypes } from '../Types/CatTypes';
 import { Algorithm as AlgorithmData } from '../Data/Algorithms';
@@ -24,11 +23,6 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
     const [viewState, setViewState] = useState<ViewState>('algorithm');
     const [scrollTrigger, setScrollTrigger] = useState(0);
     const [isMobile, setIsMobile] = useState(false);
-
-    const [parentRef] = useAutoAnimate<HTMLDivElement>({
-        duration: 300,
-        easing: 'ease-in-out',
-    });
 
     const algorithm = AlgorithmData.find(algo => algo.id === selectedSymptom?.icon);
     const algorithmOptions = algorithm?.options || [];
@@ -173,13 +167,10 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
     const colors = currentDisposition ? getColorClasses(currentDisposition.type) : null;
 
     return (
-        <div
-            ref={parentRef}
-            className="w-full h-full relative"
-        >
+        <div className="w-full h-full relative overflow-hidden">
             {/* ALGORITHM VIEW */}
             {viewState === 'algorithm' && (
-                <div key="algorithm-view" className="h-full flex flex-col">
+                <div key="algorithm-view" className="h-full flex flex-col opacity-100 transition-opacity duration-200">
                     {/* Algorithm Content */}
                     <div
                         ref={containerRef}
@@ -241,7 +232,7 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
 
             {/* NOTE VIEW - Takes full container */}
             {viewState === 'note-expanded' && currentDisposition && (
-                <div className="absolute inset-0 h-full w-full">
+                <div className="absolute inset-0 h-full w-full opacity-100 transition-opacity duration-200">
                     <WriteNotePage
                         disposition={currentDisposition}
                         algorithmOptions={algorithmOptions}

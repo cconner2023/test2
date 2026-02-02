@@ -1,6 +1,6 @@
 // components/NoteImport.tsx
 import { useState, useEffect, useRef } from 'react';
-import { useAutoAnimate } from '@formkit/auto-animate/react';
+import { useAppAnimate } from '../Utilities/AnimationConfig';
 import { TextButton } from './TextButton';
 import { useNoteImport } from '../Hooks/useNoteImport';
 
@@ -20,10 +20,7 @@ export function NoteImport({ onClose }: NoteImportProps) {
 
     const { importFromBarcode } = useNoteImport();
 
-    const [parentRef] = useAutoAnimate<HTMLDivElement>({
-        duration: 200,
-        easing: 'ease-in-out',
-    });
+    const [parentRef] = useAppAnimate<HTMLDivElement>('fast');
 
     useEffect(() => {
         let timeoutId: number;

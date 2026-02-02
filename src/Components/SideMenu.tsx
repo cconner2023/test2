@@ -45,7 +45,6 @@ export function SideMenu({
     onSettingsClick
 }: SideMenuProps) {
     const [internalVisible, setInternalVisible] = useState(false)
-    const [activeItem, setActiveItem] = useState<number | null>(null)
     const [itemsVisible, setItemsVisible] = useState(false)
     const menuRef = useRef<HTMLDivElement>(null)
 
@@ -56,17 +55,16 @@ export function SideMenu({
             // Auto-show after delay
             setTimeout(() => {
                 setInternalVisible(true)
-                // Delay the items fade-in slightly to sync with menu opening
                 setTimeout(() => setItemsVisible(true), 150)
             }, 300)
         } else if (externalIsVisible) {
-            // Show items when external visibility is set
+            // Show items when menu opens
             setTimeout(() => setItemsVisible(true), 150)
         } else {
             // Hide items immediately when closing
             setItemsVisible(false)
         }
-    }, [externalIsVisible, isVisible])
+    }, [externalIsVisible])
 
     // Handle clicks outside the menu
     useEffect(() => {
@@ -81,12 +79,7 @@ export function SideMenu({
         }
     }, [isVisible, onClose])
 
-    const handleItemClick = (index: number, action: string) => {
-        setActiveItem(index)
-        const button = document.querySelector(`[data-menu-item="${index}"]`)
-        button?.classList.add('scale-95')
-        setTimeout(() => button?.classList.remove('scale-95'), 150)
-
+    const handleItemClick = (action: string) => {
         // Handle the click actions
         switch (action.toLowerCase()) {
             case 'import':
@@ -146,8 +139,7 @@ export function SideMenu({
                     {menuData.map((item, index) => (
                         <button
                             key={index}
-                            data-menu-item={index}
-                            onClick={() => handleItemClick(index, item.action)}
+                            onClick={() => handleItemClick(item.action)}
                             className={`
                                 w-full text-left
                                 flex items-center pl-3 pr-4 py-3 

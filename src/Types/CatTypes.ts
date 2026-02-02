@@ -62,18 +62,22 @@ export interface differential {
     text?: string
 }
 
+// Types/CatTypes.ts - Update SearchResultType
 export type SearchResultType = {
     type: 'category' | 'CC' | 'training' | 'DDX' | 'medication';
-    id?: number;
-    categoryId?: number;
-    categoryText?: string;
-    contentId?: number;
-    contentText?: string;
-    guidelineType?: 'gen' | 'medcom' | 'stp' | 'DDX';
-    guidelineId?: number;
-    icon?: string;
-    text?: string;
-    medData?: medListTypes
+    id: number;
+    icon: string;
+    text: string;
+    // Unified data fields
+    data?: {
+        categoryId?: number;
+        symptomId?: number;
+        medicationData?: medListTypes;
+        guidelineType?: 'gen' | 'medcom' | 'stp' | 'DDX';
+        guidelineId?: number;
+        categoryRef?: catDataTypes;
+        symptomRef?: subCatDataTypes;
+    };
 }
 
 export interface sideMenuDataType {

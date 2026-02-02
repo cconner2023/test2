@@ -1,11 +1,53 @@
-// Components/SearchResults.tsx - Simplified
+// Components/SearchResults.tsx - COMPLETE WORKING VERSION
 import type { SearchResultType } from '../Types/CatTypes'
 
-interface SearchResultsProps {
+export interface SearchResultsProps {
     results: SearchResultType[]
     searchTerm: string
     onResultClick: (result: SearchResultType) => void
     isSearching?: boolean
+}
+
+// Badge configuration map for cleaner lookup
+const BADGE_CONFIG: Record<string, { label: string; className: string }> = {
+    category: { label: 'CATEGORY', className: 'bg-themeblue3 text-primary' },
+    CC: { label: 'COMPLAINT', className: 'bg-themewhite2 text-secondary' },
+    medication: { label: 'MEDICATION', className: 'bg-themeyellowlow/30 text-secondary' },
+    training: { label: 'GUIDELINE', className: 'bg-themewhite2 text-themeblue1' },
+    DDX: { label: 'DDX', className: 'bg-themewhite2 text-themeblue1' },
+}
+
+// Training type specific labels
+const TRAINING_LABELS: Record<string, string> = {
+    medcom: 'MEDCOM',
+    stp: 'STP',
+    gen: 'GUIDELINE'
+}
+
+// Get badge info for a result - simplified
+function getBadgeInfo(result: SearchResultType) {
+    const config = BADGE_CONFIG[result.type] || { label: '', className: '' }
+
+    // Override label for training types
+    if (result.type === 'training' && result.icon && TRAINING_LABELS[result.icon]) {
+        return { ...config, label: TRAINING_LABELS[result.icon] }
+    }
+
+    return config
+}
+
+// Badge component for consistent rendering
+interface ResultBadgeProps {
+    result: SearchResultType
+}
+
+function ResultBadge({ result }: ResultBadgeProps) {
+    const { label, className } = getBadgeInfo(result)
+    return (
+        <div className={`text-[8pt] px-2 py-1 rounded-md ${className} shrink-0`}>
+            {label}
+        </div>
+    )
 }
 
 export function SearchResults({
@@ -22,6 +64,7 @@ export function SearchResults({
         )
     }
 
+    // Searching state
     if (isSearching) {
         return (
             <div className="h-full w-full flex items-center justify-center text-themeblue1">
@@ -33,6 +76,7 @@ export function SearchResults({
         )
     }
 
+    // No results state
     if (results.length === 0) {
         return (
             <div className="h-full flex items-center justify-center text-themeblue1">
@@ -44,32 +88,34 @@ export function SearchResults({
         )
     }
 
+    // Results state
     return (
         <div className="flex flex-col h-full">
+            <div className="px-3 py-2 text-xs text-tertiary border-b border-themewhite2">
+                Found {results.length} result{results.length !== 1 ? 's' : ''}
+            </div>
             <div className="flex-1 overflow-y-auto pb-4">
                 {results.map((result, index) => (
                     <div
-                        key={`${result.type}-${result.id || index}`}
-                        className="px-2 py-2 w-full border-b border-themewhite2/50 hover:bg-themewhite2 cursor-pointer"
+                        key={`${result.type}-${result.id}-${result.data?.categoryId || 0}-${index}`}
+                        className="px-2 py-3 w-full border-b border-themewhite2/50 hover:bg-themewhite2 cursor-pointer transition-colors"
                         onClick={() => onResultClick(result)}
                     >
-                        <div className="flex items-center gap-5">
-                            <div className={`text-[8pt] px-2 py-2 rounded-md ${result.type === 'category' ? 'bg-themeblue3 text-primary' :
-                                result.type === 'CC' ? 'bg-themewhite2 text-secondary' :
-                                    result.type === 'medication' ? 'bg-themeyellowlow/30 text-secondary' :
-                                        'bg-themewhite2 text-themeblue1'
-                                }`}>
-                                {result.type === 'category' ? 'CATEGORY' :
-                                    result.type === 'CC' ? 'COMPLAINT' :
-                                        result.type === 'medication' ? 'MEDICATION' :
-                                            result.guidelineType === 'medcom' ? 'MEDCOM' :
-                                                result.guidelineType === 'stp' ? 'STP MANUAL' : 'DDX'}
-                            </div>
-                            <div className="flex-1">
-                                <div className="font-normal text-primary/70">{result.text}</div>
-                                {result.contentText && (
-                                    <div className="text-xs text-tertiary mt-1">
-                                        {result.contentText}
+                        <div className="flex items-start gap-3">
+                            {/* Type Badge */}
+                            <ResultBadge result={result} />
+
+                            {/* Content */}
+                            <div className="flex-1 min-w-0">
+                                {/* Main text */}
+                                <div className="font-normal text-primary/90 truncate">
+                                    {result.text}
+                                </div>
+
+                                {/* Category for symptoms and guidelines */}
+                                {(result.type === 'CC' || result.type === 'training' || result.type === 'DDX') && result.data?.categoryRef && (
+                                    <div className="text-[10px] text-themeblue1/70 mt-1">
+                                        {result.data.categoryRef.text}
                                     </div>
                                 )}
                             </div>
