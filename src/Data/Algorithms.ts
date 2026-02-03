@@ -16,13 +16,15 @@ export const Disposition: dispositionType[] = [
         text: "Treatment Protocol and RTD"
     },
     {
+        type: "CAT IV",
+        text: "Referral"
+    },
+    {
         type: "OTHER",
         text: ""
     }
 ]
 
-
-//Algorithms by id 'A-1' ex. to be linked by the 'icon' of the CatData.ts. I'm sure there's a better way to do this.
 export const Algorithm: AlgorithmType[] = [
     {
         id: "A-1",
@@ -31,7 +33,7 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "SOB" },
+                    { text: "Shortness of Breath" },
                     { text: "Stridor" },
                     { text: "Deviated Uvula" },
                     { text: "Drooling/ Trouble Swallowing" },
@@ -74,7 +76,7 @@ export const Algorithm: AlgorithmType[] = [
                     { text: "Symptoms > 10 days" },
                     { text: "Immunosuppression" },
                     { text: "Inhaled steroid" },
-                    { text: "Fever" }
+                    { text: "Fever > 48 hours" }
                 ],
                 answerOptions: [
                     {
@@ -103,7 +105,7 @@ export const Algorithm: AlgorithmType[] = [
                 text: "How many of the following apply?",
                 type: "count",
                 questionOptions: [
-                    { text: "Fever" },
+                    { text: "Fever > 100.4 F (refer to supervising medical provider" },
                     { text: "No Cough" },
                     { text: "Tonsillar Exudate" },
                     { text: "Swollen anterior cervical nodes" }
@@ -123,19 +125,13 @@ export const Algorithm: AlgorithmType[] = [
                             Disposition[2]
                         ],
                         decisionMaking: [
-                            // general DP for this step
                             {
                                 type: 'dmp',
                                 ddx: ['viral infection'],
-                                text: 'Sore throat and hoarseness that are associated with a virus should be treated with minor-care. The other symptoms should be treated according to their associated protocols.'
-                            },
-                            {
-                                type: 'dmp',
-                                ddx: ['sore throat'],
-                                text: 'A sore throat is often due to a viral infection. Minor-care consist of pain control, measures to decrease inflammation, getting plenty of rest and drinking plenty of fluids (water). Return for signs of the infection getting worse or progressing.',
+                                text: 'Other protocols. Sore throat and hoarseness that are associated with a virus should be treated with minor-care. The other symptoms should be treated according to their associated protocols. See COVID-19 L-13.',
                                 assocMcp: {
                                     type: 'mcp',
-                                    text: 'For pain: lozenge first line, ibuprofen second line, for elevated temperature: acetaminophen, salt water gargles and drink warm fluids for inflammation',
+                                    text: 'Salt water gargles and drink warm fluids for inflammation. Return if not improving in 3 days or immediately if worsening symptoms or Red Flags',
                                     medFind: [
                                         { ...medList[8] },
                                         { ...medList[0] },
@@ -144,13 +140,14 @@ export const Algorithm: AlgorithmType[] = [
                                 }
                             },
                             {
-                                type: 'dmp',
+                                type: 'mcp',
+                                ddx: ['sore throat'],
+                                text: 'A sore throat is often due to a viral infection. Minor-care consist of pain control, measures to decrease inflammation, getting plenty of rest and drinking plenty of fluids (water). Return for signs of the infection getting worse or progressing.',
+                            },
+                            {
+                                type: 'mcp',
                                 ddx: ['hoarseness'],
                                 text: 'Hoarseness is often due to a virus or irritant. Minor-care consists of resting the vocal cords and avoidance of irritants (cigarette smoking, yelling, heartburn, post-nasal drip). This is a good opportunity to discuss the negative effects of tobacco use and encourage the Soldier to quit using tobacco, if applicable.',
-                                assocMcp: {
-                                    type: 'mcp',
-                                    text: 'rest vocal cords and avoid irritants (cigarette smoking, yelling, heartburn). Return if not improving in 3 days or immediately if worsening symptoms or red flags (above).'
-                                }
                             }
                         ],
                         next: null,
@@ -199,19 +196,13 @@ export const Algorithm: AlgorithmType[] = [
                             Disposition[2]
                         ],
                         decisionMaking: [
-                            // general DP for this step
                             {
                                 type: 'dmp',
                                 ddx: ['viral infection'],
-                                text: 'Sore throat and hoarseness that are associated with a virus should be treated with minor-care. The other symptoms should be treated according to their associated protocols.'
-                            },
-                            {
-                                type: 'dmp',
-                                ddx: ['sore throat'],
-                                text: 'A sore throat is often due to a viral infection. Minor-care consist of pain control, measures to decrease inflammation, getting plenty of rest and drinking plenty of fluids (water). Return for signs of the infection getting worse or progressing.',
+                                text: 'Other protocols. Sore throat and hoarseness that are associated with a virus should be treated with minor-care. The other symptoms should be treated according to their associated protocols. See COVID-19 L-13.',
                                 assocMcp: {
                                     type: 'mcp',
-                                    text: 'For pain: lozenge first line, ibuprofen second line, for elevated temperature: acetaminophen, salt water gargles and drink warm fluids for inflammation',
+                                    text: 'Salt water gargles and drink warm fluids for inflammation. Return if not improving in 3 days or immediately if worsening symptoms or Red Flags',
                                     medFind: [
                                         { ...medList[8] },
                                         { ...medList[0] },
@@ -220,13 +211,14 @@ export const Algorithm: AlgorithmType[] = [
                                 }
                             },
                             {
-                                type: 'dmp',
+                                type: 'mcp',
+                                ddx: ['sore throat'],
+                                text: 'A sore throat is often due to a viral infection. Minor-care consist of pain control, measures to decrease inflammation, getting plenty of rest and drinking plenty of fluids (water). Return for signs of the infection getting worse or progressing.',
+                            },
+                            {
+                                type: 'mcp',
                                 ddx: ['hoarseness'],
                                 text: 'Hoarseness is often due to a virus or irritant. Minor-care consists of resting the vocal cords and avoidance of irritants (cigarette smoking, yelling, heartburn, post-nasal drip). This is a good opportunity to discuss the negative effects of tobacco use and encourage the Soldier to quit using tobacco, if applicable.',
-                                assocMcp: {
-                                    type: 'mcp',
-                                    text: 'rest vocal cords and avoid irritants (cigarette smoking, yelling, heartburn). Return if not improving in 3 days or immediately if worsening symptoms or red flags (above).'
-                                }
                             }
                         ],
                         next: null,
@@ -259,8 +251,8 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: ['meningitis'],
-                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as "Provider Now." A stiff neck and fever are signs of meningitis, and all Soldiers with signs of meningitis should be seen by a privileged provider as soon as possible. Mastoid symptoms can be a sign of mastoiditis.'
+                                ddx: ['meningitis', 'mastoiditis'],
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” A stiff neck and fever are signs of meningitis, and all Soldiers with signs of meningitis should be seen by a privileged provider as soon as possible. Mastoid symptoms can be a sign of mastoiditis.'
                             }
                         ],
                         next: null,
@@ -280,7 +272,8 @@ export const Algorithm: AlgorithmType[] = [
                 type: "choice",
                 questionOptions: [
                     { text: "Severe Ear pain" },
-                    { text: "Ear drainage" }
+                    { text: "Ear drainage" },
+                    { text: "Fever" },
                 ],
                 answerOptions: [
                     {
@@ -309,7 +302,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Are there TM s/s, concern for Otitis media, or concern for Mod-Severe Otitis Externa?",
+                text: "Are there TM symptoms, or concern for Mod-Severe Otitis Externa?",
                 type: "choice",
                 questionOptions: [],
                 answerOptions: [
@@ -340,11 +333,10 @@ export const Algorithm: AlgorithmType[] = [
                 type: "choice",
                 questionOptions: [
                     { text: "Vertigo" },
-                    { text: "Symptoms > 7 days" },
+                    { text: "Going on for > 7 days" },
                     { text: "Decreased hearing" },
                     { text: "Foreign body in ear" },
-                    { text: "Visual trauma to ear" }
-                ],
+                    { text: "Visual trauma to ear" }],
                 answerOptions: [
                     {
                         text: "Yes",
@@ -362,35 +354,24 @@ export const Algorithm: AlgorithmType[] = [
                         text: "No",
                         disposition: [],
                         decisionMaking: [],
-                        next: 6,
+                        next: [6, 7],
                         selectAll: false
                     }
                 ]
             },
             {
-                text: "Cold symptoms or Sore Throat Present?",
+                text: "Check for TMJ inflammation",
+                type: "action",
+                questionOptions: [],
+                answerOptions: []
+            },
+            {
+                text: "Is there TMJ Inflammation?",
                 type: "choice",
                 questionOptions: [],
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [
-                            {
-                                ...Disposition[3],
-                                text: "Rescreen as another complaint"
-                            }
-                        ],
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: 'Evaluate for cold symptoms and sore throat that can be associated with ear pain with their respective protocols.'
-                            }
-                        ],
-                        next: null,
-                        selectAll: true
-                    },
-                    {
-                        text: "No",
                         disposition: [Disposition[2]],
                         decisionMaking: [
                             {
@@ -403,7 +384,7 @@ export const Algorithm: AlgorithmType[] = [
                                 text: 'Soak wick of a cotton ball wick with OTC ear drops. Place in the ear for 24 hours while using the drops. Remove the cotton wick and continue drops for 1 week (3 days after the symptoms have resolved). Keep the ear canal dry. Use OTC ibuprofen as needed for pain. Return to clinic if not resolved in 1 week or worsening symptoms to include pain or fever.',
                                 assocMcp: {
                                     type: 'mcp',
-                                    text: 'Soak wick of a cotton ball with ear drops. Place in the ear for 24 hours while using the drops. Remove the cotton wick and continue drops for 1 week (3 days after the symptoms have resolved). Keep the ear canal dry',
+                                    text: 'Soak wick of a cotton ball with ear drops. pleace in the ear for 24 hours while using the drops. Remove the cotton wick and continue drops for 1 week (3 days after the symptoms have resolved). Keep the ear canal dry. Return if not improving in 3 days, worsening symptoms, dizziness, loss of hearing, stiff neck',
                                     specLim: [
                                         'Avoidance of situations requiring utilization of ear plugs',
                                         'No swimming'
@@ -411,9 +392,10 @@ export const Algorithm: AlgorithmType[] = [
                                     ancillaryFind: [
                                         {
                                             type: 'med',
-                                            modifier: 'peroxide carbamide otic drops'
+                                            modifier: 'hydrocortisone ear drops'
                                         }
-                                    ]
+                                    ],
+                                    medFind: [medList[0], medList[23]]
                                 }
                             },
                             {
@@ -440,12 +422,18 @@ export const Algorithm: AlgorithmType[] = [
                         ],
                         next: null,
                         selectAll: false
-                    }
+                    },
+                    {
+                        text: "No",
+                        disposition: [{ ...Disposition[4], modifier: 'Screen Cold Sx. Sore Throat if Present' }],
+                        decisionMaking: [],
+                        next: null,
+                        selectAll: false
+                    },
                 ]
             }
         ]
     },
-    // Search Tag A-3
     {
         id: "A-3",
         options: [
@@ -499,22 +487,14 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    {
-                        text: "Productive cough",
-                    },
-                    {
-                        text: "Symptoms > 7 days",
-                    },
-                    {
-                        text: "Severe sinus or dental pain",
-                    }
+                    { text: "Productive cough" },
+                    { text: "Symptoms > 7 days" },
+                    { text: "Severe sinus or dental pain" }
                 ],
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [
-                            Disposition[1]
-                        ],
+                        disposition: [{ ...Disposition[1], modifier: 'place mask' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -538,21 +518,15 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    {
-                        text: "Symptoms > 7 days",
-                    },
-                    {
-                        text: "Rebound symptoms",
-                    },
-                    {
-                        text: "Purulent discharge",
-                    }
+                    { text: "Symptoms > 7 days" },
+                    { text: "Rebound symptoms" },
+                    { text: "Purulent discharge" }
                 ],
                 answerOptions: [
                     {
                         text: "Yes",
                         disposition: [
-                            Disposition[1]
+                            { ...Disposition[1], modifier: 'place mask' }
                         ],
                         decisionMaking: [
                             {
@@ -645,21 +619,11 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    {
-                        text: "Ringing > 24 hours",
-                    },
-                    {
-                        text: "Ringing without MOI",
-                    },
-                    {
-                        text: "Dizziness",
-                    },
-                    {
-                        text: "Visual Trauma",
-                    },
-                    {
-                        text: "Decreased hearing",
-                    }
+                    { text: "Ringing > 24 hours" },
+                    { text: "Ringing without MOI" },
+                    { text: "Dizziness" },
+                    { text: "Visual Trauma" },
+                    { text: "Decreased hearing" }
                 ],
                 answerOptions: [
                     {
@@ -690,15 +654,9 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Do any of the following apply?",
                 type: "choice",
                 questionOptions: [
-                    {
-                        text: "Loud noise exposure or trauma within 24 hours",
-                    },
-                    {
-                        text: "Ear drainage",
-                    },
-                    {
-                        text: "Ear pain",
-                    }
+                    { text: "Loud noise exposure or trauma within 24 hours" },
+                    { text: "Ear drainage" },
+                    { text: "Ear pain" }
                 ],
                 answerOptions: [
                     {
@@ -722,18 +680,21 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Is there TM opacification, immobility, rupture, Ear canal foreign body, or wax buildup?",
+                text: "Are any of the following present?",
                 type: "choice",
-                questionOptions: [],
+                questionOptions: [{ text: 'TM opacification' }, { text: 'immobility' }, { text: 'rupture' }, { text: 'Ear canal foreign body' }, { text: 'wax buildup' }],
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [Disposition[0]],
+                        disposition: [{ ...Disposition[0], modifier: 'Ear irrigation if wax and TM intact' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: ['TM rupture', 'inner ear pathology', 'foreign body', 'excessive wax'],
-                                text: 'Trauma and blast injuries can result in Tympanic Membrane or inner ear problems. Foreign body or excessive wax within the ear canal can result in reversible hearing loss. If excessive wax is present, discuss removal with supervisor.'
+                                text: 'Trauma and blast injuries can result in Tympanic Membrane or inner ear problems. Foreign body or excessive wax within the ear canal can result in reversible hearing loss. If excessive wax is present, discuss removal with supervisor.',
+                                ancillaryFind: [
+                                    { type: 'protocol', modifier: 'Ear irrigation' }
+                                ]
                             }
                         ],
                         next: null,
@@ -1065,7 +1026,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: ['strain', 'sprain'],
+                                ddx: ['strain', 'sprain', 'obesity'],
                                 text: 'LBP is extremely common in Soldiers. The best treatment is conservative measures including a home exercise program for mobilization and strengthening, ice and heat as needed for inflammation, and pain control with analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain. Follow established local protocols for home exercise that focus on stretching the lower back and hamstrings multiple times per day, strengthening the core muscles daily, and pain control as needed. Often obesity is a factor in low back pain and Soldiers should be encouraged to lose weight. Instruct the Soldier to seek medical assistance if pain becomes severe enough to prevent performance of normal duties/activities, worsening of other symptoms, symptoms last longer than one week. If direct access to physical therapy (physical therapy sick call) is available, consider direct referral to physical therapy in accordance with local policy.',
                                 assocMcp: {
                                     type: 'mcp',
@@ -1093,7 +1054,6 @@ export const Algorithm: AlgorithmType[] = [
             }
         ]
     },
-    // Search Tag B-2
     {
         id: "B-2",
         options: [
@@ -1240,7 +1200,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [Disposition[0]],
+                        disposition: [{ ...Disposition[0], modifier: 'Immobilize the injured extremity before transport or referral' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -1279,7 +1239,8 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[1],
-                                text: "AEM Now, PT if available"
+                                text: "AEM Now, PT if available",
+                                modifier: 'Sling the injured extremity for comfort before transport or referral'
                             }
                         ],
                         decisionMaking: [

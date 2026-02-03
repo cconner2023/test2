@@ -24,7 +24,7 @@ export interface answerOptions {
 }
 
 export interface dispositionType {
-    type: "CAT I" | "CAT II" | "CAT III" | "OTHER",
+    type: "CAT I" | "CAT II" | "CAT III" | "CAT IV" | "OTHER",
     text: string,
     modifier?: string | null,
 }
