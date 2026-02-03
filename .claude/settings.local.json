@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(npm run build:*)",
-      "WebFetch(domain:codepen.io)",
-      "WebFetch(domain:cdpn.io)"
-    ]
-  }
-}
