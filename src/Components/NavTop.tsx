@@ -1,9 +1,18 @@
 // NavTop.tsx - Simplified version with grouped props
-import { Search, X, Menu, ChevronLeft, Upload, Info, List, Settings } from "lucide-react";
-import { useRef, useEffect } from "react";
+import { Search, X, Menu, ChevronLeft, Upload, Info, List, Settings, Pill, BarChart3, HelpCircle } from "lucide-react";
+import { useRef, useEffect, useState } from "react";
 import type { NavTopProps } from "../Types/NavTopTypes";
+import { menuData } from "../Data/CatData";
 
 export type MobileViewState = 'visible' | 'hidden'
+
+// Icon map for menu items
+const iconMap: Record<string, React.ReactNode> = {
+    'import': <Upload size={16} className="text-primary/70" />,
+    'medications': <Pill size={16} className="text-primary/70" />,
+    'Settings': <Settings size={16} className="text-primary/70" />,
+    'myNotes': <BarChart3 size={16} className="text-primary/70" />,
+};
 
 export function NavTop({ search, actions, ui }: NavTopProps) {
     // Destructure grouped props for cleaner usage
@@ -20,6 +29,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
     const {
         onBackClick,
         onMenuClick,
+        onMenuClose,
         onImportClick,
         onMedicationClick,
         onSettingsClick,
@@ -34,7 +44,9 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         medicationButtonText = "Medications",
         isMobile,
         isAlgorithmView = false,
+        isMenuOpen = false,
     } = ui
+
     // Refs and computed values
     const internalInputRef = useRef<HTMLInputElement>(null);
     const inputRef = searchInputRef || internalInputRef;
@@ -42,7 +54,37 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
     // Mobile-specific UI flags
     const shouldShowInfoButton = isMobile && isAlgorithmView && !isSearchExpanded;
-    const shouldShowMenuButton = showMenu && (isMobile || !showBack);
+    const shouldShowMenuButton = showMenu && isMobile;
+
+    // Menu morph: staggered item visibility
+    const [itemsVisible, setItemsVisible] = useState(false);
+
+    useEffect(() => {
+        if (isMenuOpen) {
+            const timer = setTimeout(() => setItemsVisible(true), 150);
+            return () => clearTimeout(timer);
+        } else {
+            setItemsVisible(false);
+        }
+    }, [isMenuOpen]);
+
+    // Menu item click handler
+    const handleMenuItemClick = (action: string) => {
+        switch (action.toLowerCase()) {
+            case 'import':
+                onImportClick?.();
+                break;
+            case 'medications':
+                onMedicationClick?.();
+                break;
+            case 'settings':
+                onSettingsClick?.();
+                break;
+            default:
+                console.warn("Unknown menu action:", action);
+        }
+        onMenuClose?.();
+    };
 
     // Focus input when mobile search expands
     useEffect(() => {
@@ -93,86 +135,180 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
     // Button style constants - iOS standard tap target is 44px (w-11 h-11)
     const BUTTON_CLASSES = {
-        mobile: "p-2 text-tertiary hover:text-primary justify-center items-center transition-all duration-200",
-        mobileInner: "w-11 h-11 rounded-full backdrop-blur-md shadow-md shadow-themewhite2 bg-themewhite/20 border border-tertiary/30 flex items-center justify-center",
+        mobileContainer: "rounded-full border border-tertiary/20 flex items-center p-1",
+        mobileButton: "w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200",
         desktop: "h-8 flex items-center justify-center px-3 lg:px-4 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
     };
 
     return (
         <div className="flex items-center h-full w-full px-2 bg-themewhite transition-all duration-300">
-            {/* Left section: buttons only */}
-            <div className="flex items-center gap-2 shrink-0">
-                {/* Menu/Back button */}
-                <div className="flex justify-center items-center space-x-2 shrink-0">
-                    {/* Back Button */}
-                    {showBack && (
-                        <button
-                            onClick={onBackClick}
-                            className={isMobile ? BUTTON_CLASSES.mobile : BUTTON_CLASSES.desktop}
-                            aria-label="Go back"
-                            title="Go back"
-                        >
-                            {isMobile ? (
-                                <div className={BUTTON_CLASSES.mobileInner}>
-                                    <ChevronLeft className="w-5 h-5 stroke-current" />
-                                </div>
-                            ) : (
-                                <>
+            {/* Left section: buttons - hidden when mobile search is expanded */}
+            {(!isMobile || !isSearchExpanded) && (
+                <div className="flex items-center shrink-0">
+                    {/* Mobile: Back button in its own container */}
+                    {isMobile && showBack && (
+                        <div className={BUTTON_CLASSES.mobileContainer}>
+                            <button
+                                onClick={onBackClick}
+                                className={`${BUTTON_CLASSES.mobileButton} active:scale-90`}
+                                aria-label="Go back"
+                                title="Go back"
+                            >
+                                <ChevronLeft className="w-5 h-5 stroke-current" />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* Mobile: Morphing menu button/panel */}
+                    {shouldShowMenuButton && (
+                        <div className="relative">
+                            {/* Invisible spacer to maintain navbar layout */}
+                            <div className="w-[54px] h-[54px]" />
+
+                            {/* Backdrop when menu is open */}
+                            {isMenuOpen && (
+                                <div
+                                    className="fixed inset-0 z-40"
+                                    onClick={onMenuClose}
+                                />
+                            )}
+
+                            {/* Morphing container: button → menu panel */}
+                            <div
+                                className={`
+                                    absolute top-0 left-0 z-50
+                                    border border-tertiary/20
+                                    backdrop-blur-md
+                                    transform-gpu
+                                    overflow-hidden
+                                    transition-all duration-300
+                                    ${isMenuOpen
+                                        ? 'w-56 rounded-xl bg-themewhite/95 shadow-[0_8px_24px_-4px_rgba(0,0,0,0.15)] py-3 pl-3 pr-5'
+                                        : 'w-[54px] h-[54px] rounded-full bg-transparent p-1'
+                                    }
+                                `}
+                                style={{
+                                    transformOrigin: 'top left',
+                                    maxHeight: isMenuOpen ? '400px' : '54px',
+                                    transitionTimingFunction: isMenuOpen
+                                        ? 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+                                        : 'cubic-bezier(0.4, 0, 0.2, 1)',
+                                }}
+                            >
+                                {/* Toggle button: hamburger ↔ X crossfade */}
+                                <button
+                                    onClick={isMenuOpen ? onMenuClose : onMenuClick}
+                                    className={`
+                                        w-11 h-11 rounded-full flex items-center justify-center
+                                        text-tertiary hover:text-primary transition-all duration-200
+                                        ${isMenuOpen ? '' : 'active:scale-90'}
+                                    `}
+                                    aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+                                >
+                                    <div className="relative w-5 h-5">
+                                        <Menu
+                                            className={`w-5 h-5 stroke-current absolute inset-0 transition-all duration-300
+                                                ${isMenuOpen ? 'opacity-0 rotate-90 scale-75' : 'opacity-100 rotate-0 scale-100'}`}
+                                        />
+                                        <X
+                                            className={`w-5 h-5 stroke-current absolute inset-0 transition-all duration-300
+                                                ${isMenuOpen ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-75'}`}
+                                        />
+                                    </div>
+                                </button>
+
+                                {/* Menu items: staggered fade-in */}
+                                {isMenuOpen && (
+                                    <div className="mt-1 space-y-0.5">
+                                        {menuData.map((item, index) => (
+                                            <button
+                                                key={index}
+                                                onClick={() => handleMenuItemClick(item.action)}
+                                                className={`
+                                                    w-full text-left flex items-center pl-3 pr-4 py-3
+                                                    rounded-lg transition-all duration-300 ease-out
+                                                    cursor-pointer hover:bg-themeblue bg-transparent
+                                                    active:scale-95 transform-gpu
+                                                    ${itemsVisible
+                                                        ? "opacity-100 translate-y-0"
+                                                        : "opacity-0 translate-y-1"
+                                                    }
+                                                `}
+                                                style={{
+                                                    transitionDelay: itemsVisible
+                                                        ? `${index * 30}ms`
+                                                        : `${(menuData.length - index - 1) * 15}ms`,
+                                                }}
+                                            >
+                                                <div
+                                                    className="mr-3 transition-all duration-300 ease-out"
+                                                    style={{
+                                                        opacity: itemsVisible ? 1 : 0,
+                                                        transform: itemsVisible ? 'scale(1)' : 'scale(0.8)',
+                                                        transitionDelay: itemsVisible
+                                                            ? `${index * 30 + 10}ms`
+                                                            : `${(menuData.length - index - 1) * 15}ms`
+                                                    }}
+                                                >
+                                                    {iconMap[item.action] || <HelpCircle size={16} className="text-primary/70" />}
+                                                </div>
+                                                <span
+                                                    className="tracking-wide text-sm text-primary/80 transition-all duration-300 ease-out"
+                                                    style={{
+                                                        opacity: itemsVisible ? 1 : 0,
+                                                        transform: itemsVisible ? 'translateX(0)' : 'translateX(-8px)',
+                                                        transitionDelay: itemsVisible
+                                                            ? `${index * 30 + 10}ms`
+                                                            : `${(menuData.length - index - 1) * 15}ms`
+                                                    }}
+                                                >
+                                                    {item.text}
+                                                </span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Desktop buttons - no menu button */}
+                    {!isMobile && (
+                        <div className="flex justify-center items-center space-x-2 shrink-0">
+                            {showBack && (
+                                <button
+                                    onClick={onBackClick}
+                                    className={BUTTON_CLASSES.desktop}
+                                    aria-label="Go back"
+                                    title="Go back"
+                                >
                                     <ChevronLeft className="w-4 h-4 stroke-themeblue1" />
                                     <span className="hidden lg:inline text-[10pt] text-primary/60 ml-2">
                                         Back
                                     </span>
-                                </>
+                                </button>
                             )}
-                        </button>
-                    )}
-
-                    {/* Menu Button - shows on mobile when not showing back, hidden on desktop */}
-                    {shouldShowMenuButton && (
-                        <button
-                            onClick={onMenuClick}
-                            className={`${isMobile ? BUTTON_CLASSES.mobile : 'hidden'} ${!isMobile ? BUTTON_CLASSES.desktop : ''}`}
-                            aria-label="Open menu"
-                            title="Open menu"
-                        >
-                            {isMobile ? (
-                                <div className={BUTTON_CLASSES.mobileInner}>
-                                    <Menu className="w-5 h-5 stroke-current" />
-                                </div>
-                            ) : (
-                                <>
-                                    <Menu className="w-4 h-4 stroke-themeblue1" />
-                                    <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
-                                        Home
-                                    </span>
-                                </>
-                            )}
-                        </button>
-                    )}
-
-                    {/* Medications/ADTMC button - only on desktop, hidden on mobile */}
-                    {!isMobile && (
-                        <button
-                            onClick={onMedicationClick}
-                            className={BUTTON_CLASSES.desktop}
-                            aria-label={medicationButtonText}
-                            title={medicationButtonText}
-                        >
-                            {medicationButtonText === "ADTMC" ? (
-                                <List className="w-4 h-4 stroke-themeblue1" />
-                            ) : (
-                                <svg className="w-4 h-4 stroke-themeblue1 fill-transparent" viewBox="0 0 14 14">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M6.59 1.69a4.045 4.045 0 1 1 5.72 5.72l-4.9 4.9a4.045 4.045 0 1 1-5.72-5.72zm-2.2 2.2l5.72 5.72" />
-                                </svg>
-                            )}
-                            <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
-                                {medicationButtonText}
-                            </span>
-                        </button>
+                            <button
+                                onClick={onMedicationClick}
+                                className={BUTTON_CLASSES.desktop}
+                                aria-label={medicationButtonText}
+                                title={medicationButtonText}
+                            >
+                                {medicationButtonText === "ADTMC" ? (
+                                    <List className="w-4 h-4 stroke-themeblue1" />
+                                ) : (
+                                    <svg className="w-4 h-4 stroke-themeblue1 fill-transparent" viewBox="0 0 14 14">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M6.59 1.69a4.045 4.045 0 1 1 5.72 5.72l-4.9 4.9a4.045 4.045 0 1 1-5.72-5.72zm-2.2 2.2l5.72 5.72" />
+                                    </svg>
+                                )}
+                                <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
+                                    {medicationButtonText}
+                                </span>
+                            </button>
+                        </div>
                     )}
                 </div>
-
-            </div>
+            )}
 
             {/* Title - Centered on mobile, hidden on desktop */}
             {isMobile && !isSearchExpanded && (
@@ -187,8 +323,12 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                 </div>
             )}
 
-            {/* Search Container on the right - shrink-0 on mobile, flex-1 on desktop */}
-            <div className="flex items-center justify-end shrink-0 md:flex-1 md:justify-center min-w-0">
+            {/* Search Container - shrink-0 on mobile (flex-1 when expanded), flex-1 on desktop */}
+            <div className={`flex items-center min-w-0 ${
+                isMobile
+                    ? (isSearchExpanded ? 'flex-1' : 'shrink-0 justify-end')
+                    : 'flex-1 justify-center'
+            }`}>
                 {/* Mobile expanded search */}
                 {isMobile && isSearchExpanded && (
                     <div

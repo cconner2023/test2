@@ -115,23 +115,26 @@ export function SideMenu({
             <div
                 ref={menuRef}
                 className={`
-                    fixed left-5 top-3 z-50 py-3 pl-3 pr-5 
+                    fixed left-2 top-14 z-50 py-3 pl-3 pr-5
                     w-56 flex flex-col rounded-xl
-                    border border-tertiary/20 
-                    shadow-[0_2px_4px_0] shadow-themewhite2/20
+                    border border-tertiary/20
+                    shadow-[0_8px_24px_-4px_rgba(0,0,0,0.15)] shadow-themewhite2/20
                     backdrop-blur-md bg-themewhite2/10
                     transform-gpu
                     overflow-hidden
                     text-primary/80 text-sm
                     origin-top-left
-                    transition-all duration-300 ease-out
+                    transition-all duration-200
                     ${isVisible
-                        ? "opacity-100 scale-100 translate-x-0"
-                        : "opacity-0 scale-10 -translate-x-1 pointer-events-none"
+                        ? "opacity-100 scale-100 translate-y-0"
+                        : "opacity-0 scale-75 -translate-y-2 pointer-events-none"
                     }
                 `}
                 style={{
-                    transformOrigin: 'top left'
+                    transformOrigin: 'top left',
+                    transitionTimingFunction: isVisible
+                        ? 'cubic-bezier(0.34, 1.56, 0.64, 1)'
+                        : 'cubic-bezier(0.4, 0, 0.2, 1)'
                 }}
             >
                 {/* Menu Items with fade animation */}

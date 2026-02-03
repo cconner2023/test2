@@ -110,7 +110,6 @@ export function SymptomInfoDrawer({
 
         setDrawerPosition(newPosition);
 
-        e.preventDefault();
         e.stopPropagation();
     };
 

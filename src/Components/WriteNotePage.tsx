@@ -157,7 +157,6 @@ export const WriteNotePage = ({
         const sheetHeight = sheetRef.current?.clientHeight || window.innerHeight;
         const pct = Math.max(0, (dy / sheetHeight) * 100);
         setSheetPosition(pct);
-        e.preventDefault();
     }, [isMobile]);
 
     const handleSheetDragEnd = useCallback(() => {
@@ -220,7 +219,6 @@ export const WriteNotePage = ({
             if (currentPage === 0 && dragX > 0) dragX *= 0.25;
             if (currentPage === 1 && dragX < 0) dragX *= 0.25;
             setPageDragX(dragX);
-            e.preventDefault();
         }
     }, [isMobile, currentPage]);
 

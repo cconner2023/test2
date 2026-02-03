@@ -19,6 +19,7 @@ export interface SearchProps {
 export interface NavigationActions {
   onBackClick?: () => void
   onMenuClick?: () => void
+  onMenuClose?: () => void
   onImportClick?: () => void
   onMedicationClick?: () => void
   onSettingsClick?: () => void
@@ -37,6 +38,7 @@ export interface UIState {
   medicationButtonText?: string
   isMobile: boolean
   isAlgorithmView?: boolean
+  isMenuOpen?: boolean
 }
 
 /**

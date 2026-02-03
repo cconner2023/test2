@@ -17,260 +17,156 @@ CODEBASE STRUCTURE:
 - 2 Type files (CatTypes, AlgorithmTypes)
 
 
-================================================================================
-DESIGN IMPROVEMENTS - SESSION 2026-02-02
-================================================================================
+03FEB2026
 
-TASK 1: IMPROVE DRAWER ANIMATIONS (Settings & SymptomInfoDrawer)
-✓ Settings.tsx:
-  - Fixed bottom glitch: Changed height from 99vh to 92vh
-  - Added backdrop with opacity animation
-  - Changed transform from vh to % for smoother animation
-  - Increased transition duration to 300ms for iOS-like feel
-  - Updated border radius and shadow for native iOS appearance
-  - Improved swipe gesture handling
+Update Todos
 
-✓ SymptomInfoDrawer.tsx:
-  - Added full swipe gesture support (touch/mouse)
-  - Implemented velocity-based momentum closing
-  - Added backdrop with animated opacity
-  - Changed to 92vh height to match Settings
-  - Added smooth cubic easing for iOS-like animations
-  - Implemented position-based animation system
+Remove desktop menu button and make it mobile-only
 
-TASK 2: USER INFORMATION IN SETTINGS
-✓ Added user profile section in Settings.tsx:
-  - Displays below header, above settings options
-  - Components: User icon (circular avatar), name, subtitle
-  - Right-aligned chevron button for navigation
-  - Styled with hover/active states
-  - Ready for backend integration (currently shows "Guest User")
-  - Responsive design for mobile/desktop
+Move SideMenu into NavTop for iOS popover-from-button effect
 
-TASK 3: IMPROVE CATEGORYLIST
-✓ Updated icon styling:
-  - Changed from rounded-full to rounded-md (badge style)
-  - Matches AlgorithmPage badge design
-  - Applied to: categories, symptoms, and symptom header
-  - Changed from w-10/h-10 circular to px-3/py-2 badge with font-bold
+Add iOS press animation to mobile menu button
 
-✓ Reorganized training guidelines:
-  - DDX: Already in "Differentials" section (no change needed)
-  - Separated training into distinct sections:
-    * "MEDCOM Training" (selectedSymptom.medcom)
-    * "STP Training" (selectedSymptom.stp)
-    * "General Guidelines" (selectedSymptom.gen)
-  - Each section has its own header and only shows if data exists
+Update App.tsx to remove standalone SideMenu and pass new props
 
-FILES MODIFIED:
-- src/Components/Settings.tsx
-- src/Components/SymptomInfoDrawer.tsx
-- src/Components/CategoryList.tsx
+Adjust SideMenu positioning to originate from button
 
-NOTES:
-- All changes maintain existing data structures (no data file modifications)
-- Drawer animations now feel native iOS-like with smooth gestures
-- User section is placeholder-ready for authentication implementation
-- CategoryList visual hierarchy improved with badge-style icons
+Verify build passes
+Bash Build project with Vite
+IN
+cd "c:\Users\cconn\Desktop\Test\my-project" && npm run build 2>&1
 
+OUT
+> my-project@0.0.0 build
+> vite build && copy public\sw.js dist\sw.js && copy public\manifest.json dist\manifest.json
 
-================================================================================
-MOBILE NAVTOP IMPROVEMENTS - SESSION 2026-02-02
-================================================================================
+[36mvite v7.3.0 [32mbuilding client environment for production...[36m[39m
+transforming...
+Found 1 warning while optimizing generated CSS:
 
-TASK 1: INCREASE BUTTON SIZES FOR iOS CONSISTENCY
-✓ Updated mobile button sizes:
-  - Changed from w-8 h-8 (32px) to w-11 h-11 (44px)
-  - Matches iOS standard tap target size (44x44pt)
-  - Applied to: Back button, Menu button, Search button, Info button
-  - Improves touch accuracy and feels more native on iOS
+[2m│ }[22m
+[2m│ @media (prefers-color-scheme:light) {[22m
+[2m│[22m   :root([data-theme]) {
+[2m┆[22m         [33m[2m^--[22m 'root' is not recognized as a valid pseudo-class. Did you mean '::root' (pseudo-element) or is this a typo?[39m
+[2m┆[22m
+[2m│     --color-themeredred: rgb(170, 65, 65,1);[22m
+[2m│     --color-themeyellow: rgba(255,194,34,1);[22m
 
-TASK 2: SHOW INFO BUTTON ONLY ON ALGORITHMPAGE
-✓ Added isAlgorithmView prop to UIState interface
-✓ Updated App.tsx to pass navigation.showQuestionCard as isAlgorithmView
-✓ Changed Info button visibility logic:
-  - Old: shouldShowInfoWithSearch = showBack && showDynamicTitle && !isSearchExpanded
-  - New: shouldShowInfoButton = isAlgorithmView && !isSearchExpanded
-  - Info button now only appears when viewing AlgorithmPage
-  - Provides contextual help only when relevant
+[32m✓[39m 1739 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                 [39m[1m[2m  1.63 kB[22m[1m[22m[2m │ gzip:   0.68 kB[22m
+[2mdist/[22m[35massets/index-6kng9Fd5.css  [39m[1m[2m 79.64 kB[22m[1m[22m[2m │ gzip:  10.62 kB[22m
+[2mdist/[22m[36massets/index-2apwb9eh.js   [39m[1m[33m605.24 kB[39m[22m[2m │ gzip: 168.09 kB[22m
+[33m
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+[32m✓ built in 4.80s[39m
+        1 file(s) copied.
+        1 file(s) copied.
+Update Todos
 
-TASK 3: WIDEN CONTAINER FOR BETTER MOBILE FEEL
-✓ Updated right button container:
-  - Increased padding from p-0.5 to p-1 for better spacing
-  - Container width dynamically adjusts based on button visibility
-  - Info button: animates from w-0 to w-11 when appearing
-  - Creates more natural, spacious feel on mobile devices
+Remove desktop menu button and make it mobile-only
 
-TASK 4: ADD FADE-IN TRANSITIONS
-✓ Enhanced button appearance animations:
-  - Info button: transition-all duration-300 with opacity fade
-  - Search button: transition-all duration-200
-  - Back/Menu buttons: transition-all duration-200
-  - Smooth fade-in/out when buttons appear/disappear
-  - Uses overflow-hidden on Info wrapper for clean animation
+Move SideMenu into NavTop for iOS popover-from-button effect
 
-FILES MODIFIED:
-- src/Types/NavTopTypes.ts (added isAlgorithmView to UIState)
-- src/App.tsx (pass showQuestionCard as isAlgorithmView)
-- src/Components/NavTop.tsx (button sizes, visibility logic, transitions)
+Add iOS press animation to mobile menu button
 
-TECHNICAL NOTES:
-- Button sizes now meet iOS Human Interface Guidelines (44x44pt minimum)
-- All transitions use ease-out for natural iOS-like deceleration
-- Container border provides unified appearance for button group
-- Info button width animation prevents layout shift
+Update App.tsx to remove standalone SideMenu and pass new props
 
+Adjust SideMenu positioning to originate from button
+
+Verify build passes
+Build passes. Here's a summary of all changes:
+
+Changes Made
+1. Desktop: Removed menu button (NavTop.tsx:47)
+
+shouldShowMenuButton now requires isMobile - no more Home/Menu button on desktop
+Desktop left section only has Back + Medications/ADTMC buttons
+2. Mobile: SideMenu moved into NavTop (NavTop.tsx:131-139)
+
+SideMenu is now rendered inside NavTop, next to the menu button
+Removed standalone <SideMenu> from App.tsx
+New props passed through: isMenuOpen (UIState), onMenuClose (NavigationActions)
+3. iOS press animation on menu button (NavTop.tsx:121-128)
+
+active:scale-90 on mobile Back and Menu buttons for press feedback
+Menu button gets bg-themewhite2 text-primary highlight when menu is open
+4. SideMenu popover animation (SideMenu.tsx:118-135)
+
+Repositioned to left-2 top-14 - pops out directly below the navbar, aligned with the button
+Spring easing on open: cubic-bezier(0.34, 1.56, 0.64, 1) gives iOS-like overshoot
+Standard ease on close: cubic-bezier(0.4, 0, 0.2, 1) for smooth dismiss
+Faster 200ms duration, scales from 75% (was 10%) for a punchier popover feel
+Deeper shadow for more depth separation
 
 ================================================================================
-NAVTOP ALIGNMENT & CENTERING - SESSION 2026-02-02
+03FEB2026 - SESSION 2
 ================================================================================
 
-TASK 1: ALIGN PADDING WITH CATEGORYLIST
-✓ Updated NavTop horizontal padding:
-  - Changed from px-3 to px-2
-  - Now matches CategoryList item padding (px-2)
-  - Creates visual alignment between navbar and content
-  - Menu/Back buttons line up with list items below
+TASK 1: Menu Button Morph (Mobile)
+----------------------------------
+Goal: Menu button morphs INTO the menu panel and back on close
 
-TASK 2: CENTER TITLE ON MOBILE
-✓ Repositioned title for better mobile layout:
-  - Title now uses flex-1 for proper centering between left and right sections
-  - Three-column layout: Left (buttons) | Center (title) | Right (search)
-  - Title hidden on desktop (desktop shows: buttons | search | settings)
-  - Maintains fade-out when search expands on mobile
-  - Text-center alignment for perfect visual balance
+Changes:
+1. NavTop.tsx - Complete mobile menu rewrite
+   - Removed SideMenu component import (no longer used as separate popover)
+   - Added menuData import + icon map inline
+   - Menu button container now morphs: 54x54 rounded-full -> w-56 rounded-xl
+   - Hamburger/X icon crossfade with rotation animation (duration-300)
+   - Menu items have staggered fade-in (30ms per item) matching original SideMenu
+   - Spring easing on open: cubic-bezier(0.34, 1.56, 0.64, 1)
+   - Smooth ease on close: cubic-bezier(0.4, 0, 0.2, 1)
+   - max-height transition: 54px -> 400px for smooth height morph
+   - Backdrop overlay (fixed inset-0 z-40) for click-outside dismiss
+   - Invisible spacer div maintains navbar layout during morph
+   - Added itemsVisible state with 150ms delay for stagger timing
 
-TASK 3: RESTRUCTURE MOBILE LAYOUT
-✓ Reorganized NavTop for clearer mobile structure:
-  - Left section (shrink-0): Home/Back button only
-  - Center section (flex-1): Title with center alignment
-  - Right section (shrink-0): Info + Search button container
-  - Desktop maintains separate layout (buttons | search | settings)
-  - Responsive flex properties for optimal spacing
+2. SideMenu.tsx - Deprecated (kept in codebase, no longer imported)
 
-FILES MODIFIED:
-- src/Components/NavTop.tsx
+TASK 2: Medications as Drawer/Modal
+------------------------------------
+Goal: Medications appear as bottom-sheet drawer (mobile) + modal (desktop)
+      instead of full viewport mode change
 
-VISUAL IMPROVEMENTS:
-- Mobile navbar now has consistent px-2 padding throughout app
-- Title perfectly centered using flexbox (not absolute positioning)
-- Clear three-column mobile layout: button | title | search
-- Back/Menu buttons align with content items below
-- Professional, cohesive appearance across all views
+Changes:
+1. useNavigation.ts - State model refactor
+   - Removed 'medications' from ViewState type (now: 'main' | 'subcategory' | 'questions')
+   - Added showMedications: boolean to NavigationState
+   - handleNavigation medication case: sets showMedications: true (preserves underlying view)
+   - handleMedicationSelect: sets showMedications + selectedMedication
+   - handleShowMedications: toggles showMedications boolean
+   - handleBackClick: new priority 1 for medications overlay (deselect med or close drawer)
+   - getGridTemplates: removed all medication view branches (simplified)
+   - getDynamicTitle: checks showMedications first for title priority
+   - shouldShowBackButton: shows back when showMedications is open (mobile)
+   - shouldShowMenuButton: hides menu when showMedications is open (mobile)
+   - getMedicationButtonText: checks showMedications instead of viewState
+   - Added setShowMedications handler
+   - Removed exports: showMedicationGrid, medicationGridTemplate, isMedicationView
+   - Added exports: showMedications, setShowMedications
 
+2. MedicationsDrawer.tsx - NEW component
+   - Follows exact Settings.tsx pattern (same drag gesture system)
+   - Mobile: Bottom sheet (92vh, velocity-based drag, snap points 40%/60%, rAF animation)
+   - Desktop: Fixed popover/modal (right-16 top-15, scale animation)
+   - Shared MedicationsContent component for both layouts
+   - Contains MedicationListItem (moved from App.tsx)
+   - Internal navigation: list <-> detail with back ChevronLeft in header
+   - Drag handle visible on mobile only
 
-================================================================================
-NOTE CAPTURE/IMPORT STRATEGY + WRITENOTEPAGE REFACTOR - SESSION 2026-02-02
-================================================================================
+3. App.tsx - Layout cleanup
+   - Removed MedicationListItem component (moved to MedicationsDrawer)
+   - Removed mobile medication stack section
+   - Removed desktop medication grid section
+   - Removed medication detail from mobile main stack and desktop grid column 3
+   - Simplified CategoryList visibility condition
+   - Added <MedicationsDrawer> alongside <Settings>
+   - Removed medList/medListTypes imports
+   - Removed MedicationPage import (now only in MedicationsDrawer)
+   - Removed showMedicationList ui prop, showMainGrid references
 
-TASK 1: FIX BARCODE ENCODING/DECODING ROUNDTRIP (useNoteCapture ↔ useNoteImport)
-
-PROBLEM IDENTIFIED:
-- Old encoding only captured last visible card (lost full algorithm path)
-- HPI text was never encoded in barcode
-- includeDecisionMaking flag was not encoded
-- Answer index searched questionOptions instead of answerOptions (bug)
-- useNoteImport assumed all intermediate cards answered "No" (incorrect)
-- Decision Making content was never reconstructed on import
-
-SOLUTION - NEW ENCODING FORMAT:
-  {symptomCode}|R{rfBase36}|{idx}.{selBase36}.{ansIdx}|...|H{base64Hpi}|F{flagsDigit}
-
-  - A{code}: Symptom/algorithm code (e.g. A1)
-  - R{base36}: Red flag selections as bitmask in base36
-  - {idx}.{sel}.{ans}: For EACH visible non-RF card:
-    * idx = card index (decimal)
-    * sel = selection bitmask in base36 (0 if none)
-    * ans = answer index from answerOptions (-1 if no answer)
-  - H{base64}: HPI text encoded as btoa(encodeURIComponent(text))
-  - F{digit}: Flags byte (bit0=algo, bit1=DM, bit2=HPI)
-
-  Example: A1|R1k|1.0.0|3.0.1|5.3.0|HSGVsbG8=|F7
-
-✓ Barcode.tsx:
-  - Rewrote generateCompactString() with new encoding format
-  - Now encodes ALL visible card states (not just last card)
-  - Added includeDecisionMaking to NoteBarcodeOptions interface
-  - Fixed answer index to search answerOptions (was questionOptions - BUG FIX)
-  - Added HPI base64 encoding (btoa + encodeURIComponent for Unicode safety)
-  - Added flags byte encoding
-
-✓ useNoteImport.ts:
-  - Complete rewrite of importFromBarcode() decoding
-  - Parses new format: card entries, HPI, flags
-  - Legacy format backward compatibility (L/S parts still work)
-  - generateAlgorithmContent(): Reconstructs algorithm section matching useNoteCapture
-  - generateDecisionMakingContent(): Reconstructs DM section with proper disposition lookup
-    * Finds current disposition from card entries
-    * Matches decisionMaking items using same logic as DecisionMaking component
-    * Includes DDx, text, ancillary findings, limitations, associated MCP
-  - Full note output matches useNoteCapture.generateNote() format:
-    * HPI section (if flagged)
-    * SCREENED IAW timestamp
-    * Algorithm section (if flagged)
-    * DECISION MAKING section (if flagged)
-
-TASK 2: FIX ALGORITHPAGE HARDCODED SELECTEDSYMPTOM
-✓ AlgorithmPage.tsx:
-  - Changed hardcoded selectedSymptom={{ icon: 'A-1', text: 'Sore Throat/Hoarseness' }}
-  - Now passes actual selectedSymptom from props: {{ icon: selectedSymptom?.icon, text: selectedSymptom?.text }}
-  - Barcode symptomCode now derived correctly: selectedSymptom.icon.replace('-','')
-
-TASK 3: REFACTOR WRITENOTEPAGE WITH SWIPE GESTURES
-
-✓ WriteNotePage.tsx - Complete refactor:
-
-  HORIZONTAL SWIPE (page navigation):
-  - Two swipeable pages: Decision Making (page 0) ↔ Write Note (page 1)
-  - Touch gesture with direction disambiguation (|dx| > |dy| = horizontal)
-  - Velocity-based snap (threshold 0.3 px/ms) or position-based (20% of width)
-  - Edge resistance (0.25x) when swiping past first/last page
-  - Smooth cubic-bezier transition (300ms) on snap
-  - Page indicator tabs in header (tappable + shows active underline)
-  - touch-action: pan-y on content allows vertical scroll within pages
-
-  SWIPE-DOWN-TO-CLOSE (mobile bottom sheet):
-  - Drag handle at top of sheet (mobile only)
-  - Header also draggable for larger touch target
-  - Velocity-based close (threshold 0.4 px/ms) or position-based (>35%)
-  - Sheet slides from translateY(100%) to translateY(0%) on mount (300ms)
-  - Animated backdrop with dynamic opacity (0 to 0.4)
-  - touch-action: none on drag handle/header for full gesture control
-
-  BOTTOM SHEET BEHAVIOR (mobile):
-  - 95vh height, rounded-t-2xl corners, box-shadow
-  - Backdrop click to close
-  - Smooth cubic-bezier transitions with willChange optimization
-  - Algorithm view stays mounted behind sheet (visible through backdrop)
-
-  DESKTOP BEHAVIOR:
-  - No swipe gestures (click tabs + close button)
-  - Fills container normally (no bottom sheet)
-  - Same page navigation via tab clicks
-
-  BARCODE INTEGRATION:
-  - Passes includeDecisionMaking to NoteBarcodeGenerator
-  - Passes correct symptomCode from selectedSymptom.icon
-  - Full note content (algo + DM + HPI) encoded in barcode
-
-✓ AlgorithmPage.tsx - Animation update:
-  - Algorithm view stays mounted when note-expanded on mobile
-  - Note view has z-10 overlay for proper stacking
-  - Enables backdrop peek-through on mobile bottom sheet
-
-FILES MODIFIED:
-- src/Components/Barcode.tsx (encoding rewrite)
-- src/Hooks/useNoteImport.ts (decoding rewrite)
-- src/Components/WriteNotePage.tsx (full refactor)
-- src/Components/AlgorithmPage.tsx (selectedSymptom fix + animation)
-
-BUILD STATUS: ✓ TypeScript passes, Vite build succeeds
-
-NEXT STEPS FOR FUTURE CONTEXT:
-- Test full encode/decode roundtrip with actual algorithm data
-- Consider QR code option alongside PDF417 for shorter encoded strings
-- Test swipe gestures on physical iOS/Android devices
-- Consider adding haptic feedback on swipe snap
-- May want to add page dots indicator below header for visual affordance
-- NoteImport.tsx could benefit from camera barcode scanning integration
-
+Build: PASSES (vite v7.3.0, 1739 modules, 5.49s)

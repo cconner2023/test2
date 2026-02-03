@@ -3,7 +3,7 @@ import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/C
 import { catData } from '../Data/CatData'
 import type { medListTypes } from '../Data/MedData'
 
-type ViewState = 'main' | 'subcategory' | 'questions' | 'medications'
+type ViewState = 'main' | 'subcategory' | 'questions'
 type GuidelineType = 'gen' | 'medcom' | 'stp' | 'DDX'
 
 interface NavigationState {
@@ -22,6 +22,7 @@ interface NavigationState {
     showSettings: boolean;
     isSearchExpanded: boolean;
     showSymptomInfo: boolean;
+    showMedications: boolean;
 }
 
 export function useNavigation() {
@@ -35,7 +36,8 @@ export function useNavigation() {
         showNoteImport: false,
         showSettings: false,
         isSearchExpanded: false,
-        showSymptomInfo: false
+        showSymptomInfo: false,
+        showMedications: false
     })
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
     const stateRef = useRef(state)
@@ -113,11 +115,8 @@ export function useNavigation() {
                 if (medication) {
                     setState(prev => ({
                         ...prev,
-                        viewState: 'medications',
-                        selectedCategory: null,
-                        selectedSymptom: null,
+                        showMedications: true,
                         selectedMedication: medication,
-                        selectedGuideline: null,
                         isSearchExpanded: false
                     }))
                 }
@@ -177,30 +176,24 @@ export function useNavigation() {
 
     const handleMedicationSelect = useCallback((medication: medListTypes | null) => {
         if (medication) {
-            handleNavigation({
-                type: 'medication',
-                id: medication.id || 0,
-                icon: medication.icon,
-                text: medication.text,
-                data: { medicationData: medication }
-            })
+            setState(prev => ({
+                ...prev,
+                showMedications: true,
+                selectedMedication: medication,
+            }))
         } else {
             setState(prev => ({
                 ...prev,
-                viewState: 'medications',
                 selectedMedication: null
             }))
         }
-    }, [handleNavigation])
+    }, [])
 
     const handleShowMedications = useCallback(() => {
         setState(prev => ({
             ...prev,
-            viewState: prev.viewState === 'medications' ? 'main' : 'medications',
-            selectedCategory: null,
-            selectedSymptom: null,
+            showMedications: !prev.showMedications,
             selectedMedication: null,
-            selectedGuideline: null,
             isMenuOpen: false,
             isSearchExpanded: false
         }))
@@ -217,12 +210,17 @@ export function useNavigation() {
     const handleBackClick = useCallback(() => {
         const current = stateRef.current
 
-        // Priority 1: Clear medication detail
-        if (current.selectedMedication) {
-            setState(prev => ({ ...prev, selectedMedication: null }))
+        // Priority 1: Medications overlay - deselect medication or close
+        if (current.showMedications) {
+            if (current.selectedMedication) {
+                setState(prev => ({ ...prev, selectedMedication: null }))
+            } else {
+                setState(prev => ({ ...prev, showMedications: false }))
+            }
+            return
         }
         // Priority 2: Clear guideline selection
-        else if (current.selectedGuideline) {
+        if (current.selectedGuideline) {
             setState(prev => ({ ...prev, selectedGuideline: null }))
         }
         // Priority 3: Clear symptom → return to category view
@@ -245,22 +243,10 @@ export function useNavigation() {
                 selectedGuideline: null
             }))
         }
-        // Priority 5: Exit medications view → return to main
-        else if (current.viewState === 'medications') {
-            setState(prev => ({
-                ...prev,
-                viewState: 'main',
-                selectedCategory: null,
-                selectedSymptom: null,
-                selectedMedication: null,
-                selectedGuideline: null
-            }))
-        }
     }, [])
 
     // Grid Template Computation - Simplified
     const getGridTemplates = useMemo(() => {
-        // Grid template constants for clarity
         const GRID = {
             HIDE: '0fr',
             SHOW: '1fr',
@@ -268,96 +254,39 @@ export function useNavigation() {
             SHOW_LARGE: '1.1fr',
         }
 
-        // State flags
-        const isMedicationView = state.viewState === 'medications'
         const hasSymptomDetail = state.selectedSymptom !== null && state.viewState === 'questions'
-        const hasMedicationDetail = state.selectedMedication !== null
 
         // Mobile: Single column at a time
         if (isMobile) {
-            if (isMedicationView) {
-                // Medication view: show list OR detail
-                return {
-                    mainTemplate: `${GRID.HIDE} ${GRID.HIDE} ${GRID.HIDE}`,
-                    medTemplate: hasMedicationDetail ? `${GRID.HIDE} ${GRID.SHOW}` : `${GRID.SHOW} ${GRID.HIDE}`,
-                    showMain: false,
-                    showMedication: true
-                }
-            } else if (state.isSearchExpanded) {
-                // Search view: show only search results column (Column 2)
-                return {
-                    mainTemplate: `${GRID.HIDE} ${GRID.SHOW} ${GRID.HIDE}`,
-                    medTemplate: `${GRID.HIDE} ${GRID.HIDE}`,
-                    showMain: true,
-                    showMedication: false
-                }
-            } else if (hasSymptomDetail || hasMedicationDetail) {
-                // Detail view: show only detail column
-                return {
-                    mainTemplate: `${GRID.HIDE} ${GRID.HIDE} ${GRID.SHOW}`,
-                    medTemplate: `${GRID.HIDE} ${GRID.HIDE}`,
-                    showMain: true,
-                    showMedication: false
-                }
+            if (state.isSearchExpanded) {
+                return { mainTemplate: `${GRID.HIDE} ${GRID.SHOW} ${GRID.HIDE}` }
+            } else if (hasSymptomDetail) {
+                return { mainTemplate: `${GRID.HIDE} ${GRID.HIDE} ${GRID.SHOW}` }
             } else {
-                // List view: show only categories
-                return {
-                    mainTemplate: `${GRID.SHOW} ${GRID.HIDE} ${GRID.HIDE}`,
-                    medTemplate: `${GRID.HIDE} ${GRID.HIDE}`,
-                    showMain: true,
-                    showMedication: false
-                }
+                return { mainTemplate: `${GRID.SHOW} ${GRID.HIDE} ${GRID.HIDE}` }
             }
         }
 
         // Desktop: Multi-column layout
-        if (isMedicationView) {
-            // Medication view: 2-column grid (list + detail)
-            return {
-                mainTemplate: `${GRID.HIDE} ${GRID.HIDE} ${GRID.HIDE}`,
-                medTemplate: hasMedicationDetail ? `${GRID.SHOW_SMALL} ${GRID.SHOW_LARGE}` : `${GRID.SHOW} ${GRID.SHOW}`,
-                showMain: false,
-                showMedication: true
-            }
-        } else if (hasSymptomDetail) {
-            // Symptom detail: categories + detail (hide search column)
-            return {
-                mainTemplate: `${GRID.SHOW_SMALL} ${GRID.HIDE} ${GRID.SHOW_LARGE}`,
-                medTemplate: `${GRID.HIDE} ${GRID.HIDE}`,
-                showMain: true,
-                showMedication: false
-            }
-        } else if (hasMedicationDetail) {
-            // Medication detail in main view: categories + detail
-            return {
-                mainTemplate: `${GRID.SHOW} ${GRID.HIDE} ${GRID.SHOW}`,
-                medTemplate: `${GRID.HIDE} ${GRID.HIDE}`,
-                showMain: true,
-                showMedication: false
-            }
+        if (hasSymptomDetail) {
+            return { mainTemplate: `${GRID.SHOW_SMALL} ${GRID.HIDE} ${GRID.SHOW_LARGE}` }
         } else {
-            // Default: categories + search column
-            return {
-                mainTemplate: `${GRID.SHOW} ${GRID.SHOW} ${GRID.HIDE}`,
-                medTemplate: `${GRID.HIDE} ${GRID.HIDE}`,
-                showMain: true,
-                showMedication: false
-            }
+            return { mainTemplate: `${GRID.SHOW} ${GRID.SHOW} ${GRID.HIDE}` }
         }
     }, [state, isMobile])
 
     const getDynamicTitle = () => {
-        if (state.selectedMedication) {
-            return { title: state.selectedMedication.text, show: true }
+        if (state.showMedications) {
+            if (state.selectedMedication) {
+                return { title: state.selectedMedication.text, show: true }
+            }
+            return { title: "Medications", show: true }
         }
         if (state.viewState === 'questions' && state.selectedSymptom) {
             return { title: state.selectedSymptom.text, show: true }
         }
         if (state.viewState === 'subcategory' && state.selectedCategory) {
             return { title: state.selectedCategory.text, show: true }
-        }
-        if (state.viewState === 'medications') {
-            return { title: "Medications", show: true }
         }
         return { title: "", show: false }
     }
@@ -367,16 +296,14 @@ export function useNavigation() {
         if (showNoteImport) return false
         if (isMobile) {
             return Boolean(
+                state.showMedications ||
                 state.selectedCategory ||
-                state.selectedSymptom ||
-                (state.viewState === 'medications' && state.selectedMedication) ||
-                state.selectedMedication
+                state.selectedSymptom
             )
         } else {
             return Boolean(
                 state.selectedCategory ||
-                state.selectedSymptom ||
-                state.selectedMedication
+                state.selectedSymptom
             )
         }
     }
@@ -386,18 +313,17 @@ export function useNavigation() {
 
         if (isMobile) {
             const shouldShowBack = Boolean(
+                state.showMedications ||
                 state.selectedCategory ||
-                state.selectedSymptom ||
-                (state.viewState === 'medications' && state.selectedMedication) ||
-                state.selectedMedication
+                state.selectedSymptom
             )
             return !shouldShowBack
         } else {
-            return state.viewState !== 'medications'
+            return true
         }
     }
 
-    const getMedicationButtonText = () => state.viewState === 'medications' ? "ADTMC" : "Medications"
+    const getMedicationButtonText = () => state.showMedications ? "ADTMC" : "Medications"
 
     // UI State Handlers
     const toggleMenu = useCallback(() => {
@@ -432,6 +358,14 @@ export function useNavigation() {
         setState(prev => ({ ...prev, showSymptomInfo: show }))
     }, [])
 
+    const setShowMedications = useCallback((show: boolean) => {
+        setState(prev => ({
+            ...prev,
+            showMedications: show,
+            ...(show ? {} : { selectedMedication: null })
+        }))
+    }, [])
+
     // Close mobile menu on resize to desktop
     useEffect(() => {
         const handleResize = () => {
@@ -458,12 +392,13 @@ export function useNavigation() {
         selectedGuideline: state.selectedGuideline,
         isMobile,
 
-        // UI State (consolidated from App.tsx)
+        // UI State
         isMenuOpen: state.isMenuOpen,
         showNoteImport: state.showNoteImport,
         showSettings: state.showSettings,
         isSearchExpanded: state.isSearchExpanded,
         showSymptomInfo: state.showSymptomInfo,
+        showMedications: state.showMedications,
 
         // Navigation handlers
         handleNavigation,
@@ -479,20 +414,16 @@ export function useNavigation() {
         closeMenu,
         setShowNoteImport,
         setShowSettings,
+        setShowMedications,
         toggleSearchExpanded,
         setSearchExpanded,
         toggleSymptomInfo,
         setShowSymptomInfo,
 
         // Layout computation
-        showMainGrid: getGridTemplates.showMain,
-        showMedicationGrid: getGridTemplates.showMedication,
         showQuestionCard: state.selectedSymptom !== null && state.viewState === 'questions',
-        showMedicationDetail: state.selectedMedication !== null,
         mainGridTemplate: getGridTemplates.mainTemplate,
-        medicationGridTemplate: getGridTemplates.medTemplate,
         dynamicTitle: getDynamicTitle(),
-        isMedicationView: state.viewState === 'medications',
 
         // Back button logic (needs external state)
         shouldShowBackButton,
