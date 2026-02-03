@@ -1,5 +1,5 @@
 // NavTop.tsx - Simplified version with grouped props
-import { Search, X, Menu, ChevronLeft, Upload, Info, List, Settings, Pill, BarChart3, HelpCircle } from "lucide-react";
+import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, BarChart3, HelpCircle } from "lucide-react";
 import { useRef, useEffect, useState } from "react";
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { menuData } from "../Data/CatData";
@@ -135,8 +135,8 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
     // Button style constants - iOS standard tap target is 44px (w-11 h-11)
     const BUTTON_CLASSES = {
-        mobileContainer: "rounded-full border border-tertiary/20 flex items-center p-1",
-        mobileButton: "w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200",
+        mobileContainer: "rounded-full border border-tertiary/20 flex items-center p-0.5",
+        mobileButton: "w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200",
         desktop: "h-8 flex items-center justify-center px-3 lg:px-4 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
     };
 
@@ -163,7 +163,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                     {shouldShowMenuButton && (
                         <div className="relative">
                             {/* Invisible spacer to maintain navbar layout */}
-                            <div className="w-[54px] h-[54px]" />
+                            <div className="w-11.5 h-11.5" />
 
                             {/* Backdrop when menu is open */}
                             {isMenuOpen && (
@@ -183,23 +183,23 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                     overflow-hidden
                                     transition-all duration-300
                                     ${isMenuOpen
-                                        ? 'w-56 rounded-xl bg-themewhite/95 shadow-[0_8px_24px_-4px_rgba(0,0,0,0.15)] py-3 pl-3 pr-5'
-                                        : 'w-[54px] h-[54px] rounded-full bg-transparent p-1'
+                                        ? 'w-56 rounded-xl bg-themewhite/95 shadow-[0_8px_30px_-4px_rgba(0,0,0,0.18)] py-3 pl-3 pr-5 translate-y-2'
+                                        : 'w-11.5 h-11.5 rounded-full bg-transparent p-0.5 translate-y-0'
                                     }
                                 `}
                                 style={{
                                     transformOrigin: 'top left',
-                                    maxHeight: isMenuOpen ? '400px' : '54px',
+                                    maxHeight: isMenuOpen ? '400px' : '46px',
                                     transitionTimingFunction: isMenuOpen
-                                        ? 'cubic-bezier(0.34, 1.56, 0.64, 1)'
-                                        : 'cubic-bezier(0.4, 0, 0.2, 1)',
+                                        ? 'cubic-bezier(0.2, 1.2, 0.4, 1)'
+                                        : 'cubic-bezier(0.4, 0.1, 0.3, 1)',
                                 }}
                             >
                                 {/* Toggle button: hamburger ↔ X crossfade */}
                                 <button
                                     onClick={isMenuOpen ? onMenuClose : onMenuClick}
                                     className={`
-                                        w-11 h-11 rounded-full flex items-center justify-center
+                                        w-10 h-10 rounded-full flex items-center justify-center
                                         text-tertiary hover:text-primary transition-all duration-200
                                         ${isMenuOpen ? '' : 'active:scale-90'}
                                     `}
@@ -294,13 +294,9 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                 aria-label={medicationButtonText}
                                 title={medicationButtonText}
                             >
-                                {medicationButtonText === "ADTMC" ? (
-                                    <List className="w-4 h-4 stroke-themeblue1" />
-                                ) : (
-                                    <svg className="w-4 h-4 stroke-themeblue1 fill-transparent" viewBox="0 0 14 14">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M6.59 1.69a4.045 4.045 0 1 1 5.72 5.72l-4.9 4.9a4.045 4.045 0 1 1-5.72-5.72zm-2.2 2.2l5.72 5.72" />
-                                    </svg>
-                                )}
+                                <svg className="w-4 h-4 stroke-themeblue1 fill-transparent" viewBox="0 0 14 14">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M6.59 1.69a4.045 4.045 0 1 1 5.72 5.72l-4.9 4.9a4.045 4.045 0 1 1-5.72-5.72zm-2.2 2.2l5.72 5.72" />
+                                </svg>
                                 <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
                                     {medicationButtonText}
                                 </span>
@@ -400,11 +396,11 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                 {isMobile && !isSearchExpanded && (
                     <div className="flex items-center justify-end h-full">
                         {/* Container with border - wider for better mobile feel */}
-                        <div className="rounded-full bg-transparent border border-tertiary/20 flex items-center justify-center p-1">
+                        <div className="rounded-full bg-transparent border border-tertiary/20 flex items-center justify-center p-0.5">
                             {/* Info button wrapper that animates width and opacity */}
                             <div className={`
                 transition-all duration-300 ease-out overflow-hidden
-                ${shouldShowInfoButton ? 'w-11 opacity-100' : 'w-0 opacity-0'}
+                ${shouldShowInfoButton ? 'w-10 opacity-100' : 'w-0 opacity-0'}
                 flex items-center justify-center
             `}>
                                 {shouldShowInfoButton && (
@@ -415,7 +411,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                         title="Info"
                                     >
                                         {/* No border on inner div since container has it */}
-                                        <div className="w-11 h-11 rounded-full flex items-center justify-center">
+                                        <div className="w-10 h-10 rounded-full flex items-center justify-center">
                                             <Info className="w-5 h-5 stroke-current" />
                                         </div>
                                     </button>
@@ -430,7 +426,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                 title="Search"
                             >
                                 {/* No border on inner div since container has it */}
-                                <div className="w-11 h-11 rounded-full flex items-center justify-center">
+                                <div className="w-10 h-10 rounded-full flex items-center justify-center">
                                     <Search className="w-5 h-5 stroke-current" />
                                 </div>
                             </button>

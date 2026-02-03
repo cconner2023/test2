@@ -21,8 +21,8 @@ export const QuestionCard = ({
     onQuestionOption
 }: QuestionCardProps) => {
     return (
-        <div className="space-y-6">
-            {visibleCards.map((card) => {
+        <div className="space-y-0">
+            {visibleCards.map((card, idx) => {
                 const question = algorithmOptions[card.index];
                 if (!question) return null;
 
@@ -35,10 +35,11 @@ export const QuestionCard = ({
                 const isCount = question.type === 'count';
                 const isInitial = question.type === 'initial';
                 const isAction = question.type === 'action';
+                const hasNext = idx < visibleCards.length - 1;
 
                 return (
+                    <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
                     <div
-                        key={card.index}
                         className={`
               flex flex-col rounded-md w-full overflow-hidden shadow-sm
               bg-themewhite2 border
@@ -138,6 +139,31 @@ export const QuestionCard = ({
                                 ))}
                             </div>
                         )}
+                    </div>
+
+                    {/* Spacer for RF cards (no connector) */}
+                    {hasNext && isRF && (
+                        <div className="h-6" />
+                    )}
+
+                    {/* Dot-dot-arrow connector — sequential stagger */}
+                    {hasNext && !isRF && (
+                        <div className="flex flex-col items-center py-1">
+                            <div className="connector-dot" style={{ animationDelay: '0ms' }} />
+                            <div className="connector-dot" style={{ animationDelay: '100ms' }} />
+                            <div className="connector-dot" style={{ animationDelay: '200ms' }} />
+                            <svg
+                                className="connector-arrow"
+                                style={{ animationDelay: '300ms' }}
+                                width="10"
+                                height="8"
+                                viewBox="0 0 10 8"
+                                fill="currentColor"
+                            >
+                                <path d="M5 8L0.669873 0.5L9.33013 0.5L5 8Z" />
+                            </svg>
+                        </div>
+                    )}
                     </div>
                 );
             })}

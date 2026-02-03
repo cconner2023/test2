@@ -94,9 +94,8 @@ display: none;
 }
 
 * {
-  -webkit-tap-highlight-color: transparent;
-  -webkit-touch-callout: none !important;
   -webkit-tap-highlight-color: transparent !important;
+  -webkit-touch-callout: none !important;
   touch-action: pan-y;
 }
 
@@ -248,15 +247,81 @@ input, select, textarea {
   }
 }
 
-@keyframes fadeSlideDown {
+/* Connector dot-dot-arrow: sequential stagger animation */
+@keyframes connectorDotIn {
     from {
         opacity: 0;
-        transform: translateY(-5px);
+        transform: scale(0);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+@keyframes connectorArrowIn {
+    from {
+        opacity: 0;
+        transform: translateY(-4px) scale(0.5);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.connector-dot {
+    width: 3px;
+    height: 3px;
+    border-radius: 9999px;
+    background-color: color-mix(in srgb, var(--color-secondary) 40%, transparent);
+    margin-top: 3px;
+    opacity: 0;
+    animation: connectorDotIn 0.15s ease-out both;
+}
+
+.connector-dot:first-child {
+    margin-top: 0;
+}
+
+.connector-arrow {
+    margin-top: 3px;
+    color: color-mix(in srgb, var(--color-secondary) 40%, transparent);
+    opacity: 0;
+    animation: connectorArrowIn 0.2s ease-out both;
+}
+
+/* Card appear animation — waits for connector stagger (~500ms) then fades in */
+@keyframes cardAppearIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px);
     }
     to {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+.animate-cardAppearIn {
+    animation: cardAppearIn 0.3s ease-out 0.5s both;
+}
+
+/* Desktop disposition → WriteNotePage morph animation */
+@keyframes desktopNoteExpand {
+    from {
+        opacity: 0;
+        transform: scale(0.92);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.animate-desktopNoteExpand {
+    animation: desktopNoteExpand 0.3s cubic-bezier(0.25, 0.1, 0.25, 1) both;
+    transform-origin: center bottom;
 }
 
 @keyframes slideIn {
@@ -279,11 +344,6 @@ input, select, textarea {
     opacity: 0;
     transform: translateX(20px);
   }
-}
-
-.animate-fadeSlideOut{
-  animation: fadeSlideOut 0.3s ease-out forwards;
-  animation-fill-mode: forwards;
 }
 
 /* Smooth width transitions */

@@ -18,6 +18,8 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const markerRef = useRef<HTMLDivElement>(null);
     const prevDispositionRef = useRef<any>(null);
+    const initialScrollDone = useRef(false);
+    const prevScrollTriggerRef = useRef(0);
     const [savedScrollPosition, setSavedScrollPosition] = useState<number>(0);
     const [isTransitioning, setIsTransitioning] = useState(false);
     const [viewState, setViewState] = useState<ViewState>('algorithm');
@@ -42,7 +44,7 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
         }
     }, [currentDisposition, viewState]);
 
-    // Track disposition changes
+    // Track disposition changes — delay scroll past connector stagger animation (~500ms)
     useEffect(() => {
         const dispositionChanged = prevDispositionRef.current !== currentDisposition;
         prevDispositionRef.current = currentDisposition;
@@ -50,7 +52,7 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
         if (currentDisposition && dispositionChanged && viewState === 'algorithm') {
             setTimeout(() => {
                 setScrollTrigger(prev => prev + 1);
-            }, 100);
+            }, 600);
         }
     }, [currentDisposition, viewState]);
 
@@ -70,9 +72,10 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
         setIsTransitioning(false);
     }, []);
 
-    // Scroll effect
+    // Scroll effect — only fires when scrollTrigger increments, not on viewState change
     useEffect(() => {
-        if (scrollTrigger > 0 && viewState === 'algorithm') {
+        if (scrollTrigger > prevScrollTriggerRef.current && viewState === 'algorithm') {
+            prevScrollTriggerRef.current = scrollTrigger;
             scrollToMarker();
         }
     }, [scrollTrigger, viewState, scrollToMarker]);
@@ -108,17 +111,21 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
         window.addEventListener('resize', checkMobile);
         return () => window.removeEventListener('resize', checkMobile);
     }, []);
-    // Wrapper handlers
+    // Wrapper handlers — scroll delayed to let connector stagger animation (~500ms) complete
     const handleAnswer = (cardIndex: number, answerIndex: number) => {
         setIsTransitioning(true);
         hookHandleAnswer(cardIndex, answerIndex);
-        setScrollTrigger(prev => prev + 1);
+        setTimeout(() => {
+            setScrollTrigger(prev => prev + 1);
+        }, 550);
     };
 
     const handleQuestionOption = (cardIndex: number, optionIndex: number) => {
         setIsTransitioning(true);
         hookHandleQuestionOption(cardIndex, optionIndex);
-        setScrollTrigger(prev => prev + 1);
+        setTimeout(() => {
+            setScrollTrigger(prev => prev + 1);
+        }, 550);
     };
 
     // Handle expand/collapse of note
@@ -138,9 +145,15 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
         }, 50);
     };
 
-    // Initial scroll when algorithm loads
+    // Reset initial scroll flag when algorithm changes
     useEffect(() => {
-        if (selectedSymptom && algorithm && viewState === 'algorithm') {
+        initialScrollDone.current = false;
+    }, [selectedSymptom?.id, algorithm]);
+
+    // Initial scroll when algorithm loads — does not re-fire on return from WriteNotePage
+    useEffect(() => {
+        if (selectedSymptom && algorithm && viewState === 'algorithm' && !initialScrollDone.current) {
+            initialScrollDone.current = true;
             setTimeout(() => {
                 setScrollTrigger(prev => prev + 1);
             }, 300);
@@ -168,14 +181,12 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
 
     return (
         <div className="w-full h-full relative overflow-hidden">
-            {/* ALGORITHM VIEW - stays mounted on mobile when note is expanded (for backdrop peek) */}
-            {(viewState === 'algorithm' || (viewState === 'note-expanded' && isMobile)) && (
+            {/* ALGORITHM VIEW - always mounted to preserve state and avoid animation re-fire */}
                 <div key="algorithm-view" className="h-full flex flex-col">
                     {/* Algorithm Content */}
                     <div
                         ref={containerRef}
-                        className={`flex-1 overflow-y-auto ${isTransitioning ? 'transition-none' : ''}
-                            ${currentDisposition ? 'pb-24' : ''}`}
+                        className={`flex-1 overflow-y-auto ${isTransitioning ? 'transition-none' : ''}`}
                     >
                         <div className="pb-4">
                             <QuestionCard
@@ -186,6 +197,66 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
                                 onAnswer={handleAnswer}
                                 onQuestionOption={handleQuestionOption}
                             />
+
+                            {/* Disposition card — inline after last question card */}
+                            {currentDisposition && colors && (
+                                <div className="flex flex-col items-center">
+                                    {/* Connector from last card to disposition */}
+                                    <div key={`dispo-conn-${currentDisposition.type}`} className="flex flex-col items-center py-1">
+                                        <div className="connector-dot" style={{ animationDelay: '0ms' }} />
+                                        <div className="connector-dot" style={{ animationDelay: '100ms' }} />
+                                        <div className="connector-dot" style={{ animationDelay: '200ms' }} />
+                                        <svg
+                                            className="connector-arrow"
+                                            style={{ animationDelay: '300ms' }}
+                                            width="10"
+                                            height="8"
+                                            viewBox="0 0 10 8"
+                                            fill="currentColor"
+                                        >
+                                            <path d="M5 8L0.669873 0.5L9.33013 0.5L5 8Z" />
+                                        </svg>
+                                    </div>
+
+                                    {/* Disposition card */}
+                                    <div
+                                        key={`dispo-${currentDisposition.type}-${currentDisposition.text}`}
+                                        className="w-full animate-cardAppearIn"
+                                    >
+                                        <div className={`flex flex-col rounded-md w-full overflow-hidden shadow-sm
+                                            bg-themewhite2 border ${colors.badgeBorder}`}>
+                                            <div className="p-4">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center space-x-3">
+                                                        <div className={`px-3 py-2 shrink-0 rounded-md
+                                                            flex items-center justify-center ${colors.badgeBg}
+                                                            font-bold text-sm ${colors.badgeText}`}>
+                                                            {currentDisposition.type}
+                                                        </div>
+                                                        <div className="min-w-0 flex-1 flex flex-col">
+                                                            <p className="text-sm text-primary wrap-break-word">
+                                                                {currentDisposition.text}
+                                                            </p>
+                                                            {currentDisposition.modifier && (
+                                                                <p className="text-xs text-secondary mt-1 wrap-break-word">
+                                                                    {currentDisposition.modifier}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={handleExpandNote}
+                                                        className={`px-4 py-2 rounded-md text-sm font-medium shrink-0 ${colors.buttonClass}`}
+                                                    >
+                                                        Continue &gt;
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
                             <div
                                 ref={markerRef}
                                 className="h-2 w-full pointer-events-none"
@@ -194,45 +265,11 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
                             />
                         </div>
                     </div>
-
-                    {/* Disposition Header */}
-                    {currentDisposition && colors && (
-                        <div className={`relative rounded-md bg-themewhite`}>
-                            <div className={`p-4 bg-themewhite2 ${isMobile ? 'pb-20' : ''}`}>
-                                <div className="flex items-center justify-between">
-                                    <div className="flex items-center space-x-3">
-                                        <div className={`px-3 py-2 shrink-0 rounded-md
-                                            flex items-center justify-center ${colors.badgeBg}
-                                            font-bold text-sm ${colors.badgeText}`}>
-                                            {currentDisposition.type}
-                                        </div>
-                                        <div className="min-w-0 flex-1 flex flex-col">
-                                            <p className="text-sm text-primary wrap-break-word">
-                                                {currentDisposition.text}
-                                            </p>
-                                            {currentDisposition.modifier && (
-                                                <p className="text-xs text-secondary mt-1 wrap-break-word">
-                                                    {currentDisposition.modifier}
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <button
-                                        onClick={handleExpandNote}
-                                        className={`px-4 py-2 rounded-md text-sm font-medium shrink-0 ${colors.buttonClass}`}
-                                    >
-                                        Continue  &gt;
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    )}
                 </div>
-            )}
 
             {/* NOTE VIEW - overlays on mobile (bottom sheet), replaces on desktop */}
             {viewState === 'note-expanded' && currentDisposition && (
-                <div className="absolute inset-0 h-full w-full z-10">
+                <div className={`absolute inset-0 h-full w-full z-10 ${!isMobile ? 'animate-desktopNoteExpand' : ''}`}>
                     <WriteNotePage
                         disposition={currentDisposition}
                         algorithmOptions={algorithmOptions}

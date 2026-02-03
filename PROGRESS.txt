@@ -1,0 +1,459 @@
+================================================================================
+PROJECT REFACTORING PROGRESS LOG
+================================================================================
+Started: 2026-02-02
+Goal: Fix layout navigation and simplify code
+Constraint: Do NOT modify data structures (they are verbatim from external sources)
+
+
+================================================================================
+EXPLORATION PHASE - COMPLETED
+================================================================================
+
+CODEBASE STRUCTURE:
+- 14 Components (NavTop, CategoryList, AlgorithmPage, MedicationPage, etc.)
+- 6 Hooks (useNavigation, useSearch, useAlgorithm, useNoteCapture, etc.)
+- 3 Data files (CatData, MedData, Algorithms) - DO NOT MODIFY
+- 2 Type files (CatTypes, AlgorithmTypes)
+
+
+03FEB2026
+
+Update Todos
+
+Remove desktop menu button and make it mobile-only
+
+Move SideMenu into NavTop for iOS popover-from-button effect
+
+Add iOS press animation to mobile menu button
+
+Update App.tsx to remove standalone SideMenu and pass new props
+
+Adjust SideMenu positioning to originate from button
+
+Verify build passes
+Bash Build project with Vite
+IN
+cd "c:\Users\cconn\Desktop\Test\my-project" && npm run build 2>&1
+
+OUT
+> my-project@0.0.0 build
+> vite build && copy public\sw.js dist\sw.js && copy public\manifest.json dist\manifest.json
+
+[36mvite v7.3.0 [32mbuilding client environment for production...[36m[39m
+transforming...
+Found 1 warning while optimizing generated CSS:
+
+[2m│ }[22m
+[2m│ @media (prefers-color-scheme:light) {[22m
+[2m│[22m   :root([data-theme]) {
+[2m┆[22m         [33m[2m^--[22m 'root' is not recognized as a valid pseudo-class. Did you mean '::root' (pseudo-element) or is this a typo?[39m
+[2m┆[22m
+[2m│     --color-themeredred: rgb(170, 65, 65,1);[22m
+[2m│     --color-themeyellow: rgba(255,194,34,1);[22m
+
+[32m✓[39m 1739 modules transformed.
+rendering chunks...
+computing gzip size...
+[2mdist/[22m[32mindex.html                 [39m[1m[2m  1.63 kB[22m[1m[22m[2m │ gzip:   0.68 kB[22m
+[2mdist/[22m[35massets/index-6kng9Fd5.css  [39m[1m[2m 79.64 kB[22m[1m[22m[2m │ gzip:  10.62 kB[22m
+[2mdist/[22m[36massets/index-2apwb9eh.js   [39m[1m[33m605.24 kB[39m[22m[2m │ gzip: 168.09 kB[22m
+[33m
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+[32m✓ built in 4.80s[39m
+        1 file(s) copied.
+        1 file(s) copied.
+Update Todos
+
+Remove desktop menu button and make it mobile-only
+
+Move SideMenu into NavTop for iOS popover-from-button effect
+
+Add iOS press animation to mobile menu button
+
+Update App.tsx to remove standalone SideMenu and pass new props
+
+Adjust SideMenu positioning to originate from button
+
+Verify build passes
+Build passes. Here's a summary of all changes:
+
+Changes Made
+1. Desktop: Removed menu button (NavTop.tsx:47)
+
+shouldShowMenuButton now requires isMobile - no more Home/Menu button on desktop
+Desktop left section only has Back + Medications/ADTMC buttons
+2. Mobile: SideMenu moved into NavTop (NavTop.tsx:131-139)
+
+SideMenu is now rendered inside NavTop, next to the menu button
+Removed standalone <SideMenu> from App.tsx
+New props passed through: isMenuOpen (UIState), onMenuClose (NavigationActions)
+3. iOS press animation on menu button (NavTop.tsx:121-128)
+
+active:scale-90 on mobile Back and Menu buttons for press feedback
+Menu button gets bg-themewhite2 text-primary highlight when menu is open
+4. SideMenu popover animation (SideMenu.tsx:118-135)
+
+Repositioned to left-2 top-14 - pops out directly below the navbar, aligned with the button
+Spring easing on open: cubic-bezier(0.34, 1.56, 0.64, 1) gives iOS-like overshoot
+Standard ease on close: cubic-bezier(0.4, 0, 0.2, 1) for smooth dismiss
+Faster 200ms duration, scales from 75% (was 10%) for a punchier popover feel
+Deeper shadow for more depth separation
+
+================================================================================
+03FEB2026 - SESSION 2
+================================================================================
+
+TASK 1: Menu Button Morph (Mobile)
+----------------------------------
+Goal: Menu button morphs INTO the menu panel and back on close
+
+Changes:
+1. NavTop.tsx - Complete mobile menu rewrite
+   - Removed SideMenu component import (no longer used as separate popover)
+   - Added menuData import + icon map inline
+   - Menu button container now morphs: 54x54 rounded-full -> w-56 rounded-xl
+   - Hamburger/X icon crossfade with rotation animation (duration-300)
+   - Menu items have staggered fade-in (30ms per item) matching original SideMenu
+   - Spring easing on open: cubic-bezier(0.34, 1.56, 0.64, 1)
+   - Smooth ease on close: cubic-bezier(0.4, 0, 0.2, 1)
+   - max-height transition: 54px -> 400px for smooth height morph
+   - Backdrop overlay (fixed inset-0 z-40) for click-outside dismiss
+   - Invisible spacer div maintains navbar layout during morph
+   - Added itemsVisible state with 150ms delay for stagger timing
+
+2. SideMenu.tsx - Deprecated (kept in codebase, no longer imported)
+
+TASK 2: Medications as Drawer/Modal
+------------------------------------
+Goal: Medications appear as bottom-sheet drawer (mobile) + modal (desktop)
+      instead of full viewport mode change
+
+Changes:
+1. useNavigation.ts - State model refactor
+   - Removed 'medications' from ViewState type (now: 'main' | 'subcategory' | 'questions')
+   - Added showMedications: boolean to NavigationState
+   - handleNavigation medication case: sets showMedications: true (preserves underlying view)
+   - handleMedicationSelect: sets showMedications + selectedMedication
+   - handleShowMedications: toggles showMedications boolean
+   - handleBackClick: new priority 1 for medications overlay (deselect med or close drawer)
+   - getGridTemplates: removed all medication view branches (simplified)
+   - getDynamicTitle: checks showMedications first for title priority
+   - shouldShowBackButton: shows back when showMedications is open (mobile)
+   - shouldShowMenuButton: hides menu when showMedications is open (mobile)
+   - getMedicationButtonText: checks showMedications instead of viewState
+   - Added setShowMedications handler
+   - Removed exports: showMedicationGrid, medicationGridTemplate, isMedicationView
+   - Added exports: showMedications, setShowMedications
+
+2. MedicationsDrawer.tsx - NEW component
+   - Follows exact Settings.tsx pattern (same drag gesture system)
+   - Mobile: Bottom sheet (92vh, velocity-based drag, snap points 40%/60%, rAF animation)
+   - Desktop: Fixed popover/modal (right-16 top-15, scale animation)
+   - Shared MedicationsContent component for both layouts
+   - Contains MedicationListItem (moved from App.tsx)
+   - Internal navigation: list <-> detail with back ChevronLeft in header
+   - Drag handle visible on mobile only
+
+3. App.tsx - Layout cleanup
+   - Removed MedicationListItem component (moved to MedicationsDrawer)
+   - Removed mobile medication stack section
+   - Removed desktop medication grid section
+   - Removed medication detail from mobile main stack and desktop grid column 3
+   - Simplified CategoryList visibility condition
+   - Added <MedicationsDrawer> alongside <Settings>
+   - Removed medList/medListTypes imports
+   - Removed MedicationPage import (now only in MedicationsDrawer)
+   - Removed showMedicationList ui prop, showMainGrid references
+
+Build: PASSES (vite v7.3.0, 1739 modules, 5.49s)
+
+================================================================================
+03FEB2026 - SESSION 3
+================================================================================
+
+TASK 1: Dot-dot-arrow connectors between algorithm cards
+---------------------------------------------------------
+Goal: Cards separated by an animated dotted arrow connector when a following
+      card exists. No connector after the last card.
+
+Changes:
+1. QuestionCard.tsx - Card connector between items
+   - Wrapped each card in a flex-col items-center container
+   - Changed outer spacing from space-y-6 to space-y-0 (connector handles gaps)
+   - After each card (except the last), renders a vertical connector:
+     three small dots (w-0.5 h-1.5 rounded-full, bg-secondary/40) spaced mt-1
+     followed by a downward triangle arrow (SVG, 10x8)
+   - Connector uses .animate-fadeSlideDown class (defined in App.css)
+   - Connector visibility gated by hasNext && !isRF (no connector after RF cards)
+
+2. App.css - fadeSlideDown class + keyframe
+   - @keyframes fadeSlideDown already existed; added .animate-fadeSlideDown utility class
+   - Removed arbitrary Tailwind syntax in favor of explicit CSS class
+
+Build: PASSES (vite v7.3.0, 1739 modules, 4.71s)
+
+TASK 2: CSS Fixes & Duplicate Cleanup
+--------------------------------------
+Goal: Fix non-functioning keyframe animation, move to App.css, remove duplicates
+
+Changes:
+1. index.css - Cleaned up
+   - Removed @import "tailwindcss" (duplicate of App.css import)
+   - Removed @keyframes fadeSlideDown (moved to App.css)
+   - File now only contains :root font settings and body background
+
+2. App.css - Duplicate removal
+   - Removed duplicate -webkit-tap-highlight-color: transparent (was on lines 97+99)
+   - Removed orphaned .animate-fadeSlideOut class (referenced non-existent fadeSlideOut keyframe)
+
+3. QuestionCard.tsx - RF connector suppression
+   - Changed connector condition from hasNext to hasNext && !isRF
+   - RF-type cards no longer show a dot-dot-arrow connector below them
+   - Switched from animate-[fadeSlideDown_0.4s_ease-out_both] to animate-fadeSlideDown
+
+Result: CSS bundle dropped from 81.73 kB → 52.80 kB (duplicate Tailwind import was doubling output)
+Build: PASSES (vite v7.3.0, 1739 modules, 4.92s)
+
+TASK 3: Connector refinements + scroll timing fix
+---------------------------------------------------
+Goal: RF cards keep spacing but no connector; scroll waits for connector animation
+
+Changes:
+1. QuestionCard.tsx - RF spacer
+   - RF cards with a following card now render a plain h-6 spacer div (no connector)
+   - Non-RF cards still show the dot-dot-arrow connector
+
+2. AlgorithmPage.tsx - Scroll timing
+   - handleAnswer scroll trigger: 0ms → 450ms delay (after 400ms connector animation)
+   - handleQuestionOption scroll trigger: 0ms → 450ms delay (same reason)
+   - Disposition change scroll trigger: 100ms → 500ms delay
+   - Flow is now: answer → connector animates in (400ms) → scroll starts (450ms)
+     → disposition scroll follows (500ms) to ensure bar is in view
+
+Build: PASSES (vite v7.3.0, 1739 modules, 4.51s)
+
+TASK 4: Sequential staggered connector animation (CodePen-style)
+-----------------------------------------------------------------
+Goal: Dots appear one-by-one then arrow appears last, like SVG flowchart animation
+      Reference: codepen.io/dracine/pen/pPLxGW
+
+Changes:
+1. QuestionCard.tsx - Connector markup
+   - Replaced single animate-fadeSlideDown div with individually staggered elements
+   - 3x .connector-dot divs with animation-delay: 0ms, 100ms, 200ms
+   - 1x .connector-arrow SVG with animation-delay: 300ms
+   - Each element starts invisible, appears sequentially
+
+2. App.css - New connector animation keyframes + classes
+   - Removed old fadeSlideDown keyframe and .animate-fadeSlideDown class
+   - @keyframes connectorDotIn: opacity 0→1, scale 0→1 (0.15s ease-out)
+   - @keyframes connectorArrowIn: opacity 0→1, translateY(-4px)→0, scale 0.5→1 (0.2s ease-out)
+   - .connector-dot: 3x3px circles, color-mix secondary/40%, staggered via delay
+   - .connector-arrow: SVG triangle, color-mix secondary/40%, appears last
+   - All use animation-fill-mode: both (stay invisible until delay fires)
+
+3. AlgorithmPage.tsx - Scroll timing updated for new animation length
+   - handleAnswer/handleQuestionOption: 450ms → 550ms (after 500ms total stagger)
+   - Disposition change: 500ms → 600ms
+
+Build: PASSES (vite v7.3.0, 1739 modules, 5.06s)
+
+================================================================================
+03FEB2026 - SESSION 4
+================================================================================
+
+TASK 1: Disposition as inline card
+-----------------------------------
+Goal: Disposition no longer fixed at bottom — renders inline in the scrollable
+      algorithm flow, styled as a card with a connector from the last question card
+
+Changes:
+1. AlgorithmPage.tsx - Disposition moved inside scrollable container
+   - Removed disposition from outside the scroll area (was after </div> of overflow-y-auto)
+   - Now renders inside the scrollable <div className="pb-4"> after QuestionCard
+   - Removed pb-24 conditional padding (no longer needed without fixed bottom bar)
+   - Removed pb-20 mobile padding from disposition
+   - Disposition card uses same styling as question cards: rounded-md, shadow-sm, bg-themewhite2
+   - Border uses colors.badgeBorder for disposition-type-colored border
+   - Connector (dot-dot-arrow) rendered between last question card and disposition
+   - Connector uses same stagger animation as inter-card connectors (0/100/200/300ms)
+   - Disposition card wrapped in animate-cardAppearIn (500ms delay, 300ms fade-in)
+   - Keyed by disposition type+text so animation replays when disposition changes
+   - Scroll marker (markerRef) positioned AFTER disposition so scroll targets it correctly
+
+TASK 2: Connector animation before next card appears
+-----------------------------------------------------
+Goal: SVG dot-dot-arrow connector animates fully before the next card fades in,
+      instead of both appearing simultaneously
+
+Changes:
+1. App.css - New cardAppearIn animation
+   - @keyframes cardAppearIn: opacity 0→1, translateY(8px)→0 (0.3s ease-out)
+   - .animate-cardAppearIn: 500ms delay (animation-delay: 0.5s) + fill-mode: both
+   - Cards start invisible, wait for connector stagger (~500ms), then fade in over 300ms
+
+2. QuestionCard.tsx - Card appear animation applied
+   - Cards at idx > 0 get animate-cardAppearIn class
+   - First card (idx === 0) appears immediately (no delay)
+   - React key preservation ensures only newly mounted cards animate
+   - Existing cards keep their DOM nodes and don't re-play the animation
+
+Animation timeline:
+  0ms    → connector dot 1 scales in (150ms)
+  100ms  → connector dot 2 scales in (150ms)
+  200ms  → connector dot 3 scales in (150ms)
+  300ms  → connector arrow drops in (200ms)
+  500ms  → next card begins fade-in (300ms)
+  550ms  → scroll starts (card is partially visible)
+  800ms  → card fully visible
+
+Build: PASSES (vite v7.3.0, 1739 modules, 5.25s)
+
+================================================================================
+03FEB2026 - SESSION 5
+================================================================================
+
+TASK 1: Prevent animation/scroll re-fire on WriteNotePage open/close
+---------------------------------------------------------------------
+Goal: Opening/closing WriteNotePage should not replay card animations,
+      connector animations, or re-trigger scroll
+
+Changes:
+1. AlgorithmPage.tsx - Algorithm view always mounted
+   - Removed conditional rendering: was `(viewState === 'algorithm' || note-expanded && isMobile)`
+   - Algorithm view now stays in DOM at all times (desktop + mobile)
+   - On desktop, WriteNotePage overlays via absolute inset-0 z-10 (algorithm hidden behind)
+   - CSS animations don't replay because DOM nodes are never unmounted/remounted
+
+2. AlgorithmPage.tsx - Initial scroll guard
+   - Added initialScrollDone ref (prevents re-fire on return from WriteNotePage)
+   - Separate reset effect: clears flag when selectedSymptom?.id or algorithm changes
+   - Initial scroll only fires once per algorithm load, not on every viewState change
+
+3. AlgorithmPage.tsx - Scroll effect guard
+   - Added prevScrollTriggerRef to track last-fired scrollTrigger value
+   - Scroll effect only fires when scrollTrigger actually increments
+   - Returning from WriteNotePage (viewState change) no longer triggers scroll
+
+TASK 2: Desktop disposition → WriteNotePage morph animation
+------------------------------------------------------------
+Goal: Disposition card smoothly expands into WriteNotePage on desktop
+
+Changes:
+1. App.css - desktopNoteExpand keyframe
+   - @keyframes desktopNoteExpand: opacity 0→1, scale 0.92→1.0 (0.3s)
+   - .animate-desktopNoteExpand: cubic-bezier(0.25, 0.1, 0.25, 1) easing
+   - transform-origin: center bottom (expands upward from disposition card area)
+
+2. AlgorithmPage.tsx - Conditional animation class on WriteNotePage wrapper
+   - Desktop: animate-desktopNoteExpand applied to the absolute inset-0 wrapper
+   - Mobile: no desktop animation (mobile uses its own bottom-sheet slide-up)
+
+TASK 3: WriteNotePage mobile iOS safe zone awareness
+-----------------------------------------------------
+Goal: Buttons have appropriate margin for iOS home indicator / safe areas
+
+Changes:
+1. WriteNotePage.tsx - Safe area inset on mobile sheet container
+   - Added paddingBottom: 'env(safe-area-inset-bottom, 0px)' to mobile style
+   - Applied to the sheet container (flex column parent)
+   - All bottom content (action buttons, page content) automatically clears safe area
+   - Fallback 0px for non-iOS devices
+   - Note: requires viewport-fit=cover in <meta viewport> for env() to be non-zero
+
+TASK 4: Mobile NavTop button container padding decrease by 5px
+---------------------------------------------------------------
+Goal: Tighter padding on mobile nav container
+
+Changes:
+1. NavTop.tsx - Container horizontal padding
+   - Mobile: px-2 (8px) → px-0.75 (3px) — decreased by 5px
+   - Desktop: remains px-2 (8px) via md:px-2 breakpoint
+
+Build: PASSES (vite v7.3.0, 1739 modules, 4.08s)
+
+================================================================================
+03FEB2026 - SESSION 6
+================================================================================
+
+TASK 1: Revert NavTop outer padding, decrease button size instead
+------------------------------------------------------------------
+Goal: Revert outer container padding to px-2, make mobile buttons smaller
+      (same icon size, less surrounding padding)
+
+Changes:
+1. NavTop.tsx - Reverted container padding
+   - Reverted px-0.75 md:px-2 back to px-2
+
+2. NavTop.tsx - Smaller mobile buttons
+   - mobileButton: w-11 h-11 → w-10 h-10 (44px → 40px)
+   - mobileContainer: p-1 → p-0.5 (4px → 2px padding around button)
+   - Spacer: w-11.5 h-11.5 (46px total = 40px button + 2px padding each side + 2px border)
+   - Morph closed state: w-11.5 h-11.5, p-0.5, maxHeight: 46px
+   - Right-side buttons (info, search): also w-10 h-10, p-0.5
+
+Build: PASSES (vite v7.3.0, 1739 modules)
+
+================================================================================
+03FEB2026 - SESSION 7
+================================================================================
+
+TASK 1: Liquid glass animation on menu open/close
+---------------------------------------------------
+Goal: iOS 2026 liquid glass effect — menu dips down ~8px (translateY) before
+      expanding, with spring easing
+
+Changes:
+1. NavTop.tsx - Morph container animation updates
+   - Open state: added translate-y-2 (8px downward dip)
+   - Closed state: translate-y-0 (neutral position)
+   - Open easing: cubic-bezier(0.2, 1.2, 0.4, 1) — spring overshoot
+   - Close easing: cubic-bezier(0.4, 0.1, 0.3, 1) — smooth settle
+   - Shadow: 0_8px_30px_-4px_rgba(0,0,0,0.18) — deeper depth on open
+
+Build: PASSES (vite v7.3.0, 1739 modules)
+
+================================================================================
+03FEB2026 - SESSION 8
+================================================================================
+
+TASK 1: Desktop modal alignment to content container edges
+-----------------------------------------------------------
+Goal: Settings modal aligns to RIGHT edge of main content container (overlapping
+      settings button). Medications modal aligns to LEFT edge (overlapping
+      medication button). Both use virtual container pattern instead of
+      fixed viewport positioning.
+
+Changes:
+1. Settings.tsx - Desktop container repositioned
+   - Changed from fixed right-16 top-15 to virtual container approach
+   - Fixed inset-0 overlay contains max-w-315 w-full relative parent
+   - Modal positioned: absolute right-2 top-2 (hugs right edge of content)
+   - transform-origin: top-right (collapses toward settings button)
+   - Hidden state: translate-x-10 (slides right when closing)
+
+2. MedicationsDrawer.tsx - Desktop container repositioned
+   - Same virtual container pattern as Settings
+   - Modal positioned: absolute left-2 top-2 (hugs left edge of content)
+   - transform-origin: top-left (collapses toward medication button)
+   - Hidden state: -translate-x-10 (slides left when closing)
+
+TASK 2: Simplify medication button text
+----------------------------------------
+Goal: Remove ADTMC/Medications text switching — always show "Medications"
+
+Changes:
+1. useNavigation.ts - getMedicationButtonText simplified
+   - Was: state.showMedications ? "ADTMC" : "Medications"
+   - Now: always returns "Medications"
+
+2. NavTop.tsx - Medication button icon simplified
+   - Removed conditional: medicationButtonText === "ADTMC" ? List : pill SVG
+   - Now always shows pill SVG icon
+   - Removed unused List import from lucide-react
+
+Build: PASSES (vite v7.3.0, 1739 modules, 5.17s)

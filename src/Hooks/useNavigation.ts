@@ -323,7 +323,7 @@ export function useNavigation() {
         }
     }
 
-    const getMedicationButtonText = () => state.showMedications ? "ADTMC" : "Medications"
+    const getMedicationButtonText = () => "Medications"
 
     // UI State Handlers
     const toggleMenu = useCallback(() => {

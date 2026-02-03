@@ -334,35 +334,37 @@ export const Settings = ({
                 </div>
             </div>
 
-            {/* Desktop Container */}
+            {/* Desktop Container — aligned to right edge of content container */}
             <div className="hidden md:block">
                 <div
-                    className={`fixed inset-0 z-50 flex items-center justify-center transition-all duration-300 ease-out ${isVisible
+                    className={`fixed inset-0 z-50 flex items-start justify-center transition-all duration-300 ease-out ${isVisible
                         ? 'visible pointer-events-auto'
                         : 'invisible pointer-events-none'
                         }`}
                     onClick={onClose}
                 >
-                    <div
-                        className={`fixed right-16 top-15 z-50 py-3 pl-3 pr-5 
-                        flex flex-col rounded-xl
-                        border border-tertiary/20 
-                        shadow-[0_2px_4px_0] shadow-themewhite2/20
-                        backdrop-blur-md bg-themewhite2/10
-                        transform-gpu
-                        overflow-hidden
-                        text-primary/80 text-sm
-                        origin-top-right
-                        transition-all duration-300 ease-out
-                        max-w-md 
-                        w-full 
-                        ${isVisible
-                                ? "scale-x-100 scale-y-100 translate-x-0 translate-y-0"
-                                : "opacity-0 scale-x-20 scale-y-20 -translate-x-10 -translate-y-2 pointer-events-none"
-                            }`}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <SettingsContent {...contentProps} />
+                    <div className="max-w-315 w-full relative">
+                        <div
+                            className={`absolute right-2 top-2 z-50 py-3 pl-3 pr-5
+                            flex flex-col rounded-xl
+                            border border-tertiary/20
+                            shadow-[0_2px_4px_0] shadow-themewhite2/20
+                            backdrop-blur-md bg-themewhite2/10
+                            transform-gpu
+                            overflow-hidden
+                            text-primary/80 text-sm
+                            origin-top-right
+                            transition-all duration-300 ease-out
+                            max-w-md
+                            w-full
+                            ${isVisible
+                                    ? "scale-x-100 scale-y-100 translate-x-0 translate-y-0"
+                                    : "opacity-0 scale-x-20 scale-y-20 translate-x-10 -translate-y-2 pointer-events-none"
+                                }`}
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <SettingsContent {...contentProps} />
+                        </div>
                     </div>
                 </div>
             </div>

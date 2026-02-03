@@ -381,6 +381,7 @@ export const WriteNotePage = ({
                     transition: isDraggingSheet ? 'none' : 'transform 300ms cubic-bezier(0.25, 0.1, 0.25, 1)',
                     willChange: isDraggingSheet ? 'transform' : 'auto',
                     boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
+                    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
                 } : {}}
             >
                 {/* Drag Handle (mobile only) */}
