@@ -271,25 +271,15 @@ input, select, textarea {
 }
 
 .connector-dot {
-    width: 3px;
-    height: 3px;
-    border-radius: 9999px;
-    background-color: color-mix(in srgb, var(--color-secondary) 40%, transparent);
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
     margin-top: 3px;
+    margin-bottom: 3px;
     opacity: 0;
     animation: connectorDotIn 0.15s ease-out both;
 }
 
-.connector-dot:first-child {
-    margin-top: 0;
-}
-
-.connector-arrow {
-    margin-top: 3px;
-    color: color-mix(in srgb, var(--color-secondary) 40%, transparent);
-    opacity: 0;
-    animation: connectorArrowIn 0.2s ease-out both;
-}
 
 /* Card appear animation — waits for connector stagger (~500ms) then fades in */
 @keyframes cardAppearIn {

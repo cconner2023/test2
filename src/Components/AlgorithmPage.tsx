@@ -182,90 +182,82 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
     return (
         <div className="w-full h-full relative overflow-hidden">
             {/* ALGORITHM VIEW - always mounted to preserve state and avoid animation re-fire */}
-                <div key="algorithm-view" className="h-full flex flex-col">
-                    {/* Algorithm Content */}
-                    <div
-                        ref={containerRef}
-                        className={`flex-1 overflow-y-auto ${isTransitioning ? 'transition-none' : ''}`}
-                    >
-                        <div className="pb-4">
-                            <QuestionCard
-                                algorithmOptions={algorithmOptions}
-                                cardStates={cardStates}
-                                visibleCards={visibleCards}
-                                isTransitioning={isTransitioning}
-                                onAnswer={handleAnswer}
-                                onQuestionOption={handleQuestionOption}
-                            />
+            <div key="algorithm-view" className="h-full flex flex-col">
+                {/* Algorithm Content */}
+                <div
+                    ref={containerRef}
+                    className={`flex-1 overflow-y-auto ${isTransitioning ? 'transition-none' : ''}`}
+                >
+                    <div className="pb-4">
+                        <QuestionCard
+                            algorithmOptions={algorithmOptions}
+                            cardStates={cardStates}
+                            visibleCards={visibleCards}
+                            isTransitioning={isTransitioning}
+                            onAnswer={handleAnswer}
+                            onQuestionOption={handleQuestionOption}
+                        />
 
-                            {/* Disposition card — inline after last question card */}
-                            {currentDisposition && colors && (
-                                <div className="flex flex-col items-center">
-                                    {/* Connector from last card to disposition */}
-                                    <div key={`dispo-conn-${currentDisposition.type}`} className="flex flex-col items-center py-1">
-                                        <div className="connector-dot" style={{ animationDelay: '0ms' }} />
-                                        <div className="connector-dot" style={{ animationDelay: '100ms' }} />
-                                        <div className="connector-dot" style={{ animationDelay: '200ms' }} />
-                                        <svg
-                                            className="connector-arrow"
-                                            style={{ animationDelay: '300ms' }}
-                                            width="10"
-                                            height="8"
-                                            viewBox="0 0 10 8"
-                                            fill="currentColor"
-                                        >
-                                            <path d="M5 8L0.669873 0.5L9.33013 0.5L5 8Z" />
-                                        </svg>
-                                    </div>
+                        {/* Disposition card — inline after last question card */}
+                        {currentDisposition && colors && (
+                            <div className="flex flex-col items-center">
+                                {/* Connector from last card to disposition */}
+                                <div key={`dispo-conn-${currentDisposition.type}`} className="flex flex-col items-center py-1">
+                                    <div className={`connector-dot ${colors.badgeBg}`} style={{ animationDelay: '0ms' }} />
+                                    <div className={`connector-dot ${colors.badgeBg}`} style={{ animationDelay: '100ms' }} />
+                                    <div className={`connector-dot ${colors.badgeBg}`} style={{ animationDelay: '200ms' }} />
+                                    <div className={`connector-dot ${colors.badgeBg}`} style={{ animationDelay: '290ms' }} />
 
-                                    {/* Disposition card */}
-                                    <div
-                                        key={`dispo-${currentDisposition.type}-${currentDisposition.text}`}
-                                        className="w-full animate-cardAppearIn"
-                                    >
-                                        <div className={`flex flex-col rounded-md w-full overflow-hidden shadow-sm
+                                </div>
+
+                                {/* Disposition card */}
+                                <div
+                                    key={`dispo-${currentDisposition.type}-${currentDisposition.text}`}
+                                    className="w-full animate-cardAppearIn"
+                                >
+                                    <div className={`flex flex-col rounded-md w-full overflow-hidden shadow-sm
                                             bg-themewhite2 border ${colors.badgeBorder}`}>
-                                            <div className="p-4">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center space-x-3">
-                                                        <div className={`px-3 py-2 shrink-0 rounded-md
+                                        <div className="p-4">
+                                            <div className="flex items-center justify-between">
+                                                <div className="flex items-center space-x-3">
+                                                    <div className={`px-3 py-2 shrink-0 rounded-md
                                                             flex items-center justify-center ${colors.badgeBg}
                                                             font-bold text-sm ${colors.badgeText}`}>
-                                                            {currentDisposition.type}
-                                                        </div>
-                                                        <div className="min-w-0 flex-1 flex flex-col">
-                                                            <p className="text-sm text-primary wrap-break-word">
-                                                                {currentDisposition.text}
-                                                            </p>
-                                                            {currentDisposition.modifier && (
-                                                                <p className="text-xs text-secondary mt-1 wrap-break-word">
-                                                                    {currentDisposition.modifier}
-                                                                </p>
-                                                            )}
-                                                        </div>
+                                                        {currentDisposition.type}
                                                     </div>
-                                                    <button
-                                                        onClick={handleExpandNote}
-                                                        className={`px-4 py-2 rounded-md text-sm font-medium shrink-0 ${colors.buttonClass}`}
-                                                    >
-                                                        Continue &gt;
-                                                    </button>
+                                                    <div className="min-w-0 flex-1 flex flex-col">
+                                                        <p className="text-sm text-primary wrap-break-word">
+                                                            {currentDisposition.text}
+                                                        </p>
+                                                        {currentDisposition.modifier && (
+                                                            <p className="text-xs text-secondary mt-1 wrap-break-word">
+                                                                {currentDisposition.modifier}
+                                                            </p>
+                                                        )}
+                                                    </div>
                                                 </div>
+                                                <button
+                                                    onClick={handleExpandNote}
+                                                    className={`px-4 py-2 rounded-md text-sm font-medium shrink-0 ${colors.buttonClass}`}
+                                                >
+                                                    Continue &gt;
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                            )}
+                            </div>
+                        )}
 
-                            <div
-                                ref={markerRef}
-                                className="h-2 w-full pointer-events-none"
-                                aria-hidden="true"
-                                style={{ marginTop: '1rem', marginBottom: '1rem' }}
-                            />
-                        </div>
+                        <div
+                            ref={markerRef}
+                            className="h-2 w-full pointer-events-none"
+                            aria-hidden="true"
+                            style={{ marginTop: '1rem', marginBottom: '1rem' }}
+                        />
                     </div>
                 </div>
+            </div>
 
             {/* NOTE VIEW - overlays on mobile (bottom sheet), replaces on desktop */}
             {viewState === 'note-expanded' && currentDisposition && (
