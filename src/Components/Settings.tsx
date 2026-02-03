@@ -1,5 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { X, Moon, Sun, Shield, HelpCircle, ChevronUp, User, ChevronRight } from 'lucide-react';
+import { X, Moon, Sun, Shield, HelpCircle, ChevronUp, User, ChevronRight, ChevronLeft, Bug, PlusCircle, RefreshCw } from 'lucide-react';
+
+// Import your release notes data
+import { ReleaseNotes } from '../Data/Release';
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -18,82 +21,171 @@ interface SettingsContentProps {
         id: number;
     }>;
     onItemClick: (id: number) => void;
+    activePanel: string;
 }
 
-// Single SettingsContent component that uses Tailwind responsive classes
-const SettingsContent = ({ settingsOptions, onItemClick }: SettingsContentProps) => (
-    <>
-        {/* Drag Handle - Only visible on mobile */}
-        <div className="flex justify-center pt-3 pb-2 md:hidden">
-            <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
-        </div>
+// Release note item component
+const ReleaseNoteItem = ({ note }: { note: typeof ReleaseNotes[0] }) => {
+    const getIcon = () => {
+        switch (note.type) {
+            case 'bug': return <Bug size={14} className="text-red-500" />;
+            case 'added': return <PlusCircle size={14} className="text-green-500" />;
+            case 'changed': return <RefreshCw size={14} className="text-blue-500" />;
+            default: return <PlusCircle size={14} className="text-tertiary" />;
+        }
+    };
 
-        {/* Header - Responsive sizing */}
-        <div className="px-6 border-b border-tertiary/10 py-4 md:py-5">
-            <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold text-primary md:text-2xl">Settings</h2>
-                <button
-                    onClick={() => onItemClick(-1)}
-                    className="p-2 rounded-full hover:bg-themewhite2 md:hover:bg-themewhite active:scale-95 transition-all"
-                    aria-label="Close"
-                >
-                    <X size={24} className="text-tertiary" />
-                </button>
-            </div>
+    return (
+        <div className="flex items-start mb-2 last:mb-0">
+            <div className="mt-1.5 mr-3">{getIcon()}</div>
+            <p className="text-sm text-tertiary/80 flex-1">{note.text}</p>
         </div>
+    );
+};
 
-        {/* Content Area - Different layout for mobile/desktop */}
-        <div className="overflow-y-auto h-[calc(85vh-80px)] md:overflow-visible md:h-auto">
-            <div className="px-4 py-3 md:p-6">
-                {/* User Information Section */}
-                <div className="mb-4 pb-4 border-b border-tertiary/10">
-                    <div className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2 active:scale-[0.98]
-                                  transition-all rounded-xl cursor-pointer group
-                                  md:px-5 md:py-4">
-                        <div className="mr-4 w-12 h-12 rounded-full bg-themeblue3 flex items-center justify-center text-white shrink-0">
-                            <User size={24} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-base font-semibold text-primary md:text-lg">Guest User</p>
-                            <p className="text-xs text-tertiary/60 md:text-sm">Tap to sign in</p>
-                        </div>
-                        <ChevronRight size={20} className="text-tertiary/40 shrink-0" />
-                    </div>
+// Release notes content component
+const ReleaseNotesContent = ({ onBack }: { onBack: () => void }) => {
+    // Group notes by version
+    const groupedNotes = ReleaseNotes.reduce((acc, note) => {
+        if (!acc[note.version]) {
+            acc[note.version] = [];
+        }
+        acc[note.version].push(note);
+        return acc;
+    }, {} as Record<string, typeof ReleaseNotes>);
+
+    const versions = Object.keys(groupedNotes).sort((a, b) => parseFloat(b) - parseFloat(a));
+
+    return (
+        <>
+            <div className="px-6 border-b border-tertiary/10 py-4 md:py-5">
+                <div className="flex items-center">
+                    <button
+                        onClick={onBack}
+                        className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all mr-2"
+                        aria-label="Go back"
+                    >
+                        <ChevronLeft size={24} className="text-tertiary" />
+                    </button>
+                    <h2 className="text-xl font-semibold text-primary md:text-2xl">Release Notes</h2>
                 </div>
-                {/* Mobile: space-y-1, Desktop: grid gap-3 */}
-                <div className="space-y-1 md:grid md:grid-cols-1 md:gap-3">
-                    {settingsOptions.map((option, index) => (
-                        <button
-                            key={index}
-                            onClick={() => {
-                                option.action();
-                                onItemClick(option.id);
-                            }}
-                            className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2 active:scale-[0.98] 
-                                     transition-all rounded-xl group
-                                     md:px-5 md:py-4"
-                        >
-                            <div className={`mr-4 ${option.color} md:group-hover:scale-110 md:transition-transform`}>
-                                {option.icon}
+            </div>
+
+            <div className="overflow-y-auto h-[calc(85vh-80px)] md:overflow-visible md:h-auto">
+                <div className="px-4 py-3 md:p-6">
+                    {versions.map((version, versionIndex) => {
+                        const notes = groupedNotes[version];
+                        const isLatest = versionIndex === 0;
+
+                        return (
+                            <div
+                                key={version}
+                                className={`${versionIndex > 0 ? 'pt-6 border-t border-tertiary/10' : 'mb-6'}`}
+                            >
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="text-lg font-semibold text-primary">Version {version}</h3>
+                                    {isLatest && (
+                                        <span className="text-xs text-tertiary/60 bg-tertiary/10 px-2 py-1 rounded-full">
+                                            Latest
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="space-y-1">
+                                    {notes.map((note, noteIndex) => (
+                                        <ReleaseNoteItem
+                                            key={`${version}-${noteIndex}`}
+                                            note={note}
+                                        />
+                                    ))}
+                                </div>
+                                {notes[0].date && (
+                                    <p className="text-xs text-tertiary/60 mt-3">Released: {notes[0].date}</p>
+                                )}
                             </div>
-                            <span className="flex-1 text-left text-base text-primary font-medium md:text-lg">
-                                {option.label}
-                            </span>
-                            {/* Chevron - Only on mobile */}
-                            <ChevronUp size={16} className="text-tertiary/40 rotate-90 md:hidden" />
-                        </button>
-                    ))}
-                </div>
-
-                {/* Version Info - Responsive text sizes */}
-                <div className="mt-8 pt-6 border-t border-tertiary/10 md:mt-10">
-                    <div className="text-center">
-                        <p className="text-sm text-tertiary/60 font-medium md:text-base">Version 2.6.0</p>
-                        <p className="text-xs text-tertiary/40 mt-1 md:text-sm">ADTMC MEDCOM PAM 40-7-21</p>
-                    </div>
+                        );
+                    })}
                 </div>
             </div>
-        </div>
+        </>
+    );
+};
+
+// Settings content component
+const SettingsContent = ({ settingsOptions, onItemClick, activePanel }: SettingsContentProps) => (
+    <>
+        {activePanel === 'main' && (
+            <div className="flex justify-center pt-3 pb-2 md:hidden">
+                <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
+            </div>
+        )}
+
+        {activePanel === 'main' ? (
+            <>
+                <div className="px-6 border-b border-tertiary/10 py-4 md:py-5">
+                    <div className="flex items-center justify-between">
+                        <h2 className="text-xl font-semibold text-primary md:text-2xl">Settings</h2>
+                        <button
+                            onClick={() => onItemClick(-1)}
+                            className="p-2 rounded-full hover:bg-themewhite2 md:hover:bg-themewhite active:scale-95 transition-all"
+                            aria-label="Close"
+                        >
+                            <X size={24} className="text-tertiary" />
+                        </button>
+                    </div>
+                </div>
+
+                <div className="overflow-y-auto h-[calc(85vh-80px)] md:overflow-visible md:h-auto">
+                    <div className="px-4 py-3 md:p-6">
+                        <div className="mb-4 pb-4 border-b border-tertiary/10">
+                            <div className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2 active:scale-[0.98]
+                                          transition-all rounded-xl cursor-pointer group
+                                          md:px-5 md:py-4">
+                                <div className="mr-4 w-12 h-12 rounded-full bg-themeblue3 flex items-center justify-center text-white shrink-0">
+                                    <User size={24} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-base font-semibold text-primary md:text-lg">Guest User</p>
+                                    <p className="text-xs text-tertiary/60 md:text-sm">Tap to sign in</p>
+                                </div>
+                                <ChevronRight size={20} className="text-tertiary/40 shrink-0" />
+                            </div>
+                        </div>
+
+                        <div className="space-y-1 md:grid md:grid-cols-1 md:gap-3">
+                            {settingsOptions.map((option) => (
+                                <button
+                                    key={option.id}
+                                    onClick={() => {
+                                        option.action();
+                                        onItemClick(option.id);
+                                    }}
+                                    className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2 active:scale-[0.98] 
+                                             transition-all rounded-xl group
+                                             md:px-5 md:py-4"
+                                >
+                                    <div className={`mr-4 ${option.color} md:group-hover:scale-110 md:transition-transform`}>
+                                        {option.icon}
+                                    </div>
+                                    <span className="flex-1 text-left text-base text-primary font-medium md:text-lg">
+                                        {option.label}
+                                    </span>
+                                    <ChevronUp size={16} className="text-tertiary/40 rotate-90 md:hidden" />
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="mt-8 pt-6 border-t border-tertiary/10 md:mt-10">
+                            <div className="text-center">
+                                <p className="text-sm text-tertiary/60 font-medium md:text-base">Version 2.6.0</p>
+                                <p className="text-xs text-tertiary/40 mt-1 md:text-sm">ADTMC MEDCOM PAM 40-7-21</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </>
+        ) : (
+            <ReleaseNotesContent onBack={() => onItemClick(-2)} />
+        )}
     </>
 );
 
@@ -104,12 +196,14 @@ export const Settings = ({
     onToggleTheme,
     isMobile: externalIsMobile,
 }: SettingsDrawerProps) => {
-    // Use external isMobile if provided, otherwise fallback to local detection
     const [localIsMobile, setLocalIsMobile] = useState(false);
     const isMobile = externalIsMobile !== undefined ? externalIsMobile : localIsMobile;
 
     const [drawerPosition, setDrawerPosition] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes'>('main');
+    const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
+
     const drawerRef = useRef<HTMLDivElement>(null);
     const dragStartY = useRef(0);
     const dragStartPosition = useRef(0);
@@ -118,7 +212,6 @@ export const Settings = ({
     const lastYRef = useRef(0);
     const lastTimeRef = useRef(0);
 
-    // Check if mobile (only if not provided externally)
     useEffect(() => {
         if (externalIsMobile === undefined) {
             const checkMobile = () => setLocalIsMobile(window.innerWidth < 768);
@@ -128,10 +221,11 @@ export const Settings = ({
         }
     }, [externalIsMobile]);
 
-    // Handle visibility changes
     useEffect(() => {
         if (isVisible) {
             setDrawerPosition(100);
+            setActivePanel('main');
+            setSlideDirection('');
             document.body.style.overflow = 'hidden';
         } else {
             setDrawerPosition(0);
@@ -141,12 +235,10 @@ export const Settings = ({
         return () => {
             if (animationFrameId.current) {
                 cancelAnimationFrame(animationFrameId.current);
-                animationFrameId.current = 0;
             }
         };
     }, [isVisible]);
 
-    // Smooth animation function
     const animateToPosition = useCallback((targetPosition: number) => {
         const startPosition = drawerPosition;
         const startTime = performance.now();
@@ -155,8 +247,6 @@ export const Settings = ({
         const animate = (timestamp: number) => {
             const elapsed = timestamp - startTime;
             const progress = Math.min(elapsed / duration, 1);
-
-            // Ease out cubic
             const easeProgress = 1 - Math.pow(1 - progress, 3);
             const currentPosition = startPosition + (targetPosition - startPosition) * easeProgress;
 
@@ -178,9 +268,25 @@ export const Settings = ({
         animationFrameId.current = requestAnimationFrame(animate);
     }, [drawerPosition, onClose]);
 
-    // Handle drag start
+    const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
+        setSlideDirection(direction);
+        setTimeout(() => setSlideDirection(''), 300);
+    }, []);
+
+    const handleItemClick = useCallback((id: number) => {
+        if (id === -1) {
+            isMobile ? handleClose() : onClose();
+        } else if (id === -2) {
+            handleSlideAnimation('right');
+            setActivePanel('main');
+        } else if (id === 4) {
+            handleSlideAnimation('left');
+            setActivePanel('release-notes');
+        }
+    }, [isMobile, handleSlideAnimation]);
+
     const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
-        if (!isMobile) return;
+        if (!isMobile || activePanel !== 'main') return;
 
         setIsDragging(true);
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
@@ -193,14 +299,12 @@ export const Settings = ({
         e.stopPropagation();
     };
 
-    // Handle drag move
     const handleDragMove = (e: React.TouchEvent | React.MouseEvent) => {
-        if (!isDragging || !isMobile) return;
+        if (!isDragging || !isMobile || activePanel !== 'main') return;
 
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
         const deltaY = clientY - dragStartY.current;
 
-        // Calculate velocity
         const currentTime = performance.now();
         const deltaTime = currentTime - lastTimeRef.current;
         if (deltaTime > 0) {
@@ -212,18 +316,15 @@ export const Settings = ({
 
         const dragSensitivity = 0.8;
         const newPosition = Math.min(100, Math.max(20, dragStartPosition.current - (deltaY * dragSensitivity)));
-
         setDrawerPosition(newPosition);
 
         e.stopPropagation();
     };
 
-    // Handle drag end with momentum
     const handleDragEnd = () => {
-        if (!isDragging || !isMobile) return;
+        if (!isDragging || !isMobile || activePanel !== 'main') return;
 
         setIsDragging(false);
-
         const shouldClose = velocityRef.current > 0.3 || drawerPosition < 40;
         const shouldOpen = velocityRef.current < -0.3 || drawerPosition > 60;
 
@@ -236,23 +337,10 @@ export const Settings = ({
         }
     };
 
-    // Handle close with animation
     const handleClose = () => {
         animateToPosition(0);
     };
 
-    // Handle item clicks
-    const handleItemClick = (id: number) => {
-        if (id > 1 || id === -1) {
-            if (isMobile) {
-                handleClose();
-            } else {
-                onClose();
-            }
-        }
-    };
-
-    // Settings options (shared between mobile and desktop)
     const settingsOptions = [
         {
             icon: isDarkMode ? <Sun size={20} /> : <Moon size={20} />,
@@ -264,7 +352,7 @@ export const Settings = ({
         {
             icon: <Shield size={20} />,
             label: 'Release Notes',
-            action: () => null,
+            action: () => handleItemClick(4),
             color: 'text-tertiary',
             id: 4
         },
@@ -277,39 +365,24 @@ export const Settings = ({
         }
     ];
 
-    // Mobile drawer styles
     const mobileTranslateY = 100 - drawerPosition;
     const mobileOpacity = Math.min(1, drawerPosition / 60 + 0.2);
-    const backdropOpacity = Math.min(0.4, drawerPosition / 100 * 0.4);
 
-    // Shared content props
-    const contentProps = {
-        settingsOptions,
-        onItemClick: handleItemClick
+    const slideClasses = {
+        '': '',
+        'left': 'animate-slide-in-left',
+        'right': 'animate-slide-in-right'
     };
 
     return (
         <>
-            {/* Mobile Container */}
-            <div
-                ref={drawerRef}
-                className="md:hidden"
-            >
-                {/* Backdrop */}
-                {isVisible && (
-                    <div
-                        className={`fixed inset-0 z-30 bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
-                        style={{
-                            opacity: backdropOpacity,
-                            pointerEvents: drawerPosition > 10 ? 'auto' : 'none'
-                        }}
-                        onClick={handleClose}
-                    />
-                )}
+            {/* Mobile Container - NO BACKDROP */}
+            <div ref={drawerRef} className="md:hidden">
+                {/* Completely removed backdrop div */}
 
                 <div
                     className={`fixed left-0 right-0 z-40 bg-themewhite3 shadow-2xl ${isDragging ? '' : 'transition-all duration-300 ease-out'
-                        }`}
+                        } ${slideClasses[slideDirection]}`}
                     style={{
                         height: '92vh',
                         maxHeight: '92vh',
@@ -330,11 +403,15 @@ export const Settings = ({
                     onMouseUp={handleDragEnd}
                     onMouseLeave={handleDragEnd}
                 >
-                    <SettingsContent {...contentProps} />
+                    <SettingsContent
+                        settingsOptions={settingsOptions}
+                        onItemClick={handleItemClick}
+                        activePanel={activePanel}
+                    />
                 </div>
             </div>
 
-            {/* Desktop Container — aligned to right edge of content container */}
+            {/* Desktop Container - Keep backdrop for desktop only */}
             <div className="hidden md:block">
                 <div
                     className={`fixed inset-0 z-50 flex items-start justify-center transition-all duration-300 ease-out ${isVisible
@@ -363,7 +440,13 @@ export const Settings = ({
                                 }`}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <SettingsContent {...contentProps} />
+                            <div className={`relative ${slideClasses[slideDirection]}`}>
+                                <SettingsContent
+                                    settingsOptions={settingsOptions}
+                                    onItemClick={handleItemClick}
+                                    activePanel={activePanel}
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
