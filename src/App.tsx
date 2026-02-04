@@ -30,9 +30,7 @@ function AppContent() {
   }, [navigation, search])
 
   const handleBackClick = () => {
-    if (navigation.showNoteImport) {
-      navigation.setShowNoteImport(false)
-    } else if (search.searchInput) {
+    if (search.searchInput) {
       search.clearSearch()
       if (navigation.isMobile && navigation.isSearchExpanded) {
         navigation.setSearchExpanded(false)
@@ -43,9 +41,6 @@ function AppContent() {
   }
 
   const handleImportClick = () => {
-    search.clearSearch()
-    navigation.handleCategorySelect(null)
-    navigation.handleSymptomSelect(null)
     navigation.setShowNoteImport(true)
   }
 
@@ -80,7 +75,6 @@ function AppContent() {
   // Title logic
   const getTitle = () => {
     if (search.searchInput) return { title: "", show: false }
-    if (navigation.showNoteImport) return { title: "Import Note", show: false }
     return navigation.dynamicTitle
   }
 
@@ -124,15 +118,7 @@ function AppContent() {
           />
         </div>
 
-        {/* Note Import */}
-        {navigation.showNoteImport && !search.searchInput && (
-          <div className='h-full w-full animate-AppearIn'>
-            <NoteImport onClose={() => navigation.setShowNoteImport(false)} />
-          </div>
-        )}
-
         <div ref={contentRef} className='md:h-[94%] h-full mt-2 mx-2'>
-          {!navigation.showNoteImport && (
             <>
               {/* Mobile Stack Navigation - True screen stack with slide animations */}
               {navigation.isMobile && (
@@ -219,8 +205,12 @@ function AppContent() {
               )}
 
             </>
-          )}
         </div>
+        <NoteImport
+          isVisible={navigation.showNoteImport}
+          onClose={() => navigation.setShowNoteImport(false)}
+          isMobile={navigation.isMobile}
+        />
         <Settings
           isVisible={navigation.showSettings}
           onClose={() => navigation.setShowSettings(false)}

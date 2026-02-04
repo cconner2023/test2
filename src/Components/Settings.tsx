@@ -71,7 +71,7 @@ const ReleaseNotesContent = ({ onBack }: { onBack: () => void }) => {
                 </div>
             </div>
 
-            <div className="overflow-y-auto h-[calc(85vh-80px)] md:overflow-visible md:h-auto">
+            <div className="overflow-y-auto h-[calc(100dvh-80px)] md:overflow-visible md:h-auto">
                 <div className="px-4 py-3 md:p-6">
                     {versions.map((version, versionIndex) => {
                         const notes = groupedNotes[version];
@@ -134,7 +134,7 @@ const SettingsContent = ({ settingsOptions, onItemClick, activePanel }: Settings
                     </div>
                 </div>
 
-                <div className="overflow-y-auto h-[calc(85vh-80px)] md:overflow-visible md:h-auto">
+                <div className="overflow-y-auto h-[calc(100dvh-80px)] md:overflow-visible md:h-auto">
                     <div className="px-4 py-3 md:p-6">
                         <div className="mb-4 pb-4 border-b border-tertiary/10">
                             <div className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2 active:scale-[0.98]
@@ -381,11 +381,11 @@ export const Settings = ({
                 {/* Completely removed backdrop div */}
 
                 <div
-                    className={`fixed left-0 right-0 z-40 bg-themewhite3 shadow-2xl ${isDragging ? '' : 'transition-all duration-300 ease-out'
+                    className={`fixed left-0 right-0 z-60 bg-themewhite3 shadow-2xl ${isDragging ? '' : 'transition-all duration-300 ease-out'
                         } ${slideClasses[slideDirection]}`}
                     style={{
-                        height: '92vh',
-                        maxHeight: '92vh',
+                        height: '100dvh',
+                        maxHeight: '100dvh',
                         bottom: 0,
                         transform: `translateY(${mobileTranslateY}%)`,
                         opacity: mobileOpacity,
@@ -414,7 +414,7 @@ export const Settings = ({
             {/* Desktop Container - Keep backdrop for desktop only */}
             <div className="hidden md:block">
                 <div
-                    className={`fixed inset-0 z-50 flex items-start justify-center transition-all duration-300 ease-out ${isVisible
+                    className={`fixed inset-0 z-60 flex items-start justify-center transition-all duration-300 ease-out ${isVisible
                         ? 'visible pointer-events-auto'
                         : 'invisible pointer-events-none'
                         }`}
@@ -422,7 +422,7 @@ export const Settings = ({
                 >
                     <div className="max-w-315 w-full relative">
                         <div
-                            className={`absolute right-2 top-2 z-50 py-3 pl-3 pr-5
+                            className={`absolute right-2 top-2 z-60 py-3 pl-3 pr-5
                             flex flex-col rounded-xl
                             border border-tertiary/20
                             shadow-[0_2px_4px_0] shadow-themewhite2/20

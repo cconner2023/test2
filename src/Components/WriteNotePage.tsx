@@ -8,7 +8,9 @@ import { NoteBarcodeGenerator } from './Barcode';
 import { DecisionMaking } from './DecisionMaking';
 
 export type DispositionType = dispositionType['type'];
-export type NoteViewState = 'input' | 'preview' | 'copied' | 'share';
+
+const PAGE_LABELS = ['Decision Making', 'Write Note', 'View Note', 'Share Note'];
+const TOTAL_PAGES = 4;
 
 interface WriteNoteProps {
     disposition: {
@@ -38,16 +40,15 @@ export const WriteNotePage = ({
     isMobile = false,
 }: WriteNoteProps) => {
     // Note content state
-    const [viewState, setViewState] = useState<NoteViewState>('input');
     const [note, setNote] = useState<string>('');
     const [previewNote, setPreviewNote] = useState<string>('');
     const [includeAlgorithm, setIncludeAlgorithm] = useState<boolean>(true);
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState<boolean>(true);
     const [includeHPI, setIncludeHPI] = useState<boolean>(false);
-    const [previousViewState, setPreviousViewState] = useState<Exclude<NoteViewState, 'copied'>>('input');
     const [encodedValue, setEncodedValue] = useState<string>('');
+    const [isCopied, setIsCopied] = useState(false);
 
-    // Page navigation state (0 = Decision Making, 1 = Write Note)
+    // Page navigation state (0=Decision Making, 1=Write Note, 2=View Note, 3=Share Note)
     const [currentPage, setCurrentPage] = useState(0);
 
     // Bottom sheet state (mobile)
@@ -87,15 +88,15 @@ export const WriteNotePage = ({
 
     // --- Copied state auto-revert ---
     useEffect(() => {
-        if (viewState === 'copied') {
-            const id = window.setTimeout(() => setViewState(previousViewState), 2000);
+        if (isCopied) {
+            const id = window.setTimeout(() => setIsCopied(false), 2000);
             return () => clearTimeout(id);
         }
-    }, [viewState, previousViewState]);
+    }, [isCopied]);
 
-    // --- Preview note generation ---
+    // --- Preview note generation (triggers when on View Note page) ---
     useEffect(() => {
-        if (viewState === 'preview') {
+        if (currentPage === 2) {
             const result = generateNote(
                 { includeAlgorithm, includeDecisionMaking, customNote: includeHPI ? note : '' },
                 disposition.type,
@@ -104,7 +105,7 @@ export const WriteNotePage = ({
             );
             setPreviewNote(result.fullNote);
         }
-    }, [viewState, note, includeAlgorithm, includeDecisionMaking, includeHPI, generateNote, disposition, selectedSymptom]);
+    }, [currentPage, note, includeAlgorithm, includeDecisionMaking, includeHPI, generateNote, disposition, selectedSymptom]);
 
     // --- Close handler (animate out then unmount) ---
     const handleClose = useCallback(() => {
@@ -117,10 +118,9 @@ export const WriteNotePage = ({
     }, [isMobile, onExpansionChange]);
 
     // --- Copy handler ---
-    const handleCopyToClipboard = useCallback((text: string, fromView: Exclude<NoteViewState, 'copied'>) => {
+    const handleCopy = useCallback((text: string) => {
         navigator.clipboard.writeText(text);
-        setPreviousViewState(fromView);
-        setViewState('copied');
+        setIsCopied(true);
         onNoteSave?.(text);
     }, [onNoteSave]);
 
@@ -130,10 +130,19 @@ export const WriteNotePage = ({
         inputRef.current?.focus();
     };
 
+    // --- Page navigation ---
+    const handleNext = useCallback(() => {
+        setCurrentPage(prev => Math.min(TOTAL_PAGES - 1, prev + 1));
+    }, []);
+
+    const handlePageBack = useCallback(() => {
+        setCurrentPage(prev => Math.max(0, prev - 1));
+    }, []);
+
     // ========== SHEET DRAG HANDLERS (swipe-down-to-close, mobile only) ==========
-    const handleSheetDragStart = useCallback((e: React.TouchEvent) => {
+    const handleSheetDragStart = useCallback((e: React.TouchEvent | React.MouseEvent) => {
         if (!isMobile) return;
-        const y = e.touches[0].clientY;
+        const y = 'touches' in e ? e.touches[0].clientY : e.clientY;
         sheetDragStartY.current = y;
         sheetDragActive.current = true;
         sheetVelocity.current = 0;
@@ -141,9 +150,9 @@ export const WriteNotePage = ({
         sheetLastTime.current = performance.now();
     }, [isMobile]);
 
-    const handleSheetDragMove = useCallback((e: React.TouchEvent) => {
+    const handleSheetDragMove = useCallback((e: React.TouchEvent | React.MouseEvent) => {
         if (!sheetDragActive.current || !isMobile) return;
-        const y = e.touches[0].clientY;
+        const y = 'touches' in e ? e.touches[0].clientY : e.clientY;
         const dy = y - sheetDragStartY.current;
 
         const now = performance.now();
@@ -217,7 +226,7 @@ export const WriteNotePage = ({
             let dragX = dx * 0.85;
             // Resistance at edges
             if (currentPage === 0 && dragX > 0) dragX *= 0.25;
-            if (currentPage === 1 && dragX < 0) dragX *= 0.25;
+            if (currentPage === TOTAL_PAGES - 1 && dragX < 0) dragX *= 0.25;
             setPageDragX(dragX);
         }
     }, [isMobile, currentPage]);
@@ -234,116 +243,12 @@ export const WriteNotePage = ({
         const threshold = containerWidth * 0.2;
 
         if (pageDragX < -threshold || pageVelocityX.current < -0.3) {
-            setCurrentPage(prev => Math.min(1, prev + 1));
+            setCurrentPage(prev => Math.min(TOTAL_PAGES - 1, prev + 1));
         } else if (pageDragX > threshold || pageVelocityX.current > 0.3) {
             setCurrentPage(prev => Math.max(0, prev - 1));
         }
         setPageDragX(0);
     }, [isMobile, pageDragX]);
-
-    // ========== RENDER HELPERS ==========
-    const renderInputView = () => (
-        <div key="input" className="space-y-6">
-            <div className="p-4">
-                <div className="text-[10pt] font-normal text-primary mb-3">Note Content:</div>
-                <div className="space-y-3">
-                    <ToggleOption checked={includeAlgorithm} onChange={() => setIncludeAlgorithm(!includeAlgorithm)} label="Algorithm" colors={colors} />
-                    <ToggleOption checked={includeDecisionMaking} onChange={() => setIncludeDecisionMaking(!includeDecisionMaking)} label="Decision Making" colors={colors} />
-
-                    {!includeHPI && (
-                        <ToggleOption
-                            checked={includeHPI}
-                            onChange={() => { setIncludeHPI(true); setTimeout(() => inputRef.current?.focus(), 100); }}
-                            label="HPI or other clinical note"
-                            colors={colors}
-                        />
-                    )}
-
-                    {includeHPI && (
-                        <div className="transition-all duration-200 ease-in-out">
-                            <div className="flex items-center justify-center transition-all duration-300 bg-themewhite text-tertiary rounded-md border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
-                                <textarea
-                                    ref={inputRef}
-                                    value={note}
-                                    onChange={(e) => setNote(e.target.value)}
-                                    className="text-tertiary bg-transparent outline-none text-[16px] md:text-[8pt] w-full px-4 py-2 rounded-l-full min-w-0 resize-none h-10 leading-5"
-                                />
-                                <div
-                                    className="flex items-center justify-center px-2 py-2 bg-transparent stroke-themeblue3 cursor-pointer transition-all duration-300 shrink-0"
-                                    onClick={handleClearNoteAndHide}
-                                    title="Remove HPI and clear notes"
-                                    aria-label="Remove HPI and clear notes"
-                                >
-                                    <svg className="h-5 w-5 stroke-themeblue1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                </div>
-                            </div>
-                            <div className="flex justify-between items-center mt-2">
-                                <p className="text-xs text-secondary italic">Enter your HPI or other clinical notes above</p>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-
-    const renderShareView = () => (
-        <div key="share" className="space-y-6">
-            <div className="p-2 text-[10pt] font-normal text-primary">Share Encoded Note</div>
-            <div className="relative">
-                <NoteBarcodeGenerator
-                    algorithmOptions={algorithmOptions}
-                    cardStates={cardStates}
-                    noteOptions={{
-                        includeAlgorithm,
-                        includeDecisionMaking,
-                        customNote: includeHPI ? note : ''
-                    }}
-                    symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
-                    onEncodedValueChange={setEncodedValue}
-                />
-                <CopyButton onClick={() => handleCopyToClipboard(encodedValue, 'share')} title="Copy encoded value" />
-            </div>
-        </div>
-    );
-
-    const renderPreviewView = () => (
-        <div key="preview" className="space-y-6">
-            <div className="flex items-center justify-between">
-                <div className="text-xs font-normal text-primary">Note Preview</div>
-                <div className="flex items-center gap-1 text-[9px]">
-                    {includeAlgorithm && <span className={`px-2 py-2 rounded-md ${colors.symptomClass}`}>Algorithm</span>}
-                    {includeAlgorithm && includeDecisionMaking && <span className="text-tertiary mx-1">•</span>}
-                    {includeDecisionMaking && <span className={`px-2 py-2 rounded-md ${colors.symptomClass}`}>Decision Making</span>}
-                    {(includeAlgorithm || includeDecisionMaking) && includeHPI && <span className="text-tertiary mx-1">•</span>}
-                    {includeHPI && <span className={`px-2 py-2 rounded-md ${colors.symptomClass}`}>HPI</span>}
-                    {(!includeAlgorithm && !includeDecisionMaking && !includeHPI) && <span className="text-tertiary">No content selected</span>}
-                </div>
-            </div>
-            <div className="relative">
-                <div className="w-full max-h-96 p-3 rounded-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap overflow-y-auto">
-                    {previewNote || "No content selected"}
-                </div>
-                <CopyButton onClick={() => handleCopyToClipboard(previewNote, 'preview')} title="Copy note to clipboard" />
-            </div>
-        </div>
-    );
-
-    const renderCopiedView = () => (
-        <div key="copied" className="flex flex-col items-center justify-center h-full">
-            <div className="mb-4">
-                <div className={`w-16 h-16 rounded-full ${colors.symptomClass} flex items-center justify-center`}>
-                    <CheckIcon />
-                </div>
-            </div>
-            <div className="text-center">
-                <h3 className="text-base font-semibold text-primary">Copied to Clipboard</h3>
-                <p className="text-sm text-tertiary mt-1">Returning to {previousViewState}...</p>
-            </div>
-        </div>
-    );
 
     // ========== MAIN RENDER ==========
     const backdropOpacity = Math.max(0, (1 - sheetPosition / 100) * 0.4);
@@ -392,33 +297,43 @@ export const WriteNotePage = ({
                         onTouchStart={handleSheetDragStart}
                         onTouchMove={handleSheetDragMove}
                         onTouchEnd={handleSheetDragEnd}
+                        onMouseDown={handleSheetDragStart}
+                        onMouseMove={handleSheetDragMove}
+                        onMouseUp={handleSheetDragEnd}
+                        onMouseLeave={handleSheetDragEnd}
                     >
                         <div className="w-10 h-1 rounded-full bg-themegray1/50" />
                     </div>
                 )}
 
-                {/* Header with page labels + close */}
+                {/* Header: page title + step dots + close */}
                 <div
                     className="flex items-center justify-between px-4 py-2 border-b border-themegray1/20 bg-themewhite2"
                     style={isMobile ? { touchAction: 'none' } : {}}
                     onTouchStart={isMobile ? handleSheetDragStart : undefined}
                     onTouchMove={isMobile ? handleSheetDragMove : undefined}
                     onTouchEnd={isMobile ? handleSheetDragEnd : undefined}
+                    onMouseDown={isMobile ? handleSheetDragStart : undefined}
+                    onMouseMove={isMobile ? handleSheetDragMove : undefined}
+                    onMouseUp={isMobile ? handleSheetDragEnd : undefined}
+                    onMouseLeave={isMobile ? handleSheetDragEnd : undefined}
                 >
-                    <div className="flex gap-1 flex-1">
-                        {(['Decision Making', 'Write Note'] as const).map((label, idx) => (
-                            <button
-                                key={label}
-                                onClick={() => setCurrentPage(idx)}
-                                className={`relative flex-1 py-2 text-sm font-medium transition-all duration-200
-                                    ${currentPage === idx ? 'text-primary' : 'text-tertiary hover:text-primary'}`}
-                            >
-                                {label}
-                                {currentPage === idx && (
-                                    <div className={`absolute bottom-0 left-0 right-0 h-0.5 rounded-full transition-all duration-200 ${colors.symptomClass}`} />
-                                )}
-                            </button>
-                        ))}
+                    <div className="flex flex-col gap-1.5 flex-1">
+                        <span className="text-sm font-medium text-primary">{PAGE_LABELS[currentPage]}</span>
+                        <div className="flex gap-1.5">
+                            {PAGE_LABELS.map((_, idx) => (
+                                <div
+                                    key={idx}
+                                    className={`h-1 rounded-full transition-all duration-300 ${
+                                        idx === currentPage
+                                            ? `w-4 ${colors.symptomClass}`
+                                            : idx < currentPage
+                                                ? `w-1.5 ${colors.symptomClass} opacity-40`
+                                                : 'w-1.5 bg-themegray1/30'
+                                    }`}
+                                />
+                            ))}
+                        </div>
                     </div>
                     <button
                         onClick={handleClose}
@@ -435,7 +350,7 @@ export const WriteNotePage = ({
                 {/* Swipeable Content Area */}
                 <div
                     ref={contentRef}
-                    className="flex-1 overflow-hidden"
+                    className="flex-1 overflow-hidden relative"
                     style={{ touchAction: isMobile ? 'pan-y' : 'auto' }}
                     onTouchStart={isMobile ? handleContentTouchStart : undefined}
                     onTouchMove={isMobile ? handleContentTouchMove : undefined}
@@ -458,30 +373,127 @@ export const WriteNotePage = ({
                             />
                         </div>
 
-                        {/* Page 1: Write Note */}
+                        {/* Page 1: Write Note Options */}
                         <div className={`w-full h-full shrink-0 overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-10' : ''}`}>
-                            {viewState === 'input' && renderInputView()}
-                            {viewState === 'share' && renderShareView()}
-                            {viewState === 'preview' && renderPreviewView()}
-                            {viewState === 'copied' && renderCopiedView()}
+                            <div className="space-y-6">
+                                <div className="p-4">
+                                    <div className="text-[10pt] font-normal text-primary mb-3">Note Content:</div>
+                                    <div className="space-y-3">
+                                        <ToggleOption checked={includeAlgorithm} onChange={() => setIncludeAlgorithm(!includeAlgorithm)} label="Algorithm" colors={colors} />
+                                        <ToggleOption checked={includeDecisionMaking} onChange={() => setIncludeDecisionMaking(!includeDecisionMaking)} label="Decision Making" colors={colors} />
+
+                                        {!includeHPI && (
+                                            <ToggleOption
+                                                checked={includeHPI}
+                                                onChange={() => { setIncludeHPI(true); setTimeout(() => inputRef.current?.focus(), 100); }}
+                                                label="HPI or other clinical note"
+                                                colors={colors}
+                                            />
+                                        )}
+
+                                        {includeHPI && (
+                                            <div className="transition-all duration-200 ease-in-out">
+                                                <div className="flex items-center justify-center transition-all duration-300 bg-themewhite text-tertiary rounded-md border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
+                                                    <textarea
+                                                        ref={inputRef}
+                                                        value={note}
+                                                        onChange={(e) => setNote(e.target.value)}
+                                                        className="text-tertiary bg-transparent outline-none text-[16px] md:text-[8pt] w-full px-4 py-2 rounded-l-full min-w-0 resize-none h-10 leading-5"
+                                                    />
+                                                    <div
+                                                        className="flex items-center justify-center px-2 py-2 bg-transparent stroke-themeblue3 cursor-pointer transition-all duration-300 shrink-0"
+                                                        onClick={handleClearNoteAndHide}
+                                                        title="Remove HPI and clear notes"
+                                                        aria-label="Remove HPI and clear notes"
+                                                    >
+                                                        <svg className="h-5 w-5 stroke-themeblue1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-between items-center mt-2">
+                                                    <p className="text-xs text-secondary italic">Enter your HPI or other clinical notes above</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Page 2: View Note */}
+                        <div className={`w-full h-full shrink-0 overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-10' : ''}`}>
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between">
+                                    <div className="text-xs font-normal text-primary">Note Preview</div>
+                                    <div className="flex items-center gap-1 text-[9px]">
+                                        {includeAlgorithm && <span className={`px-2 py-2 rounded-md ${colors.symptomClass}`}>Algorithm</span>}
+                                        {includeAlgorithm && includeDecisionMaking && <span className="text-tertiary mx-1">•</span>}
+                                        {includeDecisionMaking && <span className={`px-2 py-2 rounded-md ${colors.symptomClass}`}>Decision Making</span>}
+                                        {(includeAlgorithm || includeDecisionMaking) && includeHPI && <span className="text-tertiary mx-1">•</span>}
+                                        {includeHPI && <span className={`px-2 py-2 rounded-md ${colors.symptomClass}`}>HPI</span>}
+                                        {(!includeAlgorithm && !includeDecisionMaking && !includeHPI) && <span className="text-tertiary">No content selected</span>}
+                                    </div>
+                                </div>
+                                <div className="relative">
+                                    <div className="w-full max-h-96 p-3 rounded-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap overflow-y-auto">
+                                        {previewNote || "No content selected"}
+                                    </div>
+                                    <CopyButton onClick={() => handleCopy(previewNote)} title="Copy note to clipboard" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Page 3: Share Note */}
+                        <div className={`w-full h-full shrink-0 overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-10' : ''}`}>
+                            <div className="space-y-6">
+                                <div className="text-[10pt] font-normal text-primary">Share Encoded Note</div>
+                                <div className="relative">
+                                    <NoteBarcodeGenerator
+                                        algorithmOptions={algorithmOptions}
+                                        cardStates={cardStates}
+                                        noteOptions={{
+                                            includeAlgorithm,
+                                            includeDecisionMaking,
+                                            customNote: includeHPI ? note : ''
+                                        }}
+                                        symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
+                                        onEncodedValueChange={setEncodedValue}
+                                    />
+                                    <CopyButton onClick={() => handleCopy(encodedValue)} title="Copy encoded value" />
+                                </div>
+                            </div>
                         </div>
                     </div>
+
+                    {/* Copied toast */}
+                    {isCopied && (
+                        <div className="absolute inset-x-0 top-4 flex justify-center pointer-events-none z-10">
+                            <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${colors.symptomClass} shadow-lg`}>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-sm font-medium">Copied to Clipboard</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
-                {/* Action Buttons (Write Note page only) */}
-                {currentPage === 1 && (
-                    <ActionButtons
-                        viewState={viewState}
-                        colors={colors}
-                        onBack={() => {
-                            if (viewState === 'share') setViewState('preview');
-                            else setViewState('input');
-                        }}
-                        onViewNote={() => setViewState('preview')}
-                        onShare={() => setViewState('share')}
-                        onDone={handleClose}
-                    />
-                )}
+                {/* Footer with navigation buttons */}
+                <div className="flex items-center gap-2 justify-between p-4 shrink-0">
+                    {currentPage > 0 ? (
+                        <TextButton text="← Back" onClick={handlePageBack} variant="dispo-specific" className="bg-themewhite3 text-tertiary rounded-full" />
+                    ) : (
+                        <div />
+                    )}
+                    <div className="flex items-center gap-2">
+                        {currentPage < TOTAL_PAGES - 1 ? (
+                            <TextButton text="Next →" onClick={handleNext} variant="dispo-specific" className={`${colors.buttonClass} rounded-full`} />
+                        ) : (
+                            <TextButton text="Done" onClick={handleClose} variant="dispo-specific" className={`${colors.buttonClass} rounded-full`} />
+                        )}
+                    </div>
+                </div>
             </div>
         </div>
     );
@@ -523,34 +535,4 @@ const CopyButton: React.FC<{ onClick: () => void; title: string }> = ({ onClick,
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
         </svg>
     </button>
-);
-
-const CheckIcon: React.FC = () => (
-    <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-    </svg>
-);
-
-const ActionButtons: React.FC<{
-    viewState: NoteViewState;
-    colors: any;
-    onBack: () => void;
-    onViewNote: () => void;
-    onShare: () => void;
-    onDone: () => void;
-}> = ({ viewState, colors, onBack, onViewNote, onShare, onDone }) => (
-    <div className="flex items-start gap-2 justify-end p-4 shrink-0">
-        {(viewState === 'preview' || viewState === 'share') && (
-            <TextButton text="← Back" onClick={onBack} variant="dispo-specific" className='bg-themewhite3 text-tertiary rounded-full' />
-        )}
-        {viewState === 'input' && (
-            <TextButton text="View Note" onClick={onViewNote} variant="dispo-specific" className={`${colors.buttonClass} rounded-full`} />
-        )}
-        {viewState === 'preview' && (
-            <TextButton text="Share" onClick={onShare} variant="dispo-specific" className={`${colors.buttonClass} rounded-full`} />
-        )}
-        {viewState === 'share' && (
-            <TextButton text="Done" onClick={onDone} variant="dispo-specific" className={`${colors.buttonClass} rounded-full`} />
-        )}
-    </div>
 );

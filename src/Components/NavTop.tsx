@@ -58,6 +58,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
     // Menu morph: staggered item visibility
     const [itemsVisible, setItemsVisible] = useState(false);
+    const [menuHeight, setMenuHeight] = useState(46); // Default closed height
 
     useEffect(() => {
         if (isMenuOpen) {
@@ -67,6 +68,19 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
             setItemsVisible(false);
         }
     }, [isMenuOpen]);
+
+    // Calculate dynamic height for the menu
+    useEffect(() => {
+        if (isMenuOpen) {
+            // Calculate total height: button space + menu items height + padding
+            const buttonSpace = 60; // Space for button at the top
+            const menuItemsHeight = menuData.length * 48; // Approx 48px per item
+            const padding = 24; // Top and bottom padding
+            setMenuHeight(buttonSpace + menuItemsHeight + padding);
+        } else {
+            setMenuHeight(46); // Closed state height
+        }
+    }, [isMenuOpen, menuData.length]);
 
     // Menu item click handler
     const handleMenuItemClick = (action: string) => {
@@ -173,101 +187,150 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                 />
                             )}
 
-                            {/* Morphing container: button → menu panel */}
+                            {/* Morphing container with liquid glass effect */}
                             <div
                                 className={`
                                     absolute top-0 left-0 z-50
-                                    border border-tertiary/20
-                                    backdrop-blur-md
                                     transform-gpu
                                     overflow-hidden
-                                    transition-all duration-300
+                                    transition-all duration-800
                                     ${isMenuOpen
-                                        ? 'w-56 rounded-xl bg-themewhite/95 shadow-[0_8px_30px_-4px_rgba(0,0,0,0.18)] py-3 pl-3 pr-5 translate-y-2'
-                                        : 'w-11.5 h-11.5 rounded-full bg-transparent p-0.5 translate-y-0'
+                                        ? 'rounded-3xl bg-transparent shadow-[0_8px_30px_-4px_rgba(0,0,0,0.18)] py-3 pl-3 pr-5 translate-y-2'
+                                        : 'rounded-full bg-transparent p-0.5 translate-y-0'
                                     }
                                 `}
                                 style={{
                                     transformOrigin: 'top left',
-                                    maxHeight: isMenuOpen ? '400px' : '46px',
+                                    width: isMenuOpen ? '240px' : '46px',
+                                    height: `${menuHeight}px`,
+                                    maxHeight: isMenuOpen ? '500px' : '46px',
                                     transitionTimingFunction: isMenuOpen
-                                        ? 'cubic-bezier(0.2, 1.2, 0.4, 1)'
+                                        ? 'cubic-bezier(0.175, 0.885, 0.32, 2.2)'
                                         : 'cubic-bezier(0.4, 0.1, 0.3, 1)',
+                                    background: isMenuOpen
+                                        ? 'linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0.2))'
+                                        : 'transparent',
+                                    backdropFilter: isMenuOpen ? 'blur(30px) saturate(1.2)' : 'none',
+                                    border: '1px solid rgba(255,255,255,0.25)',
+                                    boxShadow: '0 6px 6px rgba(0,0,0,0.2), 0 0 20px rgba(0,0,0,0.1)',
+                                    backgroundSize: '200% 200%',
+                                    animation: isMenuOpen ? 'liquid-flow 15s ease infinite' : 'none',
                                 }}
                             >
-                                {/* Toggle button: hamburger ↔ X crossfade */}
-                                <button
-                                    onClick={isMenuOpen ? onMenuClose : onMenuClick}
-                                    className={`
-                                        w-10 h-10 rounded-full flex items-center justify-center
-                                        text-tertiary hover:text-primary transition-all duration-200
-                                        ${isMenuOpen ? '' : 'active:scale-90'}
-                                    `}
-                                    aria-label={isMenuOpen ? "Close menu" : "Open menu"}
-                                >
-                                    <div className="relative w-5 h-5">
-                                        <Menu
-                                            className={`w-5 h-5 stroke-current absolute inset-0 transition-all duration-300
-                                                ${isMenuOpen ? 'opacity-0 rotate-90 scale-75' : 'opacity-100 rotate-0 scale-100'}`}
-                                        />
-                                        <X
-                                            className={`w-5 h-5 stroke-current absolute inset-0 transition-all duration-300
-                                                ${isMenuOpen ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-75'}`}
-                                        />
-                                    </div>
-                                </button>
-
-                                {/* Menu items: staggered fade-in */}
+                                {/* Liquid glass effect layers */}
                                 {isMenuOpen && (
-                                    <div className="mt-1 space-y-0.5">
-                                        {menuData.map((item, index) => (
-                                            <button
-                                                key={index}
-                                                onClick={() => handleMenuItemClick(item.action)}
-                                                className={`
-                                                    w-full text-left flex items-center pl-3 pr-4 py-3
-                                                    rounded-lg transition-all duration-300 ease-out
-                                                    cursor-pointer hover:bg-themeblue bg-transparent
-                                                    active:scale-95 transform-gpu
-                                                    ${itemsVisible
-                                                        ? "opacity-100 translate-y-0"
-                                                        : "opacity-0 translate-y-1"
-                                                    }
-                                                `}
-                                                style={{
-                                                    transitionDelay: itemsVisible
-                                                        ? `${index * 30}ms`
-                                                        : `${(menuData.length - index - 1) * 15}ms`,
-                                                }}
-                                            >
-                                                <div
-                                                    className="mr-3 transition-all duration-300 ease-out"
-                                                    style={{
-                                                        opacity: itemsVisible ? 1 : 0,
-                                                        transform: itemsVisible ? 'scale(1)' : 'scale(0.8)',
-                                                        transitionDelay: itemsVisible
-                                                            ? `${index * 30 + 10}ms`
-                                                            : `${(menuData.length - index - 1) * 15}ms`
-                                                    }}
-                                                >
-                                                    {iconMap[item.action] || <HelpCircle size={16} className="text-primary/70" />}
-                                                </div>
-                                                <span
-                                                    className="tracking-wide text-sm text-primary/80 transition-all duration-300 ease-out"
-                                                    style={{
-                                                        opacity: itemsVisible ? 1 : 0,
-                                                        transform: itemsVisible ? 'translateX(0)' : 'translateX(-8px)',
-                                                        transitionDelay: itemsVisible
-                                                            ? `${index * 30 + 10}ms`
-                                                            : `${(menuData.length - index - 1) * 15}ms`
-                                                    }}
-                                                >
-                                                    {item.text}
-                                                </span>
-                                            </button>
-                                        ))}
-                                    </div>
+                                    <>
+                                        <div className="liquid-glass-effect" />
+                                        <div className="liquid-glass-tint" />
+                                        <div className="liquid-glass-shine" />
+                                    </>
                                 )}
+
+                                {/* SVG filter for distortion effect */}
+                                <svg width="0" height="0" style={{ position: 'absolute' }}>
+                                    <defs>
+                                        <filter id="glass-distortion">
+                                            <feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" />
+                                            <feDisplacementMap in="SourceGraphic" scale="3" />
+                                        </filter>
+                                    </defs>
+                                </svg>
+
+                                <div className="relative w-full h-full">
+                                    {/* Toggle button with morphing position */}
+                                    <div
+                                        className={`
+                                            w-10 h-10 rounded-full flex items-center justify-center
+                                            text-tertiary hover:text-primary transition-all duration-800
+                                            ${isMenuOpen ? 'absolute' : ''}
+                                        `}
+                                        style={{
+                                            top: isMenuOpen ? '20px' : '0',
+                                            left: isMenuOpen ? '50%' : '0',
+                                            transform: isMenuOpen ? 'translateX(-50%)' : 'none',
+                                            transitionTimingFunction: 'cubic-bezier(0.175, 0.885, 0.32, 2.2)',
+                                        }}
+                                    >
+                                        <button
+                                            onClick={isMenuOpen ? onMenuClose : onMenuClick}
+                                            className="w-full h-full rounded-full flex items-center justify-center hover:bg-white/10 active:scale-90 transition-all duration-200"
+                                            aria-label={isMenuOpen ? "Close menu" : "Open menu"}
+                                        >
+                                            <div className="relative w-5 h-5">
+                                                <Menu
+                                                    className={`w-5 h-5 stroke-current absolute inset-0 transition-all duration-400
+                                                        ${isMenuOpen ? 'opacity-0 rotate-90 scale-75' : 'opacity-100 rotate-0 scale-100'}`}
+                                                />
+                                                <X
+                                                    className={`w-5 h-5 stroke-current absolute inset-0 transition-all duration-400
+                                                        ${isMenuOpen ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-75'}`}
+                                                />
+                                            </div>
+                                        </button>
+                                    </div>
+
+                                    {/* Menu items: staggered fade-in */}
+                                    {isMenuOpen && (
+                                        <div
+                                            className="mt-20 space-y-2 px-4"
+                                            style={{
+                                                opacity: itemsVisible ? 1 : 0,
+                                                transform: itemsVisible ? 'translateY(0)' : 'translateY(20px)',
+                                                transition: 'all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                                                transitionDelay: itemsVisible ? '0.2s' : '0s',
+                                                pointerEvents: itemsVisible ? 'auto' : 'none'
+                                            }}
+                                        >
+                                            {menuData.map((item, index) => (
+                                                <button
+                                                    key={index}
+                                                    onClick={() => handleMenuItemClick(item.action)}
+                                                    className={`
+                                                        w-full text-left flex items-center pl-3 pr-4 py-3
+                                                        rounded-xl transition-all duration-300
+                                                        cursor-pointer hover:bg-white/20 bg-transparent
+                                                        active:scale-95 transform-gpu
+                                                        border border-transparent hover:border-white/10
+                                                        ${itemsVisible
+                                                            ? "opacity-100 translate-y-0"
+                                                            : "opacity-0 translate-y-1"
+                                                        }
+                                                    `}
+                                                    style={{
+                                                        transitionDelay: itemsVisible
+                                                            ? `${index * 70}ms`
+                                                            : `${(menuData.length - index - 1) * 15}ms`,
+                                                    }}
+                                                >
+                                                    <div
+                                                        className="mr-3 transition-all duration-300"
+                                                        style={{
+                                                            opacity: itemsVisible ? 1 : 0,
+                                                            transform: itemsVisible ? 'scale(1)' : 'scale(0.8)',
+                                                            transitionDelay: itemsVisible
+                                                                ? `${index * 70 + 10}ms`
+                                                                : `${(menuData.length - index - 1) * 15}ms`
+                                                        }}
+                                                    >
+                                                        {iconMap[item.action] || <HelpCircle size={16} className="text-primary/70" />}
+                                                    </div>
+                                                    <span
+                                                        className="tracking-wide text-sm text-primary/80 transition-all duration-300"
+                                                        style={{
+                                                            opacity: itemsVisible ? 1 : 0,
+                                                            transform: itemsVisible ? 'translateX(0)' : 'translateX(-8px)',
+                                                            transitionDelay: itemsVisible
+                                                                ? `${index * 70 + 10}ms`
+                                                                : `${(menuData.length - index - 1) * 15}ms`
+                                                        }}
+                                                    >
+                                                        {item.text}
+                                                    </span>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -320,11 +383,10 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
             )}
 
             {/* Search Container - shrink-0 on mobile (flex-1 when expanded), flex-1 on desktop */}
-            <div className={`flex items-center min-w-0 ${
-                isMobile
-                    ? (isSearchExpanded ? 'flex-1' : 'shrink-0 justify-end')
-                    : 'flex-1 justify-center'
-            }`}>
+            <div className={`flex items-center min-w-0 ${isMobile
+                ? (isSearchExpanded ? 'flex-1' : 'shrink-0 justify-end')
+                : 'flex-1 justify-center'
+                }`}>
                 {/* Mobile expanded search */}
                 {isMobile && isSearchExpanded && (
                     <div
@@ -399,10 +461,10 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                         <div className="rounded-full bg-transparent border border-tertiary/20 flex items-center justify-center p-0.5">
                             {/* Info button wrapper that animates width and opacity */}
                             <div className={`
-                transition-all duration-300 ease-out overflow-hidden
-                ${shouldShowInfoButton ? 'w-10 opacity-100' : 'w-0 opacity-0'}
-                flex items-center justify-center
-            `}>
+                                transition-all duration-300 ease-out overflow-hidden
+                                ${shouldShowInfoButton ? 'w-10 opacity-100' : 'w-0 opacity-0'}
+                                flex items-center justify-center
+                            `}>
                                 {shouldShowInfoButton && (
                                     <button
                                         onClick={onInfoClick}

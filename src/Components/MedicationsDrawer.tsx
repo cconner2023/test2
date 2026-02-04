@@ -71,7 +71,7 @@ const MedicationsContent = ({ selectedMedication, onMedicationSelect, onClose }:
         </div>
 
         {/* Content */}
-        <div className="overflow-y-auto h-[calc(85vh-80px)] md:overflow-y-auto md:h-[60vh]">
+        <div className="overflow-y-auto h-[calc(100dvh-80px)] md:overflow-y-auto md:h-[60vh]">
             {selectedMedication ? (
                 <MedicationPage medication={selectedMedication} />
             ) : (
@@ -254,7 +254,7 @@ export function MedicationsDrawer({
                 {/* Backdrop */}
                 {isVisible && (
                     <div
-                        className={`fixed inset-0 z-30 bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
+                        className={`fixed inset-0 z-55 bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
                         style={{
                             opacity: backdropOpacity,
                             pointerEvents: drawerPosition > 10 ? 'auto' : 'none'
@@ -264,10 +264,10 @@ export function MedicationsDrawer({
                 )}
 
                 <div
-                    className={`fixed left-0 right-0 z-40 bg-themewhite3 shadow-2xl ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
+                    className={`fixed left-0 right-0 z-60 bg-themewhite3 shadow-2xl ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
                     style={{
-                        height: '92vh',
-                        maxHeight: '92vh',
+                        height: '100dvh',
+                        maxHeight: '100dvh',
                         bottom: 0,
                         transform: `translateY(${mobileTranslateY}%)`,
                         opacity: mobileOpacity,
@@ -292,7 +292,7 @@ export function MedicationsDrawer({
             {/* Desktop Container — aligned to left edge of content container */}
             <div className="hidden md:block">
                 <div
-                    className={`fixed inset-0 z-50 flex items-start justify-center transition-all duration-300 ease-out ${isVisible
+                    className={`fixed inset-0 z-60 flex items-start justify-center transition-all duration-300 ease-out ${isVisible
                         ? 'visible pointer-events-auto'
                         : 'invisible pointer-events-none'
                         }`}
@@ -300,7 +300,7 @@ export function MedicationsDrawer({
                 >
                     <div className="max-w-315 w-full relative">
                         <div
-                            className={`absolute left-2 top-2 z-50
+                            className={`absolute left-2 top-2 z-60
                             flex flex-col rounded-xl
                             border border-tertiary/20
                             shadow-[0_2px_4px_0] shadow-themewhite2/20

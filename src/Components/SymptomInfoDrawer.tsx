@@ -168,7 +168,7 @@ export function SymptomInfoDrawer({
         <>
             {/* Backdrop */}
             <div
-                className={`fixed inset-0 bg-black z-40 md:hidden ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
+                className={`fixed inset-0 bg-black z-55 md:hidden ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
                 style={{
                     opacity: backdropOpacity,
                     pointerEvents: drawerPosition > 10 ? 'auto' : 'none'
@@ -179,10 +179,10 @@ export function SymptomInfoDrawer({
             {/* Drawer */}
             <div
                 ref={drawerRef}
-                className={`fixed left-0 right-0 z-50 bg-themewhite flex flex-col md:hidden ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
+                className={`fixed left-0 right-0 z-60 bg-themewhite flex flex-col md:hidden ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
                 style={{
-                    height: '92vh',
-                    maxHeight: '92vh',
+                    height: '100dvh',
+                    maxHeight: '100dvh',
                     bottom: 0,
                     transform: `translateY(${mobileTranslateY}%)`,
                     opacity: mobileOpacity,
