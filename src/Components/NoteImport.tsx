@@ -1,10 +1,11 @@
 // components/NoteImport.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X } from 'lucide-react';
+import { X, Camera, ScanLine } from 'lucide-react';
 import { TextButton } from './TextButton';
 import { useNoteImport } from '../Hooks/useNoteImport';
+import { useBarcodeScanner } from '../Hooks/useBarcodeScanner';
 
-export type ViewState = 'input' | 'decoded' | 'copied';
+export type ViewState = 'input' | 'decoded' | 'scanning';
 
 interface NoteImportProps {
     isVisible: boolean;
@@ -18,21 +19,65 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
     const [inputText, setInputText] = useState<string>('');
     const [decodedText, setDecodedText] = useState<string>('');
     const [scanError, setScanError] = useState<string>('');
+    const [isCopied, setIsCopied] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+    const videoRef = useRef<HTMLVideoElement>(null);
 
     const { importFromBarcode } = useNoteImport();
+    const { isScanning, error: scannerError, result: scanResult, startScanning, stopScanning, clearResult } = useBarcodeScanner();
+
+    // Shared decode logic
+    const decodeBarcode = useCallback((text: string) => {
+        try {
+            const importedNote = importFromBarcode(text);
+            setDecodedText(importedNote);
+            setViewState('decoded');
+        } catch (error: any) {
+            setScanError(error.message || 'Failed to decode barcode');
+        }
+    }, [importFromBarcode]);
+
+    // Handle scan result
+    useEffect(() => {
+        if (scanResult) {
+            setInputText(scanResult);
+            clearResult();
+            decodeBarcode(scanResult);
+        }
+    }, [scanResult, clearResult, decodeBarcode]);
+
+    // Handle scanner error
+    useEffect(() => {
+        if (scannerError) {
+            setScanError(scannerError);
+            setViewState('input');
+        }
+    }, [scannerError]);
+
+    // Start camera scanning
+    const handleStartScan = () => {
+        setScanError('');
+        setViewState('scanning');
+        // Small delay to ensure video element is mounted
+        setTimeout(() => {
+            if (videoRef.current) {
+                startScanning(videoRef.current);
+            }
+        }, 100);
+    };
+
+    // Stop camera scanning
+    const handleStopScan = () => {
+        stopScanning();
+        setViewState('input');
+    };
 
     useEffect(() => {
-        let timeoutId: number;
-        if (viewState === 'copied') {
-            timeoutId = window.setTimeout(() => {
-                setViewState('decoded');
-            }, 2000);
+        if (isCopied) {
+            const timeoutId = window.setTimeout(() => setIsCopied(false), 2000);
+            return () => clearTimeout(timeoutId);
         }
-        return () => {
-            if (timeoutId) clearTimeout(timeoutId);
-        };
-    }, [viewState]);
+    }, [isCopied]);
 
     useEffect(() => {
         if (scanError && inputText) {
@@ -45,13 +90,7 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
             setScanError('Please enter or scan a barcode');
             return;
         }
-        try {
-            const importedNote = importFromBarcode(inputText);
-            setDecodedText(importedNote);
-            setViewState('decoded');
-        } catch (error: any) {
-            setScanError(error.message || 'Failed to decode barcode');
-        }
+        decodeBarcode(inputText);
     };
 
     const handleBack = () => {
@@ -61,14 +100,14 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
 
     const handleCopyText = () => {
         navigator.clipboard.writeText(decodedText);
-        setViewState('copied');
+        setIsCopied(true);
     };
 
     const getTitle = () => {
         switch (viewState) {
             case 'input': return 'Import Note';
             case 'decoded': return 'Screening Note';
-            case 'copied': return 'Import Note';
+            case 'scanning': return 'Scan Barcode';
             default: return 'Import Note';
         }
     };
@@ -108,7 +147,7 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
                                     value={inputText}
                                     onChange={(e) => setInputText(e.target.value)}
                                     className="w-full rounded-full p-2 pl-10 border border-themegray1 focus:bg-themewhite2 text-sm focus:outline-none bg-themewhite text-tertiary pr-10"
-                                    placeholder="Enter barcode string (e.g., A1|R1k|L2|S012|A0)"
+                                    placeholder="Enter barcode string or scan"
                                 />
                                 {inputText && (
                                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -118,9 +157,7 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
                                             className="p-1 text-tertiary"
                                             title="Clear input"
                                         >
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
+                                            <X size={16} />
                                         </button>
                                     </div>
                                 )}
@@ -131,7 +168,14 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
                                 </div>
                             )}
                         </div>
-                        <div className="flex gap-3 justify-end">
+                        <div className="flex gap-3 justify-between">
+                            <button
+                                onClick={handleStartScan}
+                                className="flex items-center gap-2 px-4 py-2 bg-themewhite2 text-secondary rounded-full text-sm font-medium hover:bg-themewhite transition-colors"
+                            >
+                                <Camera size={16} />
+                                Scan
+                            </button>
                             <TextButton
                                 text="Decode"
                                 onClick={handleSubmit}
@@ -142,45 +186,74 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
                     </div>
                 )}
 
+                {viewState === 'scanning' && (
+                    <div className="flex flex-col p-4 md:p-6 h-max min-h-60">
+                        <div className="relative rounded-xl overflow-hidden bg-black aspect-video mb-4">
+                            <video
+                                ref={videoRef}
+                                className="w-full h-full object-cover"
+                                playsInline
+                                muted
+                            />
+                            {/* Scanning overlay with animated line */}
+                            <div className="absolute inset-0 pointer-events-none">
+                                <div className="absolute inset-4 border-2 border-white/30 rounded-lg" />
+                                <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
+                                <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
+                            </div>
+                            {/* Loading indicator */}
+                            {isScanning && (
+                                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
+                                    Looking for PDF417 barcode...
+                                </div>
+                            )}
+                        </div>
+                        <div className="flex gap-3 justify-center">
+                            <TextButton
+                                text="Cancel"
+                                onClick={handleStopScan}
+                                variant='dispo-specific'
+                                className='bg-themewhite2 text-secondary rounded-full'
+                            />
+                        </div>
+                    </div>
+                )}
+
                 {viewState === 'decoded' && (
-                    <div className="flex flex-col p-4 md:p-6 min-h-20 h-max">
-                        <div className="mb-4">
-                            <div className="w-full h-max p-2 md:p-2 rounded border border-themegray1/20 bg-themewhite2 text-tertiary text-sm whitespace-pre-wrap wrap-break-word overflow-y-auto">
+                    <div className="flex flex-col p-4 md:p-6 min-h-20 h-max relative">
+                        {/* Copied toast */}
+                        {isCopied && (
+                            <div className="absolute inset-x-0 top-0 flex justify-center pointer-events-none z-10">
+                                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-themeblue2 text-white shadow-lg">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span className="text-sm font-medium">Copied to Clipboard</span>
+                                </div>
+                            </div>
+                        )}
+                        <div className="mb-4 relative">
+                            <div className="w-full h-max p-3 rounded-md border border-themegray1/20 bg-themewhite3 text-tertiary text-sm whitespace-pre-wrap wrap-break-word overflow-y-auto max-h-96">
                                 {decodedText || "No decoded text available"}
                             </div>
+                            {/* Inline copy button */}
+                            <button
+                                onClick={handleCopyText}
+                                className="absolute top-3 right-3 p-2 text-tertiary hover:text-primary transition-colors"
+                                title="Copy note to clipboard"
+                            >
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                            </button>
                         </div>
-                        <div className="flex items-center justify-between gap-3 mt-4">
+                        <div className="flex items-center justify-start gap-3 mt-4">
                             <TextButton
                                 text="← Back"
                                 onClick={handleBack}
                                 variant='dispo-specific'
                                 className='bg-themewhite2 text-secondary rounded-full'
                             />
-                            <div className="flex gap-3 w-auto">
-                                <TextButton
-                                    text="Copy Text"
-                                    onClick={handleCopyText}
-                                    variant='dispo-specific'
-                                    className='bg-themeblue3 text-white rounded-full'
-                                />
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {viewState === 'copied' && (
-                    <div className="flex flex-col items-center justify-center p-8 md:p-12 min-w-75 h-max">
-                        <div className="pt-2 pb-4">
-                            <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-themeblue2/10 flex items-center justify-center">
-                                <svg className="w-4 h-4 md:w-6 md:h-6 text-themeblue2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                </svg>
-                            </div>
-                        </div>
-                        <div className="text-center">
-                            <h3 className="text-md font-normal text-primary">
-                                Document Copied to Clipboard
-                            </h3>
                         </div>
                     </div>
                 )}
@@ -316,24 +389,11 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
 
     const mobileTranslateY = 100 - drawerPosition;
     const mobileOpacity = Math.min(1, drawerPosition / 60 + 0.2);
-    const backdropOpacity = Math.min(0.4, drawerPosition / 100 * 0.4);
 
     return (
         <>
-            {/* Mobile Container */}
+            {/* Mobile Container - NO BACKDROP */}
             <div ref={drawerRef} className="md:hidden">
-                {/* Backdrop */}
-                {isVisible && (
-                    <div
-                        className={`fixed inset-0 z-55 bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
-                        style={{
-                            opacity: backdropOpacity,
-                            pointerEvents: drawerPosition > 10 ? 'auto' : 'none'
-                        }}
-                        onClick={handleClose}
-                    />
-                )}
-
                 <div
                     className={`fixed left-0 right-0 z-60 bg-themewhite3 shadow-2xl ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
                     style={{

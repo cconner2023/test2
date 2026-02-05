@@ -236,7 +236,6 @@ export function MedicationsDrawer({
     // Mobile drawer styles
     const mobileTranslateY = 100 - drawerPosition;
     const mobileOpacity = Math.min(1, drawerPosition / 60 + 0.2);
-    const backdropOpacity = Math.min(0.4, drawerPosition / 100 * 0.4);
 
     const contentProps = {
         selectedMedication,
@@ -246,23 +245,11 @@ export function MedicationsDrawer({
 
     return (
         <>
-            {/* Mobile Container */}
+            {/* Mobile Container - NO BACKDROP */}
             <div
                 ref={drawerRef}
                 className="md:hidden"
             >
-                {/* Backdrop */}
-                {isVisible && (
-                    <div
-                        className={`fixed inset-0 z-55 bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
-                        style={{
-                            opacity: backdropOpacity,
-                            pointerEvents: drawerPosition > 10 ? 'auto' : 'none'
-                        }}
-                        onClick={handleClose}
-                    />
-                )}
-
                 <div
                     className={`fixed left-0 right-0 z-60 bg-themewhite3 shadow-2xl ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
                     style={{

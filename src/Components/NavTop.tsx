@@ -173,93 +173,123 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                 />
                             )}
 
-                            {/* Morphing container: button → menu panel */}
+                            {/* Morphing container: button → menu panel (liquid glass) */}
                             <div
                                 className={`
                                     absolute top-0 left-0 z-50
-                                    border border-tertiary/20
-                                    backdrop-blur-md
                                     transform-gpu
                                     overflow-hidden
-                                    transition-all duration-300
+                                    liquid-glass-menu
                                     ${isMenuOpen
-                                        ? 'w-56 rounded-xl bg-themewhite/95 shadow-[0_8px_30px_-4px_rgba(0,0,0,0.18)] py-3 pl-3 pr-5 translate-y-2'
-                                        : 'w-11.5 h-11.5 rounded-full bg-transparent p-0.5 translate-y-0'
+                                        ? 'rounded-2xl py-3 pl-3 pr-5'
+                                        : 'w-11.5 h-11.5 rounded-full p-0.5'
                                     }
                                 `}
                                 style={{
                                     transformOrigin: 'top left',
+                                    width: isMenuOpen ? '224px' : '46px',
                                     maxHeight: isMenuOpen ? '400px' : '46px',
-                                    transitionTimingFunction: isMenuOpen
-                                        ? 'cubic-bezier(0.25, 1.05, 0.5, 1)'
-                                        : 'cubic-bezier(0.4, 0.1, 0.3, 1)',
+                                    transform: isMenuOpen
+                                        ? 'translateX(4px)'
+                                        : 'translate(0, 0)',
+                                    transition: 'all 400ms',
+                                    transitionTimingFunction: 'cubic-bezier(0.175, 0.885, 0.32, 2.2)',
                                 }}
                             >
-                                {/* Toggle button: hamburger ↔ X crossfade */}
+                                {/* Liquid glass layers - theme responsive */}
+                                <div className="absolute inset-0 backdrop-blur-xl rounded-inherit" />
+                                <div
+                                    className="absolute inset-0 rounded-inherit liquid-glass-tint"
+                                    style={{ opacity: isMenuOpen ? 1 : 0.6 }}
+                                />
+                                <div className="absolute inset-0 rounded-inherit pointer-events-none liquid-glass-shine" />
+                                {/* Border overlay */}
+                                <div className="absolute inset-0 rounded-inherit pointer-events-none border border-tertiary/20" />
+                                {/* Toggle button: hamburger ↔ X crossfade with upward slide */}
                                 <button
                                     onClick={isMenuOpen ? onMenuClose : onMenuClick}
                                     className={`
+                                        relative z-10
                                         w-10 h-10 rounded-full flex items-center justify-center
-                                        text-tertiary hover:text-primary transition-all duration-200
-                                        ${isMenuOpen ? '' : 'active:scale-90'}
+                                        text-tertiary hover:text-primary transition-all
+                                        ${isMenuOpen ? '' : 'active:scale-95'}
                                     `}
+                                    style={{
+                                        transform: isMenuOpen ? 'translateY(-6px)' : 'translateY(0)',
+                                        transition: 'transform 500ms, color 200ms',
+                                        transitionTimingFunction: 'cubic-bezier(0.175, 0.885, 0.32, 1.8)',
+                                    }}
                                     aria-label={isMenuOpen ? "Close menu" : "Open menu"}
                                 >
                                     <div className="relative w-5 h-5">
                                         <Menu
-                                            className={`w-5 h-5 stroke-current absolute inset-0 transition-all duration-300
-                                                ${isMenuOpen ? 'opacity-0 rotate-90 scale-75' : 'opacity-100 rotate-0 scale-100'}`}
+                                            className={`w-5 h-5 stroke-current absolute inset-0 transition-all
+                                                ${isMenuOpen ? 'opacity-0 rotate-90 scale-50' : 'opacity-100 rotate-0 scale-100'}`}
+                                            style={{
+                                                transitionDuration: '400ms',
+                                                transitionTimingFunction: 'cubic-bezier(0.65, 0, 0.35, 1)',
+                                            }}
                                         />
                                         <X
-                                            className={`w-5 h-5 stroke-current absolute inset-0 transition-all duration-300
-                                                ${isMenuOpen ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-75'}`}
+                                            className={`w-5 h-5 stroke-current absolute inset-0 transition-all
+                                                ${isMenuOpen ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-50'}`}
+                                            style={{
+                                                transitionDuration: '400ms',
+                                                transitionTimingFunction: 'cubic-bezier(0.65, 0, 0.35, 1)',
+                                            }}
                                         />
                                     </div>
                                 </button>
 
-                                {/* Menu items: staggered fade-in */}
+                                {/* Menu items: staggered fade-in with spring */}
                                 {isMenuOpen && (
-                                    <div className="mt-1 space-y-0.5">
+                                    <div className="relative z-10 mt-1 space-y-0.5">
                                         {menuData.map((item, index) => (
                                             <button
                                                 key={index}
                                                 onClick={() => handleMenuItemClick(item.action)}
                                                 className={`
                                                     w-full text-left flex items-center pl-3 pr-4 py-3
-                                                    rounded-lg transition-all duration-300 ease-out
-                                                    cursor-pointer hover:bg-themeblue bg-transparent
-                                                    active:scale-95 transform-gpu
+                                                    rounded-xl transition-all
+                                                    cursor-pointer hover:bg-themewhite2/60 bg-transparent
+                                                    active:scale-[0.97] transform-gpu
                                                     ${itemsVisible
                                                         ? "opacity-100 translate-y-0"
-                                                        : "opacity-0 translate-y-1"
+                                                        : "opacity-0 translate-y-4"
                                                     }
                                                 `}
                                                 style={{
+                                                    transitionDuration: '500ms',
                                                     transitionDelay: itemsVisible
-                                                        ? `${index * 30}ms`
-                                                        : `${(menuData.length - index - 1) * 15}ms`,
+                                                        ? `${index * 70}ms`
+                                                        : `${(menuData.length - index - 1) * 20}ms`,
+                                                    transitionTimingFunction: 'cubic-bezier(0.33, 1, 0.68, 1)',
                                                 }}
                                             >
                                                 <div
-                                                    className="mr-3 transition-all duration-300 ease-out"
+                                                    className="mr-3 transition-all"
                                                     style={{
+                                                        transitionDuration: '400ms',
                                                         opacity: itemsVisible ? 1 : 0,
-                                                        transform: itemsVisible ? 'scale(1)' : 'scale(0.8)',
+                                                        transform: itemsVisible ? 'scale(1)' : 'scale(0.6)',
                                                         transitionDelay: itemsVisible
-                                                            ? `${index * 30 + 10}ms`
-                                                            : `${(menuData.length - index - 1) * 15}ms`
+                                                            ? `${index * 70 + 50}ms`
+                                                            : `${(menuData.length - index - 1) * 20}ms`,
+                                                        transitionTimingFunction: 'cubic-bezier(0.33, 1, 0.68, 1)',
                                                     }}
                                                 >
                                                     {iconMap[item.action] || <HelpCircle size={16} className="text-primary/70" />}
                                                 </div>
                                                 <span
-                                                    className="tracking-wide text-sm text-primary/80 transition-all duration-300 ease-out"
+                                                    className="tracking-wide text-sm text-primary/80 font-medium transition-all"
                                                     style={{
+                                                        transitionDuration: '400ms',
                                                         opacity: itemsVisible ? 1 : 0,
-                                                        transform: itemsVisible ? 'translateX(0)' : 'translateX(-8px)',
+                                                        transform: itemsVisible ? 'translateX(0)' : 'translateX(-12px)',
                                                         transitionDelay: itemsVisible
-                                                            ? `${index * 30 + 10}ms`
-                                                            : `${(menuData.length - index - 1) * 15}ms`
+                                                            ? `${index * 70 + 80}ms`
+                                                            : `${(menuData.length - index - 1) * 20}ms`,
+                                                        transitionTimingFunction: 'cubic-bezier(0.33, 1, 0.68, 1)',
                                                     }}
                                                 >
                                                     {item.text}

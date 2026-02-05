@@ -291,36 +291,24 @@ export function useNavigation() {
         return { title: "", show: false }
     }
 
+    // Shared condition: user has navigated away from main view
+    const hasActiveNavigation = Boolean(
+        state.showMedications ||
+        state.selectedCategory ||
+        state.selectedSymptom
+    )
+
     const shouldShowBackButton = (hasSearchInput: boolean, showNoteImport: boolean) => {
-        if (hasSearchInput) return false
-        if (showNoteImport) return false
+        if (hasSearchInput || showNoteImport) return false
         if (isMobile) {
-            return Boolean(
-                state.showMedications ||
-                state.selectedCategory ||
-                state.selectedSymptom
-            )
-        } else {
-            return Boolean(
-                state.selectedCategory ||
-                state.selectedSymptom
-            )
+            return hasActiveNavigation
         }
+        return Boolean(state.selectedCategory || state.selectedSymptom)
     }
 
     const shouldShowMenuButton = (hasSearchInput: boolean, showNoteImport: boolean) => {
-        if (showNoteImport || hasSearchInput) return false
-
-        if (isMobile) {
-            const shouldShowBack = Boolean(
-                state.showMedications ||
-                state.selectedCategory ||
-                state.selectedSymptom
-            )
-            return !shouldShowBack
-        } else {
-            return true
-        }
+        if (hasSearchInput || showNoteImport) return false
+        return isMobile ? !hasActiveNavigation : true
     }
 
     const getMedicationButtonText = () => "Medications"

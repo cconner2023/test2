@@ -14,6 +14,35 @@ export function useSearch() {
     const searchIndex = useMemo(() => {
         const items: SearchResultType[] = []
 
+        // Helper to add guideline items
+        const addGuidelines = (
+            guidelines: Array<{ id?: number; icon?: string; text?: string }> | undefined,
+            category: typeof catData[0],
+            symptom: NonNullable<typeof catData[0]['contents']>[0],
+            guidelineType: string,
+            resultType: 'training' | 'DDX',
+            defaultIcon: string
+        ) => {
+            guidelines?.forEach((guideline, index) => {
+                if (guideline?.text) {
+                    items.push({
+                        type: resultType,
+                        id: guideline.id ?? index,
+                        icon: guideline.icon || defaultIcon,
+                        text: guideline.text,
+                        data: {
+                            categoryId: category.id,
+                            symptomId: symptom.id,
+                            categoryRef: category,
+                            symptomRef: symptom,
+                            guidelineType,
+                            guidelineId: guideline.id ?? index
+                        }
+                    })
+                }
+            })
+        }
+
         // Categories
         catData.forEach(category => {
             items.push({
@@ -45,85 +74,11 @@ export function useSearch() {
                     }
                 })
 
-                // DDX items
-                symptom.DDX?.forEach((ddx, index) => {
-                    if (ddx?.text) {
-                        items.push({
-                            type: 'DDX',
-                            id: index,
-                            icon: 'DDX',
-                            text: ddx.text,
-                            data: {
-                                categoryId: category.id,
-                                symptomId: symptom.id,
-                                categoryRef: category,
-                                symptomRef: symptom,
-                                guidelineType: 'DDX',
-                                guidelineId: index
-                            }
-                        })
-                    }
-                })
-
-                // Medcom guidelines
-                symptom.medcom?.forEach(guideline => {
-                    if (guideline?.text) {
-                        items.push({
-                            type: 'training',
-                            id: guideline.id || 0,
-                            icon: guideline.icon || '💊',
-                            text: guideline.text,
-                            data: {
-                                categoryId: category.id,
-                                symptomId: symptom.id,
-                                categoryRef: category,
-                                symptomRef: symptom,
-                                guidelineType: 'medcom',
-                                guidelineId: guideline.id || 0
-                            }
-                        })
-                    }
-                })
-
-                // STP guidelines
-                symptom.stp?.forEach(guideline => {
-                    if (guideline?.text) {
-                        items.push({
-                            type: 'training',
-                            id: guideline.id || 0,
-                            icon: guideline.icon || '📋',
-                            text: guideline.text,
-                            data: {
-                                categoryId: category.id,
-                                symptomId: symptom.id,
-                                categoryRef: category,
-                                symptomRef: symptom,
-                                guidelineType: 'stp',
-                                guidelineId: guideline.id || 0
-                            }
-                        })
-                    }
-                })
-
-                // GEN guidelines
-                symptom.gen?.forEach((guideline, index) => {
-                    if (guideline?.text) {
-                        items.push({
-                            type: 'training',
-                            id: index,
-                            icon: '📝',
-                            text: guideline.text,
-                            data: {
-                                categoryId: category.id,
-                                symptomId: symptom.id,
-                                categoryRef: category,
-                                symptomRef: symptom,
-                                guidelineType: 'gen',
-                                guidelineId: index
-                            }
-                        })
-                    }
-                })
+                // Guidelines
+                addGuidelines(symptom.DDX, category, symptom, 'DDX', 'DDX', 'DDX')
+                addGuidelines(symptom.medcom, category, symptom, 'medcom', 'training', '💊')
+                addGuidelines(symptom.stp, category, symptom, 'stp', 'training', '📋')
+                addGuidelines(symptom.gen, category, symptom, 'gen', 'training', '📝')
             })
         })
 

@@ -162,21 +162,10 @@ export function SymptomInfoDrawer({
 
     const mobileTranslateY = 100 - drawerPosition;
     const mobileOpacity = Math.min(1, drawerPosition / 60 + 0.2);
-    const backdropOpacity = Math.min(0.4, drawerPosition / 100 * 0.4);
 
     return (
         <>
-            {/* Backdrop */}
-            <div
-                className={`fixed inset-0 bg-black z-55 md:hidden ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
-                style={{
-                    opacity: backdropOpacity,
-                    pointerEvents: drawerPosition > 10 ? 'auto' : 'none'
-                }}
-                onClick={handleClose}
-            />
-
-            {/* Drawer */}
+            {/* Mobile Drawer - NO BACKDROP */}
             <div
                 ref={drawerRef}
                 className={`fixed left-0 right-0 z-60 bg-themewhite flex flex-col md:hidden ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}

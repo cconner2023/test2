@@ -29,12 +29,16 @@ function AppContent() {
     search.clearSearch()
   }, [navigation, search])
 
+  const clearSearchAndCollapse = useCallback(() => {
+    search.clearSearch()
+    if (navigation.isMobile && navigation.isSearchExpanded) {
+      navigation.setSearchExpanded(false)
+    }
+  }, [search, navigation])
+
   const handleBackClick = () => {
     if (search.searchInput) {
-      search.clearSearch()
-      if (navigation.isMobile && navigation.isSearchExpanded) {
-        navigation.setSearchExpanded(false)
-      }
+      clearSearchAndCollapse()
     } else {
       navigation.handleBackClick()
     }
@@ -61,10 +65,7 @@ function AppContent() {
   }
 
   const handleClearSearch = () => {
-    search.clearSearch()
-    if (navigation.isMobile && navigation.isSearchExpanded) {
-      navigation.setSearchExpanded(false)
-    }
+    clearSearchAndCollapse()
   }
 
   // Settings click handler
