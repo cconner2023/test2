@@ -18,3 +18,5 @@ Update Todos
 [2] DONE - iOS/header theme - added system preference listener and dynamic theme-color meta tag update.
 [3] DONE - WriteNote footer buttons - increased mobile padding (px-6 pt-4 pb-6) with proper safe-area handling.
 [4] DONE - NavTop - removed redundant conditional (both branches rendered X icon), simplified clear handlers to use hasSearchInput directly, removed unused searchIconBehavior variable.
+[5] DONE - drawers (Settings, MedicationsDrawer, NoteImport) - backdrop already removed on mobile, changed height from 100dvh to 98dvh.
+[6] DONE - toggling theme updates iOS top bar - already addressed in [2] via dynamic theme-color meta tag update in ThemeContext.

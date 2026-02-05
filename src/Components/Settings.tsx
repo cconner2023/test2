@@ -384,8 +384,8 @@ export const Settings = ({
                     className={`fixed left-0 right-0 z-60 bg-themewhite3 shadow-2xl ${isDragging ? '' : 'transition-all duration-300 ease-out'
                         } ${slideClasses[slideDirection]}`}
                     style={{
-                        height: '100dvh',
-                        maxHeight: '100dvh',
+                        height: '98dvh',
+                        maxHeight: '98dvh',
                         bottom: 0,
                         transform: `translateY(${mobileTranslateY}%)`,
                         opacity: mobileOpacity,
