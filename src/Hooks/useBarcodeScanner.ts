@@ -62,9 +62,9 @@ export const useBarcodeScanner = () => {
             const reader = new BrowserMultiFormatReader();
             readerRef.current = reader;
 
-            // Continuous decode from video
-            reader.decodeFromVideoDevice(
-                undefined, // Use default device (we already have stream)
+            // Continuous decode from our managed stream (not decodeFromVideoDevice which creates its own)
+            reader.decodeFromStream(
+                stream,
                 video,
                 (result, error) => {
                     if (!scanningRef.current) return;

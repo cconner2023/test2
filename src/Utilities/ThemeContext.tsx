@@ -19,14 +19,26 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         // Only run on client side
         if (typeof window !== 'undefined') {
             const saved = localStorage.getItem('theme') as Theme;
+            const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
             if (saved === 'light' || saved === 'dark') {
                 setThemeState(saved);
             } else {
                 // Use system preference only if no saved preference
-                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                setThemeState(prefersDark ? 'dark' : 'light');
+                setThemeState(mediaQuery.matches ? 'dark' : 'light');
             }
+
+            // Listen for system theme preference changes
+            const handleSystemThemeChange = (e: MediaQueryListEvent) => {
+                const saved = localStorage.getItem('theme') as Theme;
+                // Only update if user hasn't set a manual preference
+                if (saved !== 'light' && saved !== 'dark') {
+                    setThemeState(e.matches ? 'dark' : 'light');
+                }
+            };
+
+            mediaQuery.addEventListener('change', handleSystemThemeChange);
+            return () => mediaQuery.removeEventListener('change', handleSystemThemeChange);
         }
     }, []);
 
@@ -35,6 +47,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
         if (theme && typeof window !== 'undefined') {
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
+
+            // Update iOS/Safari theme-color meta tag to match current theme
+            const themeColor = theme === 'dark' ? 'rgb(15, 25, 35)' : 'rgb(255, 251, 251)';
+            let metaThemeColor = document.querySelector('meta[name="theme-color"]');
+            if (metaThemeColor) {
+                metaThemeColor.setAttribute('content', themeColor);
+            } else {
+                metaThemeColor = document.createElement('meta');
+                metaThemeColor.setAttribute('name', 'theme-color');
+                metaThemeColor.setAttribute('content', themeColor);
+                document.head.appendChild(metaThemeColor);
+            }
         }
     }, [theme]);
 

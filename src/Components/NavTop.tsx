@@ -128,11 +128,6 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         }
     };
 
-    // Determine search icon behavior - simplified
-    const searchIconBehavior = isMobile
-        ? (isSearchExpanded ? (hasSearchInput ? 'clear' : 'collapse') : 'expand')
-        : (hasSearchInput ? 'clear' : 'default');
-
     // Button style constants - iOS standard tap target is 44px (w-11 h-11)
     const BUTTON_CLASSES = {
         mobileContainer: "rounded-full border border-tertiary/20 flex items-center p-0.5",
@@ -372,19 +367,9 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
                         <div
                             className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
-                            onClick={() => {
-                                if (searchIconBehavior === 'clear') {
-                                    handleClearSearch(false);
-                                } else if (searchIconBehavior === 'collapse') {
-                                    handleClearSearch(true);
-                                }
-                            }}
+                            onClick={() => handleClearSearch(!hasSearchInput)}
                         >
-                            {searchIconBehavior === 'clear' ? (
-                                <X className="w-5 h-5 stroke-themeblue1" />
-                            ) : (
-                                <X className="w-5 h-5 stroke-themeblue1" />
-                            )}
+                            <X className="w-5 h-5 stroke-themeblue1" />
                         </div>
                     </div>
                 )}
@@ -407,13 +392,9 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
                         <div
                             className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
-                            onClick={() => {
-                                if (searchIconBehavior === 'clear') {
-                                    handleClearSearch(false);
-                                }
-                            }}
+                            onClick={hasSearchInput ? () => handleClearSearch(false) : undefined}
                         >
-                            {searchIconBehavior === 'clear' ? (
+                            {hasSearchInput ? (
                                 <X className="w-5 h-5 stroke-themeblue1" />
                             ) : (
                                 <Search className="w-5 h-5 stroke-themeblue1 opacity-50" />

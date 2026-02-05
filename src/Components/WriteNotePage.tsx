@@ -481,8 +481,8 @@ export const WriteNotePage = ({
 
                 {/* Footer with navigation buttons */}
                 <div
-                    className="flex items-center gap-2 justify-between p-4 shrink-0"
-                    style={isMobile ? { paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 1rem))' } : {}}
+                    className={`flex items-center gap-2 justify-between shrink-0 ${isMobile ? 'px-6 pt-4 pb-6' : 'p-4'}`}
+                    style={isMobile ? { paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem))' } : {}}
                 >
                     {currentPage > 0 ? (
                         <TextButton text="← Back" onClick={handlePageBack} variant="dispo-specific" className="bg-themewhite3 text-tertiary rounded-full" />
