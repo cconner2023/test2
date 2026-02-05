@@ -137,7 +137,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
     return (
         <div className={`flex items-center h-full w-full px-2 transition-all duration-300 ${isMobile
-            ? 'bg-transparent backdrop-blur-sm'
+            ? 'bg-transparent'
             : 'bg-themewhite'
             }`}>
             {/* Left section: buttons - hidden when mobile search is expanded */}

@@ -90,7 +90,7 @@ function AppContent() {
       }`}>
         {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
         <div className={`${navigation.isMobile
-          ? 'absolute top-0 left-0 right-0 z-30 pt-[env(safe-area-inset-top)]'
+          ? 'absolute top-0 left-0 right-0 z-30 pt-[env(safe-area-inset-top)] backdrop-blur-sm bg-themewhite/70'
           : 'relative'
         } h-13.75 w-full rounded-t-md flex justify-end`}
         style={navigation.isMobile ? { height: 'calc(env(safe-area-inset-top, 0px) + 3.4375rem)' } : undefined}>

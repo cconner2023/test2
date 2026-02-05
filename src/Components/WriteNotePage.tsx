@@ -414,7 +414,7 @@ export const WriteNotePage = ({
                         </div>
 
                         {/* Page 1: Write Note Options */}
-                        <div className={`w-full h-full shrink-0 overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-10' : ''}`}>
+                        <div className={`w-full h-full shrink-0 overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                             <div className="space-y-6">
                                 <div className="p-4">
                                     <div className="text-[10pt] font-normal text-primary mb-3">Note Content:</div>
@@ -462,7 +462,7 @@ export const WriteNotePage = ({
                         </div>
 
                         {/* Page 2: View Note */}
-                        <div className={`w-full h-full shrink-0 overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-10' : ''}`}>
+                        <div className={`w-full h-full shrink-0 overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                             <div className="space-y-6">
                                 <div className="flex items-center justify-between">
                                     <div className="text-xs font-normal text-primary">Note Preview</div>
@@ -485,7 +485,7 @@ export const WriteNotePage = ({
                         </div>
 
                         {/* Page 3: Share Note */}
-                        <div className={`w-full h-full shrink-0 overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-10' : ''}`}>
+                        <div className={`w-full h-full shrink-0 overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                             <div className="space-y-6">
                                 <div className="text-[10pt] font-normal text-primary">Share Encoded Note</div>
                                 <div className="relative">
@@ -522,7 +522,7 @@ export const WriteNotePage = ({
                 {/* Footer with navigation buttons */}
                 <div
                     className={`flex items-center gap-2 justify-between shrink-0 ${isMobile ? 'px-6 pt-4 pb-6' : 'p-4'}`}
-                    style={isMobile ? { paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem))' } : {}}
+                    style={isMobile ? { paddingBottom: 'max(2rem, calc(env(safe-area-inset-bottom, 0px) + 2rem))' } : {}}
                 >
                     {currentPage > 0 ? (
                         <TextButton text="← Back" onClick={handlePageBack} variant="dispo-specific" className="bg-themewhite3 text-tertiary rounded-full" />
