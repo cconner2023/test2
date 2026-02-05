@@ -13,13 +13,27 @@ interface NoteImportProps {
     isMobile?: boolean;
 }
 
-// Shared content component for both mobile and desktop
-const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
-    const [viewState, setViewState] = useState<ViewState>('input');
-    const [inputText, setInputText] = useState<string>('');
-    const [decodedText, setDecodedText] = useState<string>('');
-    const [scanError, setScanError] = useState<string>('');
-    const [isCopied, setIsCopied] = useState(false);
+// Content state interface for lifting state up
+interface ContentState {
+    viewState: ViewState;
+    inputText: string;
+    decodedText: string;
+    scanError: string;
+    isCopied: boolean;
+}
+
+// Shared content component - receives state from parent to persist across layout changes
+const NoteImportContent = ({
+    onClose,
+    isMobile,
+    state,
+    setState
+}: {
+    onClose: () => void;
+    isMobile: boolean;
+    state: ContentState;
+    setState: React.Dispatch<React.SetStateAction<ContentState>>;
+}) => {
     const inputRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -30,35 +44,31 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
     const decodeBarcode = useCallback((text: string) => {
         try {
             const importedNote = importFromBarcode(text);
-            setDecodedText(importedNote);
-            setViewState('decoded');
+            setState(prev => ({ ...prev, decodedText: importedNote, viewState: 'decoded' }));
         } catch (error: any) {
-            setScanError(error.message || 'Failed to decode barcode');
+            setState(prev => ({ ...prev, scanError: error.message || 'Failed to decode barcode' }));
         }
-    }, [importFromBarcode]);
+    }, [importFromBarcode, setState]);
 
     // Handle scan result
     useEffect(() => {
         if (scanResult) {
-            setInputText(scanResult);
+            setState(prev => ({ ...prev, inputText: scanResult }));
             clearResult();
             decodeBarcode(scanResult);
         }
-    }, [scanResult, clearResult, decodeBarcode]);
+    }, [scanResult, clearResult, decodeBarcode, setState]);
 
     // Handle scanner error
     useEffect(() => {
         if (scannerError) {
-            setScanError(scannerError);
-            setViewState('input');
+            setState(prev => ({ ...prev, scanError: scannerError, viewState: 'input' }));
         }
-    }, [scannerError]);
+    }, [scannerError, setState]);
 
     // Start camera scanning
     const handleStartScan = () => {
-        setScanError('');
-        setViewState('scanning');
-        // Small delay to ensure video element is mounted
+        setState(prev => ({ ...prev, scanError: '', viewState: 'scanning' }));
         setTimeout(() => {
             if (videoRef.current) {
                 startScanning(videoRef.current);
@@ -69,42 +79,41 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
     // Stop camera scanning
     const handleStopScan = () => {
         stopScanning();
-        setViewState('input');
+        setState(prev => ({ ...prev, viewState: 'input' }));
     };
 
     useEffect(() => {
-        if (isCopied) {
-            const timeoutId = window.setTimeout(() => setIsCopied(false), 2000);
+        if (state.isCopied) {
+            const timeoutId = window.setTimeout(() => setState(prev => ({ ...prev, isCopied: false })), 2000);
             return () => clearTimeout(timeoutId);
         }
-    }, [isCopied]);
+    }, [state.isCopied, setState]);
 
     useEffect(() => {
-        if (scanError && inputText) {
-            setScanError('');
+        if (state.scanError && state.inputText) {
+            setState(prev => ({ ...prev, scanError: '' }));
         }
-    }, [inputText, scanError]);
+    }, [state.inputText, state.scanError, setState]);
 
     const handleSubmit = () => {
-        if (!inputText.trim()) {
-            setScanError('Please enter or scan a barcode');
+        if (!state.inputText.trim()) {
+            setState(prev => ({ ...prev, scanError: 'Please enter or scan a barcode' }));
             return;
         }
-        decodeBarcode(inputText);
+        decodeBarcode(state.inputText);
     };
 
     const handleBack = () => {
-        setViewState('input');
-        setScanError('');
+        setState(prev => ({ ...prev, viewState: 'input', scanError: '' }));
     };
 
     const handleCopyText = () => {
-        navigator.clipboard.writeText(decodedText);
-        setIsCopied(true);
+        navigator.clipboard.writeText(state.decodedText);
+        setState(prev => ({ ...prev, isCopied: true }));
     };
 
     const getTitle = () => {
-        switch (viewState) {
+        switch (state.viewState) {
             case 'input': return 'Import Note';
             case 'decoded': return 'Screening Note';
             case 'scanning': return 'Scan Barcode';
@@ -115,9 +124,11 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
     return (
         <>
             {/* Drag Handle - Only visible on mobile */}
-            <div className="flex justify-center pt-3 pb-2 md:hidden">
-                <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
-            </div>
+            {isMobile && (
+                <div className="flex justify-center pt-3 pb-2">
+                    <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
+                </div>
+            )}
 
             {/* Header */}
             <div className="px-6 border-b border-tertiary/10 py-4 md:py-5">
@@ -136,24 +147,24 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
             </div>
 
             {/* Content */}
-            <div className="overflow-y-auto h-[calc(100dvh-80px)] md:overflow-visible md:h-auto">
-                {viewState === 'input' && (
+            <div className={`overflow-y-auto ${isMobile ? 'h-[calc(100dvh-80px)]' : 'h-auto'}`}>
+                {state.viewState === 'input' && (
                     <div className="flex flex-col p-4 md:p-6 h-max min-h-20">
                         <div className="mb-4 relative">
                             <div className="relative">
                                 <input
                                     ref={inputRef}
                                     type="text"
-                                    value={inputText}
-                                    onChange={(e) => setInputText(e.target.value)}
+                                    value={state.inputText}
+                                    onChange={(e) => setState(prev => ({ ...prev, inputText: e.target.value }))}
                                     className="w-full rounded-full p-2 pl-10 border border-themegray1 focus:bg-themewhite2 text-sm focus:outline-none bg-themewhite text-tertiary pr-10"
                                     placeholder="Enter barcode string or scan"
                                 />
-                                {inputText && (
+                                {state.inputText && (
                                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                                         <button
                                             type="button"
-                                            onClick={() => setInputText('')}
+                                            onClick={() => setState(prev => ({ ...prev, inputText: '' }))}
                                             className="p-1 text-tertiary"
                                             title="Clear input"
                                         >
@@ -162,9 +173,9 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
                                     </div>
                                 )}
                             </div>
-                            {scanError && (
+                            {state.scanError && (
                                 <div className="ml-2 mt-2 text-sm text-themeredred">
-                                    {scanError}
+                                    {state.scanError}
                                 </div>
                             )}
                         </div>
@@ -186,7 +197,7 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
                     </div>
                 )}
 
-                {viewState === 'scanning' && (
+                {state.viewState === 'scanning' && (
                     <div className="flex flex-col p-4 md:p-6 h-max min-h-60">
                         <div className="relative rounded-xl overflow-hidden bg-black aspect-video mb-4">
                             <video
@@ -195,13 +206,11 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
                                 playsInline
                                 muted
                             />
-                            {/* Scanning overlay with animated line */}
                             <div className="absolute inset-0 pointer-events-none">
                                 <div className="absolute inset-4 border-2 border-white/30 rounded-lg" />
                                 <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
                                 <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
                             </div>
-                            {/* Loading indicator */}
                             {isScanning && (
                                 <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
                                     Looking for PDF417 barcode...
@@ -219,10 +228,9 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
                     </div>
                 )}
 
-                {viewState === 'decoded' && (
+                {state.viewState === 'decoded' && (
                     <div className="flex flex-col p-4 md:p-6 min-h-20 h-max relative">
-                        {/* Copied toast */}
-                        {isCopied && (
+                        {state.isCopied && (
                             <div className="absolute inset-x-0 top-0 flex justify-center pointer-events-none z-10">
                                 <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-themeblue2 text-white shadow-lg">
                                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -234,9 +242,8 @@ const NoteImportContent = ({ onClose }: { onClose: () => void }) => {
                         )}
                         <div className="mb-4 relative">
                             <div className="w-full h-max p-3 rounded-md border border-themegray1/20 bg-themewhite3 text-tertiary text-sm whitespace-pre-wrap wrap-break-word overflow-y-auto max-h-96">
-                                {decodedText || "No decoded text available"}
+                                {state.decodedText || "No decoded text available"}
                             </div>
-                            {/* Inline copy button */}
                             <button
                                 onClick={handleCopyText}
                                 className="absolute top-3 right-3 p-2 text-tertiary hover:text-primary transition-colors"
@@ -266,9 +273,17 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
     const [localIsMobile, setLocalIsMobile] = useState(false);
     const isMobile = externalIsMobile !== undefined ? externalIsMobile : localIsMobile;
 
+    // Lifted content state - persists across mobile/desktop layout changes
+    const [contentState, setContentState] = useState<ContentState>({
+        viewState: 'input',
+        inputText: '',
+        decodedText: '',
+        scanError: '',
+        isCopied: false
+    });
+
     const [drawerPosition, setDrawerPosition] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
-    const [contentKey, setContentKey] = useState(0);
     const drawerRef = useRef<HTMLDivElement>(null);
     const dragStartY = useRef(0);
     const dragStartPosition = useRef(0);
@@ -289,7 +304,14 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
     useEffect(() => {
         if (isVisible) {
             setDrawerPosition(100);
-            setContentKey(prev => prev + 1);
+            // Reset content state when opening
+            setContentState({
+                viewState: 'input',
+                inputText: '',
+                decodedText: '',
+                scanError: '',
+                isCopied: false
+            });
             document.body.style.overflow = 'hidden';
         } else {
             setDrawerPosition(0);
@@ -390,10 +412,12 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
     const mobileTranslateY = 100 - drawerPosition;
     const mobileOpacity = Math.min(1, drawerPosition / 60 + 0.2);
 
+    // Single container that adapts styling based on isMobile
+    // Content is rendered once - state persists across layout changes
     return (
-        <>
-            {/* Mobile Container - NO BACKDROP */}
-            <div ref={drawerRef} className="md:hidden">
+        <div ref={drawerRef}>
+            {isMobile ? (
+                // Mobile drawer
                 <div
                     className={`fixed left-0 right-0 z-60 bg-themewhite3 shadow-2xl ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
                     style={{
@@ -416,12 +440,15 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
                     onMouseUp={handleDragEnd}
                     onMouseLeave={handleDragEnd}
                 >
-                    <NoteImportContent key={contentKey} onClose={handleClose} />
+                    <NoteImportContent
+                        onClose={handleClose}
+                        isMobile={isMobile}
+                        state={contentState}
+                        setState={setContentState}
+                    />
                 </div>
-            </div>
-
-            {/* Desktop Container — aligned to right edge of content container */}
-            <div className="hidden md:block">
+            ) : (
+                // Desktop modal
                 <div
                     className={`fixed inset-0 z-60 flex items-start justify-center transition-all duration-300 ease-out ${isVisible
                         ? 'visible pointer-events-auto'
@@ -449,11 +476,16 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
                             }`}
                             onClick={(e) => e.stopPropagation()}
                         >
-                            <NoteImportContent key={contentKey} onClose={onClose} />
+                            <NoteImportContent
+                                onClose={onClose}
+                                isMobile={isMobile}
+                                state={contentState}
+                                setState={setContentState}
+                            />
                         </div>
                     </div>
                 </div>
-            </div>
-        </>
+            )}
+        </div>
     );
 }

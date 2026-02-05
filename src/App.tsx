@@ -119,93 +119,87 @@ function AppContent() {
           />
         </div>
 
-        <div ref={contentRef} className='md:h-[94%] h-full mt-2 mx-2'>
-            <>
-              {/* Mobile Stack Navigation - True screen stack with slide animations */}
-              {navigation.isMobile && (
-                <div key="mobile-stack" className="h-full relative overflow-hidden">
-                  {/* Screen: Search Results */}
-                  {search.searchInput && (
-                    <div className="absolute inset-0 bg-themewhite mobile-slide-in-right">
-                      <SearchResults
-                        results={search.searchResults}
-                        searchTerm={search.searchInput}
-                        onResultClick={handleNavigationClick}
-                        isSearching={search.isSearching}
-                      />
-                    </div>
-                  )}
+        {/* Content area - components rendered once, CSS controls layout */}
+        <div ref={contentRef} className='md:h-[94%] h-full mt-2 mx-2 relative overflow-hidden'>
+          {/* Mobile Layout - absolute stacking */}
+          <div className={`${navigation.isMobile ? 'block' : 'hidden'} h-full relative`}>
+            {/* CategoryList - base layer */}
+            <div className={`absolute inset-0 bg-themewhite transition-opacity duration-200 ${
+              !search.searchInput && !navigation.showQuestionCard ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+            }`}>
+              <CategoryList
+                selectedCategory={navigation.selectedCategory}
+                selectedSymptom={navigation.selectedSymptom}
+                selectedGuideline={navigation.selectedGuideline}
+                onNavigate={handleNavigationClick}
+              />
+            </div>
 
-                  {/* Screen: AlgorithmPage (Detail View) */}
-                  {!search.searchInput && navigation.showQuestionCard && (
-                    <div className="absolute inset-0 bg-themewhite mobile-slide-in-right">
-                      <AlgorithmPage
-                        selectedSymptom={navigation.selectedSymptom}
-                        onMedicationClick={navigation.handleMedicationSelect}
-                      />
-                    </div>
-                  )}
+            {/* SearchResults - overlay when searching */}
+            <div className={`absolute inset-0 bg-themewhite transition-opacity duration-200 ${
+              search.searchInput ? 'opacity-100 z-20' : 'opacity-0 z-0 pointer-events-none'
+            }`}>
+              <SearchResults
+                results={search.searchResults}
+                searchTerm={search.searchInput}
+                onResultClick={handleNavigationClick}
+                isSearching={search.isSearching}
+              />
+            </div>
+          </div>
 
-                  {/* Screen: CategoryList (Main/Category/Symptom Navigation) */}
-                  {!search.searchInput && !navigation.showQuestionCard && (
-                    <div className="absolute inset-0 bg-themewhite">
-                      <CategoryList
-                        selectedCategory={navigation.selectedCategory}
-                        selectedSymptom={navigation.selectedSymptom}
-                        selectedGuideline={navigation.selectedGuideline}
-                        onNavigate={handleNavigationClick}
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
+          {/* Desktop Layout - grid */}
+          <div className={`${navigation.isMobile ? 'hidden' : 'block'} h-full`}>
+            <div className="h-full grid transition-[grid-template-columns] gap-1"
+              style={{ gridTemplateColumns: navigation.mainGridTemplate }}
+            >
+              {/* Column 1: Categories Navigation */}
+              <div className="h-full overflow-y-scroll">
+                {!search.searchInput && (
+                  <CategoryList
+                    selectedCategory={navigation.selectedCategory}
+                    selectedSymptom={navigation.selectedSymptom}
+                    selectedGuideline={navigation.selectedGuideline}
+                    onNavigate={handleNavigationClick}
+                  />
+                )}
+              </div>
 
-              {/* Desktop Grid - Multi-column layout with responsive sizing */}
-              {!navigation.isMobile && (
-                <div key="desktop-grid" className="h-full">
-                  <div
-                    className="h-full grid transition-[grid-template-columns] gap-1"
-                    style={{ gridTemplateColumns: navigation.mainGridTemplate }}
-                  >
+              {/* Column 2: Search Results */}
+              <div className="h-full overflow-hidden">
+                {search.searchInput && (
+                  <SearchResults
+                    results={search.searchResults}
+                    searchTerm={search.searchInput}
+                    onResultClick={handleNavigationClick}
+                    isSearching={search.isSearching}
+                  />
+                )}
+              </div>
 
-                    {/* Column 1: Categories/Symptoms/Guidelines Navigation */}
-                    <div className="h-full overflow-y-scroll">
-                      {!search.searchInput && (
-                        <CategoryList
-                          selectedCategory={navigation.selectedCategory}
-                          selectedSymptom={navigation.selectedSymptom}
-                          selectedGuideline={navigation.selectedGuideline}
-                          onNavigate={handleNavigationClick}
-                        />
-                      )}
-                    </div>
+              {/* Column 3: placeholder for grid structure */}
+              <div className="h-full overflow-hidden" />
+            </div>
+          </div>
 
-                    {/* Column 2: Search Results */}
-                    <div className="h-full overflow-hidden">
-                      {search.searchInput && (
-                        <SearchResults
-                          results={search.searchResults}
-                          searchTerm={search.searchInput}
-                          onResultClick={handleNavigationClick}
-                          isSearching={search.isSearching}
-                        />
-                      )}
-                    </div>
-
-                    {/* Column 3: Detail View (Algorithm) */}
-                    <div className="h-full overflow-hidden">
-                      {navigation.showQuestionCard && (
-                        <AlgorithmPage
-                          selectedSymptom={navigation.selectedSymptom}
-                          onMedicationClick={navigation.handleMedicationSelect}
-                        />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-            </>
+          {/* AlgorithmPage - rendered ONCE, positioned based on layout */}
+          {navigation.selectedSymptom && (
+            <div className={`bg-themewhite transition-opacity duration-200 ${
+              navigation.isMobile
+                ? `absolute inset-0 ${!search.searchInput && navigation.showQuestionCard ? 'opacity-100 z-20' : 'opacity-0 z-0 pointer-events-none'}`
+                : `absolute right-0 top-0 bottom-0 ${navigation.showQuestionCard ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
+            }`}
+            style={!navigation.isMobile ? {
+              width: navigation.showQuestionCard ? 'calc(55% - 2px)' : '0%',
+              transition: 'width 300ms, opacity 200ms'
+            } : undefined}
+            >
+              <AlgorithmPage
+                selectedSymptom={navigation.selectedSymptom}
+                onMedicationClick={navigation.handleMedicationSelect}
+              />
+            </div>
+          )}
         </div>
         <NoteImport
           isVisible={navigation.showNoteImport}
