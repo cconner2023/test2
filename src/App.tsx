@@ -187,10 +187,10 @@ function AppContent() {
             <div className={`bg-themewhite transition-opacity duration-200 ${
               navigation.isMobile
                 ? `absolute inset-0 ${!search.searchInput && navigation.showQuestionCard ? 'opacity-100 z-20' : 'opacity-0 z-0 pointer-events-none'}`
-                : `absolute right-0 top-0 bottom-0 ${navigation.showQuestionCard ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
+                : `absolute right-0 top-0 bottom-0 ${!search.searchInput && navigation.showQuestionCard ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
             }`}
             style={!navigation.isMobile ? {
-              width: navigation.showQuestionCard ? 'calc(55% - 2px)' : '0%',
+              width: !search.searchInput && navigation.showQuestionCard ? 'calc(55% - 2px)' : '0%',
               transition: 'width 300ms, opacity 200ms'
             } : undefined}
             >
