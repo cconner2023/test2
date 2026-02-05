@@ -51,8 +51,14 @@ export const WriteNotePage = ({
     // Page navigation state (0=Decision Making, 1=Write Note, 2=View Note, 3=Share Note)
     const [currentPage, setCurrentPage] = useState(0);
 
-    // Bottom sheet state (mobile)
-    const [sheetPosition, setSheetPosition] = useState(100); // 0=visible, 100=hidden
+    // Bottom sheet state (mobile) - matches MedicationsDrawer: 0=hidden, 100=visible
+    const [drawerPosition, setDrawerPosition] = useState(0);
+
+    // Mobile drawer stage: 'partial' (40% height) or 'full' (100% height)
+    const [drawerStage, setDrawerStage] = useState<'partial' | 'full'>('partial');
+
+    // Desktop expansion state for smooth animation
+    const [desktopExpanded, setDesktopExpanded] = useState(false);
 
     // Refs
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -82,9 +88,16 @@ export const WriteNotePage = ({
     // --- Mount animation ---
     useEffect(() => {
         requestAnimationFrame(() => {
-            requestAnimationFrame(() => setSheetPosition(0));
+            requestAnimationFrame(() => {
+                if (isMobile) {
+                    setDrawerPosition(100);
+                    setDrawerStage('partial'); // Start at partial height on mobile
+                } else {
+                    setDesktopExpanded(true); // Trigger desktop expand animation
+                }
+            });
         });
-    }, []);
+    }, [isMobile]);
 
     // --- Copied state auto-revert ---
     useEffect(() => {
@@ -110,10 +123,11 @@ export const WriteNotePage = ({
     // --- Close handler (animate out then unmount) ---
     const handleClose = useCallback(() => {
         if (isMobile) {
-            setSheetPosition(100);
+            setDrawerPosition(0);
             setTimeout(() => onExpansionChange(false), 300);
         } else {
-            onExpansionChange(false);
+            setDesktopExpanded(false);
+            setTimeout(() => onExpansionChange(false), 400); // Wait for desktop animation
         }
     }, [isMobile, onExpansionChange]);
 
@@ -163,24 +177,46 @@ export const WriteNotePage = ({
         sheetLastY.current = y;
         sheetLastTime.current = now;
 
-        const sheetHeight = sheetRef.current?.clientHeight || window.innerHeight;
-        const pct = Math.max(0, (dy / sheetHeight) * 100);
-        setSheetPosition(pct);
+        // Match MedicationsDrawer: dragging down decreases position toward 0 (hidden)
+        const dragSensitivity = 0.8;
+        const newPosition = Math.min(100, Math.max(20, 100 - (dy * dragSensitivity)));
+        setDrawerPosition(newPosition);
     }, [isMobile]);
 
     const handleSheetDragEnd = useCallback(() => {
         if (!sheetDragActive.current || !isMobile) return;
         sheetDragActive.current = false;
 
-        if (sheetVelocity.current > 0.4 || sheetPosition > 35) {
-            // Close
-            setSheetPosition(100);
-            setTimeout(() => onExpansionChange(false), 300);
+        const isSwipingDown = sheetVelocity.current > 0.3;
+        const isSwipingUp = sheetVelocity.current < -0.3;
+
+        if (drawerStage === 'partial') {
+            // In partial stage: swipe up → full, swipe down → close
+            if (isSwipingUp || drawerPosition > 70) {
+                setDrawerStage('full');
+                setDrawerPosition(100);
+            } else if (isSwipingDown || drawerPosition < 40) {
+                setDrawerPosition(0);
+                setTimeout(() => onExpansionChange(false), 300);
+            } else {
+                setDrawerPosition(100); // Snap back to partial visible
+            }
         } else {
-            // Snap back open
-            setSheetPosition(0);
+            // In full stage: swipe down → partial, strong swipe down → close
+            if (sheetVelocity.current > 0.6 || drawerPosition < 30) {
+                // Strong swipe or dragged very low → close
+                setDrawerPosition(0);
+                setTimeout(() => onExpansionChange(false), 300);
+            } else if (isSwipingDown || drawerPosition < 70) {
+                // Moderate swipe down → go to partial
+                setDrawerStage('partial');
+                setDrawerPosition(100);
+            } else {
+                // Stay in full
+                setDrawerPosition(100);
+            }
         }
-    }, [isMobile, sheetPosition, onExpansionChange]);
+    }, [isMobile, drawerPosition, drawerStage, onExpansionChange]);
 
     // ========== PAGE SWIPE HANDLERS (horizontal, mobile only) ==========
     const handleContentTouchStart = useCallback((e: React.TouchEvent) => {
@@ -251,48 +287,53 @@ export const WriteNotePage = ({
     }, [isMobile, pageDragX]);
 
     // ========== MAIN RENDER ==========
-    const backdropOpacity = Math.max(0, (1 - sheetPosition / 100) * 0.4);
     const isDraggingSheet = sheetDragActive.current;
     const isDraggingPage = pageDragActive.current;
 
     // Horizontal page transform
     const pageTranslateX = `calc(${-currentPage * 100}% + ${pageDragX}px)`;
 
+    // Mobile drawer calculations (matching MedicationsDrawer pattern)
+    const mobileTranslateY = 100 - drawerPosition;
+    const mobileHeight = drawerStage === 'partial' ? '50dvh' : '98dvh';
+    const mobileHorizontalPadding = drawerStage === 'partial' ? '0.75rem' : '0';
+    const mobileBottomPadding = drawerStage === 'partial' ? '0.75rem' : '0';
+    const mobileBorderRadius = drawerStage === 'partial' ? '1.25rem' : '1.25rem 1.25rem 0 0';
+
     return (
         <div className="h-full w-full relative">
-            {/* Backdrop (mobile only) */}
-            {isMobile && (
-                <div
-                    className="absolute inset-0 bg-black"
-                    style={{
-                        opacity: backdropOpacity,
-                        transition: isDraggingSheet ? 'none' : 'opacity 300ms ease',
-                        pointerEvents: sheetPosition < 50 ? 'auto' : 'none',
-                    }}
-                    onClick={handleClose}
-                />
-            )}
-
             {/* Sheet / Container */}
             <div
                 ref={sheetRef}
                 className={`${isMobile
-                    ? 'absolute inset-x-0 bottom-0 rounded-t-2xl'
-                    : 'h-full w-full rounded-md'
+                    ? 'fixed left-0 right-0 bottom-0 z-60 shadow-2xl'
+                    : 'h-full w-full'
                     } bg-themewhite2 overflow-hidden flex flex-col`}
                 style={isMobile ? {
-                    height: '95vh',
-                    transform: `translateY(${sheetPosition}%)`,
-                    transition: isDraggingSheet ? 'none' : 'transform 300ms cubic-bezier(0.25, 0.1, 0.25, 1)',
+                    height: mobileHeight,
+                    maxHeight: mobileHeight,
+                    marginLeft: mobileHorizontalPadding,
+                    marginRight: mobileHorizontalPadding,
+                    marginBottom: mobileBottomPadding,
+                    width: drawerStage === 'partial' ? `calc(100% - ${parseFloat(mobileHorizontalPadding) * 2}rem)` : '100%',
+                    transform: `translateY(${mobileTranslateY}%)`,
+                    transition: isDraggingSheet ? 'none' : 'all 300ms cubic-bezier(0.25, 0.1, 0.25, 1)',
                     willChange: isDraggingSheet ? 'transform' : 'auto',
-                    boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
-                    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-                } : {}}
+                    borderRadius: mobileBorderRadius,
+                    touchAction: 'none',
+                    boxShadow: drawerStage === 'partial' ? '0 4px 20px rgba(0, 0, 0, 0.15)' : '0 -4px 20px rgba(0, 0, 0, 0.1)',
+                } : {
+                    // Desktop: smooth expand/collapse animation
+                    transform: desktopExpanded ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(20px)',
+                    opacity: desktopExpanded ? 1 : 0,
+                    transition: 'all 400ms cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                    transformOrigin: 'bottom center',
+                }}
             >
                 {/* Drag Handle (mobile only) */}
                 {isMobile && (
                     <div
-                        className="flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing"
+                        className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing"
                         style={{ touchAction: 'none' }}
                         onTouchStart={handleSheetDragStart}
                         onTouchMove={handleSheetDragMove}
@@ -302,7 +343,7 @@ export const WriteNotePage = ({
                         onMouseUp={handleSheetDragEnd}
                         onMouseLeave={handleSheetDragEnd}
                     >
-                        <div className="w-10 h-1 rounded-full bg-themegray1/50" />
+                        <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
                     </div>
                 )}
 
@@ -324,13 +365,12 @@ export const WriteNotePage = ({
                             {PAGE_LABELS.map((_, idx) => (
                                 <div
                                     key={idx}
-                                    className={`h-1 rounded-full transition-all duration-300 ${
-                                        idx === currentPage
-                                            ? `w-4 ${colors.symptomClass}`
-                                            : idx < currentPage
-                                                ? `w-1.5 ${colors.symptomClass} opacity-40`
-                                                : 'w-1.5 bg-themegray1/30'
-                                    }`}
+                                    className={`h-1 rounded-full transition-all duration-300 ${idx === currentPage
+                                        ? `w-4 ${colors.symptomClass}`
+                                        : idx < currentPage
+                                            ? `w-1.5 ${colors.symptomClass} opacity-40`
+                                            : 'w-1.5 bg-themegray1/30'
+                                        }`}
                                 />
                             ))}
                         </div>

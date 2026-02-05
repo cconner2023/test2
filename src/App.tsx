@@ -6,6 +6,7 @@ import { SearchResults } from './Components/SearchResults'
 import { NoteImport } from './Components/NoteImport'
 import { ThemeProvider, useTheme } from './Utilities/ThemeContext'
 import { AlgorithmPage } from './Components/AlgorithmPage'
+import { WriteNotePage } from './Components/WriteNotePage'
 import type { SearchResultType } from './Types/CatTypes'
 import { useSearch } from './Hooks/useSearch'
 import { useNavigation } from './Hooks/useNavigation'
@@ -84,9 +85,15 @@ function AppContent() {
 
   return (
     <div className='h-screen bg-themewhite2 items-center flex justify-center overflow-hidden'>
-      <div className='bg-themewhite max-w-315 shrink flex-col w-full rounded-md border pb-10 border-[rgba(0,0,0,0.03)] shadow-[0px_2px_4px] shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1 relative'>
-        {/* Navbar */}
-        <div className='relative h-13.75 w-full rounded-t-md flex justify-end'>
+      <div className={`max-w-315 shrink flex-col w-full rounded-md border border-[rgba(0,0,0,0.03)] shadow-[0px_2px_4px] shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1 relative ${
+        navigation.isMobile ? '' : 'bg-themewhite pb-10'
+      }`}>
+        {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
+        <div className={`${navigation.isMobile
+          ? 'absolute top-0 left-0 right-0 z-30 pt-[env(safe-area-inset-top)]'
+          : 'relative'
+        } h-13.75 w-full rounded-t-md flex justify-end`}
+        style={navigation.isMobile ? { height: 'calc(env(safe-area-inset-top, 0px) + 3.4375rem)' } : undefined}>
           <NavTop
             search={{
               searchInput: search.searchInput,
@@ -107,8 +114,8 @@ function AppContent() {
               onInfoClick: navigation.toggleSymptomInfo,
             }}
             ui={{
-              showBack: navigation.shouldShowBackButton(!!search.searchInput.trim(), navigation.showNoteImport),
-              showMenu: navigation.shouldShowMenuButton(!!search.searchInput.trim(), navigation.showNoteImport),
+              showBack: navigation.shouldShowBackButton(!!search.searchInput.trim()),
+              showMenu: navigation.shouldShowMenuButton(!!search.searchInput.trim()),
               dynamicTitle: title.title,
               showDynamicTitle: title.show,
               medicationButtonText: navigation.getMedicationButtonText(),
@@ -120,31 +127,42 @@ function AppContent() {
         </div>
 
         {/* Content area - components rendered once, CSS controls layout */}
-        <div ref={contentRef} className='md:h-[94%] h-full mt-2 mx-2 relative overflow-hidden'>
+        <div ref={contentRef} className={`md:h-[94%] h-full relative overflow-hidden ${
+          navigation.isMobile ? 'absolute inset-0' : 'mt-2 mx-2'
+        }`}>
           {/* Mobile Layout - absolute stacking */}
           <div className={`${navigation.isMobile ? 'block' : 'hidden'} h-full relative`}>
-            {/* CategoryList - base layer */}
-            <div className={`absolute inset-0 bg-themewhite transition-opacity duration-200 ${
+            {/* CategoryList - base layer - content scrolls behind navbar */}
+            <div className={`absolute inset-0 transition-opacity duration-200 ${
               !search.searchInput && !navigation.showQuestionCard ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
             }`}>
-              <CategoryList
-                selectedCategory={navigation.selectedCategory}
-                selectedSymptom={navigation.selectedSymptom}
-                selectedGuideline={navigation.selectedGuideline}
-                onNavigate={handleNavigationClick}
-              />
+              <div className="h-full overflow-y-auto">
+                {/* Spacer accounts for safe area + navbar, scrolls with content */}
+                <div className="px-2 bg-themewhite min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
+                  <CategoryList
+                    selectedCategory={navigation.selectedCategory}
+                    selectedSymptom={navigation.selectedSymptom}
+                    selectedGuideline={navigation.selectedGuideline}
+                    onNavigate={handleNavigationClick}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* SearchResults - overlay when searching */}
-            <div className={`absolute inset-0 bg-themewhite transition-opacity duration-200 ${
+            <div className={`absolute inset-0 transition-opacity duration-200 ${
               search.searchInput ? 'opacity-100 z-20' : 'opacity-0 z-0 pointer-events-none'
             }`}>
-              <SearchResults
-                results={search.searchResults}
-                searchTerm={search.searchInput}
-                onResultClick={handleNavigationClick}
-                isSearching={search.isSearching}
-              />
+              <div className="h-full overflow-y-auto">
+                <div className="px-2 bg-themewhite min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
+                  <SearchResults
+                    results={search.searchResults}
+                    searchTerm={search.searchInput}
+                    onResultClick={handleNavigationClick}
+                    isSearching={search.isSearching}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -184,20 +202,33 @@ function AppContent() {
 
           {/* AlgorithmPage - rendered ONCE, positioned based on layout */}
           {navigation.selectedSymptom && (
-            <div className={`bg-themewhite transition-opacity duration-200 ${
+            <div className={`transition-opacity duration-200 ${
               navigation.isMobile
                 ? `absolute inset-0 ${!search.searchInput && navigation.showQuestionCard ? 'opacity-100 z-20' : 'opacity-0 z-0 pointer-events-none'}`
-                : `absolute right-0 top-0 bottom-0 ${!search.searchInput && navigation.showQuestionCard ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
+                : `absolute right-0 top-0 bottom-0 bg-themewhite ${!search.searchInput && navigation.showQuestionCard ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
             }`}
             style={!navigation.isMobile ? {
               width: !search.searchInput && navigation.showQuestionCard ? 'calc(55% - 2px)' : '0%',
               transition: 'width 300ms, opacity 200ms'
             } : undefined}
             >
-              <AlgorithmPage
-                selectedSymptom={navigation.selectedSymptom}
-                onMedicationClick={navigation.handleMedicationSelect}
-              />
+              {navigation.isMobile ? (
+                <div className="h-full overflow-hidden">
+                  {/* AlgorithmPage handles its own scrolling - don't wrap in another scroll container */}
+                  <AlgorithmPage
+                    selectedSymptom={navigation.selectedSymptom}
+                    onMedicationClick={navigation.handleMedicationSelect}
+                    onExpandNote={navigation.showWriteNote}
+                    isMobile={true}
+                  />
+                </div>
+              ) : (
+                <AlgorithmPage
+                  selectedSymptom={navigation.selectedSymptom}
+                  onMedicationClick={navigation.handleMedicationSelect}
+                  onExpandNote={navigation.showWriteNote}
+                />
+              )}
             </div>
           )}
         </div>
@@ -227,6 +258,29 @@ function AppContent() {
           selectedCategory={navigation.selectedCategory}
           onNavigate={handleNavigationClick}
         />
+        {/* WriteNotePage - rendered at App level for proper z-index on mobile */}
+        {navigation.isWriteNoteVisible && navigation.writeNoteData && (
+          <div className={`${
+            navigation.isMobile
+              ? 'fixed inset-0 z-50'
+              : 'absolute right-0 top-0 bottom-0 z-40 animate-desktopNoteExpand'
+          }`}
+          style={!navigation.isMobile ? { width: 'calc(55% - 2px)' } : undefined}
+          >
+            <WriteNotePage
+              disposition={navigation.writeNoteData.disposition}
+              algorithmOptions={navigation.writeNoteData.algorithmOptions}
+              cardStates={navigation.writeNoteData.cardStates}
+              isExpanded={true}
+              onExpansionChange={navigation.closeWriteNote}
+              onNoteSave={(note: string) => {
+                console.log('Note saved:', note);
+              }}
+              selectedSymptom={navigation.writeNoteData.selectedSymptom}
+              isMobile={navigation.isMobile}
+            />
+          </div>
+        )}
         <UpdateNotification />
       </div>
     </div>

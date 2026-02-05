@@ -5,8 +5,8 @@
   <meta charset="UTF-8" />
   <link rel="icon" type="image/svg+xml" href="/ADTMC/icon-144.png" />
 
-  <!-- Viewport fix -->
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <!-- Viewport fix - viewport-fit=cover allows content to extend into safe areas (notch/island) -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <meta name="format-detection" content="telephone=no">
 
   <title>ADTMC 2.6</title>
@@ -22,7 +22,8 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes">
 
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <!-- black-translucent allows content to extend behind status bar on iOS -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="ADTMC">
 
   <!-- iOS splash screens -->

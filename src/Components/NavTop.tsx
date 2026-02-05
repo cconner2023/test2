@@ -136,7 +136,10 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
     };
 
     return (
-        <div className="flex items-center h-full w-full px-2 bg-themewhite transition-all duration-300">
+        <div className={`flex items-center h-full w-full px-2 transition-all duration-300 ${isMobile
+            ? 'bg-transparent backdrop-blur-sm'
+            : 'bg-themewhite'
+            }`}>
             {/* Left section: buttons - hidden when mobile search is expanded */}
             {(!isMobile || !isSearchExpanded) && (
                 <div className="flex items-center shrink-0">
@@ -157,8 +160,8 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                     {/* Mobile: Morphing menu button/panel */}
                     {shouldShowMenuButton && (
                         <div className="relative">
-                            {/* Invisible spacer to maintain navbar layout */}
-                            <div className="w-11.5 h-11.5" />
+                            {/* Invisible spacer to maintain navbar layout - 44px to match button */}
+                            <div className="w-11 h-11" />
 
                             {/* Backdrop when menu is open */}
                             {isMenuOpen && (
@@ -168,49 +171,42 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                 />
                             )}
 
-                            {/* Morphing container: button → menu panel (liquid glass) */}
+                            {/* Morphing container: button → menu panel */}
                             <div
                                 className={`
                                     absolute top-0 left-0 z-50
                                     transform-gpu
                                     overflow-hidden
-                                    liquid-glass-menu
                                     ${isMenuOpen
-                                        ? 'rounded-2xl py-3 pl-3 pr-5'
-                                        : 'w-11.5 h-11.5 rounded-full p-0.5'
+                                        ? 'rounded-md py-3 pl-3 pr-5 liquid-glass-menu'
+                                        : 'rounded-full p-0.5'
                                     }
                                 `}
                                 style={{
                                     transformOrigin: 'top left',
-                                    width: isMenuOpen ? '224px' : '46px',
-                                    maxHeight: isMenuOpen ? '400px' : '46px',
-                                    transform: isMenuOpen
-                                        ? 'translateX(4px)'
-                                        : 'translate(0, 0)',
+                                    width: isMenuOpen ? '224px' : '44px',
+                                    height: isMenuOpen ? 'auto' : '44px',
+                                    maxHeight: isMenuOpen ? '400px' : '44px',
                                     transition: 'all 400ms',
                                     transitionTimingFunction: 'cubic-bezier(0.175, 0.885, 0.32, 2.2)',
                                 }}
                             >
-                                {/* Liquid glass layers - theme responsive */}
-                                <div className="absolute inset-0 backdrop-blur-xl rounded-inherit" />
-                                <div
-                                    className="absolute inset-0 rounded-inherit liquid-glass-tint"
-                                    style={{ opacity: isMenuOpen ? 1 : 0.6 }}
-                                />
-                                <div className="absolute inset-0 rounded-inherit pointer-events-none liquid-glass-shine" />
-                                {/* Border overlay */}
+                                {/* Liquid glass layers - only when menu is open */}
+                                {isMenuOpen && (
+                                    <>
+                                        <div className="absolute inset-0 backdrop-blur-xl rounded-inherit" />
+                                        <div className="absolute inset-0 rounded-inherit liquid-glass-tint" />
+                                        <div className="absolute inset-0 rounded-inherit pointer-events-none liquid-glass-shine" />
+                                    </>
+                                )}
+                                {/* Border overlay - always visible */}
                                 <div className="absolute inset-0 rounded-inherit pointer-events-none border border-tertiary/20" />
-                                {/* Toggle button: hamburger ↔ X crossfade with upward slide */}
+                                {/* Toggle button: hamburger ↔ X crossfade */}
                                 <button
                                     onClick={isMenuOpen ? onMenuClose : onMenuClick}
-                                    className={`
-                                        relative z-10
-                                        w-10 h-10 rounded-full flex items-center justify-center
-                                        text-tertiary hover:text-primary transition-all
-                                        ${isMenuOpen ? '' : 'active:scale-95'}
-                                    `}
+                                    className={`${BUTTON_CLASSES.mobileButton} ${isMenuOpen ? '' : 'active:scale-95'}`}
                                     style={{
-                                        transform: isMenuOpen ? 'translateY(-6px)' : 'translateY(0)',
+                                        transform: isMenuOpen ? 'translateY(6px)' : 'translateY(0)',
                                         transition: 'transform 500ms, color 200ms',
                                         transitionTimingFunction: 'cubic-bezier(0.175, 0.885, 0.32, 1.8)',
                                     }}
@@ -250,13 +246,13 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                                     active:scale-[0.97] transform-gpu
                                                     ${itemsVisible
                                                         ? "opacity-100 translate-y-0"
-                                                        : "opacity-0 translate-y-4"
+                                                        : "opacity-0 translate-y-2"
                                                     }
                                                 `}
                                                 style={{
                                                     transitionDuration: '500ms',
                                                     transitionDelay: itemsVisible
-                                                        ? `${index * 70}ms`
+                                                        ? `${index * 20}ms`
                                                         : `${(menuData.length - index - 1) * 20}ms`,
                                                     transitionTimingFunction: 'cubic-bezier(0.33, 1, 0.68, 1)',
                                                 }}
@@ -346,8 +342,8 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
             {/* Search Container - shrink-0 on mobile (flex-1 when expanded), flex-1 on desktop */}
             <div className={`flex items-center min-w-0 ${isMobile
-                    ? (isSearchExpanded ? 'flex-1' : 'shrink-0 justify-end')
-                    : 'flex-1 justify-center'
+                ? (isSearchExpanded ? 'flex-1' : 'shrink-0 justify-end')
+                : 'flex-1 justify-center'
                 }`}>
                 {/* Mobile expanded search */}
                 {isMobile && isSearchExpanded && (
@@ -362,7 +358,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                             onChange={(e) => onSearchChange(e.target.value)}
                             onFocus={handleSearchFocus}
                             onBlur={handleSearchBlur}
-                            className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0"
+                            className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
                         />
 
                         <div
@@ -387,7 +383,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                             onChange={(e) => onSearchChange(e.target.value)}
                             onFocus={handleSearchFocus}
                             onBlur={handleSearchBlur}
-                            className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0"
+                            className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
                         />
 
                         <div

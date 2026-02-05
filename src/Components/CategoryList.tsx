@@ -141,7 +141,7 @@ export function CategoryList({
                                     symptom && (
                                         <div
                                             key={symptom.id}
-                                            className="flex py-3 px-2 w-full rounded-sm border-b border-themewhite2/70 cursor-pointer hover:bg-themewhite2 min-w-0"
+                                            className="flex py-3 px-2 w-full rounded-sm border-b border-themewhite2/70 cursor-pointer  min-w-0"
                                             onClick={() => onNavigate(symptomToResult(symptom, selectedCategory))}
                                         >
                                             <div className="px-3 py-2 flex text-[10pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">

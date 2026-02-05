@@ -2,9 +2,18 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes'
 import { catData } from '../Data/CatData'
 import type { medListTypes } from '../Data/MedData'
+import type { AlgorithmOptions, dispositionType } from '../Types/AlgorithmTypes'
+import type { CardState } from './useAlgorithm'
 
 type ViewState = 'main' | 'subcategory' | 'questions'
 type GuidelineType = 'gen' | 'medcom' | 'stp' | 'DDX'
+
+export interface WriteNoteData {
+    disposition: dispositionType;
+    algorithmOptions: AlgorithmOptions[];
+    cardStates: CardState[];
+    selectedSymptom: { icon: string; text: string };
+}
 
 interface NavigationState {
     viewState: ViewState;
@@ -23,6 +32,8 @@ interface NavigationState {
     isSearchExpanded: boolean;
     showSymptomInfo: boolean;
     showMedications: boolean;
+    showWriteNote: boolean;
+    writeNoteData: WriteNoteData | null;
 }
 
 export function useNavigation() {
@@ -37,7 +48,9 @@ export function useNavigation() {
         showSettings: false,
         isSearchExpanded: false,
         showSymptomInfo: false,
-        showMedications: false
+        showMedications: false,
+        showWriteNote: false,
+        writeNoteData: null
     })
     const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
     const stateRef = useRef(state)
@@ -298,17 +311,24 @@ export function useNavigation() {
         state.selectedSymptom
     )
 
-    const shouldShowBackButton = (hasSearchInput: boolean, showNoteImport: boolean) => {
-        if (hasSearchInput || showNoteImport) return false
+    // Check if any drawer that covers the menu is open (on mobile these cover the entire screen)
+    const isDrawerCoveringMenu = state.showNoteImport || state.showSettings || state.showMedications || state.showSymptomInfo
+
+    const shouldShowBackButton = (hasSearchInput: boolean) => {
+        if (hasSearchInput) return false
+        // Hide back button when any covering drawer is open on mobile (drawer has its own controls)
+        if (isMobile && isDrawerCoveringMenu) return false
         if (isMobile) {
-            return hasActiveNavigation
+            return Boolean(state.selectedCategory || state.selectedSymptom)
         }
         return Boolean(state.selectedCategory || state.selectedSymptom)
     }
 
-    const shouldShowMenuButton = (hasSearchInput: boolean, showNoteImport: boolean) => {
-        if (hasSearchInput || showNoteImport) return false
-        return isMobile ? !hasActiveNavigation : true
+    const shouldShowMenuButton = (hasSearchInput: boolean) => {
+        if (hasSearchInput) return false
+        // Hide menu button when any covering drawer is open on mobile
+        if (isMobile && isDrawerCoveringMenu) return false
+        return isMobile ? !Boolean(state.selectedCategory || state.selectedSymptom) : true
     }
 
     const getMedicationButtonText = () => "Medications"
@@ -354,6 +374,22 @@ export function useNavigation() {
         }))
     }, [])
 
+    const showWriteNote = useCallback((data: WriteNoteData) => {
+        setState(prev => ({
+            ...prev,
+            showWriteNote: true,
+            writeNoteData: data
+        }))
+    }, [])
+
+    const closeWriteNote = useCallback(() => {
+        setState(prev => ({
+            ...prev,
+            showWriteNote: false,
+            writeNoteData: null
+        }))
+    }, [])
+
     // Close mobile menu on resize to desktop
     useEffect(() => {
         const handleResize = () => {
@@ -387,6 +423,8 @@ export function useNavigation() {
         isSearchExpanded: state.isSearchExpanded,
         showSymptomInfo: state.showSymptomInfo,
         showMedications: state.showMedications,
+        isWriteNoteVisible: state.showWriteNote,
+        writeNoteData: state.writeNoteData,
 
         // Navigation handlers
         handleNavigation,
@@ -407,6 +445,8 @@ export function useNavigation() {
         setSearchExpanded,
         toggleSymptomInfo,
         setShowSymptomInfo,
+        showWriteNote,
+        closeWriteNote,
 
         // Layout computation
         showQuestionCard: state.selectedSymptom !== null && state.viewState === 'questions',

@@ -1,4 +1,5 @@
 // components/DecisionMakingItem.tsx - FIXED VERSION
+import { useState, useRef, useEffect } from 'react'
 import type { decisionMakingType } from '../Types/AlgorithmTypes'
 import type { getColorClasses } from '../Utilities/ColorUtilities'
 import type { medListTypes } from '../Data/MedData'
@@ -78,6 +79,49 @@ function DifferentialHeader({ ddx, onDdxClick }: {
     );
 }
 
+// Expandable text component with 2-line truncation
+function ExpandableText({ text }: { text: string }) {
+    const [isExpanded, setIsExpanded] = useState(false);
+    const [needsTruncation, setNeedsTruncation] = useState(false);
+    const textRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (textRef.current) {
+            // Check if text overflows 2 lines
+            const lineHeight = parseFloat(getComputedStyle(textRef.current).lineHeight);
+            const maxHeight = lineHeight * 2;
+            setNeedsTruncation(textRef.current.scrollHeight > maxHeight + 2);
+        }
+    }, [text]);
+
+    return (
+        <div className="text-sm text-primary leading-relaxed mb-3">
+            <div
+                ref={textRef}
+                className={!isExpanded && needsTruncation ? 'line-clamp-2' : ''}
+            >
+                {text}
+            </div>
+            {needsTruncation && !isExpanded && (
+                <button
+                    onClick={() => setIsExpanded(true)}
+                    className="text-themeblue1 text-xs mt-1 hover:underline cursor-pointer"
+                >
+                    ...more
+                </button>
+            )}
+            {needsTruncation && isExpanded && (
+                <button
+                    onClick={() => setIsExpanded(false)}
+                    className="text-themeblue1 text-xs mt-1 hover:underline cursor-pointer"
+                >
+                    show less
+                </button>
+            )}
+        </div>
+    );
+}
+
 // Content section component
 function ContentSection({
     item,
@@ -109,11 +153,9 @@ function ContentSection({
 
     return (
         <>
-            {/* Text content */}
+            {/* Text content with 2-line truncation */}
             {item.text && (
-                <div className="text-sm text-primary leading-relaxed mb-3">
-                    {item.text}
-                </div>
+                <ExpandableText text={item.text} />
             )}
 
             {/* Ancillary Findings */}

@@ -3,28 +3,25 @@ import { useAlgorithm } from '../Hooks/useAlgorithm';
 import type { subCatDataTypes } from '../Types/CatTypes';
 import { Algorithm as AlgorithmData } from '../Data/Algorithms';
 import { QuestionCard } from './QuestionCard';
-import { WriteNotePage } from './WriteNotePage';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import type { medListTypes } from '../Data/MedData';
+import type { WriteNoteData } from '../Hooks/useNavigation';
 
 interface AlgorithmProps {
     selectedSymptom: subCatDataTypes | null;
     onMedicationClick?: (medication: medListTypes) => void;
+    onExpandNote?: (data: WriteNoteData) => void;
+    isMobile?: boolean;
 }
 
-type ViewState = 'algorithm' | 'note-expanded';
-
-export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
+export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false }: AlgorithmProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const markerRef = useRef<HTMLDivElement>(null);
     const prevDispositionRef = useRef<any>(null);
     const initialScrollDone = useRef(false);
     const prevScrollTriggerRef = useRef(0);
-    const [savedScrollPosition, setSavedScrollPosition] = useState<number>(0);
     const [isTransitioning, setIsTransitioning] = useState(false);
-    const [viewState, setViewState] = useState<ViewState>('algorithm');
     const [scrollTrigger, setScrollTrigger] = useState(0);
-    const [isMobile, setIsMobile] = useState(false);
 
     const algorithm = AlgorithmData.find(algo => algo.id === selectedSymptom?.icon);
     const algorithmOptions = algorithm?.options || [];
@@ -37,24 +34,17 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
         getVisibleCards
     } = useAlgorithm(algorithmOptions);
 
-    // Update view when disposition disappears
-    useEffect(() => {
-        if (!currentDisposition && viewState === 'note-expanded') {
-            setViewState('algorithm');
-        }
-    }, [currentDisposition, viewState]);
-
     // Track disposition changes — delay scroll past connector stagger animation (~500ms)
     useEffect(() => {
         const dispositionChanged = prevDispositionRef.current !== currentDisposition;
         prevDispositionRef.current = currentDisposition;
 
-        if (currentDisposition && dispositionChanged && viewState === 'algorithm') {
+        if (currentDisposition && dispositionChanged) {
             setTimeout(() => {
                 setScrollTrigger(prev => prev + 1);
             }, 600);
         }
-    }, [currentDisposition, viewState]);
+    }, [currentDisposition]);
 
     // Scroll function
     const scrollToMarker = useCallback(() => {
@@ -72,17 +62,17 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
         setIsTransitioning(false);
     }, []);
 
-    // Scroll effect — only fires when scrollTrigger increments, not on viewState change
+    // Scroll effect — only fires when scrollTrigger increments
     useEffect(() => {
-        if (scrollTrigger > prevScrollTriggerRef.current && viewState === 'algorithm') {
+        if (scrollTrigger > prevScrollTriggerRef.current) {
             prevScrollTriggerRef.current = scrollTrigger;
             scrollToMarker();
         }
-    }, [scrollTrigger, viewState, scrollToMarker]);
+    }, [scrollTrigger, scrollToMarker]);
 
     // IntersectionObserver
     useEffect(() => {
-        if (!containerRef.current || !markerRef.current || viewState !== 'algorithm') return;
+        if (!containerRef.current || !markerRef.current) return;
 
         const observer = new IntersectionObserver(
             (entries) => {
@@ -101,16 +91,7 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
 
         observer.observe(markerRef.current);
         return () => observer.disconnect();
-    }, [isTransitioning, viewState, scrollToMarker]);
-    useEffect(() => {
-        const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768);
-        };
-
-        checkMobile();
-        window.addEventListener('resize', checkMobile);
-        return () => window.removeEventListener('resize', checkMobile);
-    }, []);
+    }, [isTransitioning, scrollToMarker]);
     // Wrapper handlers — scroll delayed to let connector stagger animation (~500ms) complete
     const handleAnswer = (cardIndex: number, answerIndex: number) => {
         setIsTransitioning(true);
@@ -128,21 +109,19 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
         }, 550);
     };
 
-    // Handle expand/collapse of note
+    // Handle expand note - calls callback to open WriteNotePage at App level
     const handleExpandNote = () => {
-        if (containerRef.current) {
-            setSavedScrollPosition(containerRef.current.scrollTop);
-        }
-        setViewState('note-expanded');
-    };
+        if (!currentDisposition || !selectedSymptom || !onExpandNote) return;
 
-    const handleCollapseNote = () => {
-        setViewState('algorithm');
-        setTimeout(() => {
-            if (containerRef.current) {
-                containerRef.current.scrollTop = savedScrollPosition;
+        onExpandNote({
+            disposition: currentDisposition,
+            algorithmOptions,
+            cardStates,
+            selectedSymptom: {
+                icon: selectedSymptom.icon || '',
+                text: selectedSymptom.text || ''
             }
-        }, 50);
+        });
     };
 
     // Reset initial scroll flag when algorithm changes
@@ -150,15 +129,15 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
         initialScrollDone.current = false;
     }, [selectedSymptom?.id, algorithm]);
 
-    // Initial scroll when algorithm loads — does not re-fire on return from WriteNotePage
+    // Initial scroll when algorithm loads
     useEffect(() => {
-        if (selectedSymptom && algorithm && viewState === 'algorithm' && !initialScrollDone.current) {
+        if (selectedSymptom && algorithm && !initialScrollDone.current) {
             initialScrollDone.current = true;
             setTimeout(() => {
                 setScrollTrigger(prev => prev + 1);
             }, 300);
         }
-    }, [selectedSymptom?.id, algorithm, viewState]);
+    }, [selectedSymptom?.id, algorithm]);
 
     // Early returns
     if (!selectedSymptom) {
@@ -181,14 +160,16 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
 
     return (
         <div className="w-full h-full relative overflow-hidden">
-            {/* ALGORITHM VIEW - always mounted to preserve state and avoid animation re-fire */}
             <div key="algorithm-view" className="h-full flex flex-col">
-                {/* Algorithm Content */}
                 <div
                     ref={containerRef}
                     className={`flex-1 overflow-y-auto ${isTransitioning ? 'transition-none' : ''}`}
                 >
-                    <div className="pb-4">
+                    {/* Mobile: spacer accounts for safe area + navbar, scrolls with content */}
+                    <div
+                        className={`pb-4 ${isMobile ? 'px-2 bg-themewhite min-h-full' : ''}`}
+                        style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' } : undefined}
+                    >
                         <QuestionCard
                             algorithmOptions={algorithmOptions}
                             cardStates={cardStates}
@@ -207,7 +188,6 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
                                     <div className={`connector-dot ${colors.badgeBg}`} style={{ animationDelay: '100ms' }} />
                                     <div className={`connector-dot ${colors.badgeBg}`} style={{ animationDelay: '200ms' }} />
                                     <div className={`connector-dot ${colors.badgeBg}`} style={{ animationDelay: '290ms' }} />
-
                                 </div>
 
                                 {/* Disposition card */}
@@ -258,27 +238,6 @@ export function AlgorithmPage({ selectedSymptom }: AlgorithmProps) {
                     </div>
                 </div>
             </div>
-
-            {/* NOTE VIEW - overlays on mobile (bottom sheet), replaces on desktop */}
-            {viewState === 'note-expanded' && currentDisposition && (
-                <div className={`absolute inset-0 h-full w-full z-10 ${!isMobile ? 'animate-desktopNoteExpand' : ''}`}>
-                    <WriteNotePage
-                        disposition={currentDisposition}
-                        algorithmOptions={algorithmOptions}
-                        cardStates={cardStates}
-                        isExpanded={true}
-                        onExpansionChange={handleCollapseNote}
-                        onNoteSave={(note: string) => {
-                            console.log('Note saved:', note);
-                        }}
-                        selectedSymptom={{
-                            icon: selectedSymptom?.icon || '',
-                            text: selectedSymptom?.text || ''
-                        }}
-                        isMobile={isMobile}
-                    />
-                </div>
-            )}
         </div>
     );
 }
