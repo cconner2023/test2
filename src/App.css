@@ -40,11 +40,11 @@
   --color-themeyellow: rgba(255, 194, 34, 1);
   --color-themeyellowlow: rgba(255, 194, 34, 0.7);
   --color-themegreen: rgba(96, 146, 92, 1);
-  --color-themewhite: rgba(15, 25, 35, 1);         /* Deep blue-black */
+  --color-themewhite: rgba(15, 25, 35, 1);       
   --color-themewhite2: rgba(25, 35, 45, 1);
-  --color-themewhite3: rgba(20,30,40,1);        /* Slightly lighter */
-  --color-themegray1: rgba(55, 65, 75, 1);         /* Medium blue-gray */
-  --color-themegray2: rgba(75, 85, 95, 1);         /* Lighter blue-gray */
+  --color-themewhite3: rgba(20,30,40,1);       
+  --color-themegray1: rgba(55, 65, 75, 1);        
+  --color-themegray2: rgba(75, 85, 95, 1);         
   --color-themeblue1: rgba(129, 161, 181, 1);
   --color-themeblue2: rgba(21, 142, 172, 1);
   --color-themeblue3: rgba(0, 66, 92, 1);

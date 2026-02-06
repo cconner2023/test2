@@ -296,9 +296,9 @@ export const WriteNotePage = ({
     // Mobile drawer calculations (matching MedicationsDrawer pattern)
     const mobileTranslateY = 100 - drawerPosition;
     const mobileHeight = drawerStage === 'partial' ? '50dvh' : '98dvh';
-    const mobileHorizontalPadding = drawerStage === 'partial' ? '0.75rem' : '0';
-    const mobileBottomPadding = drawerStage === 'partial' ? '0.75rem' : '0';
-    const mobileBorderRadius = drawerStage === 'partial' ? '1.25rem' : '1.25rem 1.25rem 0 0';
+    const mobileHorizontalPadding = drawerStage === 'partial' ? '0.5rem' : '0';
+    const mobileBottomPadding = drawerStage === 'partial' ? '1.5rem' : '0';
+    const mobileBorderRadius = drawerStage === 'partial' ? '1rem' : '1.25rem 1.25rem 0 0';
 
     return (
         <div className="h-full w-full relative">
@@ -306,9 +306,9 @@ export const WriteNotePage = ({
             <div
                 ref={sheetRef}
                 className={`${isMobile
-                    ? 'fixed left-0 right-0 bottom-0 z-60 shadow-2xl'
-                    : 'h-full w-full'
-                    } bg-themewhite2 overflow-hidden flex flex-col`}
+                    ? 'fixed left-0 right-0 bottom-0 z-60'
+                    : 'h-full w-full rounded-md'
+                    } bg-themewhite2  overflow-hidden flex flex-col`}
                 style={isMobile ? {
                     height: mobileHeight,
                     maxHeight: mobileHeight,
@@ -321,12 +321,13 @@ export const WriteNotePage = ({
                     willChange: isDraggingSheet ? 'transform' : 'auto',
                     borderRadius: mobileBorderRadius,
                     touchAction: 'none',
-                    boxShadow: drawerStage === 'partial' ? '0 4px 20px rgba(0, 0, 0, 0.15)' : '0 -4px 20px rgba(0, 0, 0, 0.1)',
+                    border: drawerStage === 'partial' ? '0.5px, solid, var(--color-primary)' : 'rgba(0,0,0,0)',
+                    boxShadow: drawerStage === 'partial' ? '0 4px 2px rgba(0, 0, 0, 0.05)' : '0 -4px 20px rgba(0, 0, 0, 0.1)',
                 } : {
                     // Desktop: smooth expand/collapse animation
                     transform: desktopExpanded ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(20px)',
                     opacity: desktopExpanded ? 1 : 0,
-                    transition: 'all 400ms cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                    transition: 'all 300ms cubic-bezier(0.175, 0.885, 0.32, 1.275)',
                     transformOrigin: 'bottom center',
                 }}
             >
@@ -349,7 +350,7 @@ export const WriteNotePage = ({
 
                 {/* Header: page title + step dots + close */}
                 <div
-                    className="flex items-center justify-between px-4 py-2 border-b border-themegray1/20 bg-themewhite2"
+                    className="flex items-center justify-between px-4 py-2 border-b border-themegray1/20 bg-transparent"
                     style={isMobile ? { touchAction: 'none' } : {}}
                     onTouchStart={isMobile ? handleSheetDragStart : undefined}
                     onTouchMove={isMobile ? handleSheetDragMove : undefined}
@@ -464,17 +465,6 @@ export const WriteNotePage = ({
                         {/* Page 2: View Note */}
                         <div className={`w-full h-full shrink-0 overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                             <div className="space-y-6">
-                                <div className="flex items-center justify-between">
-                                    <div className="text-xs font-normal text-primary">Note Preview</div>
-                                    <div className="flex items-center gap-1 text-[9px]">
-                                        {includeAlgorithm && <span className={`px-2 py-2 rounded-md ${colors.symptomClass}`}>Algorithm</span>}
-                                        {includeAlgorithm && includeDecisionMaking && <span className="text-tertiary mx-1">•</span>}
-                                        {includeDecisionMaking && <span className={`px-2 py-2 rounded-md ${colors.symptomClass}`}>Decision Making</span>}
-                                        {(includeAlgorithm || includeDecisionMaking) && includeHPI && <span className="text-tertiary mx-1">•</span>}
-                                        {includeHPI && <span className={`px-2 py-2 rounded-md ${colors.symptomClass}`}>HPI</span>}
-                                        {(!includeAlgorithm && !includeDecisionMaking && !includeHPI) && <span className="text-tertiary">No content selected</span>}
-                                    </div>
-                                </div>
                                 <div className="relative">
                                     <div className="w-full max-h-96 p-3 rounded-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap overflow-y-auto">
                                         {previewNote || "No content selected"}

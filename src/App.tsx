@@ -84,16 +84,15 @@ function AppContent() {
 
 
   return (
-    <div className='h-screen bg-themewhite2 items-center flex justify-center overflow-hidden'>
-      <div className={`max-w-315 shrink flex-col w-full rounded-md border border-[rgba(0,0,0,0.03)] shadow-[0px_2px_4px] shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1 relative ${
-        navigation.isMobile ? '' : 'bg-themewhite pb-10'
-      }`}>
+    <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
+      <div className={`max-w-315 shrink flex-col w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1 relative ${navigation.isMobile ? '' : 'bg-themewhite pb-10'
+        }`}>
         {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
         <div className={`${navigation.isMobile
           ? 'absolute top-0 left-0 right-0 z-30 pt-[env(safe-area-inset-top)] backdrop-blur-sm bg-themewhite/70'
           : 'relative'
-        } h-13.75 w-full rounded-t-md flex justify-end`}
-        style={navigation.isMobile ? { height: 'calc(env(safe-area-inset-top, 0px) + 3.4375rem)' } : undefined}>
+          } h-13.75 w-full rounded-t-md flex justify-end`}
+          style={navigation.isMobile ? { height: 'calc(env(safe-area-inset-top, 0px) + 3.4375rem)' } : undefined}>
           <NavTop
             search={{
               searchInput: search.searchInput,
@@ -127,15 +126,13 @@ function AppContent() {
         </div>
 
         {/* Content area - components rendered once, CSS controls layout */}
-        <div ref={contentRef} className={`md:h-[94%] h-full relative overflow-hidden ${
-          navigation.isMobile ? 'absolute inset-0' : 'mt-2 mx-2'
-        }`}>
+        <div ref={contentRef} className={`md:h-[94%] h-full relative overflow-hidden ${navigation.isMobile ? 'absolute inset-0' : 'mt-2 mx-2'
+          }`}>
           {/* Mobile Layout - absolute stacking */}
           <div className={`${navigation.isMobile ? 'block' : 'hidden'} h-full relative`}>
             {/* CategoryList - base layer - content scrolls behind navbar */}
-            <div className={`absolute inset-0 transition-opacity duration-200 ${
-              !search.searchInput && !navigation.showQuestionCard ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
-            }`}>
+            <div className={`absolute inset-0 transition-opacity duration-200 ${!search.searchInput && !navigation.showQuestionCard ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+              }`}>
               <div className="h-full overflow-y-auto">
                 {/* Spacer accounts for safe area + navbar, scrolls with content */}
                 <div className="px-2 bg-themewhite min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
@@ -150,9 +147,8 @@ function AppContent() {
             </div>
 
             {/* SearchResults - overlay when searching */}
-            <div className={`absolute inset-0 transition-opacity duration-200 ${
-              search.searchInput ? 'opacity-100 z-20' : 'opacity-0 z-0 pointer-events-none'
-            }`}>
+            <div className={`absolute inset-0 transition-opacity duration-200 ${search.searchInput ? 'opacity-100 z-20' : 'opacity-0 z-0 pointer-events-none'
+              }`}>
               <div className="h-full overflow-y-auto">
                 <div className="px-2 bg-themewhite min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
                   <SearchResults
@@ -202,15 +198,14 @@ function AppContent() {
 
           {/* AlgorithmPage - rendered ONCE, positioned based on layout */}
           {navigation.selectedSymptom && (
-            <div className={`transition-opacity duration-200 ${
-              navigation.isMobile
-                ? `absolute inset-0 ${!search.searchInput && navigation.showQuestionCard ? 'opacity-100 z-20' : 'opacity-0 z-0 pointer-events-none'}`
-                : `absolute right-0 top-0 bottom-0 bg-themewhite ${!search.searchInput && navigation.showQuestionCard ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
-            }`}
-            style={!navigation.isMobile ? {
-              width: !search.searchInput && navigation.showQuestionCard ? 'calc(55% - 2px)' : '0%',
-              transition: 'width 300ms, opacity 200ms'
-            } : undefined}
+            <div className={`transition-opacity duration-200 ${navigation.isMobile
+              ? `absolute inset-0 ${!search.searchInput && navigation.showQuestionCard ? 'opacity-100 z-20' : 'opacity-0 z-0 pointer-events-none'}`
+              : `absolute right-0 top-0 bottom-0 bg-themewhite ${!search.searchInput && navigation.showQuestionCard ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
+              }`}
+              style={!navigation.isMobile ? {
+                width: !search.searchInput && navigation.showQuestionCard ? 'calc(55% - 2px)' : '0%',
+                transition: 'width 300ms, opacity 200ms'
+              } : undefined}
             >
               {navigation.isMobile ? (
                 <div className="h-full overflow-hidden">
@@ -260,12 +255,11 @@ function AppContent() {
         />
         {/* WriteNotePage - rendered at App level for proper z-index on mobile */}
         {navigation.isWriteNoteVisible && navigation.writeNoteData && (
-          <div className={`${
-            navigation.isMobile
-              ? 'fixed inset-0 z-50'
-              : 'absolute right-0 top-0 bottom-0 z-40 animate-desktopNoteExpand'
-          }`}
-          style={!navigation.isMobile ? { width: 'calc(55% - 2px)' } : undefined}
+          <div className={`${navigation.isMobile
+            ? 'fixed inset-0 z-50'
+            : 'absolute right-0 top-0 bottom-0 z-40 animate-desktopNoteExpand'
+            }`}
+            style={!navigation.isMobile ? { width: 'calc(55% - 2px)' } : undefined}
           >
             <WriteNotePage
               disposition={navigation.writeNoteData.disposition}
