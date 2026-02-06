@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
 import './App.css'
 import { NavTop } from './Components/NavTop'
 import { CategoryList } from './Components/CategoryList'
@@ -24,6 +24,13 @@ function AppContent() {
 
   const navigation = useNavigation()
   const search = useSearch()
+
+  // Sync search expansion when transitioning to mobile with active search text
+  useEffect(() => {
+    if (navigation.isMobile && search.searchInput.trim() && !navigation.isSearchExpanded) {
+      navigation.setSearchExpanded(true)
+    }
+  }, [navigation.isMobile, search.searchInput, navigation.isSearchExpanded, navigation.setSearchExpanded])
 
   const handleNavigationClick = useCallback((result: SearchResultType) => {
     navigation.handleNavigation(result)
@@ -165,7 +172,7 @@ function AppContent() {
           {/* Desktop Layout - grid */}
           <div className={`${navigation.isMobile ? 'hidden' : 'block'} h-full`}>
             <div className="h-full grid transition-[grid-template-columns] gap-1"
-              style={{ gridTemplateColumns: navigation.mainGridTemplate }}
+              style={{ gridTemplateColumns: !navigation.isMobile && search.searchInput ? '1fr 1fr 0fr' : navigation.mainGridTemplate }}
             >
               {/* Column 1: Categories Navigation */}
               <div className="h-full overflow-y-scroll">

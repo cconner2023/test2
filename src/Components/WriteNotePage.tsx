@@ -302,6 +302,17 @@ export const WriteNotePage = ({
 
     return (
         <div className="h-full w-full relative">
+            {/* Backdrop (mobile only) */}
+            {isMobile && (
+                <div
+                    className={`fixed inset-0 z-60 bg-black ${isDraggingSheet ? '' : 'transition-opacity duration-300 ease-out'}`}
+                    style={{
+                        opacity: (drawerPosition / 100) * 0.3,
+                        pointerEvents: drawerPosition > 0 ? 'auto' : 'none',
+                    }}
+                    onClick={handleClose}
+                />
+            )}
             {/* Sheet / Container */}
             <div
                 ref={sheetRef}

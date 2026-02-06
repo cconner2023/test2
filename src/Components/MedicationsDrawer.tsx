@@ -101,6 +101,7 @@ export function MedicationsDrawer({
     const isMobile = externalIsMobile !== undefined ? externalIsMobile : localIsMobile;
 
     const [drawerPosition, setDrawerPosition] = useState(0);
+    const [drawerStage, setDrawerStage] = useState<'partial' | 'full'>('partial');
     const [isDragging, setIsDragging] = useState(false);
     const drawerRef = useRef<HTMLDivElement>(null);
     const dragStartY = useRef(0);
@@ -123,6 +124,7 @@ export function MedicationsDrawer({
     // Handle visibility changes
     useEffect(() => {
         if (isVisible) {
+            setDrawerStage('partial');
             setDrawerPosition(100);
             document.body.style.overflow = 'hidden';
         } else {
@@ -206,21 +208,33 @@ export function MedicationsDrawer({
         e.stopPropagation();
     };
 
-    // Handle drag end with momentum
+    // Handle drag end with momentum - 3-state: partial ↔ full, close
     const handleDragEnd = () => {
         if (!isDragging || !isMobile) return;
 
         setIsDragging(false);
 
-        const shouldClose = velocityRef.current > 0.3 || drawerPosition < 40;
-        const shouldOpen = velocityRef.current < -0.3 || drawerPosition > 60;
+        const isSwipingDown = velocityRef.current > 0.3;
+        const isSwipingUp = velocityRef.current < -0.3;
 
-        if (shouldClose) {
-            animateToPosition(0);
-        } else if (shouldOpen) {
-            animateToPosition(100);
+        if (drawerStage === 'partial') {
+            if (isSwipingUp || drawerPosition > 70) {
+                setDrawerStage('full');
+                animateToPosition(100);
+            } else if (isSwipingDown || drawerPosition < 40) {
+                animateToPosition(0);
+            } else {
+                animateToPosition(100);
+            }
         } else {
-            animateToPosition(drawerPosition > 50 ? 100 : 0);
+            if (velocityRef.current > 0.6 || drawerPosition < 30) {
+                animateToPosition(0);
+            } else if (isSwipingDown || drawerPosition < 70) {
+                setDrawerStage('partial');
+                animateToPosition(100);
+            } else {
+                animateToPosition(100);
+            }
         }
     };
 
@@ -236,6 +250,13 @@ export function MedicationsDrawer({
     // Mobile drawer styles
     const mobileTranslateY = 100 - drawerPosition;
     const mobileOpacity = Math.min(1, drawerPosition / 60 + 0.2);
+    const mobileHeight = drawerStage === 'partial' ? '50dvh' : '98dvh';
+    const mobileHorizontalPadding = drawerStage === 'partial' ? '0.5rem' : '0';
+    const mobileBottomPadding = drawerStage === 'partial' ? '1.5rem' : '0';
+    const mobileBorderRadius = drawerStage === 'partial' ? '1rem' : '1.25rem 1.25rem 0 0';
+    const mobileBoxShadow = drawerStage === 'partial'
+        ? '0 4px 2px rgba(0, 0, 0, 0.05)'
+        : '0 -4px 20px rgba(0, 0, 0, 0.1)';
 
     const contentProps = {
         selectedMedication,
@@ -245,24 +266,37 @@ export function MedicationsDrawer({
 
     return (
         <>
-            {/* Mobile Container - NO BACKDROP */}
+            {/* Mobile Container */}
             <div
                 ref={drawerRef}
                 className="md:hidden"
             >
                 <div
-                    className={`fixed left-0 right-0 z-60 bg-themewhite3 shadow-2xl ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
+                    className={`fixed inset-0 z-60 bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
                     style={{
-                        height: '98dvh',
-                        maxHeight: '98dvh',
+                        opacity: (drawerPosition / 100) * 0.3,
+                        pointerEvents: drawerPosition > 0 ? 'auto' : 'none',
+                    }}
+                    onClick={handleClose}
+                />
+                <div
+                    className={`fixed left-0 right-0 z-60 bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
+                    style={{
+                        height: mobileHeight,
+                        maxHeight: mobileHeight,
+                        marginLeft: mobileHorizontalPadding,
+                        marginRight: mobileHorizontalPadding,
+                        marginBottom: mobileBottomPadding,
+                        width: drawerStage === 'partial' ? 'calc(100% - 1rem)' : '100%',
                         bottom: 0,
                         transform: `translateY(${mobileTranslateY}%)`,
                         opacity: mobileOpacity,
-                        borderTopLeftRadius: '1.25rem',
-                        borderTopRightRadius: '1.25rem',
+                        borderRadius: mobileBorderRadius,
                         willChange: isDragging ? 'transform' : 'auto',
                         touchAction: 'none',
-                        boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
+                        boxShadow: mobileBoxShadow,
+                        overflow: 'hidden',
+                        visibility: isVisible ? 'visible' : 'hidden',
                     }}
                     onTouchStart={handleDragStart}
                     onTouchMove={handleDragMove}
