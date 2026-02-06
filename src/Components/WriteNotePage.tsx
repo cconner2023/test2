@@ -295,7 +295,7 @@ export const WriteNotePage = ({
 
     // Mobile drawer calculations (matching MedicationsDrawer pattern)
     const mobileTranslateY = 100 - drawerPosition;
-    const mobileHeight = drawerStage === 'partial' ? '50dvh' : '98dvh';
+    const mobileHeight = drawerStage === 'partial' ? '40dvh' : '90dvh';
     const mobileHorizontalPadding = drawerStage === 'partial' ? '0.5rem' : '0';
     const mobileBottomPadding = drawerStage === 'partial' ? '1.5rem' : '0';
     const mobileBorderRadius = drawerStage === 'partial' ? '1rem' : '1.25rem 1.25rem 0 0';

@@ -214,23 +214,14 @@ function AppContent() {
                 transition: 'width 300ms, opacity 200ms'
               } : undefined}
             >
-              {navigation.isMobile ? (
-                <div className="h-full overflow-hidden">
-                  {/* AlgorithmPage handles its own scrolling - don't wrap in another scroll container */}
-                  <AlgorithmPage
-                    selectedSymptom={navigation.selectedSymptom}
-                    onMedicationClick={navigation.handleMedicationSelect}
-                    onExpandNote={navigation.showWriteNote}
-                    isMobile={true}
-                  />
-                </div>
-              ) : (
+              <div className="h-full overflow-hidden">
                 <AlgorithmPage
                   selectedSymptom={navigation.selectedSymptom}
                   onMedicationClick={navigation.handleMedicationSelect}
                   onExpandNote={navigation.showWriteNote}
+                  isMobile={navigation.isMobile}
                 />
-              )}
+              </div>
             </div>
           )}
         </div>

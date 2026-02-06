@@ -425,7 +425,7 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
 
     const mobileTranslateY = 100 - drawerPosition;
     const mobileOpacity = Math.min(1, drawerPosition / 60 + 0.2);
-    const mobileHeight = drawerStage === 'partial' ? '50dvh' : '98dvh';
+    const mobileHeight = drawerStage === 'partial' ? '40dvh' : '90dvh';
     const mobileHorizontalPadding = drawerStage === 'partial' ? '0.5rem' : '0';
     const mobileBottomPadding = drawerStage === 'partial' ? '1.5rem' : '0';
     const mobileBorderRadius = drawerStage === 'partial' ? '1rem' : '1.25rem 1.25rem 0 0';

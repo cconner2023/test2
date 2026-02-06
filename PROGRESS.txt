@@ -1,0 +1,14 @@
+A react, vite, ts PWA meant for triage and documentation.
+RESTRICTIONS:
+    - do not edit data in \Data. This comes from outside sources and is verbatim.
+
+Upon new context we are to review the code base, complete Todo, and update progress in this txt file.
+
+Completed:
+[1] mobile view drawers @MedicationDrawer @Settings @WriteNotePage @NoteImport extend beyond the island. 
+    - Reduced partial height from 50dvh to 40dvh and full height from 98dvh to 90dvh across all 4 drawers
+[2] maintain state of @AlgorithmPage upon window re-size.
+    - Unified mobile/desktop into a single AlgorithmPage instance with dynamic isMobile prop so state persists
+
+New Issues:
+[1] Any action (select, scroll) in our mobile drawers raises it to full visibility.
