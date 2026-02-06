@@ -131,9 +131,9 @@ const NoteImportContent = ({
             )}
 
             {/* Header */}
-            <div className="px-6 border-b border-tertiary/10 py-4 md:py-5" data-drag-zone style={{ touchAction: 'none' }}>
+            <div className="px-6 border-b border-tertiary/10 py-2 md:py-3" data-drag-zone style={{ touchAction: 'none' }}>
                 <div className="flex items-center justify-between">
-                    <h2 className="text-xl font-semibold text-primary md:text-2xl">
+                    <h2 className="text-[11pt] font-normal text-primary md:text-[12pt]">
                         {getTitle()}
                     </h2>
                     <button
@@ -443,47 +443,47 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
         <div ref={drawerRef}>
             {isMobile ? (
                 <>
-                <div
-                    className={`fixed inset-0 z-60 bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
-                    style={{
-                        opacity: (drawerPosition / 100) * 0.3,
-                        pointerEvents: drawerPosition > 0 ? 'auto' : 'none',
-                    }}
-                    onClick={handleClose}
-                />
-                <div
-                    className={`fixed left-0 right-0 z-60 bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
-                    style={{
-                        height: mobileHeight,
-                        maxHeight: mobileHeight,
-                        marginLeft: mobileHorizontalPadding,
-                        marginRight: mobileHorizontalPadding,
-                        marginBottom: mobileBottomPadding,
-                        width: drawerStage === 'partial' ? 'calc(100% - 1rem)' : '100%',
-                        bottom: 0,
-                        transform: `translateY(${mobileTranslateY}%)`,
-                        opacity: mobileOpacity,
-                        borderRadius: mobileBorderRadius,
-                        willChange: isDragging ? 'transform' : 'auto',
-                        boxShadow: mobileBoxShadow,
-                        overflow: 'hidden',
-                        visibility: isVisible ? 'visible' : 'hidden',
-                    }}
-                    onTouchStart={handleDragStart}
-                    onTouchMove={handleDragMove}
-                    onTouchEnd={handleDragEnd}
-                    onMouseDown={handleDragStart}
-                    onMouseMove={handleDragMove}
-                    onMouseUp={handleDragEnd}
-                    onMouseLeave={handleDragEnd}
-                >
-                    <NoteImportContent
-                        onClose={handleClose}
-                        isMobile={isMobile}
-                        state={contentState}
-                        setState={setContentState}
+                    <div
+                        className={`fixed inset-0 z-60 bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
+                        style={{
+                            opacity: (drawerPosition / 100) * 0.9,
+                            pointerEvents: drawerPosition > 0 ? 'auto' : 'none',
+                        }}
+                        onClick={handleClose}
                     />
-                </div>
+                    <div
+                        className={`fixed left-0 right-0 z-60 bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
+                        style={{
+                            height: mobileHeight,
+                            maxHeight: mobileHeight,
+                            marginLeft: mobileHorizontalPadding,
+                            marginRight: mobileHorizontalPadding,
+                            marginBottom: mobileBottomPadding,
+                            width: drawerStage === 'partial' ? 'calc(100% - 1rem)' : '100%',
+                            bottom: 0,
+                            transform: `translateY(${mobileTranslateY}%)`,
+                            opacity: mobileOpacity,
+                            borderRadius: mobileBorderRadius,
+                            willChange: isDragging ? 'transform' : 'auto',
+                            boxShadow: mobileBoxShadow,
+                            overflow: 'hidden',
+                            visibility: isVisible ? 'visible' : 'hidden',
+                        }}
+                        onTouchStart={handleDragStart}
+                        onTouchMove={handleDragMove}
+                        onTouchEnd={handleDragEnd}
+                        onMouseDown={handleDragStart}
+                        onMouseMove={handleDragMove}
+                        onMouseUp={handleDragEnd}
+                        onMouseLeave={handleDragEnd}
+                    >
+                        <NoteImportContent
+                            onClose={handleClose}
+                            isMobile={isMobile}
+                            state={contentState}
+                            setState={setContentState}
+                        />
+                    </div>
                 </>
             ) : (
                 // Desktop modal
@@ -491,7 +491,7 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
                     className={`fixed inset-0 z-60 flex items-start justify-center transition-all duration-300 ease-out ${isVisible
                         ? 'visible pointer-events-auto'
                         : 'invisible pointer-events-none'
-                    }`}
+                        }`}
                     onClick={onClose}
                 >
                     <div className="max-w-315 w-full relative">
@@ -509,9 +509,9 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
                             max-w-md
                             w-full
                             ${isVisible
-                                ? "scale-x-100 scale-y-100 translate-x-0 translate-y-0"
-                                : "opacity-0 scale-x-20 scale-y-20 translate-x-10 -translate-y-2 pointer-events-none"
-                            }`}
+                                    ? "scale-x-100 scale-y-100 translate-x-0 translate-y-0"
+                                    : "opacity-0 scale-x-20 scale-y-20 translate-x-10 -translate-y-2 pointer-events-none"
+                                }`}
                             onClick={(e) => e.stopPropagation()}
                         >
                             <NoteImportContent

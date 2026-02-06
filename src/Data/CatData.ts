@@ -1820,7 +1820,7 @@ export const catData: catDataTypes[] = [
                 id: 1,
                 icon: "J-1",
                 text: "Unknown Cause of Skin Disorder",
-                gen: [{}],
+                gen: [{ text: 'If the cause of the condition is unknown to the Soldier, this first protocol provides the category/level of care indicated by the Soldiers symptoms' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
                     TrainingStpData[5].options[1],
@@ -1840,7 +1840,7 @@ export const catData: catDataTypes[] = [
                 id: 2,
                 icon: "J-2",
                 text: "Acne",
-                gen: [{}],
+                gen: [{ text: 'Acne is caused by plugged oil glands. The oily material may form a ‘whitehead” or develop a dark colored “blackhead” when exposed to the air. Pimples develop when these plugged glands become inflamed, and bacteria begin breaking down the oil-producing irritating substances as by-products. Acne is a common condition occurring primarily in the late teens and early twenties. Acne may be extremely upsetting to the young Soldier. The seriousness of this condition or its importance to the Soldier must not be underestimated. With proper treatment, acne can be improved thus avoiding scarring' }],
                 medcom: [
                     medcomTrainingData[2],
                     medcomTrainingData[21]

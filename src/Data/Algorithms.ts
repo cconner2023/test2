@@ -6033,7 +6033,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
                             }
                         ],
                         disposition: [Disposition[0]],
@@ -6066,24 +6066,19 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['drug eruption'],
+                                text: 'Skin rash associated with a medication, fever, or is painful (but not due to a sunburn) has the potential to be very serious. Further evaluation is indicated when it has failed previous treatment or is worsening. Certain anatomical locations present with a higher risk of complications to include the face, genitals area, or inhibiting a joint function.',
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -6104,7 +6099,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'Change in a lesion or oozing of fluids require further evaluation. Skin lesions that have been present for over four weeks may represent a symptom of a systemic condition.'
                             }
                         ],
                         disposition: [Disposition[1]],
@@ -6116,7 +6111,11 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'If the Soldier is already on a treatment for this issue, has not finished the current treatment, and the issues is not getting worse, then instruct the Soldier to continue with the current treatment for the full course. Some skin issues can take two to three weeks or potentially longer for them to work. Confirm with your supervising NCO or supervising privileged provider before returning the Soldier to work. If you recognize the skin lesion, then screen according to the identified skin condition. If you do not recognize the skin lesion, refer the Soldier to the AEM for further evaluation.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Continue the current skin treatment regimen if it has not been completed/followed for the necessary amount of time (usually 2-3 weeks). Screen according to pertinent algorithm if you can identify the skin contision. Refer to AEM for further evaluation if you cannot identify the skin condition '
+                                }
                             }
                         ],
                         disposition: [Disposition[2]],
@@ -6155,24 +6154,18 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'Birth control and a positive hCG requires additional counseling that should be provided by the supervising privileged provider. Hyperandrogenism requires additional evaluation. Draining lesions requires more aggressive therapy. Acute onset of acne symptoms for the first time after age 18 requires further evaluation'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -6195,7 +6188,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'Moderate to severe acne or acne on the back or interferes with wearing equipment requires evaluation for oral medications and temporary profile. Scarring and hyperpigmentation requires more aggressive therapy to avoid further permanent scarring. There can be psychological effects from acne. It is important to identify Soldiers that are very self-conscious and escalating the treatment regimen to quickly control the acne.'
                             }
                         ],
                         disposition: [Disposition[1]],
@@ -6204,15 +6197,15 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                text: 'Moderate to severe acne or acne on the back or interferes with wearing equipment requires evaluation for oral medications and temporary profile. Scarring and hyperpigmentation requires more aggressive therapy to avoid further permanent scarring. There can be psychological effects from acne. It is important to identify Soldiers that are very self-conscious and escalating the treatment regimen to quickly control the acne.'
                             }
                         ],
                         next: null,
@@ -6245,13 +6238,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'all Soldiers with acne should be instructed to wash the affected area with mild soap and water without scrubbing twice a day and pat dry. Avoid creams and lotions to the area'
                             }
                         ],
-                        disposition: [Disposition[0]], // CAT I: Provider Now
                         next: null,
                         selectAll: true
                     },
