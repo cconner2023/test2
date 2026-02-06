@@ -114,14 +114,14 @@ const ReleaseNotesContent = ({ onBack }: { onBack: () => void }) => {
 const SettingsContent = ({ settingsOptions, onItemClick, activePanel }: SettingsContentProps) => (
     <>
         {activePanel === 'main' && (
-            <div className="flex justify-center pt-3 pb-2 md:hidden">
+            <div className="flex justify-center pt-3 pb-2 md:hidden" data-drag-zone style={{ touchAction: 'none' }}>
                 <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
             </div>
         )}
 
         {activePanel === 'main' ? (
             <>
-                <div className="px-6 border-b border-tertiary/10 py-4 md:py-5">
+                <div className="px-6 border-b border-tertiary/10 py-4 md:py-5" data-drag-zone style={{ touchAction: 'none' }}>
                     <div className="flex items-center justify-between">
                         <h2 className="text-xl font-semibold text-primary md:text-2xl">Settings</h2>
                         <button
@@ -290,6 +290,9 @@ export const Settings = ({
     const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
         if (!isMobile || activePanel !== 'main') return;
 
+        const target = e.target as HTMLElement;
+        if (!target.closest('[data-drag-zone]')) return;
+
         setIsDragging(true);
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
         dragStartY.current = clientY;
@@ -332,7 +335,7 @@ export const Settings = ({
         const isSwipingUp = velocityRef.current < -0.3;
 
         if (drawerStage === 'partial') {
-            if (isSwipingUp || drawerPosition > 70) {
+            if (isSwipingUp) {
                 setDrawerStage('full');
                 animateToPosition(100);
             } else if (isSwipingDown || drawerPosition < 40) {
@@ -424,7 +427,6 @@ export const Settings = ({
                         opacity: mobileOpacity,
                         borderRadius: mobileBorderRadius,
                         willChange: isDragging ? 'transform' : 'auto',
-                        touchAction: 'none',
                         boxShadow: mobileBoxShadow,
                         overflow: 'hidden',
                         visibility: isVisible ? 'visible' : 'hidden',

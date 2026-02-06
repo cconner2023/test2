@@ -74,19 +74,21 @@ export const QuestionCard = ({
                                                 <div
                                                     key={optIndex}
                                                     onClick={() => {
-                                                        if (isRF || isChoice || isCount || isInitial || isAction) {
+                                                        if (isRF || isChoice || isCount || isInitial) {
                                                             onQuestionOption(card.index, optIndex);
                                                         }
                                                     }}
                                                     className={`
-                                                text-xs p-2 rounded-md cursor-pointer transition-all duration-200
-                                                ${isSelected
-                                                            ? isRF
-                                                                ? 'bg-themeredred text-white' // RF selected style
-                                                                : `${cardColors.symptomClass} border-dashed`
-                                                            : 'bg-themewhite3 text-tertiary'
+                                                text-xs p-2 rounded-md transition-all duration-200
+                                                ${isAction
+                                                            ? 'bg-themewhite3 text-tertiary'
+                                                            : isSelected
+                                                                ? isRF
+                                                                    ? 'bg-themeredred text-white'
+                                                                    : `${cardColors.symptomClass} border-dashed`
+                                                                : 'bg-themewhite3 text-tertiary'
                                                         }
-                                                ${(isRF || isChoice || isCount || isInitial || isAction) ? 'cursor-pointer' : 'cursor-default'}
+                                                ${(isRF || isChoice || isCount || isInitial) ? 'cursor-pointer' : 'cursor-default'}
                                             `}
                                                 >
                                                     <div className="font-normal flex items-center">

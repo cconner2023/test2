@@ -192,7 +192,7 @@ export const WriteNotePage = ({
 
         if (drawerStage === 'partial') {
             // In partial stage: swipe up → full, swipe down → close
-            if (isSwipingUp || drawerPosition > 70) {
+            if (isSwipingUp) {
                 setDrawerStage('full');
                 setDrawerPosition(100);
             } else if (isSwipingDown || drawerPosition < 40) {

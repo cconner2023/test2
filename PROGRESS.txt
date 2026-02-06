@@ -9,6 +9,14 @@ Completed:
     - Reduced partial height from 50dvh to 40dvh and full height from 98dvh to 90dvh across all 4 drawers
 [2] maintain state of @AlgorithmPage upon window re-size.
     - Unified mobile/desktop into a single AlgorithmPage instance with dynamic isMobile prop so state persists
+[3] Any action (select, scroll) in our mobile drawers raises it to full visibility.
+    - Fixed: Restricted drag handlers to only the drag handle/header via data-drag-zone attribute
+    - Fixed: Removed touchAction:'none' from full container so content scrolls natively
+    - Fixed: Changed partial→full expansion to require deliberate upward swipe velocity only (removed drawerPosition>70 check that always triggered since position starts at 100)
+    - Applied to MedicationsDrawer, Settings, NoteImport, and WriteNotePage
 
-New Issues:
-[1] Any action (select, scroll) in our mobile drawers raises it to full visibility.
+New ToDos
+[1] Implement consistent mobile drawer appearances with SymptomInfoDrawer identical to the WriteNotePage mobile drawer
+[2] Review useAlgorithm for appearance of question cards. In Algorithm.ts there is often an item that says 'red flags' which should correspond to the selection of red flags. We need to see that item selected if present when red flags are selected.
+[3] useAlgorithm error with correcting red flags or initial questions and resetting subsequent card.
+[4] action card answeroptions in QuestionCard.tsx should not be selectable

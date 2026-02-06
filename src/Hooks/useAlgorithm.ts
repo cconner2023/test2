@@ -78,21 +78,67 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[]) => {
             const initialQuestion = algorithmOptions[initialIndex];
 
             if (initialCard && initialQuestion?.answerOptions?.[0]) {
-                if (hasAnyRFSelected) {
-                    // Auto-select "Yes" on initial card
+                const prevAnswer = initialCard.answer;
+
+                // Auto-select/deselect "Red flags" questionOption in initial card
+                let newInitialSelected = [...newCardStates[initialIndex].selectedOptions];
+                if (initialQuestion.questionOptions && initialQuestion.questionOptions.length > 0) {
+                    const rfOptionIndex = initialQuestion.questionOptions.findIndex(
+                        opt => opt.text.toLowerCase().includes('red flag')
+                    );
+                    if (rfOptionIndex !== -1) {
+                        if (hasAnyRFSelected && !newInitialSelected.includes(rfOptionIndex)) {
+                            newInitialSelected.push(rfOptionIndex);
+                        } else if (!hasAnyRFSelected && newInitialSelected.includes(rfOptionIndex)) {
+                            newInitialSelected = newInitialSelected.filter(i => i !== rfOptionIndex);
+                        }
+                    }
+                }
+
+                newCardStates[initialIndex] = {
+                    ...newCardStates[initialIndex],
+                    selectedOptions: newInitialSelected,
+                    count: newInitialSelected.length
+                };
+
+                const hasAnySelection = hasAnyRFSelected || newInitialSelected.length > 0;
+
+                if (hasAnySelection) {
                     const yesAnswer = initialQuestion.answerOptions[0];
+                    const answerChanged = prevAnswer?.text !== yesAnswer.text;
                     newCardStates[initialIndex] = {
-                        ...initialCard,
+                        ...newCardStates[initialIndex],
                         answer: yesAnswer
                     };
                     setCurrentDisposition(yesAnswer.disposition?.[0] || null);
-                } else if (initialCard.answer?.text === initialQuestion.answerOptions[0]?.text) {
-                    // Clear initial if no RF selected
+
+                    // Reset subsequent cards if answer changed
+                    if (answerChanged) {
+                        newCardStates = newCardStates.map((c, idx) => {
+                            if (idx <= initialIndex || algorithmOptions[idx]?.type === 'rf') return c;
+                            return { ...c, isVisible: false, answer: null, selectedOptions: [], count: 0 };
+                        });
+                        if (yesAnswer.next !== null) {
+                            const nextIndices = Array.isArray(yesAnswer.next) ? yesAnswer.next : [yesAnswer.next];
+                            nextIndices.forEach(nextIndex => {
+                                if (nextIndex >= 0 && nextIndex < newCardStates.length) {
+                                    newCardStates[nextIndex].isVisible = true;
+                                }
+                            });
+                        }
+                    }
+                } else if (prevAnswer?.text === initialQuestion.answerOptions[0]?.text) {
+                    // Was "Yes", now nothing selected — clear and reset
                     newCardStates[initialIndex] = {
-                        ...initialCard,
+                        ...newCardStates[initialIndex],
                         answer: null
                     };
                     setCurrentDisposition(null);
+
+                    newCardStates = newCardStates.map((c, idx) => {
+                        if (idx <= initialIndex || algorithmOptions[idx]?.type === 'rf') return c;
+                        return { ...c, isVisible: false, answer: null, selectedOptions: [], count: 0 };
+                    });
                 }
             }
         }
@@ -108,21 +154,44 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[]) => {
             const hasAnySelection = totalSelections > 0;
 
             if (question.answerOptions?.[0]) {
+                const prevAnswer = card.answer;
+
                 if (hasAnySelection) {
-                    // Auto-select "Yes" on initial card
                     const yesAnswer = question.answerOptions[0];
+                    const answerChanged = prevAnswer?.text !== yesAnswer.text;
                     newCardStates[cardIndex] = {
                         ...newCardStates[cardIndex],
                         answer: yesAnswer
                     };
                     setCurrentDisposition(yesAnswer.disposition?.[0] || null);
-                } else if (card.answer?.text === question.answerOptions[0]?.text) {
-                    // Clear answer if no selections
+
+                    // Reset subsequent cards if answer changed
+                    if (answerChanged) {
+                        newCardStates = newCardStates.map((c, idx) => {
+                            if (idx <= cardIndex || algorithmOptions[idx]?.type === 'rf') return c;
+                            return { ...c, isVisible: false, answer: null, selectedOptions: [], count: 0 };
+                        });
+                        if (yesAnswer.next !== null) {
+                            const nextIndices = Array.isArray(yesAnswer.next) ? yesAnswer.next : [yesAnswer.next];
+                            nextIndices.forEach(nextIndex => {
+                                if (nextIndex >= 0 && nextIndex < newCardStates.length) {
+                                    newCardStates[nextIndex].isVisible = true;
+                                }
+                            });
+                        }
+                    }
+                } else if (prevAnswer?.text === question.answerOptions[0]?.text) {
+                    // Was "Yes", now nothing selected — clear and reset
                     newCardStates[cardIndex] = {
                         ...newCardStates[cardIndex],
                         answer: null
                     };
                     setCurrentDisposition(null);
+
+                    newCardStates = newCardStates.map((c, idx) => {
+                        if (idx <= cardIndex || algorithmOptions[idx]?.type === 'rf') return c;
+                        return { ...c, isVisible: false, answer: null, selectedOptions: [], count: 0 };
+                    });
                 }
             }
         }

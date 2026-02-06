@@ -125,13 +125,13 @@ const NoteImportContent = ({
         <>
             {/* Drag Handle - Only visible on mobile */}
             {isMobile && (
-                <div className="flex justify-center pt-3 pb-2">
+                <div className="flex justify-center pt-3 pb-2" data-drag-zone style={{ touchAction: 'none' }}>
                     <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
                 </div>
             )}
 
             {/* Header */}
-            <div className="px-6 border-b border-tertiary/10 py-4 md:py-5">
+            <div className="px-6 border-b border-tertiary/10 py-4 md:py-5" data-drag-zone style={{ touchAction: 'none' }}>
                 <div className="flex items-center justify-between">
                     <h2 className="text-xl font-semibold text-primary md:text-2xl">
                         {getTitle()}
@@ -357,6 +357,10 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
 
     const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
         if (!isMobile) return;
+
+        const target = e.target as HTMLElement;
+        if (!target.closest('[data-drag-zone]')) return;
+
         setIsDragging(true);
         const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
         dragStartY.current = clientY;
@@ -395,7 +399,7 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
         const isSwipingUp = velocityRef.current < -0.3;
 
         if (drawerStage === 'partial') {
-            if (isSwipingUp || drawerPosition > 70) {
+            if (isSwipingUp) {
                 setDrawerStage('full');
                 animateToPosition(100);
             } else if (isSwipingDown || drawerPosition < 40) {
@@ -461,7 +465,6 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
                         opacity: mobileOpacity,
                         borderRadius: mobileBorderRadius,
                         willChange: isDragging ? 'transform' : 'auto',
-                        touchAction: 'none',
                         boxShadow: mobileBoxShadow,
                         overflow: 'hidden',
                         visibility: isVisible ? 'visible' : 'hidden',
