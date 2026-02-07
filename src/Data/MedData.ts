@@ -841,19 +841,9 @@ export const medList: medListTypes[] = [
         moi: "An azo dye that is excreted in the urine and has analgesic effect on urinary tract mucosa; Unknown mechanism",
         adult: "100mg PO: Take 2 tabs every 8 hours after meals as needed for pain with urination; Use with an antibiotic (Maximum: 600 mg per day for 2 days)",
         peds: "None",
-        preg: [
-            {
-                icon: "Class B",
-                text: "Presumed Safe"
-            }
-        ],
+        preg: [{ icon: "Class B", text: "Presumed Safe" }],
         adverse: "Headache, Dizziness; Stomach Cramps; Discolor urine, fabric or clothing, contacts (if touching after touching tablets)",
-        aviation: [
-            {
-                icon: "None",
-                text: ""
-            }
-        ]
+        aviation: [{ icon: "None", text: "" }]
     },
     // index 36
     {
@@ -864,18 +854,9 @@ export const medList: medListTypes[] = [
         moi: "Osmotic agent causes water retention in the stool increasing stool frequency and decreasing stool consistency",
         adult: "17grams PO: 17 g (1 heaping tablespoon) in 4-8 ounces of beverage daily (Maximum: 2 weeks)",
         peds: "0.2-1gram/kg: Daily dose titrated to effect (Max: 17 g/ day)",
-        preg: [
-            {
-                icon: "Unknown",
-                text: ""
-            }
-        ],
+        preg: [{ icon: "Unknown", text: "" }],
         adverse: "Nausea, diarrhea, gas, stomach cramping, stomach bloating",
-        aviation: [
-            {
-                icon: "None",
-                text: ""
-            }
+        aviation: [{ icon: "None", text: "" }
         ]
     },
     // index 37

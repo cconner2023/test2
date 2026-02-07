@@ -1881,7 +1881,9 @@ export const catData: catDataTypes[] = [
                 id: 4,
                 icon: "J-4",
                 text: "Dandruff (Scaling of the Scalp)",
-                gen: [{}],
+                gen: [{
+                    text: 'Dandruff, which is also known as pityriasis sicca, is the mildest and most common form of scalp seborrheic dermatitis. White scales or flakes on the head or hair with mild itching are the most common symptoms.'
+                }],
                 medcom: [],
                 stp: [
                     TrainingStpData[5].options[1],
@@ -1904,7 +1906,7 @@ export const catData: catDataTypes[] = [
                 id: 5,
                 icon: "J-5",
                 text: "Hair Loss",
-                gen: [{}],
+                gen: [{ text: 'While most hair loss is natural and hereditary, any hair loss that is sudden or extreme in nature may have resulted from a fungal infection or other forms of illness or as a result of using certain medications. When treated promptly and properly, hair growth typically resumes.' }],
                 medcom: [],
                 stp: [
                     TrainingStpData[5].options[1],
@@ -1923,7 +1925,7 @@ export const catData: catDataTypes[] = [
                 id: 6,
                 icon: "J-6",
                 text: "Athlete's Foot (Tinea Pedis)",
-                gen: [{}],
+                gen: [{ text: 'Tinea pedis (athlete\'s foot) most commonly occurs with frequently wearing damp socks and/ or tight fitting shoes.It is contagious and can be spread by contact with an infected person or contaminated surface.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
                     TrainingStpData[5].options[1],
@@ -1944,7 +1946,7 @@ export const catData: catDataTypes[] = [
                 id: 7,
                 icon: "J-7",
                 text: "Jock Itch (Tinea Cruris)",
-                gen: [{}],
+                gen: [{ text: 'Tinea cruris (also known as jock itch) is a dermatophyte infection involving the crural (superior medial portion of the thigh) fold. The spreading of tinea pedis is often the cause for these infections. Infection may spread to the perineum and perianal areas, into the gluteal cleft, or onto the buttocks.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
                     TrainingStpData[5].options[1],
@@ -1965,7 +1967,7 @@ export const catData: catDataTypes[] = [
                 id: 8,
                 icon: "J-8",
                 text: "Scaling, Depigmented Spots (Tinea Versicolor)",
-                gen: [{}],
+                gen: [{ text: 'Tinea versicolor is a common superficial fungal infection that appears as “spots” (lighter, darker, or redder than surrounding skin) on the neck, chest, back, and arms usually with no other symptoms. The rash is typically scaly and painless. It may be noticed in the summer when affected areas fail to tan after sun exposure.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
                     TrainingStpData[5].options[1],

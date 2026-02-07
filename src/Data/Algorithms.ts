@@ -1477,6 +1477,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -1489,6 +1490,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -1545,6 +1547,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -1785,6 +1788,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -1808,6 +1812,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -1825,6 +1830,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -1863,6 +1869,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -1880,6 +1887,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -1903,6 +1911,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -1921,6 +1930,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -1960,6 +1970,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -1978,6 +1989,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -2001,6 +2013,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -2018,6 +2031,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -2059,6 +2073,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -2077,6 +2092,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -2100,6 +2116,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -2118,6 +2135,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -3382,6 +3400,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -3989,6 +4008,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5079,6 +5099,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5091,6 +5112,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5117,6 +5139,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5129,6 +5152,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5178,6 +5202,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5190,6 +5215,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5212,6 +5238,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5224,6 +5251,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5274,6 +5302,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5286,6 +5315,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5311,6 +5341,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5323,6 +5354,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5370,6 +5402,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5382,6 +5415,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5404,6 +5438,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5416,6 +5451,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5460,6 +5496,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5472,6 +5509,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5495,6 +5533,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5507,6 +5546,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5552,6 +5592,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5564,6 +5605,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5583,6 +5625,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5595,6 +5638,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5646,6 +5690,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5658,6 +5703,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5691,6 +5737,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5703,6 +5750,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5756,6 +5804,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5768,6 +5817,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5790,6 +5840,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5802,6 +5853,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5846,6 +5898,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5858,6 +5911,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5882,6 +5936,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5899,6 +5954,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5944,6 +6000,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5956,6 +6013,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5979,6 +6037,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -5996,6 +6055,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -6045,6 +6105,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -6242,7 +6303,12 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: 'all Soldiers with acne should be instructed to wash the affected area with mild soap and water without scrubbing twice a day and pat dry. Avoid creams and lotions to the area'
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['facial cellulitis', 'abscess'],
+                                text: 'Facial cellulitis or a draining abscess are signs of a skin infection and not pseudofolliculitis barbae. These conditions require further evaluation and treatment. Cellulitis of the face can have life threatening complications.'
                             }
                         ],
                         next: null,
@@ -6250,14 +6316,8 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
-                        next: 2, // Goes to next question
+                        next: 2,
                         selectAll: false
                     }
                 ]
@@ -6272,27 +6332,33 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'After failure of conservative therapy and lifestyle modifications, a permanent profile may need to be considered. Refer to the AEM for counseling prior to initiating the next step in therapy'
                             }
                         ],
-                        disposition: [Disposition[1]], // CAT II: AEM Now
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2], // CAT III: Treatment Protocol and RTD
+                                ddx: ['acne', 'pseudofolliculitis barbae'],
+                                text: 'shaving routine modifications are the first line in treatment. The following adjustments can help reduce the penetration of the inter-follicular skin by the hair shaft. Instruct the Soldier to wash the face in a circular motion with soap and warm water once a day to free any embedded hairs. Use a warm compress or warm water on the face before shaving and apply generous amounts of shaving cream for five minutes before shaving to soften the hair. Use a single blade razor, shave in the direction of hair growth, and avoid stretching the skin during shaving to reduce the production of very short hairs. Medication can be used in conjunction with the shaving routine modifications. A topical retinoid at night with or without the combination of a low potency topical steroid. Bumps associated with pseudofolliculitis barbae can remain for a few months after treatment has been started. Instruct the Soldier to return if the symptoms are worsening, new symptoms develop, or the minor-care protocol does not appear to be helping after a few weeks.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Counsel the Soldier on shaving routine modification to include washing the face in a circular motion, warm compress and leaving shaving cream on for 5 min prior to shaving, and using a single blade razor. Topical retinoid with or without a low potency steroid can be used once a day at night as an adjunct. RTC if symptoms are worsening, new symptoms developing, or symptoms are not controlled with the MCP',
+                                    ancillaryFind: [{
+                                        type: 'med',
+                                        modifier: "tretinoin / topical retinoid"
+                                    }],
+                                    medFind: [medList[21]]
+                                }
                             }
                         ],
                         next: null,
@@ -6322,26 +6388,25 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['seborrheic dermatitis'],
+                                text: 'Visible inflammation with patchy, orange to salmon-colored or grayish plaques covered with yellowish, greasy scales, concretions of scale around hair shafts, lesions consisting of fissures, oozing, and crusting, are all signs of a more severe form of scalp seborrheic dermatitis.'
+                            },
                         ],
-                        disposition: [Disposition[0]], // CAT I: Provider Now
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
-                        next: 2, // Goes to next question
+                        next: 2,
                         selectAll: false
                     }
                 ]
@@ -6357,27 +6422,34 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['dandruff'],
+                                text: 'Dandruff can be a chronic relapsing condition even in its mild form. All Antifungal shampoos are not the same and Soldiers may have different responses to them. OTC treatment may take some trial and error to find the shampoo that is right for the Soldier. Inflammation, lesions with oozing and crusting are signs that the symptoms are getting worse and the Soldier needs to be evaluated inside of a clinic setting.',
                             }
                         ],
-                        disposition: [Disposition[1]], // CAT II: AEM Now
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2], // CAT III: Treatment Protocol and RTD
+                                ddx: ['mild dandruff'],
+                                text: 'there are some risk factors that make a Soldier more susceptible. Some risk factors include if the Soldier is male, Soldier has excessively oily skin and hair and/or if the Soldier suffers from certain diseases (ex. Parkinson’s disease, HIV). antifungal shampoo used daily (two to three times per week minimal) for several weeks and remission is achieved. Manage stress levels, spend time (a few minutes) outdoors in the sun (DO NOT sunbathe). Instruct the Soldier to seek medical assistance if mild dandruff is still present and not improving after three to four weeks of antifungal shampoo use, symptoms worsen, or new symptoms begin.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Antifungal shampoo used daily (minimum of 2-3 x per week) or several weeks and remission is achieved. Manage stress levels. Spend time (a few minutes) outdoors in the sun (DO NOT sunbathe). RTC if mild dandruff is still present after 3-4 weeks of antifungal shampoo use, symptoms worsen, or new symptoms begin.',
+                                    ancillaryFind: [
+                                        {
+                                            type: 'med', modifier: 'selenium sulfide 1% shampoo'
+                                        }
+                                    ]
+                                }
                             }
                         ],
                         next: null,
@@ -6393,7 +6465,7 @@ export const Algorithm: AlgorithmType[] = [
             {
                 text: "Red Flags",
                 type: "rf",
-                questionOptions: [],
+                questionOptions: [{ text: 'no red flags' }],
                 answerOptions: []
             },
             {
@@ -6407,26 +6479,21 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['medication induced hair loss', 'scarring', 'alopecia areata'],
+                                text: 'Examples of medications that can result in hair loss are propranolol, ketoconazole, isotretinoin, colchicine, and cholesterol medications. If hair follicles are not present on exam, then scarring hair loss is more likely requiring a referral to dermatology. Alopecia areata is described as smooth, circular discrete hair loss that occurs over a couple of weeks. Refer to a privileged provider for consideration of intra-lesion steroid injections.'
                             }
                         ],
-                        disposition: [Disposition[0]], // CAT I: Provider Now
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
-                        next: 2, // Goes to next question
+                        next: 2,
                         selectAll: false
                     }
                 ]
@@ -6442,27 +6509,42 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['tinea capitis'],
+                                text: 'Tinea capitis is a fungal infection of the scalp that presents with itching, scaling, and hair loss. It is common in kids but can occur in adults. Treatment is with an oral antifungal. Papules, pustules, and erythema are signs of inflammation which require further evaluation.'
                             }
                         ],
-                        disposition: [Disposition[1]], // CAT II: AEM Now
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                ddx: ['traction alopecia'],
+                                text: 'hair loss associated with traction being applied to hair for an extended period of time from tight hair styles often over the frontal and temporal areas. It is associated with traction folliculitis which includes erythema, papules, and sterile pustules. Instruct Soldier to avoid tight hair styles, chemical straighteners, and heating the hair follicle (curling iron, straight iron) till it has resolved. Refer to AEM if signs of inflammation are present to evaluate for treatment with a high potency topical steroid or intra-lesion steroid inject.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'counsel Soldier to avoid tight hair styles, chemical relaxants, and applying heat to hear until resolved. Refer to AEM for further evaluation if signs of inflammation are present. RTC if symptoms worsen or new symptoms begin'
+                                }
+                            },
                             {
-                                ...Disposition[2], // CAT III: Treatment Protocol and RTD
+                                type: 'dmp',
+                                ddx: ['male/female pattern hair loss'],
+                                text: 'male pattern hair loss often occurs after age 30 with hair loss over the frontal, temporal, and top of the head. On examination hair follicles with a decreased caliber will be seen. Female pattern hair loss occurs over the front and top of the head. It most often occurs after menopause. Instruct the Soldier on the diagnosis',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'discuss the suspected diagnosis with the AEM and then provide counseling to the patient. RTC if symptoms worsen or new symptoms begin'
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                text: 'Refer to AEM if does not meet either of the above patterns. Return to clinic if symptoms worsen or new symptoms develop.'
                             }
                         ],
                         next: null,
@@ -6492,26 +6574,25 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['athlete\'s foot', 'secondary bacterial infection'],
+                                text: 'Peeling, cracking, redness, blisters, and breakdown of the skin with itching and burning are characteristics of both dry skin and athlete’s foot. If untreated, the fungal infection can lead to a severe secondary bacterial infection.'
                             }
                         ],
-                        disposition: [Disposition[0]], // CAT I: Provider Now
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
-                        next: 2, // Goes to next question
+                        next: 2,
                         selectAll: false
                     }
                 ]
@@ -6529,25 +6610,27 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                text: 'Some fungal infections are unresponsive to topical medications and a systemic antifungal treatment is required. Ulcers increase the risk of a secondary bacterial infection.'
                             }
                         ],
-                        disposition: [Disposition[1]], // CAT II: AEM Now
+                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2], // CAT III: Treatment Protocol and RTD
-                            }
+                                ddx: ['interdigital tinea pedis', 'hyperkeratotic tinea pedis', 'vesiculobullous tinea pedis'],
+                                text: 'this type of fungal infection requires keratin for growth, which restricts the infection to the superficial skin, hair, and nails. Interdigital tinea pedis, hyperkeratotic (moccasin-type) tinea pedis and vesiculobullous (inflammatory) tinea pedis are the three major categories of tinea pedis infections. topical antifungal therapy can used to cure a fungal infection which has no secondary infection. Antifungal cream is applied twice a day for four to eight weeks. Instruct the Soldier to return to the clinic if the fungal infection does not respond to OTC medications, symptoms worsen, new symptoms develop. Prevention measures: athlete\'s foot can be spread through direct and indirect contact: direct, skin-to-skin contact, as may occur when an uninfected person touches the infected area of somebody with athlete\'s foot or indirect contact, in which the fungi can infect people via contaminated surfaces, clothing, socks, shoes, bed sheets, and towels. Instruct Soldier to keep his or her feet clean and dry, change socks regularly, wear well ventilated shoes and provide feet protection in public places. Use antifungal powder daily, alternate shoes and do not share shoes.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Antifungal lotion, ointment, powder, or spray-allied twice a day for 4-8 weeks. RTC if the fungal infection does not respond to medications, symptoms worsen, new symptoms develop. Prevention: instruct patient to keep their feet dry, change socks regularly, wear well ventilated shoes and provide feet protection in public places. Use antifungal powder daily, alternate shoes and do not share shoes.',
+                                    medFind: [medList[41]]
+                                }
+                            },
                         ],
                         next: null,
                         selectAll: false
@@ -6575,26 +6658,21 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[0], modifier: 'Perform potassium hydroxide (KOH) examination' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
+                                ddx: [],
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”'
+                            },
                         ],
-                        disposition: [Disposition[0]], // CAT I: Provider Now
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
-                        next: 2, // Goes to next question
+                        next: 2,
                         selectAll: false
                     }
                 ]
@@ -6610,26 +6688,21 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[0], modifier: '' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: [],
+                                text: 'Diabetes can affect every part of the body, including the skin. Soldiers with diabetes are more susceptible to skin conditions such as bacterial infections and fungal infections. Although common infections can be self-treated, the Soldier should see a privileged provider to rule out other more serious diabetic related skin conditions.'
                             }
                         ],
-                        disposition: [Disposition[0]], // CAT I: Provider Now
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
-                        next: 3, // Goes to next question
+                        next: 3,
                         selectAll: false
                     }
                 ]
@@ -6644,24 +6717,33 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: [],
+                                text: 'Some infections and rashes do not respond well to OTC medications and infections may not get better or may reoccur within a few weeks. These Soldiers need to be evaluated to rule out more serious skin conditions. A normal infection may respond better to a prescription strength antifungal.'
                             }
                         ],
-                        disposition: [Disposition[1]], // CAT II: AEM Now
+                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: false
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                ddx: [],
+                                text: 'Note: In the absence of any of the preceding conditions, minor-care is appropriate.'
+                            },
                             {
-                                ...Disposition[2], // CAT III: Treatment Protocol and RTD
+                                type: 'dmp',
+                                ddx: ['tinea cruris'],
+                                text: 'far more common in men than women. Predisposing factors include copious sweating, obesity, diabetes, and immunodeficiency. OTC medication: topical antifungal medication twice a day for two weeks. Instruct Soldier to keep groin area clean and dry and return to clinic if symptoms worsen, new symptoms develop, symptoms not improving within two weeks, or if the infection returns within a few weeks after using OTC Medications.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'topical antifungal medications twice a day for 2 weeks. Instruct patient to keep groin area clean and dry and RTC if symptoms worsen, new symptoms develop, symptoms not improving within 2 weeks, or if the infection returns within a few weeks after using medications. Preventive - hygiene',
+                                    medFind: [medList[41]],
+                                    ancillaryFind: [{ type: 'med', modifier: 'clotrimazole 1% cream' }]
+                                }
                             }
                         ],
                         next: null,
@@ -6677,7 +6759,7 @@ export const Algorithm: AlgorithmType[] = [
             {
                 text: "Red Flags",
                 type: "rf",
-                questionOptions: [], // No red flags in catData
+                questionOptions: [{ text: 'no red flags' }],
                 answerOptions: []
             },
             {
@@ -6690,26 +6772,21 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[0], modifier: 'perform potassium hydroxide (KOH) examination' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['tinea versicolor'],
+                                text: 'Tinea versicolor that has failed initial therapy or is widespread may require systemic treatment. Presence of scale in the area and a positive KOH test confirms treatment failure requiring systemic treatment. Refer to the supervising privileged provider for counseling and evaluation for treatment.'
                             }
                         ],
-                        disposition: [Disposition[0]], // CAT I: Provider Now
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: ''
-                            }
-                        ],
                         disposition: [],
-                        next: 2, // Goes to next question
+                        next: 2,
                         selectAll: false
                     }
                 ]
@@ -6725,27 +6802,32 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
+                                ddx: ['tinea versicolor'],
+                                text: 'Tinea versicolor often reoccurs. When this occurs, additional counseling to the Soldier is required to help prevent further occurrences. Refer to the AEM for additional counseling and preventative measures. If it is an atypical presentation that you do not recognize, refer to the AEM for further evaluation and treatment'
                             }
                         ],
-                        disposition: [Disposition[1]], // CAT II: AEM Now
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                ddx: ['tinea versicolor'],
+                                text: 'treat with topical terbinafine twice a day for one week. Selenium sulfide 2.5% shampoo lathered over the affected area and left for 10 minutes once a week is also effective. Instruct the Soldier that hypo/hyperpigmentation of the area may remain for months after effective treatment. If the presentation is not classic for tinea versicolor, screen according to the appropriate protocol and discuss with the AEM. Return to the clinic for worsening symptoms, new symptoms, or presence of scale in the lesions after treatment.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Topical antifungal medications twice a day for 1 week. Instruct patient that the hypo/hyper pigmented areas can remain for months after effective treatment. If the presentation is atypical, screen according to the identified lesion. If not able to identify the lesion, refer to the AEM for further evaluation and treatment. RTC for worsening symptoms, new symptoms, or presence of scale in the lesions after treatment.',
+                                    ancillaryFind: [{ type: 'med', modifier: 'selenium sulfide 2.5% shampoo' }],
+                                    medFind: [medList[41]],
+                                }
+
                             }
                         ],
                         next: null,
@@ -6781,6 +6863,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -6793,6 +6876,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -6817,6 +6901,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -6829,6 +6914,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -6852,6 +6938,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -6864,6 +6951,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
@@ -6901,6 +6989,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: [],
                                 text: ''
                             }
                         ],
