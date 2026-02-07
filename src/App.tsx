@@ -96,7 +96,7 @@ function AppContent() {
         }`}>
         {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
         <div className={`${navigation.isMobile
-          ? 'absolute top-0 left-0 right-0 z-30 pt-[env(safe-area-inset-top)] backdrop-blur-sm bg-themewhite/70'
+          ? 'absolute top-0 left-0 right-0 z-30 pt-[env(safe-area-inset-top)] backdrop-blur-xs bg-themewhite/10'
           : 'relative'
           } h-13.75 w-full rounded-t-md flex justify-end`}
           style={navigation.isMobile ? { height: 'calc(env(safe-area-inset-top, 0px) + 3.4375rem)' } : undefined}>
@@ -132,12 +132,12 @@ function AppContent() {
           />
         </div>
 
-        {/* Content area - components rendered once, CSS controls layout */}
+        {/* Content area  */}
         <div ref={contentRef} className={`md:h-[94%] h-full relative overflow-hidden ${navigation.isMobile ? 'absolute inset-0' : 'mt-2 mx-2'
           }`}>
           {/* Mobile Layout - absolute stacking */}
           <div className={`${navigation.isMobile ? 'block' : 'hidden'} h-full relative`}>
-            {/* CategoryList - base layer - content scrolls behind navbar */}
+            {/* CategoryList - base layer */}
             <div className={`absolute inset-0 transition-opacity duration-200 ${!search.searchInput && !navigation.showQuestionCard ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
               }`}>
               <div className="h-full overflow-y-auto">

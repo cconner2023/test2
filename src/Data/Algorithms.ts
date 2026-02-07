@@ -261,7 +261,13 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "No",
                         disposition: [],
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         next: 2,
                         selectAll: false
                     }
@@ -279,14 +285,26 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "Yes",
                         disposition: [],
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         next: [3, 4],
                         selectAll: true
                     },
                     {
                         text: "No",
                         disposition: [],
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         next: 5,
                         selectAll: false
                     }
@@ -322,7 +340,13 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "No",
                         disposition: [],
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         next: 5,
                         selectAll: false
                     }
@@ -353,7 +377,13 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "No",
                         disposition: [],
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         next: [6, 7],
                         selectAll: false
                     }
@@ -426,7 +456,13 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "No",
                         disposition: [{ ...Disposition[4], modifier: 'Screen Cold Sx. Sore Throat if Present' }],
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         next: null,
                         selectAll: false
                     },
@@ -476,7 +512,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -508,7 +550,13 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "No",
                         disposition: [],
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         next: 3,
                         selectAll: false
                     }
@@ -607,7 +655,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false,
@@ -643,7 +697,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false,
@@ -879,7 +939,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 4,
                         selectAll: false
@@ -5100,22 +5166,24 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: 'Perform an eye exam with visual acuity. Do not perform a fluorescein exam if concerned for an open globe. Cover the eye with an unpadded protective fox shield or cup and discuss with the supervising privileged provider if a potential foreign body. A privileged provider order is required to irrigate the eye except when immediate irrigation is required for a chemical exposure. A white or red layered fluid level over the iris is a sign of a hypopyon or hyphema, respectively, requiring emergent referral. Contact lens, recent eye surgery, and fluorescein uptake increase potential of a serious condition.',
+                                ancillaryFind: [
+                                    { type: 'protocol', modifier: 'visual acuity' },
+                                    { type: 'protocol', modifier: 'fluorescein exam' },
+                                ]
                             }
                         ],
-                        disposition: [Disposition[0]],
+                        disposition: [{ ...Disposition[0], modifier: 'chemical - irrigation. foreign body - fox shield. head trauma - stabilize neck. other - cover eye' }],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -5136,29 +5204,61 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['bacterial conjunctivitis', 'foreign body', 'inflammatory process'],
+                                text: 'Thick, yellow or green discharge that continues throughout the day suggests bacterial conjunctivitis. Eye pain, light sensitivity, inability to open or keep the eye open, and foreign body sensation suggests a corneal or intraocular inflammatory process. Fast moving metal or glass slivers from an explosion or welding can penetrate the eye with symptoms that rapidly disappear. A history of a foreign body that is now “getting better” should be screened as a foreign body.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                type: 'mcp',
+                                ddx: ['hordeolum (stye)'],
+                                text: 'warm compress x 16 min, 4x day followed by massaging area.'
+                            },
                             {
-                                ...Disposition[2],
+                                type: 'dmp',
+                                ddx: ['blepharitis'],
+                                text: 'blepharitis (crusting of the eye in the morning with or without red, swollen eyelids): treatment is washing of the eyelashes daily with washcloth using warm water and non-tearing baby shampoo, warm compresses, lid massage. Instruct to avoid lotions, creams, make-up to the affected area. RTC if worsening or not improving within one week.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'warm compress (like stye), avoidance of make-up, and washing with warm water and tear free shampoo.'
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['dry eyes'],
+                                text: '(tearing, blurry vision that clears with blinking, and a gritty sensation): treatment is artificial tears prn.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'artificial tears lubricating drops as needed'
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['viral conjunctivitis', 'allergic conjunctivitis'],
+                                text: '(crusting, watery discharge with burning (viral) or itching (allergic)): viral is highly contagious. Treatment is with warm or cool compresses and topical antihistamine/decongestant drops.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'warm or cool compresses, topical antihistamine/decongestant drops, and contagion precautions'
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['subconjunctival hemorrhage'],
+                                text: 'further evaluation is necessary when associated with trauma, is recurrent, or Soldier is on an anticoagulant',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'subconjunctival hemorrhage is a demarcated area of blood (outside of the iris) with normal vision, no discharge, light sensitivity, or foreign body sensation. Typically resolves in 1-2 weeks'
+                                }
                             }
                         ],
                         next: null,
@@ -5199,26 +5299,24 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[0], modifier: 'fox shield/protectove cover. head trauma - stabilize neck' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['open globe fracture', 'laceration', 'orbital compartment syndrome'],
+                                text: 'Assess for life-threatening injuries (head, neck, and airway) before performing an eye exam with visual acuity. Access for signs of an open globe. Laceration of full thickness of eyelid, with orbital fat prolapse, through lid margin, involving lateral/medial/tear duct/or muscles, or associate with avulsion or malalignment requires referral. Decreased visual acuity and double vision along with pain, fixed pupil, and swelling around the eye are signs of a potential internal eye injury. Orbital compartment syndrome can develop which is a medical emergency requiring immediate treatment.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -5238,8 +5336,8 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['cellulitis', 'dermatitis'],
+                                text: 'Significant redness and swelling can be signs of cellulitis. Cellulitis is a relatively common complication of a stye. It requires further evaluation and treatment with oral antibiotics. Dermatitis and some systemic diseases can also present with an eyelid rash requiring further evaluation and treatment.'
                             }
                         ],
                         disposition: [Disposition[1]],
@@ -5248,16 +5346,44 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                ddx: ['stye (hordeolum)'],
+                                text: 'presents with redness, tenderness, and swelling of the eyelid. Initial treatment should be a warm compress placed on the area for 15 minutes four times per day with massage of the area after the warm compress. Return to clinic if becomes significantly painful, redness and swelling spreads, or not improving within one week.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'warm compress x 14min, 4x/day followed by massing area. RTC to clinic if the condition is worsening, new symptoms develop, or it is not improving within 1 week'
+                                }
+                            },
                             {
-                                ...Disposition[2],
+                                type: 'dmp',
+                                ddx: ['chalazion'],
+                                text: 'presents with painless swelling of the eyelid. It is treated the same way as a stye and usually resolves within a couple of weeks.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'warm compress x 14min, 4x/day followed by massing area. RTC to clinic if the condition is worsening, new symptoms develop, or it is not improving within 1 week'
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['blepharitis'],
+                                text: 'presents with bilateral crusting of the eye in the morning and may be associated with red, swollen eyelids, and dry eyes that improve with blinking. Treatment is washing of the eyelashes daily with washcloth using warm water and non-tearing baby shampoo, warm compresses, lid massage. Instruct to avoid lotions, creams, make-up to the affected area. RTC if worsening or not improving within one week.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'warm compress (like stye), avoidance of make-up, and washing with warm water and tear free shampoo. RTC to clinic if the condition is worsening, new symptoms develop, or it is not improving within 1 week'
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['contact dermatitis'],
+                                text: 'skin reaction from an irritant. In a female, make-up is the most common cause. Evaluate for any new exposures, other areas involved. Instruct to avoid the most likely contact/cause and any lotions, creams, or soaps with perfumes, hair dyes, new shampoos, and eye make-up. Use hydrocortisone cream with precautions to avoid getting it in the eye.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'avoidance of the exposure and hydrocortisone ointment 1% twice a day for 1 week',
+                                    medFind: [medList[21]]
+                                }
                             }
                         ],
                         next: null,
@@ -5299,26 +5425,25 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['retinal detachment', 'foreign body', 'hypopyon', 'hyphema'],
+                                text: 'Perform an eye exam with visual acuity. Decreased visual acuity following trauma may indicate a serious injury that requires immediate treatment. Retinal detachment is often preceded by flashes of light, new floaters, and black spots, these symptoms should prompt an ASAP dilated retinal exam by an eye care provider. A foreign body seen on exam should not be removed. Cover the eye with a protective fox shield or cup and discuss with the supervising privileged provider. A privileged provider order is necessary prior to irrigation of a foreign body except when immediate irrigation is required for a chemical exposure. A white or red layered fluid level over the iris is a sign of a hypopyon or hyphema, respectively, and requires emergent referral. If the decreased vision involves a distinct part of the visual field which includes a black spot that moves with your eye, the cause may be serious.',
+                                ancillaryFind: [{ type: 'protocol', modifier: 'visual acuity' }]
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -5338,29 +5463,36 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['keratitis', 'corneal abrasion', 'migraine'],
+                                text: 'Wearing contacts increases the risk of keratitis and corneal abrasion. Fluorescein exam is the next step to evaluate for these causes. Visual acuity of contact wearer should be performed with and without glasses to evaluate for a change in vision not related to the contacts. Acute onset and pain are signs of a more concerning cause than the need for glasses. Migraine can be associated with temporary decreased vision or seeing spots prior to a headache (an aura).',
+                                ancillaryFind: [
+                                    { type: 'protocol', modifier: 'visual acuity' },
+                                    { type: 'protocol', modifier: 'fluorescein exam' },
+                                ]
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                ddx: ['decreased visual acuity', 'retinal detachment'],
+                                text: 'visual acuity worse than 20/40 requires a referral to optometry for evaluation for glasses. Worsening of the vision is gradual and often occurs in both eyes. Noticing the issue may occur with a specific activity like trying to read a sign, seeing a target at the range, or Soldier may present requesting an evaluation or been screened during a yearly readiness screening. (Note: protective mask inserts are not usually provided to personnel with uncorrected vision of 20/40 or better). Floaters are clumps of material in the gel-like substance in the back of your eye. They are common, usually benign and move around in your field of vision. They are not fixed to a particular location in the field of view or significantly obstruct the field of view. However, new floaters may be a sign of retinal detachment.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'decreased visual acuity worse than 20/40: gradual onset refer to optometry for evaluation for glasses. floaters are common and usually benign. However, new floaters may be a sign of retinal detachment and warrant immediate referral to supervising medical provider. Return to clinic if the condition is worsening or new symptoms develop',
+                                    ancillaryFind: [
+                                        { type: 'refer', modifier: 'optometry if VA < 20/40 gradual onset' }
+                                    ]
+                                }
                             }
                         ],
                         next: null,
@@ -5399,26 +5531,23 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[0], modifier: 'head trauma - stabilize neck' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of medical emergencies.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['head/brain injury'],
+                                text: 'Assess for potential life-threatening injuries (head, neck, and airway) before accessing for vision issues. If the double vision is related to a recent trauma to the head, neck, or back, then it may represent a serious injury to the brain. Neurologic deficits (trouble walking, talking) can indicate a serious problem requiring immediate evaluation.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -5435,29 +5564,30 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'Cover one of the patient’s eyes and then the other, assessing whether the double vision persists or not. If double vision continues despite having one eye shut or if double vision is a new issue, the Soldier will need to be referred to an eye care provider (ophthalmologist or optometrist).'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [{ ...Disposition[3], modifier: 'optometry' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                ddx: ['diplopia'],
+                                text: 'long-standing history of double vision or double vision caused by new eyeglasses may well indicate a need for evaluation of the eyeglass prescription. The Soldier should be given an appointment at the optometry clinic. Soldier should not drive a vehicle, fire a weapon, or perform other duties requiring depth perception',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Long-standing history or started with new eyeglasses, refer to optometry and patch the eye for symptomatic relief. No driving a vehicle, firing a weapon, or other duties requiring depth perception until the Soldier has been evaluated by an optometrist. Return to clinic if symptoms worsen or new symptoms develop.',
+                                    ancillaryFind: [{ type: 'refer', modifier: 'optometrist' }],
+                                    specLim: ['no driving', 'no firing weapon', 'no duties requiring depth perception']
+                                }
                             }
                         ],
                         next: null,
@@ -6958,7 +7088,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: ['HSV-1'],
+                                ddx: ['keratitis', 'HSV-1'],
                                 text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
                             },
                             {
@@ -6972,8 +7102,14 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
                         disposition: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['viral infection', 'cold sore', 'bacterial infection'],
+                                text: 'Elevated temperature, sore throat, sores on the hand, and moderate to severe pain increase the chance of an alternative viral infection or initial infection requiring further evaluation and possible systemic antiviral therapy. Pustules and yellow, honeycomb crusting suggest a bacterial infection requiring further evaluation.'
+                            }
+                        ],
                         next: 2,
                         selectAll: false
                     }
@@ -6990,14 +7126,135 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
                         disposition: [Disposition[1]],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['fever blister (cold sore)'],
+                                text: 'instruct Soldier on contagious nature of HSV-1, cold sores. When symptomatic or cold sores are present, the Soldier is very contagious, and the virus is spread through direct contact. Instruct the Soldier to avoid sharing drinks or kissing anyone until after it has resolved. Provide docosanol (Abreva) topical ointment to be applied to the cold sore five times a day or two doses of valacyclovir 2g 12 hours apart. Return to clinic if symptoms are worsening, new symptoms develop, or it is not improved within 10 days.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Counsel the Soldier on the contagious nature of the virus and to avoid sharing a drink or kissing anyone till it has resolved. Provide doconasol topical ointment (1st line) to be applied 5 x per day till cold sore is healed or valacyclovir (2nd line). RTC if symptoms worsen, new symptoms develop, or it is not improved within 10 days',
+                                    ancillaryFind: [{ type: 'med', modifier: 'doconasol topical ointment' }],
+                                    medFind: [medList[43]]
+
+                                }
+                            }
+                        ],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
                         disposition: [],
+                        next: null,
+                        selectAll: false
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        id: "J-11",
+        options: [
+            {
+                text: "Red Flags",
+                type: "rf",
+                questionOptions: [
+                    { text: "SIRS criteria" },
+                    { text: "Animal Bite, Scratch" }
+                ],
+                answerOptions: []
+            },
+            {
+                text: "Do any of the following apply?",
+                type: "initial",
+                questionOptions: [
+                    { text: 'red flags' },
+                    { text: 'fever' },
+                    { text: 'red streaks' },
+                    { text: 'oozing fluid' },
+                    { text: 'tetanus risk' },
+                    { text: 'high risk wound' }
+                ],
+                answerOptions: [
+                    {
+                        text: "Yes",
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['sepsis', 'bacterial infection', 'tetanus risk'],
+                                text: 'Systemic Inflammatory Response Syndrome (SIRS) criteria includes two of the following: heart rate over 90 bpm, respiratory rate over 20, Temp >100.4 or <96.8o F, or WBC >12,000 cells. SIRS criteria with a source of infection is sepsis and requires prompt treatment. Fever, red streaks, and oozing wounds indicate an infection that requires further evaluation and treatment. Puncture wounds, avulsions, from crushing or burns, and wounds contaminated with dirt, saliva, or feces require tetanus immunization if not given within last five years. Clean wounds require tetanus immunization if not given within last 10 years. High risk wounds increase the risk of complications. Bite wounds have a risk of infection. Lacerations over a joint, on the face, or on the hand or foot have a higher risk of complication from the laceration.'
+                            }
+                        ],
+                        disposition: [Disposition[0]],
+                        next: null,
+                        selectAll: true
+                    },
+                    {
+                        text: "No",
+                        disposition: [],
+                        next: 2,
+                        selectAll: false
+                    }
+                ],
+            },
+            {
+                text: "Do any of the following apply?",
+                type: "choice",
+                questionOptions: [
+                    { text: 'Erythema > 1 inch' },
+                    { text: 'increased warmth' },
+                    { text: 'increased tenderness' },
+                    { text: 'laceration' },
+                ],
+                answerOptions: [
+                    {
+                        text: "Yes",
+                        disposition: [Disposition[1]],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                text: 'Erythema, warmth, and increased tenderness are signs of inflammation or an early infection that requires further evaluation. A laceration needs to be evaluated to determine if it needs to be closed.'
+                            }
+                        ],
+                        next: null,
+                        selectAll: true
+                    },
+                    {
+                        text: "No",
+                        disposition: [Disposition[2]],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                text: 'Gently wash the affected area with soap and water. If there is a laceration, irrigate inside the laceration using a syringe with jets of sterile saline. While washing and irrigating the wound, ensure that all foreign material has been removed from the wound.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['abrasion'],
+                                text: 'cover the abrasion with an antibacterial ointment. Provide the ointment for the Soldier to apply to the abrasion twice a day. Cover the abrasion with a protective, non-stick sterile dressing and have the Soldier change the dressing daily or when saturated with fluid. Keep the area clean and dry.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Wash the area with soap and water. Ensure the area is thoroughly irrigated and all foreign material has been removed. Cover the area with an antibiotic ointment and sterile dressing. Provide materials for wound care. Counsel the Soldier on how to take care of the wound. RTC for increasing redness, bad smell, thick discharge, increasing tenderness, or other concerns.',
+                                    medFind: [medList[7]]
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['laceration'],
+                                text: 'if the edges of the wound can be brought together easily, bleeding is controlled, and there are no signs of infection, minor-care is appropriate. Steri-strips may be applied to keep the skin edges together. If it is a laceration, return to clinic in 24-48 hours for re-evaluation. Otherwise, return to clinic for increasing redness, bad smell, thick discharge, increasing tenderness, or other concerns to include the edges becoming separated.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Wash the area with soap and water. Ensure the area is thoroughly irrigated and all foreign material has been removed. Cover the area with an antibiotic ointment and sterile dressing. Provide materials for wound care. Counsel the Soldier on how to take care of the wound. RTC for increasing redness, bad smell, thick discharge, increasing tenderness, or other concerns.',
+                                    ancillaryFind: [{ type: 'protocol', modifier: 'steri-strips' }],
+                                    medFind: [medList[7]]
+                                }
+                            }
+                        ],
                         next: null,
                         selectAll: false
                     }
@@ -7024,7 +7281,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
@@ -7045,14 +7308,26 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "Yes",
                         disposition: [Disposition[1]],
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
                         disposition: [Disposition[2]],
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         next: null,
                         selectAll: false
                     }
@@ -7086,7 +7361,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
@@ -7098,7 +7379,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -7115,14 +7402,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -7162,7 +7461,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
@@ -7174,7 +7479,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -7194,14 +7505,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -7239,7 +7562,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
@@ -7251,7 +7580,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -7268,14 +7603,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -7315,14 +7662,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -7342,14 +7701,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -7391,14 +7762,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -7417,14 +7800,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -7471,14 +7866,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -7495,14 +7902,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -7538,7 +7957,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
@@ -7550,7 +7975,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -7567,14 +7998,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -7619,7 +8062,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
@@ -7631,7 +8080,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -7649,14 +8104,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 4,
                         selectAll: false
@@ -7670,7 +8137,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -7682,7 +8155,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -7727,7 +8206,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
@@ -7739,7 +8224,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -7757,14 +8248,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -7797,14 +8300,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -7838,7 +8353,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
@@ -7850,7 +8371,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -7882,14 +8409,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -7926,7 +8465,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
@@ -7937,7 +8482,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -7954,14 +8505,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -7998,7 +8561,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
@@ -8010,7 +8579,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -8027,14 +8602,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -8075,14 +8662,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -8100,7 +8699,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[1],
@@ -8112,7 +8717,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -8158,14 +8769,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -8182,14 +8805,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
@@ -8224,7 +8859,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8236,7 +8877,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -8253,7 +8900,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[1],
@@ -8265,7 +8918,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8306,7 +8965,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8318,7 +8983,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8360,7 +9031,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "CAT I",
@@ -8372,7 +9049,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[2]],
                         next: null,
                         selectAll: false
@@ -8411,14 +9094,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8458,7 +9153,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
@@ -8470,7 +9171,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -8487,7 +9194,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[1],
@@ -8499,7 +9212,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "CAT III",
@@ -8535,7 +9254,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8547,7 +9272,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -8565,7 +9296,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8577,7 +9314,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8612,7 +9355,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8625,7 +9374,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -8643,7 +9398,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8656,7 +9417,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8691,14 +9458,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -8712,14 +9491,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8749,7 +9540,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8762,7 +9559,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -8776,7 +9579,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "CAT III",
@@ -8789,7 +9598,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8828,14 +9643,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -8849,14 +9676,26 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: false
@@ -8891,7 +9730,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
@@ -8903,7 +9748,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -8917,7 +9768,13 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",
@@ -8930,7 +9787,13 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: [],
+                                text: ''
+                            }
+                        ],
                         disposition: [
                             {
                                 type: "OTHER",

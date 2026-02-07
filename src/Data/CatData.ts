@@ -1611,7 +1611,7 @@ export const catData: catDataTypes[] = [
                 id: 1,
                 icon: "H-1",
                 text: "Eye Pain/ Redness/ Discharge/ Itching/ Injury",
-                gen: [{}],
+                gen: [{ text: 'Eye pain, redness, discharge, itching, and injury includes trauma to common inflammatory and infectious conditions.' }],
                 medcom: [
                     medcomTrainingData[4],
                     medcomTrainingData[20]
@@ -1638,7 +1638,7 @@ export const catData: catDataTypes[] = [
                 id: 2,
                 icon: "H-2",
                 text: "Eyelid Problem",
-                gen: [{}],
+                gen: [{ text: 'Eyelid problems include serious effects of trauma to simple conditions of inflammation.' }],
                 medcom: [medcomTrainingData[4]],
                 stp: [TrainingStpData[11].options[0]],
                 redFlags: [
@@ -1658,7 +1658,7 @@ export const catData: catDataTypes[] = [
                 id: 3,
                 icon: "H-3",
                 text: "Decreased Vision, Seeing Spots, Request for Glasses",
-                gen: [{}],
+                gen: [{ text: 'Decreased vision can mean that images are less distinct or that a portion of the visual field is “blacked out.” The Soldier may refer to the spots as stars, flashes, or floaters.' }],
                 medcom: [medcomTrainingData[14]],
                 stp: [
                     TrainingStpData[5].options[0],
@@ -1683,7 +1683,7 @@ export const catData: catDataTypes[] = [
                 id: 4,
                 icon: "H-4",
                 text: "Seeing Double (Diplopia)",
-                gen: [{}],
+                gen: [{ text: 'Double vision means seeing two images of a single object.' }],
                 medcom: [medcomTrainingData[14]],
                 stp: [
                     TrainingStpData[5].options[0],
@@ -2029,7 +2029,7 @@ export const catData: catDataTypes[] = [
                 id: 11,
                 icon: "J-11",
                 text: "Skin Abrasion/Laceration",
-                gen: [{}],
+                gen: [{ text: 'Skin abrasions are caused when the skin is rubbed raw such as when a knee or elbow is scraped. While this type of injury is painful, it normally requires only minor treatment.' }],
                 medcom: [
                     medcomTrainingData[2],
                     medcomTrainingData[26]

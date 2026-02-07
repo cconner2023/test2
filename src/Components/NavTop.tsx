@@ -130,16 +130,13 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
     // Button style constants - iOS standard tap target is 44px (w-11 h-11)
     const BUTTON_CLASSES = {
-        mobileContainer: "rounded-full border border-tertiary/20 flex items-center p-0.5",
+        mobileContainer: "rounded-full border border-tertiary/20 flex items-center p-0.5 bg-themewhite",
         mobileButton: "w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200",
         desktop: "h-8 flex items-center justify-center px-3 lg:px-4 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
     };
 
     return (
-        <div className={`flex items-center h-full w-full px-2 transition-all duration-300 ${isMobile
-            ? 'bg-transparent'
-            : 'bg-themewhite'
-            }`}>
+        <div className={`flex items-center h-full w-full px-2 transition-all duration-300 md:bg-themewhite bg-transparent`}>
             {/* Left section: buttons - hidden when mobile search is expanded */}
             {(!isMobile || !isSearchExpanded) && (
                 <div className="flex items-center shrink-0">
@@ -174,12 +171,12 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                             {/* Morphing container: button → menu panel */}
                             <div
                                 className={`
-                                    absolute top-0 left-0 z-50
+                                    absolute top-0 left-1 z-50
                                     transform-gpu
                                     overflow-hidden
                                     ${isMenuOpen
                                         ? 'rounded-md py-3 pl-3 pr-5 liquid-glass-menu'
-                                        : 'rounded-full p-0.5'
+                                        : 'rounded-full p-0.5 bg-themewhite'
                                     }
                                 `}
                                 style={{
@@ -187,7 +184,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                     width: isMenuOpen ? '224px' : '44px',
                                     height: isMenuOpen ? 'auto' : '44px',
                                     maxHeight: isMenuOpen ? '400px' : '44px',
-                                    transition: 'all 400ms',
+                                    transition: 'all 300ms',
                                     transitionTimingFunction: 'cubic-bezier(0.175, 0.885, 0.32, 2.2)',
                                 }}
                             >
