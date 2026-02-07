@@ -1,7 +1,7 @@
 export interface ReleaseNoteTypes {
     version: string;
     date?: string;
-    type?: 'bug' | 'added' | 'changed';
+    type: 'bug' | 'added' | 'changed'
     text?: string
 }
 
