@@ -1985,7 +1985,7 @@ export const catData: catDataTypes[] = [
                 id: 9,
                 icon: "J-9",
                 text: "Boils",
-                gen: [{}],
+                gen: [{ text: 'A boil is usually caused by bacteria that enters through a hair follicle. A painful nodule enclosing a core of pus forms in the skin. Tenderness, warmth, swelling, and firm area, and pain may be present around the area of inflammation. An extremely large boil or numerous boils can produce fever. Boils are also known as furuncles if they have single cores or carbuncles if they have multiple cores.' }],
                 medcom: [],
                 stp: [
                     TrainingStpData[5].options[1],
@@ -2011,7 +2011,7 @@ export const catData: catDataTypes[] = [
                 id: 10,
                 icon: "J-10",
                 text: "Fever Blisters (Cold Sores)",
-                gen: [{}],
+                gen: [{ text: 'Fever blisters result from an acute viral infection that frequently occurs around the mouth or on the lips. Fever blisters usually occur with multiple vesicular lesions on an erythematous base. Lesions can be painful and last for 10-14 days. Initial infection can be associated with systemic symptoms, like fever and malaise. Viral infection resides in the nerve cells after the initial infection and can reoccur when the body is under stress. Re-emergence of the cold sores is often preceded by prodromal symptoms of pain, burning, tingling, or itching for six hours to 2.5 days. Cold sores are contagious and spread through contact.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
                     TrainingStpData[5].options[1],

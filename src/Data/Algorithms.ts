@@ -6854,42 +6854,10 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Red Flags?",
-                type: "initial",
-                questionOptions: [],
-                answerOptions: [
-                    {
-                        text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [Disposition[0]], // CAT I: Provider Now
-                        next: null,
-                        selectAll: true
-                    },
-                    {
-                        text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [],
-                        next: 2, // Goes to next question
-                        selectAll: false
-                    }
-                ]
-            },
-            {
                 text: "Do any of the following apply?",
-                type: "choice",
+                type: "initial",
                 questionOptions: [
+                    { text: "red flags" },
                     { text: "Fever" },
                     { text: "Rapid progression" },
                     { text: "Cellulitis" },
@@ -6898,28 +6866,25 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[0], modifier: 'prepare informed consent, timeout, I&D set-up if provider requests' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['abscess', 'epidermal cyst', 'septic joint', 'hidradenitis suppurativa'],
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                text: 'Pilonidal abscesses (over the tail bone) can be much larger than they appear and should be referred to a privileged provider for evaluation. Systemic inflammatory response syndrome (SIRS) criteria, fever, black eschar, rapid progression over hours, and worsening on oral antibiotics are signs of a more significant infection that may require hospitalization. Hand infection, infection over a joint, indwelling medical device, and associated cellulitis increases the risks of serious complications.'
                             }
                         ],
-                        disposition: [Disposition[0]], // CAT I: Provider Now
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
-                        next: 3, // Goes to next question
+                        next: 2,
                         selectAll: false
                     }
                 ]
@@ -6935,27 +6900,31 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[1], modifier: 'prepare informed consent, timeout, I&D set-up if provider requests' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['abscess', 'carbuncle', 'Staphylococcal '],
+                                text: 'An abscess should be drained to allow it to heal, and an abscess with a diameter of greater than five cm will need to be packed. Military population is at risk for community transmission of staphylococcus aureus and should be evaluated for the addition of antibiotic therapy.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['abscess', 'furuncle', 'carbuncle'],
+                                text: 'prior to abscess formation, the skin normally becomes indurated from the inflammation. The skin appears to be warm, red, and tender with a hard area where the inflammation is present. Treatment is minor care. An abscess may form within a couple of days requiring further treatment. Apply a moist, warm compress over the area for 20 minutes every four hours. It will increase blood flow to the area allowing the Soldier’s immune system to fight the infection. Instruct the Soldier to return to the clinic after the abscess forms for drainage. Return sooner if symptoms worsen (fevers, chills, increased pain or redness, red streaks, increased swelling, or re-accumulation of pus if it has already drained).',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Apply a warm moist compress over the abscess for 20 minutes every four hours. RTC for worsening symptoms (fever/chills, re-accumulation of pus, increased pain/redness, red streaks, or increased swelling), new symptoms, if not improving within 3 days.'
+                                }
                             }
                         ],
-                        disposition: [Disposition[2]],
                         next: null,
                         selectAll: false
                     }
@@ -6989,16 +6958,15 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                ddx: ['HSV-1'],
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
                             {
-                                type: "CAT I",
-                                text: "Provider Now",
+                                type: 'dmp',
+                                text: 'HSV-1 infection can occur at any mucosal or skin site. Although rare, eye infection with HSV causes keratitis. Eczema and burns result in breaks in the skin\'s natural protective barrier increasing the risk of spreading the HSV infection to these areas.'
                             }
                         ],
+                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
@@ -7023,26 +6991,13 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "Yes",
                         decisionMaking: [],
-                        disposition: [
-                            {
-                                type: "CAT II",
-                                text: "AEM Now",
-                                modifier: null
-                            }
-                        ],
+                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
-                        disposition: [
-                            {
-                                type: "CAT III",
-                                text: "Treatment Protocol and RTD",
-                                modifier: "Treatment Protocol" // Action from the HTML
-                            }
-                        ],
+                        disposition: [],
                         next: null,
                         selectAll: false
                     }
@@ -7076,7 +7031,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -7090,20 +7044,15 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [],
                         disposition: [Disposition[1]],
+                        decisionMaking: [],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [],
-                        disposition: [
-                            {
-                                ...Disposition[2],
-                                modifier: "Treatment Protocol"
-                            }
-                        ],
                         next: null,
                         selectAll: false
                     }
