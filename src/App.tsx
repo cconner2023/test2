@@ -247,6 +247,14 @@ function AppContent() {
             </div>
           )}
         </div>
+        {/* Menu backdrop - rendered at App level to avoid overflow-hidden clipping.
+            z-20 sits below navbar (z-30) but above content, so menu items remain clickable */}
+        {navigation.isMenuOpen && navigation.isMobile && (
+          <div
+            className="fixed inset-0 z-20"
+            onClick={navigation.closeMenu}
+          />
+        )}
         <NoteImport
           isVisible={navigation.showNoteImport}
           onClose={() => navigation.setShowNoteImport(false)}

@@ -164,13 +164,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                             {/* Invisible spacer to maintain navbar layout - 44px to match button */}
                             <div className="w-11 h-11" />
 
-                            {/* Backdrop when menu is open */}
-                            {isMenuOpen && (
-                                <div
-                                    className="fixed inset-0 z-40"
-                                    onClick={onMenuClose}
-                                />
-                            )}
+                            {/* Backdrop is rendered at App level to avoid overflow-hidden clipping */}
 
                             {/* Morphing container: button → menu panel */}
                             <div

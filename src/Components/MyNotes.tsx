@@ -27,13 +27,22 @@ const MyNotesContent = ({
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
     const [copiedId, setCopiedId] = useState<string | null>(null);
 
+    // Track whether a button action handled the click (prevents parent toggle from interfering)
+    const actionHandledRef = useRef(false);
+
     const handleToggleExpand = (noteId: string) => {
+        // Skip if a child action button already handled this click
+        if (actionHandledRef.current) {
+            actionHandledRef.current = false;
+            return;
+        }
         setExpandedNoteId(prev => prev === noteId ? null : noteId);
         setConfirmDeleteId(null); // Reset delete confirm when toggling
     };
 
     const handleDeleteClick = (e: React.MouseEvent, noteId: string) => {
         e.stopPropagation();
+        actionHandledRef.current = true;
         if (confirmDeleteId === noteId) {
             onDeleteNote(noteId);
             setConfirmDeleteId(null);
@@ -47,6 +56,7 @@ const MyNotesContent = ({
 
     const handleCopy = (e: React.MouseEvent, note: SavedNote) => {
         e.stopPropagation();
+        actionHandledRef.current = true;
         navigator.clipboard.writeText(note.encodedText);
         setCopiedId(note.id);
         setTimeout(() => setCopiedId(prev => prev === note.id ? null : prev), 2000);

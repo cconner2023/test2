@@ -1,0 +1,55 @@
+- generic [ref=e4]:
+  - generic [ref=e6]:
+    - button "Medications" [ref=e9]:
+      - img [ref=e10]
+      - generic [ref=e12]: Medications
+    - generic [ref=e14]:
+      - searchbox "search" [ref=e15]
+      - img [ref=e17] [cursor=pointer]
+    - generic [ref=e21]:
+      - button "Import note" [ref=e22]:
+        - img [ref=e23]
+        - generic [ref=e27]: Import Note
+      - button "Settings" [ref=e28]:
+        - img [ref=e29]
+        - generic [ref=e32]: Settings
+  - generic [ref=e39]:
+    - generic [ref=e40] [cursor=pointer]:
+      - generic [ref=e41]: A.
+      - generic [ref=e42]: EAR, NOSE, THROAT
+    - generic [ref=e43] [cursor=pointer]:
+      - generic [ref=e44]: B.
+      - generic [ref=e45]: MUSCULOSKELETAL
+    - generic [ref=e46] [cursor=pointer]:
+      - generic [ref=e47]: C.
+      - generic [ref=e48]: GASTROINTESTINAL
+    - generic [ref=e49] [cursor=pointer]:
+      - generic [ref=e50]: D.
+      - generic [ref=e51]: CARDIORESPIRATORY
+    - generic [ref=e52] [cursor=pointer]:
+      - generic [ref=e53]: E.
+      - generic [ref=e54]: GENITOURINARY (GU)
+    - generic [ref=e55] [cursor=pointer]:
+      - generic [ref=e56]: F.
+      - generic [ref=e57]: NEUROPSYCHIATRIC
+    - generic [ref=e58] [cursor=pointer]:
+      - generic [ref=e59]: G.
+      - generic [ref=e60]: CONSTITUTIONAL
+    - generic [ref=e61] [cursor=pointer]:
+      - generic [ref=e62]: H.
+      - generic [ref=e63]: EYE
+    - generic [ref=e64] [cursor=pointer]:
+      - generic [ref=e65]: I.
+      - generic [ref=e66]: GYNECOLOGICAL
+    - generic [ref=e67] [cursor=pointer]:
+      - generic [ref=e68]: J.
+      - generic [ref=e69]: DERMATOLOGICAL
+    - generic [ref=e70] [cursor=pointer]:
+      - generic [ref=e71]: K.
+      - generic [ref=e72]: ENVIRONMENTAL
+    - generic [ref=e73] [cursor=pointer]:
+      - generic [ref=e74]: L.
+      - generic [ref=e75]: MISCELLANEOUS
+    - generic [ref=e76] [cursor=pointer]:
+      - generic [ref=e77]: M.
+      - generic [ref=e78]: MISCELLANEOUS RETURN
