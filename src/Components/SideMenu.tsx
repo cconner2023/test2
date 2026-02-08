@@ -7,7 +7,6 @@ import {
     Pill,
     FileText,
     HelpCircle,
-    BarChart3,
     Users,
     Calendar,
     Bell,
@@ -21,6 +20,7 @@ interface SideMenuProps {
     onMedicationClick?: () => void
     onToggleTheme?: () => void
     onSettingsClick?: () => void
+    onMyNotesClick?: () => void
 }
 
 // Map menu actions to corresponding icons
@@ -28,7 +28,7 @@ const iconMap: Record<string, React.ReactNode> = {
     'import': <Upload size={16} className="mr-3 text-primary/70" />,
     'medications': <Pill size={16} className="mr-3 text-primary/70" />,
     'Settings': <Settings size={16} className="mr-3 text-primary/70" />,
-    'myNotes': <BarChart3 size={16} className="mr-3 text-primary/70" />,
+    'myNotes': <FileText size={16} className="mr-3 text-primary/70" />,
     'patients': <Users size={16} className="mr-3 text-primary/70" />,
     'schedule': <Calendar size={16} className="mr-3 text-primary/70" />,
     'notifications': <Bell size={16} className="mr-3 text-primary/70" />,
@@ -42,7 +42,8 @@ export function SideMenu({
     onClose,
     onImportClick,
     onMedicationClick,
-    onSettingsClick
+    onSettingsClick,
+    onMyNotesClick
 }: SideMenuProps) {
     const [internalVisible, setInternalVisible] = useState(false)
     const [itemsVisible, setItemsVisible] = useState(false)
@@ -90,6 +91,9 @@ export function SideMenu({
                 break
             case 'settings':
                 onSettingsClick?.()
+                break
+            case 'mynotes':
+                onMyNotesClick?.()
                 break
             default:
                 console.warn("Unknown menu action:", action)

@@ -29,6 +29,7 @@ interface NavigationState {
     isMenuOpen: boolean;
     showNoteImport: boolean;
     showSettings: boolean;
+    showMyNotes: boolean;
     isSearchExpanded: boolean;
     showSymptomInfo: boolean;
     showMedications: boolean;
@@ -46,6 +47,7 @@ export function useNavigation() {
         isMenuOpen: false,
         showNoteImport: false,
         showSettings: false,
+        showMyNotes: false,
         isSearchExpanded: false,
         showSymptomInfo: false,
         showMedications: false,
@@ -312,7 +314,7 @@ export function useNavigation() {
     )
 
     // Check if any drawer that covers the menu is open (on mobile these cover the entire screen)
-    const isDrawerCoveringMenu = state.showNoteImport || state.showSettings || state.showMedications || state.showSymptomInfo
+    const isDrawerCoveringMenu = state.showNoteImport || state.showSettings || state.showMyNotes || state.showMedications || state.showSymptomInfo
 
     const shouldShowBackButton = (hasSearchInput: boolean) => {
         if (hasSearchInput) return false
@@ -348,6 +350,10 @@ export function useNavigation() {
 
     const setShowSettings = useCallback((show: boolean) => {
         setState(prev => ({ ...prev, showSettings: show, isMenuOpen: false }))
+    }, [])
+
+    const setShowMyNotes = useCallback((show: boolean) => {
+        setState(prev => ({ ...prev, showMyNotes: show, isMenuOpen: false }))
     }, [])
 
     const toggleSearchExpanded = useCallback(() => {
@@ -420,6 +426,7 @@ export function useNavigation() {
         isMenuOpen: state.isMenuOpen,
         showNoteImport: state.showNoteImport,
         showSettings: state.showSettings,
+        showMyNotes: state.showMyNotes,
         isSearchExpanded: state.isSearchExpanded,
         showSymptomInfo: state.showSymptomInfo,
         showMedications: state.showMedications,
@@ -440,6 +447,7 @@ export function useNavigation() {
         closeMenu,
         setShowNoteImport,
         setShowSettings,
+        setShowMyNotes,
         setShowMedications,
         toggleSearchExpanded,
         setSearchExpanded,
