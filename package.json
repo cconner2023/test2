@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@formkit/auto-animate": "^0.9.0",
+    "@react-spring/web": "^10.0.3",
     "@tailwindcss/vite": "^4.1.18",
     "@zxing/library": "^0.21.3",
     "lucide-react": "^0.562.0",
