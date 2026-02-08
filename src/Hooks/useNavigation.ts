@@ -273,8 +273,6 @@ export function useNavigation() {
             SHOW_LARGE: '1.1fr',
         }
 
-        const hasSymptomDetail = state.selectedSymptom !== null && state.viewState === 'questions'
-
         // Mobile: Single column at a time
         if (isMobile) {
             if (state.isSearchExpanded) {
@@ -284,14 +282,9 @@ export function useNavigation() {
             }
         }
 
-        // Desktop: 2-panel master-detail layout (navigation | content)
-        if (hasSymptomDetail) {
-            // Navigation column + algorithm content column
-            return { mainTemplate: '0.45fr 1.1fr' }
-        } else {
-            // Navigation column takes full width, content column hidden (empty)
-            return { mainTemplate: `${GRID.SHOW} ${GRID.HIDE}` }
-        }
+        // Desktop: ALWAYS show two columns - CategoryList (left) and Content (right)
+        // Left column fixed width, right column flexible
+        return { mainTemplate: '0.45fr 0.55fr' }
     }, [state, isMobile])
 
     const getDynamicTitle = () => {

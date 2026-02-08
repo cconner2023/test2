@@ -1707,7 +1707,7 @@ export const catData: catDataTypes[] = [
                 id: 1,
                 icon: "I-1",
                 text: "Breast Problems",
-                gen: [{}],
+                gen: [{ text: 'Breast pain can represent musculoskeletal pain, cyclic pain, or pain associated with inflammation or infection. It is rarely associated with cancer.' }],
                 medcom: [],
                 stp: [],
                 redFlags: [
@@ -1727,7 +1727,7 @@ export const catData: catDataTypes[] = [
                 id: 2,
                 icon: "I-2",
                 text: "Suspects Pregnancy",
-                gen: [{}],
+                gen: [{ text: 'Women who believe that their menstrual cycles are late should be evaluated with a pregnancy test. Urine human chorionic gonadotrophin (hCG) tests have improved over the years and provide results much quicker than in the past. A urine hCG obtained greater than seven to eight days after conception should be positive.' }],
                 medcom: [medcomTrainingData[23]],
                 stp: [],
                 redFlags: [
@@ -1745,7 +1745,7 @@ export const catData: catDataTypes[] = [
                 id: 3,
                 icon: "I-3",
                 text: "Menstrual Problems, Vaginal Bleeding",
-                gen: [{}],
+                gen: [{ text: 'This protocol is meant to cover menstrual difficulties and vaginal bleeding. If the problems are missed periods (possible pregnancy), vaginal discharge, or abdominal pain, screen according to the appropriate protocol.' }],
                 medcom: [medcomTrainingData[23]],
                 stp: [],
                 redFlags: [
@@ -1766,7 +1766,7 @@ export const catData: catDataTypes[] = [
                 id: 4,
                 icon: "I-4",
                 text: "Vaginal Discharge, Itching, Irritation, or Pain",
-                gen: [{}],
+                gen: [{ text: 'This protocol is meant to cover the majority of vaginal complaints not related to bleeding or a menstrual cycle. If a Soldier has external or vaginal discomfort along with symptoms suggesting a urinary tract infection (frequency, urgency, and internal dysuria), she should be screened as Painful Urination (Dysuria)/Frequent Urination, E-1.' }],
                 medcom: [medcomTrainingData[23]],
                 stp: [],
                 redFlags: [
@@ -1787,7 +1787,7 @@ export const catData: catDataTypes[] = [
                 id: 5,
                 icon: "I-5",
                 text: "Request for PAP or Routine Pelvic Examination ",
-                gen: [{}],
+                gen: [{ text: 'A Pap test is a microscopic examination of cells to detect the presence of pre-cancerous or cancerous process.' }],
                 medcom: [medcomTrainingData[23]],
                 stp: [],
                 redFlags: [],
@@ -1797,7 +1797,7 @@ export const catData: catDataTypes[] = [
                 id: 6,
                 icon: "I-6",
                 text: "Request for Information on Contraception",
-                gen: [{}],
+                gen: [{ text: 'Contraception provides prevention of unintended pregnancy. There are many different types of contraception depending on the Soldier’s goals.' }],
                 medcom: [medcomTrainingData[23]],
                 stp: [],
                 redFlags: [],

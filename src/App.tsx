@@ -216,13 +216,12 @@ function AppContent() {
           >
             {/* CategoryList - base layer (depth 0) */}
             <div
-              className={`absolute inset-0 will-change-transform ${
-                !search.searchInput && !navigation.showQuestionCard
-                  ? 'opacity-100 z-10'
-                  : isLayerVisibleDuringSwipe(0)
-                    ? 'z-5 pointer-events-none'
-                    : 'opacity-0 z-0 pointer-events-none'
-              } ${!swipe.isSwiping && !swipe.animatingDirection ? 'transition-opacity duration-200' : ''}`}
+              className={`absolute inset-0 will-change-transform ${!search.searchInput && !navigation.showQuestionCard
+                ? 'opacity-100 z-10'
+                : isLayerVisibleDuringSwipe(0)
+                  ? 'z-5 pointer-events-none'
+                  : 'opacity-0 z-0 pointer-events-none'
+                } ${!swipe.isSwiping && !swipe.animatingDirection ? 'transition-opacity duration-200' : ''}`}
               style={getSwipeStyle(0)}
             >
               <div className="h-full overflow-y-auto">
@@ -256,11 +255,14 @@ function AppContent() {
 
           {/* Desktop Layout - 2-panel master-detail (navigation | content) */}
           <div className={`${navigation.isMobile ? 'hidden' : 'block'} h-full`}>
-            <div className="h-full grid transition-[grid-template-columns] duration-300 ease-in-out gap-1"
-              style={{ gridTemplateColumns: !navigation.isMobile && search.searchInput ? '0.45fr 1.1fr' : navigation.mainGridTemplate }}
+            <div className="h-full grid gap-1"
+              style={{
+                gridTemplateColumns: navigation.mainGridTemplate,
+                transition: 'grid-template-columns 0.3s ease-in-out'
+              }}
             >
-              {/* Column 1 (Left): Navigation - categories/subcategories/symptom info all stacked vertically */}
-              <div className="h-full overflow-y-scroll overflow-x-hidden">
+              {/* Column 1 (Left): Always show CategoryList */}
+              <div className="h-full overflow-y-auto bg-themewhite">
                 <CategoryList
                   selectedCategory={navigation.selectedCategory}
                   selectedSymptom={navigation.selectedSymptom}
@@ -270,17 +272,19 @@ function AppContent() {
                 />
               </div>
 
-              {/* Column 2 (Right): Content - algorithm, search results, or empty */}
-              <div className="h-full overflow-y-auto overflow-x-hidden">
+              {/* Column 2 (Right): Content area */}
+              <div className="h-full overflow-hidden">
                 {search.searchInput ? (
-                  <SearchResults
-                    results={search.searchResults}
-                    searchTerm={search.searchInput}
-                    onResultClick={handleNavigationClick}
-                    isSearching={search.isSearching}
-                  />
+                  <div className="h-full overflow-y-auto">
+                    <SearchResults
+                      results={search.searchResults}
+                      searchTerm={search.searchInput}
+                      onResultClick={handleNavigationClick}
+                      isSearching={search.isSearching}
+                    />
+                  </div>
                 ) : navigation.selectedSymptom && navigation.showQuestionCard ? (
-                  <div className="h-full bg-themewhite overflow-hidden">
+                  <div className="h-full overflow-hidden">
                     <AlgorithmPage
                       selectedSymptom={navigation.selectedSymptom}
                       onMedicationClick={navigation.handleMedicationSelect}
@@ -288,7 +292,12 @@ function AppContent() {
                       isMobile={navigation.isMobile}
                     />
                   </div>
-                ) : null}
+                ) : (
+                  // Empty state when nothing is selected
+                  <div className="h-full flex items-center justify-center text-secondary text-sm">
+                    Select a symptom to see algorithm
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -296,11 +305,10 @@ function AppContent() {
           {/* AlgorithmPage - mobile only: absolute positioned overlay (depth 2) */}
           {navigation.isMobile && navigation.selectedSymptom && (
             <div
-              className={`absolute inset-0 will-change-transform ${
-                !search.searchInput && navigation.showQuestionCard
-                  ? 'opacity-100 z-20'
-                  : 'opacity-0 z-0 pointer-events-none'
-              } ${!swipe.isSwiping && !swipe.animatingDirection ? 'transition-opacity duration-200' : ''}`}
+              className={`absolute inset-0 will-change-transform ${!search.searchInput && navigation.showQuestionCard
+                ? 'opacity-100 z-20'
+                : 'opacity-0 z-0 pointer-events-none'
+                } ${!swipe.isSwiping && !swipe.animatingDirection ? 'transition-opacity duration-200' : ''}`}
               style={getSwipeStyle(2)}
               {...swipe.touchHandlers}
             >

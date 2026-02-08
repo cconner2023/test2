@@ -5623,26 +5623,24 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be an indication of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['mastitis', 'abscess', 'cancer'],
+                                text: 'Skin changes, mass, or bloody nipple discharge are concerning symptoms that require further evaluation and imaging. Red, swollen breast can represent mastitis or an abscess that requires further evaluation and treatment.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -5660,14 +5658,14 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['gynecomastia', 'infection', 'mastalgia'],
+                                text: 'Testosterone supplementation in exercise supplements can result in enlargement of breast tissue under the nipple. Enlarged breast tissue can be painful, especially when wearing body armor, further evaluation and counseling are warranted. Nursing mothers often have problems with cracked or infected nipples or have difficulty when the child is weaned, but further examination is required to rule out more concerning issues. Pain without other concerns that is not related to breastfeeding weaning, exercise, or cyclical pain with menstrual cycle requires further evaluation and may require imaging.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
@@ -5676,15 +5674,37 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                ddx: ['breast pain', 'large breasts'],
+                                text: 'women with a large amount of breast tissue can have discomfort associated with stretching of Cooper’s ligaments. It can be associated with shoulder, back, or neck pain and made worse with exercise. Educate the Soldier on the importance of supportive undergarments, ice compress/heat compress for inflammation, acetaminophen as needed for mild pain, and ibuprofen (1st line) or ketorolac (2nd line) as needed for moderate pain.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'educate the patient on importance of physical support (well-fitting bra). Ice/heat (1st line) or acetaminophen (2nd line) as needed for mild pain. Ibuprofen (1st line) or ketorolac (2nd line) as needed for moderate pain',
+                                    medFind: [medList[0], medList[23], medList[24]]
+                                }
+                            },
                             {
-                                ...Disposition[2],
+                                type: 'dmp',
+                                ddx: ['chest extramammary/musculoskeletal pain'],
+                                text: 'related to the chest wall and not the breast tissue. Ice/heat compresses as needed for inflammation. Medication: mentyl salicylate (1st line) or acetaminophen (2nd line) as needed for mild pain, and ibuprofen (1st line) or ketorolac (2nd line) as needed for moderate pain. Activity modifications should be considered as appropriate. RTC if no improving within 3 days, worsening symptoms, or development of new symptoms',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'ice/hear for inflammation, menthyl salicylate (1st line) or acetaminophen (2nd line) as needed for mild pain, ibuprofen (1st line) or ketorolac (2nd line) as needed for moderate pain. Activity modifications as needed. RTC if no improving within 3 days, worsening symptoms, or development of new symptoms',
+                                    medFind: [medList[28], medList[0], medList[23], medList[24]],
+                                    specLim: ['no running, jumping, rucking', 'walk at own pace/distance', 'may lift, carry, push up to 25 lbs.']
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['diffuse breast pain'],
+                                text: 'diffuse breast pain is unlikely to be related to cancer. Provide reassurance. If the Soldier is concerned about the possibility of breast cancer after reassurance, refer to provider for consideration of an imaging study to provide reassurance. Treat discomfort with ice/heat (1st line) or acetaminophen (2nd line) as needed for mild pain and ibuprofen (1st line) or ketorolac (2nd line) as needed for moderate pain.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'ice/heat for inflammation, menthyl salicylate (1st line) or acetaminophen (2nd line) as needed for mild pain, ibuprofen (1st line) or ketorolac (2nd line) as needed for moderate pain. Provide reassurance. Refer to provider if Soldier is concerned about risk of breast cancer after reassurance. RTC if no improving within 3 days, worsening symptoms, or development of new symptoms',
+                                    medFind: [medList[28], medList[0], medList[23], medList[24]],
+                                }
                             }
                         ],
+                        disposition: [Disposition[2]],
                         next: null,
                         selectAll: false
                     }
@@ -5707,9 +5727,9 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Check hCG",
+                text: "Draw the following labs",
                 type: "action",
-                questionOptions: [],
+                questionOptions: [{ text: 'hCG' }],
                 answerOptions: []
             },
             {
@@ -5719,26 +5739,27 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” They can be signs of significant underlying medical problems.',
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['ectopic pregnancy', 'miscarriage'],
+                                text: 'Check a urine hCG. If the urine hCG is negative, confirm negative with a serum hCG. Positive hCG with pelvic pain or history of a prior ectopic pregnancy increases the possibility of an ectopic pregnancy. Vaginal bleeding suggests a possible miscarriage or complication of pregnancy.',
+                                ancillaryFind: [
+                                    { type: 'lab', modifier: 'urine hCG' },
+                                    { type: 'lab', modifier: 'serum hCG' },
+                                ]
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -5752,29 +5773,43 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['pregnancy'],
+                                text: 'Refer Soldiers with a positive pregnancy test to the AEM. The Soldier will need to receive initial pregnancy counseling that includes medications and foods to avoid, importance of a daily prenatal vitamin, avoidance of alcohol, pregnancy profile, and referral to obstetrics-gynecology clinic. These services are also sometimes provided by the clinic nurse depending on local protocol.',
+                                // required by DHA for initial pregnancy. I have to double check my favorite orders in Genesis to make sure I get all of them.
+                                ancillaryFind: [
+                                    { type: 'protocol', modifier: 'initial pregnancy counseling' },
+                                    { type: 'refer', modifier: 'OB/GYN' },
+                                    { type: 'med', modifier: 'prenatal vitamin / Folate' },
+                                    { type: 'lab', modifier: 'TSH' },
+                                    { type: 'lab', modifier: 'HIV' },
+                                    { type: 'lab', modifier: 'TSH' },
+                                    { type: 'lab', modifier: 'TSH' },
+                                    { type: 'lab', modifier: 'TSH' },
+                                    { type: 'rad', modifier: '1TM US' },
+
+                                ],
+                                specLim: ['pregnancy profile']
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: false
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                ddx: ['taking contraception', 'increased exercise / stress'],
+                                text: 'there are multiple causes of a late cycle that are unrelated to pregnancy to include birth control medications, increasing exercise regimen, and stress. Average menstrual cycle is 28 days but can range from 24 to 38 days. Instruct the Soldier to avoid alcohol and NSAID medications (to include Ibuprofen, naproxen, or ketorolac). Return to the clinic in one week if she still has not had a cycle.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Counsel the Soldier to avoid alcohol and NSAID medications. Return to clinic in 1 week if she still has not had a cycle.'
+                                }
                             }
                         ],
                         next: null,
@@ -5799,9 +5834,9 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Check hCG",
+                text: "Draw the following lab",
                 type: "action",
-                questionOptions: [],
+                questionOptions: [{ text: 'urine hCG' }],
                 answerOptions: []
             },
             {
@@ -5817,26 +5852,28 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['sexual assault', 'miscarriage', 'pelvic inflammatory disease', 'malignancy'],
+                                text: 'If due to Sexual Assault, immediately notify the supervising privileged provider. Do not leave the victim alone. Ask if she would prefer a female medic/privileged provider if one is available. If bleeding is over one week late or the previous bleeding was spotting, it could represent a pregnancy. Bleeding during pregnancy (positive hCG) can represent a miscarriage or complication of pregnancy and needs to be seen ASAP. Non-midline pelvic pain and pain with intercourse are signs of pelvic inflammatory disease. Bleeding after menopause (vaginal bleeding in a 45 y/o or older woman who had no menstrual cycles for 12 months) needs to be evaluated for possible malignancy. Heavy vaginal bleeding (vaginal bleeding enough to soak through one (1) or more tampons or sanitary pads per hour) requires immediate referral to supervising medical provider.',
+                                ancillaryFind: [
+                                    { type: 'protocol', modifier: 'notify provider immediately for sexual assault. Do not leave patient alone' },
+                                    { type: 'lab', modifier: 'urine hCG' },
+                                ]
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: [3, 4],
                         selectAll: false
@@ -5844,9 +5881,9 @@ export const Algorithm: AlgorithmType[] = [
                 ]
             },
             {
-                text: "Menses History: Length, Severity (clots, #pads), Medications",
+                text: "Obtain the following information",
                 type: "action",
-                questionOptions: [],
+                questionOptions: [{ text: 'Menses History: Length, Severity (clots, #pads), Medications' }],
                 answerOptions: []
             },
             {
@@ -5864,29 +5901,31 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['adenomyosis', 'endometriosis', 'fibroids', 'taking contraception'],
+                                text: 'Most common problems are irregular and painful periods. Menstrual pain starting after age 25, progressive worsening of symptoms, and poor relief with Ibuprofen are symptoms of a secondary cause to include adenomyosis, endometriosis, or fibroids. Spotting (light vaginal bleeding that occurs outside of a woman’s usual menstrual cycle) on Depo-Provera, Nexplanon, or intrauterine device (IUD) is not uncommon but should be examined further. Menses lasting for over five days, more often than every 21 days or less often than 35 days, or bleeding in between menses is considered abnormal. Soaking a pad or tampon more often than every hour or interferes with daily activities is considered heavy.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                ddx: ['dysmenorrhea'],
+                                text: 'bothersome menstrual cramping (dysmenorrhea) usually lasts about 24 hours. It may be relieved by naproxen or ibuprofen for five to seven days. Ketorolac can be used on presentation for moderate pain. Seldom is discomfort such that the Soldier is unable to perform normal activities. Give the Soldier symptomatic medication and instructions for use. Instruct the Soldier to return if the symptoms are worsening, new symptoms develop, or the minor-care protocol is not controlling the symptoms such that the problem is preventing performance of normal duties. A privileged provider can evaluate further and may prescribe additional medications to help decrease the symptoms during future menstrual cycles.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'provide NSAID like naproxen or ibuprofen as needed for pain to be taken with food for up to 7 days. Ketorolac as a 1 x dose for moderate pain. A warm compress may also be placed over the abdomen to help with the discomfort. RTC if symptoms are worsening, new symptoms developing, or symptoms are not controlled with the MCP',
+                                    medFind: [medList[23], medList[30]],
+                                    specLim: ['aerobic exercise at own pace/distance x 3 days', 'must have access to restroom every hour']
+                                }
                             }
                         ],
                         next: null,
@@ -5911,9 +5950,9 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Check hCG",
+                text: "Draw the following labs",
                 type: "action",
-                questionOptions: [],
+                questionOptions: [{ text: 'urine hCG' }],
                 answerOptions: []
             },
             {
@@ -5931,26 +5970,27 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['pelvic inflammatory disease', 'vaginal infection', 'recurrent infection'],
+                                text: 'Fever, non-midline pelvic pain, and pain with intercourse are symptoms of pelvic inflammatory disease, which is a serious infection requiring further evaluation. Vaginal infections and certain medications have a higher risk during pregnancy. Recurrent infections or infections that failed initial therapy require treatment regimens and closer observation. Vaginal discharge, lesion, or ulcer requires an invasive physical exam with laboratory evaluation. If facilities for a speculum physical exam and/or microscopic evaluation are not available and evacuation is not feasible, then treat according to history in minor-care protocol section.',
+                                ancillaryFind: [
+                                    { type: 'protocol', modifier: 'speculum exam *credentialed provider only*' },
+                                    { type: 'lab', modifier: 'microscopic laboratory evaluation' }
+                                ]
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -5967,14 +6007,14 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['vaginitis'],
+                                text: 'Vaginitis may have an atypical presentation. In these situations, a more detailed evaluation is required.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
@@ -5983,15 +6023,29 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                text: 'When facilities for a speculum exam and/or microscopic evaluation are not available and evacuation is unfeasible, the Soldier may be treated according to the history below.'
+                            },
                             {
-                                ...Disposition[2],
+                                type: 'dmp',
+                                ddx: ['yeast infection (candidiasis)'],
+                                text: 'presents with a scant amount of thick, white (cottage cheese like) discharge that is usually odorless and may be associated with vulvar itching, soreness, and dysuria. Symptoms are often worse the week before a menstrual cycle. Vaginal pH is typically normal (pH of 4-4.5). Treat with fluconazole',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'treat with fluconazole. RTC if symptoms are worsening, new symptoms developing, or MCP does not resolve the symptoms'
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['bacterial vaginosis'],
+                                text: 'presents with a thin, greyish discharge, vaginal pH greater than 4.5, and a fishy smell (prominent when 10% potassium chloride is added to a slide of vaginal discharge) without signs of inflammation. Symptoms are often pronounced during menstrual cycle or after intercourse. Treat with metronidazole for seven days. Instruct the Soldier to return if the symptoms are worsening, new symptoms develop, or the minor-care protocol does not resolve the symptoms',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'treat with metronidazole for 7 days. RTC if symptoms are worsening, new symptoms developing, or MCP does not resolve the symptoms',
+                                    medFind: [medList[29]]
+                                }
                             }
                         ],
+                        disposition: [Disposition[2]],
                         next: null,
                         selectAll: false
                     }
@@ -6009,9 +6063,9 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Check hCG",
+                text: "Draw the following lab",
                 type: "action",
-                questionOptions: [],
+                questionOptions: [{ text: 'urine hCG' }],
                 answerOptions: []
             },
             {
@@ -6028,25 +6082,17 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'If the Soldier’s menstrual cycle is late, check a pregnancy test. If the Soldier is pregnant, refer to the AEM. Look in lab results for previous pap smears. If there has been an abnormal pap lab result, look for the clinical note that details the plan of care. If a plan of care is not found or last pap smear sample was inappropriate, refer to supervising medical provider. Determine if the plan was followed and discuss with the AEM to determine care.',
                             }
                         ],
-                        disposition: [Disposition[0]], // CAT I: Provider Now
+                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
-                        next: 2, // Goes to next question
+                        next: 3,
                         selectAll: false
                     }
                 ]
@@ -6067,15 +6113,10 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
+                                text: 'Confirm the current USPSTF standards. Initial Pap smear should be performed starting at 21 years old. From ages 21-29 years old, Pap smear should be performed every three years. From age 30 and older, Pap smear can be performed every three years or Pap smear and HPV testing every five years if both tests are negative. HPV vaccine is recommended up to age 26. G/C screening is recommended yearly for women less than 26 y/o.'
                             }
                         ],
-                        disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Schedule appointment"
-                            }
-                        ],
+                        disposition: [{ ...Disposition[4], text: 'Schedule Appointment' }],
                         next: null,
                         selectAll: true
                     },
@@ -6085,15 +6126,10 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
+                                text: 'Confirm the current USPSTF standards. Initial Pap smear should be performed starting at 21 years old. From ages 21-29 years old, Pap smear should be performed every three years. From age 30 and older, Pap smear can be performed every three years or Pap smear and HPV testing every five years if both tests are negative. HPV vaccine is recommended up to age 26. G/C screening is recommended yearly for women less than 26 y/o.'
                             }
                         ],
-                        disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Schedule appointment"
-                            }
-                        ],
+                        disposition: [{ ...Disposition[4], text: 'Schedule Appointment' }],
                         next: null,
                         selectAll: false
                     }
@@ -6111,9 +6147,9 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Check hCG",
+                text: "Draw the following lab",
                 type: "action",
-                questionOptions: [],
+                questionOptions: [{ text: 'urine hCG' }],
                 answerOptions: []
             },
             {
@@ -6127,26 +6163,20 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['pregnant', 'side effects of current contraceptive'],
+                                text: 'Determine date of last menstrual cycle. Check a pregnancy test if the Soldier’s menstrual cycle is late. Determine history of previous contraceptive use. If the Soldier is having side-effects from her current birth control or has had recent unprotected sex, refer for further evaluation.',
+                                ancillaryFind: [{ type: 'lab', modifier: 'urine hCG' }]
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -6164,17 +6194,15 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[4], text: 'Schedule appointment or referral' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Schedule appointment or referral"
+                                text: 'Long acting contraceptives are the most effective (surgical/permanent, IUD, implantable). Injectable, oral, patch, vaginal ring effectiveness is partially based on consistent, correct use. Condoms and behavioral modification are least effective. Choose the most effective method that the Soldier will be able to use successfully. If male, discuss the permanent nature of the vasectomy procedure (*Refer to L-5, Requests a Vasectomy), discuss with AEM, and follow local protocol for referral. Discuss potential side effects of hormonal contraceptives. Estrogen-progesterone decrease menstrual symptoms, acne, and hirsutism. Progesterone and IUDs decrease menstrual symptoms. Longer term contraception to include injectable types have a risk of irregular bleeding, spotting. Discuss Soldier preferences and history with AEM. Check hCG if requesting medroxprogesterone acetate intramuscular injection. Schedule appointment with supervising privileged provider for a more thorough discussion of contraceptive options and discussion of potential side effects. Schedule accordingly: routine appointment (injectable, oral, patch, ring) or procedural appointment or referral based on supervising privileged provider preferences (implantable, IUD).',
+                                ancillaryFind: [
+                                    { type: 'protocol', modifier: 'discuss contraceptive options' }
+                                ]
                             }
                         ],
                         next: null,
@@ -6182,17 +6210,12 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [{ ...Disposition[4], text: 'Schedule appointment or referral' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
                                 text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Schedule appointment or referral"
                             }
                         ],
                         next: null,
