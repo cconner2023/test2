@@ -4,8 +4,6 @@ import { useRef, useEffect, useState } from "react";
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { menuData } from "../Data/CatData";
 
-export type MobileViewState = 'visible' | 'hidden'
-
 // Icon map for menu items
 const iconMap: Record<string, React.ReactNode> = {
     'import': <Upload size={16} className="text-primary/70" />,

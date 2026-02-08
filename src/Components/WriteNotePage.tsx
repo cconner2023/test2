@@ -8,7 +8,7 @@ import { NoteBarcodeGenerator } from './Barcode';
 import { DecisionMaking } from './DecisionMaking';
 import { BaseDrawer } from './BaseDrawer';
 
-export type DispositionType = dispositionType['type'];
+type DispositionType = dispositionType['type'];
 
 const PAGE_LABELS = ['Decision Making', 'Write Note', 'View Note', 'Share Note'];
 const TOTAL_PAGES = 4;
@@ -491,7 +491,7 @@ const ToggleOption: React.FC<{
     checked: boolean;
     onChange: () => void;
     label: string;
-    colors: any;
+    colors: ReturnType<typeof getColorClasses>;
 }> = ({ checked, onChange, label, colors }) => (
     <div
         onClick={onChange}

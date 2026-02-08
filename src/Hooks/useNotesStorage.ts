@@ -19,12 +19,16 @@ function loadNotes(): SavedNote[] {
         if (!raw) return [];
         const parsed = JSON.parse(raw);
         if (!Array.isArray(parsed)) return [];
-        // Validate each entry has required fields
+        // Validate each entry has required fields (parsed is unknown[])
         return parsed.filter(
-            (n: any) =>
-                typeof n.id === 'string' &&
-                typeof n.encodedText === 'string' &&
-                typeof n.createdAt === 'string'
+            (n: unknown): n is SavedNote => {
+                const record = n as Record<string, unknown>;
+                return (
+                    typeof record.id === 'string' &&
+                    typeof record.encodedText === 'string' &&
+                    typeof record.createdAt === 'string'
+                );
+            }
         );
     } catch {
         // Corrupted cache - return empty
@@ -105,6 +109,5 @@ export function useNotesStorage() {
         updateNote,
         deleteNote,
         clearAllNotes,
-        noteCount: notes.length,
     };
 }

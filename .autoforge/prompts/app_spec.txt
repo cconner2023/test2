@@ -1,0 +1,365 @@
+<project_specification>
+  <project_name>ProjectOne (ADTMC)</project_name>
+
+  <overview>
+    ProjectOne is a Progressive Web App (PWA) for expediting medical triage workflows. Team members navigate through algorithm categories, subcategories, and branching decision trees to reach dispositions, then document outcomes via structured notes. The application is frontend-focused with local persistent storage, architected for future backend integration. All algorithm data originates from external documentation verbatim and must not be modified.
+  </overview>
+
+  <technology_stack>
+    <frontend>
+      <framework>React 19 + TypeScript 5</framework>
+      <build_tool>Vite 7</build_tool>
+      <styling>Tailwind CSS 4</styling>
+      <animations>Motion (framer-motion successor) + @formkit/auto-animate</animations>
+      <icons>Lucide React</icons>
+      <barcode>pdf417-generator, qrcode.react, qr-scanner, @zxing/library</barcode>
+    </frontend>
+    <backend>
+      <runtime>None (frontend-only PWA, architected for future backend)</runtime>
+      <database>localStorage (client-side persistent storage)</database>
+    </backend>
+    <communication>
+      <api>None currently — local storage only. Future: REST API</api>
+    </communication>
+    <pwa>
+      <plugin>vite-plugin-pwa (Workbox)</plugin>
+      <display>Standalone</display>
+      <caching>Cache-first for assets, Google Fonts</caching>
+      <shortcuts>ImportNote, MyNotes</shortcuts>
+    </pwa>
+  </technology_stack>
+
+  <prerequisites>
+    <environment_setup>
+      - Node.js (LTS)
+      - npm install
+      - npm run dev (Vite dev server)
+      - npm run build (production verification — NO git commits, NO deployments)
+    </environment_setup>
+  </prerequisites>
+
+  <agent_directives>
+    <critical_rules>
+      - Agents may run `npm run build` to verify builds
+      - Agents must NOT commit to git
+      - Agents must NOT deploy
+      - If a feature ID is marked as completed, the agent MUST skip it immediately and move to the next feature
+      - If a feature is deleted, the agent MUST update the database accordingly
+      - All algorithm/medical data comes from external documentation VERBATIM — agents must NEVER modify, paraphrase, or regenerate this data
+      - The core navigation flow (Categories → Subcategories → Algorithm → Disposition → Write Note) must NEVER be altered
+    </critical_rules>
+  </agent_directives>
+
+  <feature_count>62</feature_count>
+
+  <security_and_access_control>
+    <user_roles>
+      <role name="team_member">
+        <permissions>
+          - Full access to all triage workflows
+          - Create, view, edit, delete saved notes
+          - Import/export notes via barcode
+          - Access all settings
+          - Search all content
+        </permissions>
+      </role>
+    </user_roles>
+    <authentication>
+      <method>None (team tool, no authentication currently — future backend component)</method>
+      <session_timeout>None</session_timeout>
+    </authentication>
+    <sensitive_operations>
+      - Delete note requires two-tap confirmation
+    </sensitive_operations>
+  </security_and_access_control>
+
+  <core_features>
+    <infrastructure>
+      - localStorage connection/availability verified
+      - Data schema applied correctly (adtmc_saved_notes key structure)
+      - Data persists across page reload and session restart
+      - No mock data patterns in codebase
+      - App reads/writes real localStorage (not in-memory substitutes)
+    </infrastructure>
+
+    <category_navigation>
+      - Render category grid with icons and labels
+      - Select category to reveal subcategories/symptoms
+      - Responsive layout: stacked mobile, 3-column desktop grid
+    </category_navigation>
+
+    <subcategory_selection>
+      - Render symptom list within selected category
+      - Select symptom to load corresponding algorithm
+      - Display symptom icon, general info, medical command references
+    </subcategory_selection>
+
+    <algorithm_decision_tree>
+      - Render Red Flag (RF) cards with checkbox selections
+      - Render Choice cards (single/multi-select) with disease management
+      - Render Count cards with numeric scoring (e.g., Centor criteria)
+      - Handle branching logic (yes/no → disposition or next card)
+      - Compute disposition from decision path (CAT I/II/III/IV/OTHER)
+      - Back-navigate through previously answered cards
+      - Display Symptom Info drawer with DDX, training guidelines
+    </algorithm_decision_tree>
+
+    <disposition_display>
+      - Show disposition result with category label (CAT I–IV / OTHER)
+      - Apply disposition-specific color coding (Red/Yellow/Green/Blue)
+      - Display disposition-specific guidance text
+    </disposition_display>
+
+    <write_note_wizard>
+      - Page 0: Read-only review of decision path (RF selections, answers)
+      - Page 1: Content toggle options (Include Algorithm, Decision Making, HPI/Custom Note)
+      - Page 2: Note preview with copy-to-clipboard
+      - Page 3: Barcode generation (PDF417 + QR code) with Save to My Notes
+      - Swipe gesture navigation between wizard pages
+      - Save note to localStorage with structured SavedNote schema
+    </write_note_wizard>
+
+    <my_notes_in_settings>
+      - Display saved notes list within Settings drawer (moved from sidebar)
+      - Swipe RIGHT to reveal Delete action button
+      - Swipe LEFT to reveal Edit and View action buttons
+      - Edit note preview text inline (textarea)
+      - Delete note with two-tap confirmation
+      - Copy encoded note text to clipboard
+      - View full note detail
+    </my_notes_in_settings>
+
+    <note_import>
+      - Paste encoded barcode string to decode and display note
+      - Camera-based barcode scanning (PDF417 + QR)
+      - Display decoded/imported note with copy button
+      - PWA app shortcut for ImportNote
+    </note_import>
+
+    <unified_base_drawer>
+      - Adapt BaseDrawer as consistent wrapper for all drawers (Medications, NoteImport, WriteNotePage, Settings)
+      - Consistent drag-to-resize behavior across all drawers
+      - Mobile-optimized drawer UX (bottom sheet pattern, safe area insets)
+      - Smooth open/close animations with Motion library
+    </unified_base_drawer>
+
+    <medications_drawer>
+      - Display medication list (brand name, generic name)
+      - Show medication detail (indication, contraindications, MOI, adult/peds dosing, pregnancy class, aviation restrictions, adverse effects)
+      - Searchable within drawer
+    </medications_drawer>
+
+    <search>
+      - Search across categories, symptoms, medications, DDX, training guidelines
+      - Display typed search results with type discrimination
+      - Navigate to selected result
+      - Debounced search input
+    </search>
+
+    <settings>
+      - Dark/light theme toggle with system preference detection
+      - Release notes display (version history with categorized updates)
+      - My Notes section within Settings drawer
+      - PWA app shortcut for MyNotes
+    </settings>
+
+    <pwa_and_offline>
+      - Service worker with Workbox caching (cache-first assets, Google Fonts)
+      - Full offline functionality
+      - Standalone display with safe area insets (iOS notch/island support)
+    </pwa_and_offline>
+
+    <responsive_layout>
+      - Mobile: stacked overlay system with absolute z-indexed views
+      - Desktop: 3-column grid with smooth CSS grid-template-columns transitions
+      - Swipe navigation between main views on mobile (categories ↔ subcategories ↔ algorithm)
+      - Swipe transition animations between views
+      - NavTop: overlay with backdrop-blur on mobile, relative on desktop
+    </responsive_layout>
+
+    <theme_and_design>
+      - Disposition-based color palette (CAT I=Red, CAT II=Yellow, CAT III=Green, CAT IV=Blue)
+      - Consistent typography, spacing, and component styling via Tailwind
+    </theme_and_design>
+  </core_features>
+
+  <data_model>
+    <local_storage_schema>
+      <key name="adtmc_saved_notes">
+        <description>Array of SavedNote objects, stored in reverse chronological order</description>
+        <fields>
+          - id: string (format: "note_{timestamp}_{random}")
+          - encodedText: string (compact barcode-encoded note)
+          - createdAt: string (ISO 8601 date)
+          - symptomIcon: string (emoji identifier)
+          - symptomText: string (symptom display name)
+          - dispositionType: string (CAT I / CAT II / CAT III / CAT IV / OTHER)
+          - dispositionText: string (disposition display label)
+          - previewText: string (first 200 chars for list display)
+        </fields>
+      </key>
+      <key name="theme">
+        <description>User's theme preference</description>
+        <fields>
+          - value: "light" | "dark" | "system"
+        </fields>
+      </key>
+    </local_storage_schema>
+
+    <static_data_sources>
+      <source name="CatData">Category and subcategory/symptom definitions with icons, IDs, nested contents</source>
+      <source name="Algorithms">Decision tree definitions with card types (RF, Initial, Choice, Count, Action), branching logic, and disposition mappings</source>
+      <source name="Medications">Drug reference data (brand/generic names, dosing, contraindications, pregnancy class, aviation restrictions)</source>
+    </static_data_sources>
+  </data_model>
+
+  <state_management>
+    <hooks>
+      <hook name="useNavigation">Central navigation state — view state, selected entities, drawer visibility, responsive grid templates (600+ lines)</hook>
+      <hook name="useNotesStorage">Save/edit/delete notes from localStorage with cross-tab sync via storage event</hook>
+      <hook name="useAlgorithm">Track card states, handle selections, compute dispositions from decision paths</hook>
+      <hook name="useSearch">Search/filter across all content types with debouncing</hook>
+      <hook name="useNoteCapture">Generate formatted note text from algorithm state</hook>
+      <hook name="useNoteImport">Decode barcode strings back to structured note format</hook>
+      <hook name="useBarcodeScanner">Camera-based barcode scanning via WebRTC</hook>
+      <hook name="useServiceWorker">PWA update notifications</hook>
+    </hooks>
+    <context>
+      <provider name="ThemeContext">Dark/light mode with system preference detection, meta theme-color updates</provider>
+    </context>
+  </state_management>
+
+  <ui_layout>
+    <main_structure>
+      Mobile: Single-column stacked overlay system with z-indexed views and bottom-sheet drawers
+      Desktop: 3-column CSS grid (categories | search results | algorithm/write note at 55% width)
+    </main_structure>
+    <navigation>
+      NavTop bar with search input, drawer toggles (medications, settings), and context-aware back navigation
+    </navigation>
+    <drawers>
+      All drawers use unified BaseDrawer wrapper component:
+      - Settings drawer (includes My Notes, theme toggle, release notes)
+      - Medications drawer (drug reference)
+      - NoteImport drawer (paste/scan barcode)
+      - WriteNotePage (4-page wizard)
+      Mobile: Bottom sheet pattern with drag-to-resize (45dvh partial → 90dvh full)
+      Desktop: Side panel or overlay
+    </drawers>
+    <gesture_support>
+      - Touch swipe: Multi-page navigation in WriteNotePage
+      - Touch swipe: Navigate between main views on mobile (categories ↔ subcategories ↔ algorithm)
+      - Touch swipe: Reveal actions on saved notes (delete/edit/view)
+      - Drag gestures: Drawer height transitions
+      - Velocity tracking: Swipe prediction for snap behavior
+    </gesture_support>
+  </ui_layout>
+
+  <design_system>
+    <color_palette>
+      Disposition-based theming:
+      - CAT I (Provider Now): Red
+      - CAT II (AEM Now): Yellow
+      - CAT III (Treatment Protocol and RTD): Green
+      - CAT IV (Referral): Blue
+      - OTHER: Blue variant
+      Dark/light mode support via Tailwind dark: pseudo-class
+    </color_palette>
+    <typography>
+      System font stack via Tailwind defaults
+      Responsive sizing for mobile/desktop
+    </typography>
+    <animations>
+      Motion library for view transitions, page swipes, drawer animations
+      @formkit/auto-animate for list transitions
+      Staggered card reveals in algorithm views
+    </animations>
+  </design_system>
+
+  <implementation_steps>
+    <step number="1">
+      <title>Infrastructure Verification</title>
+      <tasks>
+        - Verify localStorage availability and read/write capability
+        - Verify SavedNote schema integrity
+        - Verify data persistence across page reload
+        - Verify no mock data patterns
+        - Verify real localStorage operations
+      </tasks>
+    </step>
+    <step number="2">
+      <title>Unified BaseDrawer Refactor</title>
+      <tasks>
+        - Adapt BaseDrawer as shared wrapper for all drawer consumers
+        - Migrate Medications, NoteImport, WriteNotePage, Settings to use BaseDrawer
+        - Ensure consistent drag-to-resize, animations, and mobile UX
+      </tasks>
+    </step>
+    <step number="3">
+      <title>My Notes Relocation</title>
+      <tasks>
+        - Remove My Notes from sidebar
+        - Add My Notes section within Settings drawer
+        - Implement swipe-to-reveal actions (delete, edit, view)
+        - Maintain all existing CRUD functionality
+      </tasks>
+    </step>
+    <step number="4">
+      <title>Mobile Swipe Navigation</title>
+      <tasks>
+        - Implement swipe left/right between categories, subcategories, and algorithm views
+        - Add view transition animations
+        - Ensure gesture does not conflict with other swipe interactions
+      </tasks>
+    </step>
+    <step number="5">
+      <title>PWA App Shortcuts</title>
+      <tasks>
+        - Add ImportNote as PWA app shortcut
+        - Add MyNotes as PWA app shortcut
+        - Verify shortcuts work in standalone mode
+      </tasks>
+    </step>
+    <step number="6">
+      <title>Polish and Verification</title>
+      <tasks>
+        - Verify all features end-to-end
+        - Ensure zero console errors
+        - Verify responsive layout at all breakpoints
+        - Confirm offline functionality
+        - Run npm run build to verify production build
+      </tasks>
+    </step>
+  </implementation_steps>
+
+  <success_criteria>
+    <functionality>
+      - Core triage flow works end-to-end without interruption
+      - All algorithm branching logic produces correct dispositions
+      - Notes save, persist, and can be reviewed/edited/deleted
+      - Barcode generation and scanning work reliably
+      - Search returns accurate results across all content types
+    </functionality>
+    <user_experience>
+      - Smooth, responsive interactions on both mobile and desktop
+      - Swipe gestures feel natural and predictable
+      - Drawer interactions are consistent across all drawer types
+      - Theme switching is instant with no flash
+      - Offline mode is seamless — user may not notice network loss
+    </user_experience>
+    <technical_quality>
+      - TypeScript strict mode with no type errors
+      - Optimal React patterns (proper memoization, minimal re-renders)
+      - Clean component architecture with reusable BaseDrawer
+      - Zero console errors in production
+      - npm run build succeeds without warnings
+    </technical_quality>
+    <design_polish>
+      - Consistent disposition color coding throughout
+      - Smooth animations and transitions (no jank)
+      - Proper safe area inset handling on all iOS devices
+      - Touch targets meet minimum 44px accessibility guideline
+      - Dark/light themes are complete with no unstyled elements
+    </design_polish>
+  </success_criteria>
+</project_specification>

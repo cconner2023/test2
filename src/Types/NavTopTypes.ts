@@ -35,7 +35,6 @@ export interface UIState {
   showMenu?: boolean
   dynamicTitle?: string
   showDynamicTitle?: boolean
-  showMedicationList?: boolean
   medicationButtonText?: string
   isMobile: boolean
   isAlgorithmView?: boolean

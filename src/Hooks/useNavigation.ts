@@ -62,8 +62,6 @@ export function useNavigation() {
 
 
     const handleNavigation = useCallback((result: SearchResultType) => {
-        console.log("🔄 Navigation to:", result.type, result.text)
-
         switch (result.type) {
             case 'category':
                 const category = result.data?.categoryRef || catData.find(c => c.id === result.id)
@@ -209,10 +207,8 @@ export function useNavigation() {
             ...prev,
             showMedications: !prev.showMedications,
             selectedMedication: null,
-            isMenuOpen: false,
             isSearchExpanded: false,
-            // Close other drawers when opening medications
-            ...(!prev.showMedications ? { showNoteImport: false, showSettings: false, showMyNotes: false, showSymptomInfo: false } : {})
+            ...(!prev.showMedications ? CLOSE_ALL_DRAWERS : { isMenuOpen: false }),
         }))
     }, [])
 
@@ -317,9 +313,6 @@ export function useNavigation() {
         if (hasSearchInput) return false
         // Hide back button when any covering drawer is open on mobile (drawer has its own controls)
         if (isMobile && isDrawerCoveringMenu) return false
-        if (isMobile) {
-            return Boolean(state.selectedCategory || state.selectedSymptom)
-        }
         return Boolean(state.selectedCategory || state.selectedSymptom)
     }
 
@@ -330,7 +323,18 @@ export function useNavigation() {
         return isMobile ? !Boolean(state.selectedCategory || state.selectedSymptom) : true
     }
 
-    const getMedicationButtonText = () => "Medications"
+    /** Static label — kept as a function for future localisation */
+    const getMedicationButtonText = () => "Medications" as const
+
+    /** Shared state for closing all drawers — used when opening any single drawer */
+    const CLOSE_ALL_DRAWERS: Partial<NavigationState> = {
+        showNoteImport: false,
+        showSettings: false,
+        showMyNotes: false,
+        showMedications: false,
+        showSymptomInfo: false,
+        isMenuOpen: false,
+    }
 
     // UI State Handlers
     const toggleMenu = useCallback(() => {
@@ -344,29 +348,24 @@ export function useNavigation() {
     const setShowNoteImport = useCallback((show: boolean) => {
         setState(prev => ({
             ...prev,
+            ...(show ? CLOSE_ALL_DRAWERS : {}),
             showNoteImport: show,
-            // Close other drawers when opening this one
-            ...(show ? { showSettings: false, showMyNotes: false, showMedications: false, showSymptomInfo: false, isMenuOpen: false } : {})
         }))
     }, [])
 
     const setShowSettings = useCallback((show: boolean) => {
         setState(prev => ({
             ...prev,
+            ...(show ? CLOSE_ALL_DRAWERS : {}),
             showSettings: show,
-            isMenuOpen: false,
-            // Close other drawers when opening this one
-            ...(show ? { showNoteImport: false, showMyNotes: false, showMedications: false, showSymptomInfo: false } : {})
         }))
     }, [])
 
     const setShowMyNotes = useCallback((show: boolean) => {
         setState(prev => ({
             ...prev,
+            ...(show ? CLOSE_ALL_DRAWERS : {}),
             showMyNotes: show,
-            isMenuOpen: false,
-            // Close other drawers when opening this one
-            ...(show ? { showNoteImport: false, showSettings: false, showMedications: false, showSymptomInfo: false } : {})
         }))
     }, [])
 
@@ -385,19 +384,17 @@ export function useNavigation() {
     const setShowSymptomInfo = useCallback((show: boolean) => {
         setState(prev => ({
             ...prev,
+            ...(show ? CLOSE_ALL_DRAWERS : {}),
             showSymptomInfo: show,
-            // Close other drawers when opening this one
-            ...(show ? { showNoteImport: false, showSettings: false, showMyNotes: false, showMedications: false, isMenuOpen: false } : {})
         }))
     }, [])
 
     const setShowMedications = useCallback((show: boolean) => {
         setState(prev => ({
             ...prev,
+            ...(show ? { ...CLOSE_ALL_DRAWERS, selectedMedication: null } : {}),
+            ...(!show ? { selectedMedication: null } : {}),
             showMedications: show,
-            ...(show ? {} : { selectedMedication: null }),
-            // Close other drawers when opening this one
-            ...(show ? { showNoteImport: false, showSettings: false, showMyNotes: false, showSymptomInfo: false, selectedMedication: null, isMenuOpen: false } : {})
         }))
     }, [])
 
@@ -456,11 +453,8 @@ export function useNavigation() {
 
         // Navigation handlers
         handleNavigation,
-        handleCategorySelect,
-        handleSymptomSelect,
         handleMedicationSelect,
         handleShowMedications,
-        handleGuidelineSelect,
         handleBackClick,
 
         // UI State handlers

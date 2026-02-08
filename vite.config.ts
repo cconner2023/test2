@@ -54,10 +54,23 @@ export default defineConfig({
         ],
         shortcuts: [
           {
-            name: 'Scan Note',
-            short_name: 'Scan',
-            description: 'Quickly scan a Note Barcode',
-            url: '/ADTMC/scan',
+            name: 'My Notes',
+            short_name: 'My Notes',
+            description: 'View your saved notes',
+            url: '/ADTMC/?view=mynotes',
+            icons: [
+              {
+                src: '/ADTMC/icon-192.png',
+                sizes: '192x192',
+                type: 'image/png'
+              }
+            ]
+          },
+          {
+            name: 'Import Note',
+            short_name: 'Import',
+            description: 'Import a note via barcode',
+            url: '/ADTMC/?view=import',
             icons: [
               {
                 src: '/ADTMC/icon-192.png',

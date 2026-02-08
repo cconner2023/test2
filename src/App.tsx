@@ -12,6 +12,8 @@ import type { SearchResultType } from './Types/CatTypes'
 import { useSearch } from './Hooks/useSearch'
 import { useNavigation } from './Hooks/useNavigation'
 import { useNotesStorage } from './Hooks/useNotesStorage'
+import type { SavedNote } from './Hooks/useNotesStorage'
+import { useNoteRestore } from './Hooks/useNoteRestore'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
 import { useAppAnimate } from './Utilities/AnimationConfig'
 import UpdateNotification from './Components/UpdateNotification'
@@ -19,6 +21,18 @@ import { Settings } from './Components/Settings'
 import { SymptomInfoDrawer } from './Components/SymptomInfoDrawer'
 import { MedicationsDrawer } from './Components/MedicationsDrawer'
 import { MyNotes } from './Components/MyNotes'
+
+// PWA App Shortcut: capture ?view= URL parameter once at module load time
+// This runs before React StrictMode can interfere with double-mounting
+const _initialViewParam = (() => {
+  const params = new URLSearchParams(window.location.search)
+  const view = params.get('view')
+  if (view) {
+    // Clean up URL parameter immediately so it doesn't persist
+    window.history.replaceState({}, '', window.location.pathname)
+  }
+  return view
+})()
 
 function AppContent() {
   const searchInputRef = useRef<HTMLInputElement>(null!)
@@ -29,6 +43,17 @@ function AppContent() {
   const navigation = useNavigation()
   const search = useSearch()
   const notesStorage = useNotesStorage()
+  const { restoreNote } = useNoteRestore()
+
+  // PWA App Shortcut: open the appropriate view based on the captured URL parameter
+  useEffect(() => {
+    if (_initialViewParam === 'mynotes') {
+      navigation.setShowMyNotes(true)
+    } else if (_initialViewParam === 'import') {
+      navigation.setShowNoteImport(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []) // Run only once on mount
 
   // Compute mobile view depth: 0 = categories, 1 = subcategories, 2 = algorithm
   const mobileViewDepth = useMemo(() => {
@@ -118,6 +143,37 @@ function AppContent() {
       dispositionText: data.dispositionText,
     })
   }, [notesStorage])
+
+  // View note handler — restore algorithm state from saved note and open WriteNote
+  const handleViewNote = useCallback((note: SavedNote) => {
+    const result = restoreNote(note)
+    if (!result.success || !result.writeNoteData || !result.symptom || !result.category) {
+      console.warn('Failed to restore note:', result.error)
+      return
+    }
+
+    // 1. Navigate to the algorithm view for this symptom
+    navigation.handleNavigation({
+      type: 'CC',
+      id: result.symptom.id,
+      icon: result.symptom.icon,
+      text: result.symptom.text,
+      data: {
+        categoryId: result.category.id,
+        symptomId: result.symptom.id,
+        categoryRef: result.category,
+        symptomRef: result.symptom
+      }
+    })
+
+    // 2. Close My Notes drawer
+    navigation.setShowMyNotes(false)
+
+    // 3. Open WriteNote wizard with restored algorithm state (slight delay for navigation to complete)
+    setTimeout(() => {
+      navigation.showWriteNote(result.writeNoteData!)
+    }, 400)
+  }, [restoreNote, navigation])
 
   // Title logic
   const getTitle = () => {
@@ -365,6 +421,7 @@ function AppContent() {
           notes={notesStorage.notes}
           onDeleteNote={notesStorage.deleteNote}
           onEditNote={notesStorage.updateNote}
+          onViewNote={handleViewNote}
         />
         {/* WriteNotePage - rendered at App level for proper z-index on mobile */}
         {navigation.isWriteNoteVisible && navigation.writeNoteData && (

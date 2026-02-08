@@ -107,8 +107,10 @@ export function MedicationsDrawer({
             backdropOpacity={0.3}
             desktopPosition="left"
             desktopContainerMaxWidth="max-w-315"
-            desktopMaxWidth="max-w-lg"
+            desktopMaxWidth="max-w-md"
             desktopPanelPadding=""
+            desktopHeight="h-[70vh]"
+            desktopTopOffset="4.5rem"
             mobilePartialPadding="0.5rem"
         >
             {(handleClose) => (

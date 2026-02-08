@@ -85,23 +85,3 @@ export interface sideMenuDataType {
     icon: string,
     action: string
 }
-
-export interface SearchBarProps {
-    searchInput: string
-    onSearchChange: (value: string) => void
-}
-
-export interface NavTopProps {
-    onMenuClick: () => void
-    searchInput: string
-    onSearchChange: (value: string) => void
-    isMobileSearchOpen: boolean
-    onMobileSearchToggle: () => void
-}
-
-export interface SearchResultsProps {
-    results: SearchResultType[]
-    searchTerm: string
-    onResultClick: (result: SearchResultType) => void
-    isSearching?: boolean
-}

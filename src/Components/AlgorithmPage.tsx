@@ -1,15 +1,14 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { useAlgorithm } from '../Hooks/useAlgorithm';
 import type { subCatDataTypes } from '../Types/CatTypes';
+import type { dispositionType } from '../Types/AlgorithmTypes';
 import { Algorithm as AlgorithmData } from '../Data/Algorithms';
 import { QuestionCard } from './QuestionCard';
 import { getColorClasses } from '../Utilities/ColorUtilities';
-import type { medListTypes } from '../Data/MedData';
 import type { WriteNoteData } from '../Hooks/useNavigation';
 
 interface AlgorithmProps {
     selectedSymptom: subCatDataTypes | null;
-    onMedicationClick?: (medication: medListTypes) => void;
     onExpandNote?: (data: WriteNoteData) => void;
     isMobile?: boolean;
 }
@@ -17,7 +16,7 @@ interface AlgorithmProps {
 export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false }: AlgorithmProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const markerRef = useRef<HTMLDivElement>(null);
-    const prevDispositionRef = useRef<any>(null);
+    const prevDispositionRef = useRef<dispositionType | null>(null);
     const initialScrollDone = useRef(false);
     const prevScrollTriggerRef = useRef(0);
     const [isTransitioning, setIsTransitioning] = useState(false);

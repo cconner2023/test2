@@ -303,8 +303,9 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
             backdropOpacity={0.9}
             desktopPosition="right"
             desktopContainerMaxWidth="max-w-315"
-            desktopMaxWidth="max-w-md"
+            desktopMaxWidth="max-w-sm"
             desktopPanelPadding=""
+            desktopTopOffset="4.5rem"
             mobilePartialPadding="0.5rem"
         >
             {(handleClose) => (

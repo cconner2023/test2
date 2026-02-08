@@ -1,7 +1,9 @@
 // Components/MyNotes.tsx
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, FileText, Trash2, ClipboardCopy, Pencil } from 'lucide-react';
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { X, FileText, Trash2, Pencil, Share2, CheckSquare, Square } from 'lucide-react';
 import type { SavedNote } from '../Hooks/useNotesStorage';
+import { useNoteShare } from '../Hooks/useNoteShare';
+import { BaseDrawer } from './BaseDrawer';
 
 interface MyNotesProps {
     isVisible: boolean;
@@ -10,27 +12,42 @@ interface MyNotesProps {
     notes: SavedNote[];
     onDeleteNote: (noteId: string) => void;
     onEditNote?: (noteId: string, updates: Partial<Omit<SavedNote, 'id' | 'createdAt'>>) => void;
+    onViewNote?: (note: SavedNote) => void;
 }
 
 /* ────────────────────────────────────────────────────────────
    SwipeableNoteItem — A single note row with gesture support.
-   Mobile:  swipe left → edit + copy, swipe right → delete
-   Desktop: click to reveal all three (edit, copy, delete)
+   Mobile:  swipe left → edit + share, swipe right → delete
+   Desktop: click to reveal actions (edit, share, delete)
+   Single select: delete, edit, share
+   Multi-select mode: checkbox + highlight
    ──────────────────────────────────────────────────────────── */
 const SwipeableNoteItem = ({
     note,
     isMobile,
     onDelete,
     onEdit,
+    onShare,
+    shareStatus,
     activeSwipeId,
     setActiveSwipeId,
+    multiSelectMode,
+    isMultiSelected,
+    onToggleMultiSelect,
+    onLongPress,
 }: {
     note: SavedNote;
     isMobile: boolean;
     onDelete: (noteId: string) => void;
     onEdit?: (noteId: string, updates: Partial<Omit<SavedNote, 'id' | 'createdAt'>>) => void;
+    onShare?: (note: SavedNote) => void;
+    shareStatus?: string;
     activeSwipeId: string | null;
     setActiveSwipeId: (id: string | null) => void;
+    multiSelectMode: boolean;
+    isMultiSelected: boolean;
+    onToggleMultiSelect: (noteId: string) => void;
+    onLongPress: () => void;
 }) => {
     const [swipeOffset, setSwipeOffset] = useState(0);
     const [isAnimating, setIsAnimating] = useState(false);
@@ -39,33 +56,78 @@ const SwipeableNoteItem = ({
     const [isEditing, setIsEditing] = useState(false);
     const [editText, setEditText] = useState('');
     const [desktopActionsVisible, setDesktopActionsVisible] = useState(false);
+    const [mobileSelected, setMobileSelected] = useState(false);
 
     const touchStartX = useRef(0);
     const touchStartY = useRef(0);
     const touchStartTime = useRef(0);
     const currentOffsetRef = useRef(0);
+    const lastMoveOffsetRef = useRef(0); // Track the latest offset during move for reliable velocity calc
     const isTrackingSwipe = useRef(false);
     const swipeDirection = useRef<'none' | 'horizontal' | 'vertical'>('none');
+    const animatingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const noteRowRef = useRef<HTMLDivElement>(null);
+    const wasSwiping = useRef(false); // Track if the gesture was a swipe (to distinguish from tap)
 
-    const ACTION_WIDTH = 72; // Width of each action button area
-    const SNAP_THRESHOLD = 36; // Half of action width for snap decision
+    const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const ACTION_WIDTH = 64; // Width of each action button area
+    const SNAP_THRESHOLD = 32; // Half of action width for snap decision
     const VELOCITY_THRESHOLD = 0.3;
 
     // Reset swipe when another item becomes active
     useEffect(() => {
         if (activeSwipeId !== note.id && swipeOffset !== 0) {
-            setIsAnimating(true);
+            setAnimatingWithSafety(true);
             setSwipeOffset(0);
             currentOffsetRef.current = 0;
+            lastMoveOffsetRef.current = 0;
+        } else if (activeSwipeId !== note.id && swipeOffset === 0) {
+            // Already at 0 — no transition will fire, so clear animating flag directly
+            setIsAnimating(false);
+            currentOffsetRef.current = 0;
+            lastMoveOffsetRef.current = 0;
         }
     }, [activeSwipeId, note.id, swipeOffset]);
 
-    // Reset desktop actions when another item is active
+    // Reset desktop actions and mobile selection when another item is active
     useEffect(() => {
         if (activeSwipeId !== note.id && desktopActionsVisible) {
             setDesktopActionsVisible(false);
         }
-    }, [activeSwipeId, note.id, desktopActionsVisible]);
+        if (activeSwipeId !== note.id && mobileSelected) {
+            setMobileSelected(false);
+        }
+    }, [activeSwipeId, note.id, desktopActionsVisible, mobileSelected]);
+
+    // Cleanup timers on unmount
+    useEffect(() => {
+        return () => {
+            if (animatingTimerRef.current) {
+                clearTimeout(animatingTimerRef.current);
+            }
+            if (longPressTimerRef.current) {
+                clearTimeout(longPressTimerRef.current);
+            }
+        };
+    }, []);
+
+    // Attach non-passive touchmove listener to allow preventDefault during horizontal swipes.
+    // React attaches touch handlers as passive by default, so we need a native listener
+    // with { passive: false } to prevent vertical scrolling during horizontal swipe gestures.
+    useEffect(() => {
+        const el = noteRowRef.current;
+        if (!el || !isMobile) return;
+
+        const handleNativeTouchMove = (e: TouchEvent) => {
+            if (swipeDirection.current === 'horizontal' && isTrackingSwipe.current) {
+                e.preventDefault();
+            }
+        };
+
+        el.addEventListener('touchmove', handleNativeTouchMove, { passive: false });
+        return () => el.removeEventListener('touchmove', handleNativeTouchMove);
+    }, [isMobile]);
 
     const handleTouchStart = (e: React.TouchEvent) => {
         if (!isMobile || isEditing) return;
@@ -75,7 +137,22 @@ const SwipeableNoteItem = ({
         touchStartTime.current = Date.now();
         isTrackingSwipe.current = true;
         swipeDirection.current = 'none';
+        wasSwiping.current = false;
+        // Snapshot the current visual offset so new gesture starts from current position
+        currentOffsetRef.current = swipeOffset;
         setIsAnimating(false);
+
+        // Long-press detection for multi-select entry
+        if (!multiSelectMode) {
+            if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = setTimeout(() => {
+                if (!wasSwiping.current) {
+                    onLongPress();
+                    onToggleMultiSelect(note.id);
+                }
+                longPressTimerRef.current = null;
+            }, 500);
+        }
     };
 
     const handleTouchMove = (e: React.TouchEvent) => {
@@ -87,12 +164,18 @@ const SwipeableNoteItem = ({
         // Determine direction on first significant movement
         if (swipeDirection.current === 'none') {
             if (Math.abs(deltaX) > 8 || Math.abs(deltaY) > 8) {
+                // Cancel long-press on any movement
+                if (longPressTimerRef.current) {
+                    clearTimeout(longPressTimerRef.current);
+                    longPressTimerRef.current = null;
+                }
                 if (Math.abs(deltaY) > Math.abs(deltaX)) {
                     swipeDirection.current = 'vertical';
                     isTrackingSwipe.current = false;
                     return;
                 }
                 swipeDirection.current = 'horizontal';
+                wasSwiping.current = true;
             } else {
                 return;
             }
@@ -100,13 +183,13 @@ const SwipeableNoteItem = ({
 
         if (swipeDirection.current !== 'horizontal') return;
 
-        // Prevent vertical scroll while swiping horizontally
-        e.preventDefault();
+        // Note: vertical scroll prevention is handled by the non-passive native
+        // touchmove listener attached via useEffect (see above).
 
         const startOffset = currentOffsetRef.current;
         let newOffset = startOffset + deltaX;
 
-        // Clamp: left max = -ACTION_WIDTH*2 (showing edit+copy), right max = ACTION_WIDTH (showing delete)
+        // Clamp: left max = -ACTION_WIDTH*2 (showing edit+share), right max = ACTION_WIDTH (showing delete)
         const maxLeft = -(ACTION_WIDTH * 2);
         const maxRight = ACTION_WIDTH;
 
@@ -119,25 +202,48 @@ const SwipeableNoteItem = ({
             newOffset = maxRight + excess * 0.3;
         }
 
+        lastMoveOffsetRef.current = newOffset;
         setSwipeOffset(newOffset);
     };
 
+    // Helper: safely set animating with auto-clear timeout
+    const setAnimatingWithSafety = (value: boolean) => {
+        if (animatingTimerRef.current) {
+            clearTimeout(animatingTimerRef.current);
+            animatingTimerRef.current = null;
+        }
+        setIsAnimating(value);
+        if (value) {
+            // Safety: clear after 400ms in case onTransitionEnd doesn't fire
+            animatingTimerRef.current = setTimeout(() => {
+                setIsAnimating(false);
+                animatingTimerRef.current = null;
+            }, 400);
+        }
+    };
+
     const handleTouchEnd = () => {
+        // Cancel long-press timer
+        if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+        }
+
         if (!isMobile || !isTrackingSwipe.current || isEditing) return;
         isTrackingSwipe.current = false;
 
         const elapsed = Date.now() - touchStartTime.current;
-        const velocity = (swipeOffset - currentOffsetRef.current) / Math.max(elapsed, 1);
-
-        setIsAnimating(true);
+        // Use ref-based offset for reliable velocity (not stale React state)
+        const currentVisualOffset = lastMoveOffsetRef.current;
+        const velocity = (currentVisualOffset - currentOffsetRef.current) / Math.max(elapsed, 1);
 
         let targetOffset = 0;
 
-        if (velocity < -VELOCITY_THRESHOLD || swipeOffset < -SNAP_THRESHOLD) {
-            // Swiped left → show edit + copy
+        if (velocity < -VELOCITY_THRESHOLD || currentVisualOffset < -SNAP_THRESHOLD) {
+            // Swiped left → show edit + share (2 buttons)
             targetOffset = -(ACTION_WIDTH * 2);
             setActiveSwipeId(note.id);
-        } else if (velocity > VELOCITY_THRESHOLD || swipeOffset > SNAP_THRESHOLD) {
+        } else if (velocity > VELOCITY_THRESHOLD || currentVisualOffset > SNAP_THRESHOLD) {
             // Swiped right → show delete
             targetOffset = ACTION_WIDTH;
             setActiveSwipeId(note.id);
@@ -149,35 +255,57 @@ const SwipeableNoteItem = ({
             }
         }
 
+        // Only animate if offset actually changes
+        if (Math.abs(currentVisualOffset - targetOffset) > 0.5) {
+            setAnimatingWithSafety(true);
+        } else {
+            setIsAnimating(false);
+        }
+
         setSwipeOffset(targetOffset);
         currentOffsetRef.current = targetOffset;
     };
 
-    // Desktop click handler
-    const handleDesktopClick = () => {
-        if (isMobile || isEditing) return;
-        if (desktopActionsVisible) {
-            setDesktopActionsVisible(false);
-            setActiveSwipeId(null);
-        } else {
-            setDesktopActionsVisible(true);
-            setActiveSwipeId(note.id);
-        }
-    };
+    // Click/tap handler — works for both desktop and mobile
+    const handleNoteClick = () => {
+        if (isEditing) return;
 
-    const handleCopy = (e: React.MouseEvent | React.TouchEvent) => {
-        e.stopPropagation();
-        navigator.clipboard.writeText(note.encodedText);
-        setCopiedId(true);
-        setTimeout(() => setCopiedId(false), 2000);
-        // Reset swipe after action
+        // In multi-select mode, taps toggle selection
+        if (multiSelectMode) {
+            onToggleMultiSelect(note.id);
+            return;
+        }
+
         if (isMobile) {
-            setTimeout(() => {
-                setIsAnimating(true);
+            // On mobile: only handle as tap if gesture wasn't a swipe
+            if (wasSwiping.current) return;
+            // If swiped open, treat tap on the card as closing the swipe
+            if (swipeOffset !== 0) {
+                setAnimatingWithSafety(true);
                 setSwipeOffset(0);
                 currentOffsetRef.current = 0;
+                lastMoveOffsetRef.current = 0;
                 setActiveSwipeId(null);
-            }, 300);
+                setMobileSelected(false);
+                return;
+            }
+            // Toggle mobile selection
+            if (mobileSelected) {
+                setMobileSelected(false);
+                setActiveSwipeId(null);
+            } else {
+                setMobileSelected(true);
+                setActiveSwipeId(note.id);
+            }
+        } else {
+            // Desktop: toggle action row visibility
+            if (desktopActionsVisible) {
+                setDesktopActionsVisible(false);
+                setActiveSwipeId(null);
+            } else {
+                setDesktopActionsVisible(true);
+                setActiveSwipeId(note.id);
+            }
         }
     };
 
@@ -187,6 +315,7 @@ const SwipeableNoteItem = ({
             onDelete(note.id);
             setConfirmDeleteId(false);
             setActiveSwipeId(null);
+            setMobileSelected(false);
         } else {
             setConfirmDeleteId(true);
             setTimeout(() => setConfirmDeleteId(false), 3000);
@@ -197,11 +326,13 @@ const SwipeableNoteItem = ({
         e.stopPropagation();
         setEditText(note.previewText || '');
         setIsEditing(true);
+        setMobileSelected(false);
         // Reset swipe
         if (isMobile) {
-            setIsAnimating(true);
+            setAnimatingWithSafety(true);
             setSwipeOffset(0);
             currentOffsetRef.current = 0;
+            lastMoveOffsetRef.current = 0;
         }
     };
 
@@ -216,6 +347,14 @@ const SwipeableNoteItem = ({
 
     const handleEditCancel = () => {
         setIsEditing(false);
+    };
+
+    const handleShare = (e: React.MouseEvent | React.TouchEvent) => {
+        e.stopPropagation();
+        if (onShare) {
+            onShare(note);
+        }
+        // Keep selection visible for share status feedback
     };
 
     const formatDate = (isoStr: string) => {
@@ -238,7 +377,7 @@ const SwipeableNoteItem = ({
     return (
         <div className="relative overflow-hidden rounded-lg mb-2">
             {/* ── Mobile: Background action buttons revealed by swipe ── */}
-            {isMobile && (
+            {isMobile && !multiSelectMode && (
                 <>
                     {/* Left side actions (revealed when swiping right → delete) */}
                     <div
@@ -257,7 +396,7 @@ const SwipeableNoteItem = ({
                         </button>
                     </div>
 
-                    {/* Right side actions (revealed when swiping left → edit + copy) */}
+                    {/* Right side actions (revealed when swiping left → edit + share) */}
                     <div
                         className="absolute inset-y-0 right-0 flex items-stretch"
                         style={{ width: ACTION_WIDTH * 2 }}
@@ -272,13 +411,13 @@ const SwipeableNoteItem = ({
                         </button>
                         <button
                             className={`flex-1 flex flex-col items-center justify-center gap-1 text-white text-xs font-medium transition-colors ${
-                                copiedId ? 'bg-green-500' : 'bg-amber-500'
+                                shareStatus === 'shared' || shareStatus === 'copied' ? 'bg-green-500' : 'bg-purple-500'
                             }`}
-                            onTouchEnd={handleCopy}
-                            onClick={handleCopy}
+                            onTouchEnd={handleShare}
+                            onClick={handleShare}
                         >
-                            <ClipboardCopy size={18} />
-                            <span>{copiedId ? 'Copied!' : 'Copy'}</span>
+                            <Share2 size={18} />
+                            <span>{shareStatus === 'copied' ? 'Copied!' : shareStatus === 'shared' ? 'Shared!' : 'Share'}</span>
                         </button>
                     </div>
                 </>
@@ -286,15 +425,24 @@ const SwipeableNoteItem = ({
 
             {/* ── Main note content (slides on mobile) ── */}
             <div
-                className={`relative z-10 bg-themewhite border border-tertiary/10 rounded-lg ${
-                    !isMobile ? 'cursor-pointer hover:bg-themewhite2/50' : ''
-                } ${isAnimating ? 'transition-transform duration-300 ease-out' : ''}`}
-                style={isMobile ? { transform: `translateX(${swipeOffset}px)` } : undefined}
+                ref={noteRowRef}
+                className={`relative z-10 bg-themewhite border rounded-lg ${
+                    !isMobile ? 'cursor-pointer hover:bg-themewhite2/50 border-tertiary/10' : ''
+                } ${isMobile && mobileSelected ? 'border-themeblue3/50 bg-themeblue3/5 ring-1 ring-themeblue3/20' : isMobile ? 'border-tertiary/10' : ''}${
+                    isAnimating ? ' transition-transform duration-300 ease-out' : ''
+                }`}
+                style={isMobile ? { transform: `translateX(${swipeOffset}px)`, willChange: 'transform', touchAction: 'pan-y' } : undefined}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
-                onClick={handleDesktopClick}
-                onTransitionEnd={() => setIsAnimating(false)}
+                onClick={handleNoteClick}
+                onTransitionEnd={() => {
+                    if (animatingTimerRef.current) {
+                        clearTimeout(animatingTimerRef.current);
+                        animatingTimerRef.current = null;
+                    }
+                    setIsAnimating(false);
+                }}
             >
                 {/* Note summary row */}
                 <div className="flex items-center gap-3 px-3 py-3">
@@ -342,6 +490,14 @@ const SwipeableNoteItem = ({
                     <div className="px-3 pb-3 border-t border-tertiary/10">
                         <div className="flex items-center justify-end gap-2 mt-2">
                             <button
+                                onClick={handleView}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full bg-themewhite3 text-tertiary hover:bg-amber-50 hover:text-amber-600 transition-all active:scale-95"
+                                title="View note in algorithm"
+                            >
+                                <Eye size={12} />
+                                View
+                            </button>
+                            <button
                                 onClick={handleEditStart}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full bg-themewhite3 text-tertiary hover:bg-blue-50 hover:text-blue-500 transition-all active:scale-95"
                                 title="Edit note"
@@ -362,6 +518,20 @@ const SwipeableNoteItem = ({
                                 {copiedId ? 'Copied!' : 'Copy'}
                             </button>
                             <button
+                                onClick={handleShare}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full transition-all active:scale-95 ${
+                                    shareStatus === 'shared' || shareStatus === 'copied'
+                                        ? 'bg-green-100 text-green-600'
+                                        : shareStatus === 'generating' || shareStatus === 'sharing'
+                                            ? 'bg-purple-100 text-purple-600'
+                                            : 'bg-themewhite3 text-tertiary hover:bg-purple-50 hover:text-purple-600'
+                                }`}
+                                title="Share note as image"
+                            >
+                                <Share2 size={12} />
+                                {shareStatus === 'copied' ? 'Copied!' : shareStatus === 'shared' ? 'Shared!' : shareStatus === 'generating' || shareStatus === 'sharing' ? 'Sharing...' : 'Share'}
+                            </button>
+                            <button
                                 onClick={handleDelete}
                                 className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full transition-all active:scale-95 ${
                                     confirmDeleteId
@@ -372,6 +542,68 @@ const SwipeableNoteItem = ({
                             >
                                 <Trash2 size={12} />
                                 {confirmDeleteId ? 'Confirm Delete' : 'Delete'}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {/* Mobile: action buttons revealed on tap selection */}
+                {isMobile && mobileSelected && !isEditing && (
+                    <div className="px-3 pb-3 border-t border-themeblue3/15">
+                        <div className="flex items-center justify-center gap-2 mt-2">
+                            <button
+                                onTouchEnd={handleView}
+                                onClick={handleView}
+                                className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-full bg-amber-500/10 text-amber-600 active:bg-amber-500/20 transition-all active:scale-95"
+                            >
+                                <Eye size={14} />
+                                View
+                            </button>
+                            <button
+                                onTouchEnd={handleEditStart}
+                                onClick={handleEditStart}
+                                className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-full bg-blue-500/10 text-blue-500 active:bg-blue-500/20 transition-all active:scale-95"
+                            >
+                                <Pencil size={14} />
+                                Edit
+                            </button>
+                            <button
+                                onTouchEnd={handleCopy}
+                                onClick={handleCopy}
+                                className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${
+                                    copiedId
+                                        ? 'bg-green-500/15 text-green-600'
+                                        : 'bg-teal-500/10 text-teal-600 active:bg-teal-500/20'
+                                }`}
+                            >
+                                <ClipboardCopy size={14} />
+                                {copiedId ? 'Copied!' : 'Copy'}
+                            </button>
+                            <button
+                                onTouchEnd={handleShare}
+                                onClick={handleShare}
+                                className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${
+                                    shareStatus === 'shared' || shareStatus === 'copied'
+                                        ? 'bg-green-500/15 text-green-600'
+                                        : shareStatus === 'generating' || shareStatus === 'sharing'
+                                            ? 'bg-purple-500/15 text-purple-600'
+                                            : 'bg-purple-500/10 text-purple-600 active:bg-purple-500/20'
+                                }`}
+                            >
+                                <Share2 size={14} />
+                                {shareStatus === 'copied' ? 'Copied!' : shareStatus === 'shared' ? 'Shared!' : shareStatus === 'generating' || shareStatus === 'sharing' ? '...' : 'Share'}
+                            </button>
+                            <button
+                                onTouchEnd={handleDelete}
+                                onClick={handleDelete}
+                                className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${
+                                    confirmDeleteId
+                                        ? 'bg-red-500 text-white'
+                                        : 'bg-red-500/10 text-red-500 active:bg-red-500/20'
+                                }`}
+                            >
+                                <Trash2 size={14} />
+                                {confirmDeleteId ? 'Confirm' : 'Delete'}
                             </button>
                         </div>
                     </div>
@@ -417,14 +649,21 @@ const MyNotesContent = ({
     notes,
     onDeleteNote,
     onEditNote,
+    onViewNote,
 }: {
     onClose: () => void;
     isMobile: boolean;
     notes: SavedNote[];
     onDeleteNote: (noteId: string) => void;
     onEditNote?: (noteId: string, updates: Partial<Omit<SavedNote, 'id' | 'createdAt'>>) => void;
+    onViewNote?: (note: SavedNote) => void;
 }) => {
     const [activeSwipeId, setActiveSwipeId] = useState<string | null>(null);
+    const { shareNote, shareStatus } = useNoteShare();
+
+    const handleShareNote = (note: SavedNote) => {
+        shareNote(note, isMobile);
+    };
 
     // Tap outside to dismiss active swipe
     const handleContentClick = () => {
@@ -486,7 +725,7 @@ const MyNotesContent = ({
                     <div className="p-3 md:p-4">
                         {isMobile && (
                             <p className="text-[10px] text-tertiary/40 text-center mb-2">
-                                Swipe left for edit/copy, right for delete
+                                Tap to select · Swipe for quick actions
                             </p>
                         )}
                         {notes.map((note) => (
@@ -496,6 +735,9 @@ const MyNotesContent = ({
                                 isMobile={isMobile}
                                 onDelete={onDeleteNote}
                                 onEdit={onEditNote}
+                                onView={onViewNote}
+                                onShare={handleShareNote}
+                                shareStatus={shareStatus}
                                 activeSwipeId={activeSwipeId}
                                 setActiveSwipeId={setActiveSwipeId}
                             />
@@ -508,247 +750,37 @@ const MyNotesContent = ({
 };
 
 /* ────────────────────────────────────────────────────────────
-   MyNotes — Drawer shell (mobile bottom sheet / desktop modal)
+   MyNotes — Consolidated drawer using BaseDrawer for both
+   mobile (bottom sheet) and desktop (modal panel).
+   Eliminates ~200 lines of duplicate drawer/drag/animation
+   logic by delegating to the shared BaseDrawer component.
    ──────────────────────────────────────────────────────────── */
-export function MyNotes({ isVisible, onClose, isMobile: externalIsMobile, notes, onDeleteNote, onEditNote }: MyNotesProps) {
-    const [localIsMobile, setLocalIsMobile] = useState(false);
-    const isMobile = externalIsMobile !== undefined ? externalIsMobile : localIsMobile;
-
-    const [drawerPosition, setDrawerPosition] = useState(0);
-    const [drawerStage, setDrawerStage] = useState<'partial' | 'full'>('partial');
-    const [isDragging, setIsDragging] = useState(false);
-    const drawerRef = useRef<HTMLDivElement>(null);
-    const dragStartY = useRef(0);
-    const dragStartPosition = useRef(0);
-    const animationFrameId = useRef<number>(0);
-    const velocityRef = useRef(0);
-    const lastYRef = useRef(0);
-    const lastTimeRef = useRef(0);
-
-    useEffect(() => {
-        if (externalIsMobile === undefined) {
-            const checkMobile = () => setLocalIsMobile(window.innerWidth < 768);
-            checkMobile();
-            window.addEventListener('resize', checkMobile);
-            return () => window.removeEventListener('resize', checkMobile);
-        }
-    }, [externalIsMobile]);
-
-    useEffect(() => {
-        if (isVisible) {
-            setDrawerStage('partial');
-            setDrawerPosition(100);
-            document.body.style.overflow = 'hidden';
-        } else {
-            setDrawerPosition(0);
-            document.body.style.overflow = '';
-        }
-        return () => {
-            if (animationFrameId.current) {
-                cancelAnimationFrame(animationFrameId.current);
-            }
-        };
-    }, [isVisible]);
-
-    const animateToPosition = useCallback((targetPosition: number) => {
-        const startPosition = drawerPosition;
-        const startTime = performance.now();
-        const duration = 300;
-
-        const animate = (timestamp: number) => {
-            const elapsed = timestamp - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            const easeProgress = 1 - Math.pow(1 - progress, 3);
-            const currentPosition = startPosition + (targetPosition - startPosition) * easeProgress;
-
-            setDrawerPosition(currentPosition);
-
-            if (progress < 1) {
-                animationFrameId.current = requestAnimationFrame(animate);
-            } else {
-                animationFrameId.current = 0;
-                if (targetPosition === 0) {
-                    setTimeout(onClose, 50);
-                }
-            }
-        };
-
-        if (animationFrameId.current) {
-            cancelAnimationFrame(animationFrameId.current);
-        }
-        animationFrameId.current = requestAnimationFrame(animate);
-    }, [drawerPosition, onClose]);
-
-    const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
-        if (!isMobile) return;
-
-        const target = e.target as HTMLElement;
-        if (!target.closest('[data-drag-zone]')) return;
-
-        setIsDragging(true);
-        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-        dragStartY.current = clientY;
-        dragStartPosition.current = drawerPosition;
-        lastYRef.current = clientY;
-        lastTimeRef.current = performance.now();
-        velocityRef.current = 0;
-        e.stopPropagation();
-    };
-
-    const handleDragMove = (e: React.TouchEvent | React.MouseEvent) => {
-        if (!isDragging || !isMobile) return;
-        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-        const deltaY = clientY - dragStartY.current;
-
-        const currentTime = performance.now();
-        const deltaTime = currentTime - lastTimeRef.current;
-        if (deltaTime > 0) {
-            velocityRef.current = (clientY - lastYRef.current) / deltaTime;
-        }
-
-        lastYRef.current = clientY;
-        lastTimeRef.current = currentTime;
-
-        const dragSensitivity = 0.8;
-        const newPosition = Math.min(100, Math.max(20, dragStartPosition.current - (deltaY * dragSensitivity)));
-        setDrawerPosition(newPosition);
-        e.stopPropagation();
-    };
-
-    const handleDragEnd = () => {
-        if (!isDragging || !isMobile) return;
-        setIsDragging(false);
-
-        const isSwipingDown = velocityRef.current > 0.3;
-        const isSwipingUp = velocityRef.current < -0.3;
-
-        if (drawerStage === 'partial') {
-            if (isSwipingUp) {
-                setDrawerStage('full');
-                animateToPosition(100);
-            } else if (isSwipingDown || drawerPosition < 40) {
-                animateToPosition(0);
-            } else {
-                animateToPosition(100);
-            }
-        } else {
-            if (velocityRef.current > 0.6 || drawerPosition < 30) {
-                animateToPosition(0);
-            } else if (isSwipingDown || drawerPosition < 70) {
-                setDrawerStage('partial');
-                animateToPosition(100);
-            } else {
-                animateToPosition(100);
-            }
-        }
-    };
-
-    const handleClose = () => {
-        if (isMobile) {
-            animateToPosition(0);
-        } else {
-            onClose();
-        }
-    };
-
-    const mobileTranslateY = 100 - drawerPosition;
-    const mobileOpacity = Math.min(1, drawerPosition / 60 + 0.2);
-    const mobileHeight = drawerStage === 'partial' ? '45dvh' : '90dvh';
-    const mobileHorizontalPadding = drawerStage === 'partial' ? '0.4rem' : '0';
-    const mobileBottomPadding = drawerStage === 'partial' ? '1.5rem' : '0';
-    const mobileBorderRadius = drawerStage === 'partial' ? '1rem' : '1.25rem 1.25rem 0 0';
-    const mobileBoxShadow = drawerStage === 'partial'
-        ? '0 4px 2px rgba(0, 0, 0, 0.05)'
-        : '0 -4px 20px rgba(0, 0, 0, 0.1)';
-
+export function MyNotes({ isVisible, onClose, isMobile: externalIsMobile, notes, onDeleteNote, onEditNote, onViewNote }: MyNotesProps) {
     return (
-        <div ref={drawerRef}>
-            {isMobile ? (
-                <>
-                    <div
-                        className={`fixed inset-0 z-60 bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
-                        style={{
-                            opacity: (drawerPosition / 100) * 0.9,
-                            pointerEvents: drawerPosition > 0 ? 'auto' : 'none',
-                        }}
-                        onClick={handleClose}
-                    />
-                    <div
-                        className={`fixed left-0 right-0 z-60 bg-themewhite3 flex flex-col ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
-                        style={{
-                            height: mobileHeight,
-                            maxHeight: mobileHeight,
-                            marginLeft: mobileHorizontalPadding,
-                            marginRight: mobileHorizontalPadding,
-                            marginBottom: mobileBottomPadding,
-                            width: drawerStage === 'partial' ? 'calc(100% - 0.8rem)' : '100%',
-                            bottom: 0,
-                            transform: `translateY(${mobileTranslateY}%)`,
-                            opacity: mobileOpacity,
-                            borderRadius: mobileBorderRadius,
-                            willChange: isDragging ? 'transform' : 'auto',
-                            boxShadow: mobileBoxShadow,
-                            overflow: 'hidden',
-                            visibility: isVisible ? 'visible' : 'hidden',
-                        }}
-                        onTouchStart={handleDragStart}
-                        onTouchMove={handleDragMove}
-                        onTouchEnd={handleDragEnd}
-                        onMouseDown={handleDragStart}
-                        onMouseMove={handleDragMove}
-                        onMouseUp={handleDragEnd}
-                        onMouseLeave={handleDragEnd}
-                    >
-                        <MyNotesContent
-                            onClose={handleClose}
-                            isMobile={isMobile}
-                            notes={notes}
-                            onDeleteNote={onDeleteNote}
-                            onEditNote={onEditNote}
-                        />
-                    </div>
-                </>
-            ) : (
-                /* Desktop modal */
-                <div
-                    className={`fixed inset-0 z-60 flex items-start justify-center transition-all duration-300 ease-out ${isVisible
-                        ? 'visible pointer-events-auto'
-                        : 'invisible pointer-events-none'
-                        }`}
-                    onClick={onClose}
-                >
-                    <div className="max-w-315 w-full relative">
-                        <div
-                            className={`absolute right-2 top-2 z-60
-                            flex flex-col rounded-xl
-                            border border-tertiary/20
-                            shadow-[0_2px_4px_0] shadow-themewhite2/20
-                            backdrop-blur-md bg-themewhite2/10
-                            transform-gpu
-                            overflow-hidden
-                            text-primary/80 text-sm
-                            origin-top-right
-                            transition-all duration-300 ease-out
-                            max-w-md
-                            w-full
-                            h-[500px]
-                            ${isVisible
-                                    ? "scale-x-100 scale-y-100 translate-x-0 translate-y-0"
-                                    : "opacity-0 scale-x-20 scale-y-20 translate-x-10 -translate-y-2 pointer-events-none"
-                                }`}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <MyNotesContent
-                                onClose={onClose}
-                                isMobile={isMobile}
-                                notes={notes}
-                                onDeleteNote={onDeleteNote}
-                                onEditNote={onEditNote}
-                            />
-                        </div>
-                    </div>
-                </div>
+        <BaseDrawer
+            isVisible={isVisible}
+            onClose={onClose}
+            isMobile={externalIsMobile}
+            partialHeight="45dvh"
+            fullHeight="90dvh"
+            backdropOpacity={0.9}
+            desktopPosition="right"
+            desktopContainerMaxWidth="max-w-315"
+            desktopMaxWidth="max-w-sm"
+            desktopPanelPadding=""
+            desktopHeight="h-[500px]"
+            desktopTopOffset="4.5rem"
+        >
+            {(handleClose) => (
+                <MyNotesContent
+                    onClose={handleClose}
+                    isMobile={externalIsMobile ?? (typeof window !== 'undefined' && window.innerWidth < 768)}
+                    notes={notes}
+                    onDeleteNote={onDeleteNote}
+                    onEditNote={onEditNote}
+                    onViewNote={onViewNote}
+                />
             )}
-        </div>
+        </BaseDrawer>
     );
 }

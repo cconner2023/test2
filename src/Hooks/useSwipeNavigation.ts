@@ -14,8 +14,6 @@ interface UseSwipeNavigationOptions {
   enabled: boolean
   /** Current view depth: 0 = categories, 1 = subcategories, 2 = algorithm */
   viewDepth: number
-  /** Maximum view depth (2 = algorithm is the deepest) */
-  maxDepth?: number
   /** Callback when swipe-back completes */
   onSwipeBack: () => void
   /** Minimum swipe distance to trigger navigation (pixels) */
@@ -106,7 +104,7 @@ export function useSwipeNavigation({
   const onTouchEnd = useCallback(() => {
     if (!enabled || !touchRef.current) return
 
-    const { startX, startTime, hasMoved } = touchRef.current
+    const { startTime, hasMoved } = touchRef.current
     touchRef.current = null
 
     if (!hasMoved || !swipeState.isSwiping) {

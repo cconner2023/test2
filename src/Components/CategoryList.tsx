@@ -1,12 +1,18 @@
 // Components/CategoryList.tsx - Updated
 import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes'
 import { catData } from '../Data/CatData'
-import { useState, useEffect } from 'react'
 import { useAppAnimate } from '../Utilities/AnimationConfig'
+
+// Shared shape for guideline-like items (DDX, medcom, stp, gen all have text + optional id)
+interface GuidelineItemData {
+    text?: string
+    id?: number
+    icon?: string
+}
 
 // Guideline Item Component - Reusable for DDX, medcom, stp, gen
 interface GuidelineItemProps {
-    guideline: any
+    guideline: GuidelineItemData
     type: 'DDX' | 'medcom' | 'stp' | 'gen'
     index: number
     keyPrefix: string
@@ -29,6 +35,106 @@ function GuidelineItem({ guideline, keyPrefix, index, onClick }: GuidelineItemPr
     )
 }
 
+// Shared guideline section config to avoid duplicating the 4 identical sections
+const GUIDELINE_SECTIONS = [
+    { key: 'DDX' as const, label: 'Differentials', prefix: 'ddx', field: 'DDX' as const },
+    { key: 'medcom' as const, label: 'MEDCOM Training', prefix: 'medcom', field: 'medcom' as const },
+    { key: 'stp' as const, label: 'STP Training', prefix: 'stp', field: 'stp' as const },
+    { key: 'gen' as const, label: 'General Guidelines', prefix: 'gen', field: 'gen' as const },
+] as const
+
+// Extracted: Symptom header + guideline sections (shared between desktop and mobile)
+function SymptomGuidelines({
+    symptom,
+    category,
+    onNavigate,
+    guidelineToResult,
+}: {
+    symptom: subCatDataTypes
+    category: catDataTypes
+    onNavigate: (result: SearchResultType) => void
+    guidelineToResult: (
+        type: 'gen' | 'medcom' | 'stp' | 'DDX',
+        item: GuidelineItemData,
+        index: number,
+        symptom: subCatDataTypes,
+        category: catDataTypes
+    ) => SearchResultType
+}) {
+    return (
+        <>
+            {/* Symptom Header */}
+            <div className="mb-4 pb-4 border-b border-themewhite2">
+                <div className="flex items-center gap-3 mb-2">
+                    <div className="px-4 py-3 flex text-[12pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
+                        {symptom.icon}
+                    </div>
+                    <h2 className="text-[11pt] font-semibold text-primary flex-1 min-w-0">
+                        {symptom.text}
+                    </h2>
+                </div>
+                {symptom.description && (
+                    <p className="text-[9.5pt] text-secondary leading-relaxed mt-2 pl-1">
+                        {symptom.description}
+                    </p>
+                )}
+            </div>
+
+            {/* Guideline Sections */}
+            {GUIDELINE_SECTIONS.map(({ key, label, prefix, field }) => {
+                const items = symptom[field] as GuidelineItemData[] | undefined
+                if (!items || items.length === 0) return null
+                return (
+                    <div key={key} className="mb-3">
+                        <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide mb-2 pl-1">
+                            {label}
+                        </h3>
+                        {items.map((item, index) => (
+                            <GuidelineItem
+                                key={`${prefix}-${item.id || index}`}
+                                guideline={item}
+                                type={key}
+                                index={index}
+                                keyPrefix={prefix}
+                                onClick={() => onNavigate(guidelineToResult(key, item, index, symptom, category))}
+                            />
+                        ))}
+                    </div>
+                )
+            })}
+        </>
+    )
+}
+
+/** Reusable row component for both categories and symptoms — eliminates duplicated markup */
+function NavigationRow({
+    icon,
+    text,
+    onClick,
+    className = '',
+    extraContentClassName = '',
+}: {
+    icon: string
+    text: string
+    onClick: () => void
+    className?: string
+    extraContentClassName?: string
+}) {
+    return (
+        <div
+            className={`flex py-3 px-2 w-full cursor-pointer min-w-0 ${className}`}
+            onClick={onClick}
+        >
+            <div className="px-3 py-2 flex text-[10pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
+                {icon}
+            </div>
+            <div className={`h-full flex-1 min-w-0 p-[4px_10px_4px_10px] text-primary text-[10pt] flex items-center truncate ${extraContentClassName}`}>
+                {text}
+            </div>
+        </div>
+    )
+}
+
 interface CategoryListProps {
     selectedCategory: catDataTypes | null
     selectedSymptom: subCatDataTypes | null
@@ -39,7 +145,6 @@ interface CategoryListProps {
     } | null
     onNavigate: (result: SearchResultType) => void
     desktopMode?: boolean
-    showSubcategoriesOnly?: boolean
 }
 
 export function CategoryList({
@@ -48,18 +153,8 @@ export function CategoryList({
     selectedGuideline,
     onNavigate,
     desktopMode = false,
-    showSubcategoriesOnly = false,
 }: CategoryListProps) {
-    const [selectedSymptomId, setSelectedSymptomId] = useState<number | null>(null)
     const [parentRef] = useAppAnimate('fast')
-
-    useEffect(() => {
-        if (selectedSymptom) {
-            setSelectedSymptomId(selectedSymptom.id)
-        } else {
-            setSelectedSymptomId(null)
-        }
-    }, [selectedSymptom])
 
     // Helper to convert category to SearchResultType
     const categoryToResult = (category: catDataTypes): SearchResultType => ({
@@ -87,14 +182,14 @@ export function CategoryList({
     // Helper to convert guideline to SearchResultType
     const guidelineToResult = (
         type: 'gen' | 'medcom' | 'stp' | 'DDX',
-        item: any,
+        item: GuidelineItemData,
         index: number,
         symptom: subCatDataTypes,
         category: catDataTypes
     ): SearchResultType => ({
         type: type === 'DDX' ? 'DDX' : 'training',
         id: item.id || index,
-        icon: item.icon || (type === 'DDX' ? 'DDX' : '📝'),
+        icon: item.icon || (type === 'DDX' ? 'DDX' : '\u{1F4DD}'),
         text: item.text,
         data: {
             categoryId: category.id,
@@ -139,7 +234,6 @@ export function CategoryList({
                             {/* State 2: Category selected, no symptom - show its symptoms */}
                             {selectedCategory && !selectedSymptom && (
                                 <>
-                                    {/* Category's symptoms */}
                                     {selectedCategory.contents?.map((symptom) => (
                                         symptom && (
                                             <div
@@ -161,100 +255,12 @@ export function CategoryList({
 
                             {/* State 3: Symptom selected - show symptom header and guidelines */}
                             {selectedSymptom && selectedCategory && (
-                                <>
-                                    {/* Symptom Header */}
-                                    <div className="mb-4 pb-4 border-b border-themewhite2">
-                                        <div className="flex items-center gap-3 mb-2">
-                                            <div className="px-4 py-3 flex text-[12pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
-                                                {selectedSymptom.icon}
-                                            </div>
-                                            <h2 className="text-[11pt] font-semibold text-primary flex-1 min-w-0">
-                                                {selectedSymptom.text}
-                                            </h2>
-                                        </div>
-                                        {selectedSymptom.description && (
-                                            <p className="text-[9.5pt] text-secondary leading-relaxed mt-2 pl-1">
-                                                {selectedSymptom.description}
-                                            </p>
-                                        )}
-                                    </div>
-
-                                    {/* DDX Section */}
-                                    {selectedSymptom.DDX && selectedSymptom.DDX.length > 0 && (
-                                        <div className="mb-3">
-                                            <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide mb-2 pl-1">
-                                                Differentials
-                                            </h3>
-                                            {selectedSymptom.DDX.map((ddxItem, index) => (
-                                                <GuidelineItem
-                                                    key={`ddx-${index}`}
-                                                    guideline={ddxItem}
-                                                    type="DDX"
-                                                    index={index}
-                                                    keyPrefix="ddx"
-                                                    onClick={() => onNavigate(guidelineToResult('DDX', ddxItem, index, selectedSymptom, selectedCategory))}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {/* MEDCOM Training Section */}
-                                    {selectedSymptom.medcom && selectedSymptom.medcom.length > 0 && (
-                                        <div className="mb-3">
-                                            <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide mb-2 pl-1">
-                                                MEDCOM Training
-                                            </h3>
-                                            {selectedSymptom.medcom.map((guideline, index) => (
-                                                <GuidelineItem
-                                                    key={`medcom-${guideline.id || index}`}
-                                                    guideline={guideline}
-                                                    type="medcom"
-                                                    index={index}
-                                                    keyPrefix="medcom"
-                                                    onClick={() => onNavigate(guidelineToResult('medcom', guideline, index, selectedSymptom, selectedCategory))}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {/* STP Training Section */}
-                                    {selectedSymptom.stp && selectedSymptom.stp.length > 0 && (
-                                        <div className="mb-3">
-                                            <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide mb-2 pl-1">
-                                                STP Training
-                                            </h3>
-                                            {selectedSymptom.stp.map((guideline, index) => (
-                                                <GuidelineItem
-                                                    key={`stp-${guideline.id || index}`}
-                                                    guideline={guideline}
-                                                    type="stp"
-                                                    index={index}
-                                                    keyPrefix="stp"
-                                                    onClick={() => onNavigate(guidelineToResult('stp', guideline, index, selectedSymptom, selectedCategory))}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-
-                                    {/* General Guidelines Section */}
-                                    {selectedSymptom.gen && selectedSymptom.gen.length > 0 && (
-                                        <div className="mb-3">
-                                            <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide mb-2 pl-1">
-                                                General Guidelines
-                                            </h3>
-                                            {selectedSymptom.gen.map((guideline, index) => (
-                                                <GuidelineItem
-                                                    key={`gen-${index}`}
-                                                    guideline={guideline}
-                                                    type="gen"
-                                                    index={index}
-                                                    keyPrefix="gen"
-                                                    onClick={() => onNavigate(guidelineToResult('gen', guideline, index, selectedSymptom, selectedCategory))}
-                                                />
-                                            ))}
-                                        </div>
-                                    )}
-                                </>
+                                <SymptomGuidelines
+                                    symptom={selectedSymptom}
+                                    category={selectedCategory}
+                                    onNavigate={onNavigate}
+                                    guidelineToResult={guidelineToResult}
+                                />
                             )}
                         </div>
                     </div>
@@ -322,100 +328,13 @@ export function CategoryList({
                     {/* VIEW 3: Questions View - Show only selected symptom with guidelines */}
                     {selectedSymptom && selectedCategory && (
                         <div key="sym" className="flex flex-col h-full w-full">
-                            {/* Guidelines Section */}
                             <div className="flex-1 overflow-y-auto p-4">
-                                {/* Symptom Header */}
-                                <div className="mb-4 pb-4 border-b border-themewhite2">
-                                    <div className="flex items-center gap-3 mb-2">
-                                        <div className="px-4 py-3 flex text-[12pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
-                                            {selectedSymptom.icon}
-                                        </div>
-                                        <h2 className="text-[11pt] font-semibold text-primary flex-1 min-w-0">
-                                            {selectedSymptom.text}
-                                        </h2>
-                                    </div>
-                                    {selectedSymptom.description && (
-                                        <p className="text-[9.5pt] text-secondary leading-relaxed mt-2 pl-1">
-                                            {selectedSymptom.description}
-                                        </p>
-                                    )}
-                                </div>
-
-                                {/* DDX Section */}
-                                {selectedSymptom.DDX && selectedSymptom.DDX.length > 0 && (
-                                    <div className="mb-3">
-                                        <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide mb-2 pl-1">
-                                            Differentials
-                                        </h3>
-                                        {selectedSymptom.DDX.map((ddxItem, index) => (
-                                            <GuidelineItem
-                                                key={`ddx-${index}`}
-                                                guideline={ddxItem}
-                                                type="DDX"
-                                                index={index}
-                                                keyPrefix="ddx"
-                                                onClick={() => onNavigate(guidelineToResult('DDX', ddxItem, index, selectedSymptom, selectedCategory))}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* MEDCOM Training Section */}
-                                {selectedSymptom.medcom && selectedSymptom.medcom.length > 0 && (
-                                    <div className="mb-3">
-                                        <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide mb-2 pl-1">
-                                            MEDCOM Training
-                                        </h3>
-                                        {selectedSymptom.medcom.map((guideline, index) => (
-                                            <GuidelineItem
-                                                key={`medcom-${guideline.id || index}`}
-                                                guideline={guideline}
-                                                type="medcom"
-                                                index={index}
-                                                keyPrefix="medcom"
-                                                onClick={() => onNavigate(guidelineToResult('medcom', guideline, index, selectedSymptom, selectedCategory))}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* STP Training Section */}
-                                {selectedSymptom.stp && selectedSymptom.stp.length > 0 && (
-                                    <div className="mb-3">
-                                        <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide mb-2 pl-1">
-                                            STP Training
-                                        </h3>
-                                        {selectedSymptom.stp.map((guideline, index) => (
-                                            <GuidelineItem
-                                                key={`stp-${guideline.id || index}`}
-                                                guideline={guideline}
-                                                type="stp"
-                                                index={index}
-                                                keyPrefix="stp"
-                                                onClick={() => onNavigate(guidelineToResult('stp', guideline, index, selectedSymptom, selectedCategory))}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
-
-                                {/* General Guidelines Section */}
-                                {selectedSymptom.gen && selectedSymptom.gen.length > 0 && (
-                                    <div className="mb-3">
-                                        <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide mb-2 pl-1">
-                                            General Guidelines
-                                        </h3>
-                                        {selectedSymptom.gen.map((guideline, index) => (
-                                            <GuidelineItem
-                                                key={`gen-${index}`}
-                                                guideline={guideline}
-                                                type="gen"
-                                                index={index}
-                                                keyPrefix="gen"
-                                                onClick={() => onNavigate(guidelineToResult('gen', guideline, index, selectedSymptom, selectedCategory))}
-                                            />
-                                        ))}
-                                    </div>
-                                )}
+                                <SymptomGuidelines
+                                    symptom={selectedSymptom}
+                                    category={selectedCategory}
+                                    onNavigate={onNavigate}
+                                    guidelineToResult={guidelineToResult}
+                                />
                             </div>
                         </div>
                     )}

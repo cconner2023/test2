@@ -34,6 +34,8 @@ interface BaseDrawerProps {
     desktopPanelPadding?: string;
     /** z-index class for mobile backdrop and drawer. Default 'z-60' */
     zIndex?: string;
+    /** Desktop panel top offset. Default '0.5rem' */
+    desktopTopOffset?: string;
 }
 
 export function BaseDrawer({
@@ -56,6 +58,7 @@ export function BaseDrawer({
     mobilePartialPadding = '0.4rem',
     desktopPanelPadding = 'py-3 pl-3 pr-5',
     zIndex = 'z-60',
+    desktopTopOffset = '0.5rem',
 }: BaseDrawerProps) {
     const [localIsMobile, setLocalIsMobile] = useState(false);
     const isMobile = externalIsMobile ?? localIsMobile;
@@ -233,13 +236,9 @@ export function BaseDrawer({
         width: drawerStage === 'partial' ? `calc(100% - ${parseFloat(mobilePartialPadding) * 2}rem)` : '100%',
     };
 
-    // Desktop position-dependent classes
-    const desktopPositionClass = desktopPosition === 'left' ? 'left-2 top-2' : 'right-2 top-2';
+    // Desktop position-dependent classes — slide-in from top with opacity
+    const desktopAlignClass = desktopPosition === 'left' ? 'left-0' : 'right-0';
     const desktopOriginClass = desktopPosition === 'left' ? 'origin-top-left' : 'origin-top-right';
-    const desktopHiddenTransform = desktopPosition === 'left'
-        ? 'opacity-0 scale-x-20 scale-y-20 -translate-x-10 -translate-y-2 pointer-events-none'
-        : 'opacity-0 scale-x-20 scale-y-20 translate-x-10 -translate-y-2 pointer-events-none';
-    const desktopVisibleTransform = 'scale-x-100 scale-y-100 translate-x-0 translate-y-0';
 
     // Resolve children: support both ReactNode and render prop
     const resolvedChildren = typeof children === 'function'
@@ -296,29 +295,35 @@ export function BaseDrawer({
             {/* Desktop Modal */}
             {!mobileOnly && (
                 <div className="hidden md:block">
+                    {/* Backdrop */}
                     <div
-                        className={`fixed inset-0 ${zIndex} flex items-start justify-center transition-all duration-300 ease-out ${isVisible ? 'visible pointer-events-auto' : 'invisible pointer-events-none'
-                            }`}
+                        className={`fixed inset-0 ${zIndex} bg-black transition-opacity duration-250 ease-out ${
+                            isVisible ? 'opacity-20 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                        }`}
                         onClick={onClose}
-                    >
-                        {/* Backdrop */}
-                        <div
-                            className={`absolute inset-0 bg-black transition-opacity duration-300 ease-out ${isVisible ? 'opacity-30' : 'opacity-0'
-                                }`}
-                        />
+                    />
 
-                        {/* Modal Container */}
-                        <div className={`${desktopContainerMaxWidth} ${desktopWidth} relative ${zIndex}`}>
+                    {/* Panel — positioned relative to the max-w-315 content container */}
+                    <div
+                        className={`fixed inset-x-0 top-0 ${zIndex} flex justify-center pointer-events-none`}
+                        style={{ paddingTop: desktopTopOffset }}
+                    >
+                        <div className={`${desktopContainerMaxWidth} w-full relative`}>
                             <div
-                                className={`absolute ${desktopPositionClass} ${desktopPanelPadding}
+                                className={`absolute ${desktopAlignClass} ${desktopPanelPadding}
                 flex flex-col rounded-xl border border-tertiary/20
-                shadow-[0_2px_4px_0] shadow-themewhite2/20 backdrop-blur-md bg-themewhite2/10
+                shadow-lg shadow-black/8 backdrop-blur-xl bg-themewhite3/95
                 transform-gpu overflow-hidden text-primary/80 text-sm
-                ${desktopOriginClass} transition-all duration-300 ease-out ${desktopMaxWidth} w-full ${desktopHeight || 'h-auto'}
-                ${isVisible
-                                        ? desktopVisibleTransform
-                                        : desktopHiddenTransform
-                                    }`}
+                ${desktopOriginClass} ${desktopMaxWidth} w-full ${desktopHeight || 'h-auto'}
+                pointer-events-auto`}
+                                style={{
+                                    transition: 'opacity 250ms cubic-bezier(0.25, 0.1, 0.25, 1), transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
+                                    opacity: isVisible ? 1 : 0,
+                                    transform: isVisible
+                                        ? 'translateY(0) scale(1)'
+                                        : `translateY(-8px) scale(0.97)`,
+                                    pointerEvents: isVisible ? 'auto' : 'none',
+                                }}
                                 onClick={(e) => e.stopPropagation()}
                             >
                                 {resolvedChildren}

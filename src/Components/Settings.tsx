@@ -288,9 +288,10 @@ export const Settings = ({
             backdropOpacity={0.9}
             desktopPosition="right"
             desktopContainerMaxWidth="max-w-315"
-            desktopMaxWidth="max-w-md"
+            desktopMaxWidth="max-w-sm"
             desktopPanelPadding=""
-            desktopHeight="h-[600px]"
+            desktopHeight="h-[550px]"
+            desktopTopOffset="4.5rem"
             disableDrag={activePanel !== 'main'}
         >
             {(handleClose) => (

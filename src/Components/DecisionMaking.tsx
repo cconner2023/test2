@@ -2,7 +2,7 @@
 import { useState } from 'react'
 import { useAppAnimate } from '../Utilities/AnimationConfig'
 import { getColorClasses } from '../Utilities/ColorUtilities'
-import type { AlgorithmOptions, decisionMakingType } from '../Types/AlgorithmTypes'
+import type { AlgorithmOptions, decisionMakingType, dispositionType } from '../Types/AlgorithmTypes'
 import type { CardState } from '../Hooks/useAlgorithm'
 import { DecisionMakingItem } from './DecisionMakingItem'
 import { DecisionPathReview } from './DecisionPathReview'
@@ -12,8 +12,8 @@ import type { medListTypes } from '../Data/MedData'
 interface DecisionMakingProps {
     algorithmOptions?: AlgorithmOptions[];
     cardStates?: CardState[];
-    disposition: any;
-    dispositionType: string;
+    disposition: dispositionType;
+    dispositionType: dispositionType['type'];
     selectedSymptom?: {
         icon: string;
         text: string;
@@ -29,7 +29,7 @@ export function DecisionMaking({
 }: DecisionMakingProps) {
     const [selectedMedication, setSelectedMedication] = useState<medListTypes | null>(null)
     const [listRef] = useAppAnimate<HTMLDivElement>()
-    const colors = getColorClasses(dispositionType as any)
+    const colors = getColorClasses(dispositionType)
 
     const findTriggeringDecisionMaking = (): decisionMakingType[] => {
         const results: decisionMakingType[] = [];
