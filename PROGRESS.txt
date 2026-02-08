@@ -28,3 +28,6 @@ AutoForge Feature Verification Session (2/8/2025):
 - Feature #2 (All categories render in main list): PASSED - All 13 categories (A-M) render correctly with icons, names, colors. Desktop grid layout and mobile single-column layout verified. Auto-animate applied.
 - Feature #3 (Navigation bar with search and menu): PASSED - NavTop renders at top with search input (desktop) / search icon (mobile), hamburger menu (mobile), dynamic title updates on navigation (main→category→algorithm). Navbar is fixed/sticky at top on both layouts.
 - Current progress: 4/52 features passing (7.7%)
+- Feature #4 (Category selection shows subcategory symptoms): PASSED - Clicking a category transitions to subcategory view showing symptoms. Verified on both desktop and mobile. NavTop title updates to category name on mobile. Back button returns to main view. Tested with EAR NOSE THROAT (5 subcats) and GASTROINTESTINAL (7 subcats). Data matches CatData.
+- Feature #7 (Selecting a symptom navigates to algorithm page): PASSED - Clicking a subcategory symptom navigates to AlgorithmPage with correct triage algorithm. Verified with Back Pain (B-1): Red Flags card displayed with 8 flags, choice card with YES/NO. NavTop title updates to symptom name. Info button appears on mobile. Zero console errors.
+- Current progress: 6/53 features passing (11.3%)
