@@ -1,6 +1,5 @@
 import { useRef, useEffect, useState, useMemo } from 'react';
 import PDF417 from 'pdf417-generator';
-import { QRCodeSVG } from 'qrcode.react';
 import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 
@@ -120,39 +119,23 @@ export function NoteBarcodeGenerator({
 
     return (
         <div className="p-2 bg-themewhite2">
-            {/* Barcode display area - stacked vertically for scannable sizes */}
-            <div className="flex flex-col gap-4">
+            {/* Barcode display area - stacked vertically (flex-col) for compact presentation */}
+            <div className="flex flex-col items-center gap-3">
                 {/* PDF417 Barcode */}
                 <div className="flex flex-col items-center">
                     <div className="text-[9pt] text-secondary mb-1.5 font-medium">PDF417 Barcode</div>
                     <canvas
                         ref={canvasRef}
-                        width={500}
-                        height={200}
-                        className="border border-gray-300 bg-white rounded-md w-full max-w-[500px]"
-                        style={{ minHeight: '80px' }}
+                        width={300}
+                        height={120}
+                        className="border border-gray-300 bg-white rounded-md"
+                        style={{ width: '220px', height: 'auto', maxWidth: '100%' }}
                     />
                 </div>
 
-                {/* QR Code */}
-                <div className="flex flex-col items-center">
-                    <div className="text-[9pt] text-secondary mb-1.5 font-medium">QR Code</div>
-                    <div className="border border-gray-300 bg-white rounded-md p-3 inline-flex">
-                        <QRCodeSVG
-                            value={encodedValue || ' '}
-                            size={180}
-                            level="M"
-                            marginSize={2}
-                            bgColor="#FFFFFF"
-                            fgColor="#000000"
-                            title="ADTMC Note QR Code"
-                        />
-                    </div>
-                </div>
-
                 {/* Encoded string display */}
-                <div className="text-[10pt] text-secondary">
-                    <div className="text-[9pt] mb-1 font-medium">Encoded String:</div>
+                <div className="text-[10pt] text-secondary w-full">
+                    <div className="text-[9pt] mb-1 font-medium text-center">Encoded String:</div>
                     <code className="text-xs break-all bg-themewhite3 p-2 rounded block">
                         {encodedValue}
                     </code>

@@ -397,12 +397,108 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[]) => {
         setCurrentDisposition(null);
     }, [initializeCardStates]);
 
+    // Check if we can go back one card within the algorithm
+    // True if any non-RF card has an answer (including the initial card)
+    const canGoBack = (() => {
+        const initialIndex = findInitialCardIndex();
+        // Check if the initial card has an answer
+        const initialHasAnswer = cardStates[initialIndex]?.answer !== null;
+        if (initialHasAnswer) return true;
+        // Check if any card after initial has an answer
+        return cardStates.some((c, idx) =>
+            idx > initialIndex &&
+            algorithmOptions[idx]?.type !== 'rf' &&
+            c.answer !== null
+        );
+    })();
+
+    // Go back one card in the algorithm decision history
+    const goBackOneCard = useCallback(() => {
+        setCardStates(prev => {
+            const initialIndex = findInitialCardIndex();
+            const rfIndices = findRFCardIndices();
+
+            // Find the last answered non-RF card (furthest in the algorithm)
+            let lastAnsweredIndex = -1;
+            for (let i = prev.length - 1; i >= 0; i--) {
+                if (rfIndices.includes(i)) continue; // skip RF cards
+                if (prev[i].answer !== null) {
+                    lastAnsweredIndex = i;
+                    break;
+                }
+            }
+
+            if (lastAnsweredIndex === -1) return prev; // nothing to undo
+
+            let newCardStates = [...prev];
+
+            if (lastAnsweredIndex === initialIndex) {
+                // Going back from the initial card = reset everything
+                // Clear initial card answer and selections
+                newCardStates[initialIndex] = {
+                    ...newCardStates[initialIndex],
+                    answer: null,
+                    selectedOptions: [],
+                    count: 0
+                };
+
+                // Clear all RF card selections too
+                rfIndices.forEach(rfIndex => {
+                    newCardStates[rfIndex] = {
+                        ...newCardStates[rfIndex],
+                        selectedOptions: [],
+                        count: 0
+                    };
+                });
+
+                // Hide all cards after initial (except RF cards which stay visible)
+                newCardStates = newCardStates.map((c, idx) => {
+                    if (idx <= initialIndex || rfIndices.includes(idx)) return c;
+                    return { ...c, isVisible: false, answer: null, selectedOptions: [], count: 0 };
+                });
+
+                setCurrentDisposition(null);
+            } else {
+                // Going back from a non-initial card
+                // Clear the last answered card's answer and selections
+                newCardStates[lastAnsweredIndex] = {
+                    ...newCardStates[lastAnsweredIndex],
+                    answer: null,
+                    selectedOptions: [],
+                    count: 0
+                };
+
+                // Hide all cards after this one (except RF cards)
+                newCardStates = newCardStates.map((c, idx) => {
+                    if (idx <= lastAnsweredIndex || rfIndices.includes(idx)) return c;
+                    return { ...c, isVisible: false, answer: null, selectedOptions: [], count: 0 };
+                });
+
+                // Recalculate disposition: find the last remaining answered card's disposition
+                let newDisposition: dispositionType | null = null;
+                for (let i = lastAnsweredIndex - 1; i >= 0; i--) {
+                    if (rfIndices.includes(i)) continue;
+                    const cardAnswer = newCardStates[i].answer;
+                    if (cardAnswer?.disposition?.[0]) {
+                        newDisposition = cardAnswer.disposition[0];
+                        break;
+                    }
+                }
+                setCurrentDisposition(newDisposition);
+            }
+
+            return newCardStates;
+        });
+    }, [findInitialCardIndex, findRFCardIndices]);
+
     return {
         cardStates,
         currentDisposition,
         handleQuestionOption,
         handleAnswer,
         getVisibleCards,
-        resetAlgorithm
+        resetAlgorithm,
+        canGoBack,
+        goBackOneCard
     };
 };

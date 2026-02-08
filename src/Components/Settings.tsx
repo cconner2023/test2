@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { X, Moon, Sun, Shield, HelpCircle, ChevronUp, User, ChevronRight, ChevronLeft, Bug, PlusCircle, RefreshCw } from 'lucide-react';
+import { X, Moon, Sun, Shield, HelpCircle, ChevronUp, User, ChevronRight, ChevronLeft, Bug, PlusCircle, RefreshCw, FileText } from 'lucide-react';
 import { ReleaseNotes, type ReleaseNoteTypes } from '../Data/Release';
 import { BaseDrawer } from './BaseDrawer';
 
@@ -9,6 +9,7 @@ interface SettingsDrawerProps {
     isDarkMode: boolean;
     onToggleTheme: () => void;
     isMobile?: boolean;
+    onMyNotesClick?: () => void;
 }
 
 // Extract the note type safely
@@ -215,6 +216,7 @@ export const Settings = ({
     isDarkMode,
     onToggleTheme,
     isMobile: externalIsMobile,
+    onMyNotesClick,
 }: SettingsDrawerProps) => {
     const [activePanel, setActivePanel] = useState<'main' | 'release-notes'>('main');
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
@@ -244,6 +246,16 @@ export const Settings = ({
 
     const buildSettingsOptions = useCallback((closeDrawer: () => void) => [
         {
+            icon: <FileText size={20} />,
+            label: 'My Notes',
+            action: () => {
+                closeDrawer();
+                onMyNotesClick?.();
+            },
+            color: 'text-tertiary',
+            id: 1
+        },
+        {
             icon: isDarkMode ? <Sun size={20} /> : <Moon size={20} />,
             label: 'Toggle Theme',
             action: onToggleTheme,
@@ -264,7 +276,7 @@ export const Settings = ({
             color: 'text-tertiary',
             id: 5
         }
-    ], [isDarkMode, onToggleTheme, handleItemClick]);
+    ], [isDarkMode, onToggleTheme, handleItemClick, onMyNotesClick]);
 
     return (
         <BaseDrawer

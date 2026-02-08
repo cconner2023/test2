@@ -5,6 +5,7 @@ import { getColorClasses } from '../Utilities/ColorUtilities'
 import type { AlgorithmOptions, decisionMakingType } from '../Types/AlgorithmTypes'
 import type { CardState } from '../Hooks/useAlgorithm'
 import { DecisionMakingItem } from './DecisionMakingItem'
+import { DecisionPathReview } from './DecisionPathReview'
 import { MedicationPage } from './MedicationPage'
 import type { medListTypes } from '../Data/MedData'
 
@@ -13,6 +14,10 @@ interface DecisionMakingProps {
     cardStates?: CardState[];
     disposition: any;
     dispositionType: string;
+    selectedSymptom?: {
+        icon: string;
+        text: string;
+    };
 }
 
 export function DecisionMaking({
@@ -20,6 +25,7 @@ export function DecisionMaking({
     cardStates = [],
     disposition,
     dispositionType,
+    selectedSymptom,
 }: DecisionMakingProps) {
     const [selectedMedication, setSelectedMedication] = useState<medListTypes | null>(null)
     const [listRef] = useAppAnimate<HTMLDivElement>()
@@ -84,15 +90,30 @@ export function DecisionMaking({
                     </div>
                 ) : (
                     <div className="h-full overflow-y-auto p-3 space-y-4">
-                        {decisionMakingContent.map((item, index) => (
-                            <DecisionMakingItem
-                                key={index}
-                                item={item}
-                                colors={colors}
-                                onMedicationClick={handleMedicationClick}
-                                onDdxClick={undefined}
-                            />
-                        ))}
+                        {/* Decision Path Review - read-only summary of selections and answers */}
+                        <DecisionPathReview
+                            algorithmOptions={algorithmOptions}
+                            cardStates={cardStates}
+                            disposition={disposition}
+                            colors={colors}
+                            selectedSymptom={selectedSymptom}
+                        />
+
+                        {/* Clinical Decision Making Content */}
+                        {decisionMakingContent.length > 0 && (
+                            <div className="border-t border-themegray1/20 pt-4">
+                                <div className="text-xs font-semibold text-tertiary uppercase tracking-wide mb-3">Clinical Decision Support</div>
+                                {decisionMakingContent.map((item, index) => (
+                                    <DecisionMakingItem
+                                        key={index}
+                                        item={item}
+                                        colors={colors}
+                                        onMedicationClick={handleMedicationClick}
+                                        onDdxClick={undefined}
+                                    />
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
             </div>

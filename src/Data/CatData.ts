@@ -12,11 +12,6 @@ export const menuData: sideMenuDataType[] = [
         action: 'import'
     },
     {
-        text: "My Notes",
-        icon: 'myNotes',
-        action: 'myNotes'
-    },
-    {
         text: 'Settings',
         icon: 'Settings',
         action: 'Settings'

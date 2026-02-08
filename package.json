@@ -19,7 +19,6 @@
     "pdf417": "^0.1.5",
     "pdf417-generator": "^1.0.5",
     "qr-scanner": "^1.4.2",
-    "qrcode.react": "^4.2.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "tailwindcss": "^4.1.18"

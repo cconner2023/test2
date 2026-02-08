@@ -384,6 +384,11 @@ input, select, textarea {
   }
 }
 
+/* Mobile swipe navigation container */
+.swipe-nav-container {
+  touch-action: pan-y;
+}
+
 /* Mobile Screen Stack Animations */
 @keyframes slideInFromRight {
   from {

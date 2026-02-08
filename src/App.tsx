@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect } from 'react'
+import { useRef, useCallback, useEffect, useMemo } from 'react'
 import './App.css'
 import { NavTop } from './Components/NavTop'
 import { CategoryList } from './Components/CategoryList'
@@ -12,6 +12,7 @@ import type { SearchResultType } from './Types/CatTypes'
 import { useSearch } from './Hooks/useSearch'
 import { useNavigation } from './Hooks/useNavigation'
 import { useNotesStorage } from './Hooks/useNotesStorage'
+import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
 import { useAppAnimate } from './Utilities/AnimationConfig'
 import UpdateNotification from './Components/UpdateNotification'
 import { Settings } from './Components/Settings'
@@ -28,6 +29,22 @@ function AppContent() {
   const navigation = useNavigation()
   const search = useSearch()
   const notesStorage = useNotesStorage()
+
+  // Compute mobile view depth: 0 = categories, 1 = subcategories, 2 = algorithm
+  const mobileViewDepth = useMemo(() => {
+    if (navigation.showQuestionCard && navigation.selectedSymptom) return 2
+    if (navigation.selectedCategory) return 1
+    return 0
+  }, [navigation.showQuestionCard, navigation.selectedSymptom, navigation.selectedCategory])
+
+  // Swipe navigation for mobile views
+  const swipe = useSwipeNavigation({
+    enabled: navigation.isMobile && !search.searchInput && !navigation.isWriteNoteVisible,
+    viewDepth: mobileViewDepth,
+    onSwipeBack: useCallback(() => {
+      navigation.handleBackClick()
+    }, [navigation]),
+  })
 
   // Sync search expansion when transitioning to mobile with active search text
   useEffect(() => {
@@ -110,6 +127,41 @@ function AppContent() {
 
   const title = getTitle()
 
+  // Compute swipe transform styles for mobile views
+  const getSwipeStyle = useCallback((layerDepth: number): React.CSSProperties => {
+    // Only apply swipe transforms on mobile during active swipe
+    if (!navigation.isMobile || (!swipe.isSwiping && !swipe.animatingDirection)) {
+      return {}
+    }
+
+    // Current view being swiped away (top layer)
+    if (layerDepth === mobileViewDepth) {
+      return {
+        transform: `translateX(${swipe.offsetX}px)`,
+        transition: swipe.isSwiping ? 'none' : 'transform 0.28s cubic-bezier(0.25, 0.1, 0.25, 1)',
+      }
+    }
+
+    // Layer below (will be revealed): slight parallax from left
+    if (layerDepth === mobileViewDepth - 1) {
+      const parallaxOffset = -80 + (swipe.offsetX / window.innerWidth) * 80
+      return {
+        transform: `translateX(${parallaxOffset}px)`,
+        transition: swipe.isSwiping ? 'none' : 'transform 0.28s cubic-bezier(0.25, 0.1, 0.25, 1)',
+        opacity: 0.6 + (swipe.offsetX / window.innerWidth) * 0.4,
+      }
+    }
+
+    return {}
+  }, [navigation.isMobile, swipe.isSwiping, swipe.animatingDirection, swipe.offsetX, mobileViewDepth])
+
+  // Determine if a layer should be visible during swipe (to show the layer being revealed underneath)
+  const isLayerVisibleDuringSwipe = useCallback((layerDepth: number): boolean => {
+    if (!swipe.isSwiping && !swipe.animatingDirection) return false
+    // Show the layer below the current one during swipe
+    return layerDepth === mobileViewDepth - 1
+  }, [swipe.isSwiping, swipe.animatingDirection, mobileViewDepth])
+
 
   return (
     <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
@@ -157,11 +209,22 @@ function AppContent() {
         {/* Content area  */}
         <div ref={contentRef} className={`md:h-[94%] h-full relative overflow-hidden ${navigation.isMobile ? 'absolute inset-0' : 'mt-2 mx-2'
           }`}>
-          {/* Mobile Layout - absolute stacking */}
-          <div className={`${navigation.isMobile ? 'block' : 'hidden'} h-full relative`}>
-            {/* CategoryList - base layer */}
-            <div className={`absolute inset-0 transition-opacity duration-200 ${!search.searchInput && !navigation.showQuestionCard ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
-              }`}>
+          {/* Mobile Layout - absolute stacking with swipe navigation */}
+          <div
+            className={`${navigation.isMobile ? 'block' : 'hidden'} h-full relative`}
+            {...(navigation.isMobile ? swipe.touchHandlers : {})}
+          >
+            {/* CategoryList - base layer (depth 0) */}
+            <div
+              className={`absolute inset-0 will-change-transform ${
+                !search.searchInput && !navigation.showQuestionCard
+                  ? 'opacity-100 z-10'
+                  : isLayerVisibleDuringSwipe(0)
+                    ? 'z-5 pointer-events-none'
+                    : 'opacity-0 z-0 pointer-events-none'
+              } ${!swipe.isSwiping && !swipe.animatingDirection ? 'transition-opacity duration-200' : ''}`}
+              style={getSwipeStyle(0)}
+            >
               <div className="h-full overflow-y-auto">
                 {/* Spacer accounts for safe area + navbar, scrolls with content */}
                 <div className="px-2 bg-themewhite min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
@@ -191,52 +254,57 @@ function AppContent() {
             </div>
           </div>
 
-          {/* Desktop Layout - grid */}
+          {/* Desktop Layout - 2-panel master-detail (navigation | content) */}
           <div className={`${navigation.isMobile ? 'hidden' : 'block'} h-full`}>
-            <div className="h-full grid transition-[grid-template-columns] gap-1"
-              style={{ gridTemplateColumns: !navigation.isMobile && search.searchInput ? '1fr 1fr 0fr' : navigation.mainGridTemplate }}
+            <div className="h-full grid transition-[grid-template-columns] duration-300 ease-in-out gap-1"
+              style={{ gridTemplateColumns: !navigation.isMobile && search.searchInput ? '0.45fr 1.1fr' : navigation.mainGridTemplate }}
             >
-              {/* Column 1: Categories Navigation */}
-              <div className="h-full overflow-y-scroll">
-                {!search.searchInput && (
-                  <CategoryList
-                    selectedCategory={navigation.selectedCategory}
-                    selectedSymptom={navigation.selectedSymptom}
-                    selectedGuideline={navigation.selectedGuideline}
-                    onNavigate={handleNavigationClick}
-                  />
-                )}
+              {/* Column 1 (Left): Navigation - categories/subcategories/symptom info all stacked vertically */}
+              <div className="h-full overflow-y-scroll overflow-x-hidden">
+                <CategoryList
+                  selectedCategory={navigation.selectedCategory}
+                  selectedSymptom={navigation.selectedSymptom}
+                  selectedGuideline={navigation.selectedGuideline}
+                  onNavigate={handleNavigationClick}
+                  desktopMode={true}
+                />
               </div>
 
-              {/* Column 2: Search Results */}
-              <div className="h-full overflow-hidden">
-                {search.searchInput && (
+              {/* Column 2 (Right): Content - algorithm, search results, or empty */}
+              <div className="h-full overflow-y-auto overflow-x-hidden">
+                {search.searchInput ? (
                   <SearchResults
                     results={search.searchResults}
                     searchTerm={search.searchInput}
                     onResultClick={handleNavigationClick}
                     isSearching={search.isSearching}
                   />
-                )}
+                ) : navigation.selectedSymptom && navigation.showQuestionCard ? (
+                  <div className="h-full bg-themewhite overflow-hidden">
+                    <AlgorithmPage
+                      selectedSymptom={navigation.selectedSymptom}
+                      onMedicationClick={navigation.handleMedicationSelect}
+                      onExpandNote={navigation.showWriteNote}
+                      isMobile={navigation.isMobile}
+                    />
+                  </div>
+                ) : null}
               </div>
-
-              {/* Column 3: placeholder for grid structure */}
-              <div className="h-full overflow-hidden" />
             </div>
           </div>
 
-          {/* AlgorithmPage - rendered ONCE, positioned based on layout */}
-          {navigation.selectedSymptom && (
-            <div className={`transition-opacity duration-200 ${navigation.isMobile
-              ? `absolute inset-0 ${!search.searchInput && navigation.showQuestionCard ? 'opacity-100 z-20' : 'opacity-0 z-0 pointer-events-none'}`
-              : `absolute right-0 top-0 bottom-0 bg-themewhite ${!search.searchInput && navigation.showQuestionCard ? 'opacity-100' : 'opacity-0 pointer-events-none'}`
-              }`}
-              style={!navigation.isMobile ? {
-                width: !search.searchInput && navigation.showQuestionCard ? 'calc(55% - 2px)' : '0%',
-                transition: 'width 300ms, opacity 200ms'
-              } : undefined}
+          {/* AlgorithmPage - mobile only: absolute positioned overlay (depth 2) */}
+          {navigation.isMobile && navigation.selectedSymptom && (
+            <div
+              className={`absolute inset-0 will-change-transform ${
+                !search.searchInput && navigation.showQuestionCard
+                  ? 'opacity-100 z-20'
+                  : 'opacity-0 z-0 pointer-events-none'
+              } ${!swipe.isSwiping && !swipe.animatingDirection ? 'transition-opacity duration-200' : ''}`}
+              style={getSwipeStyle(2)}
+              {...swipe.touchHandlers}
             >
-              <div className="h-full overflow-hidden">
+              <div className="h-full overflow-hidden bg-themewhite">
                 <AlgorithmPage
                   selectedSymptom={navigation.selectedSymptom}
                   onMedicationClick={navigation.handleMedicationSelect}
@@ -266,6 +334,7 @@ function AppContent() {
           isDarkMode={theme === 'dark'}
           onToggleTheme={toggleTheme}
           isMobile={navigation.isMobile}
+          onMyNotesClick={handleMyNotesClick}
         />
         <MedicationsDrawer
           isVisible={navigation.showMedications}

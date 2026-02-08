@@ -38,6 +38,8 @@ interface CategoryListProps {
         symptomId: number;
     } | null
     onNavigate: (result: SearchResultType) => void
+    desktopMode?: boolean
+    showSubcategoriesOnly?: boolean
 }
 
 export function CategoryList({
@@ -45,6 +47,8 @@ export function CategoryList({
     selectedSymptom,
     selectedGuideline,
     onNavigate,
+    desktopMode = false,
+    showSubcategoriesOnly = false,
 }: CategoryListProps) {
     const [selectedSymptomId, setSelectedSymptomId] = useState<number | null>(null)
     const [parentRef] = useAppAnimate('fast')
@@ -102,6 +106,91 @@ export function CategoryList({
         }
     })
 
+    // Desktop mode: Full navigation flow in a single column (master-detail Column 1)
+    // Shows categories → subcategories → symptom info all stacked vertically
+    if (desktopMode) {
+        return (
+            <div ref={parentRef} className="h-full w-full">
+                {(!catData || !Array.isArray(catData)) ? (
+                    <div key="error" className="h-full flex items-center justify-center text-primary">
+                        Error loading category data
+                    </div>
+                ) : (
+                    <div key="desktop-nav" className="flex flex-col h-full w-full">
+                        <div className="flex-1 overflow-y-auto pb-4 bg-themewhite">
+                            {/* State 1: No category selected - show all categories */}
+                            {!selectedCategory && catData.map((category) => (
+                                category && (
+                                    <div
+                                        key={category.id}
+                                        className="flex py-3 px-2 w-full rounded-md border-b border-themewhite2/90 cursor-pointer hover:bg-themewhite2 min-w-0"
+                                        onClick={() => onNavigate(categoryToResult(category))}
+                                    >
+                                        <div className="px-3 py-2 flex text-[10pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
+                                            {category.icon}
+                                        </div>
+                                        <div className="h-full flex-1 min-w-0 p-[4px_10px_4px_10px] text-primary text-[10pt] flex items-center truncate">
+                                            {category.text}
+                                        </div>
+                                    </div>
+                                )
+                            ))}
+
+                            {/* State 2: Category selected, no symptom - show subcategories */}
+                            {selectedCategory && !selectedSymptom && (
+                                <>
+                                    {selectedCategory.contents?.map((symptom) => (
+                                        symptom && (
+                                            <div
+                                                key={symptom.id}
+                                                className="flex py-3 px-2 w-full rounded-sm border-b border-themewhite2/70 cursor-pointer hover:bg-themewhite2 min-w-0"
+                                                onClick={() => onNavigate(symptomToResult(symptom, selectedCategory))}
+                                            >
+                                                <div className="px-3 py-2 flex text-[10pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
+                                                    {symptom.icon || "?"}
+                                                </div>
+                                                <div className="h-full flex-1 min-w-0 bg-themewhite text-primary text-[10pt] p-[4px_10px_4px_10px] flex items-center truncate">
+                                                    {symptom.text || "Untitled Symptom"}
+                                                </div>
+                                            </div>
+                                        )
+                                    ))}
+                                </>
+                            )}
+
+                            {/* State 3: Symptom selected - show subcategories with selected highlighted */}
+                            {selectedSymptom && selectedCategory && (
+                                <>
+                                    {selectedCategory.contents?.map((symptom) => (
+                                        symptom && (
+                                            <div
+                                                key={symptom.id}
+                                                className={`flex py-3 px-2 w-full rounded-sm border-b border-themewhite2/70 cursor-pointer min-w-0 ${
+                                                    symptom.id === selectedSymptom.id ? 'bg-themeblue3/10' : 'hover:bg-themewhite2'
+                                                }`}
+                                                onClick={() => onNavigate(symptomToResult(symptom, selectedCategory))}
+                                            >
+                                                <div className={`px-3 py-2 flex text-[10pt] font-bold items-center justify-center shrink-0 rounded-md ${
+                                                    symptom.id === selectedSymptom.id ? 'bg-themeblue1 text-white' : 'bg-themeblue3 text-white'
+                                                }`}>
+                                                    {symptom.icon || "?"}
+                                                </div>
+                                                <div className="h-full flex-1 min-w-0 text-primary text-[10pt] p-[4px_10px_4px_10px] flex items-center truncate">
+                                                    {symptom.text || "Untitled Symptom"}
+                                                </div>
+                                            </div>
+                                        )
+                                    ))}
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    // Mobile mode: original behavior
     return (
         <div ref={parentRef} className="h-full w-full">
             {(!catData || !Array.isArray(catData)) ? (

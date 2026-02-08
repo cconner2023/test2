@@ -31,7 +31,7 @@ export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false 
         currentDisposition,
         handleQuestionOption: hookHandleQuestionOption,
         handleAnswer: hookHandleAnswer,
-        getVisibleCards
+        getVisibleCards,
     } = useAlgorithm(algorithmOptions);
 
     // Track disposition changes — delay scroll past connector stagger animation (~500ms)

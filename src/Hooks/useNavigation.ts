@@ -210,7 +210,9 @@ export function useNavigation() {
             showMedications: !prev.showMedications,
             selectedMedication: null,
             isMenuOpen: false,
-            isSearchExpanded: false
+            isSearchExpanded: false,
+            // Close other drawers when opening medications
+            ...(!prev.showMedications ? { showNoteImport: false, showSettings: false, showMyNotes: false, showSymptomInfo: false } : {})
         }))
     }, [])
 
@@ -260,7 +262,9 @@ export function useNavigation() {
         }
     }, [])
 
-    // Grid Template Computation - Simplified
+    // Grid Template Computation - 2-panel master-detail desktop layout
+    // Column 1 (Left): Navigation (categories → subcategories → symptom info, all stacked vertically)
+    // Column 2 (Right): Content (empty when browsing, algorithm when symptom selected, search results)
     const getGridTemplates = useMemo(() => {
         const GRID = {
             HIDE: '0fr',
@@ -274,19 +278,19 @@ export function useNavigation() {
         // Mobile: Single column at a time
         if (isMobile) {
             if (state.isSearchExpanded) {
-                return { mainTemplate: `${GRID.HIDE} ${GRID.SHOW} ${GRID.HIDE}` }
-            } else if (hasSymptomDetail) {
-                return { mainTemplate: `${GRID.HIDE} ${GRID.HIDE} ${GRID.SHOW}` }
+                return { mainTemplate: `${GRID.HIDE} ${GRID.SHOW}` }
             } else {
-                return { mainTemplate: `${GRID.SHOW} ${GRID.HIDE} ${GRID.HIDE}` }
+                return { mainTemplate: `${GRID.SHOW} ${GRID.HIDE}` }
             }
         }
 
-        // Desktop: Multi-column layout
+        // Desktop: 2-panel master-detail layout (navigation | content)
         if (hasSymptomDetail) {
-            return { mainTemplate: `${GRID.SHOW_SMALL} ${GRID.HIDE} ${GRID.SHOW_LARGE}` }
+            // Navigation column + algorithm content column
+            return { mainTemplate: '0.45fr 1.1fr' }
         } else {
-            return { mainTemplate: `${GRID.SHOW} ${GRID.SHOW} ${GRID.HIDE}` }
+            // Navigation column takes full width, content column hidden (empty)
+            return { mainTemplate: `${GRID.SHOW} ${GRID.HIDE}` }
         }
     }, [state, isMobile])
 
@@ -345,15 +349,32 @@ export function useNavigation() {
     }, [])
 
     const setShowNoteImport = useCallback((show: boolean) => {
-        setState(prev => ({ ...prev, showNoteImport: show }))
+        setState(prev => ({
+            ...prev,
+            showNoteImport: show,
+            // Close other drawers when opening this one
+            ...(show ? { showSettings: false, showMyNotes: false, showMedications: false, showSymptomInfo: false, isMenuOpen: false } : {})
+        }))
     }, [])
 
     const setShowSettings = useCallback((show: boolean) => {
-        setState(prev => ({ ...prev, showSettings: show, isMenuOpen: false }))
+        setState(prev => ({
+            ...prev,
+            showSettings: show,
+            isMenuOpen: false,
+            // Close other drawers when opening this one
+            ...(show ? { showNoteImport: false, showMyNotes: false, showMedications: false, showSymptomInfo: false } : {})
+        }))
     }, [])
 
     const setShowMyNotes = useCallback((show: boolean) => {
-        setState(prev => ({ ...prev, showMyNotes: show, isMenuOpen: false }))
+        setState(prev => ({
+            ...prev,
+            showMyNotes: show,
+            isMenuOpen: false,
+            // Close other drawers when opening this one
+            ...(show ? { showNoteImport: false, showSettings: false, showMedications: false, showSymptomInfo: false } : {})
+        }))
     }, [])
 
     const toggleSearchExpanded = useCallback(() => {
@@ -369,14 +390,21 @@ export function useNavigation() {
     }, [])
 
     const setShowSymptomInfo = useCallback((show: boolean) => {
-        setState(prev => ({ ...prev, showSymptomInfo: show }))
+        setState(prev => ({
+            ...prev,
+            showSymptomInfo: show,
+            // Close other drawers when opening this one
+            ...(show ? { showNoteImport: false, showSettings: false, showMyNotes: false, showMedications: false, isMenuOpen: false } : {})
+        }))
     }, [])
 
     const setShowMedications = useCallback((show: boolean) => {
         setState(prev => ({
             ...prev,
             showMedications: show,
-            ...(show ? {} : { selectedMedication: null })
+            ...(show ? {} : { selectedMedication: null }),
+            // Close other drawers when opening this one
+            ...(show ? { showNoteImport: false, showSettings: false, showMyNotes: false, showSymptomInfo: false, selectedMedication: null, isMenuOpen: false } : {})
         }))
     }, [])
 

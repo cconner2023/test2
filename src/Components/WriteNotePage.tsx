@@ -300,6 +300,7 @@ export const WriteNotePage = ({
                             cardStates={cardStates}
                             disposition={disposition}
                             dispositionType={disposition.type}
+                            selectedSymptom={selectedSymptom}
                         />
                     </div>
 
