@@ -1,5 +1,6 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, useMemo } from 'react';
 import PDF417 from 'pdf417-generator';
+import { QRCodeSVG } from 'qrcode.react';
 import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 
@@ -27,7 +28,8 @@ export function NoteBarcodeGenerator({
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [encodedValue, setEncodedValue] = useState<string>('');
 
-    const generateCompactString = () => {
+    // Memoize the compact string generation so it recalculates when inputs change
+    const compactString = useMemo(() => {
         const parts: string[] = [];
 
         // 1. Symptom code (e.g. "A1")
@@ -85,17 +87,18 @@ export function NoteBarcodeGenerator({
         if (customNote) flags |= 4;
         parts.push(`F${flags}`);
 
-        const result = parts.join('|');
-        setEncodedValue(result);
-        onEncodedValueChange?.(result);
-        return result;
-    };
+        return parts.join('|');
+    }, [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.includeDecisionMaking, noteOptions.customNote, symptomCode]);
 
+    // Update state and notify parent when encoded value changes
     useEffect(() => {
-        if (!canvasRef.current) return;
+        setEncodedValue(compactString);
+        onEncodedValueChange?.(compactString);
+    }, [compactString, onEncodedValueChange]);
 
-        const dataString = generateCompactString();
-        if (!dataString) return;
+    // Render PDF417 barcode on canvas whenever encoded value changes
+    useEffect(() => {
+        if (!canvasRef.current || !encodedValue) return;
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
@@ -105,31 +108,51 @@ export function NoteBarcodeGenerator({
         }
 
         if (PDF417 && typeof (PDF417 as any).draw === 'function') {
-            (PDF417 as any).draw(dataString, canvas);
+            (PDF417 as any).draw(encodedValue, canvas);
         } else {
-            PDF417(canvas, dataString, {
+            PDF417(canvas, encodedValue, {
                 bw: 2,
                 height: 4,
                 padding: 10
             });
         }
-    }, [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.includeDecisionMaking, noteOptions.customNote, symptomCode]);
-
-    useEffect(() => {
-        generateCompactString();
-    }, []);
+    }, [encodedValue]);
 
     return (
         <div className="p-2 bg-themewhite2">
-            <div className="flex gap-5 justify-between items-center">
-                <canvas
-                    ref={canvasRef}
-                    width={500}
-                    height={200}
-                    className="border border-gray-300 bg-white rounded-md"
-                />
-                <div className="text-[10pt] text-secondary p-3 w-full">
-                    <div className="font-[9pt] mb-1">Encoded String:</div>
+            {/* Barcode display area - stacked vertically for scannable sizes */}
+            <div className="flex flex-col gap-4">
+                {/* PDF417 Barcode */}
+                <div className="flex flex-col items-center">
+                    <div className="text-[9pt] text-secondary mb-1.5 font-medium">PDF417 Barcode</div>
+                    <canvas
+                        ref={canvasRef}
+                        width={500}
+                        height={200}
+                        className="border border-gray-300 bg-white rounded-md w-full max-w-[500px]"
+                        style={{ minHeight: '80px' }}
+                    />
+                </div>
+
+                {/* QR Code */}
+                <div className="flex flex-col items-center">
+                    <div className="text-[9pt] text-secondary mb-1.5 font-medium">QR Code</div>
+                    <div className="border border-gray-300 bg-white rounded-md p-3 inline-flex">
+                        <QRCodeSVG
+                            value={encodedValue || ' '}
+                            size={180}
+                            level="M"
+                            marginSize={2}
+                            bgColor="#FFFFFF"
+                            fgColor="#000000"
+                            title="ADTMC Note QR Code"
+                        />
+                    </div>
+                </div>
+
+                {/* Encoded string display */}
+                <div className="text-[10pt] text-secondary">
+                    <div className="text-[9pt] mb-1 font-medium">Encoded String:</div>
                     <code className="text-xs break-all bg-themewhite3 p-2 rounded block">
                         {encodedValue}
                     </code>

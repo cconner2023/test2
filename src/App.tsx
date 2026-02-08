@@ -287,6 +287,7 @@ function AppContent() {
           isMobile={navigation.isMobile}
           notes={notesStorage.notes}
           onDeleteNote={notesStorage.deleteNote}
+          onEditNote={notesStorage.updateNote}
         />
         {/* WriteNotePage - rendered at App level for proper z-index on mobile */}
         {navigation.isWriteNoteVisible && navigation.writeNoteData && (

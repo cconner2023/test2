@@ -30,6 +30,34 @@ export const getColorClasses = (type?: dispositionType['type']) => {
                 barBg: 'bg-gradient-to-r from-themeyellowlow/5 to-themeyellowlow/10 border border-themeyellowlow/20',
                 sliderClass: 'bg-themeyellowlow',
             };
+        case 'CAT III':
+            return {
+                symptomCheck: 'text-themegreen',
+                answerSlider: 'bg-themegreen',
+                answerButton: 'text-white',
+                badgeBg: 'bg-themegreen',
+                badgeText: 'text-white',
+                badgeBorder: 'border-themegreen/30',
+                overlayBg: 'bg-themegreen',
+                symptomClass: 'border-themegreen/60 bg-themegreen/10! text-primary',
+                buttonClass: 'bg-themegreen/20 hover:bg-themegreen/30 text-primary',
+                barBg: 'bg-gradient-to-r from-themegreen/5 to-themegreen/10 border border-themegreen/20',
+                sliderClass: 'bg-themegreen',
+            };
+        case 'CAT IV':
+            return {
+                symptomCheck: 'text-themeblue2',
+                answerSlider: 'bg-themeblue2',
+                answerButton: 'text-white',
+                badgeBg: 'bg-themeblue2',
+                badgeText: 'text-white',
+                badgeBorder: 'border-themeblue2/30',
+                overlayBg: 'bg-themeblue2',
+                symptomClass: 'border-themeblue2/60 bg-themeblue2/10! text-primary',
+                buttonClass: 'bg-themeblue2/20 hover:bg-themeblue2/30 text-primary',
+                barBg: 'bg-gradient-to-r from-themeblue2/5 to-themeblue2/10 border border-themeblue2/20',
+                sliderClass: 'bg-themeblue2',
+            };
         case 'OTHER':
             return {
                 symptomCheck: 'text-themeblue3',

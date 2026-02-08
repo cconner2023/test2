@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Camera, ScanLine } from 'lucide-react';
 import { TextButton } from './TextButton';
+import { BaseDrawer } from './BaseDrawer';
 import { useNoteImport } from '../Hooks/useNoteImport';
 import { useBarcodeScanner } from '../Hooks/useBarcodeScanner';
 
@@ -270,9 +271,6 @@ const NoteImportContent = ({
 };
 
 export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: NoteImportProps) {
-    const [localIsMobile, setLocalIsMobile] = useState(false);
-    const isMobile = externalIsMobile !== undefined ? externalIsMobile : localIsMobile;
-
     // Lifted content state - persists across mobile/desktop layout changes
     const [contentState, setContentState] = useState<ContentState>({
         viewState: 'input',
@@ -282,31 +280,9 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
         isCopied: false
     });
 
-    const [drawerPosition, setDrawerPosition] = useState(0);
-    const [drawerStage, setDrawerStage] = useState<'partial' | 'full'>('partial');
-    const [isDragging, setIsDragging] = useState(false);
-    const drawerRef = useRef<HTMLDivElement>(null);
-    const dragStartY = useRef(0);
-    const dragStartPosition = useRef(0);
-    const animationFrameId = useRef<number>(0);
-    const velocityRef = useRef(0);
-    const lastYRef = useRef(0);
-    const lastTimeRef = useRef(0);
-
-    useEffect(() => {
-        if (externalIsMobile === undefined) {
-            const checkMobile = () => setLocalIsMobile(window.innerWidth < 768);
-            checkMobile();
-            window.addEventListener('resize', checkMobile);
-            return () => window.removeEventListener('resize', checkMobile);
-        }
-    }, [externalIsMobile]);
-
+    // Reset content state when opening
     useEffect(() => {
         if (isVisible) {
-            setDrawerStage('partial');
-            setDrawerPosition(100);
-            // Reset content state when opening
             setContentState({
                 viewState: 'input',
                 inputText: '',
@@ -314,216 +290,31 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
                 scanError: '',
                 isCopied: false
             });
-            document.body.style.overflow = 'hidden';
-        } else {
-            setDrawerPosition(0);
-            document.body.style.overflow = '';
         }
-        return () => {
-            if (animationFrameId.current) {
-                cancelAnimationFrame(animationFrameId.current);
-            }
-        };
     }, [isVisible]);
 
-    const animateToPosition = useCallback((targetPosition: number) => {
-        const startPosition = drawerPosition;
-        const startTime = performance.now();
-        const duration = 300;
-
-        const animate = (timestamp: number) => {
-            const elapsed = timestamp - startTime;
-            const progress = Math.min(elapsed / duration, 1);
-            const easeProgress = 1 - Math.pow(1 - progress, 3);
-            const currentPosition = startPosition + (targetPosition - startPosition) * easeProgress;
-
-            setDrawerPosition(currentPosition);
-
-            if (progress < 1) {
-                animationFrameId.current = requestAnimationFrame(animate);
-            } else {
-                animationFrameId.current = 0;
-                if (targetPosition === 0) {
-                    setTimeout(onClose, 50);
-                }
-            }
-        };
-
-        if (animationFrameId.current) {
-            cancelAnimationFrame(animationFrameId.current);
-        }
-        animationFrameId.current = requestAnimationFrame(animate);
-    }, [drawerPosition, onClose]);
-
-    const handleDragStart = (e: React.TouchEvent | React.MouseEvent) => {
-        if (!isMobile) return;
-
-        const target = e.target as HTMLElement;
-        if (!target.closest('[data-drag-zone]')) return;
-
-        setIsDragging(true);
-        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-        dragStartY.current = clientY;
-        dragStartPosition.current = drawerPosition;
-        lastYRef.current = clientY;
-        lastTimeRef.current = performance.now();
-        velocityRef.current = 0;
-        e.stopPropagation();
-    };
-
-    const handleDragMove = (e: React.TouchEvent | React.MouseEvent) => {
-        if (!isDragging || !isMobile) return;
-        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-        const deltaY = clientY - dragStartY.current;
-
-        const currentTime = performance.now();
-        const deltaTime = currentTime - lastTimeRef.current;
-        if (deltaTime > 0) {
-            velocityRef.current = (clientY - lastYRef.current) / deltaTime;
-        }
-
-        lastYRef.current = clientY;
-        lastTimeRef.current = currentTime;
-
-        const dragSensitivity = 0.8;
-        const newPosition = Math.min(100, Math.max(20, dragStartPosition.current - (deltaY * dragSensitivity)));
-        setDrawerPosition(newPosition);
-        e.stopPropagation();
-    };
-
-    const handleDragEnd = () => {
-        if (!isDragging || !isMobile) return;
-        setIsDragging(false);
-
-        const isSwipingDown = velocityRef.current > 0.3;
-        const isSwipingUp = velocityRef.current < -0.3;
-
-        if (drawerStage === 'partial') {
-            if (isSwipingUp) {
-                setDrawerStage('full');
-                animateToPosition(100);
-            } else if (isSwipingDown || drawerPosition < 40) {
-                animateToPosition(0);
-            } else {
-                animateToPosition(100);
-            }
-        } else {
-            if (velocityRef.current > 0.6 || drawerPosition < 30) {
-                animateToPosition(0);
-            } else if (isSwipingDown || drawerPosition < 70) {
-                setDrawerStage('partial');
-                animateToPosition(100);
-            } else {
-                animateToPosition(100);
-            }
-        }
-    };
-
-    const handleClose = () => {
-        if (isMobile) {
-            animateToPosition(0);
-        } else {
-            onClose();
-        }
-    };
-
-    const mobileTranslateY = 100 - drawerPosition;
-    const mobileOpacity = Math.min(1, drawerPosition / 60 + 0.2);
-    const mobileHeight = drawerStage === 'partial' ? '40dvh' : '90dvh';
-    const mobileHorizontalPadding = drawerStage === 'partial' ? '0.5rem' : '0';
-    const mobileBottomPadding = drawerStage === 'partial' ? '1.5rem' : '0';
-    const mobileBorderRadius = drawerStage === 'partial' ? '1rem' : '1.25rem 1.25rem 0 0';
-    const mobileBoxShadow = drawerStage === 'partial'
-        ? '0 4px 2px rgba(0, 0, 0, 0.05)'
-        : '0 -4px 20px rgba(0, 0, 0, 0.1)';
-
-    // Single container that adapts styling based on isMobile
-    // Content is rendered once - state persists across layout changes
     return (
-        <div ref={drawerRef}>
-            {isMobile ? (
-                <>
-                    <div
-                        className={`fixed inset-0 z-60 bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
-                        style={{
-                            opacity: (drawerPosition / 100) * 0.9,
-                            pointerEvents: drawerPosition > 0 ? 'auto' : 'none',
-                        }}
-                        onClick={handleClose}
-                    />
-                    <div
-                        className={`fixed left-0 right-0 z-60 bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
-                        style={{
-                            height: mobileHeight,
-                            maxHeight: mobileHeight,
-                            marginLeft: mobileHorizontalPadding,
-                            marginRight: mobileHorizontalPadding,
-                            marginBottom: mobileBottomPadding,
-                            width: drawerStage === 'partial' ? 'calc(100% - 1rem)' : '100%',
-                            bottom: 0,
-                            transform: `translateY(${mobileTranslateY}%)`,
-                            opacity: mobileOpacity,
-                            borderRadius: mobileBorderRadius,
-                            willChange: isDragging ? 'transform' : 'auto',
-                            boxShadow: mobileBoxShadow,
-                            overflow: 'hidden',
-                            visibility: isVisible ? 'visible' : 'hidden',
-                        }}
-                        onTouchStart={handleDragStart}
-                        onTouchMove={handleDragMove}
-                        onTouchEnd={handleDragEnd}
-                        onMouseDown={handleDragStart}
-                        onMouseMove={handleDragMove}
-                        onMouseUp={handleDragEnd}
-                        onMouseLeave={handleDragEnd}
-                    >
-                        <NoteImportContent
-                            onClose={handleClose}
-                            isMobile={isMobile}
-                            state={contentState}
-                            setState={setContentState}
-                        />
-                    </div>
-                </>
-            ) : (
-                // Desktop modal
-                <div
-                    className={`fixed inset-0 z-60 flex items-start justify-center transition-all duration-300 ease-out ${isVisible
-                        ? 'visible pointer-events-auto'
-                        : 'invisible pointer-events-none'
-                        }`}
-                    onClick={onClose}
-                >
-                    <div className="max-w-315 w-full relative">
-                        <div
-                            className={`absolute right-2 top-2 z-60
-                            flex flex-col rounded-xl
-                            border border-tertiary/20
-                            shadow-[0_2px_4px_0] shadow-themewhite2/20
-                            backdrop-blur-md bg-themewhite2/10
-                            transform-gpu
-                            overflow-hidden
-                            text-primary/80 text-sm
-                            origin-top-right
-                            transition-all duration-300 ease-out
-                            max-w-md
-                            w-full
-                            ${isVisible
-                                    ? "scale-x-100 scale-y-100 translate-x-0 translate-y-0"
-                                    : "opacity-0 scale-x-20 scale-y-20 translate-x-10 -translate-y-2 pointer-events-none"
-                                }`}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <NoteImportContent
-                                onClose={onClose}
-                                isMobile={isMobile}
-                                state={contentState}
-                                setState={setContentState}
-                            />
-                        </div>
-                    </div>
-                </div>
+        <BaseDrawer
+            isVisible={isVisible}
+            onClose={onClose}
+            isMobile={externalIsMobile}
+            partialHeight="40dvh"
+            fullHeight="90dvh"
+            backdropOpacity={0.9}
+            desktopPosition="right"
+            desktopContainerMaxWidth="max-w-315"
+            desktopMaxWidth="max-w-md"
+            desktopPanelPadding=""
+            mobilePartialPadding="0.5rem"
+        >
+            {(handleClose) => (
+                <NoteImportContent
+                    onClose={handleClose}
+                    isMobile={externalIsMobile ?? (typeof window !== 'undefined' && window.innerWidth < 768)}
+                    state={contentState}
+                    setState={setContentState}
+                />
             )}
-        </div>
+        </BaseDrawer>
     );
 }

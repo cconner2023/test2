@@ -13,22 +13,9 @@ before proceeding.
 
 ## REQUIRED FEATURE COUNT
 
-**CRITICAL:** You must create exactly **51** features using the `feature_create_bulk` tool.
+**CRITICAL:** You must create exactly **[FEATURE_COUNT]** features using the `feature_create_bulk` tool.
 
 This number was determined during spec creation and must be followed precisely. Do not create more or fewer features than specified.
-
----
-
-## PROJECT CONTEXT
-
-This is an **existing front-end PWA** (React 19, TypeScript, Vite 7, Tailwind CSS 4) for medical triage.
-The project already has a working codebase with components, hooks, types, utilities, and data files.
-
-**The goal is refactoring, cleaning, and optimizing** — NOT building from scratch.
-
-**CRITICAL DATA POLICY:** Files in `src/Data/` (Algorithms.ts, CatData.ts, MedData.ts, Release.ts)
-contain verbatim MEDCOM PAM content and MUST NOT be modified, refactored, or reformatted.
-All work applies to components, hooks, utilities, types, and configuration only.
 
 ---
 
@@ -47,14 +34,17 @@ Use the feature_create_bulk tool to add all features at once. You can create fea
 
 **Requirements for features:**
 
-- Feature count must match the `feature_count` specified in app_spec.txt (51 features)
-- **NO infrastructure/database features** — this is a stateless front-end app
+- Feature count must match the `feature_count` specified in app_spec.txt
+- Reference tiers for other projects:
+  - **Simple apps**: ~165 tests (includes 5 infrastructure)
+  - **Medium apps**: ~265 tests (includes 5 infrastructure)
+  - **Advanced apps**: ~405+ tests (includes 5 infrastructure)
 - Both "functional" and "style" categories
 - Mix of narrow tests (2-5 steps) and comprehensive tests (10+ steps)
-- At least 10 tests MUST have 10+ steps each
+- At least 25 tests MUST have 10+ steps each (more for complex apps)
 - Order features by priority: fundamental features first (the API assigns priority based on order)
 - Cover every feature in the spec exhaustively
-- Features should verify existing functionality works AND that code is clean/optimized
+- **MUST include tests from ALL 20 mandatory categories below**
 
 ---
 
@@ -62,7 +52,7 @@ Use the feature_create_bulk tool to add all features at once. You can create fea
 
 Dependencies enable **parallel execution** of independent features. When specified correctly, multiple agents can work on unrelated features simultaneously, dramatically speeding up development.
 
-**Why this matters:** Without dependencies, features execute in random order, causing logical issues and preventing efficient parallelization.
+**Why this matters:** Without dependencies, features execute in random order, causing logical issues (e.g., "Edit user" before "Create user") and preventing efficient parallelization.
 
 ### Dependency Rules
 
@@ -70,17 +60,18 @@ Dependencies enable **parallel execution** of independent features. When specifi
 2. **Can only depend on EARLIER features** (index must be less than current position)
 3. **No circular dependencies** allowed
 4. **Maximum 20 dependencies** per feature
-5. **Foundation features (indices 0-2)** have NO dependencies - they run FIRST
-6. **60% of features after index 5** should have additional dependencies beyond foundation
+5. **Infrastructure features (indices 0-4)** have NO dependencies - they run FIRST
+6. **ALL features after index 4** MUST depend on `[0, 1, 2, 3, 4]` (infrastructure)
+7. **60% of features after index 10** should have additional dependencies beyond infrastructure
 
 ### Dependency Types
 
 | Type | Example |
 |------|---------|
-| Navigation | "Subcategory view works" depends on "Category list renders" |
-| UI | "Search results navigate correctly" depends on "Search returns results" |
-| Component | "Drawer drag works" depends on "Drawer opens" |
-| Flow | "Algorithm disposition computed" depends on "Algorithm cards render" |
+| Data | "Edit item" depends on "Create item" |
+| Auth | "View dashboard" depends on "User can log in" |
+| Navigation | "Modal close works" depends on "Modal opens" |
+| UI | "Filter results" depends on "Display results list" |
 
 ### Wide Graph Pattern (REQUIRED)
 
@@ -88,52 +79,228 @@ Create WIDE dependency graphs, not linear chains:
 - **BAD:** A -> B -> C -> D -> E (linear chain, only 1 feature runs at a time)
 - **GOOD:** A -> B, A -> C, A -> D, B -> E, C -> E (wide graph, parallel execution)
 
-### Example for This Project
+### Complete Example
 
 ```json
 [
-  // FOUNDATION TIER (indices 0-2, no dependencies) - MUST run first
-  { "name": "App loads without console errors", "category": "functional" },
-  { "name": "All 10 categories render in main list", "category": "functional" },
-  { "name": "Navigation bar displays with search and menu", "category": "functional" },
+  // INFRASTRUCTURE TIER (indices 0-4, no dependencies) - MUST run first
+  { "name": "Database connection established", "category": "functional" },
+  { "name": "Database schema applied correctly", "category": "functional" },
+  { "name": "Data persists across server restart", "category": "functional" },
+  { "name": "No mock data patterns in codebase", "category": "functional" },
+  { "name": "Backend API queries real database", "category": "functional" },
 
-  // NAVIGATION TIER (indices 3-5, depend on foundation) - WIDE: all depend on 0-2
-  { "name": "Category selection shows subcategory symptoms", "depends_on_indices": [0, 1] },
-  { "name": "Back navigation returns to previous view", "depends_on_indices": [0, 1, 2] },
-  { "name": "Side menu opens and closes", "depends_on_indices": [0, 2] },
+  // FOUNDATION TIER (indices 5-7, depend on infrastructure)
+  { "name": "App loads without errors", "category": "functional", "depends_on_indices": [0, 1, 2, 3, 4] },
+  { "name": "Navigation bar displays", "category": "style", "depends_on_indices": [0, 1, 2, 3, 4] },
+  { "name": "Homepage renders correctly", "category": "functional", "depends_on_indices": [0, 1, 2, 3, 4] },
 
-  // TRIAGE TIER (indices 6+, depend on navigation)
-  { "name": "Algorithm page renders for selected symptom", "depends_on_indices": [0, 1, 3] },
-  { "name": "Choice cards present selectable options", "depends_on_indices": [0, 6] },
-  // ... etc
+  // AUTH TIER (indices 8-10, depend on foundation + infrastructure)
+  { "name": "User can register", "depends_on_indices": [0, 1, 2, 3, 4, 5] },
+  { "name": "User can login", "depends_on_indices": [0, 1, 2, 3, 4, 5, 8] },
+  { "name": "User can logout", "depends_on_indices": [0, 1, 2, 3, 4, 9] },
+
+  // CORE CRUD TIER (indices 11-14) - WIDE GRAPH: all 4 depend on login
+  { "name": "User can create todo", "depends_on_indices": [0, 1, 2, 3, 4, 9] },
+  { "name": "User can view todos", "depends_on_indices": [0, 1, 2, 3, 4, 9] },
+  { "name": "User can edit todo", "depends_on_indices": [0, 1, 2, 3, 4, 9, 11] },
+  { "name": "User can delete todo", "depends_on_indices": [0, 1, 2, 3, 4, 9, 11] },
+
+  // ADVANCED TIER (indices 15-16) - both depend on view, not each other
+  { "name": "User can filter todos", "depends_on_indices": [0, 1, 2, 3, 4, 12] },
+  { "name": "User can search todos", "depends_on_indices": [0, 1, 2, 3, 4, 12] }
 ]
 ```
 
-**Result:** With parallel agents, independent feature areas (search, medications, settings) can be worked on simultaneously.
+**Result:** With 3 parallel agents, this project completes efficiently with proper database validation first.
 
 ---
 
-## FEATURE CATEGORIES FOR THIS PROJECT
+## MANDATORY INFRASTRUCTURE FEATURES (Indices 0-4)
 
-Since this is a **front-end only, stateless PWA**, the features should be organized into these categories (adapted from the standard list for front-end context):
+**CRITICAL:** Create these FIRST, before any functional features. These features ensure the application uses a real database, not mock data or in-memory storage.
 
-| Category | Count | Description |
-|----------|-------|-------------|
-| **B. Navigation Integrity** | ~7 | Category/subcategory navigation, back button, view transitions, menu |
-| **C. Data Verification** | ~10 | All 86 algorithms render, 136 medications display, data integrity |
-| **D. Workflow Completeness** | ~6 | Complete triage flow, note capture round-trip, barcode generation |
-| **E. Error Handling** | ~3 | Camera permission errors, graceful degradation, edge cases |
-| **G. State Management** | ~3 | Algorithm state reset, theme persistence, view state consistency |
-| **K. Default & Reset** | ~2 | Algorithm reset on symptom change, default theme behavior |
-| **L. Search** | ~5 | Search index, filtering, result types, edge cases |
-| **N. Feedback & Notification** | ~2 | PWA update notification, loading states |
-| **O. Responsive & Layout** | ~5 | Desktop grid, mobile layout, drawer behavior, safe areas |
-| **P. Accessibility** | ~2 | Touch targets, ARIA labels |
-| **S. Export/Import** | ~3 | Barcode encode/decode, note import/export |
-| **T. Performance** | ~3 | Animation smoothness, search speed, bundle optimization |
-| **TOTAL** | **51** | |
+| Index | Name | Test Steps |
+|-------|------|------------|
+| 0 | Database connection established | Start server → check logs for DB connection → health endpoint returns DB status |
+| 1 | Database schema applied correctly | Connect to DB directly → list tables → verify schema matches spec |
+| 2 | Data persists across server restart | Create via API → STOP server completely → START server → query API → data still exists |
+| 3 | No mock data patterns in codebase | Run grep for prohibited patterns → must return empty |
+| 4 | Backend API queries real database | Check server logs → SQL/DB queries appear for API calls |
 
-Adjust counts as needed to total exactly 51, ensuring comprehensive coverage of the app_spec.txt.
+**ALL other features MUST depend on indices [0, 1, 2, 3, 4].**
+
+### Infrastructure Feature Descriptions
+
+**Feature 0 - Database connection established:**
+```text
+Steps:
+1. Start the development server
+2. Check server logs for database connection message
+3. Call health endpoint (e.g., GET /api/health)
+4. Verify response includes database status: connected
+```
+
+**Feature 1 - Database schema applied correctly:**
+```text
+Steps:
+1. Connect to database directly (sqlite3, psql, etc.)
+2. List all tables in the database
+3. Verify tables match what's defined in app_spec.txt
+4. Verify key columns exist on each table
+```
+
+**Feature 2 - Data persists across server restart (CRITICAL):**
+```text
+Steps:
+1. Create unique test data via API (e.g., POST /api/items with name "RESTART_TEST_12345")
+2. Verify data appears in API response (GET /api/items)
+3. STOP the server completely (kill by port to avoid killing unrelated Node processes):
+   - Unix/macOS: lsof -ti :$PORT | xargs kill -9 2>/dev/null || true && sleep 5
+   - Windows: FOR /F "tokens=5" %a IN ('netstat -aon ^| find ":$PORT"') DO taskkill /F /PID %a 2>nul
+   - Note: Replace $PORT with actual port (e.g., 3000)
+4. Verify server is stopped: lsof -ti :$PORT returns nothing (or netstat on Windows)
+5. RESTART the server: ./init.sh & sleep 15
+6. Query API again: GET /api/items
+7. Verify "RESTART_TEST_12345" still exists
+8. If data is GONE → CRITICAL FAILURE (in-memory storage detected)
+9. Clean up test data
+```
+
+**Feature 3 - No mock data patterns in codebase:**
+```text
+Steps:
+1. Run: grep -r "globalThis\." --include="*.ts" --include="*.tsx" --include="*.js" src/
+2. Run: grep -r "dev-store\|devStore\|DevStore\|mock-db\|mockDb" --include="*.ts" --include="*.tsx" --include="*.js" src/
+3. Run: grep -r "mockData\|testData\|fakeData\|sampleData\|dummyData" --include="*.ts" --include="*.tsx" --include="*.js" src/
+4. Run: grep -r "TODO.*real\|TODO.*database\|TODO.*API\|STUB\|MOCK" --include="*.ts" --include="*.tsx" --include="*.js" src/
+5. Run: grep -r "isDevelopment\|isDev\|process\.env\.NODE_ENV.*development" --include="*.ts" --include="*.tsx" --include="*.js" src/
+6. Run: grep -r "new Map\(\)\|new Set\(\)" --include="*.ts" --include="*.tsx" --include="*.js" src/ 2>/dev/null
+7. Run: grep -E "json-server|miragejs|msw" package.json
+8. ALL grep commands must return empty (exit code 1)
+9. If any returns results → investigate and fix before passing
+```
+
+**Feature 4 - Backend API queries real database:**
+```text
+Steps:
+1. Start server with verbose logging
+2. Make API call (e.g., GET /api/items)
+3. Check server logs
+4. Verify SQL query appears (SELECT, INSERT, etc.) or ORM query log
+5. If no DB queries in logs → implementation is using mock data
+```
+
+---
+
+## MANDATORY TEST CATEGORIES
+
+The feature_list.json **MUST** include tests from ALL 20 categories. Minimum counts scale by complexity tier.
+
+### Category Distribution by Complexity Tier
+
+| Category                         | Simple  | Medium  | Advanced |
+| -------------------------------- | ------- | ------- | -------- |
+| **0. Infrastructure (REQUIRED)** | 5       | 5       | 5        |
+| A. Security & Access Control     | 5       | 20      | 40       |
+| B. Navigation Integrity          | 15      | 25      | 40       |
+| C. Real Data Verification        | 20      | 30      | 50       |
+| D. Workflow Completeness         | 10      | 20      | 40       |
+| E. Error Handling                | 10      | 15      | 25       |
+| F. UI-Backend Integration        | 10      | 20      | 35       |
+| G. State & Persistence           | 8       | 10      | 15       |
+| H. URL & Direct Access           | 5       | 10      | 20       |
+| I. Double-Action & Idempotency   | 5       | 8       | 15       |
+| J. Data Cleanup & Cascade        | 5       | 10      | 20       |
+| K. Default & Reset               | 5       | 8       | 12       |
+| L. Search & Filter Edge Cases    | 8       | 12      | 20       |
+| M. Form Validation               | 10      | 15      | 25       |
+| N. Feedback & Notification       | 8       | 10      | 15       |
+| O. Responsive & Layout           | 8       | 10      | 15       |
+| P. Accessibility                 | 8       | 10      | 15       |
+| Q. Temporal & Timezone           | 5       | 8       | 12       |
+| R. Concurrency & Race Conditions | 5       | 8       | 15       |
+| S. Export/Import                 | 5       | 6       | 10       |
+| T. Performance                   | 5       | 5       | 10       |
+| **TOTAL**                        | **165** | **265** | **405+** |
+
+---
+
+### Category Descriptions
+
+**0. Infrastructure (REQUIRED - Priority 0)** - Database connectivity, schema existence, data persistence across server restart, absence of mock patterns. These features MUST pass before any functional features can begin. All tiers require exactly 5 infrastructure features (indices 0-4).
+
+**A. Security & Access Control** - Test unauthorized access blocking, permission enforcement, session management, role-based access, and data isolation between users.
+
+**B. Navigation Integrity** - Test all buttons, links, menus, breadcrumbs, deep links, back button behavior, 404 handling, and post-login/logout redirects.
+
+**C. Real Data Verification** - Test data persistence across refreshes and sessions, CRUD operations with unique test data, related record updates, and empty states.
+
+**D. Workflow Completeness** - Test end-to-end CRUD for every entity, state transitions, multi-step wizards, bulk operations, and form submission feedback.
+
+**E. Error Handling** - Test network failures, invalid input, API errors, 404/500 responses, loading states, timeouts, and user-friendly error messages.
+
+**F. UI-Backend Integration** - Test request/response format matching, database-driven dropdowns, cascading updates, filters/sorts with real data, and API error display.
+
+**G. State & Persistence** - Test refresh mid-form, session recovery, multi-tab behavior, back-button after submit, and unsaved changes warnings.
+
+**H. URL & Direct Access** - Test URL manipulation security, direct route access by role, malformed parameters, deep links to deleted entities, and shareable filter URLs.
+
+**I. Double-Action & Idempotency** - Test double-click submit, rapid delete clicks, back-and-resubmit, button disabled during processing, and concurrent submissions.
+
+**J. Data Cleanup & Cascade** - Test parent deletion effects on children, removal from search/lists/dropdowns, statistics updates, and soft vs hard delete behavior.
+
+**K. Default & Reset** - Test form defaults, sensible date picker defaults, dropdown placeholders, reset button behavior, and filter/pagination reset on context change.
+
+**L. Search & Filter Edge Cases** - Test empty search, whitespace-only, special characters, quotes, long strings, zero-result combinations, and filter persistence.
+
+**M. Form Validation** - Test required fields, email/password/numeric/date formats, min/max constraints, uniqueness, specific error messages, and server-side validation.
+
+**N. Feedback & Notification** - Test success/error feedback for all actions, loading spinners, disabled buttons during submit, progress indicators, and toast behavior.
+
+**O. Responsive & Layout** - Test layouts at desktop (1920px), tablet (768px), and mobile (375px), no horizontal scroll, touch targets, modal fit, and text overflow.
+
+**P. Accessibility** - Test tab navigation, focus rings, screen reader compatibility, ARIA labels, color contrast, labels on form fields, and error announcements.
+
+**Q. Temporal & Timezone** - Test timezone-aware display, accurate timestamps, date picker constraints, overdue detection, and date sorting across boundaries.
+
+**R. Concurrency & Race Conditions** - Test concurrent edits, viewing deleted records, pagination during updates, rapid navigation, and late API response handling.
+
+**S. Export/Import** - Test full/filtered export, import with valid/duplicate/malformed files, and round-trip data integrity.
+
+**T. Performance** - Test page load with 100/1000 records, search response time, infinite scroll stability, upload progress, and memory/console errors.
+
+---
+
+## ABSOLUTE PROHIBITION: NO MOCK DATA
+
+The feature_list.json must include tests that **actively verify real data** and **detect mock data patterns**.
+
+**Include these specific tests:**
+
+1. Create unique test data (e.g., "TEST_12345_VERIFY_ME")
+2. Verify that EXACT data appears in UI
+3. Refresh page - data persists
+4. Delete data - verify it's gone
+5. If data appears that wasn't created during test - FLAG AS MOCK DATA
+
+**The agent implementing features MUST NOT use:**
+
+- Hardcoded arrays of fake data
+- `mockData`, `fakeData`, `sampleData`, `dummyData` variables
+- `// TODO: replace with real API`
+- `setTimeout` simulating API delays with static data
+- Static returns instead of database queries
+
+**Additional prohibited patterns (in-memory stores):**
+
+- `globalThis.` (in-memory storage pattern)
+- `dev-store`, `devStore`, `DevStore` (development stores)
+- `json-server`, `mirage`, `msw` (mock backends)
+- `Map()` or `Set()` used as primary data store
+- Environment checks like `if (process.env.NODE_ENV === 'development')` for data routing
+
+**Why this matters:** In-memory stores (like `globalThis.devStore`) will pass simple tests because data persists during a single server run. But data is LOST on server restart, which is unacceptable for production. The Infrastructure features (0-4) specifically test for this by requiring data to survive a full server restart.
 
 ---
 
@@ -143,37 +310,45 @@ Features can ONLY be marked as passing (via the `feature_mark_passing` tool with
 Never remove features, never edit descriptions, never modify testing steps.
 This ensures no functionality is missed.
 
-### SECOND TASK: Verify Existing Project Structure
+### SECOND TASK: Create init.sh
 
-Since this is an existing project, do NOT create init.sh or initialize git from scratch.
-Instead:
+Create a script called `init.sh` that future agents can use to quickly
+set up and run the development environment. The script should:
 
-1. Read the existing project structure
-2. Verify the codebase matches what's described in app_spec.txt
-3. Note any discrepancies for the coding agents
+1. Install any required dependencies
+2. Start any necessary servers or services
+3. Print helpful information about how to access the running application
 
-### THIRD TASK: Commit Initialization
+Base the script on the technology stack specified in `app_spec.txt`.
 
-If a git repository already exists:
-1. Commit the app_spec.txt and any changes with message: "Add project specification for refactoring pass"
+### THIRD TASK: Initialize Git
 
-If no git repository exists:
-1. Initialize git
-2. Create appropriate .gitignore (node_modules, dist, dev-dist, .env)
-3. Commit with message: "Initial setup: project structure and features created via API"
+Create a git repository and make your first commit with:
+
+- init.sh (environment setup script)
+- README.md (project overview and setup instructions)
+- Any initial project structure files
+
+Note: Features are stored in the SQLite database (features.db), not in a JSON file.
+
+Commit message: "Initial setup: init.sh, project structure, and features created via API"
+
+### FOURTH TASK: Create Project Structure
+
+Set up the basic project structure based on what's specified in `app_spec.txt`.
+This typically includes directories for frontend, backend, and any other
+components mentioned in the spec.
 
 ### ENDING THIS SESSION
 
-Once you have completed the tasks above:
+Once you have completed the four tasks above:
 
 1. Commit all work with a descriptive message
 2. Verify features were created using the feature_get_stats tool
 3. Leave the environment in a clean, working state
 4. Exit cleanly
 
-**IMPORTANT:** Do NOT attempt to implement any features or modify source code. Your job is setup only.
+**IMPORTANT:** Do NOT attempt to implement any features. Your job is setup only.
 Feature implementation will be handled by parallel coding agents that spawn after
 you complete initialization. Starting implementation here would create a bottleneck
 and defeat the purpose of the parallel architecture.
-
-**ALSO IMPORTANT:** Do NOT modify any files in src/Data/. These contain verbatim MEDCOM PAM data.

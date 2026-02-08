@@ -152,8 +152,21 @@ Use the feature_mark_passing tool with feature_id=42
 Make a descriptive git commit.
 
 **Git Commit Rules:**
-- DO NOT COMMIT TO GIT
-- you can npm run build or commit local. do not push to github
+- ALWAYS use simple `-m` flag for commit messages
+- NEVER use heredocs (`cat <<EOF` or `<<'EOF'`) - they fail in sandbox mode with "can't create temp file for here document: operation not permitted"
+- For multi-line messages, use multiple `-m` flags:
+
+```bash
+git add .
+git commit -m "Implement [feature name] - verified end-to-end" -m "- Added [specific changes]" -m "- Tested with browser automation" -m "- Marked feature #X as passing"
+```
+
+Or use a single descriptive message:
+
+```bash
+git add .
+git commit -m "feat: implement [feature name] with browser verification"
+```
 
 ### STEP 8: UPDATE PROGRESS NOTES
 

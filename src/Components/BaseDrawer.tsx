@@ -1,17 +1,39 @@
 // components/BaseDrawer.tsx
 import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 
+/** Render prop type: children can receive handleClose for animated close */
+type DrawerRenderProp = (handleClose: () => void) => ReactNode;
+
 interface BaseDrawerProps {
     isVisible: boolean;
     onClose: () => void;
     isMobile?: boolean;
-    children: ReactNode;
+    /** Children can be ReactNode or a render function receiving handleClose */
+    children: ReactNode | DrawerRenderProp;
     initialStage?: 'partial' | 'full';
     partialHeight?: string;
     fullHeight?: string;
     desktopWidth?: string;
     desktopMaxWidth?: string;
     disableDrag?: boolean;
+    /** Backdrop opacity at full visibility. Default 0.9 */
+    backdropOpacity?: number;
+    /** Desktop panel origin position. Default 'right' */
+    desktopPosition?: 'left' | 'right';
+    /** Outer container max-width class for desktop. Default 'max-w-315' */
+    desktopContainerMaxWidth?: string;
+    /** Fixed height class for desktop panel. Default '' (auto) */
+    desktopHeight?: string;
+    /** If true, only render mobile drawer (no desktop modal). Default false */
+    mobileOnly?: boolean;
+    /** Extra className for the mobile drawer container */
+    mobileClassName?: string;
+    /** Horizontal padding in partial stage. Default '0.4rem' */
+    mobilePartialPadding?: string;
+    /** Desktop inner panel padding overrides. Default 'py-3 pl-3 pr-5' */
+    desktopPanelPadding?: string;
+    /** z-index class for mobile backdrop and drawer. Default 'z-60' */
+    zIndex?: string;
 }
 
 export function BaseDrawer({
@@ -24,7 +46,16 @@ export function BaseDrawer({
     fullHeight = '90dvh',
     desktopWidth = 'w-full',
     desktopMaxWidth = 'max-w-md',
-    disableDrag = false
+    disableDrag = false,
+    backdropOpacity = 0.9,
+    desktopPosition = 'right',
+    desktopContainerMaxWidth = 'max-w-315',
+    desktopHeight = '',
+    mobileOnly = false,
+    mobileClassName = '',
+    mobilePartialPadding = '0.4rem',
+    desktopPanelPadding = 'py-3 pl-3 pr-5',
+    zIndex = 'z-60',
 }: BaseDrawerProps) {
     const [localIsMobile, setLocalIsMobile] = useState(false);
     const isMobile = externalIsMobile ?? localIsMobile;
@@ -56,13 +87,15 @@ export function BaseDrawer({
         if (isVisible) {
             setIsMounted(true);
             setDrawerStage(initialStage);
-            setDrawerPosition(0); // Start from bottom for animation
+            setDrawerPosition(isMobile ? 0 : 100);
             document.body.style.overflow = 'hidden';
 
-            // Start opening animation
-            setTimeout(() => {
-                setDrawerPosition(100);
-            }, 10);
+            if (isMobile) {
+                // Start opening animation for mobile
+                setTimeout(() => {
+                    setDrawerPosition(100);
+                }, 10);
+            }
         } else {
             // Start closing animation
             setDrawerPosition(0);
@@ -77,7 +110,7 @@ export function BaseDrawer({
             animationFrameId.current && cancelAnimationFrame(animationFrameId.current);
             timeoutRef.current && clearTimeout(timeoutRef.current);
         };
-    }, [isVisible, initialStage]);
+    }, [isVisible, initialStage, isMobile]);
 
     const animateToPosition = useCallback((targetPosition: number) => {
         if (animationFrameId.current) {
@@ -191,26 +224,39 @@ export function BaseDrawer({
         translateY: 100 - drawerPosition,
         opacity: Math.min(1, drawerPosition / 60 + 0.2),
         height: drawerStage === 'partial' ? partialHeight : fullHeight,
-        horizontalPadding: drawerStage === 'partial' ? '0.4rem' : '0',
+        horizontalPadding: drawerStage === 'partial' ? mobilePartialPadding : '0',
         bottomPadding: drawerStage === 'partial' ? '1.5rem' : '0',
         borderRadius: drawerStage === 'partial' ? '1rem' : '1.25rem 1.25rem 0 0',
         boxShadow: drawerStage === 'partial'
             ? '0 4px 2px rgba(0, 0, 0, 0.05)'
             : '0 -4px 20px rgba(0, 0, 0, 0.1)',
-        width: drawerStage === 'partial' ? 'calc(100% - 0.8rem)' : '100%',
+        width: drawerStage === 'partial' ? `calc(100% - ${parseFloat(mobilePartialPadding) * 2}rem)` : '100%',
     };
+
+    // Desktop position-dependent classes
+    const desktopPositionClass = desktopPosition === 'left' ? 'left-2 top-2' : 'right-2 top-2';
+    const desktopOriginClass = desktopPosition === 'left' ? 'origin-top-left' : 'origin-top-right';
+    const desktopHiddenTransform = desktopPosition === 'left'
+        ? 'opacity-0 scale-x-20 scale-y-20 -translate-x-10 -translate-y-2 pointer-events-none'
+        : 'opacity-0 scale-x-20 scale-y-20 translate-x-10 -translate-y-2 pointer-events-none';
+    const desktopVisibleTransform = 'scale-x-100 scale-y-100 translate-x-0 translate-y-0';
+
+    // Resolve children: support both ReactNode and render prop
+    const resolvedChildren = typeof children === 'function'
+        ? (children as DrawerRenderProp)(handleClose)
+        : children;
 
     if (!isMounted && !isVisible) return null;
 
     return (
         <>
             {/* Mobile Drawer */}
-            <div className="md:hidden">
+            <div className={mobileOnly ? '' : 'md:hidden'}>
                 {/* Backdrop */}
                 <div
-                    className={`fixed inset-0 z-60 bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
+                    className={`fixed inset-0 ${zIndex} bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
                     style={{
-                        opacity: (drawerPosition / 100) * 0.9,
+                        opacity: (drawerPosition / 100) * backdropOpacity,
                         pointerEvents: drawerPosition > 0 ? 'auto' : 'none',
                     }}
                     onClick={handleClose}
@@ -218,7 +264,7 @@ export function BaseDrawer({
 
                 {/* Drawer Container */}
                 <div
-                    className={`fixed left-0 right-0 z-70 bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'}`}
+                    className={`fixed left-0 right-0 ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName}`}
                     style={{
                         height: mobileStyles.height,
                         maxHeight: mobileStyles.height,
@@ -243,42 +289,44 @@ export function BaseDrawer({
                     onMouseUp={handleDragInteraction.end}
                     onMouseLeave={handleDragInteraction.end}
                 >
-                    {children}
+                    {resolvedChildren}
                 </div>
             </div>
 
             {/* Desktop Modal */}
-            <div className="hidden md:block">
-                <div
-                    className={`fixed inset-0 z-60 flex items-start justify-center transition-all duration-300 ease-out ${isVisible ? 'visible pointer-events-auto' : 'invisible pointer-events-none'
-                        }`}
-                    onClick={onClose}
-                >
-                    {/* Backdrop */}
+            {!mobileOnly && (
+                <div className="hidden md:block">
                     <div
-                        className={`absolute inset-0 bg-black transition-opacity duration-300 ease-out ${isVisible ? 'opacity-30' : 'opacity-0'
+                        className={`fixed inset-0 ${zIndex} flex items-start justify-center transition-all duration-300 ease-out ${isVisible ? 'visible pointer-events-auto' : 'invisible pointer-events-none'
                             }`}
-                    />
-
-                    {/* Modal Container */}
-                    <div className={`${desktopMaxWidth} ${desktopWidth} relative z-70`}>
+                        onClick={onClose}
+                    >
+                        {/* Backdrop */}
                         <div
-                            className={`absolute right-2 top-2 py-3 pl-3 pr-5
+                            className={`absolute inset-0 bg-black transition-opacity duration-300 ease-out ${isVisible ? 'opacity-30' : 'opacity-0'
+                                }`}
+                        />
+
+                        {/* Modal Container */}
+                        <div className={`${desktopContainerMaxWidth} ${desktopWidth} relative ${zIndex}`}>
+                            <div
+                                className={`absolute ${desktopPositionClass} ${desktopPanelPadding}
                 flex flex-col rounded-xl border border-tertiary/20
                 shadow-[0_2px_4px_0] shadow-themewhite2/20 backdrop-blur-md bg-themewhite2/10
                 transform-gpu overflow-hidden text-primary/80 text-sm
-                origin-top-right transition-all duration-300 ease-out w-full h-auto
+                ${desktopOriginClass} transition-all duration-300 ease-out ${desktopMaxWidth} w-full ${desktopHeight || 'h-auto'}
                 ${isVisible
-                                    ? "scale-100 opacity-100 translate-y-0"
-                                    : "scale-95 opacity-0 -translate-y-2"
-                                }`}
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            {children}
+                                        ? desktopVisibleTransform
+                                        : desktopHiddenTransform
+                                    }`}
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                {resolvedChildren}
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
+            )}
         </>
     );
 }

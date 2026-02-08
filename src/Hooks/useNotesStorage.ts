@@ -86,9 +86,23 @@ export function useNotesStorage() {
         setNotes([]);
     }, []);
 
+    const updateNote = useCallback((noteId: string, updates: Partial<Omit<SavedNote, 'id' | 'createdAt'>>): { success: boolean; error?: string } => {
+        const current = loadNotes();
+        const index = current.findIndex(n => n.id === noteId);
+        if (index === -1) return { success: false, error: 'Note not found.' };
+        current[index] = { ...current[index], ...updates };
+        const success = persistNotes(current);
+        if (success) {
+            setNotes(current);
+            return { success: true };
+        }
+        return { success: false, error: 'Failed to update note.' };
+    }, []);
+
     return {
         notes,
         saveNote,
+        updateNote,
         deleteNote,
         clearAllNotes,
         noteCount: notes.length,
