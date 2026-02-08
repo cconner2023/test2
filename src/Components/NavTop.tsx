@@ -1,5 +1,5 @@
 // NavTop.tsx - Simplified version with grouped props
-import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, BarChart3, HelpCircle } from "lucide-react";
+import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, FileText, HelpCircle } from "lucide-react";
 import { useRef, useEffect, useState } from "react";
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { menuData } from "../Data/CatData";
@@ -11,7 +11,7 @@ const iconMap: Record<string, React.ReactNode> = {
     'import': <Upload size={16} className="text-primary/70" />,
     'medications': <Pill size={16} className="text-primary/70" />,
     'Settings': <Settings size={16} className="text-primary/70" />,
-    'myNotes': <BarChart3 size={16} className="text-primary/70" />,
+    'myNotes': <FileText size={16} className="text-primary/70" />,
 };
 
 export function NavTop({ search, actions, ui }: NavTopProps) {
@@ -33,6 +33,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         onImportClick,
         onMedicationClick,
         onSettingsClick,
+        onMyNotesClick,
         onInfoClick,
     } = actions
 
@@ -79,6 +80,9 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                 break;
             case 'settings':
                 onSettingsClick?.();
+                break;
+            case 'mynotes':
+                onMyNotesClick?.();
                 break;
             default:
                 console.warn("Unknown menu action:", action);

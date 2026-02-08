@@ -23,6 +23,7 @@ export interface NavigationActions {
   onImportClick?: () => void
   onMedicationClick?: () => void
   onSettingsClick?: () => void
+  onMyNotesClick?: () => void
   onInfoClick?: () => void
 }
 

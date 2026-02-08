@@ -7,14 +7,17 @@ import { NoteImport } from './Components/NoteImport'
 import { ThemeProvider, useTheme } from './Utilities/ThemeContext'
 import { AlgorithmPage } from './Components/AlgorithmPage'
 import { WriteNotePage } from './Components/WriteNotePage'
+import type { NoteSaveData } from './Components/WriteNotePage'
 import type { SearchResultType } from './Types/CatTypes'
 import { useSearch } from './Hooks/useSearch'
 import { useNavigation } from './Hooks/useNavigation'
+import { useNotesStorage } from './Hooks/useNotesStorage'
 import { useAppAnimate } from './Utilities/AnimationConfig'
 import UpdateNotification from './Components/UpdateNotification'
 import { Settings } from './Components/Settings'
 import { SymptomInfoDrawer } from './Components/SymptomInfoDrawer'
 import { MedicationsDrawer } from './Components/MedicationsDrawer'
+import { MyNotes } from './Components/MyNotes'
 
 function AppContent() {
   const searchInputRef = useRef<HTMLInputElement>(null!)
@@ -24,6 +27,7 @@ function AppContent() {
 
   const navigation = useNavigation()
   const search = useSearch()
+  const notesStorage = useNotesStorage()
 
   // Sync search expansion when transitioning to mobile with active search text
   useEffect(() => {
@@ -81,6 +85,23 @@ function AppContent() {
     navigation.setShowSettings(true)
   }
 
+  // My Notes click handler
+  const handleMyNotesClick = () => {
+    navigation.setShowMyNotes(true)
+  }
+
+  // Note save handler
+  const handleNoteSave = useCallback((data: NoteSaveData) => {
+    notesStorage.saveNote({
+      encodedText: data.encodedText,
+      previewText: data.previewText,
+      symptomIcon: data.symptomIcon,
+      symptomText: data.symptomText,
+      dispositionType: data.dispositionType,
+      dispositionText: data.dispositionText,
+    })
+  }, [notesStorage])
+
   // Title logic
   const getTitle = () => {
     if (search.searchInput) return { title: "", show: false }
@@ -117,6 +138,7 @@ function AppContent() {
               onImportClick: handleImportClick,
               onMedicationClick: navigation.handleShowMedications,
               onSettingsClick: handleSettingsClick,
+              onMyNotesClick: handleMyNotesClick,
               onInfoClick: navigation.toggleSymptomInfo,
             }}
             ui={{
@@ -251,6 +273,13 @@ function AppContent() {
           selectedCategory={navigation.selectedCategory}
           onNavigate={handleNavigationClick}
         />
+        <MyNotes
+          isVisible={navigation.showMyNotes}
+          onClose={() => navigation.setShowMyNotes(false)}
+          isMobile={navigation.isMobile}
+          notes={notesStorage.notes}
+          onDeleteNote={notesStorage.deleteNote}
+        />
         {/* WriteNotePage - rendered at App level for proper z-index on mobile */}
         {navigation.isWriteNoteVisible && navigation.writeNoteData && (
           <div className={`${navigation.isMobile
@@ -265,9 +294,7 @@ function AppContent() {
               cardStates={navigation.writeNoteData.cardStates}
               isExpanded={true}
               onExpansionChange={navigation.closeWriteNote}
-              onNoteSave={(note: string) => {
-                console.log('Note saved:', note);
-              }}
+              onNoteSave={handleNoteSave}
               selectedSymptom={navigation.writeNoteData.selectedSymptom}
               isMobile={navigation.isMobile}
             />

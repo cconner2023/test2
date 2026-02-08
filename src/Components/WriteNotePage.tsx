@@ -12,6 +12,15 @@ export type DispositionType = dispositionType['type'];
 const PAGE_LABELS = ['Decision Making', 'Write Note', 'View Note', 'Share Note'];
 const TOTAL_PAGES = 4;
 
+export interface NoteSaveData {
+    encodedText: string;
+    previewText: string;
+    symptomIcon: string;
+    symptomText: string;
+    dispositionType: string;
+    dispositionText: string;
+}
+
 interface WriteNoteProps {
     disposition: {
         type: DispositionType;
@@ -22,7 +31,7 @@ interface WriteNoteProps {
     cardStates?: CardState[];
     isExpanded: boolean;
     onExpansionChange: (expanded: boolean) => void;
-    onNoteSave?: (note: string) => void;
+    onNoteSave?: (data: NoteSaveData) => void;
     selectedSymptom?: {
         icon: string;
         text: string;
@@ -47,6 +56,7 @@ export const WriteNotePage = ({
     const [includeHPI, setIncludeHPI] = useState<boolean>(false);
     const [encodedValue, setEncodedValue] = useState<string>('');
     const [isCopied, setIsCopied] = useState(false);
+    const [isSaved, setIsSaved] = useState(false);
 
     // Page navigation state (0=Decision Making, 1=Write Note, 2=View Note, 3=Share Note)
     const [currentPage, setCurrentPage] = useState(0);
@@ -135,8 +145,22 @@ export const WriteNotePage = ({
     const handleCopy = useCallback((text: string) => {
         navigator.clipboard.writeText(text);
         setIsCopied(true);
-        onNoteSave?.(text);
-    }, [onNoteSave]);
+    }, []);
+
+    // --- Save note handler ---
+    const handleSaveNote = useCallback(() => {
+        if (!encodedValue) return;
+        onNoteSave?.({
+            encodedText: encodedValue,
+            previewText: previewNote.slice(0, 200),
+            symptomIcon: selectedSymptom?.icon || '',
+            symptomText: selectedSymptom?.text || 'Note',
+            dispositionType: disposition.type,
+            dispositionText: disposition.text,
+        });
+        setIsSaved(true);
+        setTimeout(() => setIsSaved(false), 2500);
+    }, [encodedValue, previewNote, selectedSymptom, disposition, onNoteSave]);
 
     const handleClearNoteAndHide = () => {
         setNote('');
@@ -503,6 +527,34 @@ export const WriteNotePage = ({
                                     />
                                     <CopyButton onClick={() => handleCopy(encodedValue)} title="Copy encoded value" />
                                 </div>
+                                {/* Save to My Notes button */}
+                                {onNoteSave && (
+                                    <button
+                                        onClick={handleSaveNote}
+                                        disabled={isSaved || !encodedValue}
+                                        className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 active:scale-95
+                                            ${isSaved
+                                                ? 'bg-green-500/20 text-green-700 dark:text-green-300'
+                                                : 'bg-themewhite3 text-tertiary hover:bg-themeblue3/10 hover:text-themeblue3'
+                                            }`}
+                                    >
+                                        {isSaved ? (
+                                            <>
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                Saved to My Notes
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                                </svg>
+                                                Save to My Notes
+                                            </>
+                                        )}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
