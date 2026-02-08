@@ -2043,7 +2043,7 @@ export const catData: catDataTypes[] = [
                 id: 12,
                 icon: "J-12",
                 text: "Suture Removal",
-                gen: [{}],
+                gen: [{ text: 'Sutures should be removed after the skin edges have started to heal together. If sutures are left in too long, it can result in increased scar formation. If sutures are removed too early, the wound can reopen or pull apart at the edges resulting in a larger scar.' }],
                 medcom: [
                     medcomTrainingData[2],
                     medcomTrainingData[8],
@@ -2062,7 +2062,7 @@ export const catData: catDataTypes[] = [
                 id: 13,
                 icon: "J-13",
                 text: "Drug Rash, Contact Dermatitis",
-                gen: [{}],
+                gen: [{ text: 'Drugs can cause an acute rash of small red spots over the entire body in individuals who are sensitivity to them, like antibiotics or sulfonamides. Contact dermatitis results when the skin comes in contact with anything in the environment that causes an inflammatory reaction, like shoe materials, watchbands, earrings, and poison ivy. Contact area can present with burning, itching, redness, and fissures or vesicles. Poison ivy is the most common example of this group and related to an oil in the plant’s leaves. Symptoms usually develop within 24 to 48 hours of contact.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
                     TrainingStpData[5].options[1],
@@ -2084,7 +2084,7 @@ export const catData: catDataTypes[] = [
                 id: 14,
                 icon: "J-14",
                 text: "Burns/Sunburn",
-                gen: [{}],
+                gen: [{ text: 'A burn is defined as any injury to the outer layer of skin or deeper tissue caused by heat, chemicals, or electricity. Minor burns are characterized by redness, pain, and tenderness. More severe burns may not have these symptoms. Sunburn is generalized redness of the skin produced by overexposure to sunlight. Sunburns should be avoided due to repeat occurrences increasing the risk of permanent injury to the skin and increased risk of skin cancer.' }],
                 medcom: [
                     medcomTrainingData[2],
                     medcomTrainingData[17]
@@ -2108,7 +2108,7 @@ export const catData: catDataTypes[] = [
                 id: 15,
                 icon: "J-15",
                 text: "Friction Blisters on Feet",
-                gen: [{}],
+                gen: [{ text: 'Friction blisters are common and should be treated to prevent complications.' }],
                 medcom: [
                     medcomTrainingData[2],
                     medcomTrainingData[8],

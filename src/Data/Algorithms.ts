@@ -6399,23 +6399,19 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 text: 'Moderate to severe acne or acne on the back or interferes with wearing equipment requires evaluation for oral medications and temporary profile. Scarring and hyperpigmentation requires more aggressive therapy to avoid further permanent scarring. There can be psychological effects from acne. It is important to identify Soldiers that are very self-conscious and escalating the treatment regimen to quickly control the acne.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        disposition: [
-                            {
-                                ...Disposition[2],
-                            }
-                        ],
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -6599,7 +6595,7 @@ export const Algorithm: AlgorithmType[] = [
                                     text: 'Antifungal shampoo used daily (minimum of 2-3 x per week) or several weeks and remission is achieved. Manage stress levels. Spend time (a few minutes) outdoors in the sun (DO NOT sunbathe). RTC if mild dandruff is still present after 3-4 weeks of antifungal shampoo use, symptoms worsen, or new symptoms begin.',
                                     ancillaryFind: [
                                         {
-                                            type: 'med', modifier: 'selenium sulfide 1% shampoo'
+                                            type: 'med', modifier: 'selenium sulfide 2.5% shampoo'
                                         }
                                     ]
                                 }
@@ -6845,7 +6841,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
+                                ddx: ['diabetes', 'fungal infection', 'bacterial infection'],
                                 text: 'Diabetes can affect every part of the body, including the skin. Soldiers with diabetes are more susceptible to skin conditions such as bacterial infections and fungal infections. Although common infections can be self-treated, the Soldier should see a privileged provider to rule out other more serious diabetic related skin conditions.'
                             }
                         ],
@@ -6884,7 +6880,6 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
                                 text: 'Note: In the absence of any of the preceding conditions, minor-care is appropriate.'
                             },
                             {
@@ -7210,7 +7205,7 @@ export const Algorithm: AlgorithmType[] = [
                             },
                             {
                                 type: 'dmp',
-                                ddx: ['sepsis', 'bacterial infection', 'tetanus risk'],
+                                ddx: ['SIRS', 'bacterial infection', 'tetanus risk'],
                                 text: 'Systemic Inflammatory Response Syndrome (SIRS) criteria includes two of the following: heart rate over 90 bpm, respiratory rate over 20, Temp >100.4 or <96.8o F, or WBC >12,000 cells. SIRS criteria with a source of infection is sepsis and requires prompt treatment. Fever, red streaks, and oozing wounds indicate an infection that requires further evaluation and treatment. Puncture wounds, avulsions, from crushing or burns, and wounds contaminated with dirt, saliva, or feces require tetanus immunization if not given within last five years. Clean wounds require tetanus immunization if not given within last 10 years. High risk wounds increase the risk of complications. Bite wounds have a risk of infection. Lacerations over a joint, on the face, or on the hand or foot have a higher risk of complication from the laceration.'
                             }
                         ],
@@ -7242,6 +7237,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
+                                ddx: ['infection'],
                                 text: 'Erythema, warmth, and increased tenderness are signs of inflammation or an early infection that requires further evaluation. A laceration needs to be evaluated to determine if it needs to be closed.'
                             }
                         ],
@@ -7304,14 +7300,18 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['infection'],
+                                text: 'Fever, pus, or redness and swelling at the suture location can be a sign of a secondary infection. Refer the patient to the supervising privileged provider for further evaluation and treatment.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
@@ -7334,8 +7334,8 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['incomplete closure'],
+                                text: 'Incomplete closure should be referred to the AEM to determine the next step in wound care.'
                             }
                         ],
                         next: null,
@@ -7343,12 +7343,17 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        disposition: [Disposition[2]],
+                        disposition: [{ ...Disposition[2], modifier: 'remove sutures. ensure the same number of sutures are removed that were placed' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
+                                text: 'varies depending on the site of the laceration/site of repair. Suture should be removed when: The wound has healed (within 5 to 10 days). The suture line is clean. No purulent drainage, redness, or swelling is present. Document the appearance of the wound (sutured laceration) and number and type of sutures removed. Provide bacitracin if wound edges are still healing. Counsel the patient on wearing sunscreen and sensitivity of the scar to the sun with resulting hyperpigmentation for the first year.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'bacitracin for the scar. protect the scar from the sun. Wear sunscreen for three months to protect from discoloration. Source: up-to-date',
+                                    medFind: [medList[7]],
+                                }
                             }
                         ],
                         next: null,
@@ -7388,7 +7393,12 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems. NOTE: If a medication is causing the symptoms, the Soldier may need to be evaluated by a provider to find an alternative medication as needed.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['allergic reaction', 'anaphylaxis', 'vasculitis'],
+                                text: 'An allergic reaction can include swelling within the airway, wheezing and breathing problems, to anaphylaxis. Immediate stabilization and treatment is required. Blistering over the body and oral involvement are signs of a more serious drug reaction. Petechial rash and fever are signs of vasculitis (palpable purpura).'
                             }
                         ],
                         disposition: [
@@ -7402,13 +7412,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -7425,29 +7428,64 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['medication induced rash'],
+                                text: 'If the Soldier has not started a medication within the last two weeks, then the rash may not be from a medication. Further evaluation by the AEM is required. Itchy rash (likely hives) with other symptoms needs to be seen by the AEM for evaluation of a more serious reaction.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                ddx: ['hives (urticaria)'],
+                                text: 'caused by the release of histamine from mast cells often related to an allergic reaction and present with circumscribed, raised, red rash with central pallor that moves around. Treatment is avoidance of the irritating substance, if it can be identified. Diphenhydramine at bedtime can help with the symptoms and allow the Soldier to sleep. Provide up to a three day course of the medication.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Hives are common. Counsel to avoid offending agent. Discuss with AEM and notiy prescribing provider. Provide benadryl three times a day for 3 days. RTC for worsening symptoms, development of new symptoms, or other concerns',
+                                    medFind: [medList[14]],
+                                    specLim: ['avoidance of offending agent', 'use latex free gloves or moisturizing soap']
+                                }
+                            },
                             {
-                                ...Disposition[2],
+                                type: 'dmp',
+                                ddx: ['irritant contact dermatitis'],
+                                text: 'presents with burning, redness, and may progress to fissures of the skin. Treatment is with avoidance of the irritating substance. Skin lotion to help the skin retain moisture and heal. Hydrocortisone ointment PRN inflammation',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'should be treated with avoidance and skin moisturizing lotiion or cetaphil body wash with the addition of hydrocortisone ointment three times a day if needed for 1-2 weeks. RTC for worsening symptoms, development of new symptoms, or other concerns',
+                                    medFind: [medList[21]],
+                                    ancillaryFind: [
+                                        { type: 'med', modifier: 'moisturizing lotion' },
+                                        { type: 'med', modifier: 'cetaphil body wash' },
+                                    ],
+                                    specLim: ['avoidance of offending agent', 'use latex free gloves or moisturizing soap']
+
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['allergic contact dermatitis'],
+                                text: 'presents with red, itchy well demarcated area with vesicles, bumps, or scaly skin. Treatment is with avoidance of the irritating substance. Hydrocortisone cream or burrow’s solution compresses can help with the irritation and itching. RTC for worsening symptoms, development of new symptoms, or other concerns',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Hives are common. Counsel to avoid offending agent. Discuss with AEM and notiy prescribing provider. Provide benadryl three times a day for 3 days',
+                                    medFind: [medList[21], medList[5]],
+                                    specLim: ['avoidance of offending agent', 'use latex free gloves or moisturizing soap']
+
+                                }
+                            },
+                            {
+                                type: 'mcp',
+                                ddx: ['medication-induced'],
+                                text: 'if a medication is causing the symptoms, the Soldier may need to be evaluated by a provider to find an alternative medication as needed.'
                             }
                         ],
                         next: null,
@@ -7484,17 +7522,16 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[0], modifier: 'provide emergency resuscitation before transport' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
                             {
-                                ...Disposition[0],
-                                modifier: "action placeholder"
+                                type: 'dmp',
+                                ddx: ['smoke inhalation', 'compromised airway'],
+                                text: 'A Soldier with any potential for airway involvement or smoke inhalation causing symptoms should be immediately transported to the nearest qualified or privileged provider. High risk locations for burns include the head, neck, hand, feet, female breast, genitalia, perineum, major joints, and circumferential burns and should be evaluated for referral to a burn center. Partial thickness burns >10% of body surface area, chemical burns, full thickness burns, electrical burns, and burns with associated trauma have a higher risk and should also be evaluated for a burn center. Deep partial thickness (second degree) is painful to pressure only, appear waxy or wet, and do not blanch with pressure. They typically heal within two months.'
                             }
                         ],
                         next: null,
@@ -7502,13 +7539,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -7528,29 +7558,34 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['limited partial thickness burns', 'secondary infection', 'heat injury'],
+                                text: 'Limited partial thickness (second degree) burns present with red, painful skin that may weep and blisters within 24 hours. These burns typically heal within three weeks but require additional management due to risk of secondary infection. Secondary infection (warmth, thick discharge, smell, increasing redness) is a potential complication that should be referred to the AEM. Sunburn of greater than 25% of the Soldier’s body surface area or symptoms of exhaustion should be evaluated for a heat injury.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                text: 'superficial burns only include the epidermal layer of skin. They are red and painful but do not blister. The pain and redness typically resolves within three days, and they heal without scarring. Apply cold packs to the affected area as needed for comfort. Leave the area uncovered. Provide acetaminophen or ibuprofen as needed for pain. For sunburn, instruct the Soldier on the importance of using sunscreen, reapplying it every hour, and risks of cancer with repetitive sun damage to the skin. May recommend OTC aloe vera for additional pain relief. Return to clinic for worsening symptoms, new symptoms, or if not improving within three days',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Apply cool compresses. Provide ibuprofen or acetaminophen as needed for pain. Keep the area clean and uncovered. May recommend aloe vera for additional pain relief. RTC for worsening symptoms, new symptoms, if not improving within 3 days.',
+                                    ancillaryFind: [
+                                        { type: 'protocol', modifier: 'cool compress' },
+                                        { type: 'med', modifier: 'aloe vera' },
+                                    ],
+                                    medFind: [medList[23], medList[0]]
+                                }
                             }
                         ],
                         next: null,
