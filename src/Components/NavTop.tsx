@@ -57,13 +57,12 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
     // Menu spring: container expansion
     const containerSpring = useSpring({
         width: isMenuOpen ? 224 : 44,
-        height: isMenuOpen ? 70 + menuData.length * 48 : 44,
+        height: isMenuOpen ? menuData.length * 48 + 24 : 44,
         borderRadius: isMenuOpen ? 6 : 22,
         padTop: isMenuOpen ? 12 : 2,
         padBottom: isMenuOpen ? 12 : 2,
         padLeft: isMenuOpen ? 12 : 2,
         padRight: isMenuOpen ? 20 : 2,
-        buttonY: isMenuOpen ? 15 : 0,
         config: { tension: 220, friction: 26 },
     });
 
@@ -184,37 +183,19 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                             >
                                 {/* Border overlay - always visible */}
                                 <div className="absolute inset-0 rounded-inherit pointer-events-none border border-tertiary/20" />
-                                {/* Toggle button: hamburger ↔ X crossfade */}
-                                <animated.button
-                                    onClick={isMenuOpen ? onMenuClose : onMenuClick}
-                                    className={`${BUTTON_CLASSES.mobileButton} ${isMenuOpen ? '' : 'active:scale-95'}`}
-                                    style={{
-                                        transform: containerSpring.buttonY.to(y => `translateY(${y}px)`),
-                                    }}
-                                    aria-label={isMenuOpen ? "Close menu" : "Open menu"}
-                                >
-                                    <div className="relative w-5 h-5">
-                                        <Menu
-                                            className={`w-5 h-5 stroke-current absolute inset-0 transition-all
-                                                ${isMenuOpen ? 'opacity-0 rotate-90 scale-50' : 'opacity-100 rotate-0 scale-100'}`}
-                                            style={{
-                                                transitionDuration: '400ms',
-                                                transitionTimingFunction: 'cubic-bezier(0.65, 0, 0.35, 1)',
-                                            }}
-                                        />
-                                        <X
-                                            className={`w-5 h-5 stroke-current absolute inset-0 transition-all
-                                                ${isMenuOpen ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-50'}`}
-                                            style={{
-                                                transitionDuration: '400ms',
-                                                transitionTimingFunction: 'cubic-bezier(0.65, 0, 0.35, 1)',
-                                            }}
-                                        />
-                                    </div>
-                                </animated.button>
+                                {/* Menu button - opens menu, closes by tapping outside */}
+                                {!isMenuOpen && (
+                                    <button
+                                        onClick={onMenuClick}
+                                        className={`${BUTTON_CLASSES.mobileButton} active:scale-95`}
+                                        aria-label="Open menu"
+                                    >
+                                        <Menu className="w-5 h-5 stroke-current" />
+                                    </button>
+                                )}
 
                                 {/* Menu items: staggered spring reveal */}
-                                <div className="relative z-10 mt-1 space-y-0.5">
+                                <div className="relative z-10 space-y-0.5">
                                     {menuItemTrail.map((style, index) => (
                                         <animated.button
                                             key={index}
