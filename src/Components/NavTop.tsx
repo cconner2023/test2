@@ -166,7 +166,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                     transform-gpu
                                     overflow-hidden
                                     ${isMenuOpen
-                                        ? 'rounded-md py-3 pl-3 pr-5 liquid-glass-menu'
+                                        ? 'rounded-md py-3 pl-3 pr-5 bg-themewhite'
                                         : 'rounded-full p-0.5 bg-themewhite'
                                     }
                                 `}
@@ -176,17 +176,10 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                     height: isMenuOpen ? 'auto' : '44px',
                                     maxHeight: isMenuOpen ? '400px' : '44px',
                                     transition: 'all 300ms',
-                                    transitionTimingFunction: 'cubic-bezier(0.175, 0.885, 0.32, 2.2)',
+                                    transitionTimingFunction: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
                                 }}
                             >
-                                {/* Liquid glass layers - only when menu is open */}
-                                {isMenuOpen && (
-                                    <>
-                                        <div className="absolute inset-0 backdrop-blur-xl rounded-inherit" />
-                                        <div className="absolute inset-0 rounded-inherit liquid-glass-tint" />
-                                        <div className="absolute inset-0 rounded-inherit pointer-events-none liquid-glass-shine" />
-                                    </>
-                                )}
+                                {/* removed liquid-glass layers for consistency with button style */}
                                 {/* Border overlay - always visible */}
                                 <div className="absolute inset-0 rounded-inherit pointer-events-none border border-tertiary/20" />
                                 {/* Toggle button: hamburger ↔ X crossfade */}
@@ -194,9 +187,9 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                     onClick={isMenuOpen ? onMenuClose : onMenuClick}
                                     className={`${BUTTON_CLASSES.mobileButton} ${isMenuOpen ? '' : 'active:scale-95'}`}
                                     style={{
-                                        transform: isMenuOpen ? 'translateY(6px)' : 'translateY(0)',
-                                        transition: 'transform 500ms, color 200ms',
-                                        transitionTimingFunction: 'cubic-bezier(0.175, 0.885, 0.32, 1.8)',
+                                        transform: isMenuOpen ? 'translateY(0)' : 'translateY(0)',
+                                        transition: 'transform 300ms, color 200ms',
+                                        transitionTimingFunction: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
                                     }}
                                     aria-label={isMenuOpen ? "Close menu" : "Open menu"}
                                 >
@@ -322,7 +315,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                         {showDynamicTitle && dynamicTitle ? (
                             <span className="text-[9pt] text-primary font-normal">{dynamicTitle}</span>
                         ) : (
-                            <span className="text-[9pt] text-primary font-normal">ADTMC 3.5</span>
+                            <span className="text-[9pt] text-primary font-normal">ADTMC {__APP_VERSION__}</span>
                         )}
                     </div>
                 </div>

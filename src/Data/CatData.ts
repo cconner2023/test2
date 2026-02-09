@@ -2130,7 +2130,7 @@ export const catData: catDataTypes[] = [
                 id: 16,
                 icon: "J-16",
                 text: "Corns on Feet",
-                gen: [{}],
+                gen: [{ text: 'A callus is a thickened outermost layer of skin from repeated friction or pressure. A corn has a centralized hyperkeratoic area that is often painful on the sole of the foot or toe. Tenderness occurs especially during weight-bearing on the foot.' }],
                 medcom: [
                     medcomTrainingData[13],
                     medcomTrainingData[8],
@@ -2150,7 +2150,7 @@ export const catData: catDataTypes[] = [
                 id: 17,
                 icon: "J-17",
                 text: "Cutaneous (Plantar) Warts",
-                gen: [{}],
+                gen: [{ text: 'cutaneous wart is a benign growth of skin caused by a virus. Common and plantar warts often have thrombosed capillaries within them that look like black dots or ‘seeds’.' }],
                 medcom: [
                     medcomTrainingData[7],
                     medcomTrainingData[8],
@@ -2171,7 +2171,7 @@ export const catData: catDataTypes[] = [
                 id: 18,
                 icon: "J-18",
                 text: "Ingrown Toenail",
-                gen: [{}],
+                gen: [{ text: 'An ingrown toenail is a nail that extends into the flesh of the toe along its lateral margins (nail fold). It can range from inflammation and tenderness to a significant infection.' }],
                 medcom: [
                     medcomTrainingData[2],
                     medcomTrainingData[13],

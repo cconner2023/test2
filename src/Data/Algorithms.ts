@@ -7675,7 +7675,9 @@ export const Algorithm: AlgorithmType[] = [
                                 text: 'wash area with antibacterial soap. Cover a large area of surrounding undamaged skin and the treated blister with a protective dressing of moleskin with a hole in the middle cut out for the blister. An adhesive solution such as tincture of benzoin or a surgical adhesive to the skin around the blister to improve the adhesion of the moleskin. Have the Soldier return to the clinic after the blister ruptures',
                                 assocMcp: {
                                     type: 'mcp',
-                                    text: 'Wash area with povidone-iodine and apply an antibacterial ointment to the blister only. Cover a large area of surrounding undamaged skin and the treated blister with a protective dressing of moleskin between treatments. An adhesive solution such as tincture of benzoin or a surgical adhesive may be applied to the skin around the blister to improve the adheasion of the moleskin. Wear two pairs of socks when wearing combat boots (a thin pair of nonabsorbent, non-cotton socks under the boot socks) and to check for proper fit of boots.'
+                                    text: 'Wash area with povidone-iodine and apply an antibacterial ointment to the blister only. Cover a large area of surrounding undamaged skin and the treated blister with a protective dressing of moleskin between treatments. An adhesive solution such as tincture of benzoin or a surgical adhesive may be applied to the skin around the blister to improve the adheasion of the moleskin. Wear two pairs of socks when wearing combat boots (a thin pair of nonabsorbent, non-cotton socks under the boot socks) and to check for proper fit of boots.',
+                                    ancillaryFind: [{ type: 'protocol', modifier: 'povidone-idone wash' }],
+                                    medFind: [medList[7]]
                                 }
                             },
                             {
@@ -7684,12 +7686,19 @@ export const Algorithm: AlgorithmType[] = [
                                 text: 'clean the skin with povidone-iodine. Remove the dead skin with sterile scissors. If sterile instruments are not available or personnel have not been taught to perform the procedure, skip this step. Wash area with povidone-iodine and apply an antibacterial ointment to the blister only. Cover a large area of surrounding undamaged skin and the treated blister with a protective dressing of moleskin between treatments. An adhesive solution such as tincture of benzoin may be applied to the skin around the blister to improve the adhesion of the moleskin. Reevaluate the Soldier every 24 hours.',
                                 assocMcp: {
                                     type: 'mcp',
-                                    text: 'Wash area with povidone-iodine and apply an antibacterial ointment to the blister only. Cover a large area of surrounding undamaged skin and the treated blister with a protective dressing of moleskin between treatments. An adhesive solution such as tincture of benzoin or a surgical adhesive may be applied to the skin around the blister to improve the adheasion of the moleskin. Wear two pairs of socks when wearing combat boots (a thin pair of nonabsorbent, non-cotton socks under the boot socks) and to check for proper fit of boots.'
+                                    text: 'Wash area with povidone-iodine and apply an antibacterial ointment to the blister only. Cover a large area of surrounding undamaged skin and the treated blister with a protective dressing of moleskin between treatments. An adhesive solution such as tincture of benzoin or a surgical adhesive may be applied to the skin around the blister to improve the adheasion of the moleskin. Wear two pairs of socks when wearing combat boots (a thin pair of nonabsorbent, non-cotton socks under the boot socks) and to check for proper fit of boots.',
+                                    ancillaryFind: [{ type: 'protocol', modifier: 'povidone-idone wash' }],
+                                    medFind: [medList[7]]
+
                                 }
                             },
                             {
                                 type: 'dmp',
-                                text: 'Instruct the Soldier to wear two pairs of socks when wearing combat boots (a thin pair of nonabsorbent, non-cotton socks under the boot socks) and to check for proper fit of boots. Instruct the Soldier to return for further evaluation if: the protective dressing begins to come off, develops blisters that make wearing shoes or boots difficult, significant pain, or signs of infection develop.'
+                                text: 'Instruct the Soldier to wear two pairs of socks when wearing combat boots (a thin pair of nonabsorbent, non-cotton socks under the boot socks) and to check for proper fit of boots. Instruct the Soldier to return for further evaluation if: the protective dressing begins to come off, develops blisters that make wearing shoes or boots difficult, significant pain, or signs of infection develop.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Instruct the patient to return for further evaluation if: the protective dressing begins to come off. He/She develops blisters that make wearing shoes or boots impossible. He/She is disabled by pain. He/She has signs of infection. The patient should be reevaluated every 24 hours.'
+                                }
                             },
                         ],
                         next: null,
@@ -7726,26 +7735,23 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                text: 'Diabetes mellitus or a decreased peripheral sensation increases the risk to the Soldier with a peripheral wound; so, evaluation and treatment of a corn should be referred to a privileged provider.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -7765,29 +7771,30 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['plantar warts', 'bunions'],
+                                text: 'Plantar warts require additional treatment. Warts disrupt the normal skin markings, so skin lines are not evident and have several dark specks within middle of the wart. One treatment option is using liquid nitrogen to freeze the wart in the clinic. An order from a privileged provider is required prior to treating with liquid nitrogen. Bunions are located on the medial side of the base of the first metacarpal with the big toe deviated inward. Bunions may need to be referred to podiatry.',
+                                ancillaryFind: [{ type: 'protocol', modifier: 'cryotherapy with liquid nitrogen (provider order required)' }, { type: 'refer', modifier: 'consider referral to podiatry for bunions' }]
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                ddx: ['corns'],
+                                text: 'soak the Soldier’s foot in warm water for 20 minutes. Paring down a callous/corn: the performing medic must have training in the procedure and have the training documented. After the risks and benefits of the procedure have been explained to the Soldier, Soldier has signed the consent form, and a final timeout has been performed, pare down the callous or corn with a scalpel blade. Reduce the hard skin until the lesion is flexible, or the Soldier can stand/bear weight without discomfort. Do not remove skin to the point of bleeding. Instruct the Soldier on weekly self-debridement. Minor-care can be given using a pumice stone. Refer to AEM if special insole is needed to be constructed for the Soldier’s shoe. Instruct the Soldier to return if the symptoms are worsening, new symptoms develop, or the minor-care protocol does not resolve the symptoms.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'as above. RTC if symptoms are worsening, new symptoms developing, or symptoms are not controlled with the MCP'
+                                }
                             }
                         ],
                         next: null,
@@ -7807,7 +7814,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Skin Exam",
+                text: "Perform a Skin Exam",
                 type: "action",
                 questionOptions: [],
                 answerOptions: []
@@ -7826,26 +7833,18 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'Bleeding may indicate that the lesion is something other than a wart and requires further evaluation. Higher risk locations include the face, breast, perineum, anus, and genital regions. Greater than 10 lesions will require multiple repeat visits and other treatment options can be considered. If treatment would limit or prevent the Soldier from conducting an upcoming mission/task, refer to the supervising privileged provider to determine the best timing of treatment. If signs of an infection or inflammation are present around the wart, refer to the supervising privileged provider for treatment.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -7864,29 +7863,30 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['3+ warts'],
+                                text: 'More than three warts will likely require a follow-up visit. AEM should see the Soldier if he or she returns for complications of the wart treatment or a repeat treatment.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                text: 'discuss the Soldier and your treatment plan with the AEM and obtain the supervising privileged provider approval prior to starting treatment. Medic must be trained and have had his or her procedure competency validated prior to performing a procedure. All procedures will be directly supervised. Discuss the treatment options and their risks, benefits, and alternative that warts will often go away without treatment after several years with the Soldier. After the consent has been obtained and procedure approved by the supervising privileged provider, perform a final timeout. Clean the wart and surrounding skin. Pare down the callous over the wart but not to the point of bleeding or pain. Then apply the treatment option that the Soldier chose. Treatment options include salicylic acid, cryotherapy, or a combination of both. Cryotherapy includes two freeze thaw cycles that cover the wart and two mm around the wart that takes 30-60 seconds to thaw. Instruct the Soldier that a blister, loss of skin pigmentation to the area, and pain may develop over the site. Salicylic acid may be applied to the wart after freezing and covered with a bandage or without freezing and covered with tape. Soldier can reapply salicylic acid and replace the tape or bandage every two days. Soldier should return in two weeks for re-evaluation and retreatment if needed. It is common for warts to require ongoing treatment for up to 12 weeks. Return earlier if new symptoms or complications from the treatment develop.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Obtain approval for treatment from AEM. Counsel the Soldier on options, risks, and course of treatment. Salicylic acid is reapplied daily if using a bandage or every 2 days if using tape. RTC if new symptoms develop or in 2 weeks for next treatment.',
+                                    ancillaryFind: [{ type: 'protocol', modifier: ' Consent and final Timeout. Clean area and pare down built-up skin.' }, { type: 'protocol', modifier: 'Cryotherapy - 2 freeze thaw cycles, freezes the wart and 2mm around it with a 30-60 seconds to thaw and/or salicylic acid.' }]
+                                }
                             }
                         ],
                         next: null,
@@ -7930,26 +7930,23 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['cellulitis', 'diabetes', 'severe infection', 'ingrown nail'],
+                                text: 'Severe lesions are characterized with signs of spreading infection to include red streaks, cellulitis, or ingrown toenails along both nail folds. Red flags, cellulitis, diabetes, and immunocompromised may indicate or increase the risk of a more severe infection requiring antibiotics. Recurrent ingrown toenails need to be evaluated by the supervising privileged provider to determine if permanent nail ablation is required.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -7966,29 +7963,32 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['ingrown nail', 'cellulitis'],
+                                text: 'Moderate lesions are characterized with substantial erythema and pus. Toenail removal (partial or complete) requires an order for the procedure by a privileged provider. Task must be trained, validated, and documented with the competency assessment file for a medic to be able to perform it. After toenail removal (partial or complete), have the Soldier return in three days to evaluate for healing and for spicule reformation with nail regrowth.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                ddx: ['ingrown nail'],
+                                text: 'mild lesions can be treated with conservative measures. Signs include minimal to moderate discomfort, some redness, and no discharge or pus. Educate the Soldier on not cutting the toenail below the lateral fold, allowing the toenail to grow out past the lateral fold before trimming, and importance of well-fitting shoes. Poorly fitting shoes can predispose the Soldier to ingrown toenails. Soak the affected foot in warm, soapy water for 15 minutes three times per day. While the foot is soaking, push the nail fold away from the nail. After soaking and drying the area, place a piece of cotton or dental floss under the lateral edge of the nail to separate it from the nail fold. Hydrocortisone cream 1% can also be applied to the inflamed area after each soaking to further decrease inflammation. Consider duty limitation for up to three days as needed. Return to clinic in one week if still having symptoms or sooner if symptoms are worsening to include spreading or increasing redness, formation of pus or discharge, or increasing discomfort.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Educate the Soldier on proper trimming of toenail, allowing toenail to grouw out, and proper fitting shoes. Soak foot in warm, soapy water for 15 minutes 3x/day. Place cotton piece or dental floss under lateral nail to separate from nail fold. Apply hydrocortisone cream 1% to dry inflamed area after soaks. Consider duty limitations for up to 3 days as needed. RTC if symptoms are worsening or symptoms are not improved after 1 week.',
+                                    medFind: [medList[21]],
+                                    specLim: ['No running, rucking, or jumping', 'Walk at own pace/distance']
+                                },
+
                             }
                         ],
                         next: null,
