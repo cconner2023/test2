@@ -11,9 +11,11 @@ interface AlgorithmProps {
     selectedSymptom: subCatDataTypes | null;
     onExpandNote?: (data: WriteNoteData) => void;
     isMobile?: boolean;
+    initialCardStates?: import('../Hooks/useAlgorithm').CardState[];
+    initialDisposition?: dispositionType | null;
 }
 
-export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false }: AlgorithmProps) {
+export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false, initialCardStates, initialDisposition }: AlgorithmProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const markerRef = useRef<HTMLDivElement>(null);
     const prevDispositionRef = useRef<dispositionType | null>(null);
@@ -31,7 +33,7 @@ export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false 
         handleQuestionOption: hookHandleQuestionOption,
         handleAnswer: hookHandleAnswer,
         getVisibleCards,
-    } = useAlgorithm(algorithmOptions);
+    } = useAlgorithm(algorithmOptions, initialCardStates, initialDisposition);
 
     // Track disposition changes — delay scroll past connector stagger animation (~500ms)
     useEffect(() => {

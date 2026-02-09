@@ -45,6 +45,7 @@ interface WriteNoteProps {
     isMobile?: boolean;
     initialPage?: number;
     initialHpiText?: string;
+    noteSource?: string | null;
 }
 
 export const WriteNotePage = ({
@@ -61,6 +62,7 @@ export const WriteNotePage = ({
     isMobile = false,
     initialPage = 0,
     initialHpiText = '',
+    noteSource = null,
 }: WriteNoteProps) => {
     // Note content state
     const [note, setNote] = useState<string>(initialHpiText);
@@ -307,7 +309,18 @@ export const WriteNotePage = ({
                 data-drag-zone
             >
                 <div className="flex flex-col gap-1.5 flex-1">
-                    <span className="text-sm font-medium text-primary">{PAGE_LABELS[currentPage]}</span>
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-primary">{PAGE_LABELS[currentPage]}</span>
+                        {noteSource && (
+                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                                noteSource === 'external source'
+                                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                                    : 'bg-themeblue3/15 text-themeblue3'
+                            }`}>
+                                {noteSource === 'external source' ? 'Saved Note (External)' : 'Saved Note'}
+                            </span>
+                        )}
+                    </div>
                     <div className="flex gap-1.5">
                         {PAGE_LABELS.map((_, idx) => (
                             <div

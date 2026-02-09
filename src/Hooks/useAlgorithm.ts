@@ -41,7 +41,7 @@ const revealNextCards = (states: CardState[], next: number | number[] | null): v
     }
 };
 
-export const useAlgorithm = (algorithmOptions: AlgorithmOptions[]) => {
+export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardStates?: CardState[], initialDisposition?: dispositionType | null) => {
     // Memoised card-type indices — recomputed only when the algorithm changes
     const initialCardIndex = useMemo(
         () => algorithmOptions.findIndex(card => card.type === 'initial'),
@@ -67,9 +67,13 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[]) => {
         }));
     }, [algorithmOptions, initialCardIndex]);
 
-    // State
-    const [cardStates, setCardStates] = useState<CardState[]>(() => initializeCardStates());
-    const [currentDisposition, setCurrentDisposition] = useState<dispositionType | null>(null);
+    // State — use initial card states if provided (for restoring saved notes)
+    const [cardStates, setCardStates] = useState<CardState[]>(() =>
+        initialCardStates && initialCardStates.length > 0 ? initialCardStates : initializeCardStates()
+    );
+    const [currentDisposition, setCurrentDisposition] = useState<dispositionType | null>(
+        initialDisposition !== undefined ? initialDisposition : null
+    );
 
     /** Count total RF selections across all RF cards (optionally overriding one card's count) */
     const countTotalRFSelections = useCallback((

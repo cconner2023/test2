@@ -58,6 +58,13 @@ function AppContent() {
   // Track the active note being viewed in WriteNotePage (null = fresh note, string = saved note ID)
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null)
   const [activeNoteEncodedText, setActiveNoteEncodedText] = useState<string | null>(null)
+  const [activeNoteSource, setActiveNoteSource] = useState<string | null>(null)
+
+  // Restored algorithm state for pre-filling AlgorithmPage when viewing/editing saved notes
+  const [restoredAlgorithmState, setRestoredAlgorithmState] = useState<{
+    cardStates: import('./Hooks/useAlgorithm').CardState[];
+    disposition: import('./Types/AlgorithmTypes').dispositionType | null;
+  } | null>(null)
 
   // PWA App Shortcut: open the appropriate view based on the captured URL parameter
   useEffect(() => {
@@ -103,6 +110,8 @@ function AppContent() {
     if (!navigation.isWriteNoteVisible) {
       setActiveNoteId(null)
       setActiveNoteEncodedText(null)
+      setActiveNoteSource(null)
+      setRestoredAlgorithmState(null)
     }
   }, [navigation.isWriteNoteVisible])
 
@@ -216,6 +225,13 @@ function AppContent() {
     // Track which saved note we're viewing
     setActiveNoteId(note.id)
     setActiveNoteEncodedText(note.encodedText)
+    setActiveNoteSource(note.source || 'device')
+
+    // Store restored algorithm state so AlgorithmPage can be pre-filled
+    setRestoredAlgorithmState({
+      cardStates: result.writeNoteData.cardStates,
+      disposition: result.writeNoteData.disposition
+    })
 
     // 1. Navigate to the algorithm view for this symptom
     navigation.handleNavigation({
@@ -251,6 +267,13 @@ function AppContent() {
     // Track which saved note we're editing
     setActiveNoteId(note.id)
     setActiveNoteEncodedText(note.encodedText)
+    setActiveNoteSource(note.source || 'device')
+
+    // Store restored algorithm state so AlgorithmPage can be pre-filled
+    setRestoredAlgorithmState({
+      cardStates: result.writeNoteData.cardStates,
+      disposition: result.writeNoteData.disposition
+    })
 
     // 1. Navigate to the algorithm view for this symptom
     navigation.handleNavigation({
@@ -324,7 +347,14 @@ function AppContent() {
     if (saveResult.success && saveResult.noteId) {
       setActiveNoteId(saveResult.noteId)
       setActiveNoteEncodedText(data.encodedText)
+      setActiveNoteSource('external source')
     }
+
+    // Store restored algorithm state so AlgorithmPage can be pre-filled
+    setRestoredAlgorithmState({
+      cardStates: result.writeNoteData.cardStates,
+      disposition: result.writeNoteData.disposition
+    })
 
     // 5. Navigate to the algorithm view for this symptom (same as handleViewNote)
     navigation.handleNavigation({
@@ -494,10 +524,13 @@ function AppContent() {
                 ) : navigation.selectedSymptom && navigation.showQuestionCard ? (
                   <div className="h-full overflow-hidden">
                     <AlgorithmPage
+                      key={`algo-desktop-${navigation.selectedSymptom.icon}-${restoredAlgorithmState ? 'restored' : 'fresh'}`}
                       selectedSymptom={navigation.selectedSymptom}
                       onMedicationClick={navigation.handleMedicationSelect}
                       onExpandNote={navigation.showWriteNote}
                       isMobile={navigation.isMobile}
+                      initialCardStates={restoredAlgorithmState?.cardStates}
+                      initialDisposition={restoredAlgorithmState?.disposition}
                     />
                   </div>
                 ) : (
@@ -526,10 +559,13 @@ function AppContent() {
             >
               <div className="h-full overflow-hidden bg-themewhite">
                 <AlgorithmPage
+                  key={`algo-mobile-${navigation.selectedSymptom.icon}-${restoredAlgorithmState ? 'restored' : 'fresh'}`}
                   selectedSymptom={navigation.selectedSymptom}
                   onMedicationClick={navigation.handleMedicationSelect}
                   onExpandNote={navigation.showWriteNote}
                   isMobile={navigation.isMobile}
+                  initialCardStates={restoredAlgorithmState?.cardStates}
+                  initialDisposition={restoredAlgorithmState?.disposition}
                 />
               </div>
             </animated.div>
@@ -610,6 +646,7 @@ function AppContent() {
               isMobile={navigation.isMobile}
               initialPage={navigation.writeNoteData.initialPage}
               initialHpiText={navigation.writeNoteData.initialHpiText}
+              noteSource={activeNoteSource}
             />
           </div>
         )}
