@@ -15,8 +15,8 @@ ALWAYS consult your attending physician; Always refer to local SOP if unsure of 
 Never prescribe a medication you don't understand.
 Always double check.
 
-This was built without PII/PHI, and I cannot guarantee security. Patient safety is top priority - be respectful of HIPAA and their right to privacy.
+This was built without PII/PHI, and was not meant to transmit any identifiable information. I cannot guarantee security. Patient safety is top priority - be respectful of HIPAA and the right to privacy.
 
-Be safe, be legal, be smart, but go nuts.
+Be safe, be legal, be smart. 
 
 

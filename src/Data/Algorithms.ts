@@ -7620,17 +7620,17 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
                             {
-                                ...Disposition[0],
-                                modifier: "action placeholder"
+                                type: 'dmp',
+                                ddx: [],
+                                text: 'Serious skin conditions can present with blisters. Fever, malaise, and epidermal sloughing are signs of a more serious medical condition.'
                             }
                         ],
                         next: null,
@@ -7638,13 +7638,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -7661,30 +7654,43 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['infection'],
+                                text: 'Large open and infected blisters can become serious health hazards and should be referred to the AEM for further evaluation and treatment.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                ddx: ['unruptured blister on foot'],
+                                text: 'wash area with antibacterial soap. Cover a large area of surrounding undamaged skin and the treated blister with a protective dressing of moleskin with a hole in the middle cut out for the blister. An adhesive solution such as tincture of benzoin or a surgical adhesive to the skin around the blister to improve the adhesion of the moleskin. Have the Soldier return to the clinic after the blister ruptures',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Wash area with povidone-iodine and apply an antibacterial ointment to the blister only. Cover a large area of surrounding undamaged skin and the treated blister with a protective dressing of moleskin between treatments. An adhesive solution such as tincture of benzoin or a surgical adhesive may be applied to the skin around the blister to improve the adheasion of the moleskin. Wear two pairs of socks when wearing combat boots (a thin pair of nonabsorbent, non-cotton socks under the boot socks) and to check for proper fit of boots.'
+                                }
+                            },
                             {
-                                ...Disposition[2],
-                            }
+                                type: 'dmp',
+                                ddx: ['rupture blister on foot'],
+                                text: 'clean the skin with povidone-iodine. Remove the dead skin with sterile scissors. If sterile instruments are not available or personnel have not been taught to perform the procedure, skip this step. Wash area with povidone-iodine and apply an antibacterial ointment to the blister only. Cover a large area of surrounding undamaged skin and the treated blister with a protective dressing of moleskin between treatments. An adhesive solution such as tincture of benzoin may be applied to the skin around the blister to improve the adhesion of the moleskin. Reevaluate the Soldier every 24 hours.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Wash area with povidone-iodine and apply an antibacterial ointment to the blister only. Cover a large area of surrounding undamaged skin and the treated blister with a protective dressing of moleskin between treatments. An adhesive solution such as tincture of benzoin or a surgical adhesive may be applied to the skin around the blister to improve the adheasion of the moleskin. Wear two pairs of socks when wearing combat boots (a thin pair of nonabsorbent, non-cotton socks under the boot socks) and to check for proper fit of boots.'
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                text: 'Instruct the Soldier to wear two pairs of socks when wearing combat boots (a thin pair of nonabsorbent, non-cotton socks under the boot socks) and to check for proper fit of boots. Instruct the Soldier to return for further evaluation if: the protective dressing begins to come off, develops blisters that make wearing shoes or boots difficult, significant pain, or signs of infection develop.'
+                            },
                         ],
                         next: null,
                         selectAll: false

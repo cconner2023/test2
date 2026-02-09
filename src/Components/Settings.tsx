@@ -11,7 +11,8 @@ interface SettingsDrawerProps {
     isDarkMode: boolean;
     onToggleTheme: () => void;
     isMobile?: boolean;
-    onMyNotesClick?: () => void;
+    initialPanel?: 'main' | 'my-notes';
+    initialSelectedId?: string | null;
     notes?: SavedNote[];
     onDeleteNote?: (noteId: string) => void;
     onEditNote?: (noteId: string, updates: Partial<Omit<SavedNote, 'id' | 'createdAt'>>) => void;
@@ -30,6 +31,389 @@ const NOTE_ICONS: Record<NoteType, {
     added: { icon: PlusCircle, className: "text-green-500" },
     changed: { icon: RefreshCw, className: "text-blue-500" },
     default: { icon: PlusCircle, className: "text-tertiary" }
+};
+
+/* ────────────────────────────────────────────────────────────
+   Utility: format date and disposition colors (shared by note items)
+   ──────────────────────────────────────────────────────────── */
+const formatDate = (isoStr: string) => {
+    try {
+        const date = new Date(isoStr);
+        const day = date.getDate().toString().padStart(2, '0');
+        const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+        const year = date.getFullYear().toString().slice(2);
+        const time = date.toLocaleTimeString('en-US', {
+            hour12: false,
+            hour: '2-digit',
+            minute: '2-digit',
+        });
+        return `${day}${month}${year} ${time}`;
+    } catch {
+        return 'Unknown date';
+    }
+};
+
+const getDispositionColor = (type: string) => {
+    if (type.includes('I') && !type.includes('II') && !type.includes('III') && !type.includes('IV')) return 'bg-red-500/10 text-red-600';
+    if (type.includes('II') && !type.includes('III') && !type.includes('IV')) return 'bg-yellow-500/10 text-yellow-700';
+    if (type.includes('III')) return 'bg-green-500/10 text-green-600';
+    if (type.includes('IV')) return 'bg-blue-500/10 text-blue-600';
+    return 'bg-tertiary/8 text-tertiary/60';
+};
+
+/* ────────────────────────────────────────────────────────────
+   ActionMenu — Popup action menu shown on tap (mobile).
+   Displays View, Copy, Share, Delete actions for a note.
+   ──────────────────────────────────────────────────────────── */
+const ActionMenu = ({
+    note,
+    onView,
+    onCopy,
+    onShare,
+    onDelete,
+    onClose,
+    shareStatus,
+    copiedStatus,
+}: {
+    note: SavedNote;
+    onView: (note: SavedNote) => void;
+    onCopy: (note: SavedNote) => void;
+    onShare: (note: SavedNote) => void;
+    onDelete: (noteId: string) => void;
+    onClose: () => void;
+    shareStatus: string;
+    copiedStatus: boolean;
+}) => {
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout>>(0);
+
+    useEffect(() => {
+        return () => {
+            if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+        };
+    }, []);
+
+    const handleDelete = () => {
+        if (confirmDelete) {
+            onDelete(note.id);
+            onClose();
+        } else {
+            setConfirmDelete(true);
+            if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+            confirmTimeoutRef.current = setTimeout(() => setConfirmDelete(false), 5000);
+        }
+    };
+
+    return (
+        <div className="flex items-center justify-center gap-2 flex-wrap px-3 py-2 bg-themewhite2/80 rounded-b-lg border-t border-tertiary/10" data-action-menu>
+            <button
+                onClick={(e) => { e.stopPropagation(); onView(note); onClose(); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 transition-all active:scale-95"
+                title="View / Edit note"
+            >
+                <Eye size={13} />
+                View
+            </button>
+            <button
+                onClick={(e) => { e.stopPropagation(); onCopy(note); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full transition-all active:scale-95 ${copiedStatus
+                    ? 'bg-green-500/15 text-green-600'
+                    : 'bg-teal-500/10 text-teal-600 hover:bg-teal-500/20'
+                    }`}
+                title="Copy encoded text"
+            >
+                <ClipboardCopy size={13} />
+                {copiedStatus ? 'Copied!' : 'Copy'}
+            </button>
+            <button
+                onClick={(e) => { e.stopPropagation(); onShare(note); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full transition-all active:scale-95 ${shareStatus === 'shared' || shareStatus === 'copied'
+                    ? 'bg-green-500/15 text-green-600'
+                    : shareStatus === 'generating' || shareStatus === 'sharing'
+                        ? 'bg-purple-500/15 text-purple-600'
+                        : 'bg-purple-500/10 text-purple-600 hover:bg-purple-500/20'
+                    }`}
+                title="Share note as image"
+            >
+                <Share2 size={13} />
+                {shareStatus === 'copied' ? 'Copied!' : shareStatus === 'shared' ? 'Shared!' : shareStatus === 'generating' || shareStatus === 'sharing' ? '...' : 'Share'}
+            </button>
+            <button
+                onClick={(e) => { e.stopPropagation(); handleDelete(); }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full transition-all active:scale-95 ${confirmDelete
+                    ? 'bg-red-500 text-white'
+                    : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
+                    }`}
+                title={confirmDelete ? 'Confirm' : 'Delete note'}
+                aria-label={confirmDelete ? 'Confirm' : 'Delete'}
+            >
+                <Trash2 size={13} />
+                {confirmDelete ? 'Confirm' : 'Delete'}
+            </button>
+        </div>
+    );
+};
+
+/* ────────────────────────────────────────────────────────────
+   SwipeableNoteItem — Mobile note item with swipe gestures.
+   Swipe left → reveals delete (right side).
+   Swipe right → reveals view, copy, share (left side).
+   Tap → toggles action menu.
+   ──────────────────────────────────────────────────────────── */
+const SWIPE_THRESHOLD = 60;
+const ACTION_WIDTH_LEFT = 180;
+const ACTION_WIDTH_RIGHT = 80;
+
+const SwipeableNoteItem = ({
+    note,
+    onView,
+    onCopy,
+    onShare,
+    onDelete,
+    activeMenuId,
+    onToggleMenu,
+    shareStatus,
+    copiedStatus,
+}: {
+    note: SavedNote;
+    onView: (note: SavedNote) => void;
+    onCopy: (note: SavedNote) => void;
+    onShare: (note: SavedNote) => void;
+    onDelete: (noteId: string) => void;
+    activeMenuId: string | null;
+    onToggleMenu: (noteId: string) => void;
+    shareStatus: string;
+    copiedStatus: boolean;
+}) => {
+    const [offsetX, setOffsetX] = useState(0);
+    const [isDragging, setIsDragging] = useState(false);
+    const [isRevealed, setIsRevealed] = useState<'left' | 'right' | null>(null);
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout>>(0);
+
+    const touchRef = useRef<{
+        startX: number;
+        startY: number;
+        startTime: number;
+        direction: 'none' | 'horizontal' | 'vertical';
+        startOffsetX: number;
+    } | null>(null);
+
+    const showMenu = activeMenuId === note.id;
+
+    useEffect(() => {
+        if (!showMenu && isRevealed) {
+            // Keep revealed state as-is
+        }
+    }, [showMenu, isRevealed]);
+
+    useEffect(() => {
+        return () => {
+            if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+        };
+    }, []);
+
+    const closeSwipe = useCallback(() => {
+        setOffsetX(0);
+        setIsRevealed(null);
+        setConfirmDelete(false);
+    }, []);
+
+    const onTouchStart = useCallback((e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        touchRef.current = {
+            startX: touch.clientX,
+            startY: touch.clientY,
+            startTime: performance.now(),
+            direction: 'none',
+            startOffsetX: offsetX,
+        };
+    }, [offsetX]);
+
+    const onTouchMove = useCallback((e: React.TouchEvent) => {
+        if (!touchRef.current) return;
+        const touch = e.touches[0];
+        const dx = touch.clientX - touchRef.current.startX;
+        const dy = touch.clientY - touchRef.current.startY;
+
+        if (touchRef.current.direction === 'none') {
+            if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+            touchRef.current.direction = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
+        }
+
+        if (touchRef.current.direction === 'vertical') {
+            touchRef.current = null;
+            return;
+        }
+
+        e.preventDefault();
+        setIsDragging(true);
+        let newOffset = touchRef.current.startOffsetX + dx;
+
+        if (newOffset > ACTION_WIDTH_LEFT) {
+            const overshoot = newOffset - ACTION_WIDTH_LEFT;
+            newOffset = ACTION_WIDTH_LEFT + overshoot * 0.3;
+        } else if (newOffset < -ACTION_WIDTH_RIGHT) {
+            const overshoot = Math.abs(newOffset) - ACTION_WIDTH_RIGHT;
+            newOffset = -(ACTION_WIDTH_RIGHT + overshoot * 0.3);
+        }
+
+        setOffsetX(newOffset);
+    }, []);
+
+    const onTouchEnd = useCallback(() => {
+        if (!touchRef.current) return;
+        touchRef.current = null;
+        setIsDragging(false);
+
+        if (offsetX > SWIPE_THRESHOLD) {
+            setOffsetX(ACTION_WIDTH_LEFT);
+            setIsRevealed('left');
+        } else if (offsetX < -SWIPE_THRESHOLD) {
+            setOffsetX(-ACTION_WIDTH_RIGHT);
+            setIsRevealed('right');
+        } else {
+            setOffsetX(0);
+            setIsRevealed(null);
+        }
+    }, [offsetX]);
+
+    const handleTap = useCallback(() => {
+        if (isDragging) return;
+        if (isRevealed) {
+            closeSwipe();
+            return;
+        }
+        onToggleMenu(note.id);
+    }, [isDragging, isRevealed, closeSwipe, onToggleMenu, note.id]);
+
+    const handleDeleteAction = useCallback(() => {
+        if (confirmDelete) {
+            onDelete(note.id);
+            closeSwipe();
+        } else {
+            setConfirmDelete(true);
+            if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+            confirmTimeoutRef.current = setTimeout(() => setConfirmDelete(false), 5000);
+        }
+    }, [confirmDelete, note.id, onDelete, closeSwipe]);
+
+    return (
+        <div className="relative mb-2 rounded-lg overflow-hidden" data-note-item={note.id}>
+            {/* Left actions (revealed by swiping right): View, Copy, Share */}
+            {(offsetX > 0 || isRevealed === 'left') && (
+                <div
+                    className="absolute inset-y-0 left-0 flex items-center gap-1 pl-2 pr-1"
+                    style={{ width: ACTION_WIDTH_LEFT }}
+                >
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onView(note); closeSwipe(); }}
+                        className="flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg bg-amber-500/15 text-amber-600 active:scale-95 transition-transform"
+                        aria-label="View note"
+                    >
+                        <Eye size={18} />
+                        <span className="text-[9px] font-medium">View</span>
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onCopy(note); }}
+                        className="flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg bg-teal-500/15 text-teal-600 active:scale-95 transition-transform"
+                        aria-label="Copy note"
+                    >
+                        <ClipboardCopy size={18} />
+                        <span className="text-[9px] font-medium">{copiedStatus ? 'Copied!' : 'Copy'}</span>
+                    </button>
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onShare(note); }}
+                        className="flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg bg-purple-500/15 text-purple-600 active:scale-95 transition-transform"
+                        aria-label="Share note"
+                    >
+                        <Share2 size={18} />
+                        <span className="text-[9px] font-medium">
+                            {shareStatus === 'shared' || shareStatus === 'copied' ? 'Done!' : 'Share'}
+                        </span>
+                    </button>
+                </div>
+            )}
+
+            {/* Right action (revealed by swiping left): Delete */}
+            {(offsetX < 0 || isRevealed === 'right') && (
+                <div
+                    className="absolute inset-y-0 right-0 flex items-center justify-center pr-2 pl-1"
+                    style={{ width: ACTION_WIDTH_RIGHT }}
+                >
+                    <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteAction(); }}
+                        className={`flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-lg active:scale-95 transition-all ${confirmDelete
+                            ? 'bg-red-500 text-white'
+                            : 'bg-red-500/15 text-red-500'
+                            }`}
+                        aria-label={confirmDelete ? 'Confirm' : 'Delete note'}
+                    >
+                        <Trash2 size={18} />
+                        <span className="text-[9px] font-medium">{confirmDelete ? 'Confirm' : 'Delete'}</span>
+                    </button>
+                </div>
+            )}
+
+            {/* Foreground: the actual note card, slides left/right */}
+            <div
+                className={`relative bg-themewhite border border-tertiary/10 rounded-lg ${showMenu ? 'border-themeblue3/30 bg-themeblue3/5' : ''
+                    }`}
+                style={{
+                    transform: `translateX(${offsetX}px)`,
+                    transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                    touchAction: 'pan-y',
+                    willChange: isDragging ? 'transform' : 'auto',
+                }}
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+                onClick={handleTap}
+            >
+                <div className="flex items-center gap-3 px-3 py-3">
+                    <div className="shrink-0 w-8 h-8 rounded-full bg-themeblue3/10 flex items-center justify-center text-sm">
+                        {note.symptomIcon || '\u{1F4CB}'}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-primary truncate">
+                                {note.symptomText || 'Note'}
+                            </p>
+                            {note.dispositionType && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${getDispositionColor(note.dispositionType)}`}>
+                                    {note.dispositionType}
+                                </span>
+                            )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-xs text-tertiary/60">
+                                {formatDate(note.createdAt)}
+                            </p>
+                            {note.source === 'external source' && (
+                                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 shrink-0">
+                                    External
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Action menu (shown on tap) */}
+            {showMenu && !isRevealed && (
+                <ActionMenu
+                    note={note}
+                    onView={onView}
+                    onCopy={onCopy}
+                    onShare={onShare}
+                    onDelete={onDelete}
+                    onClose={() => onToggleMenu(note.id)}
+                    shareStatus={shareStatus}
+                    copiedStatus={copiedStatus}
+                />
+            )}
+        </div>
+    );
 };
 
 const ReleaseNoteItem = ({ note }: { note: ReleaseNoteTypes }) => {
@@ -156,12 +540,12 @@ const MainSettingsPanel = ({
                     <div className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2/10 active:scale-[0.98]
                                   transition-all cursor-pointer group
                                   md:px-5 md:py-4">
-                        <div className="mr-4 w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center text-primary shrink-0">
+                        <div className="mr-4 w-12 h-12 rounded-full bg-themewhite flex items-center justify-center text-primary shrink-0">
                             <User size={24} />
                         </div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-base font-semibold text-primary md:text-lg">Guest User</p>
-                            <p className="text-xs text-tertiary/60 md:text-sm">Tap to sign in</p>
+                            <p className="text-base font-semibold text-primary md:text-lg">User</p>
+                            <p className="text-xs text-tertiary/60 md:text-sm">Coming Soon</p>
                         </div>
                         <ChevronRight size={20} className="text-tertiary/40 shrink-0" />
                     </div>
@@ -215,30 +599,12 @@ const NoteItemSettings = ({
     isSelected: boolean;
     onToggleSelect: (noteId: string) => void;
 }) => {
-    const formatDate = (isoStr: string) => {
-        try {
-            const date = new Date(isoStr);
-            const day = date.getDate().toString().padStart(2, '0');
-            const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-            const year = date.getFullYear().toString().slice(2);
-            const time = date.toLocaleTimeString('en-US', {
-                hour12: false,
-                hour: '2-digit',
-                minute: '2-digit',
-            });
-            return `${day}${month}${year} ${time}`;
-        } catch {
-            return 'Unknown date';
-        }
-    };
-
     return (
         <div
-            className={`relative rounded-lg mb-2 cursor-pointer transition-all duration-150 ${
-                isSelected
-                    ? 'border-themeblue3/50 bg-themeblue3/5 ring-1 ring-themeblue3/20 border'
-                    : 'border border-tertiary/10 bg-themewhite hover:bg-themewhite2/50'
-            }`}
+            className={`relative rounded-lg mb-2 cursor-pointer transition-all duration-150 ${isSelected
+                ? 'border-themeblue3/50 bg-themeblue3/5 ring-1 ring-themeblue3/20 border'
+                : 'border border-tertiary/10 bg-themewhite hover:bg-themewhite2/50'
+                }`}
             onClick={() => onToggleSelect(note.id)}
         >
             <div className="flex items-center gap-3 px-3 py-3">
@@ -283,8 +649,8 @@ const NoteItemSettings = ({
    MyNotesPanel — Embedded My Notes panel inside Settings drawer.
    Acts like the Release Notes panel - slides in from the right,
    has a back button to return to Settings main.
-   Action menu is at the BOTTOM of the panel, not per-item.
-   Single-select shows full actions, multi-select shows only delete.
+   Desktop: checkbox selection + bottom action bar.
+   Mobile: swipe gestures + tap action menu (SwipeableNoteItem).
    ──────────────────────────────────────────────────────────── */
 const MyNotesPanel = ({
     onBack,
@@ -295,6 +661,7 @@ const MyNotesPanel = ({
     onViewNote,
     onEditNoteInWizard,
     onCloseDrawer,
+    initialSelectedId,
 }: {
     onBack: () => void;
     isMobile: boolean;
@@ -304,13 +671,31 @@ const MyNotesPanel = ({
     onViewNote?: (note: SavedNote) => void;
     onEditNoteInWizard?: (note: SavedNote) => void;
     onCloseDrawer: () => void;
+    initialSelectedId?: string | null;
 }) => {
+    // Desktop state: checkbox selection + bottom action bar
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [confirmDelete, setConfirmDelete] = useState(false);
     const confirmDeleteRef = useRef(false);
-    const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+    const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout>>(0);
+
+    // Mobile state: swipe + tap action menu
+    const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
+
+    // Shared state
     const [copiedStatus, setCopiedStatus] = useState(false);
     const { shareNote, shareStatus } = useNoteShare();
+
+    // Pre-select / pre-open menu for initially selected note
+    useEffect(() => {
+        if (initialSelectedId && notes.some(n => n.id === initialSelectedId)) {
+            if (isMobile) {
+                setActiveMenuId(initialSelectedId);
+            } else {
+                setSelectedIds(new Set([initialSelectedId]));
+            }
+        }
+    }, [initialSelectedId, notes, isMobile]);
 
     // Clear selection when notes change (e.g., after delete)
     useEffect(() => {
@@ -325,6 +710,14 @@ const MyNotesPanel = ({
         });
     }, [notes]);
 
+    // Close mobile menu if the active note was deleted
+    useEffect(() => {
+        if (activeMenuId && !notes.some(n => n.id === activeMenuId)) {
+            setActiveMenuId(null);
+        }
+    }, [notes, activeMenuId]);
+
+    // Desktop handlers
     const handleToggleSelect = useCallback((noteId: string) => {
         setSelectedIds(prev => {
             const next = new Set(prev);
@@ -345,6 +738,22 @@ const MyNotesPanel = ({
         setConfirmDelete(false);
     }, []);
 
+    // Mobile handlers
+    const handleToggleMenu = useCallback((noteId: string) => {
+        setActiveMenuId(prev => prev === noteId ? null : noteId);
+    }, []);
+
+    // Mobile view: consolidated view action (opens note in wizard)
+    const handleMobileView = useCallback((note: SavedNote) => {
+        onCloseDrawer();
+        if (onEditNoteInWizard) {
+            onEditNoteInWizard(note);
+        } else if (onViewNote) {
+            onViewNote(note);
+        }
+    }, [onCloseDrawer, onEditNoteInWizard, onViewNote]);
+
+    // Desktop view/edit handlers
     const handleViewNote = useCallback((note: SavedNote) => {
         onCloseDrawer();
         if (onViewNote) onViewNote(note);
@@ -355,6 +764,7 @@ const MyNotesPanel = ({
         if (onEditNoteInWizard) onEditNoteInWizard(note);
     }, [onCloseDrawer, onEditNoteInWizard]);
 
+    // Shared handlers
     const handleCopy = useCallback((note: SavedNote) => {
         if (note.encodedText) {
             navigator.clipboard.writeText(note.encodedText).then(() => {
@@ -373,14 +783,12 @@ const MyNotesPanel = ({
 
     const handleDelete = useCallback(() => {
         if (confirmDeleteRef.current) {
-            // Second tap — actually delete
             selectedIds.forEach(id => onDeleteNote(id));
             setSelectedIds(new Set());
             confirmDeleteRef.current = false;
             setConfirmDelete(false);
             if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
         } else {
-            // First tap — ask for confirmation
             confirmDeleteRef.current = true;
             setConfirmDelete(true);
             if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
@@ -435,7 +843,29 @@ const MyNotesPanel = ({
                             Notes you save from the Write Note page will appear here.
                         </p>
                     </div>
+                ) : isMobile ? (
+                    /* Mobile: swipe gestures + tap action menu */
+                    <div className="p-3">
+                        <p className="text-[10px] text-tertiary/40 text-center mb-2">
+                            Swipe or tap for actions
+                        </p>
+                        {notes.map((note) => (
+                            <SwipeableNoteItem
+                                key={note.id}
+                                note={note}
+                                onView={handleMobileView}
+                                onCopy={handleCopy}
+                                onShare={handleShare}
+                                onDelete={onDeleteNote}
+                                activeMenuId={activeMenuId}
+                                onToggleMenu={handleToggleMenu}
+                                shareStatus={shareStatus}
+                                copiedStatus={copiedStatus}
+                            />
+                        ))}
+                    </div>
                 ) : (
+                    /* Desktop: checkbox selection + bottom action bar */
                     <div className="p-3 md:p-4">
                         <p className="text-[10px] text-tertiary/40 text-center mb-2">
                             Tap to select · Multi-select for bulk actions
@@ -452,8 +882,8 @@ const MyNotesPanel = ({
                 )}
             </div>
 
-            {/* Bottom Action Bar — only visible when notes are selected */}
-            {selectedCount > 0 && (
+            {/* Bottom Action Bar — desktop only, visible when notes are selected */}
+            {!isMobile && selectedCount > 0 && (
                 <div className="shrink-0 border-t border-tertiary/10 bg-themewhite2">
                     {/* Selection info row */}
                     <div className="px-4 pt-3 pb-2 flex items-center justify-between">
@@ -490,11 +920,10 @@ const MyNotesPanel = ({
                                 </button>
                                 <button
                                     onClick={() => handleCopy(singleNote)}
-                                    className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${
-                                        copiedStatus
-                                            ? 'bg-green-500/15 text-green-600'
-                                            : 'bg-teal-500/10 text-teal-600 hover:bg-teal-500/20'
-                                    }`}
+                                    className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${copiedStatus
+                                        ? 'bg-green-500/15 text-green-600'
+                                        : 'bg-teal-500/10 text-teal-600 hover:bg-teal-500/20'
+                                        }`}
                                     title="Copy encoded text"
                                 >
                                     <ClipboardCopy size={14} />
@@ -502,13 +931,12 @@ const MyNotesPanel = ({
                                 </button>
                                 <button
                                     onClick={() => handleShare(singleNote)}
-                                    className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${
-                                        shareStatus === 'shared' || shareStatus === 'copied'
-                                            ? 'bg-green-500/15 text-green-600'
-                                            : shareStatus === 'generating' || shareStatus === 'sharing'
-                                                ? 'bg-purple-500/15 text-purple-600'
-                                                : 'bg-purple-500/10 text-purple-600 hover:bg-purple-500/20'
-                                    }`}
+                                    className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${shareStatus === 'shared' || shareStatus === 'copied'
+                                        ? 'bg-green-500/15 text-green-600'
+                                        : shareStatus === 'generating' || shareStatus === 'sharing'
+                                            ? 'bg-purple-500/15 text-purple-600'
+                                            : 'bg-purple-500/10 text-purple-600 hover:bg-purple-500/20'
+                                        }`}
                                     title="Share note as image"
                                 >
                                     <Share2 size={14} />
@@ -516,11 +944,10 @@ const MyNotesPanel = ({
                                 </button>
                                 <button
                                     onClick={handleDelete}
-                                    className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${
-                                        confirmDelete
-                                            ? 'bg-red-500 text-white'
-                                            : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
-                                    }`}
+                                    className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${confirmDelete
+                                        ? 'bg-themeredred text-white'
+                                        : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
+                                        }`}
                                     title={confirmDelete ? 'Tap again to confirm delete' : 'Delete note'}
                                 >
                                     <Trash2 size={14} />
@@ -533,11 +960,10 @@ const MyNotesPanel = ({
                             <div className="flex items-center justify-center gap-2">
                                 <button
                                     onClick={handleDelete}
-                                    className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-full transition-all active:scale-95 ${
-                                        confirmDelete
-                                            ? 'bg-red-600 text-white'
-                                            : 'bg-red-500 text-white hover:bg-red-600'
-                                    }`}
+                                    className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-full transition-all active:scale-95 ${confirmDelete
+                                        ? 'bg-themeredred text-white'
+                                        : 'bg-themeredred text-white hover:bg-red-600'
+                                        }`}
                                 >
                                     <Trash2 size={14} />
                                     {confirmDelete ? `Confirm Delete (${selectedCount})` : `Delete (${selectedCount})`}
@@ -578,7 +1004,8 @@ export const Settings = ({
     isDarkMode,
     onToggleTheme,
     isMobile: externalIsMobile,
-    onMyNotesClick,
+    initialPanel,
+    initialSelectedId,
     notes = [],
     onDeleteNote,
     onEditNote,
@@ -587,6 +1014,16 @@ export const Settings = ({
 }: SettingsDrawerProps) => {
     const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes'>('main');
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
+    const prevVisibleRef = useRef(false);
+
+    // Set initial panel when drawer opens
+    useEffect(() => {
+        if (isVisible && !prevVisibleRef.current) {
+            setActivePanel(initialPanel || 'main');
+            setSlideDirection('');
+        }
+        prevVisibleRef.current = isVisible;
+    }, [isVisible, initialPanel]);
 
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
         setSlideDirection(direction);
@@ -678,11 +1115,12 @@ export const Settings = ({
                             onBack={() => handleItemClick(-2, handleClose)}
                             isMobile={externalIsMobile ?? (typeof window !== 'undefined' && window.innerWidth < 768)}
                             notes={notes}
-                            onDeleteNote={onDeleteNote || (() => {})}
+                            onDeleteNote={onDeleteNote || (() => { })}
                             onEditNote={onEditNote}
                             onViewNote={onViewNote}
                             onEditNoteInWizard={onEditNoteInWizard}
                             onCloseDrawer={handleClose}
+                            initialSelectedId={initialSelectedId}
                         />
                     )}
                 </ContentWrapper>

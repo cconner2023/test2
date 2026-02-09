@@ -23,7 +23,6 @@ import StorageErrorToast from './Components/StorageErrorToast'
 import { Settings } from './Components/Settings'
 import { SymptomInfoDrawer } from './Components/SymptomInfoDrawer'
 import { MedicationsDrawer } from './Components/MedicationsDrawer'
-import { MyNotes } from './Components/MyNotes'
 import { animated } from '@react-spring/web'
 
 // PWA App Shortcut: capture ?view= URL parameter once at module load time
@@ -60,6 +59,8 @@ function AppContent() {
   const [showImportDuplicateModal, setShowImportDuplicateModal] = useState(false)
   // Track the note ID to pre-select in My Notes (used for duplicate import detection)
   const [myNotesInitialSelectedId, setMyNotesInitialSelectedId] = useState<string | null>(null)
+  // Track which panel Settings should open to ('main' or 'my-notes')
+  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'my-notes'>('main')
 
   // Storage error toast state — shown when localStorage operations fail
   const [storageError, setStorageError] = useState<string | null>(null)
@@ -83,7 +84,8 @@ function AppContent() {
   // PWA App Shortcut: open the appropriate view based on the captured URL parameter
   useEffect(() => {
     if (_initialViewParam === 'mynotes') {
-      navigation.setShowMyNotes(true)
+      setSettingsInitialPanel('my-notes')
+      navigation.setShowSettings(true)
     } else if (_initialViewParam === 'import') {
       navigation.setShowNoteImport(true)
     }
@@ -195,11 +197,6 @@ function AppContent() {
     navigation.setShowSettings(true)
   }
 
-  // My Notes click handler
-  const handleMyNotesClick = () => {
-    navigation.setShowMyNotes(true)
-  }
-
   // Expand note from algorithm page — injects HPI text from existing saved note when available
   const handleExpandNote = useCallback((data: WriteNoteData) => {
     if (activeNoteId && activeNoteEncodedText) {
@@ -301,8 +298,8 @@ function AppContent() {
       }
     })
 
-    // 2. Close My Notes drawer
-    navigation.setShowMyNotes(false)
+    // 2. Close Settings drawer (My Notes lives inside Settings)
+    navigation.setShowSettings(false)
 
     // 3. Open WriteNote wizard with restored algorithm state (slight delay for navigation to complete)
     setTimeout(() => {
@@ -344,8 +341,8 @@ function AppContent() {
       }
     })
 
-    // 2. Close My Notes drawer
-    navigation.setShowMyNotes(false)
+    // 2. Close Settings drawer (My Notes lives inside Settings)
+    navigation.setShowSettings(false)
 
     // 3. Open WriteNote wizard at Page 1 (content selection) with restored algorithm state and HPI
     setTimeout(() => {
@@ -371,10 +368,11 @@ function AppContent() {
       setShowImportDuplicateModal(true)
       setTimeout(() => setShowImportDuplicateModal(false), 2500)
 
-      // 3. Open My Notes drawer with the duplicate note pre-selected
+      // 3. Open Settings → My Notes with the duplicate note pre-selected
       setTimeout(() => {
         setMyNotesInitialSelectedId(existingNote.id)
-        navigation.setShowMyNotes(true)
+        setSettingsInitialPanel('my-notes')
+        navigation.setShowSettings(true)
       }, 300)
       return
     }
@@ -425,10 +423,11 @@ function AppContent() {
     setShowImportSuccessModal(true)
     setTimeout(() => setShowImportSuccessModal(false), 2500)
 
-    // 4. Open My Notes drawer so the user can decide what to do with the imported note
+    // 4. Open Settings → My Notes so the user can decide what to do with the imported note
     setTimeout(() => {
       setMyNotesInitialSelectedId(null)
-      navigation.setShowMyNotes(true)
+      setSettingsInitialPanel('my-notes')
+      navigation.setShowSettings(true)
     }, 300)
   }, [restoreNote, notesStorage, navigation])
 
@@ -485,7 +484,6 @@ function AppContent() {
               onImportClick: handleImportClick,
               onMedicationClick: navigation.handleShowMedications,
               onSettingsClick: handleSettingsClick,
-              onMyNotesClick: handleMyNotesClick,
               onInfoClick: navigation.toggleSymptomInfo,
             }}
             ui={{
@@ -653,11 +651,12 @@ function AppContent() {
         />
         <Settings
           isVisible={navigation.showSettings}
-          onClose={() => navigation.setShowSettings(false)}
+          onClose={() => { navigation.setShowSettings(false); setSettingsInitialPanel('main'); setMyNotesInitialSelectedId(null) }}
           isDarkMode={theme === 'dark'}
           onToggleTheme={toggleTheme}
           isMobile={navigation.isMobile}
-          onMyNotesClick={handleMyNotesClick}
+          initialPanel={settingsInitialPanel}
+          initialSelectedId={myNotesInitialSelectedId}
           notes={notesStorage.notes}
           onDeleteNote={notesStorage.deleteNote}
           onEditNote={notesStorage.updateNote}
@@ -677,20 +676,6 @@ function AppContent() {
           selectedSymptom={navigation.selectedSymptom}
           selectedCategory={navigation.selectedCategory}
           onNavigate={handleNavigationClick}
-        />
-        <MyNotes
-          isVisible={navigation.showMyNotes}
-          onClose={() => {
-            navigation.setShowMyNotes(false)
-            setMyNotesInitialSelectedId(null)
-          }}
-          isMobile={navigation.isMobile}
-          notes={notesStorage.notes}
-          onDeleteNote={notesStorage.deleteNote}
-          onEditNote={notesStorage.updateNote}
-          onViewNote={handleViewNote}
-          onEditNoteInWizard={handleEditNoteInWizard}
-          initialSelectedId={myNotesInitialSelectedId}
         />
         {/* WriteNotePage - rendered at App level for proper z-index on mobile */}
         {navigation.isWriteNoteVisible && navigation.writeNoteData && (

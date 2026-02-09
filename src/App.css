@@ -531,11 +531,11 @@ input, select, textarea {
 
 .liquid-glass-menu:has(+ div[class*="z-40"]),
 [data-theme="light"] .liquid-glass-menu {
-    box-shadow: 0 6px 6px rgba(0, 0, 0, 0.2), 0 0 20px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2), 0 0 10px rgba(0, 0, 0, 0.1);
 }
 
 [data-theme="dark"] .liquid-glass-menu {
-    box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.4), 0 0 16px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 2px 2px -4px rgba(0, 0, 0, 0.4), 0 0 8px rgba(0, 0, 0, 0.2);
 }
 
 /* Liquid glass tint - adapts to theme */
@@ -545,11 +545,11 @@ input, select, textarea {
 }
 
 [data-theme="light"] .liquid-glass-tint {
-    background: rgba(255, 255, 255, 0.88);
+    background: rgba(255, 255, 255, 0.95);
 }
 
 [data-theme="dark"] .liquid-glass-tint {
-    background: rgba(25, 35, 45, 0.92);
+    background: rgba(25, 35, 45, 0.98);
 }
 
 /* Liquid glass shine - theme adaptive highlights */

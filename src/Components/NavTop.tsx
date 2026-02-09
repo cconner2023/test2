@@ -1,5 +1,5 @@
 // NavTop.tsx - Simplified version with grouped props
-import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, FileText, HelpCircle } from "lucide-react";
+import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, HelpCircle } from "lucide-react";
 import { useRef, useEffect, useState } from "react";
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { menuData } from "../Data/CatData";
@@ -9,7 +9,6 @@ const iconMap: Record<string, React.ReactNode> = {
     'import': <Upload size={16} className="text-primary/70" />,
     'medications': <Pill size={16} className="text-primary/70" />,
     'Settings': <Settings size={16} className="text-primary/70" />,
-    'myNotes': <FileText size={16} className="text-primary/70" />,
 };
 
 export function NavTop({ search, actions, ui }: NavTopProps) {
@@ -31,7 +30,6 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         onImportClick,
         onMedicationClick,
         onSettingsClick,
-        onMyNotesClick,
         onInfoClick,
     } = actions
 
@@ -78,9 +76,6 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                 break;
             case 'settings':
                 onSettingsClick?.();
-                break;
-            case 'mynotes':
-                onMyNotesClick?.();
                 break;
             default:
                 console.warn("Unknown menu action:", action);
@@ -438,19 +433,6 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
             {!isMobile && (
                 <div className="flex items-center justify-center transition-all duration-300 w-max opacity-100">
                     <div className="w-max h-full flex items-center justify-center gap-2">
-                        {/* My Notes button - with text on large screens */}
-                        <button
-                            onClick={onMyNotesClick}
-                            className={BUTTON_CLASSES.desktop}
-                            aria-label="My Notes"
-                            title="My Notes"
-                        >
-                            <FileText className="w-4 h-4 stroke-themeblue1" />
-                            <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
-                                My Notes
-                            </span>
-                        </button>
-
                         {/* Import button - with text on large screens */}
                         <button
                             onClick={onImportClick}

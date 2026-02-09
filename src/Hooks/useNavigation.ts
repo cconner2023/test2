@@ -31,7 +31,6 @@ interface NavigationState {
     isMenuOpen: boolean;
     showNoteImport: boolean;
     showSettings: boolean;
-    showMyNotes: boolean;
     isSearchExpanded: boolean;
     showSymptomInfo: boolean;
     showMedications: boolean;
@@ -49,7 +48,6 @@ export function useNavigation() {
         isMenuOpen: false,
         showNoteImport: false,
         showSettings: false,
-        showMyNotes: false,
         isSearchExpanded: false,
         showSymptomInfo: false,
         showMedications: false,
@@ -312,7 +310,7 @@ export function useNavigation() {
     )
 
     // Check if any drawer that covers the menu is open (on mobile these cover the entire screen)
-    const isDrawerCoveringMenu = state.showNoteImport || state.showSettings || state.showMyNotes || state.showMedications || state.showSymptomInfo
+    const isDrawerCoveringMenu = state.showNoteImport || state.showSettings || state.showMedications || state.showSymptomInfo
 
     const shouldShowBackButton = (hasSearchInput: boolean) => {
         if (hasSearchInput) return false
@@ -335,7 +333,6 @@ export function useNavigation() {
     const CLOSE_ALL_DRAWERS: Partial<NavigationState> = {
         showNoteImport: false,
         showSettings: false,
-        showMyNotes: false,
         showMedications: false,
         showSymptomInfo: false,
         isMenuOpen: false,
@@ -363,14 +360,6 @@ export function useNavigation() {
             ...prev,
             ...(show ? CLOSE_ALL_DRAWERS : {}),
             showSettings: show,
-        }))
-    }, [])
-
-    const setShowMyNotes = useCallback((show: boolean) => {
-        setState(prev => ({
-            ...prev,
-            ...(show ? CLOSE_ALL_DRAWERS : {}),
-            showMyNotes: show,
         }))
     }, [])
 
@@ -449,7 +438,6 @@ export function useNavigation() {
         isMenuOpen: state.isMenuOpen,
         showNoteImport: state.showNoteImport,
         showSettings: state.showSettings,
-        showMyNotes: state.showMyNotes,
         isSearchExpanded: state.isSearchExpanded,
         showSymptomInfo: state.showSymptomInfo,
         showMedications: state.showMedications,
@@ -467,7 +455,6 @@ export function useNavigation() {
         closeMenu,
         setShowNoteImport,
         setShowSettings,
-        setShowMyNotes,
         setShowMedications,
         toggleSearchExpanded,
         setSearchExpanded,
