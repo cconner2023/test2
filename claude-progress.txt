@@ -1,3 +1,36 @@
+## Session - Feature #101: PWA app shortcut verification
+Date: 2026-02-09
+
+### Completed
+- Feature #101 (PWA functionality): PWA app shortcut verification - PASSING
+
+### Verification Steps Performed
+1. Desktop (1280x720): Navigated to /ADTMC/?view=mynotes - My Notes drawer opened automatically with heading, close button, and "No saved notes" empty state
+2. Desktop: Navigated to /ADTMC/?view=import - Scan Barcode drawer opened automatically with camera scanning view and Cancel button
+3. Mobile (375x812): Navigated to /ADTMC/?view=mynotes - My Notes bottom sheet opened correctly
+4. Mobile: Navigated to /ADTMC/?view=import - Scan Barcode bottom sheet opened correctly with camera view
+5. URL cleanup verified: ?view= parameter removed from URL after processing (window.location.href = /ADTMC/)
+6. Manifest verified: dist/manifest.webmanifest contains both shortcuts with correct URLs, names, descriptions, and icons
+7. Code review: App.tsx captures ?view= param at module load time, cleans URL via replaceState, opens drawer via useEffect on mount
+8. Import shortcut opens in scanning mode (camera) by default, as designed
+9. Zero console errors across all 4 test scenarios (desktop/mobile x mynotes/import)
+10. Zero mock data patterns in src/ (grepped all patterns)
+11. npm run build succeeds
+
+### Architecture Notes
+- _initialViewParam captured at module load time (before React StrictMode)
+- URL parameter cleaned immediately via window.history.replaceState
+- useEffect on mount triggers navigation.setShowMyNotes(true) or navigation.setShowNoteImport(true)
+- Import shortcut sets importInitialView to 'scanning' (camera mode vs default 'input' mode)
+- importWasOpenedRef tracks whether import was opened to clear initial view on close
+
+### Current Status
+- Feature #101 passing
+- 56/62 features passing (88.7% → 90.3%)
+- Dev server running on port 5175
+
+---
+
 ## Session - Feature #100: Splash image - desktop / mobile
 Date: 2026-02-09
 
