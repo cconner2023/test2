@@ -14,6 +14,7 @@ interface MyNotesProps {
     onEditNote?: (noteId: string, updates: Partial<Omit<SavedNote, 'id' | 'createdAt'>>) => void;
     onViewNote?: (note: SavedNote) => void;
     onEditNoteInWizard?: (note: SavedNote) => void;
+    initialSelectedId?: string | null;
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -254,6 +255,7 @@ const MyNotesContent = ({
     onEditNote,
     onViewNote,
     onEditNoteInWizard,
+    initialSelectedId,
 }: {
     onClose: () => void;
     isMobile: boolean;
@@ -262,8 +264,16 @@ const MyNotesContent = ({
     onEditNote?: (noteId: string, updates: Partial<Omit<SavedNote, 'id' | 'createdAt'>>) => void;
     onViewNote?: (note: SavedNote) => void;
     onEditNoteInWizard?: (note: SavedNote) => void;
+    initialSelectedId?: string | null;
 }) => {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+    // Pre-select a note when initialSelectedId is provided (e.g., duplicate import detection)
+    useEffect(() => {
+        if (initialSelectedId && notes.some(n => n.id === initialSelectedId)) {
+            setSelectedIds(new Set([initialSelectedId]));
+        }
+    }, [initialSelectedId, notes]);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const confirmDeleteRef = useRef(false);
     const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
@@ -447,7 +457,7 @@ const MyNotesContent = ({
    per-item. Single-select shows full actions, multi-select
    shows only delete.
    ──────────────────────────────────────────────────────────── */
-export function MyNotes({ isVisible, onClose, isMobile: externalIsMobile, notes, onDeleteNote, onEditNote, onViewNote, onEditNoteInWizard }: MyNotesProps) {
+export function MyNotes({ isVisible, onClose, isMobile: externalIsMobile, notes, onDeleteNote, onEditNote, onViewNote, onEditNoteInWizard, initialSelectedId }: MyNotesProps) {
     return (
         <BaseDrawer
             isVisible={isVisible}
@@ -472,6 +482,7 @@ export function MyNotes({ isVisible, onClose, isMobile: externalIsMobile, notes,
                     onEditNote={onEditNote}
                     onViewNote={onViewNote}
                     onEditNoteInWizard={onEditNoteInWizard}
+                    initialSelectedId={initialSelectedId}
                 />
             )}
         </BaseDrawer>

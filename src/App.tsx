@@ -54,6 +54,10 @@ function AppContent() {
 
   // Import success modal state
   const [showImportSuccessModal, setShowImportSuccessModal] = useState(false)
+  // Import duplicate modal state (shown when importing an already-saved note)
+  const [showImportDuplicateModal, setShowImportDuplicateModal] = useState(false)
+  // Track the note ID to pre-select in My Notes (used for duplicate import detection)
+  const [myNotesInitialSelectedId, setMyNotesInitialSelectedId] = useState<string | null>(null)
 
   // Track the active note being viewed in WriteNotePage (null = fresh note, string = saved note ID)
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null)
@@ -302,8 +306,28 @@ function AppContent() {
     }, 400)
   }, [restoreNote, navigation])
 
-  // Import success handler — saves imported note with 'external source' tag, then opens My Notes
+  // Import success handler — checks for duplicates, saves imported note with 'external source' tag, then opens My Notes
   const handleImportSuccess = useCallback((data: ImportSuccessData) => {
+    // Check for duplicate: does a note with the same encodedText already exist?
+    const existingNote = notesStorage.notes.find(n => n.encodedText === data.encodedText)
+
+    if (existingNote) {
+      // Duplicate detected — navigate to My Notes with the existing note pre-selected
+      // 1. Close Import drawer
+      navigation.setShowNoteImport(false)
+
+      // 2. Show duplicate feedback modal
+      setShowImportDuplicateModal(true)
+      setTimeout(() => setShowImportDuplicateModal(false), 2500)
+
+      // 3. Open My Notes drawer with the duplicate note pre-selected
+      setTimeout(() => {
+        setMyNotesInitialSelectedId(existingNote.id)
+        navigation.setShowMyNotes(true)
+      }, 300)
+      return
+    }
+
     // Build a temporary SavedNote-like object to use restoreNote
     const tempNote: SavedNote = {
       id: '',
@@ -345,6 +369,7 @@ function AppContent() {
 
     // 4. Open My Notes drawer so the user can decide what to do with the imported note
     setTimeout(() => {
+      setMyNotesInitialSelectedId(null)
       navigation.setShowMyNotes(true)
     }, 300)
   }, [restoreNote, notesStorage, navigation])
@@ -588,13 +613,17 @@ function AppContent() {
         />
         <MyNotes
           isVisible={navigation.showMyNotes}
-          onClose={() => navigation.setShowMyNotes(false)}
+          onClose={() => {
+            navigation.setShowMyNotes(false)
+            setMyNotesInitialSelectedId(null)
+          }}
           isMobile={navigation.isMobile}
           notes={notesStorage.notes}
           onDeleteNote={notesStorage.deleteNote}
           onEditNote={notesStorage.updateNote}
           onViewNote={handleViewNote}
           onEditNoteInWizard={handleEditNoteInWizard}
+          initialSelectedId={myNotesInitialSelectedId}
         />
         {/* WriteNotePage - rendered at App level for proper z-index on mobile */}
         {navigation.isWriteNoteVisible && navigation.writeNoteData && (
@@ -635,6 +664,20 @@ function AppContent() {
               </div>
               <p className="text-sm font-medium text-primary">Note Imported Successfully</p>
               <p className="text-xs text-tertiary/60">Saved with external source tag</p>
+            </div>
+          </div>
+        )}
+        {/* Import Duplicate Modal — shown when importing a note that already exists */}
+        {showImportDuplicateModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
+            <div className="bg-themewhite rounded-2xl shadow-2xl border border-tertiary/10 px-8 py-6 flex flex-col items-center gap-3 animate-[fadeInScale_0.3s_ease-out]">
+              <div className="w-12 h-12 rounded-full bg-amber-500/15 flex items-center justify-center">
+                <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-primary">Note Already Saved</p>
+              <p className="text-xs text-tertiary/60">This note already exists in your saved notes</p>
             </div>
           </div>
         )}
