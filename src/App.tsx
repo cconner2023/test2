@@ -302,7 +302,7 @@ function AppContent() {
     }, 400)
   }, [restoreNote, navigation])
 
-  // Import success handler — saves imported note with 'external source' tag, then opens it like viewing from My Notes
+  // Import success handler — saves imported note with 'external source' tag, then opens My Notes
   const handleImportSuccess = useCallback((data: ImportSuccessData) => {
     // Build a temporary SavedNote-like object to use restoreNote
     const tempNote: SavedNote = {
@@ -326,7 +326,7 @@ function AppContent() {
 
     // 1. Save the note to storage with 'external source' tag
     const disposition = result.writeNoteData.disposition
-    const saveResult = notesStorage.saveNote({
+    notesStorage.saveNote({
       encodedText: data.encodedText,
       previewText: data.decodedText.slice(0, 200),
       symptomIcon: result.symptom.icon || '',
@@ -343,37 +343,10 @@ function AppContent() {
     setShowImportSuccessModal(true)
     setTimeout(() => setShowImportSuccessModal(false), 2500)
 
-    // 4. Track the saved note for delete/save changes logic
-    if (saveResult.success && saveResult.noteId) {
-      setActiveNoteId(saveResult.noteId)
-      setActiveNoteEncodedText(data.encodedText)
-      setActiveNoteSource('external source')
-    }
-
-    // Store restored algorithm state so AlgorithmPage can be pre-filled
-    setRestoredAlgorithmState({
-      cardStates: result.writeNoteData.cardStates,
-      disposition: result.writeNoteData.disposition
-    })
-
-    // 5. Navigate to the algorithm view for this symptom (same as handleViewNote)
-    navigation.handleNavigation({
-      type: 'CC',
-      id: result.symptom.id,
-      icon: result.symptom.icon,
-      text: result.symptom.text,
-      data: {
-        categoryId: result.category.id,
-        symptomId: result.symptom.id,
-        categoryRef: result.category,
-        symptomRef: result.symptom
-      }
-    })
-
-    // 6. Open WriteNote wizard with restored algorithm state on the note preview page
+    // 4. Open My Notes drawer so the user can decide what to do with the imported note
     setTimeout(() => {
-      navigation.showWriteNote(result.writeNoteData!)
-    }, 400)
+      navigation.setShowMyNotes(true)
+    }, 300)
   }, [restoreNote, notesStorage, navigation])
 
   // Title logic
