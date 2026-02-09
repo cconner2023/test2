@@ -1,5 +1,5 @@
 // Hooks/useServiceWorker.ts
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { registerSW } from 'virtual:pwa-register';
 
 export function useServiceWorker() {
@@ -7,6 +7,7 @@ export function useServiceWorker() {
     const [offlineReady, setOfflineReady] = useState(false);
     const [isUpdating, setIsUpdating] = useState(false);
     const [registration, setRegistration] = useState<ServiceWorkerRegistration | undefined>();
+    const intervalRef = useRef<number>(0);
 
     // Store the update function from registerSW
     const [updateSW, setUpdateSW] = useState<((reloadPage?: boolean) => Promise<void>) | null>(null);
@@ -28,7 +29,7 @@ export function useServiceWorker() {
 
                 // Check for updates periodically (every 5 minutes)
                 if (r) {
-                    setInterval(() => {
+                    intervalRef.current = window.setInterval(() => {
                         console.log('[PWA] Checking for updates...');
                         r.update();
                     }, 5 * 60 * 1000);
@@ -40,6 +41,10 @@ export function useServiceWorker() {
         });
 
         setUpdateSW(() => update);
+
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
     }, []);
 
     const skipWaiting = useCallback(async () => {
@@ -70,13 +75,17 @@ export function useServiceWorker() {
         }
     }, [registration]);
 
+    const dismissTimeoutRef = useRef<number>(0);
+
     const dismissUpdate = useCallback(() => {
         setUpdateAvailable(false);
         try { localStorage.setItem('updateDismissed', 'true'); } catch { /* storage unavailable */ }
 
         // Auto-remove dismissal after 1 hour
-        setTimeout(() => {
+        if (dismissTimeoutRef.current) clearTimeout(dismissTimeoutRef.current);
+        dismissTimeoutRef.current = window.setTimeout(() => {
             try { localStorage.removeItem('updateDismissed'); } catch { /* storage unavailable */ }
+            dismissTimeoutRef.current = 0;
         }, 60 * 60 * 1000);
     }, []);
 

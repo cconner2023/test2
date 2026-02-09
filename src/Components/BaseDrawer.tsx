@@ -105,10 +105,13 @@ export function BaseDrawer({
         }
 
         return () => {
-            animationFrameId.current && cancelAnimationFrame(animationFrameId.current);
-            timeoutRef.current && clearTimeout(timeoutRef.current);
+            if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            if (closeDelayRef.current) clearTimeout(closeDelayRef.current);
         };
     }, [isVisible, isMobile]);
+
+    const closeDelayRef = useRef<number>(0);
 
     const animateToPosition = useCallback((targetPosition: number) => {
         if (animationFrameId.current) {
@@ -133,9 +136,10 @@ export function BaseDrawer({
             } else {
                 animationFrameId.current = 0;
                 if (targetPosition === 0) {
-                    setTimeout(() => {
+                    closeDelayRef.current = window.setTimeout(() => {
                         onClose();
                         setIsMounted(false);
+                        closeDelayRef.current = 0;
                     }, 50);
                 }
             }

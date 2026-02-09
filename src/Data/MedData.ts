@@ -12,12 +12,12 @@ export interface medListTypes {
     aviation: aviationType[]
 }
 
-export interface pregType {
+interface pregType {
     icon: string,
     text: string
 }
 
-export interface aviationType {
+interface aviationType {
     icon: string,
     text: string,
 }

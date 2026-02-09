@@ -14,9 +14,6 @@ export function TextButton({
     className = '',
     isMobile = false
 }: TextButtonProps) {
-    const displayText = text;
-    const textButtonClick = onClick;
-
     const getVariant = () => {
         switch (variant) {
             case 'secondary':
@@ -36,10 +33,10 @@ export function TextButton({
 
     return (
         <button
-            className={`${isMobile ? '' : 'h-7 p-4'} w-max flex items-center justify-center text-[9pt] font-normal transition-all duration-300 ${getVariant()} ${variant !== 'dispo-specific' ? className : ''}`}
-            onClick={textButtonClick}
+            className={`${isMobile ? '' : 'h-7 p-4'} w-max flex items-center justify-center text-[9pt] font-normal transition-colors duration-200 ${getVariant()} ${variant !== 'dispo-specific' ? className : ''}`}
+            onClick={onClick}
         >
-            <span>{displayText}</span>
+            <span>{text}</span>
         </button>
     );
 }

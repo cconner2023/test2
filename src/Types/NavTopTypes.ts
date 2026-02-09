@@ -3,7 +3,7 @@
 /**
  * Search-related props grouped together
  */
-export interface SearchProps {
+interface SearchProps {
   searchInput: string
   onSearchChange: (value: string) => void
   onSearchFocus?: () => void
@@ -16,7 +16,7 @@ export interface SearchProps {
 /**
  * Navigation action handlers grouped together
  */
-export interface NavigationActions {
+interface NavigationActions {
   onBackClick?: () => void
   onMenuClick?: () => void
   onMenuClose?: () => void
@@ -30,7 +30,7 @@ export interface NavigationActions {
 /**
  * UI state and display props grouped together
  */
-export interface UIState {
+interface UIState {
   showBack?: boolean
   showMenu?: boolean
   dynamicTitle?: string

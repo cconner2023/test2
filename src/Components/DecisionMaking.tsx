@@ -1,6 +1,5 @@
 // components/DecisionMaking.tsx
 import { useState } from 'react'
-import { useAppAnimate } from '../Utilities/AnimationConfig'
 import { getColorClasses } from '../Utilities/ColorUtilities'
 import type { AlgorithmOptions, decisionMakingType, dispositionType } from '../Types/AlgorithmTypes'
 import type { CardState } from '../Hooks/useAlgorithm'
@@ -22,7 +21,6 @@ export function DecisionMaking({
     dispositionType,
 }: DecisionMakingProps) {
     const [selectedMedication, setSelectedMedication] = useState<medListTypes | null>(null)
-    const [listRef] = useAppAnimate<HTMLDivElement>()
     const colors = getColorClasses(dispositionType)
 
     const findTriggeringDecisionMaking = (): decisionMakingType[] => {
@@ -67,7 +65,7 @@ export function DecisionMaking({
 
     return (
         <div className="h-full w-full">
-            <div ref={listRef} className="h-full">
+            <div className="h-full">
                 {selectedMedication ? (
                     <div className="h-full flex flex-col">
                         <div className="flex-none p-3 border-b border-themegray1/20">

@@ -244,8 +244,6 @@ export const useNoteCapture = (
     }, [getAlgorithmContent, getDecisionMakingContent]);
 
     return {
-        generateNote,
-        getAlgorithmContent,
-        getDecisionMakingContent
+        generateNote
     };
 };
