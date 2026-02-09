@@ -1,3 +1,163 @@
+## Session - Feature #95: Unique note import (duplicate detection)
+Date: 2026-02-09
+
+### Completed
+- Feature #95 (Saved Notes): unique note import - PASSING
+
+### Implementation Details
+Added duplicate detection to the note import flow:
+
+1. **App.tsx** (handleImportSuccess):
+   - Before saving, checks if `encodedText` already exists in `notesStorage.notes`
+   - **Duplicate found**: Shows "Note Already Saved" modal, opens My Notes with existing note pre-selected
+   - **New note**: Saves with 'external source' tag (existing behavior preserved), shows success modal
+   - Added `showImportDuplicateModal` and `myNotesInitialSelectedId` state
+   - Clear `myNotesInitialSelectedId` when My Notes closes or on fresh import
+
+2. **MyNotes.tsx**:
+   - Added `initialSelectedId` prop to `MyNotesProps`, `MyNotesContent`, and `MyNotes` components
+   - Added `useEffect` to pre-select a note when `initialSelectedId` changes (used for duplicate import)
+
+3. **Import Duplicate Modal** (App.tsx):
+   - Amber-themed warning modal: "Note Already Saved / This note already exists in your saved notes"
+   - Auto-dismisses after 2.5 seconds (matches success modal behavior)
+
+### Verification Steps Performed
+1. Created note via triage: Cat A → A-1 Sore Throat → RF NO → Additional NO → 0-2 CENTOR → CAT III → Save to My Notes ✅
+2. Opened Import Note, entered same encoded text `A1|R0|1.0.1|2.0.1|3.0.1|F3`, decoded, clicked Import ✅
+3. **Duplicate detected**: "Note Already Saved" modal shown, My Notes opened with note pre-selected ✅
+4. **No duplicate created**: My Notes still shows 1 note (not 2) ✅
+5. Cleared all notes, re-imported same encoded text ✅
+6. **Fresh import**: "Note Imported Successfully" modal shown, note saved with "External" badge ✅
+7. Tried importing same note again → duplicate detected, My Notes opened with note pre-selected ✅
+8. Zero console errors across all tests (305 messages, 0 errors) ✅
+9. Zero mock data patterns in src/ (grepped all patterns) ✅
+10. npm run build succeeds ✅
+11. Test data cleaned up after verification ✅
+
+### Files Modified
+- src/App.tsx: Duplicate detection in handleImportSuccess, duplicate modal UI, initialSelectedId state
+- src/Components/MyNotes.tsx: initialSelectedId prop for pre-selection
+
+### Current Status
+- Feature #95 passing
+- Dev server running on port 5179
+
+---
+
+## Session - Feature #92: Verify navigation
+Date: 2026-02-09
+
+### Status: FAILING (blocked by Feature #96)
+
+### Issue Found
+- **Settings sub-panels (My Notes, Release Notes) missing drag handle on mobile**
+  - Main Settings panel correctly renders drag handle pill bar (w-14 h-1.5 rounded-full bg-tertiary/30 inside data-drag-zone)
+  - ReleaseNotesPanel (Settings.tsx ~line 60) does NOT render drag handle
+  - MyNotesPanel (Settings.tsx ~line 396) does NOT render drag handle
+  - Settings.tsx line 654: `disableDrag={activePanel !== 'main'}` disables drag for sub-panels
+  - Created Feature #96 to fix this, and added it as dependency for Feature #92
+
+### Verification Steps Performed (All passing except drag handle)
+1. **Desktop Navigation** ✅
+   - Categories grid renders 13 categories with icons/labels
+   - Category A → subcategories (A-1 through A-5)
+   - Symptom A-1 → algorithm with Red Flags + YES/NO buttons
+   - Full flow: NO → NO → 0-2 CENTOR → CAT III disposition → Write Note wizard
+
+2. **Desktop Drawers** ✅
+   - Settings drawer opens as modal panel
+   - My Notes sub-panel with back button
+   - Release Notes sub-panel (v2.6.1, v2.6.0) with back button
+   - Close button works
+
+3. **Mobile Navigation (375x812)** ✅
+   - Categories render in mobile layout with hamburger menu
+   - Full flow: Category A → A-1 → algorithm → disposition → Write Note
+   - Back button navigation works at all depths
+   - Touch handlers properly attached via React fiber (verified)
+
+4. **Mobile Write Note Wizard** ✅
+   - Page 0: Decision Making with drag handle, Clinical Decision Support
+   - Page 1: Write Note with content toggles
+   - Page 2: View Note with full generated text
+   - Page 3: Share Note with PDF417 barcode
+   - All pages have drag handle visible
+
+5. **Settings Sub-items** ❌ (PARTIAL)
+   - Back button navigation: ✅ Works in My Notes and Release Notes
+   - Drag handle visible: ❌ Missing in both sub-panels
+   - Drag functionality: ❌ Disabled via disableDrag prop
+
+6. **Swipe vs Selection Architecture** ✅ (Code Review)
+   - Swipe uses onTouchStart/Move/End on container divs (App.tsx lines 445, 556)
+   - Selection uses onClick on card elements (QuestionCard.tsx lines 76, 127)
+   - Browser natively distinguishes swipe (touch-move) from tap (click)
+   - Direction lock at 8px prevents false triggers
+   - pointer-events-none applied during swipe animation
+
+7. **Console Errors** ✅ — 0 errors, 0 warnings
+8. **Build** ✅ — npm run build succeeds
+
+### Screenshots Captured
+- mobile-settings-main-with-draghandle.png — Main Settings with drag handle ✅
+- mobile-mynotes-no-draghandle.png — My Notes sub-panel missing drag handle ❌
+- mobile-releasenotes-no-draghandle.png — Release Notes sub-panel missing drag handle ❌
+
+---
+
+## Session - Feature #93: Two-tap delete confirmation
+Date: 2026-02-09
+
+### Completed
+- Feature #93 (Security): two-tap delete — Verified and implemented two-tap delete on saved notes (both WriteNote wizard and MyNotes), verified wizard toggles don't auto-advance - PASSING
+
+### Implementation Changes
+
+1. **src/Components/WriteNotePage.tsx**: Added two-tap delete confirmation pattern
+   - Added `confirmDelete` state, `confirmDeleteRef` ref, `confirmDeleteTimeoutRef` ref
+   - Modified `handleDeleteNote` from single-tap to two-tap:
+     - First tap: sets confirm state, starts 5-second auto-reset timeout
+     - Second tap (within 5s): actually deletes the note
+     - After 5s: reverts to "Delete Note" state automatically
+   - Updated delete button UI with three visual states:
+     - Default: gray bg, red text, "Delete Note"
+     - Confirm: red-500 bg, white text, "Confirm Delete"
+     - Deleted: red/15 bg, red text, "Note Deleted"
+
+### Verification Steps Performed
+
+**Mobile (375x812):**
+1. Full triage flow: Cat A → A-1 → RF NO → Additional NO → 0-2 CENTOR → CAT III → Continue → Write Note wizard ✅
+2. Saved note → "Delete Note" button appeared ✅
+3. First tap: "Delete Note" → "Confirm Delete" (red-500 bg) ✅
+4. Second tap (via browser_evaluate): note deleted from localStorage (count 1 → 0) ✅
+5. Button reverted to "Save to My Notes" after deletion ✅
+6. MyNotes two-tap delete: Settings → My Notes → select note → Delete → "Confirm" → deleted ✅
+7. Write Note wizard toggles (Algorithm, Decision Making, HPI): none auto-advance pages ✅
+8. Manual "Next →" button required for page navigation ✅
+
+**Desktop (1920x1080):**
+9. Full triage flow through Write Note wizard at desktop resolution ✅
+10. WriteNote wizard: "Delete Note" → "Confirm Delete" → note deleted, wizard closed ✅
+11. MyNotes: Settings → My Notes → select note → Delete → "Confirm" → note deleted (localStorage 1 → 0) ✅
+12. 5-second auto-reset timeout works (button reverts if not confirmed) ✅
+
+**Code Quality:**
+13. Zero mock data patterns in src/ (grepped all patterns) ✅
+14. npm run build succeeds ✅
+15. Zero console errors (0 out of 1372 messages) ✅
+
+### Files Modified
+- src/Components/WriteNotePage.tsx: Added two-tap delete confirmation pattern (34 insertions, 6 deletions)
+
+### Current Status
+- Feature #93 passing
+- 50/56 features now passing (89.3%)
+- Dev server running on port 5177
+
+---
+
 ## Session - Feature #94: Verify PWA shortcuts
 Date: 2026-02-09
 
