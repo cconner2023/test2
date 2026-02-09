@@ -463,7 +463,6 @@ export function MyNotes({ isVisible, onClose, isMobile: externalIsMobile, notes,
             isVisible={isVisible}
             onClose={onClose}
             isMobile={externalIsMobile}
-            partialHeight="45dvh"
             fullHeight="90dvh"
             backdropOpacity={0.9}
             desktopPosition="right"

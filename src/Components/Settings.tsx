@@ -46,7 +46,7 @@ const ReleaseNoteItem = ({ note }: { note: ReleaseNoteTypes }) => {
     );
 };
 
-const ReleaseNotesPanel = ({ onBack }: { onBack: () => void }) => {
+const ReleaseNotesPanel = ({ onBack, isMobile }: { onBack: () => void; isMobile: boolean }) => {
     const groupedNotes = ReleaseNotes.reduce<Record<string, ReleaseNoteTypes[]>>((acc, note) => {
         const version = note.version;
         if (!acc[version]) acc[version] = [];
@@ -58,6 +58,11 @@ const ReleaseNotesPanel = ({ onBack }: { onBack: () => void }) => {
 
     return (
         <div className="h-full flex flex-col">
+            {isMobile && (
+                <div className="flex justify-center pt-3 pb-2" data-drag-zone style={{ touchAction: 'none' }}>
+                    <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
+                </div>
+            )}
             <div className="px-6 border-b border-tertiary/10 py-4 md:py-5">
                 <div className="flex items-center">
                     <button
@@ -394,6 +399,11 @@ const MyNotesPanel = ({
 
     return (
         <div className="h-full flex flex-col">
+            {isMobile && (
+                <div className="flex justify-center pt-3 pb-2" data-drag-zone style={{ touchAction: 'none' }}>
+                    <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
+                </div>
+            )}
             <div className="px-6 border-b border-tertiary/10 py-4 md:py-5">
                 <div className="flex items-center">
                     <button
@@ -642,7 +652,6 @@ export const Settings = ({
             isVisible={isVisible}
             onClose={() => { setActivePanel('main'); setSlideDirection(''); onClose(); }}
             isMobile={externalIsMobile}
-            partialHeight="45dvh"
             fullHeight="90dvh"
             backdropOpacity={0.9}
             desktopPosition="right"
@@ -651,7 +660,7 @@ export const Settings = ({
             desktopPanelPadding=""
             desktopHeight="h-[550px]"
             desktopTopOffset="4.5rem"
-            disableDrag={activePanel !== 'main'}
+            disableDrag={false}
         >
             {(handleClose) => (
                 <ContentWrapper slideDirection={slideDirection}>
@@ -663,7 +672,7 @@ export const Settings = ({
                             isMobile={externalIsMobile ?? (typeof window !== 'undefined' && window.innerWidth < 768)}
                         />
                     ) : activePanel === 'release-notes' ? (
-                        <ReleaseNotesPanel onBack={() => handleItemClick(-2, handleClose)} />
+                        <ReleaseNotesPanel onBack={() => handleItemClick(-2, handleClose)} isMobile={externalIsMobile ?? (typeof window !== 'undefined' && window.innerWidth < 768)} />
                     ) : (
                         <MyNotesPanel
                             onBack={() => handleItemClick(-2, handleClose)}

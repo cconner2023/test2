@@ -18,7 +18,12 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         // Only run on client side
         if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem('theme') as Theme;
+            let saved: string | null = null;
+            try {
+                saved = localStorage.getItem('theme') as Theme;
+            } catch {
+                // localStorage unavailable — fall through to system preference
+            }
             const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
             if (saved === 'light' || saved === 'dark') {
@@ -30,9 +35,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
             // Listen for system theme preference changes
             const handleSystemThemeChange = (e: MediaQueryListEvent) => {
-                const saved = localStorage.getItem('theme') as Theme;
+                let currentSaved: string | null = null;
+                try {
+                    currentSaved = localStorage.getItem('theme') as Theme;
+                } catch {
+                    // localStorage unavailable
+                }
                 // Only update if user hasn't set a manual preference
-                if (saved !== 'light' && saved !== 'dark') {
+                if (currentSaved !== 'light' && currentSaved !== 'dark') {
                     setThemeState(e.matches ? 'dark' : 'light');
                 }
             };
@@ -46,7 +56,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (theme && typeof window !== 'undefined') {
             document.documentElement.setAttribute('data-theme', theme);
-            localStorage.setItem('theme', theme);
+            try {
+                localStorage.setItem('theme', theme);
+            } catch {
+                // localStorage full or unavailable — theme still works in-memory for this session
+            }
 
             // Update iOS/Safari theme-color meta tag to match current theme
             const themeColor = theme === 'dark' ? 'rgb(15, 25, 35)' : 'rgb(255, 251, 251)';

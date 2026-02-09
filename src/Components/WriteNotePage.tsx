@@ -33,9 +33,9 @@ interface WriteNoteProps {
     cardStates?: CardState[];
     isExpanded: boolean;
     onExpansionChange: (expanded: boolean) => void;
-    onNoteSave?: (data: NoteSaveData) => void;
+    onNoteSave?: (data: NoteSaveData) => boolean | void;
     onNoteDelete?: (noteId: string) => void;
-    onNoteUpdate?: (noteId: string, data: NoteSaveData) => void;
+    onNoteUpdate?: (noteId: string, data: NoteSaveData) => boolean | void;
     existingNoteId?: string | null;
     existingEncodedText?: string | null;
     selectedSymptom?: {
@@ -73,10 +73,11 @@ export const WriteNotePage = ({
     const [encodedValue, setEncodedValue] = useState<string>('');
     const [isCopied, setIsCopied] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
+    const [saveFailed, setSaveFailed] = useState(false);
     const [isDeleted, setIsDeleted] = useState(false);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const confirmDeleteRef = useRef(false);
-    const confirmDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+    const confirmDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout>>(0);
 
     // Page navigation state (0=Decision Making, 1=Write Note, 2=View Note, 3=Share Note)
     const [currentPage, setCurrentPage] = useState(initialPage);
@@ -96,6 +97,7 @@ export const WriteNotePage = ({
     const pageLastX = useRef(0);
     const pageLastTime = useRef(0);
     const pageDragXRef = useRef(0); // Track drag offset via ref for velocity calculations
+    const pageInteractiveTouch = useRef(false); // Skip swipe when touch starts on interactive element
 
     // react-spring for page swipe animation
     // pagePos tracks the full page position as a percentage (0 = page 0, -100 = page 1, -200 = page 2, etc.)
@@ -168,7 +170,7 @@ export const WriteNotePage = ({
     // --- Save note handler (new note) ---
     const handleSaveNote = useCallback(() => {
         if (!encodedValue) return;
-        onNoteSave?.({
+        const result = onNoteSave?.({
             encodedText: encodedValue,
             previewText: previewNote.slice(0, 200),
             symptomIcon: selectedSymptom?.icon || '',
@@ -176,6 +178,12 @@ export const WriteNotePage = ({
             dispositionType: disposition.type,
             dispositionText: disposition.text,
         });
+        if (result === false) {
+            // Save failed — show error state on button briefly
+            setSaveFailed(true);
+            setTimeout(() => setSaveFailed(false), 3000);
+            return;
+        }
         setIsSaved(true);
         setTimeout(() => setIsSaved(false), 2500);
     }, [encodedValue, previewNote, selectedSymptom, disposition, onNoteSave]);
@@ -237,6 +245,9 @@ export const WriteNotePage = ({
     const handleContentTouchStart = useCallback((e: React.TouchEvent) => {
         if (!isMobile) return;
         const touch = e.touches[0];
+        // Skip swipe gestures when touch starts on interactive elements
+        const target = e.target as HTMLElement;
+        pageInteractiveTouch.current = !!target.closest('button, textarea, input, select, [role="checkbox"], [role="button"]');
         pageTouchStart.current = { x: touch.clientX, y: touch.clientY };
         pageGestureDir.current = 'none';
         pageDragActive.current = false;
@@ -247,7 +258,7 @@ export const WriteNotePage = ({
     }, [isMobile]);
 
     const handleContentTouchMove = useCallback((e: React.TouchEvent) => {
-        if (!isMobile) return;
+        if (!isMobile || pageInteractiveTouch.current) return;
         const touch = e.touches[0];
         const dx = touch.clientX - pageTouchStart.current.x;
         const dy = touch.clientY - pageTouchStart.current.y;
@@ -287,25 +298,27 @@ export const WriteNotePage = ({
     const handleContentTouchEnd = useCallback(() => {
         if (!pageDragActive.current || !isMobile) {
             pageGestureDir.current = 'none';
+            pageInteractiveTouch.current = false;
             return;
         }
         pageDragActive.current = false;
         pageGestureDir.current = 'none';
+        pageInteractiveTouch.current = false;
 
         const containerWidth = contentRef.current?.clientWidth || 300;
         const threshold = containerWidth * 0.2;
         const currentDragX = pageDragXRef.current;
+        const minDragForVelocity = 30; // Require minimum drag before velocity triggers navigation
 
-        if (currentDragX < -threshold || pageVelocityX.current < -0.3) {
+        if (currentDragX < -threshold || (Math.abs(currentDragX) > minDragForVelocity && pageVelocityX.current < -0.3)) {
             setCurrentPage(prev => Math.min(TOTAL_PAGES - 1, prev + 1));
-        } else if (currentDragX > threshold || pageVelocityX.current > 0.3) {
+        } else if (currentDragX > threshold || (Math.abs(currentDragX) > minDragForVelocity && pageVelocityX.current > 0.3)) {
             setCurrentPage(prev => Math.max(0, prev - 1));
         }
         pageDragXRef.current = 0;
         pageSpringApi.start({ dragOffset: 0, immediate: false });
     }, [isMobile, pageSpringApi]);
 
-    // ========== SHARED CONTENT RENDER ==========
 
     const renderContent = (closeHandler: () => void) => (
         <>
@@ -330,11 +343,10 @@ export const WriteNotePage = ({
                     <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-primary">{PAGE_LABELS[currentPage]}</span>
                         {noteSource && (
-                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                                noteSource === 'external source'
-                                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                                    : 'bg-themeblue3/15 text-themeblue3'
-                            }`}>
+                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${noteSource === 'external source'
+                                ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                                : 'bg-themeblue3/15 text-themeblue3'
+                                }`}>
                                 {noteSource === 'external source' ? 'Saved Note (External)' : 'Saved Note'}
                             </span>
                         )}
@@ -610,11 +622,9 @@ export const WriteNotePage = ({
                 isVisible={true}
                 onClose={() => onExpansionChange(false)}
                 isMobile={true}
-                partialHeight="40dvh"
                 fullHeight="90dvh"
                 backdropOpacity={0.3}
                 mobileOnly={true}
-                mobilePartialPadding="0.5rem"
                 mobileClassName="flex flex-col bg-themewhite2"
             >
                 {(handleClose) => renderContent(handleClose)}

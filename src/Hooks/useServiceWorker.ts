@@ -46,7 +46,7 @@ export function useServiceWorker() {
         if (updateSW) {
             console.log('[PWA] Updating to new version...');
             setIsUpdating(true);
-            localStorage.removeItem('updateDismissed');
+            try { localStorage.removeItem('updateDismissed'); } catch { /* storage unavailable */ }
 
             // Force cache bust by clearing caches
             if ('caches' in window) {
@@ -72,11 +72,11 @@ export function useServiceWorker() {
 
     const dismissUpdate = useCallback(() => {
         setUpdateAvailable(false);
-        localStorage.setItem('updateDismissed', 'true');
+        try { localStorage.setItem('updateDismissed', 'true'); } catch { /* storage unavailable */ }
 
         // Auto-remove dismissal after 1 hour
         setTimeout(() => {
-            localStorage.removeItem('updateDismissed');
+            try { localStorage.removeItem('updateDismissed'); } catch { /* storage unavailable */ }
         }, 60 * 60 * 1000);
     }, []);
 

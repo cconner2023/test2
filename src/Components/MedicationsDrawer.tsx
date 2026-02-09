@@ -102,7 +102,6 @@ export function MedicationsDrawer({
             isVisible={isVisible}
             onClose={onClose}
             isMobile={externalIsMobile}
-            partialHeight="40dvh"
             fullHeight="90dvh"
             backdropOpacity={0.3}
             desktopPosition="left"
@@ -111,7 +110,6 @@ export function MedicationsDrawer({
             desktopPanelPadding=""
             desktopHeight="h-[70vh]"
             desktopTopOffset="4.5rem"
-            mobilePartialPadding="0.5rem"
         >
             {(handleClose) => (
                 <MedicationsContent

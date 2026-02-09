@@ -85,7 +85,7 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
             if (rfIdx === overrideIndex) return total + (overrideCount ?? 0);
             return total + (states[rfIdx]?.selectedOptions.length || 0);
         }, 0),
-    [rfCardIndices]);
+        [rfCardIndices]);
 
     /**
      * Apply a "yes/no selection" update to the initial card based on total selections.

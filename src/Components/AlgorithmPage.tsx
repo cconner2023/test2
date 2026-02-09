@@ -10,12 +10,15 @@ import type { WriteNoteData } from '../Hooks/useNavigation';
 interface AlgorithmProps {
     selectedSymptom: subCatDataTypes | null;
     onExpandNote?: (data: WriteNoteData) => void;
+    onMedicationClick?: (medication: string) => void;
     isMobile?: boolean;
     initialCardStates?: import('../Hooks/useAlgorithm').CardState[];
     initialDisposition?: dispositionType | null;
+    /** Note status to display: null = no note, 'new' = unsaved, 'saved' = saved note, 'external' = imported external note */
+    noteStatus?: 'new' | 'saved' | 'external' | null;
 }
 
-export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false, initialCardStates, initialDisposition }: AlgorithmProps) {
+export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false, initialCardStates, initialDisposition, noteStatus = null }: AlgorithmProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const markerRef = useRef<HTMLDivElement>(null);
     const prevDispositionRef = useRef<dispositionType | null>(null);
@@ -224,6 +227,29 @@ export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false,
                                                     Continue &gt;
                                                 </button>
                                             </div>
+                                            {/* Note status badge */}
+                                            {noteStatus && (
+                                                <div className="mt-2 flex justify-end">
+                                                    <span className={`inline-flex items-center gap-1.5 text-[10px] font-medium px-2.5 py-1 rounded-full ${
+                                                        noteStatus === 'external'
+                                                            ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                                                            : noteStatus === 'saved'
+                                                                ? 'bg-themeblue3/15 text-themeblue3'
+                                                                : 'bg-green-500/15 text-green-700 dark:text-green-300'
+                                                    }`}>
+                                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            {noteStatus === 'saved' ? (
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                                            ) : noteStatus === 'external' ? (
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                                            ) : (
+                                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                            )}
+                                                        </svg>
+                                                        {noteStatus === 'saved' ? 'Saved Note' : noteStatus === 'external' ? 'Saved Note: External' : 'New Note'}
+                                                    </span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

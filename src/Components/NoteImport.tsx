@@ -320,7 +320,6 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile, ini
             isVisible={isVisible}
             onClose={onClose}
             isMobile={externalIsMobile}
-            partialHeight="40dvh"
             fullHeight="90dvh"
             backdropOpacity={0.9}
             desktopPosition="right"
@@ -328,7 +327,6 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile, ini
             desktopMaxWidth="max-w-sm"
             desktopPanelPadding=""
             desktopTopOffset="4.5rem"
-            mobilePartialPadding="0.5rem"
         >
             {(handleClose) => (
                 <NoteImportContent

@@ -12,12 +12,14 @@ import type { NoteSaveData } from './Components/WriteNotePage'
 import type { SearchResultType } from './Types/CatTypes'
 import { useSearch } from './Hooks/useSearch'
 import { useNavigation } from './Hooks/useNavigation'
+import type { WriteNoteData } from './Hooks/useNavigation'
 import { useNotesStorage } from './Hooks/useNotesStorage'
 import type { SavedNote } from './Hooks/useNotesStorage'
 import { useNoteRestore } from './Hooks/useNoteRestore'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
 import { useAppAnimate } from './Utilities/AnimationConfig'
 import UpdateNotification from './Components/UpdateNotification'
+import StorageErrorToast from './Components/StorageErrorToast'
 import { Settings } from './Components/Settings'
 import { SymptomInfoDrawer } from './Components/SymptomInfoDrawer'
 import { MedicationsDrawer } from './Components/MedicationsDrawer'
@@ -59,6 +61,10 @@ function AppContent() {
   // Track the note ID to pre-select in My Notes (used for duplicate import detection)
   const [myNotesInitialSelectedId, setMyNotesInitialSelectedId] = useState<string | null>(null)
 
+  // Storage error toast state — shown when localStorage operations fail
+  const [storageError, setStorageError] = useState<string | null>(null)
+  const clearStorageError = useCallback(() => setStorageError(null), [])
+
   // Track the active note being viewed in WriteNotePage (null = fresh note, string = saved note ID)
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null)
   const [activeNoteEncodedText, setActiveNoteEncodedText] = useState<string | null>(null)
@@ -69,6 +75,10 @@ function AppContent() {
     cardStates: import('./Hooks/useAlgorithm').CardState[];
     disposition: import('./Types/AlgorithmTypes').dispositionType | null;
   } | null>(null)
+
+  // Stable key suffix for AlgorithmPage — set once when restoring, cleared when navigating away
+  // This prevents AlgorithmPage from remounting when WriteNote closes (which nulls restoredAlgorithmState)
+  const algorithmKeyRef = useRef<string>('fresh')
 
   // PWA App Shortcut: open the appropriate view based on the captured URL parameter
   useEffect(() => {
@@ -109,15 +119,25 @@ function AppContent() {
     }, [navigation]),
   })
 
-  // Clear active note tracking when WriteNote closes
+  // When WriteNote closes, only clear the encoded text reference (not the note ID/source/algorithm state)
+  // This preserves the algorithm state and note status badge on the algorithm page
   useEffect(() => {
     if (!navigation.isWriteNoteVisible) {
+      setActiveNoteEncodedText(null)
+    }
+  }, [navigation.isWriteNoteVisible])
+
+  // Clear ALL active note tracking when navigating away from the algorithm view
+  // (e.g., going back to subcategories or categories)
+  useEffect(() => {
+    if (!navigation.showQuestionCard) {
       setActiveNoteId(null)
       setActiveNoteEncodedText(null)
       setActiveNoteSource(null)
       setRestoredAlgorithmState(null)
+      algorithmKeyRef.current = 'fresh'
     }
-  }, [navigation.isWriteNoteVisible])
+  }, [navigation.showQuestionCard])
 
   // Sync search expansion when transitioning to mobile with active search text
   useEffect(() => {
@@ -180,8 +200,22 @@ function AppContent() {
     navigation.setShowMyNotes(true)
   }
 
+  // Expand note from algorithm page — injects HPI text from existing saved note when available
+  const handleExpandNote = useCallback((data: WriteNoteData) => {
+    if (activeNoteId && activeNoteEncodedText) {
+      // We have an existing saved note — restore HPI text from the encoded data
+      const tempNote = { id: activeNoteId, encodedText: activeNoteEncodedText, createdAt: '', symptomIcon: '', symptomText: '', dispositionType: '', dispositionText: '', previewText: '' }
+      const result = restoreNote(tempNote)
+      if (result.success && result.hpiText) {
+        navigation.showWriteNote({ ...data, initialHpiText: result.hpiText })
+        return
+      }
+    }
+    navigation.showWriteNote(data)
+  }, [activeNoteId, activeNoteEncodedText, restoreNote, navigation])
+
   // Note save handler (new note)
-  const handleNoteSave = useCallback((data: NoteSaveData) => {
+  const handleNoteSave = useCallback((data: NoteSaveData): boolean => {
     const result = notesStorage.saveNote({
       encodedText: data.encodedText,
       previewText: data.previewText,
@@ -191,10 +225,16 @@ function AppContent() {
       dispositionText: data.dispositionText,
     })
     // After saving, track the new note so the button changes to "Delete Note"
+    // and the note status badge appears on the algorithm page
     if (result.success && result.noteId) {
       setActiveNoteId(result.noteId)
       setActiveNoteEncodedText(data.encodedText)
+      setActiveNoteSource('device')
+      return true
     }
+    // Show error toast when save fails (e.g., quota exceeded)
+    setStorageError(result.error || 'Failed to save note. Storage may be full.')
+    return false
   }, [notesStorage])
 
   // Note delete handler (from WriteNotePage)
@@ -205,17 +245,26 @@ function AppContent() {
   }, [notesStorage])
 
   // Note update handler (save changes to existing note)
-  const handleNoteUpdate = useCallback((noteId: string, data: NoteSaveData) => {
-    notesStorage.updateNote(noteId, {
+  // When an external note is edited and re-saved, it becomes a normal saved note (source cleared)
+  const handleNoteUpdate = useCallback((noteId: string, data: NoteSaveData): boolean => {
+    const result = notesStorage.updateNote(noteId, {
       encodedText: data.encodedText,
       previewText: data.previewText,
       symptomIcon: data.symptomIcon,
       symptomText: data.symptomText,
       dispositionType: data.dispositionType,
       dispositionText: data.dispositionText,
+      source: undefined, // Clear external source tag — edited notes become normal saved notes
     }, true) // refreshTimestamp = true
-    // Update the tracked encoded text to the new value
-    setActiveNoteEncodedText(data.encodedText)
+    if (result.success) {
+      // Update the tracked encoded text and source to reflect the change
+      setActiveNoteEncodedText(data.encodedText)
+      setActiveNoteSource('device') // External notes become normal on re-save
+      return true
+    }
+    // Show error toast when update fails
+    setStorageError(result.error || 'Failed to update note. Storage may be full.')
+    return false
   }, [notesStorage])
 
   // View note handler — restore algorithm state from saved note and open WriteNote
@@ -230,6 +279,7 @@ function AppContent() {
     setActiveNoteId(note.id)
     setActiveNoteEncodedText(note.encodedText)
     setActiveNoteSource(note.source || 'device')
+    algorithmKeyRef.current = `restored-${note.id}`
 
     // Store restored algorithm state so AlgorithmPage can be pre-filled
     setRestoredAlgorithmState({
@@ -272,6 +322,7 @@ function AppContent() {
     setActiveNoteId(note.id)
     setActiveNoteEncodedText(note.encodedText)
     setActiveNoteSource(note.source || 'device')
+    algorithmKeyRef.current = `restored-${note.id}`
 
     // Store restored algorithm state so AlgorithmPage can be pre-filled
     setRestoredAlgorithmState({
@@ -350,7 +401,7 @@ function AppContent() {
 
     // 1. Save the note to storage with 'external source' tag
     const disposition = result.writeNoteData.disposition
-    notesStorage.saveNote({
+    const saveResult = notesStorage.saveNote({
       encodedText: data.encodedText,
       previewText: data.decodedText.slice(0, 200),
       symptomIcon: result.symptom.icon || '',
@@ -359,6 +410,13 @@ function AppContent() {
       dispositionText: disposition.text,
       source: 'external source',
     })
+
+    if (!saveResult.success) {
+      // Show error toast instead of success modal
+      setStorageError(saveResult.error || 'Failed to import note. Storage may be full.')
+      navigation.setShowNoteImport(false)
+      return
+    }
 
     // 2. Close Import drawer
     navigation.setShowNoteImport(false)
@@ -392,6 +450,13 @@ function AppContent() {
   // Determine which layer gets the spring styles
   const isSwipeActive = swipe.isSwiping || !!swipe.animatingDirection
 
+  // Compute note status for algorithm page badge:
+  // - 'saved' if we have an activeNoteId and source is not external
+  // - 'external' if we have an activeNoteId and source is external
+  // - null if no active note (fresh algorithm)
+  const algorithmNoteStatus: 'new' | 'saved' | 'external' | null = activeNoteId
+    ? (activeNoteSource === 'external source' ? 'external' : 'saved')
+    : null
 
   return (
     <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
@@ -522,13 +587,14 @@ function AppContent() {
                 ) : navigation.selectedSymptom && navigation.showQuestionCard ? (
                   <div className="h-full overflow-hidden">
                     <AlgorithmPage
-                      key={`algo-desktop-${navigation.selectedSymptom.icon}-${restoredAlgorithmState ? 'restored' : 'fresh'}`}
+                      key={`algo-desktop-${navigation.selectedSymptom.icon}-${algorithmKeyRef.current}`}
                       selectedSymptom={navigation.selectedSymptom}
                       onMedicationClick={navigation.handleMedicationSelect}
-                      onExpandNote={navigation.showWriteNote}
+                      onExpandNote={handleExpandNote}
                       isMobile={navigation.isMobile}
                       initialCardStates={restoredAlgorithmState?.cardStates}
                       initialDisposition={restoredAlgorithmState?.disposition}
+                      noteStatus={algorithmNoteStatus}
                     />
                   </div>
                 ) : (
@@ -557,13 +623,14 @@ function AppContent() {
             >
               <div className="h-full overflow-hidden bg-themewhite">
                 <AlgorithmPage
-                  key={`algo-mobile-${navigation.selectedSymptom.icon}-${restoredAlgorithmState ? 'restored' : 'fresh'}`}
+                  key={`algo-mobile-${navigation.selectedSymptom.icon}-${algorithmKeyRef.current}`}
                   selectedSymptom={navigation.selectedSymptom}
                   onMedicationClick={navigation.handleMedicationSelect}
-                  onExpandNote={navigation.showWriteNote}
+                  onExpandNote={handleExpandNote}
                   isMobile={navigation.isMobile}
                   initialCardStates={restoredAlgorithmState?.cardStates}
                   initialDisposition={restoredAlgorithmState?.disposition}
+                  noteStatus={algorithmNoteStatus}
                 />
               </div>
             </animated.div>
@@ -653,6 +720,7 @@ function AppContent() {
           </div>
         )}
         <UpdateNotification />
+        <StorageErrorToast message={storageError} onDismiss={clearStorageError} />
         {/* Import Success Modal */}
         {showImportSuccessModal && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">

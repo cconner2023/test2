@@ -47,11 +47,9 @@ export function SymptomInfoDrawer({
         <BaseDrawer
             isVisible={isVisible}
             onClose={onClose}
-            partialHeight="40dvh"
             fullHeight="90dvh"
             backdropOpacity={0.3}
             mobileOnly={true}
-            mobilePartialPadding="0.5rem"
             mobileClassName="flex flex-col"
         >
             {(handleClose) => (

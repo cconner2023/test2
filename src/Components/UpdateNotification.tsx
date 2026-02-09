@@ -19,9 +19,13 @@ const UpdateNotification: React.FC = () => {
 
     useEffect(() => {
         // Load dismissed state from localStorage
-        const dismissedState = localStorage.getItem('updateDismissed');
-        if (dismissedState) {
-            setDismissed(true);
+        try {
+            const dismissedState = localStorage.getItem('updateDismissed');
+            if (dismissedState) {
+                setDismissed(true);
+            }
+        } catch {
+            // localStorage unavailable — treat as not dismissed
         }
     }, []);
 
