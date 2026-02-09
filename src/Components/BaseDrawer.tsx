@@ -1,5 +1,12 @@
 // components/BaseDrawer.tsx
 import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
+import {
+    GESTURE_THRESHOLDS,
+    clamp,
+    createVelocityTracker,
+    updateVelocity,
+    type VelocityTracker,
+} from '../Utilities/GestureUtils';
 
 /** Render prop type: children can receive handleClose for animated close */
 type DrawerRenderProp = (handleClose: () => void) => ReactNode;
@@ -62,9 +69,7 @@ export function BaseDrawer({
     const dragStartY = useRef(0);
     const dragStartPosition = useRef(0);
     const animationFrameId = useRef<number>(0);
-    const velocityRef = useRef(0);
-    const lastYRef = useRef(0);
-    const lastTimeRef = useRef(0);
+    const velocityTracker = useRef<VelocityTracker>(createVelocityTracker());
     const timeoutRef = useRef<number | null>(null);
 
     useEffect(() => {
@@ -117,6 +122,7 @@ export function BaseDrawer({
         const animate = (timestamp: number) => {
             const elapsed = timestamp - startTime;
             const progress = Math.min(elapsed / duration, 1);
+            // Cubic ease-out: 1 - (1 - t)^3
             const easeProgress = 1 - Math.pow(1 - progress, 3);
             const currentPosition = startPosition + (targetPosition - startPosition) * easeProgress;
 
@@ -148,9 +154,7 @@ export function BaseDrawer({
             const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
             dragStartY.current = clientY;
             dragStartPosition.current = drawerPosition;
-            lastYRef.current = clientY;
-            lastTimeRef.current = performance.now();
-            velocityRef.current = 0;
+            velocityTracker.current = createVelocityTracker(clientY);
 
             e.stopPropagation();
         },
@@ -161,16 +165,10 @@ export function BaseDrawer({
             const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
             const deltaY = clientY - dragStartY.current;
 
-            const currentTime = performance.now();
-            const deltaTime = currentTime - lastTimeRef.current;
-            if (deltaTime > 0) {
-                velocityRef.current = (clientY - lastYRef.current) / deltaTime;
-            }
+            // Update velocity using centralized tracker
+            updateVelocity(velocityTracker.current, clientY);
 
-            lastYRef.current = clientY;
-            lastTimeRef.current = currentTime;
-
-            const newPosition = Math.min(100, Math.max(20, dragStartPosition.current - (deltaY * 0.8)));
+            const newPosition = clamp(dragStartPosition.current - (deltaY * 0.8), 20, 100);
             setDrawerPosition(newPosition);
 
             e.stopPropagation();
@@ -181,8 +179,8 @@ export function BaseDrawer({
             setIsDragging(false);
 
             // Always full height — swipe down closes, swipe up stays open
-            if (velocityRef.current > 0.5 || drawerPosition < 40) {
-                // Fast swipe down or dragged far enough down → close
+            if (velocityTracker.current.velocity > GESTURE_THRESHOLDS.DRAWER_FLING_VELOCITY || drawerPosition < 40) {
+                // Fast swipe down or dragged far enough down -> close
                 animateToPosition(0);
             } else {
                 // Snap back to full height

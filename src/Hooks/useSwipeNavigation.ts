@@ -1,5 +1,14 @@
 import { useRef, useCallback, useState } from 'react'
 import { useSpring } from '@react-spring/web'
+import {
+  GESTURE_THRESHOLDS,
+  SPRING_CONFIGS,
+  createTouchState,
+  processTouchMove,
+  dampedOffset,
+  parallaxTransform,
+  type TouchState,
+} from '../Utilities/GestureUtils'
 
 interface UseSwipeNavigationOptions {
   /** Whether swipe navigation is enabled (e.g., only on mobile) */
@@ -18,8 +27,8 @@ export function useSwipeNavigation({
   enabled,
   viewDepth,
   onSwipeBack,
-  threshold = 60,
-  velocityThreshold = 0.3,
+  threshold = GESTURE_THRESHOLDS.SWIPE_BACK_THRESHOLD,
+  velocityThreshold = GESTURE_THRESHOLDS.FLING_VELOCITY,
 }: UseSwipeNavigationOptions) {
   const [isSwiping, setIsSwiping] = useState(false)
   const [animatingDirection, setAnimatingDirection] = useState<'left' | 'right' | null>(null)
@@ -27,71 +36,45 @@ export function useSwipeNavigation({
   // Spring for the current (top) layer being swiped away
   const [springStyles, springApi] = useSpring(() => ({
     x: 0,
-    config: { tension: 300, friction: 30 },
+    config: SPRING_CONFIGS.snap,
   }))
 
   // Spring for the parallax layer underneath
   const [parallaxStyles, parallaxApi] = useSpring(() => ({
     x: -80,
     opacity: 0.6,
-    config: { tension: 300, friction: 30 },
+    config: SPRING_CONFIGS.snap,
   }))
 
-  const touchRef = useRef<{
-    startX: number
-    startY: number
-    startTime: number
-    isHorizontal: boolean | null
-    hasMoved: boolean
-  } | null>(null)
+  const touchRef = useRef<TouchState | null>(null)
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!enabled) return
-    if (viewDepth <= 0) return
+    if (!enabled || viewDepth <= 0) return
 
     const touch = e.touches[0]
-    touchRef.current = {
-      startX: touch.clientX,
-      startY: touch.clientY,
-      startTime: Date.now(),
-      isHorizontal: null,
-      hasMoved: false,
-    }
+    touchRef.current = createTouchState(touch, e.target)
   }, [enabled, viewDepth])
 
   const onTouchMove = useCallback((e: React.TouchEvent) => {
     if (!enabled || !touchRef.current) return
 
     const touch = e.touches[0]
-    const deltaX = touch.clientX - touchRef.current.startX
-    const deltaY = touch.clientY - touchRef.current.startY
-    const absDeltaX = Math.abs(deltaX)
-    const absDeltaY = Math.abs(deltaY)
+    const result = processTouchMove(touchRef.current, touch)
 
-    // Determine direction on first significant movement (8px threshold)
-    if (touchRef.current.isHorizontal === null) {
-      if (absDeltaX > 8 || absDeltaY > 8) {
-        touchRef.current.isHorizontal = absDeltaX > absDeltaY
-        if (!touchRef.current.isHorizontal) {
-          touchRef.current = null
-          return
-        }
-      } else {
-        return
-      }
+    // Bail if direction locked to vertical
+    if (result.direction === 'vertical') {
+      touchRef.current = null
+      return
     }
 
-    if (!touchRef.current.isHorizontal) return
-
-    touchRef.current.hasMoved = true
+    // Wait for direction lock
+    if (result.direction === 'none') return
 
     // Only allow swiping right (positive deltaX) to go back
-    const clampedOffset = Math.max(0, Math.min(deltaX, window.innerWidth))
+    const clampedOffset = Math.max(0, Math.min(result.deltaX, window.innerWidth))
 
-    // Apply dampening for resistance feel
-    const dampened = clampedOffset > threshold
-      ? threshold + (clampedOffset - threshold) * 0.4
-      : clampedOffset
+    // Apply dampening for iOS-style resistance feel
+    const dampened = dampedOffset(clampedOffset, threshold)
 
     setIsSwiping(true)
     setAnimatingDirection(null)
@@ -100,16 +83,16 @@ export function useSwipeNavigation({
     springApi.start({ x: dampened, immediate: true })
 
     // Parallax effect for layer underneath
-    const parallaxOffset = -80 + (dampened / window.innerWidth) * 80
-    const parallaxOpacity = 0.6 + (dampened / window.innerWidth) * 0.4
-    parallaxApi.start({ x: parallaxOffset, opacity: parallaxOpacity, immediate: true })
+    const px = parallaxTransform(dampened, window.innerWidth)
+    parallaxApi.start({ x: px.x, opacity: px.opacity, immediate: true })
   }, [enabled, threshold, springApi, parallaxApi])
 
   const onTouchEnd = useCallback(() => {
     if (!enabled || !touchRef.current) return
 
-    const { startTime, hasMoved } = touchRef.current
+    const { hasMoved, velocityX } = touchRef.current
     const currentX = springStyles.x.get()
+    const velocity = velocityX.velocity
     touchRef.current = null
 
     if (!hasMoved || !isSwiping) {
@@ -120,18 +103,15 @@ export function useSwipeNavigation({
       return
     }
 
-    const deltaTime = Date.now() - startTime
-    const velocity = currentX / Math.max(deltaTime, 1)
-
     if (currentX > threshold || velocity > velocityThreshold) {
-      // Animate out to the right with spring physics
+      // Animate out to the right with fling spring physics
       setAnimatingDirection('right')
       setIsSwiping(false)
 
       springApi.start({
         x: window.innerWidth,
         immediate: false,
-        config: { tension: 200, friction: 25 },
+        config: SPRING_CONFIGS.fling,
         onRest: () => {
           onSwipeBack()
           // Reset after navigation
@@ -144,21 +124,21 @@ export function useSwipeNavigation({
         x: 0,
         opacity: 1,
         immediate: false,
-        config: { tension: 200, friction: 25 },
+        config: SPRING_CONFIGS.fling,
       })
     } else {
-      // Snap back with spring physics
+      // Snap back with snap spring physics
       setIsSwiping(false)
       springApi.start({
         x: 0,
         immediate: false,
-        config: { tension: 300, friction: 30 },
+        config: SPRING_CONFIGS.snap,
       })
       parallaxApi.start({
         x: -80,
         opacity: 0.6,
         immediate: false,
-        config: { tension: 300, friction: 30 },
+        config: SPRING_CONFIGS.snap,
       })
     }
   }, [enabled, isSwiping, threshold, velocityThreshold, onSwipeBack, springApi, parallaxApi, springStyles.x])

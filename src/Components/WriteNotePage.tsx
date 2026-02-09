@@ -4,6 +4,13 @@ import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes'
 import type { CardState } from '../Hooks/useAlgorithm';
 import { useNoteCapture } from '../Hooks/useNoteCapture';
 import { getColorClasses } from '../Utilities/ColorUtilities';
+import {
+    GESTURE_THRESHOLDS,
+    SPRING_CONFIGS,
+    createTouchState,
+    processTouchMove,
+    type TouchState,
+} from '../Utilities/GestureUtils';
 import { TextButton } from './TextButton';
 import { NoteBarcodeGenerator } from './Barcode';
 import { DecisionMaking } from './DecisionMaking';
@@ -89,15 +96,10 @@ export const WriteNotePage = ({
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
 
-    // Gesture refs - page swipe (horizontal) with react-spring
-    const pageTouchStart = useRef({ x: 0, y: 0 });
-    const pageGestureDir = useRef<'none' | 'horizontal' | 'vertical'>('none');
+    // Gesture state - page swipe (horizontal) with centralized touch utils
+    const pageTouchState = useRef<TouchState | null>(null);
     const pageDragActive = useRef(false);
-    const pageVelocityX = useRef(0);
-    const pageLastX = useRef(0);
-    const pageLastTime = useRef(0);
     const pageDragXRef = useRef(0); // Track drag offset via ref for velocity calculations
-    const pageInteractiveTouch = useRef(false); // Skip swipe when touch starts on interactive element
 
     // react-spring for page swipe animation
     // pagePos tracks the full page position as a percentage (0 = page 0, -100 = page 1, -200 = page 2, etc.)
@@ -105,11 +107,13 @@ export const WriteNotePage = ({
     const [pageSpring, pageSpringApi] = useSpring(() => ({
         pagePos: -initialPage * 100,
         dragOffset: 0,
-        config: { tension: 280, friction: 26 },
+        config: SPRING_CONFIGS.page,
     }));
 
     // Animate page position when currentPage changes (button navigation or swipe completion)
     useEffect(() => {
+        // Snap dragOffset to 0 first to clear any stale gesture state, then animate page
+        pageSpringApi.start({ dragOffset: 0, immediate: true });
         pageSpringApi.start({ pagePos: -currentPage * 100, immediate: false });
     }, [currentPage, pageSpringApi]);
 
@@ -241,84 +245,83 @@ export const WriteNotePage = ({
         setCurrentPage(prev => Math.max(0, prev - 1));
     }, []);
 
-    // ========== PAGE SWIPE HANDLERS (horizontal, mobile only) — react-spring ==========
+    // ========== PAGE SWIPE HANDLERS (horizontal, mobile only) — react-spring + centralized gestures ==========
     const handleContentTouchStart = useCallback((e: React.TouchEvent) => {
         if (!isMobile) return;
         const touch = e.touches[0];
-        // Skip swipe gestures when touch starts on interactive elements
-        const target = e.target as HTMLElement;
-        pageInteractiveTouch.current = !!target.closest('button, textarea, input, select, [role="checkbox"], [role="button"]');
-        pageTouchStart.current = { x: touch.clientX, y: touch.clientY };
-        pageGestureDir.current = 'none';
+        // Initialize centralized touch state (handles interactive element detection)
+        pageTouchState.current = createTouchState(touch, e.target);
         pageDragActive.current = false;
-        pageVelocityX.current = 0;
-        pageLastX.current = touch.clientX;
-        pageLastTime.current = performance.now();
         pageDragXRef.current = 0;
     }, [isMobile]);
 
     const handleContentTouchMove = useCallback((e: React.TouchEvent) => {
-        if (!isMobile || pageInteractiveTouch.current) return;
+        if (!isMobile || !pageTouchState.current) return;
         const touch = e.touches[0];
-        const dx = touch.clientX - pageTouchStart.current.x;
-        const dy = touch.clientY - pageTouchStart.current.y;
 
-        // Velocity tracking
-        const now = performance.now();
-        const dt = now - pageLastTime.current;
-        if (dt > 0) {
-            pageVelocityX.current = (touch.clientX - pageLastX.current) / dt;
-        }
-        pageLastX.current = touch.clientX;
-        pageLastTime.current = now;
+        // Use centralized touch processing for direction detection and velocity tracking
+        const result = processTouchMove(pageTouchState.current, touch);
 
         // Determine gesture direction on first significant move
-        if (pageGestureDir.current === 'none') {
-            if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-                pageGestureDir.current = 'horizontal';
-                pageDragActive.current = true;
-            } else if (Math.abs(dy) > 10) {
-                pageGestureDir.current = 'vertical';
-                return; // Let browser scroll
-            } else {
-                return;
-            }
+        if (result.direction === 'vertical') {
+            return; // Let browser scroll
         }
 
-        if (pageGestureDir.current === 'horizontal' && pageDragActive.current) {
-            let dragX = dx * 0.85;
-            // Resistance at edges
-            if (currentPage === 0 && dragX > 0) dragX *= 0.25;
-            if (currentPage === TOTAL_PAGES - 1 && dragX < 0) dragX *= 0.25;
-            pageDragXRef.current = dragX;
-            pageSpringApi.start({ dragOffset: dragX, immediate: true });
+        if (result.direction === 'none') {
+            return; // Still waiting for direction lock
         }
+
+        // Direction is horizontal — activate drag
+        if (!pageDragActive.current) {
+            pageDragActive.current = true;
+        }
+
+        e.preventDefault(); // Prevent browser from interfering once horizontal swipe detected
+        let dragX = result.deltaX * GESTURE_THRESHOLDS.PAGE_DRAG_DAMPENING;
+        // Resistance at edges
+        if (currentPage === 0 && dragX > 0) dragX *= GESTURE_THRESHOLDS.EDGE_RESISTANCE;
+        if (currentPage === TOTAL_PAGES - 1 && dragX < 0) dragX *= GESTURE_THRESHOLDS.EDGE_RESISTANCE;
+        pageDragXRef.current = dragX;
+        pageSpringApi.start({ dragOffset: dragX, immediate: true });
     }, [isMobile, currentPage, pageSpringApi]);
 
-    const handleContentTouchEnd = useCallback(() => {
+    const handleContentTouchEnd = useCallback((e: React.TouchEvent) => {
         if (!pageDragActive.current || !isMobile) {
-            pageGestureDir.current = 'none';
-            pageInteractiveTouch.current = false;
+            pageTouchState.current = null;
             return;
         }
+        // Prevent the browser from generating a click event after a swipe gesture.
+        // Without this, a swipe that ends near a button fires BOTH swipe navigation
+        // AND the button's click handler, causing double/conflicting page changes.
+        e.preventDefault();
+
+        const velocityX = pageTouchState.current?.velocityX.velocity ?? 0;
         pageDragActive.current = false;
-        pageGestureDir.current = 'none';
-        pageInteractiveTouch.current = false;
+        pageTouchState.current = null;
 
         const containerWidth = contentRef.current?.clientWidth || 300;
-        const threshold = containerWidth * 0.2;
+        const threshold = containerWidth * GESTURE_THRESHOLDS.PAGE_NAV_FRACTION;
         const currentDragX = pageDragXRef.current;
-        const minDragForVelocity = 30; // Require minimum drag before velocity triggers navigation
+        const minDragForVelocity = GESTURE_THRESHOLDS.MIN_DRAG_FOR_VELOCITY;
 
-        if (currentDragX < -threshold || (Math.abs(currentDragX) > minDragForVelocity && pageVelocityX.current < -0.3)) {
+        // Forward (next page): significant left drag, OR moderate left drag with leftward velocity
+        if (currentDragX < -threshold || (currentDragX < -minDragForVelocity && velocityX < -GESTURE_THRESHOLDS.FLING_VELOCITY)) {
             setCurrentPage(prev => Math.min(TOTAL_PAGES - 1, prev + 1));
-        } else if (currentDragX > threshold || (Math.abs(currentDragX) > minDragForVelocity && pageVelocityX.current > 0.3)) {
+        // Backward (prev page): significant right drag, OR moderate right drag with rightward velocity
+        } else if (currentDragX > threshold || (currentDragX > minDragForVelocity && velocityX > GESTURE_THRESHOLDS.FLING_VELOCITY)) {
             setCurrentPage(prev => Math.max(0, prev - 1));
         }
         pageDragXRef.current = 0;
         pageSpringApi.start({ dragOffset: 0, immediate: false });
     }, [isMobile, pageSpringApi]);
 
+    // Reset all gesture state when browser cancels touch (e.g., during native scroll takeover)
+    const handleContentTouchCancel = useCallback(() => {
+        pageDragActive.current = false;
+        pageTouchState.current = null;
+        pageDragXRef.current = 0;
+        pageSpringApi.start({ dragOffset: 0, immediate: false });
+    }, [pageSpringApi]);
 
     const renderContent = (closeHandler: () => void) => (
         <>
@@ -385,6 +388,7 @@ export const WriteNotePage = ({
                 onTouchStart={isMobile ? handleContentTouchStart : undefined}
                 onTouchMove={isMobile ? handleContentTouchMove : undefined}
                 onTouchEnd={isMobile ? handleContentTouchEnd : undefined}
+                onTouchCancel={isMobile ? handleContentTouchCancel : undefined}
             >
                 <animated.div
                     className="flex h-full"
@@ -424,8 +428,8 @@ export const WriteNotePage = ({
                                     )}
 
                                     {includeHPI && (
-                                        <div className="transition-all duration-200 ease-in-out">
-                                            <div className="flex items-center justify-center transition-all duration-300 bg-themewhite text-tertiary rounded-md border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
+                                        <div>
+                                            <div className="flex items-center justify-center bg-themewhite text-tertiary rounded-md border border-themeblue3/10 shadow-xs transition-colors duration-200 focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
                                                 <textarea
                                                     ref={inputRef}
                                                     value={note}
@@ -433,7 +437,7 @@ export const WriteNotePage = ({
                                                     className="text-tertiary bg-transparent outline-none text-[16px] md:text-[8pt] w-full px-4 py-2 rounded-l-full min-w-0 resize-none h-10 leading-5"
                                                 />
                                                 <div
-                                                    className="flex items-center justify-center px-2 py-2 bg-transparent stroke-themeblue3 cursor-pointer transition-all duration-300 shrink-0"
+                                                    className="flex items-center justify-center px-2 py-2 bg-transparent stroke-themeblue3 cursor-pointer transition-colors duration-200 shrink-0"
                                                     onClick={handleClearNoteAndHide}
                                                     title="Remove HPI and clear notes"
                                                     aria-label="Remove HPI and clear notes"
@@ -660,7 +664,7 @@ const ToggleOption: React.FC<{
 }> = ({ checked, onChange, label, colors }) => (
     <div
         onClick={onChange}
-        className={`text-xs p-3 rounded border transition-all duration-300 cursor-pointer
+        className={`text-xs p-3 rounded border cursor-pointer transition-colors duration-200
             ${checked ? colors.symptomClass : 'border border-themewhite2/10 text-secondary bg-themewhite hover:themewhite2/80 hover:shadow-sm'}`}
         role="checkbox"
         aria-checked={checked}

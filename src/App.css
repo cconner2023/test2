@@ -97,6 +97,22 @@ display: none;
   -webkit-tap-highlight-color: transparent !important;
   -webkit-touch-callout: none !important;
   touch-action: pan-y;
+  /* Hint the browser to optimize for touch transforms */
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Gesture-active surfaces: promote to compositor layer during active touch */
+.swipe-layer-active {
+  will-change: transform, opacity;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Drag handle areas: disable all default touch behaviors */
+[data-drag-zone] {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 
@@ -387,6 +403,13 @@ input, select, textarea {
 /* Mobile swipe navigation container */
 .swipe-nav-container {
   touch-action: pan-y;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Page swipe container: allow vertical scroll but capture horizontal for swipe */
+.page-swipe-container {
+  touch-action: pan-y;
+  overflow: hidden;
 }
 
 /* Mobile Screen Stack Animations */
