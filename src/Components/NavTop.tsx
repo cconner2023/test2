@@ -71,6 +71,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         opacity: isMenuOpen ? 1 : 0,
         y: isMenuOpen ? 0 : 8,
         config: { tension: 300, friction: 28 },
+        delay: isMenuOpen ? 200 : 0,
     });
 
     // Menu item click handler
@@ -182,7 +183,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                 }}
                             >
                                 {/* Border overlay - always visible */}
-                                <div className="absolute inset-0 rounded-inherit pointer-events-none border border-tertiary/20" />
+                                <div className="absolute inset-0 rounded-inherit pointer-events-none border border-tertiary/15" />
                                 {/* Menu button - opens menu, closes by tapping outside */}
                                 {!isMenuOpen && (
                                     <button
