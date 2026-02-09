@@ -1,6 +1,7 @@
 // NavTop.tsx - Simplified version with grouped props
 import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, HelpCircle } from "lucide-react";
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect } from "react";
+import { useSpring, useTrail, animated } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { menuData } from "../Data/CatData";
 
@@ -53,17 +54,25 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
     const shouldShowInfoButton = isMobile && isAlgorithmView && !isSearchExpanded;
     const shouldShowMenuButton = showMenu && isMobile;
 
-    // Menu morph: staggered item visibility
-    const [itemsVisible, setItemsVisible] = useState(false);
+    // Menu spring: container expansion
+    const containerSpring = useSpring({
+        width: isMenuOpen ? 224 : 44,
+        height: isMenuOpen ? 70 + menuData.length * 48 : 44,
+        borderRadius: isMenuOpen ? 6 : 22,
+        padTop: isMenuOpen ? 12 : 2,
+        padBottom: isMenuOpen ? 12 : 2,
+        padLeft: isMenuOpen ? 12 : 2,
+        padRight: isMenuOpen ? 20 : 2,
+        buttonY: isMenuOpen ? 15 : 0,
+        config: { tension: 220, friction: 26 },
+    });
 
-    useEffect(() => {
-        if (isMenuOpen) {
-            const timer = setTimeout(() => setItemsVisible(true), 150);
-            return () => clearTimeout(timer);
-        } else {
-            setItemsVisible(false);
-        }
-    }, [isMenuOpen]);
+    // Menu spring: staggered item reveal
+    const menuItemTrail = useTrail(menuData.length, {
+        opacity: isMenuOpen ? 1 : 0,
+        y: isMenuOpen ? 0 : 8,
+        config: { tension: 300, friction: 28 },
+    });
 
     // Menu item click handler
     const handleMenuItemClick = (action: string) => {
@@ -160,36 +169,27 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                             {/* Backdrop is rendered at App level to avoid overflow-hidden clipping */}
 
                             {/* Morphing container: button → menu panel */}
-                            <div
-                                className={`
-                                    absolute top-0 left-1 z-50
-                                    transform-gpu
-                                    overflow-hidden
-                                    ${isMenuOpen
-                                        ? 'rounded-md py-3 pl-3 pr-5 bg-themewhite'
-                                        : 'rounded-full p-0.5 bg-themewhite'
-                                    }
-                                `}
+                            <animated.div
+                                className="absolute top-0 left-1 z-50 transform-gpu overflow-hidden bg-themewhite"
                                 style={{
                                     transformOrigin: 'top left',
-                                    width: isMenuOpen ? '224px' : '44px',
-                                    height: isMenuOpen ? 'auto' : '44px',
-                                    maxHeight: isMenuOpen ? '400px' : '44px',
-                                    transition: 'all 300ms',
-                                    transitionTimingFunction: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                                    width: containerSpring.width,
+                                    height: containerSpring.height,
+                                    borderRadius: containerSpring.borderRadius,
+                                    paddingTop: containerSpring.padTop,
+                                    paddingBottom: containerSpring.padBottom,
+                                    paddingLeft: containerSpring.padLeft,
+                                    paddingRight: containerSpring.padRight,
                                 }}
                             >
-                                {/* removed liquid-glass layers for consistency with button style */}
                                 {/* Border overlay - always visible */}
                                 <div className="absolute inset-0 rounded-inherit pointer-events-none border border-tertiary/20" />
                                 {/* Toggle button: hamburger ↔ X crossfade */}
-                                <button
+                                <animated.button
                                     onClick={isMenuOpen ? onMenuClose : onMenuClick}
                                     className={`${BUTTON_CLASSES.mobileButton} ${isMenuOpen ? '' : 'active:scale-95'}`}
                                     style={{
-                                        transform: isMenuOpen ? 'translateY(0)' : 'translateY(0)',
-                                        transition: 'transform 300ms, color 200ms',
-                                        transitionTimingFunction: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)',
+                                        transform: containerSpring.buttonY.to(y => `translateY(${y}px)`),
                                     }}
                                     aria-label={isMenuOpen ? "Close menu" : "Open menu"}
                                 >
@@ -211,66 +211,30 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                             }}
                                         />
                                     </div>
-                                </button>
+                                </animated.button>
 
-                                {/* Menu items: staggered fade-in with spring */}
-                                {isMenuOpen && (
-                                    <div className="relative z-10 mt-1 space-y-0.5">
-                                        {menuData.map((item, index) => (
-                                            <button
-                                                key={index}
-                                                onClick={() => handleMenuItemClick(item.action)}
-                                                className={`
-                                                    w-full text-left flex items-center pl-3 pr-4 py-3
-                                                    rounded-xl transition-all
-                                                    cursor-pointer hover:bg-themewhite2/60 bg-transparent
-                                                    active:scale-[0.97] transform-gpu
-                                                    ${itemsVisible
-                                                        ? "opacity-100 translate-y-0"
-                                                        : "opacity-0 translate-y-2"
-                                                    }
-                                                `}
-                                                style={{
-                                                    transitionDuration: '500ms',
-                                                    transitionDelay: itemsVisible
-                                                        ? `${index * 20}ms`
-                                                        : `${(menuData.length - index - 1) * 20}ms`,
-                                                    transitionTimingFunction: 'cubic-bezier(0.33, 1, 0.68, 1)',
-                                                }}
-                                            >
-                                                <div
-                                                    className="mr-3 transition-all"
-                                                    style={{
-                                                        transitionDuration: '400ms',
-                                                        opacity: itemsVisible ? 1 : 0,
-                                                        transform: itemsVisible ? 'scale(1)' : 'scale(0.6)',
-                                                        transitionDelay: itemsVisible
-                                                            ? `${index * 70 + 50}ms`
-                                                            : `${(menuData.length - index - 1) * 20}ms`,
-                                                        transitionTimingFunction: 'cubic-bezier(0.33, 1, 0.68, 1)',
-                                                    }}
-                                                >
-                                                    {iconMap[item.action] || <HelpCircle size={16} className="text-primary/70" />}
-                                                </div>
-                                                <span
-                                                    className="tracking-wide text-sm text-primary/80 font-medium transition-all"
-                                                    style={{
-                                                        transitionDuration: '400ms',
-                                                        opacity: itemsVisible ? 1 : 0,
-                                                        transform: itemsVisible ? 'translateX(0)' : 'translateX(-12px)',
-                                                        transitionDelay: itemsVisible
-                                                            ? `${index * 70 + 80}ms`
-                                                            : `${(menuData.length - index - 1) * 20}ms`,
-                                                        transitionTimingFunction: 'cubic-bezier(0.33, 1, 0.68, 1)',
-                                                    }}
-                                                >
-                                                    {item.text}
-                                                </span>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
+                                {/* Menu items: staggered spring reveal */}
+                                <div className="relative z-10 mt-1 space-y-0.5">
+                                    {menuItemTrail.map((style, index) => (
+                                        <animated.button
+                                            key={index}
+                                            onClick={() => handleMenuItemClick(menuData[index].action)}
+                                            className="w-full text-left flex items-center pl-3 pr-4 py-3 rounded-xl cursor-pointer hover:bg-themewhite2/60 bg-transparent active:scale-[0.97] transform-gpu transition-colors"
+                                            style={{
+                                                opacity: style.opacity,
+                                                transform: style.y.to(y => `translateY(${y}px)`),
+                                            }}
+                                        >
+                                            <div className="mr-3">
+                                                {iconMap[menuData[index].action] || <HelpCircle size={16} className="text-primary/70" />}
+                                            </div>
+                                            <span className="tracking-wide text-sm text-primary/80 font-medium">
+                                                {menuData[index].text}
+                                            </span>
+                                        </animated.button>
+                                    ))}
+                                </div>
+                            </animated.div>
                         </div>
                     )}
 
