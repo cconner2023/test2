@@ -1,3 +1,74 @@
+## Session - Feature #31: App handles localStorage being full or unavailable gracefully
+Date: 2026-02-09
+
+### Completed
+- Feature #31 (Error Handling): App handles localStorage being full or unavailable gracefully - PASSING
+
+### Verification Steps Performed
+1. Patched Storage.prototype.setItem to throw QuotaExceededError for 'adtmc_saved_notes' key
+2. Attempted save via "Save to My Notes" button — error caught in persistNotes() try/catch
+3. StorageErrorToast appeared with role="alert": "Storage Error" + "Storage quota exceeded. Please delete some notes."
+4. Save button remained as "Save to My Notes" (not changed to "Delete Note") — confirming note was NOT saved
+5. Saved a note successfully BEFORE applying patch, then re-applied patch
+6. Opened My Notes drawer while storage was "full" — existing note "Ear Pain/Drainage/Trauma CAT I" still fully accessible
+7. Console: only 2 intentional console.error() from persistNotes() catch block + 2 console.warn() from loadNotes() catch block
+8. Zero unhandled exceptions, zero React errors, zero uncaught promises
+9. Code review: ThemeContext.tsx has try/catch around all localStorage operations with graceful fallback
+10. Code review: useServiceWorker.ts has try/catch around all localStorage operations
+11. Zero mock data patterns in src/ (grepped all patterns)
+12. npm run build succeeds
+13. Test data cleaned up after verification
+
+### Architecture Confirmation
+- persistNotes(): try { setItem } catch { console.error; return false } — handles QuotaExceededError
+- loadNotes(): try { getItem + parse + validate } catch { console.warn; return [] } — handles corrupted data
+- saveNote(): calls persistNotes(), returns { success: false, error: '...' } on failure
+- updateNote(): calls persistNotes(), returns { success: false, error: '...' } on failure
+- App.tsx: setStorageError(result.error) triggers StorageErrorToast component
+- StorageErrorToast: role="alert", 5s auto-dismiss, clickable dismiss, AlertTriangle icon
+- ThemeContext.tsx: try/catch on getItem and setItem, falls back to system preference
+- useServiceWorker.ts: try/catch on setItem/removeItem with /* storage unavailable */ comments
+
+### Current Status
+- Feature #31 passing
+- 59/62 features now passing (95.2%)
+- Dev server running on port 5173
+
+---
+
+## Session - Feature #45: Mobile drawer starts at full height
+Date: 2026-02-09
+
+### Completed
+- Feature #45 (Default & Reset): Mobile drawer starts at full height - PASSING
+
+### Implementation Changes
+- Removed deprecated `initialStage`, `partialHeight`, and `mobilePartialPadding` props from BaseDrawer.tsx interface
+- These props were already unused by all drawer consumers — marked as @deprecated in comments
+- All drawers already configured to open at fullHeight="90dvh" (no partial open code existed)
+- Drag/swipe animation system verified working: velocity-based snap, 0.8 dampening, cubic ease-out
+
+### Verification Steps Performed
+1. Settings drawer: Opens at full height (90dvh = 759.6px on 844px viewport) ✅
+2. Release Notes panel (inside Settings): Slides in correctly with animate-slide-in-left, full height ✅
+3. My Notes panel (inside Settings): Slides in correctly, full height ✅
+4. Medications drawer: Opens at full height with drag handle ✅
+5. SymptomInfo drawer (mobile-only): Opens at full height with differentials and guidelines ✅
+6. Note Import drawer: Opens at full height with drag handle ✅
+7. Drag/swipe animations verified via close animation on all drawers (smooth 300ms rAF animations) ✅
+8. Drawer height verified programmatically: 759.6px = 90% of 844px viewport = exactly 90dvh ✅
+9. Zero console errors (0/1196 messages) ✅
+10. Zero mock data patterns (grep returned no matches) ✅
+11. npm run build succeeds (warnings only — chunk size and CSS pseudo-class) ✅
+12. Code cleaned up: removed 3 deprecated interface props for readability ✅
+
+### Current Status
+- Feature #45 passing
+- 59/62 features now passing (93.5% → next increment)
+- Dev server running on port 5174
+
+---
+
 ## Session - Feature #101: PWA app shortcut verification
 Date: 2026-02-09
 
