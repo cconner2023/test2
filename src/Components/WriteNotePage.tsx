@@ -74,6 +74,9 @@ export const WriteNotePage = ({
     const [isCopied, setIsCopied] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
     const [isDeleted, setIsDeleted] = useState(false);
+    const [confirmDelete, setConfirmDelete] = useState(false);
+    const confirmDeleteRef = useRef(false);
+    const confirmDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
     // Page navigation state (0=Decision Making, 1=Write Note, 2=View Note, 3=Share Note)
     const [currentPage, setCurrentPage] = useState(initialPage);
@@ -177,12 +180,27 @@ export const WriteNotePage = ({
         setTimeout(() => setIsSaved(false), 2500);
     }, [encodedValue, previewNote, selectedSymptom, disposition, onNoteSave]);
 
-    // --- Delete note handler ---
+    // --- Delete note handler (two-tap confirmation) ---
     const handleDeleteNote = useCallback(() => {
         if (!existingNoteId) return;
-        onNoteDelete?.(existingNoteId);
-        setIsDeleted(true);
-        setTimeout(() => setIsDeleted(false), 2500);
+        if (confirmDeleteRef.current) {
+            // Second tap — actually delete
+            onNoteDelete?.(existingNoteId);
+            setIsDeleted(true);
+            confirmDeleteRef.current = false;
+            setConfirmDelete(false);
+            if (confirmDeleteTimeoutRef.current) clearTimeout(confirmDeleteTimeoutRef.current);
+            setTimeout(() => setIsDeleted(false), 2500);
+        } else {
+            // First tap — ask for confirmation
+            confirmDeleteRef.current = true;
+            setConfirmDelete(true);
+            if (confirmDeleteTimeoutRef.current) clearTimeout(confirmDeleteTimeoutRef.current);
+            confirmDeleteTimeoutRef.current = setTimeout(() => {
+                confirmDeleteRef.current = false;
+                setConfirmDelete(false);
+            }, 5000);
+        }
     }, [existingNoteId, onNoteDelete]);
 
     // --- Update note handler (save changes to existing note) ---
@@ -509,7 +527,7 @@ export const WriteNotePage = ({
                                     )}
                                 </button>
                             )}
-                            {/* Already saved + no content change → Delete Note */}
+                            {/* Already saved + no content change → Delete Note (two-tap confirmation) */}
                             {isAlreadySaved && !hasContentChanged && onNoteDelete && (
                                 <button
                                     onClick={handleDeleteNote}
@@ -517,8 +535,11 @@ export const WriteNotePage = ({
                                     className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 active:scale-95
                                         ${isDeleted
                                             ? 'bg-themeredred/15 text-themeredred'
-                                            : 'bg-themewhite3 text-themeredred hover:bg-themeredred/10'
+                                            : confirmDelete
+                                                ? 'bg-red-500 text-white'
+                                                : 'bg-themewhite3 text-themeredred hover:bg-themeredred/10'
                                         }`}
+                                    title={confirmDelete ? 'Tap again to confirm delete' : 'Delete note'}
                                 >
                                     {isDeleted ? (
                                         <>
@@ -526,6 +547,13 @@ export const WriteNotePage = ({
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                                             </svg>
                                             Note Deleted
+                                        </>
+                                    ) : confirmDelete ? (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                            Confirm Delete
                                         </>
                                     ) : (
                                         <>
