@@ -10,8 +10,6 @@ interface BaseDrawerProps {
     isMobile?: boolean;
     /** Children can be ReactNode or a render function receiving handleClose */
     children: ReactNode | DrawerRenderProp;
-    initialStage?: 'partial' | 'full';
-    partialHeight?: string;
     fullHeight?: string;
     desktopWidth?: string;
     desktopMaxWidth?: string;
@@ -28,8 +26,6 @@ interface BaseDrawerProps {
     mobileOnly?: boolean;
     /** Extra className for the mobile drawer container */
     mobileClassName?: string;
-    /** Horizontal padding in partial stage. Default '0.4rem' */
-    mobilePartialPadding?: string;
     /** Desktop inner panel padding overrides. Default 'py-3 pl-3 pr-5' */
     desktopPanelPadding?: string;
     /** z-index class for mobile backdrop and drawer. Default 'z-60' */
@@ -43,10 +39,7 @@ export function BaseDrawer({
     onClose,
     isMobile: externalIsMobile,
     children,
-    initialStage = 'partial',
-    partialHeight = '45dvh',
     fullHeight = '90dvh',
-    desktopWidth = 'w-full',
     desktopMaxWidth = 'max-w-md',
     disableDrag = false,
     backdropOpacity = 0.9,
@@ -55,7 +48,6 @@ export function BaseDrawer({
     desktopHeight = '',
     mobileOnly = false,
     mobileClassName = '',
-    mobilePartialPadding = '0.4rem',
     desktopPanelPadding = 'py-3 pl-3 pr-5',
     zIndex = 'z-60',
     desktopTopOffset = '0.5rem',
@@ -64,7 +56,6 @@ export function BaseDrawer({
     const isMobile = externalIsMobile ?? localIsMobile;
 
     const [drawerPosition, setDrawerPosition] = useState(0);
-    const [drawerStage, setDrawerStage] = useState<'partial' | 'full'>(initialStage);
     const [isDragging, setIsDragging] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
 
@@ -89,7 +80,6 @@ export function BaseDrawer({
     useEffect(() => {
         if (isVisible) {
             setIsMounted(true);
-            setDrawerStage(initialStage);
             setDrawerPosition(isMobile ? 0 : 100);
             document.body.style.overflow = 'hidden';
 
@@ -113,7 +103,7 @@ export function BaseDrawer({
             animationFrameId.current && cancelAnimationFrame(animationFrameId.current);
             timeoutRef.current && clearTimeout(timeoutRef.current);
         };
-    }, [isVisible, initialStage, isMobile]);
+    }, [isVisible, isMobile]);
 
     const animateToPosition = useCallback((targetPosition: number) => {
         if (animationFrameId.current) {
@@ -190,27 +180,13 @@ export function BaseDrawer({
             if (!isDragging || !isMobile || disableDrag) return;
             setIsDragging(false);
 
-            const isSwipingDown = velocityRef.current > 0.3;
-            const isSwipingUp = velocityRef.current < -0.3;
-
-            if (drawerStage === 'partial') {
-                if (isSwipingUp) {
-                    setDrawerStage('full');
-                    animateToPosition(100);
-                } else if (isSwipingDown || drawerPosition < 40) {
-                    animateToPosition(0);
-                } else {
-                    animateToPosition(100);
-                }
+            // Always full height — swipe down closes, swipe up stays open
+            if (velocityRef.current > 0.5 || drawerPosition < 40) {
+                // Fast swipe down or dragged far enough down → close
+                animateToPosition(0);
             } else {
-                if (velocityRef.current > 0.6 || drawerPosition < 30) {
-                    animateToPosition(0);
-                } else if (isSwipingDown || drawerPosition < 70) {
-                    setDrawerStage('partial');
-                    animateToPosition(100);
-                } else {
-                    animateToPosition(100);
-                }
+                // Snap back to full height
+                animateToPosition(100);
             }
         }
     };
@@ -226,14 +202,9 @@ export function BaseDrawer({
     const mobileStyles = {
         translateY: 100 - drawerPosition,
         opacity: Math.min(1, drawerPosition / 60 + 0.2),
-        height: drawerStage === 'partial' ? partialHeight : fullHeight,
-        horizontalPadding: drawerStage === 'partial' ? mobilePartialPadding : '0',
-        bottomPadding: drawerStage === 'partial' ? '1.5rem' : '0',
-        borderRadius: drawerStage === 'partial' ? '1rem' : '1.25rem 1.25rem 0 0',
-        boxShadow: drawerStage === 'partial'
-            ? '0 4px 2px rgba(0, 0, 0, 0.05)'
-            : '0 -4px 20px rgba(0, 0, 0, 0.1)',
-        width: drawerStage === 'partial' ? `calc(100% - ${parseFloat(mobilePartialPadding) * 2}rem)` : '100%',
+        height: fullHeight,
+        borderRadius: '1.25rem 1.25rem 0 0',
+        boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
     };
 
     // Desktop position-dependent classes — slide-in from top with opacity
@@ -267,10 +238,7 @@ export function BaseDrawer({
                     style={{
                         height: mobileStyles.height,
                         maxHeight: mobileStyles.height,
-                        marginLeft: mobileStyles.horizontalPadding,
-                        marginRight: mobileStyles.horizontalPadding,
-                        marginBottom: mobileStyles.bottomPadding,
-                        width: mobileStyles.width,
+                        width: '100%',
                         bottom: 0,
                         transform: `translateY(${mobileStyles.translateY}%)`,
                         opacity: mobileStyles.opacity,
