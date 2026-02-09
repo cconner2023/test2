@@ -704,7 +704,6 @@ function AppContent() {
               disposition={navigation.writeNoteData.disposition}
               algorithmOptions={navigation.writeNoteData.algorithmOptions}
               cardStates={navigation.writeNoteData.cardStates}
-              isExpanded={true}
               onExpansionChange={navigation.closeWriteNote}
               onNoteSave={handleNoteSave}
               onNoteDelete={handleNoteDelete}

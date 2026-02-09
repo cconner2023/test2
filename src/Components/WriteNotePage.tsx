@@ -38,7 +38,6 @@ interface WriteNoteProps {
     };
     algorithmOptions?: AlgorithmOptions[];
     cardStates?: CardState[];
-    isExpanded: boolean;
     onExpansionChange: (expanded: boolean) => void;
     onNoteSave?: (data: NoteSaveData) => boolean | void;
     onNoteDelete?: (noteId: string) => void;
@@ -140,18 +139,16 @@ export const WriteNotePage = ({
         }
     }, [isCopied]);
 
-    // --- Preview note generation (triggers when on View Note page) ---
+    // --- Preview note generation (eagerly updates so content is ready before navigating to View Note) ---
     useEffect(() => {
-        if (currentPage === 2) {
-            const result = generateNote(
-                { includeAlgorithm, includeDecisionMaking, customNote: includeHPI ? note : '' },
-                disposition.type,
-                disposition.text,
-                selectedSymptom
-            );
-            setPreviewNote(result.fullNote);
-        }
-    }, [currentPage, note, includeAlgorithm, includeDecisionMaking, includeHPI, generateNote, disposition, selectedSymptom]);
+        const result = generateNote(
+            { includeAlgorithm, includeDecisionMaking, customNote: includeHPI ? note : '' },
+            disposition.type,
+            disposition.text,
+            selectedSymptom
+        );
+        setPreviewNote(result.fullNote);
+    }, [note, includeAlgorithm, includeDecisionMaking, includeHPI, generateNote, disposition, selectedSymptom]);
 
     // --- Close handler (animate out then unmount) ---
     const handleDesktopClose = useCallback(() => {
@@ -248,16 +245,18 @@ export const WriteNotePage = ({
     // ========== PAGE SWIPE HANDLERS (horizontal, mobile only) — react-spring + centralized gestures ==========
     const handleContentTouchStart = useCallback((e: React.TouchEvent) => {
         if (!isMobile) return;
-        const touch = e.touches[0];
+        const touch = e.nativeEvent.touches[0];
+        if (!touch) return;
         // Initialize centralized touch state (handles interactive element detection)
-        pageTouchState.current = createTouchState(touch, e.target);
+        pageTouchState.current = createTouchState(touch, e.nativeEvent.target);
         pageDragActive.current = false;
         pageDragXRef.current = 0;
     }, [isMobile]);
 
     const handleContentTouchMove = useCallback((e: React.TouchEvent) => {
         if (!isMobile || !pageTouchState.current) return;
-        const touch = e.touches[0];
+        const touch = e.nativeEvent.touches[0];
+        if (!touch) return;
 
         // Use centralized touch processing for direction detection and velocity tracking
         const result = processTouchMove(pageTouchState.current, touch);
@@ -400,7 +399,7 @@ export const WriteNotePage = ({
                     }}
                 >
                     {/* Page 0: Decision Making */}
-                    <div className="w-full h-full shrink-0 overflow-y-auto">
+                    <div key="page-0-decision" className="w-full h-full shrink-0 overflow-y-auto">
                         <DecisionMaking
                             algorithmOptions={algorithmOptions}
                             cardStates={cardStates}
@@ -410,7 +409,7 @@ export const WriteNotePage = ({
                     </div>
 
                     {/* Page 1: Write Note Options */}
-                    <div className={`w-full h-full shrink-0 overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
+                    <div key="page-1-write" className={`w-full h-full shrink-0 overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                         <div className="space-y-6">
                             <div className="p-4">
                                 <div className="text-[10pt] font-normal text-primary mb-3">Note Content:</div>
@@ -458,7 +457,7 @@ export const WriteNotePage = ({
                     </div>
 
                     {/* Page 2: View Note */}
-                    <div className={`w-full h-full shrink-0 overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
+                    <div key="page-2-view" className={`w-full h-full shrink-0 overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                         <div className="space-y-6">
                             <div className="relative">
                                 <div className="w-full max-h-96 p-3 rounded-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap overflow-y-auto">
@@ -470,7 +469,7 @@ export const WriteNotePage = ({
                     </div>
 
                     {/* Page 3: Share Note */}
-                    <div className={`w-full h-full shrink-0 overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
+                    <div key="page-3-share" className={`w-full h-full shrink-0 overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                         <div className="space-y-6">
                             <div className="text-[10pt] font-normal text-primary">Share Encoded Note</div>
                             <div className="relative">
@@ -493,12 +492,21 @@ export const WriteNotePage = ({
                                     onClick={handleSaveNote}
                                     disabled={isSaved || !encodedValue}
                                     className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 active:scale-95
-                                        ${isSaved
-                                            ? 'bg-green-500/20 text-green-700 dark:text-green-300'
-                                            : 'bg-themewhite3 text-tertiary hover:bg-themeblue3/10 hover:text-themeblue3'
+                                        ${saveFailed
+                                            ? 'bg-themeredred/15 text-themeredred'
+                                            : isSaved
+                                                ? 'bg-green-500/20 text-green-700 dark:text-green-300'
+                                                : 'bg-themewhite3 text-tertiary hover:bg-themeblue3/10 hover:text-themeblue3'
                                         }`}
                                 >
-                                    {isSaved ? (
+                                    {saveFailed ? (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                            </svg>
+                                            Save Failed — Storage Full
+                                        </>
+                                    ) : isSaved ? (
                                         <>
                                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
