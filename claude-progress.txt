@@ -1,3 +1,161 @@
+## Session - Feature #100: Splash image - desktop / mobile
+Date: 2026-02-09
+
+### Completed
+- Feature #100 (PWA functionality): splash image - desktop / mobile - PASSING
+
+### Implementation Changes
+1. **Generated 30 splash screen PNG images** (15 light + 15 dark) for all iOS device sizes:
+   - iPhone SE (640x1136) through iPhone 16 Pro Max (1290x2796)
+   - iPad Mini (1536x2048) through iPad Pro 12.9" (2048x2732)
+   - Each image has centered ADTMC logo icon on white (light) or #1a1a1a (dark) background
+   - Icon sized at 25% of the smaller dimension for proper visual balance
+
+2. **Updated index.html** with comprehensive splash screen support:
+   - 30 `apple-touch-startup-image` link tags with device-specific media queries
+   - Light/dark mode variants via `prefers-color-scheme` media queries
+   - Multiple `apple-touch-icon` sizes (default, 144x144, 192x192)
+   - Added proper `</head>` closing tag (was missing)
+
+3. **Created public/browserconfig.xml** for Windows tile support:
+   - Square 70x70, 150x150, 310x310 logos
+   - Wide 310x150 logo
+   - TileColor matching app theme (#646cff)
+
+4. **Updated vite.config.ts** to include splash images and browserconfig.xml in PWA assets
+
+5. **Android/Chrome splash** auto-generated from manifest:
+   - Uses manifest `background_color: "#ffffff"` + `name` + 512x512 icon
+   - No additional configuration needed
+
+### Platform Coverage
+- **iOS (iPhone)**: 11 unique device sizes covered (SE through 16 Pro Max), light + dark
+- **iOS (iPad)**: 4 unique device sizes covered (Mini through Pro 12.9"), light + dark
+- **Android**: Auto-generated from manifest icons + background_color
+- **Windows**: browserconfig.xml with tile images + msapplication meta tags
+- **Mac**: Uses standard web manifest icons (automatic)
+
+### Verification Steps Performed
+1. All 30 splash images render correctly (verified via visual inspection of light & dark variants)
+2. All 30 splash images return HTTP 200 when fetched from dev server
+3. browserconfig.xml accessible and returns HTTP 200
+4. All icon assets (144, 192, 512, 512-maskable) accessible and return HTTP 200
+5. Production build (npm run build) succeeds - 74 precached entries
+6. dist/ output contains all 30 splash images + browserconfig.xml
+7. dist/index.html has correct `/ADTMC/splash/` paths (no double-prefix)
+8. manifest.webmanifest has correct icons for Android splash generation
+9. Zero console errors
+10. Zero mock data patterns in src/
+11. App loads and functions correctly after changes
+
+### Current Status
+- Feature #100 passing
+- 55/62 features now passing (~88.7%)
+- Dev server running on port 5173
+
+---
+
+## Session - Feature #98: Verify navigation (3) - saved notes
+Date: 2026-02-09
+
+### Completed
+- Feature #98 (App Completeness): verify navigation (3) - saved notes - PASSING
+- Stats: 55/62 passing (88.7%)
+
+### Issues Fixed
+
+1. **Algorithm state resets when closing Write Note wizard** (App.tsx)
+   - Root cause: AlgorithmPage `key` prop changed when `restoredAlgorithmState` toggled from value→null on wizard close, causing full remount
+   - Fix: Introduced `algorithmKeyRef` (useRef) for stable key that only changes when navigating to a different algorithm, not when wizard opens/closes
+   - Split the WriteNote close effect: only clears `activeNoteEncodedText` (not noteId/source/algorithmState)
+   - Added separate effect to clear ALL state when navigating away from algorithm view (`showQuestionCard` → false)
+
+2. **External notes don't become normal saved notes on edit+re-save** (App.tsx)
+   - Root cause: `handleNoteUpdate` didn't clear the `source` field
+   - Fix: Set `source: undefined` in updateNote call to clear external source tag, and `setActiveNoteSource('device')`
+
+3. **No note status badge on algorithm page** (AlgorithmPage.tsx, App.tsx)
+   - Added `noteStatus` prop to AlgorithmPage interface ('new' | 'saved' | 'external' | null)
+   - Added computed `algorithmNoteStatus` in App.tsx based on activeNoteId and activeNoteSource
+   - Added visual badge inside disposition card: "Saved Note" (blue), "Saved Note: External" (amber), "New Note" (green) with appropriate icons
+
+4. **HPI text not retained when reopening Write Note wizard from Continue >** (App.tsx)
+   - Root cause: `handleExpandNote` in AlgorithmPage creates fresh WriteNoteData without `initialHpiText`
+   - Fix: Added `handleExpandNote` wrapper in App.tsx that detects existing saved note, uses `restoreNote` to extract HPI text from encoded data, and injects `initialHpiText`
+
+### Files Modified
+- `src/App.tsx` — algorithmKeyRef, handleExpandNote, handleNoteUpdate source clearing, algorithmNoteStatus, WriteNoteData import
+- `src/Components/AlgorithmPage.tsx` — noteStatus prop, note status badge UI in disposition card
+
+### Verification
+- Build passes: `npm run build` ✓ (14s)
+- Console errors: 0
+- Browser testing confirmed:
+  - Algorithm state persists after closing Write Note wizard ✓
+  - "Saved Note" badge visible on disposition card ✓
+  - "Saved Note" badge visible in Write Note wizard header ✓
+  - Note save/update correctly changes button from "Save to My Notes" to "Delete Note" ✓
+  - localStorage correctly stores notes with encoded text including HPI ✓
+
+---
+
+## Session - Feature #99: New update notification matching app theme
+Date: 2026-02-09
+
+### Completed
+- Feature #99 (PWA): new update notification - PASSING
+
+### Implementation Changes
+Redesigned `src/Components/UpdateNotification.tsx` to match the app's design system:
+
+1. **Update Available Notification** (previously `bg-blue-600` banner):
+   - Now a card with `bg-themewhite` background, `border border-tertiary/10` border, `shadow-2xl`
+   - Teal accent bar at top (`bg-themeblue2`, 1px height)
+   - Icon badge: `bg-themeblue2/15` circle with Download icon
+   - Title text: `text-sm font-semibold text-primary` (adapts to theme)
+   - Subtitle: `text-xs text-tertiary` with version info
+   - "Later" button: `bg-themewhite2 text-tertiary` (secondary action)
+   - "Update Now" button: `bg-themeblue2 text-white` with Download icon (primary action)
+   - Updating state: RefreshCw spinner animation
+   - Dismiss X button: `text-tertiary hover:bg-themewhite2`
+   - Subtle backdrop overlay dismissible by click
+   - Mobile: bottom sheet (`items-end`, `rounded-t-2xl`)
+   - Desktop: centered card (`sm:items-center`, `sm:rounded-2xl`)
+
+2. **Offline Ready Toast** (previously `bg-green-600` banner):
+   - Now a floating pill: `bg-themewhite rounded-2xl shadow-2xl border-tertiary/10`
+   - Green icon badge: `bg-themegreen/15` circle with Wifi icon
+   - Text: `text-primary` title + `text-tertiary/60` subtitle
+   - Centered at bottom, auto-dismisses after 3 seconds
+   - `pointer-events-none` on container (non-blocking)
+
+3. **Theme Responsiveness**:
+   - All colors use CSS custom properties (--color-themewhite, --color-primary, etc.)
+   - Light mode: white card, dark text, teal accents
+   - Dark mode: dark card, light text, teal accents preserved
+   - Follows same patterns as ImportSuccessModal, BaseDrawer, NavTop menu
+
+### Verification Steps Performed
+1. Desktop light theme: Update notification displays as centered card ✅
+2. Desktop dark theme: Card adapts with dark bg, light text ✅
+3. Mobile dark theme (375x812): Bottom sheet with rounded-t-2xl ✅
+4. Mobile light theme: Proper contrast and layout ✅
+5. "Later" button dismisses notification ✅
+6. "X" button dismisses notification ✅
+7. Offline toast appears with "Ready for Offline Use" text (confirmed in accessibility snapshot) ✅
+8. Offline toast auto-dismisses after timeout ✅
+9. App loads normally without notification when no update available ✅
+10. Zero console errors (0/248 messages) ✅
+11. Zero mock data patterns in src/ ✅
+12. npm run build succeeds ✅
+
+### Current Status
+- Feature #99 passing
+- 53/62 features passing (83.9% → 85.5%)
+- Dev server running on port 5173
+
+---
+
 ## Session - Feature #95: Unique note import (duplicate detection)
 Date: 2026-02-09
 
