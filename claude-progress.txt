@@ -1,3 +1,37 @@
+## Session - Feature #106: PWA app shortcuts visibility
+Date: 2026-02-09
+
+### Completed
+- Feature #106 (PWA functionality): PWA app shortcuts - PASSING
+
+### Problem
+PWA app shortcuts (My Notes, Import Note) were defined in the web manifest but were not visible/accessible in the app UI itself:
+- Mobile hamburger menu only had 3 items: Medications, Import New Note, Settings (missing My Notes)
+- Desktop navbar only had: Medications, Import Note, Settings (missing My Notes)
+
+### Implementation Changes
+1. **src/Data/CatData.ts**: Added "My Notes" entry to `menuData` array with `action: 'myNotes'` and `icon: 'myNotes'`, positioned between Medications and Import New Note
+2. **src/Components/NavTop.tsx**: Added "My Notes" button with FileText icon to the desktop navbar right section, positioned before Import Note button
+
+### Verification Steps Performed
+1. Mobile (390x844): Opened hamburger menu → verified 4 items: Medications, My Notes, Import New Note, Settings ✅
+2. Mobile: Clicked My Notes → My Notes drawer opened correctly ✅
+3. Desktop (1920x1080): Verified navbar shows: Medications | search | My Notes | Import Note | Settings ✅
+4. Desktop: Clicked My Notes → My Notes drawer opened correctly ✅
+5. PWA URL shortcut `?view=mynotes` → Auto-opens My Notes drawer on page load ✅
+6. PWA URL shortcut `?view=import` → Auto-opens Scan Barcode drawer on page load ✅
+7. Built manifest.webmanifest contains both shortcuts with correct URLs, names, descriptions, icons ✅
+8. Zero console errors (0 errors out of 197 messages) ✅
+9. Zero mock data patterns in src/ ✅
+10. npm run build succeeds ✅
+
+### Current Status
+- Feature #106 passing
+- 65/68 features passing (95.6%)
+- Dev server running on port 5176
+
+---
+
 ## Session - Feature #102: Swipe gesture refactoring
 Date: 2026-02-09
 
