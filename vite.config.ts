@@ -6,7 +6,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 const APP_VERSION = '2.6.1'
 
 export default defineConfig({
-  base: '/ADTMC/',
+  base: '/test2/',
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
   },
@@ -19,34 +19,34 @@ export default defineConfig({
         name: `ADTMC V${APP_VERSION}`,
         short_name: 'ADTMC',
         description: 'ADTMC documentation and barcode generation',
-        start_url: '/ADTMC/',
+        start_url: '/test2/',
         display: 'standalone',
         background_color: '#ffffff',
         theme_color: '#646cff',
         orientation: 'portrait-primary',
         categories: ['productivity', 'utilities'],
-        scope: '/ADTMC/',
+        scope: '/test2/',
         icons: [
           {
-            src: '/ADTMC/icon-144.png',
+            src: '/test2/icon-144.png',
             sizes: '144x144',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/ADTMC/icon-192.png',
+            src: '/test2/icon-192.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any maskable'
           },
           {
-            src: '/ADTMC/icon-512.png',
+            src: '/test2/icon-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'
           },
           {
-            src: '/ADTMC/icon-512-maskable.png',
+            src: '/test2/icon-512-maskable.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
@@ -57,10 +57,10 @@ export default defineConfig({
             name: 'My Notes',
             short_name: 'My Notes',
             description: 'View your saved notes',
-            url: '/ADTMC/?view=mynotes',
+            url: '/test2/?view=mynotes',
             icons: [
               {
-                src: '/ADTMC/icon-192.png',
+                src: '/test2/icon-192.png',
                 sizes: '192x192',
                 type: 'image/png'
               }
@@ -70,10 +70,10 @@ export default defineConfig({
             name: 'Import Note',
             short_name: 'Import',
             description: 'Import a note via barcode',
-            url: '/ADTMC/?view=import',
+            url: '/test2/?view=import',
             icons: [
               {
-                src: '/ADTMC/icon-192.png',
+                src: '/test2/icon-192.png',
                 sizes: '192x192',
                 type: 'image/png'
               }
