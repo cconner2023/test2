@@ -1,6 +1,6 @@
 // Components/UpdateNotification.tsx
 import React, { useEffect, useState } from 'react';
-import { X, Download, Wifi } from 'lucide-react';
+import { X, Download, Wifi, RefreshCw } from 'lucide-react';
 import { useServiceWorker } from '../Hooks/useServiceWorker';
 
 const UpdateNotification: React.FC = () => {
@@ -53,50 +53,87 @@ const UpdateNotification: React.FC = () => {
         dismissUpdate();
     };
 
-    // Offline ready toast
+    // Offline ready toast - theme-responsive
     if (showOfflineToast && !isVisible) {
         return (
-            <div className="fixed inset-x-0 bottom-0 z-50 animate-slideInUp">
-                <div className="bg-green-600 px-4 py-3 text-white shadow-lg">
-                    <div className="flex items-center justify-center space-x-3">
-                        <Wifi className="h-5 w-5" />
-                        <p className="font-medium">App ready for offline use</p>
+            <div className="fixed inset-x-0 bottom-0 z-50 flex justify-center p-4 pointer-events-none animate-slideInUp">
+                <div className="bg-themewhite rounded-2xl shadow-2xl border border-tertiary/10 px-6 py-4 flex items-center gap-3 pointer-events-auto backdrop-blur-xl">
+                    <div className="w-10 h-10 rounded-full bg-themegreen/15 flex items-center justify-center flex-shrink-0">
+                        <Wifi className="h-5 w-5 text-themegreen" />
+                    </div>
+                    <div>
+                        <p className="text-sm font-medium text-primary">Ready for Offline Use</p>
+                        <p className="text-xs text-tertiary/60">App cached successfully</p>
                     </div>
                 </div>
             </div>
         );
     }
 
-    if (!isVisible || isUpdating) return null;
+    if (!isVisible) return null;
 
     return (
-        <div className="fixed inset-x-0 bottom-0 z-50 animate-slideInUp">
-            <div className="bg-blue-600 px-4 py-3 text-white shadow-lg">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                        <Download className="h-5 w-5" />
-                        <div>
-                            <p className="font-medium">Update Available</p>
-                            <p className="text-sm opacity-90">
-                                New version v{appVersion} is ready to install
-                            </p>
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pointer-events-none">
+            {/* Subtle backdrop on mobile */}
+            <div
+                className="absolute inset-0 bg-black/10 pointer-events-auto sm:bg-black/15 transition-opacity"
+                onClick={handleDismiss}
+            />
+            {/* Notification card */}
+            <div className="relative w-full sm:w-auto sm:max-w-sm mx-0 sm:mx-4 mb-0 sm:mb-0 pointer-events-auto animate-slideInUp">
+                <div className="bg-themewhite rounded-t-2xl sm:rounded-2xl shadow-2xl border border-tertiary/10 overflow-hidden backdrop-blur-xl">
+                    {/* Accent bar at top */}
+                    <div className="h-1 bg-themeblue2" />
+
+                    <div className="px-5 py-4">
+                        {/* Header row */}
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-full bg-themeblue2/15 flex items-center justify-center flex-shrink-0">
+                                    <Download className="h-5 w-5 text-themeblue2" />
+                                </div>
+                                <div>
+                                    <p className="text-sm font-semibold text-primary">Update Available</p>
+                                    <p className="text-xs text-tertiary mt-0.5">
+                                        Version {appVersion} is ready to install
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={handleDismiss}
+                                className="p-1.5 rounded-lg hover:bg-themewhite2 active:scale-95 transition-all text-tertiary"
+                                aria-label="Dismiss update notification"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
                         </div>
-                    </div>
-                    <div className="flex items-center space-x-3">
-                        <button
-                            onClick={handleUpdate}
-                            className="rounded bg-white px-4 py-2 text-sm font-medium text-blue-600 transition hover:bg-blue-50"
-                            disabled={isUpdating}
-                        >
-                            {isUpdating ? 'Updating...' : 'Update Now'}
-                        </button>
-                        <button
-                            onClick={handleDismiss}
-                            className="rounded px-3 py-2 text-sm font-medium hover:bg-blue-500"
-                            aria-label="Dismiss"
-                        >
-                            <X className="h-4 w-4" />
-                        </button>
+
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-2.5 mt-4">
+                            <button
+                                onClick={handleDismiss}
+                                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-tertiary bg-themewhite2 hover:bg-themegray1/40 active:scale-[0.97] transition-all"
+                            >
+                                Later
+                            </button>
+                            <button
+                                onClick={handleUpdate}
+                                disabled={isUpdating}
+                                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-themeblue2 hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                            >
+                                {isUpdating ? (
+                                    <>
+                                        <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                                        Updating…
+                                    </>
+                                ) : (
+                                    <>
+                                        <Download className="h-3.5 w-3.5" />
+                                        Update Now
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
