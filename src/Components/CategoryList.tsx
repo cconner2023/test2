@@ -4,58 +4,15 @@ import { catData } from '../Data/CatData'
 import { useAppAnimate } from '../Utilities/AnimationConfig'
 
 // Shared shape for guideline-like items (DDX, medcom, stp, gen all have text + optional id)
-interface GuidelineItemData {
+export interface GuidelineItemData {
     text?: string
     id?: number
     icon?: string
 }
 
-// Guideline Item Component - Reusable for DDX, medcom, stp, gen
-interface GuidelineItemProps {
-    guideline: GuidelineItemData
-    type: 'DDX' | 'medcom' | 'stp' | 'gen'
-    index: number
-    keyPrefix: string
-    onClick: () => void
-}
-
-function GuidelineItem({ guideline, keyPrefix, index, onClick }: GuidelineItemProps) {
-    if (!guideline?.text) return null
-
-    return (
-        <div
-            key={`${keyPrefix}-${guideline.id || index}`}
-            onClick={onClick}
-            className="mb-3 p-3 rounded border border-themewhite2/10 cursor-pointer hover:bg-themewhite2"
-        >
-            <div className="text-xs font-normal text-secondary">
-                {guideline.text}
-            </div>
-        </div>
-    )
-}
-
-// Section ordering: General Info first, then Differentials, then Training (separated by category)
-const GUIDELINE_SECTIONS = [
-    { key: 'gen' as const, label: 'General Information', prefix: 'gen', field: 'gen' as const },
-    { key: 'DDX' as const, label: 'Differentials (DDx)', prefix: 'ddx', field: 'DDX' as const },
-    { key: 'medcom' as const, label: 'MEDCOM Training', prefix: 'medcom', field: 'medcom' as const },
-    { key: 'stp' as const, label: 'STP Training', prefix: 'stp', field: 'stp' as const },
-] as const
-
-// Section icon mapping for visual consistency
-function getSectionIcon(key: string): string {
-    switch (key) {
-        case 'gen': return '📋'
-        case 'DDX': return '🔍'
-        case 'medcom': return '🎖️'
-        case 'stp': return '📖'
-        default: return '📝'
-    }
-}
-
 // Extracted: Symptom header + guideline sections (shared between desktop and mobile)
-function SymptomGuidelines({
+// UI modeled after QuestionCard — card-based layout with dot connectors
+export function SymptomGuidelines({
     symptom,
     category,
     onNavigate,
@@ -72,138 +29,121 @@ function SymptomGuidelines({
         category: catDataTypes
     ) => SearchResultType
 }) {
-    // Check if any training sections have content
-    const hasTraining = (symptom.medcom?.length ?? 0) > 0 || (symptom.stp?.length ?? 0) > 0
+    // General info rendered in the header card
+    const genItems = symptom.gen as GuidelineItemData[] | undefined
+    const genText = genItems?.filter(item => item.text)
+
+    // Collect non-gen sections
+    const sections: { key: string; label: string; type: 'gen' | 'medcom' | 'stp' | 'DDX'; items: GuidelineItemData[] }[] = []
+
+    const ddxItems = symptom.DDX as GuidelineItemData[] | undefined
+    if (ddxItems && ddxItems.length > 0) {
+        sections.push({ key: 'ddx', label: 'Differentials (DDx)', type: 'DDX', items: ddxItems })
+    }
+
+    const medcomItems = symptom.medcom as GuidelineItemData[] | undefined
+    if (medcomItems && medcomItems.length > 0) {
+        sections.push({ key: 'medcom', label: 'MEDCOM Training', type: 'medcom', items: medcomItems })
+    }
+
+    const stpItems = symptom.stp as GuidelineItemData[] | undefined
+    if (stpItems && stpItems.length > 0) {
+        sections.push({ key: 'stp', label: 'STP Training', type: 'stp', items: stpItems })
+    }
 
     return (
-        <>
-            {/* Symptom Header — consistent with WriteNotePage header style */}
-            <div className="mb-5 pb-4 border-b border-themewhite2">
-                <div className="flex items-center gap-3 mb-2">
-                    <div className="px-4 py-3 flex text-[12pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
-                        {symptom.icon}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <h2 className="text-[11pt] font-semibold text-primary leading-tight">
+        <div className="space-y-0">
+            {/* Symptom Header Card — includes general guideline info */}
+            <div className="flex flex-col items-center">
+                <div className="flex flex-col rounded-md w-full overflow-hidden shadow-sm bg-themewhite2 border border-themewhite/10">
+                    <div className="px-4 py-3 text-primary/80">
+                        <div className="text-[10pt] font-semibold">
                             {symptom.text}
-                        </h2>
-                        <span className="text-[8pt] text-secondary mt-0.5 block">
+                        </div>
+                        <div className="text-[8pt] text-secondary mt-0.5">
                             {category.text}
-                        </span>
+                        </div>
+                        {symptom.description && (
+                            <div className="text-[9pt] text-secondary leading-relaxed mt-2">
+                                {symptom.description}
+                            </div>
+                        )}
                     </div>
+
+                    {/* General Information inline in header card */}
+                    {genText && genText.length > 0 && (
+                        <div className="px-3 pt-0 pb-3">
+                            <div className="text-[9pt] font-semibold uppercase tracking-wider text-primary/80 px-1 mb-2">
+                                General Information
+                            </div>
+                            <div className="space-y-2">
+                                {genText.map((item, index) => (
+                                    <div
+                                        key={`gen-${item.id || index}`}
+                                        onClick={() => onNavigate(guidelineToResult('gen', item, index, symptom, category))}
+                                        className="text-xs p-2 rounded-md bg-themewhite3 text-tertiary cursor-pointer transition-all duration-200 hover:bg-themewhite"
+                                    >
+                                        <div className="font-normal">
+                                            {item.text}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
-                {symptom.description && (
-                    <p className="text-[9.5pt] text-secondary leading-relaxed mt-2 pl-1">
-                        {symptom.description}
-                    </p>
+
+                {/* Connector to first section */}
+                {sections.length > 0 && (
+                    <div className="flex flex-col items-center py-1">
+                    </div>
                 )}
             </div>
 
-            {/* General Information Section */}
-            {(() => {
-                const genItems = symptom.gen as GuidelineItemData[] | undefined
-                const hasGenContent = genItems && genItems.some(item => item.text)
-                if (!hasGenContent) return null
+            {/* Guideline Section Cards */}
+            {sections.map((section, sectionIdx) => {
+                const isTraining = section.type === 'medcom' || section.type === 'stp'
+
                 return (
-                    <div className="mb-5">
-                        <div className="flex items-center gap-2 mb-2 pl-1">
-                            <span className="text-[9pt]">{getSectionIcon('gen')}</span>
-                            <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide">
-                                General Information
-                            </h3>
+                    <div key={section.key} className="flex flex-col items-center">
+                        <div className="flex flex-col rounded-md w-full overflow-hidden shadow-sm bg-themewhite2 border border-themewhite/10">
+                            {/* Section Header */}
+                            <div className="px-4 py-3 text-primary/80">
+                                <div className="text-[9pt] font-semibold uppercase tracking-wider">
+                                    {section.label}
+                                </div>
+                            </div>
+
+                            {/* Section Items */}
+                            <div className="px-3 pt-0 pb-3">
+                                <div className="space-y-2">
+                                    {section.items.map((item, index) => (
+                                        <div
+                                            key={`${section.key}-${item.id || index}`}
+                                            onClick={() => onNavigate(guidelineToResult(section.type, item, index, symptom, category))}
+                                            className="text-xs p-2 rounded-md bg-themewhite3 text-tertiary cursor-pointer transition-all duration-200 hover:bg-themewhite"
+                                        >
+                                            <div className="font-normal">
+                                                {isTraining && item.icon && (
+                                                    <span className="text-tertiary mr-1.5 text-[8pt]">{item.icon}</span>
+                                                )}
+                                                {item.text}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         </div>
-                        {genItems!.map((item, index) => (
-                            <GuidelineItem
-                                key={`gen-${item.id || index}`}
-                                guideline={item}
-                                type="gen"
-                                index={index}
-                                keyPrefix="gen"
-                                onClick={() => onNavigate(guidelineToResult('gen', item, index, symptom, category))}
-                            />
-                        ))}
+
+                        {/* Dot connector between sections */}
+                        {sectionIdx < sections.length - 1 && (
+                            <div className="flex flex-col items-center py-1">
+                            </div>
+                        )}
                     </div>
                 )
-            })()}
-
-            {/* Differentials Section */}
-            {(() => {
-                const ddxItems = symptom.DDX as GuidelineItemData[] | undefined
-                if (!ddxItems || ddxItems.length === 0) return null
-                return (
-                    <div className="mb-5">
-                        <div className="flex items-center gap-2 mb-2 pl-1">
-                            <span className="text-[9pt]">{getSectionIcon('DDX')}</span>
-                            <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide">
-                                Differentials (DDx)
-                            </h3>
-                        </div>
-                        {ddxItems.map((item, index) => (
-                            <GuidelineItem
-                                key={`ddx-${item.id || index}`}
-                                guideline={item}
-                                type="DDX"
-                                index={index}
-                                keyPrefix="ddx"
-                                onClick={() => onNavigate(guidelineToResult('DDX', item, index, symptom, category))}
-                            />
-                        ))}
-                    </div>
-                )
-            })()}
-
-            {/* Training Section — MEDCOM and STP separated with a shared "Training" heading */}
-            {hasTraining && (
-                <div className="mb-3">
-                    <div className="flex items-center gap-2 mb-3 pl-1">
-                        <span className="text-[9pt]">📚</span>
-                        <h3 className="text-[9pt] font-semibold text-themeblue1 uppercase tracking-wide">
-                            Training References
-                        </h3>
-                    </div>
-
-                    {/* MEDCOM Training */}
-                    {symptom.medcom && symptom.medcom.length > 0 && (
-                        <div className="mb-4 ml-1">
-                            <h4 className="text-[8.5pt] font-medium text-secondary mb-1.5 pl-1 flex items-center gap-1.5">
-                                <span>{getSectionIcon('medcom')}</span>
-                                MEDCOM
-                            </h4>
-                            {(symptom.medcom as GuidelineItemData[]).map((item, index) => (
-                                <GuidelineItem
-                                    key={`medcom-${item.id || index}`}
-                                    guideline={item}
-                                    type="medcom"
-                                    index={index}
-                                    keyPrefix="medcom"
-                                    onClick={() => onNavigate(guidelineToResult('medcom', item, index, symptom, category))}
-                                />
-                            ))}
-                        </div>
-                    )}
-
-                    {/* STP Training */}
-                    {symptom.stp && symptom.stp.length > 0 && (
-                        <div className="mb-4 ml-1">
-                            <h4 className="text-[8.5pt] font-medium text-secondary mb-1.5 pl-1 flex items-center gap-1.5">
-                                <span>{getSectionIcon('stp')}</span>
-                                STP
-                            </h4>
-                            {(symptom.stp as GuidelineItemData[]).map((item, index) => (
-                                <GuidelineItem
-                                    key={`stp-${item.id || index}`}
-                                    guideline={item}
-                                    type="stp"
-                                    index={index}
-                                    keyPrefix="stp"
-                                    onClick={() => onNavigate(guidelineToResult('stp', item, index, symptom, category))}
-                                />
-                            ))}
-                        </div>
-                    )}
-                </div>
-            )}
-        </>
+            })}
+        </div>
     )
 }
 
@@ -291,7 +231,7 @@ export function CategoryList({
         type: type === 'DDX' ? 'DDX' : 'training',
         id: item.id || index,
         icon: item.icon || (type === 'DDX' ? 'DDX' : '\u{1F4DD}'),
-        text: item.text,
+        text: item.text ?? '',
         data: {
             categoryId: category.id,
             symptomId: symptom.id,
