@@ -1,9 +1,10 @@
-import { useRef, useCallback, useEffect, useMemo } from 'react'
+import { useRef, useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { NavTop } from './Components/NavTop'
 import { CategoryList } from './Components/CategoryList'
 import { SearchResults } from './Components/SearchResults'
 import { NoteImport } from './Components/NoteImport'
+import type { ImportSuccessData } from './Components/NoteImport'
 import { ThemeProvider, useTheme } from './Utilities/ThemeContext'
 import { AlgorithmPage } from './Components/AlgorithmPage'
 import { WriteNotePage } from './Components/WriteNotePage'
@@ -21,6 +22,7 @@ import { Settings } from './Components/Settings'
 import { SymptomInfoDrawer } from './Components/SymptomInfoDrawer'
 import { MedicationsDrawer } from './Components/MedicationsDrawer'
 import { MyNotes } from './Components/MyNotes'
+import { animated } from '@react-spring/web'
 
 // PWA App Shortcut: capture ?view= URL parameter once at module load time
 // This runs before React StrictMode can interfere with double-mounting
@@ -45,6 +47,18 @@ function AppContent() {
   const notesStorage = useNotesStorage()
   const { restoreNote } = useNoteRestore()
 
+  // Track whether the import shortcut was used to open import in scanning mode
+  const [importInitialView, setImportInitialView] = useState<'input' | 'scanning' | undefined>(
+    _initialViewParam === 'import' ? 'scanning' : undefined
+  )
+
+  // Import success modal state
+  const [showImportSuccessModal, setShowImportSuccessModal] = useState(false)
+
+  // Track the active note being viewed in WriteNotePage (null = fresh note, string = saved note ID)
+  const [activeNoteId, setActiveNoteId] = useState<string | null>(null)
+  const [activeNoteEncodedText, setActiveNoteEncodedText] = useState<string | null>(null)
+
   // PWA App Shortcut: open the appropriate view based on the captured URL parameter
   useEffect(() => {
     if (_initialViewParam === 'mynotes') {
@@ -54,6 +68,19 @@ function AppContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Run only once on mount
+
+  // Track whether the import drawer has been opened at least once (to avoid clearing on initial mount)
+  const importWasOpenedRef = useRef(false)
+
+  // Clear the import initial view state when the import drawer is closed
+  // so subsequent opens from the Import Note button use the default 'input' view
+  useEffect(() => {
+    if (navigation.showNoteImport) {
+      importWasOpenedRef.current = true
+    } else if (importWasOpenedRef.current && importInitialView) {
+      setImportInitialView(undefined)
+    }
+  }, [navigation.showNoteImport, importInitialView])
 
   // Compute mobile view depth: 0 = categories, 1 = subcategories, 2 = algorithm
   const mobileViewDepth = useMemo(() => {
@@ -70,6 +97,14 @@ function AppContent() {
       navigation.handleBackClick()
     }, [navigation]),
   })
+
+  // Clear active note tracking when WriteNote closes
+  useEffect(() => {
+    if (!navigation.isWriteNoteVisible) {
+      setActiveNoteId(null)
+      setActiveNoteEncodedText(null)
+    }
+  }, [navigation.isWriteNoteVisible])
 
   // Sync search expansion when transitioning to mobile with active search text
   useEffect(() => {
@@ -132,9 +167,9 @@ function AppContent() {
     navigation.setShowMyNotes(true)
   }
 
-  // Note save handler
+  // Note save handler (new note)
   const handleNoteSave = useCallback((data: NoteSaveData) => {
-    notesStorage.saveNote({
+    const result = notesStorage.saveNote({
       encodedText: data.encodedText,
       previewText: data.previewText,
       symptomIcon: data.symptomIcon,
@@ -142,6 +177,32 @@ function AppContent() {
       dispositionType: data.dispositionType,
       dispositionText: data.dispositionText,
     })
+    // After saving, track the new note so the button changes to "Delete Note"
+    if (result.success && result.noteId) {
+      setActiveNoteId(result.noteId)
+      setActiveNoteEncodedText(data.encodedText)
+    }
+  }, [notesStorage])
+
+  // Note delete handler (from WriteNotePage)
+  const handleNoteDelete = useCallback((noteId: string) => {
+    notesStorage.deleteNote(noteId)
+    setActiveNoteId(null)
+    setActiveNoteEncodedText(null)
+  }, [notesStorage])
+
+  // Note update handler (save changes to existing note)
+  const handleNoteUpdate = useCallback((noteId: string, data: NoteSaveData) => {
+    notesStorage.updateNote(noteId, {
+      encodedText: data.encodedText,
+      previewText: data.previewText,
+      symptomIcon: data.symptomIcon,
+      symptomText: data.symptomText,
+      dispositionType: data.dispositionType,
+      dispositionText: data.dispositionText,
+    }, true) // refreshTimestamp = true
+    // Update the tracked encoded text to the new value
+    setActiveNoteEncodedText(data.encodedText)
   }, [notesStorage])
 
   // View note handler — restore algorithm state from saved note and open WriteNote
@@ -151,6 +212,10 @@ function AppContent() {
       console.warn('Failed to restore note:', result.error)
       return
     }
+
+    // Track which saved note we're viewing
+    setActiveNoteId(note.id)
+    setActiveNoteEncodedText(note.encodedText)
 
     // 1. Navigate to the algorithm view for this symptom
     navigation.handleNavigation({
@@ -175,6 +240,112 @@ function AppContent() {
     }, 400)
   }, [restoreNote, navigation])
 
+  // Edit note handler — restore algorithm state and open WriteNote wizard at Page 1 (content selection) with HPI pre-filled
+  const handleEditNoteInWizard = useCallback((note: SavedNote) => {
+    const result = restoreNote(note)
+    if (!result.success || !result.writeNoteData || !result.symptom || !result.category) {
+      console.warn('Failed to restore note for editing:', result.error)
+      return
+    }
+
+    // Track which saved note we're editing
+    setActiveNoteId(note.id)
+    setActiveNoteEncodedText(note.encodedText)
+
+    // 1. Navigate to the algorithm view for this symptom
+    navigation.handleNavigation({
+      type: 'CC',
+      id: result.symptom.id,
+      icon: result.symptom.icon,
+      text: result.symptom.text,
+      data: {
+        categoryId: result.category.id,
+        symptomId: result.symptom.id,
+        categoryRef: result.category,
+        symptomRef: result.symptom
+      }
+    })
+
+    // 2. Close My Notes drawer
+    navigation.setShowMyNotes(false)
+
+    // 3. Open WriteNote wizard at Page 1 (content selection) with restored algorithm state and HPI
+    setTimeout(() => {
+      navigation.showWriteNote({
+        ...result.writeNoteData!,
+        initialPage: 1,
+        initialHpiText: result.hpiText || ''
+      })
+    }, 400)
+  }, [restoreNote, navigation])
+
+  // Import success handler — saves imported note with 'external source' tag, then opens it like viewing from My Notes
+  const handleImportSuccess = useCallback((data: ImportSuccessData) => {
+    // Build a temporary SavedNote-like object to use restoreNote
+    const tempNote: SavedNote = {
+      id: '',
+      encodedText: data.encodedText,
+      createdAt: new Date().toISOString(),
+      symptomIcon: '',
+      symptomText: '',
+      dispositionType: '',
+      dispositionText: '',
+      previewText: data.decodedText.slice(0, 200),
+      source: 'external source',
+    }
+
+    // Restore note to get algorithm state + symptom/category info
+    const result = restoreNote(tempNote)
+    if (!result.success || !result.writeNoteData || !result.symptom || !result.category) {
+      console.warn('Failed to restore imported note:', result.error)
+      return
+    }
+
+    // 1. Save the note to storage with 'external source' tag
+    const disposition = result.writeNoteData.disposition
+    const saveResult = notesStorage.saveNote({
+      encodedText: data.encodedText,
+      previewText: data.decodedText.slice(0, 200),
+      symptomIcon: result.symptom.icon || '',
+      symptomText: result.symptom.text || 'Imported Note',
+      dispositionType: disposition.type,
+      dispositionText: disposition.text,
+      source: 'external source',
+    })
+
+    // 2. Close Import drawer
+    navigation.setShowNoteImport(false)
+
+    // 3. Show success feedback modal
+    setShowImportSuccessModal(true)
+    setTimeout(() => setShowImportSuccessModal(false), 2500)
+
+    // 4. Track the saved note for delete/save changes logic
+    if (saveResult.success && saveResult.noteId) {
+      setActiveNoteId(saveResult.noteId)
+      setActiveNoteEncodedText(data.encodedText)
+    }
+
+    // 5. Navigate to the algorithm view for this symptom (same as handleViewNote)
+    navigation.handleNavigation({
+      type: 'CC',
+      id: result.symptom.id,
+      icon: result.symptom.icon,
+      text: result.symptom.text,
+      data: {
+        categoryId: result.category.id,
+        symptomId: result.symptom.id,
+        categoryRef: result.category,
+        symptomRef: result.symptom
+      }
+    })
+
+    // 6. Open WriteNote wizard with restored algorithm state on the note preview page
+    setTimeout(() => {
+      navigation.showWriteNote(result.writeNoteData!)
+    }, 400)
+  }, [restoreNote, notesStorage, navigation])
+
   // Title logic
   const getTitle = () => {
     if (search.searchInput) return { title: "", show: false }
@@ -183,40 +354,15 @@ function AppContent() {
 
   const title = getTitle()
 
-  // Compute swipe transform styles for mobile views
-  const getSwipeStyle = useCallback((layerDepth: number): React.CSSProperties => {
-    // Only apply swipe transforms on mobile during active swipe
-    if (!navigation.isMobile || (!swipe.isSwiping && !swipe.animatingDirection)) {
-      return {}
-    }
-
-    // Current view being swiped away (top layer)
-    if (layerDepth === mobileViewDepth) {
-      return {
-        transform: `translateX(${swipe.offsetX}px)`,
-        transition: swipe.isSwiping ? 'none' : 'transform 0.28s cubic-bezier(0.25, 0.1, 0.25, 1)',
-      }
-    }
-
-    // Layer below (will be revealed): slight parallax from left
-    if (layerDepth === mobileViewDepth - 1) {
-      const parallaxOffset = -80 + (swipe.offsetX / window.innerWidth) * 80
-      return {
-        transform: `translateX(${parallaxOffset}px)`,
-        transition: swipe.isSwiping ? 'none' : 'transform 0.28s cubic-bezier(0.25, 0.1, 0.25, 1)',
-        opacity: 0.6 + (swipe.offsetX / window.innerWidth) * 0.4,
-      }
-    }
-
-    return {}
-  }, [navigation.isMobile, swipe.isSwiping, swipe.animatingDirection, swipe.offsetX, mobileViewDepth])
-
   // Determine if a layer should be visible during swipe (to show the layer being revealed underneath)
   const isLayerVisibleDuringSwipe = useCallback((layerDepth: number): boolean => {
     if (!swipe.isSwiping && !swipe.animatingDirection) return false
     // Show the layer below the current one during swipe
     return layerDepth === mobileViewDepth - 1
   }, [swipe.isSwiping, swipe.animatingDirection, mobileViewDepth])
+
+  // Determine which layer gets the spring styles
+  const isSwipeActive = swipe.isSwiping || !!swipe.animatingDirection
 
 
   return (
@@ -270,15 +416,21 @@ function AppContent() {
             className={`${navigation.isMobile ? 'block' : 'hidden'} h-full relative`}
             {...(navigation.isMobile ? swipe.touchHandlers : {})}
           >
-            {/* CategoryList - base layer (depth 0) */}
-            <div
+            {/* CategoryList - base layer (depth 0), also serves as depth 1 (subcategories) */}
+            <animated.div
               className={`absolute inset-0 will-change-transform ${!search.searchInput && !navigation.showQuestionCard
                 ? 'opacity-100 z-10'
                 : isLayerVisibleDuringSwipe(0)
                   ? 'z-5 pointer-events-none'
                   : 'opacity-0 z-0 pointer-events-none'
                 } ${!swipe.isSwiping && !swipe.animatingDirection ? 'transition-opacity duration-200' : ''}`}
-              style={getSwipeStyle(0)}
+              style={
+                isSwipeActive && mobileViewDepth === 1
+                  ? { transform: swipe.springStyles.x.to(x => `translateX(${x}px)`) }
+                  : isSwipeActive && mobileViewDepth === 2
+                    ? { transform: swipe.parallaxStyles.x.to(x => `translateX(${x}px)`), opacity: swipe.parallaxStyles.opacity }
+                    : undefined
+              }
             >
               <div className="h-full overflow-y-auto">
                 {/* Spacer accounts for safe area + navbar, scrolls with content */}
@@ -291,7 +443,7 @@ function AppContent() {
                   />
                 </div>
               </div>
-            </div>
+            </animated.div>
 
             {/* SearchResults - overlay when searching */}
             <div className={`absolute inset-0 transition-opacity duration-200 ${search.searchInput ? 'opacity-100 z-20' : 'opacity-0 z-0 pointer-events-none'
@@ -360,12 +512,16 @@ function AppContent() {
 
           {/* AlgorithmPage - mobile only: absolute positioned overlay (depth 2) */}
           {navigation.isMobile && navigation.selectedSymptom && (
-            <div
+            <animated.div
               className={`absolute inset-0 will-change-transform ${!search.searchInput && navigation.showQuestionCard
                 ? 'opacity-100 z-20'
                 : 'opacity-0 z-0 pointer-events-none'
                 } ${!swipe.isSwiping && !swipe.animatingDirection ? 'transition-opacity duration-200' : ''}`}
-              style={getSwipeStyle(2)}
+              style={
+                isSwipeActive && mobileViewDepth === 2
+                  ? { transform: swipe.springStyles.x.to(x => `translateX(${x}px)`) }
+                  : undefined
+              }
               {...swipe.touchHandlers}
             >
               <div className="h-full overflow-hidden bg-themewhite">
@@ -376,7 +532,7 @@ function AppContent() {
                   isMobile={navigation.isMobile}
                 />
               </div>
-            </div>
+            </animated.div>
           )}
         </div>
         {/* Menu backdrop - rendered at App level to avoid overflow-hidden clipping.
@@ -391,6 +547,8 @@ function AppContent() {
           isVisible={navigation.showNoteImport}
           onClose={() => navigation.setShowNoteImport(false)}
           isMobile={navigation.isMobile}
+          initialViewState={importInitialView}
+          onImportSuccess={handleImportSuccess}
         />
         <Settings
           isVisible={navigation.showSettings}
@@ -399,6 +557,11 @@ function AppContent() {
           onToggleTheme={toggleTheme}
           isMobile={navigation.isMobile}
           onMyNotesClick={handleMyNotesClick}
+          notes={notesStorage.notes}
+          onDeleteNote={notesStorage.deleteNote}
+          onEditNote={notesStorage.updateNote}
+          onViewNote={handleViewNote}
+          onEditNoteInWizard={handleEditNoteInWizard}
         />
         <MedicationsDrawer
           isVisible={navigation.showMedications}
@@ -422,6 +585,7 @@ function AppContent() {
           onDeleteNote={notesStorage.deleteNote}
           onEditNote={notesStorage.updateNote}
           onViewNote={handleViewNote}
+          onEditNoteInWizard={handleEditNoteInWizard}
         />
         {/* WriteNotePage - rendered at App level for proper z-index on mobile */}
         {navigation.isWriteNoteVisible && navigation.writeNoteData && (
@@ -438,12 +602,32 @@ function AppContent() {
               isExpanded={true}
               onExpansionChange={navigation.closeWriteNote}
               onNoteSave={handleNoteSave}
+              onNoteDelete={handleNoteDelete}
+              onNoteUpdate={handleNoteUpdate}
+              existingNoteId={activeNoteId}
+              existingEncodedText={activeNoteEncodedText}
               selectedSymptom={navigation.writeNoteData.selectedSymptom}
               isMobile={navigation.isMobile}
+              initialPage={navigation.writeNoteData.initialPage}
+              initialHpiText={navigation.writeNoteData.initialHpiText}
             />
           </div>
         )}
         <UpdateNotification />
+        {/* Import Success Modal */}
+        {showImportSuccessModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
+            <div className="bg-themewhite rounded-2xl shadow-2xl border border-tertiary/10 px-8 py-6 flex flex-col items-center gap-3 animate-[fadeInScale_0.3s_ease-out]">
+              <div className="w-12 h-12 rounded-full bg-green-500/15 flex items-center justify-center">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-primary">Note Imported Successfully</p>
+              <p className="text-xs text-tertiary/60">Saved with external source tag</p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

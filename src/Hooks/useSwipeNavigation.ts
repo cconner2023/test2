@@ -1,13 +1,5 @@
 import { useRef, useCallback, useState } from 'react'
-
-interface SwipeState {
-  /** Current swipe offset in pixels (positive = swiping right/back) */
-  offsetX: number
-  /** Whether a swipe gesture is actively in progress */
-  isSwiping: boolean
-  /** Direction of the completed swipe animation ('left' | 'right' | null) */
-  animatingDirection: 'left' | 'right' | null
-}
+import { useSpring } from '@react-spring/web'
 
 interface UseSwipeNavigationOptions {
   /** Whether swipe navigation is enabled (e.g., only on mobile) */
@@ -29,11 +21,21 @@ export function useSwipeNavigation({
   threshold = 60,
   velocityThreshold = 0.3,
 }: UseSwipeNavigationOptions) {
-  const [swipeState, setSwipeState] = useState<SwipeState>({
-    offsetX: 0,
-    isSwiping: false,
-    animatingDirection: null,
-  })
+  const [isSwiping, setIsSwiping] = useState(false)
+  const [animatingDirection, setAnimatingDirection] = useState<'left' | 'right' | null>(null)
+
+  // Spring for the current (top) layer being swiped away
+  const [springStyles, springApi] = useSpring(() => ({
+    x: 0,
+    config: { tension: 300, friction: 30 },
+  }))
+
+  // Spring for the parallax layer underneath
+  const [parallaxStyles, parallaxApi] = useSpring(() => ({
+    x: -80,
+    opacity: 0.6,
+    config: { tension: 300, friction: 30 },
+  }))
 
   const touchRef = useRef<{
     startX: number
@@ -45,7 +47,6 @@ export function useSwipeNavigation({
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     if (!enabled) return
-    // Don't intercept if we're at the top level (nothing to swipe back to)
     if (viewDepth <= 0) return
 
     const touch = e.touches[0]
@@ -72,12 +73,11 @@ export function useSwipeNavigation({
       if (absDeltaX > 8 || absDeltaY > 8) {
         touchRef.current.isHorizontal = absDeltaX > absDeltaY
         if (!touchRef.current.isHorizontal) {
-          // Vertical scroll - abort swipe tracking
           touchRef.current = null
           return
         }
       } else {
-        return // Not enough movement yet
+        return
       }
     }
 
@@ -86,55 +86,82 @@ export function useSwipeNavigation({
     touchRef.current.hasMoved = true
 
     // Only allow swiping right (positive deltaX) to go back
-    // Clamp: no negative offset (no forward swipe) and max to screen width
     const clampedOffset = Math.max(0, Math.min(deltaX, window.innerWidth))
 
-    // Apply dampening for resistance feel when pulling beyond threshold
+    // Apply dampening for resistance feel
     const dampened = clampedOffset > threshold
       ? threshold + (clampedOffset - threshold) * 0.4
       : clampedOffset
 
-    setSwipeState({
-      offsetX: dampened,
-      isSwiping: true,
-      animatingDirection: null,
-    })
-  }, [enabled, threshold])
+    setIsSwiping(true)
+    setAnimatingDirection(null)
+
+    // Immediately set spring values (no animation during drag)
+    springApi.start({ x: dampened, immediate: true })
+
+    // Parallax effect for layer underneath
+    const parallaxOffset = -80 + (dampened / window.innerWidth) * 80
+    const parallaxOpacity = 0.6 + (dampened / window.innerWidth) * 0.4
+    parallaxApi.start({ x: parallaxOffset, opacity: parallaxOpacity, immediate: true })
+  }, [enabled, threshold, springApi, parallaxApi])
 
   const onTouchEnd = useCallback(() => {
     if (!enabled || !touchRef.current) return
 
     const { startTime, hasMoved } = touchRef.current
+    const currentX = springStyles.x.get()
     touchRef.current = null
 
-    if (!hasMoved || !swipeState.isSwiping) {
-      setSwipeState({ offsetX: 0, isSwiping: false, animatingDirection: null })
+    if (!hasMoved || !isSwiping) {
+      setIsSwiping(false)
+      setAnimatingDirection(null)
+      springApi.start({ x: 0, immediate: false })
+      parallaxApi.start({ x: -80, opacity: 0.6, immediate: false })
       return
     }
 
     const deltaTime = Date.now() - startTime
-    const velocity = swipeState.offsetX / Math.max(deltaTime, 1)
+    const velocity = currentX / Math.max(deltaTime, 1)
 
-    // Trigger back navigation if threshold met or velocity is high enough
-    if (swipeState.offsetX > threshold || velocity > velocityThreshold) {
-      // Animate out to the right
-      setSwipeState({
-        offsetX: window.innerWidth,
-        isSwiping: false,
-        animatingDirection: 'right',
+    if (currentX > threshold || velocity > velocityThreshold) {
+      // Animate out to the right with spring physics
+      setAnimatingDirection('right')
+      setIsSwiping(false)
+
+      springApi.start({
+        x: window.innerWidth,
+        immediate: false,
+        config: { tension: 200, friction: 25 },
+        onRest: () => {
+          onSwipeBack()
+          // Reset after navigation
+          springApi.start({ x: 0, immediate: true })
+          parallaxApi.start({ x: -80, opacity: 0.6, immediate: true })
+          setAnimatingDirection(null)
+        },
       })
-
-      // Trigger navigation after animation completes
-      setTimeout(() => {
-        onSwipeBack()
-        // Reset state after navigation
-        setSwipeState({ offsetX: 0, isSwiping: false, animatingDirection: null })
-      }, 280)
+      parallaxApi.start({
+        x: 0,
+        opacity: 1,
+        immediate: false,
+        config: { tension: 200, friction: 25 },
+      })
     } else {
-      // Snap back - didn't meet threshold
-      setSwipeState({ offsetX: 0, isSwiping: false, animatingDirection: null })
+      // Snap back with spring physics
+      setIsSwiping(false)
+      springApi.start({
+        x: 0,
+        immediate: false,
+        config: { tension: 300, friction: 30 },
+      })
+      parallaxApi.start({
+        x: -80,
+        opacity: 0.6,
+        immediate: false,
+        config: { tension: 300, friction: 30 },
+      })
     }
-  }, [enabled, swipeState.isSwiping, swipeState.offsetX, threshold, velocityThreshold, onSwipeBack])
+  }, [enabled, isSwiping, threshold, velocityThreshold, onSwipeBack, springApi, parallaxApi, springStyles.x])
 
   const touchHandlers = {
     onTouchStart,
@@ -143,7 +170,14 @@ export function useSwipeNavigation({
   }
 
   return {
-    ...swipeState,
+    /** Current swipe offset — use springStyles.x for animated value */
+    offsetX: springStyles.x.get(),
+    isSwiping,
+    animatingDirection,
     touchHandlers,
+    /** react-spring animated styles for the top layer being swiped */
+    springStyles,
+    /** react-spring animated styles for the parallax layer underneath */
+    parallaxStyles,
   }
 }

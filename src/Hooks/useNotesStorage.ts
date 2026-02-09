@@ -9,6 +9,7 @@ export interface SavedNote {
     dispositionType: string;
     dispositionText: string;
     previewText: string;         // First ~120 chars of decoded note for display
+    source?: string;             // Optional tag: 'external source' for imported notes
 }
 
 const STORAGE_KEY = 'adtmc_saved_notes';
@@ -62,7 +63,7 @@ export function useNotesStorage() {
         return () => window.removeEventListener('storage', handleStorage);
     }, []);
 
-    const saveNote = useCallback((note: Omit<SavedNote, 'id' | 'createdAt'>): { success: boolean; error?: string } => {
+    const saveNote = useCallback((note: Omit<SavedNote, 'id' | 'createdAt'>): { success: boolean; error?: string; noteId?: string } => {
         const newNote: SavedNote = {
             ...note,
             id: `note_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -73,7 +74,7 @@ export function useNotesStorage() {
         const success = persistNotes(updated);
         if (success) {
             setNotes(updated);
-            return { success: true };
+            return { success: true, noteId: newNote.id };
         }
         return { success: false, error: 'Storage quota exceeded. Please delete some notes.' };
     }, []);
@@ -90,11 +91,15 @@ export function useNotesStorage() {
         setNotes([]);
     }, []);
 
-    const updateNote = useCallback((noteId: string, updates: Partial<Omit<SavedNote, 'id' | 'createdAt'>>): { success: boolean; error?: string } => {
+    const updateNote = useCallback((noteId: string, updates: Partial<Omit<SavedNote, 'id'>>, refreshTimestamp = false): { success: boolean; error?: string } => {
         const current = loadNotes();
         const index = current.findIndex(n => n.id === noteId);
         if (index === -1) return { success: false, error: 'Note not found.' };
-        current[index] = { ...current[index], ...updates };
+        current[index] = {
+            ...current[index],
+            ...updates,
+            ...(refreshTimestamp ? { createdAt: new Date().toISOString() } : {}),
+        };
         const success = persistNotes(current);
         if (success) {
             setNotes(current);

@@ -8,10 +8,17 @@ import { useBarcodeScanner } from '../Hooks/useBarcodeScanner';
 
 export type ViewState = 'input' | 'decoded' | 'scanning';
 
+export interface ImportSuccessData {
+    encodedText: string;
+    decodedText: string;
+}
+
 interface NoteImportProps {
     isVisible: boolean;
     onClose: () => void;
     isMobile?: boolean;
+    initialViewState?: ViewState;
+    onImportSuccess?: (data: ImportSuccessData) => void;
 }
 
 // Content state interface for lifting state up
@@ -28,12 +35,14 @@ const NoteImportContent = ({
     onClose,
     isMobile,
     state,
-    setState
+    setState,
+    onImportSuccess
 }: {
     onClose: () => void;
     isMobile: boolean;
     state: ContentState;
     setState: React.Dispatch<React.SetStateAction<ContentState>>;
+    onImportSuccess?: (data: ImportSuccessData) => void;
 }) => {
     const inputRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -255,13 +264,26 @@ const NoteImportContent = ({
                                 </svg>
                             </button>
                         </div>
-                        <div className="flex items-center justify-start gap-3 mt-4">
+                        <div className="flex items-center justify-between gap-3 mt-4">
                             <TextButton
                                 text="← Back"
                                 onClick={handleBack}
                                 variant='dispo-specific'
                                 className='bg-themewhite2 text-secondary rounded-full'
                             />
+                            {onImportSuccess && (
+                                <TextButton
+                                    text="Import Note"
+                                    onClick={() => {
+                                        onImportSuccess({
+                                            encodedText: state.inputText,
+                                            decodedText: state.decodedText
+                                        });
+                                    }}
+                                    variant='dispo-specific'
+                                    className='bg-themeblue3 text-white rounded-full'
+                                />
+                            )}
                         </div>
                     </div>
                 )}
@@ -270,10 +292,10 @@ const NoteImportContent = ({
     );
 };
 
-export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: NoteImportProps) {
+export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile, initialViewState, onImportSuccess }: NoteImportProps) {
     // Lifted content state - persists across mobile/desktop layout changes
     const [contentState, setContentState] = useState<ContentState>({
-        viewState: 'input',
+        viewState: initialViewState || 'input',
         inputText: '',
         decodedText: '',
         scanError: '',
@@ -284,14 +306,14 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
     useEffect(() => {
         if (isVisible) {
             setContentState({
-                viewState: 'input',
+                viewState: initialViewState || 'input',
                 inputText: '',
                 decodedText: '',
                 scanError: '',
                 isCopied: false
             });
         }
-    }, [isVisible]);
+    }, [isVisible, initialViewState]);
 
     return (
         <BaseDrawer
@@ -314,6 +336,7 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile }: N
                     isMobile={externalIsMobile ?? (typeof window !== 'undefined' && window.innerWidth < 768)}
                     state={contentState}
                     setState={setContentState}
+                    onImportSuccess={onImportSuccess}
                 />
             )}
         </BaseDrawer>

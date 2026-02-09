@@ -40,14 +40,20 @@ export const useNoteImport = () => {
         let legacyLastCard = -1;
         let legacySelections: number[] = [];
 
-        for (const part of parts) {
-            if (!part) continue;
+        // First non-empty part is always the symptom code (e.g. "A1", "F3")
+        // This must be extracted first to avoid prefix collisions with F (flags), etc.
+        const nonEmptyParts = parts.filter(p => p.length > 0);
+        if (nonEmptyParts.length > 0) {
+            result.symptomCode = nonEmptyParts[0];
+        }
+
+        // Parse remaining parts by prefix (skip the first which is the symptom code)
+        for (let partIdx = 1; partIdx < nonEmptyParts.length; partIdx++) {
+            const part = nonEmptyParts[partIdx];
             const prefix = part[0];
             const value = part.substring(1);
 
-            if (prefix === 'A') {
-                result.symptomCode = part;
-            } else if (prefix === 'R') {
+            if (prefix === 'R') {
                 const bitmask = parseInt(value || '0', 36);
                 result.rfSelections = bitmaskToIndices(bitmask);
             } else if (prefix === 'H') {

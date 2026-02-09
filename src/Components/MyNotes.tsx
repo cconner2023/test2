@@ -1,6 +1,7 @@
 // Components/MyNotes.tsx
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { X, FileText, Trash2, Pencil, Share2, CheckSquare, Square } from 'lucide-react';
+import { X, FileText, Trash2, Pencil, Share2, CheckSquare, Square, Eye, ClipboardCopy } from 'lucide-react';
+import { useSpring, animated } from '@react-spring/web';
 import type { SavedNote } from '../Hooks/useNotesStorage';
 import { useNoteShare } from '../Hooks/useNoteShare';
 import { BaseDrawer } from './BaseDrawer';
@@ -13,6 +14,7 @@ interface MyNotesProps {
     onDeleteNote: (noteId: string) => void;
     onEditNote?: (noteId: string, updates: Partial<Omit<SavedNote, 'id' | 'createdAt'>>) => void;
     onViewNote?: (note: SavedNote) => void;
+    onEditNoteInWizard?: (note: SavedNote) => void;
 }
 
 /* ────────────────────────────────────────────────────────────
@@ -27,6 +29,8 @@ const SwipeableNoteItem = ({
     isMobile,
     onDelete,
     onEdit,
+    onView,
+    onEditInWizard,
     onShare,
     shareStatus,
     activeSwipeId,
@@ -40,6 +44,8 @@ const SwipeableNoteItem = ({
     isMobile: boolean;
     onDelete: (noteId: string) => void;
     onEdit?: (noteId: string, updates: Partial<Omit<SavedNote, 'id' | 'createdAt'>>) => void;
+    onView?: (note: SavedNote) => void;
+    onEditInWizard?: (note: SavedNote) => void;
     onShare?: (note: SavedNote) => void;
     shareStatus?: string;
     activeSwipeId: string | null;
@@ -49,14 +55,20 @@ const SwipeableNoteItem = ({
     onToggleMultiSelect: (noteId: string) => void;
     onLongPress: () => void;
 }) => {
-    const [swipeOffset, setSwipeOffset] = useState(0);
-    const [isAnimating, setIsAnimating] = useState(false);
     const [confirmDeleteId, setConfirmDeleteId] = useState(false);
     const [copiedId, setCopiedId] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [editText, setEditText] = useState('');
     const [desktopActionsVisible, setDesktopActionsVisible] = useState(false);
     const [mobileSelected, setMobileSelected] = useState(false);
+
+    // react-spring animated swipe offset
+    const [springStyles, springApi] = useSpring(() => ({
+        x: 0,
+        config: { tension: 300, friction: 28 },
+    }));
+    // Keep a ref to the current target offset for logic checks
+    const swipeTargetRef = useRef(0);
 
     const touchStartX = useRef(0);
     const touchStartY = useRef(0);
@@ -65,7 +77,6 @@ const SwipeableNoteItem = ({
     const lastMoveOffsetRef = useRef(0); // Track the latest offset during move for reliable velocity calc
     const isTrackingSwipe = useRef(false);
     const swipeDirection = useRef<'none' | 'horizontal' | 'vertical'>('none');
-    const animatingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const noteRowRef = useRef<HTMLDivElement>(null);
     const wasSwiping = useRef(false); // Track if the gesture was a swipe (to distinguish from tap)
 
@@ -77,18 +88,16 @@ const SwipeableNoteItem = ({
 
     // Reset swipe when another item becomes active
     useEffect(() => {
-        if (activeSwipeId !== note.id && swipeOffset !== 0) {
-            setAnimatingWithSafety(true);
-            setSwipeOffset(0);
+        if (activeSwipeId !== note.id && swipeTargetRef.current !== 0) {
+            springApi.start({ x: 0 });
+            swipeTargetRef.current = 0;
             currentOffsetRef.current = 0;
             lastMoveOffsetRef.current = 0;
-        } else if (activeSwipeId !== note.id && swipeOffset === 0) {
-            // Already at 0 — no transition will fire, so clear animating flag directly
-            setIsAnimating(false);
+        } else if (activeSwipeId !== note.id) {
             currentOffsetRef.current = 0;
             lastMoveOffsetRef.current = 0;
         }
-    }, [activeSwipeId, note.id, swipeOffset]);
+    }, [activeSwipeId, note.id, springApi]);
 
     // Reset desktop actions and mobile selection when another item is active
     useEffect(() => {
@@ -103,9 +112,6 @@ const SwipeableNoteItem = ({
     // Cleanup timers on unmount
     useEffect(() => {
         return () => {
-            if (animatingTimerRef.current) {
-                clearTimeout(animatingTimerRef.current);
-            }
             if (longPressTimerRef.current) {
                 clearTimeout(longPressTimerRef.current);
             }
@@ -139,8 +145,7 @@ const SwipeableNoteItem = ({
         swipeDirection.current = 'none';
         wasSwiping.current = false;
         // Snapshot the current visual offset so new gesture starts from current position
-        currentOffsetRef.current = swipeOffset;
-        setIsAnimating(false);
+        currentOffsetRef.current = swipeTargetRef.current;
 
         // Long-press detection for multi-select entry
         if (!multiSelectMode) {
@@ -203,23 +208,7 @@ const SwipeableNoteItem = ({
         }
 
         lastMoveOffsetRef.current = newOffset;
-        setSwipeOffset(newOffset);
-    };
-
-    // Helper: safely set animating with auto-clear timeout
-    const setAnimatingWithSafety = (value: boolean) => {
-        if (animatingTimerRef.current) {
-            clearTimeout(animatingTimerRef.current);
-            animatingTimerRef.current = null;
-        }
-        setIsAnimating(value);
-        if (value) {
-            // Safety: clear after 400ms in case onTransitionEnd doesn't fire
-            animatingTimerRef.current = setTimeout(() => {
-                setIsAnimating(false);
-                animatingTimerRef.current = null;
-            }, 400);
-        }
+        springApi.start({ x: newOffset, immediate: true });
     };
 
     const handleTouchEnd = () => {
@@ -255,14 +244,9 @@ const SwipeableNoteItem = ({
             }
         }
 
-        // Only animate if offset actually changes
-        if (Math.abs(currentVisualOffset - targetOffset) > 0.5) {
-            setAnimatingWithSafety(true);
-        } else {
-            setIsAnimating(false);
-        }
-
-        setSwipeOffset(targetOffset);
+        // Animate to target with spring physics
+        springApi.start({ x: targetOffset, immediate: false });
+        swipeTargetRef.current = targetOffset;
         currentOffsetRef.current = targetOffset;
     };
 
@@ -280,9 +264,9 @@ const SwipeableNoteItem = ({
             // On mobile: only handle as tap if gesture wasn't a swipe
             if (wasSwiping.current) return;
             // If swiped open, treat tap on the card as closing the swipe
-            if (swipeOffset !== 0) {
-                setAnimatingWithSafety(true);
-                setSwipeOffset(0);
+            if (swipeTargetRef.current !== 0) {
+                springApi.start({ x: 0 });
+                swipeTargetRef.current = 0;
                 currentOffsetRef.current = 0;
                 lastMoveOffsetRef.current = 0;
                 setActiveSwipeId(null);
@@ -329,8 +313,8 @@ const SwipeableNoteItem = ({
         setMobileSelected(false);
         // Reset swipe
         if (isMobile) {
-            setAnimatingWithSafety(true);
-            setSwipeOffset(0);
+            springApi.start({ x: 0 });
+            swipeTargetRef.current = 0;
             currentOffsetRef.current = 0;
             lastMoveOffsetRef.current = 0;
         }
@@ -355,6 +339,34 @@ const SwipeableNoteItem = ({
             onShare(note);
         }
         // Keep selection visible for share status feedback
+    };
+
+    const handleView = (e: React.MouseEvent | React.TouchEvent) => {
+        e.stopPropagation();
+        if (onView) {
+            onView(note);
+        }
+    };
+
+    const handleEditInWizard = (e: React.MouseEvent | React.TouchEvent) => {
+        e.stopPropagation();
+        if (onEditInWizard) {
+            onEditInWizard(note);
+        }
+    };
+
+    const handleCopy = (e: React.MouseEvent | React.TouchEvent) => {
+        e.stopPropagation();
+        if (note.encodedText) {
+            navigator.clipboard.writeText(note.encodedText).then(() => {
+                setCopiedId(true);
+                setTimeout(() => setCopiedId(false), 2000);
+            }).catch(() => {
+                // Fallback: set copied anyway for UX
+                setCopiedId(true);
+                setTimeout(() => setCopiedId(false), 2000);
+            });
+        }
     };
 
     const formatDate = (isoStr: string) => {
@@ -403,8 +415,8 @@ const SwipeableNoteItem = ({
                     >
                         <button
                             className="flex-1 flex flex-col items-center justify-center gap-1 bg-blue-500 text-white text-xs font-medium"
-                            onTouchEnd={handleEditStart}
-                            onClick={handleEditStart}
+                            onTouchEnd={handleEditInWizard}
+                            onClick={handleEditInWizard}
                         >
                             <Pencil size={18} />
                             <span>Edit</span>
@@ -423,29 +435,30 @@ const SwipeableNoteItem = ({
                 </>
             )}
 
-            {/* ── Main note content (slides on mobile) ── */}
-            <div
+            {/* ── Main note content (slides on mobile via react-spring) ── */}
+            <animated.div
                 ref={noteRowRef}
                 className={`relative z-10 bg-themewhite border rounded-lg ${
                     !isMobile ? 'cursor-pointer hover:bg-themewhite2/50 border-tertiary/10' : ''
-                } ${isMobile && mobileSelected ? 'border-themeblue3/50 bg-themeblue3/5 ring-1 ring-themeblue3/20' : isMobile ? 'border-tertiary/10' : ''}${
-                    isAnimating ? ' transition-transform duration-300 ease-out' : ''
-                }`}
-                style={isMobile ? { transform: `translateX(${swipeOffset}px)`, willChange: 'transform', touchAction: 'pan-y' } : undefined}
+                } ${isMobile && mobileSelected ? 'border-themeblue3/50 bg-themeblue3/5 ring-1 ring-themeblue3/20' : isMobile ? 'border-tertiary/10' : ''}`}
+                style={isMobile ? { transform: springStyles.x.to(x => `translateX(${x}px)`), willChange: 'transform', touchAction: 'pan-y' } : undefined}
                 onTouchStart={handleTouchStart}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}
                 onClick={handleNoteClick}
-                onTransitionEnd={() => {
-                    if (animatingTimerRef.current) {
-                        clearTimeout(animatingTimerRef.current);
-                        animatingTimerRef.current = null;
-                    }
-                    setIsAnimating(false);
-                }}
             >
                 {/* Note summary row */}
                 <div className="flex items-center gap-3 px-3 py-3">
+                    {/* Multi-select checkbox */}
+                    {multiSelectMode && (
+                        <div className="shrink-0">
+                            {isMultiSelected ? (
+                                <CheckSquare size={18} className="text-themeblue3" />
+                            ) : (
+                                <Square size={18} className="text-tertiary/30" />
+                            )}
+                        </div>
+                    )}
                     <div className="shrink-0 w-8 h-8 rounded-full bg-themeblue3/10 flex items-center justify-center text-sm">
                         {note.symptomIcon || '\u{1F4CB}'}
                     </div>
@@ -498,7 +511,7 @@ const SwipeableNoteItem = ({
                                 View
                             </button>
                             <button
-                                onClick={handleEditStart}
+                                onClick={handleEditInWizard}
                                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full bg-themewhite3 text-tertiary hover:bg-blue-50 hover:text-blue-500 transition-all active:scale-95"
                                 title="Edit note"
                             >
@@ -560,8 +573,8 @@ const SwipeableNoteItem = ({
                                 View
                             </button>
                             <button
-                                onTouchEnd={handleEditStart}
-                                onClick={handleEditStart}
+                                onTouchEnd={handleEditInWizard}
+                                onClick={handleEditInWizard}
                                 className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-full bg-blue-500/10 text-blue-500 active:bg-blue-500/20 transition-all active:scale-95"
                             >
                                 <Pencil size={14} />
@@ -635,7 +648,7 @@ const SwipeableNoteItem = ({
                         </div>
                     </div>
                 )}
-            </div>
+            </animated.div>
         </div>
     );
 };
@@ -650,6 +663,7 @@ const MyNotesContent = ({
     onDeleteNote,
     onEditNote,
     onViewNote,
+    onEditNoteInWizard,
 }: {
     onClose: () => void;
     isMobile: boolean;
@@ -657,13 +671,42 @@ const MyNotesContent = ({
     onDeleteNote: (noteId: string) => void;
     onEditNote?: (noteId: string, updates: Partial<Omit<SavedNote, 'id' | 'createdAt'>>) => void;
     onViewNote?: (note: SavedNote) => void;
+    onEditNoteInWizard?: (note: SavedNote) => void;
 }) => {
     const [activeSwipeId, setActiveSwipeId] = useState<string | null>(null);
+    const [multiSelectMode, setMultiSelectMode] = useState(false);
+    const [multiSelectedIds, setMultiSelectedIds] = useState<Set<string>>(new Set());
     const { shareNote, shareStatus } = useNoteShare();
 
     const handleShareNote = (note: SavedNote) => {
         shareNote(note, isMobile);
     };
+
+    const handleToggleMultiSelect = useCallback((noteId: string) => {
+        setMultiSelectedIds(prev => {
+            const next = new Set(prev);
+            if (next.has(noteId)) {
+                next.delete(noteId);
+            } else {
+                next.add(noteId);
+            }
+            // Exit multi-select if nothing selected
+            if (next.size === 0) {
+                setMultiSelectMode(false);
+            }
+            return next;
+        });
+    }, []);
+
+    const handleEnterMultiSelect = useCallback(() => {
+        setMultiSelectMode(true);
+    }, []);
+
+    const handleMultiDelete = useCallback(() => {
+        multiSelectedIds.forEach(id => onDeleteNote(id));
+        setMultiSelectedIds(new Set());
+        setMultiSelectMode(false);
+    }, [multiSelectedIds, onDeleteNote]);
 
     // Tap outside to dismiss active swipe
     const handleContentClick = () => {
@@ -736,15 +779,46 @@ const MyNotesContent = ({
                                 onDelete={onDeleteNote}
                                 onEdit={onEditNote}
                                 onView={onViewNote}
+                                onEditInWizard={onEditNoteInWizard}
                                 onShare={handleShareNote}
                                 shareStatus={shareStatus}
                                 activeSwipeId={activeSwipeId}
                                 setActiveSwipeId={setActiveSwipeId}
+                                multiSelectMode={multiSelectMode}
+                                isMultiSelected={multiSelectedIds.has(note.id)}
+                                onToggleMultiSelect={handleToggleMultiSelect}
+                                onLongPress={handleEnterMultiSelect}
                             />
                         ))}
                     </div>
                 )}
             </div>
+
+            {/* Multi-select action bar */}
+            {multiSelectMode && multiSelectedIds.size > 0 && (
+                <div className="shrink-0 px-4 py-3 border-t border-tertiary/10 bg-themewhite2">
+                    <div className="flex items-center justify-between">
+                        <span className="text-xs text-tertiary">
+                            {multiSelectedIds.size} selected
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => { setMultiSelectMode(false); setMultiSelectedIds(new Set()); }}
+                                className="px-3 py-1.5 text-xs rounded-full bg-themewhite3 text-tertiary hover:bg-tertiary/10 transition-all active:scale-95"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleMultiDelete}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full bg-red-500 text-white hover:bg-red-600 transition-all active:scale-95"
+                            >
+                                <Trash2 size={12} />
+                                Delete ({multiSelectedIds.size})
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 };
@@ -755,7 +829,7 @@ const MyNotesContent = ({
    Eliminates ~200 lines of duplicate drawer/drag/animation
    logic by delegating to the shared BaseDrawer component.
    ──────────────────────────────────────────────────────────── */
-export function MyNotes({ isVisible, onClose, isMobile: externalIsMobile, notes, onDeleteNote, onEditNote, onViewNote }: MyNotesProps) {
+export function MyNotes({ isVisible, onClose, isMobile: externalIsMobile, notes, onDeleteNote, onEditNote, onViewNote, onEditNoteInWizard }: MyNotesProps) {
     return (
         <BaseDrawer
             isVisible={isVisible}
@@ -779,6 +853,7 @@ export function MyNotes({ isVisible, onClose, isMobile: externalIsMobile, notes,
                     onDeleteNote={onDeleteNote}
                     onEditNote={onEditNote}
                     onViewNote={onViewNote}
+                    onEditNoteInWizard={onEditNoteInWizard}
                 />
             )}
         </BaseDrawer>

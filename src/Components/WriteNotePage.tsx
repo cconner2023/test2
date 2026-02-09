@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSpring, animated, to as springTo } from '@react-spring/web';
 import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import { useNoteCapture } from '../Hooks/useNoteCapture';
@@ -33,11 +34,17 @@ interface WriteNoteProps {
     isExpanded: boolean;
     onExpansionChange: (expanded: boolean) => void;
     onNoteSave?: (data: NoteSaveData) => void;
+    onNoteDelete?: (noteId: string) => void;
+    onNoteUpdate?: (noteId: string, data: NoteSaveData) => void;
+    existingNoteId?: string | null;
+    existingEncodedText?: string | null;
     selectedSymptom?: {
         icon: string;
         text: string;
     };
     isMobile?: boolean;
+    initialPage?: number;
+    initialHpiText?: string;
 }
 
 export const WriteNotePage = ({
@@ -46,21 +53,28 @@ export const WriteNotePage = ({
     cardStates = [],
     onExpansionChange,
     onNoteSave,
+    onNoteDelete,
+    onNoteUpdate,
+    existingNoteId = null,
+    existingEncodedText = null,
     selectedSymptom = { icon: '', text: '' },
     isMobile = false,
+    initialPage = 0,
+    initialHpiText = '',
 }: WriteNoteProps) => {
     // Note content state
-    const [note, setNote] = useState<string>('');
+    const [note, setNote] = useState<string>(initialHpiText);
     const [previewNote, setPreviewNote] = useState<string>('');
     const [includeAlgorithm, setIncludeAlgorithm] = useState<boolean>(true);
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState<boolean>(true);
-    const [includeHPI, setIncludeHPI] = useState<boolean>(false);
+    const [includeHPI, setIncludeHPI] = useState<boolean>(!!initialHpiText);
     const [encodedValue, setEncodedValue] = useState<string>('');
     const [isCopied, setIsCopied] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
+    const [isDeleted, setIsDeleted] = useState(false);
 
     // Page navigation state (0=Decision Making, 1=Write Note, 2=View Note, 3=Share Note)
-    const [currentPage, setCurrentPage] = useState(0);
+    const [currentPage, setCurrentPage] = useState(initialPage);
 
     // Desktop expansion state for smooth animation
     const [desktopExpanded, setDesktopExpanded] = useState(false);
@@ -69,14 +83,28 @@ export const WriteNotePage = ({
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const contentRef = useRef<HTMLDivElement>(null);
 
-    // Gesture refs - page swipe (horizontal)
+    // Gesture refs - page swipe (horizontal) with react-spring
     const pageTouchStart = useRef({ x: 0, y: 0 });
     const pageGestureDir = useRef<'none' | 'horizontal' | 'vertical'>('none');
-    const [pageDragX, setPageDragX] = useState(0);
     const pageDragActive = useRef(false);
     const pageVelocityX = useRef(0);
     const pageLastX = useRef(0);
     const pageLastTime = useRef(0);
+    const pageDragXRef = useRef(0); // Track drag offset via ref for velocity calculations
+
+    // react-spring for page swipe animation
+    // pagePos tracks the full page position as a percentage (0 = page 0, -100 = page 1, -200 = page 2, etc.)
+    // dragOffset tracks the drag gesture offset in pixels
+    const [pageSpring, pageSpringApi] = useSpring(() => ({
+        pagePos: -initialPage * 100,
+        dragOffset: 0,
+        config: { tension: 280, friction: 26 },
+    }));
+
+    // Animate page position when currentPage changes (button navigation or swipe completion)
+    useEffect(() => {
+        pageSpringApi.start({ pagePos: -currentPage * 100, immediate: false });
+    }, [currentPage, pageSpringApi]);
 
     // Hooks
     const { generateNote } = useNoteCapture(algorithmOptions, cardStates);
@@ -126,7 +154,13 @@ export const WriteNotePage = ({
         setIsCopied(true);
     }, []);
 
-    // --- Save note handler ---
+    // --- Determine button state based on existing note ---
+    // isAlreadySaved: note exists in storage (existingNoteId is set)
+    // hasContentChanged: encoded value differs from what was saved
+    const isAlreadySaved = Boolean(existingNoteId);
+    const hasContentChanged = isAlreadySaved && encodedValue !== '' && encodedValue !== existingEncodedText;
+
+    // --- Save note handler (new note) ---
     const handleSaveNote = useCallback(() => {
         if (!encodedValue) return;
         onNoteSave?.({
@@ -140,6 +174,29 @@ export const WriteNotePage = ({
         setIsSaved(true);
         setTimeout(() => setIsSaved(false), 2500);
     }, [encodedValue, previewNote, selectedSymptom, disposition, onNoteSave]);
+
+    // --- Delete note handler ---
+    const handleDeleteNote = useCallback(() => {
+        if (!existingNoteId) return;
+        onNoteDelete?.(existingNoteId);
+        setIsDeleted(true);
+        setTimeout(() => setIsDeleted(false), 2500);
+    }, [existingNoteId, onNoteDelete]);
+
+    // --- Update note handler (save changes to existing note) ---
+    const handleUpdateNote = useCallback(() => {
+        if (!existingNoteId || !encodedValue) return;
+        onNoteUpdate?.(existingNoteId, {
+            encodedText: encodedValue,
+            previewText: previewNote.slice(0, 200),
+            symptomIcon: selectedSymptom?.icon || '',
+            symptomText: selectedSymptom?.text || 'Note',
+            dispositionType: disposition.type,
+            dispositionText: disposition.text,
+        });
+        setIsSaved(true);
+        setTimeout(() => setIsSaved(false), 2500);
+    }, [existingNoteId, encodedValue, previewNote, selectedSymptom, disposition, onNoteUpdate]);
 
     const handleClearNoteAndHide = () => {
         setNote('');
@@ -156,7 +213,7 @@ export const WriteNotePage = ({
         setCurrentPage(prev => Math.max(0, prev - 1));
     }, []);
 
-    // ========== PAGE SWIPE HANDLERS (horizontal, mobile only) ==========
+    // ========== PAGE SWIPE HANDLERS (horizontal, mobile only) — react-spring ==========
     const handleContentTouchStart = useCallback((e: React.TouchEvent) => {
         if (!isMobile) return;
         const touch = e.touches[0];
@@ -166,6 +223,7 @@ export const WriteNotePage = ({
         pageVelocityX.current = 0;
         pageLastX.current = touch.clientX;
         pageLastTime.current = performance.now();
+        pageDragXRef.current = 0;
     }, [isMobile]);
 
     const handleContentTouchMove = useCallback((e: React.TouchEvent) => {
@@ -201,9 +259,10 @@ export const WriteNotePage = ({
             // Resistance at edges
             if (currentPage === 0 && dragX > 0) dragX *= 0.25;
             if (currentPage === TOTAL_PAGES - 1 && dragX < 0) dragX *= 0.25;
-            setPageDragX(dragX);
+            pageDragXRef.current = dragX;
+            pageSpringApi.start({ dragOffset: dragX, immediate: true });
         }
-    }, [isMobile, currentPage]);
+    }, [isMobile, currentPage, pageSpringApi]);
 
     const handleContentTouchEnd = useCallback(() => {
         if (!pageDragActive.current || !isMobile) {
@@ -215,20 +274,18 @@ export const WriteNotePage = ({
 
         const containerWidth = contentRef.current?.clientWidth || 300;
         const threshold = containerWidth * 0.2;
+        const currentDragX = pageDragXRef.current;
 
-        if (pageDragX < -threshold || pageVelocityX.current < -0.3) {
+        if (currentDragX < -threshold || pageVelocityX.current < -0.3) {
             setCurrentPage(prev => Math.min(TOTAL_PAGES - 1, prev + 1));
-        } else if (pageDragX > threshold || pageVelocityX.current > 0.3) {
+        } else if (currentDragX > threshold || pageVelocityX.current > 0.3) {
             setCurrentPage(prev => Math.max(0, prev - 1));
         }
-        setPageDragX(0);
-    }, [isMobile, pageDragX]);
+        pageDragXRef.current = 0;
+        pageSpringApi.start({ dragOffset: 0, immediate: false });
+    }, [isMobile, pageSpringApi]);
 
     // ========== SHARED CONTENT RENDER ==========
-    const isDraggingPage = pageDragActive.current;
-
-    // Horizontal page transform
-    const pageTranslateX = `calc(${-currentPage * 100}% + ${pageDragX}px)`;
 
     const renderContent = (closeHandler: () => void) => (
         <>
@@ -286,11 +343,13 @@ export const WriteNotePage = ({
                 onTouchMove={isMobile ? handleContentTouchMove : undefined}
                 onTouchEnd={isMobile ? handleContentTouchEnd : undefined}
             >
-                <div
+                <animated.div
                     className="flex h-full"
                     style={{
-                        transform: `translateX(${pageTranslateX})`,
-                        transition: isDraggingPage ? 'none' : 'transform 300ms cubic-bezier(0.25, 0.1, 0.25, 1)',
+                        transform: springTo(
+                            [pageSpring.pagePos, pageSpring.dragOffset],
+                            (pos, drag) => `translateX(calc(${pos}% + ${drag}px))`
+                        ),
                     }}
                 >
                     {/* Page 0: Decision Making */}
@@ -300,7 +359,6 @@ export const WriteNotePage = ({
                             cardStates={cardStates}
                             disposition={disposition}
                             dispositionType={disposition.type}
-                            selectedSymptom={selectedSymptom}
                         />
                     </div>
 
@@ -382,8 +440,8 @@ export const WriteNotePage = ({
                                 />
                                 <CopyButton onClick={() => handleCopy(encodedValue)} title="Copy encoded value" />
                             </div>
-                            {/* Save to My Notes button */}
-                            {onNoteSave && (
+                            {/* Note action button: Save / Delete / Save Changes */}
+                            {onNoteSave && !isAlreadySaved && (
                                 <button
                                     onClick={handleSaveNote}
                                     disabled={isSaved || !encodedValue}
@@ -410,9 +468,65 @@ export const WriteNotePage = ({
                                     )}
                                 </button>
                             )}
+                            {/* Already saved + content changed → Save Changes */}
+                            {isAlreadySaved && hasContentChanged && onNoteUpdate && (
+                                <button
+                                    onClick={handleUpdateNote}
+                                    disabled={isSaved || !encodedValue}
+                                    className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 active:scale-95
+                                        ${isSaved
+                                            ? 'bg-green-500/20 text-green-700 dark:text-green-300'
+                                            : 'bg-themeblue3/10 text-themeblue3 hover:bg-themeblue3/20'
+                                        }`}
+                                >
+                                    {isSaved ? (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            Changes Saved
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                            </svg>
+                                            Save Changes
+                                        </>
+                                    )}
+                                </button>
+                            )}
+                            {/* Already saved + no content change → Delete Note */}
+                            {isAlreadySaved && !hasContentChanged && onNoteDelete && (
+                                <button
+                                    onClick={handleDeleteNote}
+                                    disabled={isDeleted}
+                                    className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 active:scale-95
+                                        ${isDeleted
+                                            ? 'bg-themeredred/15 text-themeredred'
+                                            : 'bg-themewhite3 text-themeredred hover:bg-themeredred/10'
+                                        }`}
+                                >
+                                    {isDeleted ? (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                            </svg>
+                                            Note Deleted
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                            Delete Note
+                                        </>
+                                    )}
+                                </button>
+                            )}
                         </div>
                     </div>
-                </div>
+                </animated.div>
 
                 {/* Copied toast */}
                 {isCopied && (

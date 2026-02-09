@@ -13,6 +13,8 @@ export interface WriteNoteData {
     algorithmOptions: AlgorithmOptions[];
     cardStates: CardState[];
     selectedSymptom: { icon: string; text: string };
+    initialPage?: number;
+    initialHpiText?: string;
 }
 
 interface NavigationState {
@@ -203,13 +205,16 @@ export function useNavigation() {
     }, [])
 
     const handleShowMedications = useCallback(() => {
-        setState(prev => ({
-            ...prev,
-            showMedications: !prev.showMedications,
-            selectedMedication: null,
-            isSearchExpanded: false,
-            ...(!prev.showMedications ? CLOSE_ALL_DRAWERS : { isMenuOpen: false }),
-        }))
+        setState(prev => {
+            const opening = !prev.showMedications
+            return {
+                ...prev,
+                ...(opening ? CLOSE_ALL_DRAWERS : { isMenuOpen: false }),
+                showMedications: opening,
+                selectedMedication: null,
+                isSearchExpanded: false,
+            }
+        })
     }, [])
 
     const handleGuidelineSelect = useCallback((guideline: { type: GuidelineType; id: number; symptomId: number } | null) => {
