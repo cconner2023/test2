@@ -434,10 +434,23 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                 )}
             </div>
 
-            {/* Right container - Desktop only buttons (Import, Settings) */}
+            {/* Right container - Desktop only buttons (My Notes, Import, Settings) */}
             {!isMobile && (
                 <div className="flex items-center justify-center transition-all duration-300 w-max opacity-100">
                     <div className="w-max h-full flex items-center justify-center gap-2">
+                        {/* My Notes button - with text on large screens */}
+                        <button
+                            onClick={onMyNotesClick}
+                            className={BUTTON_CLASSES.desktop}
+                            aria-label="My Notes"
+                            title="My Notes"
+                        >
+                            <FileText className="w-4 h-4 stroke-themeblue1" />
+                            <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
+                                My Notes
+                            </span>
+                        </button>
+
                         {/* Import button - with text on large screens */}
                         <button
                             onClick={onImportClick}
