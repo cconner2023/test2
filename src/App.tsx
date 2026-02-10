@@ -528,6 +528,7 @@ function AppContent() {
                 panelIndex={navigation.columnAPanel}
                 onSwipeBack={() => navigation.handleBackClick()}
                 onSwipingChange={handleCarouselSwipingChange}
+                isActiveColumn={!navigation.isMobileColumnB}
               />
             </div>
 
