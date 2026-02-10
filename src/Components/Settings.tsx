@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { useDrag } from '@use-gesture/react';
+import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils';
 import { X, Moon, Sun, Shield, HelpCircle, ChevronUp, User, ChevronRight, ChevronLeft, Bug, PlusCircle, RefreshCw, FileText, Trash2, Pencil, Share2, CheckSquare, Square, Eye, ClipboardCopy } from 'lucide-react';
 import { ReleaseNotes, type ReleaseNoteTypes } from '../Data/Release';
 import { BaseDrawer } from './BaseDrawer';
@@ -160,9 +162,9 @@ const ActionMenu = ({
    Swipe right → reveals view, copy, share (left side).
    Tap → toggles action menu.
    ──────────────────────────────────────────────────────────── */
-const SWIPE_THRESHOLD = 60;
-const ACTION_WIDTH_LEFT = 180;
-const ACTION_WIDTH_RIGHT = 80;
+const SWIPE_THRESHOLD = GESTURE_THRESHOLDS.REVEAL_THRESHOLD;
+const ACTION_WIDTH_LEFT = GESTURE_THRESHOLDS.REVEAL_ACTION_WIDTH_LEFT;
+const ACTION_WIDTH_RIGHT = GESTURE_THRESHOLDS.REVEAL_ACTION_WIDTH_RIGHT;
 
 const SwipeableNoteItem = ({
     note,
@@ -191,14 +193,6 @@ const SwipeableNoteItem = ({
     const [confirmDelete, setConfirmDelete] = useState(false);
     const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout>>(0);
 
-    const touchRef = useRef<{
-        startX: number;
-        startY: number;
-        startTime: number;
-        direction: 'none' | 'horizontal' | 'vertical';
-        startOffsetX: number;
-    } | null>(null);
-
     const showMenu = activeMenuId === note.id;
 
     useEffect(() => {
@@ -219,73 +213,58 @@ const SwipeableNoteItem = ({
         setConfirmDelete(false);
     }, []);
 
-    const onTouchStart = useCallback((e: React.TouchEvent) => {
-        const touch = e.touches[0];
-        touchRef.current = {
-            startX: touch.clientX,
-            startY: touch.clientY,
-            startTime: performance.now(),
-            direction: 'none',
-            startOffsetX: offsetX,
-        };
-    }, [offsetX]);
+    const bindSwipe = useDrag(
+        ({ active, first, movement: [mx], tap, memo }) => {
+            if (tap) return memo;
 
-    const onTouchMove = useCallback((e: React.TouchEvent) => {
-        if (!touchRef.current) return;
-        const touch = e.touches[0];
-        const dx = touch.clientX - touchRef.current.startX;
-        const dy = touch.clientY - touchRef.current.startY;
+            // Capture starting offset at gesture start
+            const startOffset = first ? offsetX : (memo ?? 0);
 
-        if (touchRef.current.direction === 'none') {
-            if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
-            touchRef.current.direction = Math.abs(dx) > Math.abs(dy) ? 'horizontal' : 'vertical';
+            let newOffset = startOffset + mx;
+
+            // Overshoot dampening beyond action widths
+            if (newOffset > ACTION_WIDTH_LEFT) {
+                const overshoot = newOffset - ACTION_WIDTH_LEFT;
+                newOffset = ACTION_WIDTH_LEFT + overshoot * GESTURE_THRESHOLDS.REVEAL_OVERSHOOT_DAMPENING;
+            } else if (newOffset < -ACTION_WIDTH_RIGHT) {
+                const overshoot = Math.abs(newOffset) - ACTION_WIDTH_RIGHT;
+                newOffset = -(ACTION_WIDTH_RIGHT + overshoot * GESTURE_THRESHOLDS.REVEAL_OVERSHOOT_DAMPENING);
+            }
+
+            if (active) {
+                setIsDragging(true);
+                setOffsetX(newOffset);
+            } else {
+                setIsDragging(false);
+                // Snap to revealed position or back to center
+                if (newOffset > SWIPE_THRESHOLD) {
+                    setOffsetX(ACTION_WIDTH_LEFT);
+                    setIsRevealed('left');
+                } else if (newOffset < -SWIPE_THRESHOLD) {
+                    setOffsetX(-ACTION_WIDTH_RIGHT);
+                    setIsRevealed('right');
+                } else {
+                    setOffsetX(0);
+                    setIsRevealed(null);
+                }
+            }
+
+            return startOffset;
+        },
+        {
+            axis: 'x',
+            filterTaps: true,
+            pointer: { touch: true },
         }
-
-        if (touchRef.current.direction === 'vertical') {
-            touchRef.current = null;
-            return;
-        }
-
-        e.preventDefault();
-        setIsDragging(true);
-        let newOffset = touchRef.current.startOffsetX + dx;
-
-        if (newOffset > ACTION_WIDTH_LEFT) {
-            const overshoot = newOffset - ACTION_WIDTH_LEFT;
-            newOffset = ACTION_WIDTH_LEFT + overshoot * 0.3;
-        } else if (newOffset < -ACTION_WIDTH_RIGHT) {
-            const overshoot = Math.abs(newOffset) - ACTION_WIDTH_RIGHT;
-            newOffset = -(ACTION_WIDTH_RIGHT + overshoot * 0.3);
-        }
-
-        setOffsetX(newOffset);
-    }, []);
-
-    const onTouchEnd = useCallback(() => {
-        if (!touchRef.current) return;
-        touchRef.current = null;
-        setIsDragging(false);
-
-        if (offsetX > SWIPE_THRESHOLD) {
-            setOffsetX(ACTION_WIDTH_LEFT);
-            setIsRevealed('left');
-        } else if (offsetX < -SWIPE_THRESHOLD) {
-            setOffsetX(-ACTION_WIDTH_RIGHT);
-            setIsRevealed('right');
-        } else {
-            setOffsetX(0);
-            setIsRevealed(null);
-        }
-    }, [offsetX]);
+    );
 
     const handleTap = useCallback(() => {
-        if (isDragging) return;
         if (isRevealed) {
             closeSwipe();
             return;
         }
         onToggleMenu(note.id);
-    }, [isDragging, isRevealed, closeSwipe, onToggleMenu, note.id]);
+    }, [isRevealed, closeSwipe, onToggleMenu, note.id]);
 
     const handleDeleteAction = useCallback(() => {
         if (confirmDelete) {
@@ -365,9 +344,7 @@ const SwipeableNoteItem = ({
                     touchAction: 'pan-y',
                     willChange: isDragging ? 'transform' : 'auto',
                 }}
-                onTouchStart={onTouchStart}
-                onTouchMove={onTouchMove}
-                onTouchEnd={onTouchEnd}
+                {...bindSwipe()}
                 onClick={handleTap}
             >
                 <div className="flex items-center gap-3 px-3 py-3">
@@ -390,7 +367,7 @@ const SwipeableNoteItem = ({
                                 {formatDate(note.createdAt)}
                             </p>
                             {note.source === 'external source' && (
-                                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 shrink-0">
+                                <span className="text-[9px] font-normal px-1.5 py-0.5 rounded-full bg-themeyellow text-black shrink-0">
                                     External
                                 </span>
                             )}

@@ -1,12 +1,7 @@
 // components/BaseDrawer.tsx
 import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
-import {
-    GESTURE_THRESHOLDS,
-    clamp,
-    createVelocityTracker,
-    updateVelocity,
-    type VelocityTracker,
-} from '../Utilities/GestureUtils';
+import { useDrag } from '@use-gesture/react';
+import { GESTURE_THRESHOLDS, SPRING_CONFIGS, clamp } from '../Utilities/GestureUtils';
 
 /** Render prop type: children can receive handleClose for animated close */
 type DrawerRenderProp = (handleClose: () => void) => ReactNode;
@@ -59,26 +54,27 @@ export function BaseDrawer({
     zIndex = 'z-60',
     desktopTopOffset = '0.5rem',
 }: BaseDrawerProps) {
-    const [localIsMobile, setLocalIsMobile] = useState(false);
+    const [localIsMobile, setLocalIsMobile] = useState(
+        () => window.matchMedia('(max-width: 767px)').matches
+    );
     const isMobile = externalIsMobile ?? localIsMobile;
 
     const [drawerPosition, setDrawerPosition] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
 
-    const dragStartY = useRef(0);
     const dragStartPosition = useRef(0);
     const animationFrameId = useRef<number>(0);
-    const velocityTracker = useRef<VelocityTracker>(createVelocityTracker());
     const timeoutRef = useRef<number | null>(null);
 
+    // Fallback: only used when isMobile isn't passed externally.
+    // matchMedia fires only on breakpoint crossing — no re-renders during normal resize.
     useEffect(() => {
         if (externalIsMobile === undefined) {
-            const checkMobile = () => setLocalIsMobile(window.innerWidth < 768);
-            checkMobile();
-            const resizeHandler = () => checkMobile();
-            window.addEventListener('resize', resizeHandler);
-            return () => window.removeEventListener('resize', resizeHandler);
+            const mql = window.matchMedia('(max-width: 767px)');
+            const handler = (e: MediaQueryListEvent) => setLocalIsMobile(e.matches);
+            mql.addEventListener('change', handler);
+            return () => mql.removeEventListener('change', handler);
         }
     }, [externalIsMobile]);
 
@@ -148,50 +144,39 @@ export function BaseDrawer({
         animationFrameId.current = requestAnimationFrame(animate);
     }, [drawerPosition, onClose]);
 
-    const handleDragInteraction = {
-        start: (e: React.TouchEvent | React.MouseEvent) => {
-            if (!isMobile || disableDrag) return;
-            const target = e.target as HTMLElement;
-            if (!target.closest('[data-drag-zone]')) return;
-
-            setIsDragging(true);
-            const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-            dragStartY.current = clientY;
-            dragStartPosition.current = drawerPosition;
-            velocityTracker.current = createVelocityTracker(clientY);
-
-            e.stopPropagation();
-        },
-
-        move: (e: React.TouchEvent | React.MouseEvent) => {
-            if (!isDragging || !isMobile || disableDrag) return;
-
-            const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-            const deltaY = clientY - dragStartY.current;
-
-            // Update velocity using centralized tracker
-            updateVelocity(velocityTracker.current, clientY);
-
-            const newPosition = clamp(dragStartPosition.current - (deltaY * 0.8), 20, 100);
-            setDrawerPosition(newPosition);
-
-            e.stopPropagation();
-        },
-
-        end: () => {
-            if (!isDragging || !isMobile || disableDrag) return;
-            setIsDragging(false);
-
-            // Always full height — swipe down closes, swipe up stays open
-            if (velocityTracker.current.velocity > GESTURE_THRESHOLDS.DRAWER_FLING_VELOCITY || drawerPosition < 40) {
-                // Fast swipe down or dragged far enough down -> close
-                animateToPosition(0);
-            } else {
-                // Snap back to full height
-                animateToPosition(100);
+    const bindDrawerDrag = useDrag(
+        ({ active, first, movement: [, my], velocity: [, vy], direction: [, dy], event, cancel }) => {
+            // Only allow drag from drag-zone elements
+            if (first) {
+                const target = event?.target as HTMLElement;
+                if (!target?.closest('[data-drag-zone]')) {
+                    cancel();
+                    return;
+                }
+                dragStartPosition.current = drawerPosition;
             }
+
+            if (active) {
+                setIsDragging(true);
+                const newPosition = clamp(dragStartPosition.current - (my * GESTURE_THRESHOLDS.DRAWER_DRAG_DAMPENING), 20, 100);
+                setDrawerPosition(newPosition);
+            } else {
+                setIsDragging(false);
+                // Swipe down closes, swipe up stays open
+                if ((vy > GESTURE_THRESHOLDS.DRAWER_FLING_VELOCITY && dy > 0) || drawerPosition < GESTURE_THRESHOLDS.DRAWER_CLOSE_THRESHOLD) {
+                    animateToPosition(0);
+                } else {
+                    animateToPosition(100);
+                }
+            }
+        },
+        {
+            enabled: isMobile && !disableDrag,
+            axis: 'y',
+            filterTaps: true,
+            pointer: { touch: true },
         }
-    };
+    );
 
     const handleClose = useCallback(() => {
         if (isMobile) {
@@ -250,13 +235,7 @@ export function BaseDrawer({
                         overflow: 'hidden',
                         visibility: isMounted ? 'visible' : 'hidden',
                     }}
-                    onTouchStart={handleDragInteraction.start}
-                    onTouchMove={handleDragInteraction.move}
-                    onTouchEnd={handleDragInteraction.end}
-                    onMouseDown={handleDragInteraction.start}
-                    onMouseMove={handleDragInteraction.move}
-                    onMouseUp={handleDragInteraction.end}
-                    onMouseLeave={handleDragInteraction.end}
+                    {...bindDrawerDrag()}
                 >
                     {resolvedChildren}
                 </div>
