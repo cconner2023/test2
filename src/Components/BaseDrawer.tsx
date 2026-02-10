@@ -67,11 +67,10 @@ export function BaseDrawer({
     // Track whether an animated close is in progress (from drag or handleClose)
     // to prevent the declarative spring from overriding back to 100
     const isClosingRef = useRef(false);
+    // Track StrictMode mount cycle — only the active instance should drive the spring
+    const mountedRef = useRef(true);
 
-    // Declarative react-spring: position is driven by isVisible prop.
-    // When isVisible becomes true, spring animates from current → 100.
-    // When isVisible becomes false, spring animates from current → 0.
-    // This avoids all useEffect timing issues with React StrictMode.
+    // Imperative react-spring controller for drag/close operations
     const [springStyle, api] = useSpring(() => ({
         position: 0,
         config: SPRING_CONFIGS.snap,
@@ -97,25 +96,33 @@ export function BaseDrawer({
         }
     }, [isVisible]);
 
-    // Drive the spring position declaratively based on isVisible + isMobile
+    // Drive the spring position based on isVisible + isMobile.
+    // StrictMode-safe: cleanup marks ref false, so only the final mount's
+    // timeout fires. This prevents the first mount's animation from competing.
     useEffect(() => {
+        mountedRef.current = true;
+
         if (isVisible) {
             if (isMobile) {
-                // Animate open on mobile
-                console.log('[BaseDrawer] Starting open animation, current position:', springStyle.position.get());
-                const result = api.start({
-                    position: 100,
-                    immediate: false,
-                    config: SPRING_CONFIGS.snap,
-                });
-                console.log('[BaseDrawer] api.start result:', result);
-                // Also log position after a delay
-                setTimeout(() => {
-                    console.log('[BaseDrawer] Position after 100ms:', springStyle.position.get());
-                }, 100);
-                setTimeout(() => {
-                    console.log('[BaseDrawer] Position after 500ms:', springStyle.position.get());
-                }, 500);
+                // Reset to closed position synchronously
+                api.stop();
+                api.set({ position: 0 });
+                // Use setTimeout(0) to escape React's StrictMode double-invoke.
+                // StrictMode runs effect → cleanup → effect. The first effect's
+                // timeout is cancelled by cleanup, so only the second fires.
+                const timer = setTimeout(() => {
+                    if (mountedRef.current) {
+                        api.start({
+                            position: 100,
+                            immediate: false,
+                            config: SPRING_CONFIGS.snap,
+                        });
+                    }
+                }, 0);
+                return () => {
+                    mountedRef.current = false;
+                    clearTimeout(timer);
+                };
             } else {
                 // Desktop: jump to full position immediately
                 api.start({ position: 100, immediate: true });
@@ -123,9 +130,7 @@ export function BaseDrawer({
         } else if (!isClosingRef.current) {
             // Only animate closed from the isVisible effect if NOT already
             // closing via drag/handleClose (which handle their own animation)
-            console.log('[BaseDrawer] CLOSE branch entered, isMounted:', isMounted, 'isVisible:', isVisible);
             if (isMounted) {
-                console.log('[BaseDrawer] Animating CLOSE to 0');
                 api.start({
                     position: 0,
                     immediate: !isMobile,
@@ -137,6 +142,8 @@ export function BaseDrawer({
                 });
             }
         }
+
+        return () => { mountedRef.current = false; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isVisible, isMobile, api]);
 
