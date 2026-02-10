@@ -64,6 +64,8 @@ export function BaseDrawer({
     const [isMounted, setIsMounted] = useState(false);
 
     const dragStartPosition = useRef(0);
+    const rAFRef = useRef(0);
+    const isMountedRef = useRef(false);
 
     // react-spring drives the drawer position (0 = closed, 100 = fully open)
     // Replaces the previous manual rAF animation loop
@@ -86,13 +88,19 @@ export function BaseDrawer({
     useEffect(() => {
         if (isVisible) {
             setIsMounted(true);
+            isMountedRef.current = true;
             document.body.style.overflow = 'hidden';
+
+            // Stop any in-flight animations and clear stale onRest callbacks
+            // This prevents the close animation's onRest from firing after the
+            // open animation starts (which would call setIsMounted(false))
+            api.stop();
 
             if (isMobile) {
                 // Start at 0 then animate to 100 for slide-up entrance
                 api.start({ position: 0, immediate: true });
                 // Use rAF to ensure the initial position is painted before animating
-                requestAnimationFrame(() => {
+                rAFRef.current = requestAnimationFrame(() => {
                     api.start({ position: 100, immediate: false, config: SPRING_CONFIGS.snap });
                 });
             } else {
@@ -100,17 +108,33 @@ export function BaseDrawer({
                 api.start({ position: 100, immediate: true });
             }
         } else {
-            // Animate closed, then unmount
-            api.start({
-                position: 0,
-                immediate: false,
-                config: SPRING_CONFIGS.snap,
-                onRest: () => {
-                    setIsMounted(false);
-                    document.body.style.overflow = '';
-                },
-            });
+            // Cancel any pending open animation rAF
+            if (rAFRef.current) {
+                cancelAnimationFrame(rAFRef.current);
+                rAFRef.current = 0;
+            }
+            // Only animate closed if currently mounted (skip no-op close on initial mount
+            // which would register a stale onRest that interferes with future open animations)
+            if (isMountedRef.current) {
+                api.start({
+                    position: 0,
+                    immediate: false,
+                    config: SPRING_CONFIGS.snap,
+                    onRest: () => {
+                        setIsMounted(false);
+                        isMountedRef.current = false;
+                        document.body.style.overflow = '';
+                    },
+                });
+            }
         }
+        return () => {
+            // Cleanup: cancel pending rAF on effect re-run or unmount
+            if (rAFRef.current) {
+                cancelAnimationFrame(rAFRef.current);
+                rAFRef.current = 0;
+            }
+        };
     }, [isVisible, isMobile, api]);
 
     const bindDrawerDrag = useDrag(
@@ -149,6 +173,7 @@ export function BaseDrawer({
                         onRest: () => {
                             onClose();
                             setIsMounted(false);
+                            isMountedRef.current = false;
                         },
                     });
                 } else {
@@ -172,6 +197,7 @@ export function BaseDrawer({
                 onRest: () => {
                     onClose();
                     setIsMounted(false);
+                    isMountedRef.current = false;
                 },
             });
         } else {

@@ -44,6 +44,7 @@ If the user asks you to modify code, explain that you're a project assistant and
     <constraint>Eliminate all duplicated logic — shared utilities for anything used in more than one place</constraint>
     <constraint>Minimize prop drilling — reduce excessive prop passing where possible</constraint>
     <constraint>Code must be pattern-consistent so any team member can follow the same conventions everywhere</constraint>
+    <constraint> do not commit to git </constraint>
   </constraints>
 
   <technology_stack>
@@ -90,7 +91,7 @@ If the user asks you to modify code, explain that you're a project assistant and
       - Unify all 4 useDrag implementations (useSwipeNavigation, useColumnCarousel, BaseDrawer, Settings SwipeableNoteItem) to follow one consistent pattern — same structure, same config approach, same threshold referencing
       - Consolidate all gesture configuration values through GestureUtils.ts constants — no more inline threshold values (80px, 0.3 velocity, 0.5 velocity, 60px, etc.) scattered across individual files
       - Refactor BaseDrawer mobile drag-to-close from manual requestAnimationFrame tweening to react-spring useSpring — eliminate the custom cubic ease-out rAF loop (lines 112-145)
-      - Refactor Settings.tsx SwipeableNoteItem swipe gesture to use unified drag pattern and reference GestureUtils constants
+      - Refactor Settings.tsx SwipeableNoteItem swipe gesture to use unifi
 ... (truncated)
 
 ## Available Tools
