@@ -280,3 +280,79 @@
 **Git commit:** 9eeb4a5 - feat: remove unused motion package from dependencies (#14)
 
 **Current progress:** 7/33 features passing
+
+---
+
+### Session - Feature #6: End-to-end back navigation verification
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Comprehensive end-to-end testing of all back navigation paths across mobile and desktop viewports
+- Verified that fixes from features 1-5 (handleBackClick return statements, swipe-back viewDepth, carousel swipe communication, onSwipeBack timing, NavTop back button) all work correctly together
+- No new code changes needed — this is a verification-only feature
+
+**Verification — Desktop (1280x800):**
+- Main → Category (ENT) → Back → Main: ✅ All 13 categories restored
+- Category → Symptom (Sore Throat algorithm) → Back → Category: ✅ Subcategory list restored
+- Symptom → Guideline (DDx selection) → Back → Symptom: ✅ Priority 2 guideline clearing works correctly
+- Full chain: Main → Category → Symptom → Guideline → Back×3 → Main: ✅ Clean traversal
+
+**Verification — Mobile (390x844):**
+- Main → Category (ENT) → Back → Main: ✅ Main panel restored with all categories
+- Category → Symptom (Column B algorithm) → Back → Category: ✅ Column A subcategory panel restored
+- Full chain back to Main from Column B: ✅ All states cleared correctly
+- Deep navigation: Main → Category → Symptom → Algorithm → Back×N → Main: ✅ Complete traversal
+
+**Verification — Rapid Sequential Navigation:**
+- Programmatic rapid back clicks via browser_evaluate: ✅ State machine handles rapid transitions correctly
+- No state corruption or stuck states after rapid navigation
+
+**Console Errors:** ✅ Zero application JS errors (only Vite HMR websocket connection errors)
+**Mock Data Grep:** ✅ No mock/placeholder patterns in src/ (only HTML placeholder attributes and medical data content strings)
+
+**No new commit needed** — all code fixes were already committed in features 1-5. Feature #6 is verification-only.
+
+**Current progress:** 8/33 features passing
+
+---
+
+### Session - Feature #23: Extract bitmaskToIndices to shared utility
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Extracted the `bitmaskToIndices` function from both `useNoteImport.ts` and `useNoteRestore.ts` into a new shared utility file `src/Utilities/EncodingUtils.ts`
+- The two implementations were identical (same function signature, same logic, same comment)
+- Created `EncodingUtils.ts` with the exported `bitmaskToIndices` function
+- Updated both hooks to import from the shared utility
+- An external linter further consolidated `parseBarcode`, `findAlgorithmByCode`, and the `ParsedBarcode` interface into the same utility — both hooks now import all shared encoding logic from `EncodingUtils.ts`
+
+**Changes made:**
+- `src/Utilities/EncodingUtils.ts` (new file):
+  - `bitmaskToIndices(bitmask: number): number[]` — converts bitmask integer to array of set bit indices
+  - `parseBarcode(encodedText: string): ParsedBarcode | null` — consolidated barcode parsing
+  - `findAlgorithmByCode(code: string): AlgorithmOptions[] | null` — shared algorithm lookup
+  - `ParsedBarcode` interface — shared type
+
+- `src/Hooks/useNoteImport.ts`:
+  - Removed local `bitmaskToIndices` function definition
+  - Now imports `{ parseBarcode, findAlgorithmByCode, type ParsedBarcode }` from `EncodingUtils`
+
+- `src/Hooks/useNoteRestore.ts`:
+  - Removed local `bitmaskToIndices` function definition
+  - Removed local `parseEncodedText` function (consolidated into shared `parseBarcode`)
+  - Now imports `{ parseBarcode, findAlgorithmByCode, type ParsedBarcode }` from `EncodingUtils`
+
+**Verification:**
+- TypeScript compiles clean (zero errors) ✅
+- App loads correctly with no console errors ✅
+- Note Import flow: Entered barcode `A1|R1|1.0.0|F3` → Decoded correctly with "Shortness of Breath - [YES]" and correct CAT I disposition ✅
+- Note Save: Saved triage note via algorithm flow ✅
+- Note Restore via Settings → My Notes: Saved note appears correctly (A-1, Sore Throat/Hoarseness, CAT I) ✅
+- No duplicate `bitmaskToIndices` definitions remain in src/Hooks/ ✅
+- Single definition exists only in src/Utilities/EncodingUtils.ts ✅
+- Mock data grep: No mock/placeholder patterns in src/ ✅
+- Zero console errors throughout testing ✅
+
+**Git commit:** 5f16356 - feat: extract bitmaskToIndices to shared EncodingUtils utility (#23)
+
+**Current progress:** 9/33 features passing (including feature #23)
