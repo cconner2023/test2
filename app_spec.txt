@@ -15,7 +15,6 @@
     <constraint>Eliminate all duplicated logic — shared utilities for anything used in more than one place</constraint>
     <constraint>Minimize prop drilling — reduce excessive prop passing where possible</constraint>
     <constraint>Code must be pattern-consistent so any team member can follow the same conventions everywhere</constraint>
-    <constraint> do not commit to git </constraint>
   </constraints>
 
   <technology_stack>
