@@ -1,0 +1,144 @@
+## Session Progress Log
+
+### Session - Feature #1: Fix handleBackClick missing return after Priority 2
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Fixed the `handleBackClick` function in `src/Hooks/useNavigation.ts`
+- The Priority 2 branch (guideline clearing) was missing a `return` statement after `setState`
+- Without the return, execution could fall through to subsequent navigation logic due to React batching
+- Also fixed Priority 3 (symptom clearing) to use `return` + standalone `if` for consistency
+- Changed `else if` chains to independent `if` blocks since each branch now returns
+
+**Changes made:**
+- `src/Hooks/useNavigation.ts` lines 238-263:
+  - Priority 2: Added `return` after `setState(prev => ({ ...prev, selectedGuideline: null }))`
+  - Priority 3: Added `return` after symptom clearing setState, changed `else if` to `if`
+  - Priority 4: Changed `else if` to `if` (last branch, no return needed)
+
+**Verification:**
+- Tested all back navigation paths on desktop:
+  - Category → Main: ✅ Works correctly
+  - Symptom → Category: ✅ Works correctly
+  - Guideline view → Symptom: ✅ Works correctly (Priority 2 fix)
+- Zero console errors throughout testing
+- No visual regressions observed
+
+**Git commit:** 45a3445 - fix: add missing return statements in handleBackClick priority branches
+
+**Current progress:** 1/33 features passing
+
+---
+
+### Session - Feature #2: Fix swipe-back viewDepth condition for Column A panels
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Fixed the swipe-back gesture handler's viewDepth condition in `src/App.tsx`
+- The bug: `useSwipeNavigation` was configured with `viewDepth: isMobileColumnB ? 1 : 0` and
+  `enabled` only when `isMobileColumnB` was true — this meant swipe-back never fired on Column A panels
+- The fix: Introduced `swipeViewDepth` that uses `columnAPanel` when on Column A (0=home, 1=subcategory)
+  and `columnAPanel + 1` when on Column B. Broadened `enabled` and touch handler conditions to use
+  `swipeViewDepth > 0` instead of requiring `isMobileColumnB`.
+
+**Changes made:**
+- `src/App.tsx`:
+  - Computed `swipeViewDepth` from `isMobileColumnB` and `columnAPanel`
+  - Changed `enabled` condition from `isMobileColumnB` to `swipeViewDepth > 0`
+  - Changed touch handler spread condition from `isMobileColumnB` to `swipeViewDepth > 0`
+  - Kept `isCarouselSwiping` guard to prevent double-handling with carousel gestures
+
+**Verification:**
+- Mobile: Category → Symptom list (Column A panel 1) → back button works ✅
+- Mobile: Symptom → Algorithm (Column B) → back to symptom list works ✅
+- Mobile: Home view (panel 0) — no swipe handlers attached (viewDepth=0) ✅
+- Desktop: Swipe handler disabled entirely (isMobile=false) ✅
+- Zero console errors across all navigation paths ✅
+- TypeScript compiles clean ✅
+
+**Git commit:** 1fb224a - fix: swipe-back viewDepth condition for Column A panels (#2)
+
+**Current progress:** 2/33 features passing
+
+---
+
+### Session - Feature #3: Unify cross-column and carousel swipe communication
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Added bidirectional communication between the carousel gesture system (useColumnCarousel in ColumnA)
+  and the cross-column swipe system (useSwipeNavigation in App.tsx) to prevent gesture conflicts on mobile
+- Fixed a critical carousel spring drift bug: when Column A is hidden (grid 0fr), react-spring resolves
+  percentage-based transforms to 0px, causing the carousel to show the wrong panel on visibility restore
+- Simplified useSwipeNavigation from manual touch events to useDrag-based system
+- Fixed timing issue where navigation callbacks fired after animation (onRest) instead of immediately
+
+**Changes made:**
+- `src/Hooks/useColumnCarousel.ts` (new file):
+  - Core carousel gesture hook with spring-based animations
+  - Added `isVisible` prop to detect hidden→visible transitions and snap spring to correct position
+  - Navigation callbacks fire immediately on gesture commit (before animation) to eliminate timing gaps
+  - Tracks `navigationCommittedRef` to prevent double-fire of callbacks
+
+- `src/Components/ColumnA.tsx` (new file):
+  - Added `onSwipingChange` prop — reports carousel swiping state to parent
+  - Added `isActiveColumn` prop — tracks whether Column A is visible (not hidden by grid 0fr)
+  - Propagates carousel.isSwiping to parent via useEffect
+
+- `src/Hooks/useSwipeNavigation.ts` (rewritten):
+  - Simplified from ~163-line touch-event system to ~69-line useDrag-based system
+  - Added `isCarouselSwiping` prop — suppresses cross-column gestures when carousel is active
+  - Uses @use-gesture/react's useDrag instead of manual touch event handlers
+
+- `src/App.tsx`:
+  - Added `isCarouselSwiping` state + `handleCarouselSwipingChange` callback
+  - Passes `isCarouselSwiping` to useSwipeNavigation
+  - Passes `onSwipingChange` and `isActiveColumn={!navigation.isMobileColumnB}` to ColumnA
+
+**Key bug fix — carousel spring drift:**
+- When navigating Column B → Column A, the carousel showed Panel 0 (main categories)
+  instead of Panel 1 (subcategories)
+- Root cause: When Column A has zero width (grid 0fr), react-spring resolves percentage-based
+  transforms to 0px. If panelIndex doesn't change (stays at 1), the sync useEffect doesn't fire
+- Fixed by tracking `isVisible` and snapping to correct panel on hidden→visible transition
+
+**Verification:**
+- Mobile: Main → Category → Symptom (Column B) → Back to subcategory (correct panel) ✅
+- Mobile: Carousel swipe between panels works without triggering cross-column swipe ✅
+- Mobile: Cross-column swipe-back from Column B works without triggering carousel ✅
+- Desktop: Full navigation flow works correctly ✅
+- Zero console errors across all test flows ✅
+- Build compiles successfully ✅
+
+**Git commit:** 4981fd8 - feat: unify cross-column and carousel swipe communication (#3)
+
+**Current progress:** 3/33 features passing
+
+---
+
+### Session - Feature #4: Fix onSwipeBack timing in useColumnCarousel
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Verified that the onSwipeBack timing fix is correctly implemented in `useColumnCarousel.ts`
+- The fix was implemented as part of Feature #3 (unify cross-column and carousel swipe communication)
+  but Feature #4 specifically validates the timing decoupling
+- The key change: `onSwipeBack` fires **immediately** on gesture end (line 133), before the spring
+  animation starts. Previously, the bug had navigation callbacks tied to the spring's `onRest` event,
+  causing visual desync where animation completed but state hadn't updated yet.
+
+**Implementation details (in useColumnCarousel.ts):**
+- Line 35: `navigationCommittedRef` prevents double-fire if onRest triggers after nav callback
+- Lines 132-133: Navigation fires synchronously on gesture commit: `navigationCommittedRef.current = true; onSwipeBack?.()`
+- Lines 137-141: Spring animation starts AFTER navigation callback, runs concurrently
+- Line 58: Only remaining `onRest` is in `animateToPanel()` used by external panel sync (useEffect), not swipe gestures
+
+**Verification:**
+- Mobile carousel navigation: Category → Subcategory → Algorithm → Back: ✅ Smooth, no flicker
+- Rapid back-and-forth navigation (multiple symptoms): ✅ No state/visual desync
+- Desktop layout: ✅ Carousel disabled, 3-panel view works correctly
+- Console errors: ✅ Zero application errors
+- Mock data grep: ✅ No mock/placeholder patterns in src/
+- All navigation paths consistent between back button and swipe callback (both call `handleBackClick`)
+
+**Current progress:** 4/33 features passing
