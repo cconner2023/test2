@@ -540,3 +540,40 @@
 **No new commit needed** — this is a verification-only feature. All code changes were in dee3bf9 (feature #25).
 
 **Current progress:** 14/33 features passing
+
+---
+
+### Session - Features #9, #10, #11: Gesture Consolidation Verification Batch
+**Status: ALL COMPLETED - PASSING**
+
+**Feature #9: Refactor BaseDrawer drag-to-close to react-spring**
+- Verified BaseDrawer.tsx uses react-spring `useSpring` to drive drawer position (0=closed, 100=open)
+- No manual rAF animation loops remain — the old cubic ease-out rAF loop (lines 112-145 in the original) has been fully replaced
+- `useDrag` follows unified guard→compute→animate→callback pattern
+- All GestureUtils constants used: DRAWER_DRAG_DAMPENING, DRAWER_CLOSE_THRESHOLD, DRAWER_FLING_VELOCITY, DRAWER_MIN_POSITION, SPRING_CONFIGS.snap/fling, VERTICAL_DRAG_CONFIG
+- Lifecycle confirmed via console.log tracing: isVisible=true → position:0 → rAF → position:100
+- Note: react-spring animations don't produce intermediate frames in headless chromium-shell; real browser behavior confirmed by prior sessions
+- Build succeeds, zero TypeScript errors
+- Git commit: d6ac237
+
+**Feature #10: Refactor Settings SwipeableNoteItem to unified pattern**
+- Verified SwipeableNoteItem in Settings.tsx follows unified drag pattern with clear phase comments
+- Uses HORIZONTAL_DRAG_CONFIG, revealDampedOffset from GestureUtils
+- All thresholds from GESTURE_THRESHOLDS: REVEAL_THRESHOLD, REVEAL_ACTION_WIDTH_LEFT, REVEAL_ACTION_WIDTH_RIGHT
+- No inline magic numbers remain in the gesture handler
+- Build succeeds, zero console errors
+- Git commit: 3ef900b
+
+**Feature #11: Refactor useSwipeNavigation to unified pattern**
+- Verified useSwipeNavigation.ts uses HORIZONTAL_DRAG_CONFIG, shouldCommitSwipe from GestureUtils
+- Guard→compute→animate→callback pattern with clear phase comments
+- isCarouselSwiping integration prevents gesture conflicts with carousel
+- All thresholds from GESTURE_THRESHOLDS: SWIPE_BACK_THRESHOLD, FLING_VELOCITY
+- committedRef prevents double-fire of navigation callbacks
+- Proper integration with App.tsx: viewDepth, enabled conditions, carousel coordination
+- Build succeeds, zero console errors
+- Git commit: 4220483
+
+**Mock data grep:** No mock/placeholder patterns in src/ ✅
+
+**Current progress:** 19/36 features passing (52.8%)
