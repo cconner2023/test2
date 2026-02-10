@@ -11,7 +11,6 @@
     "deploy": "npm run build && gh-pages -d dist"
   },
   "dependencies": {
-    "@formkit/auto-animate": "^0.9.0",
     "@react-spring/web": "^10.0.3",
     "@tailwindcss/vite": "^4.1.18",
     "@use-gesture/react": "^10.3.1",
@@ -19,6 +18,7 @@
     "lucide-react": "^0.562.0",
     "pdf417": "^0.1.5",
     "pdf417-generator": "^1.0.5",
+    "playwright": "^1.58.2",
     "qr-scanner": "^1.4.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
