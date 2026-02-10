@@ -1,7 +1,6 @@
 import { useRef, useCallback, useEffect, useMemo, useState } from 'react'
 import './App.css'
 import { NavTop } from './Components/NavTop'
-import { CategoryList } from './Components/CategoryList'
 import { SearchResults } from './Components/SearchResults'
 import { NoteImport } from './Components/NoteImport'
 import type { ImportSuccessData } from './Components/NoteImport'
@@ -24,7 +23,7 @@ import StorageErrorToast from './Components/StorageErrorToast'
 import { Settings } from './Components/Settings'
 import { SymptomInfoDrawer } from './Components/SymptomInfoDrawer'
 import { MedicationsDrawer } from './Components/MedicationsDrawer'
-import { animated } from '@react-spring/web'
+import { ColumnA } from './Components/ColumnA'
 
 // PWA App Shortcut: capture ?view= URL parameter once at module load time
 // This runs before React StrictMode can interfere with double-mounting
@@ -106,20 +105,26 @@ function AppContent() {
     }
   }, [navigation.showNoteImport, importInitialView])
 
-  // Compute mobile view depth: 0 = categories, 1 = subcategories, 2 = algorithm
-  const mobileViewDepth = useMemo(() => {
-    if (navigation.showQuestionCard && navigation.selectedSymptom) return 2
-    if (navigation.selectedCategory) return 1
-    return 0
-  }, [navigation.showQuestionCard, navigation.selectedSymptom, navigation.selectedCategory])
+  // Track whether the ColumnA carousel is actively being swiped.
+  // This is shared with the cross-column swipe handler so only one
+  // gesture system processes a swipe at a time.
+  const [isCarouselSwiping, setIsCarouselSwiping] = useState(false)
+  const handleCarouselSwipingChange = useCallback((swiping: boolean) => {
+    setIsCarouselSwiping(swiping)
+  }, [])
 
-  // Swipe navigation for mobile views
+  // Unified swipe-back: works on both Column A panels (carousel) and Column B → Column A
+  // viewDepth reflects the total navigation depth: Column A panel index + 1 when in Column B
+  const swipeViewDepth = navigation.isMobileColumnB
+    ? navigation.columnAPanel + 1  // Column B: depth includes all Column A panels + Column B
+    : navigation.columnAPanel       // Column A: depth is the panel index (0 = home, 1 = subcategory)
   const swipe = useSwipeNavigation({
-    enabled: navigation.isMobile && !search.searchInput && !navigation.isWriteNoteVisible,
-    viewDepth: mobileViewDepth,
+    enabled: navigation.isMobile && !search.searchInput && !navigation.isWriteNoteVisible && swipeViewDepth > 0,
+    viewDepth: swipeViewDepth,
     onSwipeBack: useCallback(() => {
       navigation.handleBackClick()
     }, [navigation]),
+    isCarouselSwiping,
   })
 
   // When WriteNote closes, only clear the encoded text reference (not the note ID/source/algorithm state)
@@ -150,6 +155,7 @@ function AppContent() {
   }, [navigation.isMobile, search.searchInput, navigation.isSearchExpanded, navigation.setSearchExpanded])
 
   const handleNavigationClick = useCallback((result: SearchResultType) => {
+    // Navigation state change drives the grid column transition and Column A carousel
     navigation.handleNavigation(result)
     search.clearSearch()
   }, [navigation, search])
@@ -164,9 +170,11 @@ function AppContent() {
   const handleBackClick = () => {
     if (search.searchInput) {
       clearSearchAndCollapse()
-    } else {
-      navigation.handleBackClick()
+      return
     }
+
+    // State change drives grid column transition and Column A carousel
+    navigation.handleBackClick()
   }
 
   const handleImportClick = () => {
@@ -440,15 +448,13 @@ function AppContent() {
 
   const title = getTitle()
 
-  // Determine if a layer should be visible during swipe (to show the layer being revealed underneath)
-  const isLayerVisibleDuringSwipe = useCallback((layerDepth: number): boolean => {
-    if (!swipe.isSwiping && !swipe.animatingDirection) return false
-    // Show the layer below the current one during swipe
-    return layerDepth === mobileViewDepth - 1
-  }, [swipe.isSwiping, swipe.animatingDirection, mobileViewDepth])
-
-  // Determine which layer gets the spring styles
-  const isSwipeActive = swipe.isSwiping || !!swipe.animatingDirection
+  // Content key — drives fade-in animation on content change
+  const desktopContentKey = useMemo(() => {
+    if (search.searchInput) return 'search'
+    if (navigation.selectedSymptom && navigation.showQuestionCard)
+      return `algo-${navigation.selectedSymptom.icon}-${algorithmKeyRef.current}`
+    return 'empty'
+  }, [search.searchInput, navigation.selectedSymptom, navigation.showQuestionCard])
 
   // Compute note status for algorithm page badge:
   // - 'saved' if we have an activeNoteId and source is not external
@@ -500,48 +506,74 @@ function AppContent() {
           />
         </div>
 
-        {/* Content area  */}
+        {/* Content area — Unified 2-column grid (A: Navigation | B: Content) */}
         <div ref={contentRef} className={`md:h-[94%] h-full relative overflow-hidden ${navigation.isMobile ? 'absolute inset-0' : 'mt-2 mx-2'
           }`}>
-          {/* Mobile Layout - absolute stacking with swipe navigation */}
           <div
-            className={`${navigation.isMobile ? 'block' : 'hidden'} h-full relative`}
-            {...(navigation.isMobile ? swipe.touchHandlers : {})}
+            className="h-full grid gap-1"
+            style={{
+              gridTemplateColumns: navigation.mainGridTemplate,
+              transition: 'grid-template-columns 0.3s ease-in-out',
+            }}
+            {...(navigation.isMobile && swipeViewDepth > 0 ? swipe.touchHandlers : {})}
           >
-            {/* CategoryList - base layer (depth 0), also serves as depth 1 (subcategories) */}
-            <animated.div
-              className={`absolute inset-0 will-change-transform ${!search.searchInput && !navigation.showQuestionCard
-                ? 'opacity-100 z-10'
-                : isLayerVisibleDuringSwipe(0)
-                  ? 'z-5 pointer-events-none'
-                  : 'opacity-0 z-0 pointer-events-none'
-                } ${!swipe.isSwiping && !swipe.animatingDirection ? 'transition-opacity duration-200' : ''}`}
-              style={
-                isSwipeActive && mobileViewDepth === 1
-                  ? { transform: swipe.springStyles.x.to(x => `translateX(${x}px)`) }
-                  : isSwipeActive && mobileViewDepth === 2
-                    ? { transform: swipe.parallaxStyles.x.to(x => `translateX(${x}px)`), opacity: swipe.parallaxStyles.opacity }
-                    : undefined
-              }
-            >
-              <div className="h-full overflow-y-auto">
-                {/* Spacer accounts for safe area + navbar, scrolls with content */}
-                <div className="px-2 bg-themewhite min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
-                  <CategoryList
-                    selectedCategory={navigation.selectedCategory}
-                    selectedSymptom={navigation.selectedSymptom}
-                    selectedGuideline={navigation.selectedGuideline}
-                    onNavigate={handleNavigationClick}
-                  />
-                </div>
-              </div>
-            </animated.div>
+            {/* Column A: Navigation carousel */}
+            <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
+              <ColumnA
+                selectedCategory={navigation.selectedCategory}
+                selectedSymptom={navigation.selectedSymptom}
+                selectedGuideline={navigation.selectedGuideline}
+                onNavigate={handleNavigationClick}
+                isMobile={navigation.isMobile}
+                panelIndex={navigation.columnAPanel}
+                onSwipeBack={() => navigation.handleBackClick()}
+                onSwipingChange={handleCarouselSwipingChange}
+              />
+            </div>
 
-            {/* SearchResults - overlay when searching */}
-            <div className={`absolute inset-0 transition-opacity duration-200 ${search.searchInput ? 'opacity-100 z-20' : 'opacity-0 z-0 pointer-events-none'
-              }`}>
+            {/* Column B: Content (algorithm / search / empty) */}
+            <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
+              <div key={desktopContentKey} className="h-full animate-desktopContentIn">
+                {search.searchInput ? (
+                  <div className="h-full overflow-y-auto">
+                    <div
+                      className="px-2 min-h-full"
+                      style={navigation.isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' } : undefined}
+                    >
+                      <SearchResults
+                        results={search.searchResults}
+                        searchTerm={search.searchInput}
+                        onResultClick={handleNavigationClick}
+                        isSearching={search.isSearching}
+                      />
+                    </div>
+                  </div>
+                ) : navigation.selectedSymptom && navigation.showQuestionCard ? (
+                  <div className="h-full overflow-hidden">
+                    <AlgorithmPage
+                      key={`algo-${navigation.selectedSymptom.icon}-${algorithmKeyRef.current}`}
+                      selectedSymptom={navigation.selectedSymptom}
+                      onExpandNote={handleExpandNote}
+                      isMobile={navigation.isMobile}
+                      initialCardStates={restoredAlgorithmState?.cardStates}
+                      initialDisposition={restoredAlgorithmState?.disposition}
+                      noteStatus={algorithmNoteStatus}
+                    />
+                  </div>
+                ) : (
+                  <div className="h-full flex items-center justify-center text-secondary text-sm">
+                    Select a symptom to see algorithm
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Mobile search overlay — rendered on top of grid when searching */}
+          {navigation.isMobile && search.searchInput && (
+            <div className="absolute inset-0 z-20 bg-themewhite animate-fadeIn">
               <div className="h-full overflow-y-auto">
-                <div className="px-2 bg-themewhite min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
+                <div className="px-2 min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
                   <SearchResults
                     results={search.searchResults}
                     searchTerm={search.searchInput}
@@ -551,88 +583,6 @@ function AppContent() {
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Desktop Layout - 2-panel master-detail (navigation | content) */}
-          <div className={`${navigation.isMobile ? 'hidden' : 'block'} h-full`}>
-            <div className="h-full grid gap-1"
-              style={{
-                gridTemplateColumns: navigation.mainGridTemplate,
-                transition: 'grid-template-columns 0.3s ease-in-out'
-              }}
-            >
-              {/* Column 1 (Left): Always show CategoryList */}
-              <div className="h-full overflow-y-auto bg-themewhite">
-                <CategoryList
-                  selectedCategory={navigation.selectedCategory}
-                  selectedSymptom={navigation.selectedSymptom}
-                  selectedGuideline={navigation.selectedGuideline}
-                  onNavigate={handleNavigationClick}
-                  desktopMode={true}
-                />
-              </div>
-
-              {/* Column 2 (Right): Content area */}
-              <div className="h-full overflow-hidden">
-                {search.searchInput ? (
-                  <div className="h-full overflow-y-auto">
-                    <SearchResults
-                      results={search.searchResults}
-                      searchTerm={search.searchInput}
-                      onResultClick={handleNavigationClick}
-                      isSearching={search.isSearching}
-                    />
-                  </div>
-                ) : navigation.selectedSymptom && navigation.showQuestionCard ? (
-                  <div className="h-full overflow-hidden">
-                    <AlgorithmPage
-                      key={`algo-desktop-${navigation.selectedSymptom.icon}-${algorithmKeyRef.current}`}
-                      selectedSymptom={navigation.selectedSymptom}
-                      onMedicationClick={navigation.handleMedicationSelect}
-                      onExpandNote={handleExpandNote}
-                      isMobile={navigation.isMobile}
-                      initialCardStates={restoredAlgorithmState?.cardStates}
-                      initialDisposition={restoredAlgorithmState?.disposition}
-                      noteStatus={algorithmNoteStatus}
-                    />
-                  </div>
-                ) : (
-                  // Empty state when nothing is selected
-                  <div className="h-full flex items-center justify-center text-secondary text-sm">
-                    Select a symptom to see algorithm
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* AlgorithmPage - mobile only: absolute positioned overlay (depth 2) */}
-          {navigation.isMobile && navigation.selectedSymptom && (
-            <animated.div
-              className={`absolute inset-0 will-change-transform ${!search.searchInput && navigation.showQuestionCard
-                ? 'opacity-100 z-20'
-                : 'opacity-0 z-0 pointer-events-none'
-                } ${!swipe.isSwiping && !swipe.animatingDirection ? 'transition-opacity duration-200' : ''}`}
-              style={
-                isSwipeActive && mobileViewDepth === 2
-                  ? { transform: swipe.springStyles.x.to(x => `translateX(${x}px)`) }
-                  : undefined
-              }
-              {...swipe.touchHandlers}
-            >
-              <div className="h-full overflow-hidden bg-themewhite">
-                <AlgorithmPage
-                  key={`algo-mobile-${navigation.selectedSymptom.icon}-${algorithmKeyRef.current}`}
-                  selectedSymptom={navigation.selectedSymptom}
-                  onMedicationClick={navigation.handleMedicationSelect}
-                  onExpandNote={handleExpandNote}
-                  isMobile={navigation.isMobile}
-                  initialCardStates={restoredAlgorithmState?.cardStates}
-                  initialDisposition={restoredAlgorithmState?.disposition}
-                  noteStatus={algorithmNoteStatus}
-                />
-              </div>
-            </animated.div>
           )}
         </div>
         {/* Menu backdrop - rendered at App level to avoid overflow-hidden clipping.
