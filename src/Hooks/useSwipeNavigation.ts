@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import { useDrag } from '@use-gesture/react'
-import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils'
+import { GESTURE_THRESHOLDS, HORIZONTAL_DRAG_CONFIG, shouldCommitSwipe } from '../Utilities/GestureUtils'
 
 interface UseSwipeNavigationOptions {
   /** Whether swipe navigation is enabled */
@@ -38,28 +38,27 @@ export function useSwipeNavigation({
 
   const bind = useDrag(
     ({ active, movement: [mx], velocity: [vx], direction: [dx], tap }) => {
+      // 1. GUARD
       if (!enabled || tap || isCarouselSwiping) return
 
       if (active) {
+        // 2. COMPUTE (detection-only — no visual feedback needed)
         committedRef.current = false
       } else {
-        // Gesture ended — check if threshold met
+        // 3. ANIMATE (N/A — CSS grid handles the visual transition)
+        // 4. CALLBACK — fire onSwipeBack if threshold met
         if (committedRef.current) return
         const clampedOffset = Math.max(0, mx)
-        const shouldNav = clampedOffset > threshold || (vx > velocityThreshold && dx > 0)
 
-        if (shouldNav && viewDepth > 0) {
+        if (shouldCommitSwipe(clampedOffset, vx, dx, threshold, velocityThreshold) && viewDepth > 0) {
           committedRef.current = true
           onSwipeBack()
         }
       }
     },
     {
+      ...HORIZONTAL_DRAG_CONFIG,
       enabled: enabled && viewDepth > 0,
-      axis: 'x',
-      filterTaps: true,
-      pointer: { touch: true },
-      from: () => [0, 0],
     }
   )
 

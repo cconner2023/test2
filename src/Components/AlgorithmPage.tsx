@@ -10,7 +10,6 @@ import type { WriteNoteData } from '../Hooks/useNavigation';
 interface AlgorithmProps {
     selectedSymptom: subCatDataTypes | null;
     onExpandNote?: (data: WriteNoteData) => void;
-    onMedicationClick?: (medication: string) => void;
     isMobile?: boolean;
     initialCardStates?: import('../Hooks/useAlgorithm').CardState[];
     initialDisposition?: dispositionType | null;

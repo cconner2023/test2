@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useDrag } from '@use-gesture/react';
-import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils';
+import { GESTURE_THRESHOLDS, HORIZONTAL_DRAG_CONFIG, revealDampedOffset } from '../Utilities/GestureUtils';
 import { X, Moon, Sun, Shield, HelpCircle, ChevronUp, User, ChevronRight, ChevronLeft, Bug, PlusCircle, RefreshCw, FileText, Trash2, Pencil, Share2, CheckSquare, Square, Eye, ClipboardCopy } from 'lucide-react';
 import { ReleaseNotes, type ReleaseNoteTypes } from '../Data/Release';
 import { BaseDrawer } from './BaseDrawer';
@@ -161,10 +161,8 @@ const ActionMenu = ({
    Swipe left → reveals delete (right side).
    Swipe right → reveals view, copy, share (left side).
    Tap → toggles action menu.
+   Follows unified drag pattern: GUARD → COMPUTE → ANIMATE → CALLBACK
    ──────────────────────────────────────────────────────────── */
-const SWIPE_THRESHOLD = GESTURE_THRESHOLDS.REVEAL_THRESHOLD;
-const ACTION_WIDTH_LEFT = GESTURE_THRESHOLDS.REVEAL_ACTION_WIDTH_LEFT;
-const ACTION_WIDTH_RIGHT = GESTURE_THRESHOLDS.REVEAL_ACTION_WIDTH_RIGHT;
 
 const SwipeableNoteItem = ({
     note,
@@ -215,33 +213,27 @@ const SwipeableNoteItem = ({
 
     const bindSwipe = useDrag(
         ({ active, first, movement: [mx], tap, memo }) => {
+            // 1. GUARD
             if (tap) return memo;
 
             // Capture starting offset at gesture start
             const startOffset = first ? offsetX : (memo ?? 0);
 
-            let newOffset = startOffset + mx;
-
-            // Overshoot dampening beyond action widths
-            if (newOffset > ACTION_WIDTH_LEFT) {
-                const overshoot = newOffset - ACTION_WIDTH_LEFT;
-                newOffset = ACTION_WIDTH_LEFT + overshoot * GESTURE_THRESHOLDS.REVEAL_OVERSHOOT_DAMPENING;
-            } else if (newOffset < -ACTION_WIDTH_RIGHT) {
-                const overshoot = Math.abs(newOffset) - ACTION_WIDTH_RIGHT;
-                newOffset = -(ACTION_WIDTH_RIGHT + overshoot * GESTURE_THRESHOLDS.REVEAL_OVERSHOOT_DAMPENING);
-            }
+            // 2. COMPUTE — apply overshoot dampening via shared helper
+            const newOffset = revealDampedOffset(startOffset + mx);
 
             if (active) {
+                // 3. ANIMATE — direct position update during drag
                 setIsDragging(true);
                 setOffsetX(newOffset);
             } else {
+                // 4. CALLBACK — snap to revealed position or back to center
                 setIsDragging(false);
-                // Snap to revealed position or back to center
-                if (newOffset > SWIPE_THRESHOLD) {
-                    setOffsetX(ACTION_WIDTH_LEFT);
+                if (newOffset > GESTURE_THRESHOLDS.REVEAL_THRESHOLD) {
+                    setOffsetX(GESTURE_THRESHOLDS.REVEAL_ACTION_WIDTH_LEFT);
                     setIsRevealed('left');
-                } else if (newOffset < -SWIPE_THRESHOLD) {
-                    setOffsetX(-ACTION_WIDTH_RIGHT);
+                } else if (newOffset < -GESTURE_THRESHOLDS.REVEAL_THRESHOLD) {
+                    setOffsetX(-GESTURE_THRESHOLDS.REVEAL_ACTION_WIDTH_RIGHT);
                     setIsRevealed('right');
                 } else {
                     setOffsetX(0);
@@ -252,9 +244,7 @@ const SwipeableNoteItem = ({
             return startOffset;
         },
         {
-            axis: 'x',
-            filterTaps: true,
-            pointer: { touch: true },
+            ...HORIZONTAL_DRAG_CONFIG,
         }
     );
 
@@ -283,7 +273,7 @@ const SwipeableNoteItem = ({
             {(offsetX > 0 || isRevealed === 'left') && (
                 <div
                     className="absolute inset-y-0 left-0 flex items-center gap-1 pl-2 pr-1"
-                    style={{ width: ACTION_WIDTH_LEFT }}
+                    style={{ width: GESTURE_THRESHOLDS.REVEAL_ACTION_WIDTH_LEFT }}
                 >
                     <button
                         onClick={(e) => { e.stopPropagation(); onView(note); closeSwipe(); }}
@@ -318,7 +308,7 @@ const SwipeableNoteItem = ({
             {(offsetX < 0 || isRevealed === 'right') && (
                 <div
                     className="absolute inset-y-0 right-0 flex items-center justify-center pr-2 pl-1"
-                    style={{ width: ACTION_WIDTH_RIGHT }}
+                    style={{ width: GESTURE_THRESHOLDS.REVEAL_ACTION_WIDTH_RIGHT }}
                 >
                     <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteAction(); }}

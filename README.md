@@ -19,4 +19,9 @@ This was built without PII/PHI, and was not meant to transmit any identifiable i
 
 Be safe, be legal, be smart. 
 
+# FEEDBACK  --
+I'm always looking to improve this for medics. If there's something here you don't like, or if there's a feature you think should be included, let me know.
+
+# FUTURE FEATURES --
+
 

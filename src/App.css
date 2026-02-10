@@ -313,6 +313,22 @@ input, select, textarea {
     animation: cardAppearIn 0.3s ease-out 0.5s both;
 }
 
+/* Desktop grid content transition — triggered by key change on right column */
+@keyframes desktopContentIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.animate-desktopContentIn {
+    animation: desktopContentIn 0.28s cubic-bezier(0.25, 0.1, 0.25, 1) both;
+}
+
 /* Desktop disposition → WriteNotePage morph animation */
 @keyframes desktopNoteExpand {
     from {
@@ -398,6 +414,12 @@ input, select, textarea {
     opacity: 1;
     transform: translateX(0);
   }
+}
+
+/* Unified grid: allow columns to collapse to 0fr */
+.unified-grid > * {
+  overflow: hidden;
+  min-width: 0;
 }
 
 /* Mobile swipe navigation container */
