@@ -251,3 +251,32 @@
 **No new commit needed** — the implementation was already in commit c0ad89d from feature #15.
 
 **Current progress:** 6/33 features passing
+
+---
+
+### Session - Feature #14: Remove unused motion package
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Removed the `motion` package (^12.23.26) from `package.json` dependencies
+- Verified zero imports from 'motion' or 'framer-motion' exist anywhere in `src/`
+- Ran `npm install` to update lockfile — 4 packages removed, 0 vulnerabilities
+- Verified project builds successfully with `npm run build`
+- Verified app runs with zero runtime errors via browser automation
+
+**Changes made:**
+- `package.json`: Removed `"motion": "^12.23.26"` from dependencies
+- `package-lock.json`: Updated (4 packages removed)
+
+**Verification:**
+- Searched src/ for any `motion` or `framer-motion` imports: ✅ None found
+- npm install after removal: ✅ 4 packages removed cleanly
+- npm run build: ✅ Builds successfully (no errors)
+- Runtime test via browser: ✅ App loads and navigates with 0 console errors
+- Desktop category navigation (ENT → Sore Throat → Algorithm): ✅ All views render correctly
+- Mock data grep: ✅ No mock/placeholder patterns in src/
+- motion folder in node_modules: ✅ Removed (no longer exists)
+
+**Git commit:** 9eeb4a5 - feat: remove unused motion package from dependencies (#14)
+
+**Current progress:** 7/33 features passing
