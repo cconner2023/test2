@@ -142,3 +142,35 @@
 - All navigation paths consistent between back button and swipe callback (both call `handleBackClick`)
 
 **Current progress:** 4/33 features passing
+
+---
+
+### Session - Feature #5: Verify NavTop back button renders and fires correctly
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Verified that the NavTop back button renders correctly across all applicable views (mobile and desktop)
+- Verified the back button fires the correct navigation action in all scenarios
+- No code changes were needed — this is a verification-only feature confirming existing functionality
+
+**Verification — Back Button Rendering:**
+- Desktop home (no selection): ✅ No back button visible
+- Desktop category selected: ✅ Back button with "< Back" text appears
+- Desktop symptom selected: ✅ Back button persists
+- Desktop guideline selected: ✅ Back button persists
+- Mobile home: ✅ No back button (hamburger menu shown instead)
+- Mobile category selected: ✅ Back button (ChevronLeft) replaces menu button
+- Mobile algorithm view (Column B): ✅ Back button visible with Info button
+- Mobile drawer open (SymptomInfo): ✅ Back button hidden (drawer has own Close button)
+- Mobile drawer closed: ✅ Back button reappears after drawer dismissal
+
+**Verification — Back Button Click Navigation:**
+- Desktop: Guideline → Symptom (Priority 2, clears selectedGuideline): ✅
+- Desktop: Symptom → Subcategory (Priority 3, clears selectedSymptom): ✅
+- Desktop: Subcategory → Main (Priority 4, clears selectedCategory): ✅ Button disappears
+- Mobile: Algorithm (Column B) → Symptom list: ✅
+- Mobile: Symptom list → Main: ✅ Menu button restored
+
+**Console Errors:** ✅ Zero application JS errors (only Vite HMR connection errors from dev server)
+
+**Current progress:** 5/33 features passing
