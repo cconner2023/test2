@@ -2,14 +2,14 @@
 <browserconfig>
   <msapplication>
     <tile>
-      <square70x70logo src="/ADTMC/icon-144.png"/>
-      <square150x150logo src="/ADTMC/icon-144.png"/>
-      <square310x310logo src="/ADTMC/icon-512.png"/>
-      <wide310x150logo src="/ADTMC/icon-512.png"/>
+      <square70x70logo src="/test2/icon-144.png"/>
+      <square150x150logo src="/test2/icon-144.png"/>
+      <square310x310logo src="/test2/icon-512.png"/>
+      <wide310x150logo src="/test2/icon-512.png"/>
       <TileColor>#646cff</TileColor>
     </tile>
     <notification>
-      <polling-uri src="/ADTMC/"/>
+      <polling-uri src="/test2/"/>
     </notification>
   </msapplication>
 </browserconfig>

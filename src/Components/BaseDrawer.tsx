@@ -64,11 +64,14 @@ export function BaseDrawer({
     const [isMounted, setIsMounted] = useState(false);
 
     const dragStartPosition = useRef(0);
-    const rAFRef = useRef(0);
-    const isMountedRef = useRef(false);
+    // Track whether an animated close is in progress (from drag or handleClose)
+    // to prevent the declarative spring from overriding back to 100
+    const isClosingRef = useRef(false);
 
-    // react-spring drives the drawer position (0 = closed, 100 = fully open)
-    // Replaces the previous manual rAF animation loop
+    // Declarative react-spring: position is driven by isVisible prop.
+    // When isVisible becomes true, spring animates from current → 100.
+    // When isVisible becomes false, spring animates from current → 0.
+    // This avoids all useEffect timing issues with React StrictMode.
     const [springStyle, api] = useSpring(() => ({
         position: 0,
         config: SPRING_CONFIGS.snap,
@@ -85,56 +88,56 @@ export function BaseDrawer({
         }
     }, [externalIsMobile]);
 
+    // Mount/unmount and body overflow management
     useEffect(() => {
         if (isVisible) {
+            isClosingRef.current = false;
             setIsMounted(true);
-            isMountedRef.current = true;
             document.body.style.overflow = 'hidden';
+        }
+    }, [isVisible]);
 
-            // Stop any in-flight animations and clear stale onRest callbacks
-            // This prevents the close animation's onRest from firing after the
-            // open animation starts (which would call setIsMounted(false))
-            api.stop();
-
+    // Drive the spring position declaratively based on isVisible + isMobile
+    useEffect(() => {
+        if (isVisible) {
             if (isMobile) {
-                // Start at 0 then animate to 100 for slide-up entrance
-                api.start({ position: 0, immediate: true });
-                // Use rAF to ensure the initial position is painted before animating
-                rAFRef.current = requestAnimationFrame(() => {
-                    api.start({ position: 100, immediate: false, config: SPRING_CONFIGS.snap });
+                // Animate open on mobile
+                console.log('[BaseDrawer] Starting open animation, current position:', springStyle.position.get());
+                const result = api.start({
+                    position: 100,
+                    immediate: false,
+                    config: SPRING_CONFIGS.snap,
                 });
+                console.log('[BaseDrawer] api.start result:', result);
+                // Also log position after a delay
+                setTimeout(() => {
+                    console.log('[BaseDrawer] Position after 100ms:', springStyle.position.get());
+                }, 100);
+                setTimeout(() => {
+                    console.log('[BaseDrawer] Position after 500ms:', springStyle.position.get());
+                }, 500);
             } else {
                 // Desktop: jump to full position immediately
                 api.start({ position: 100, immediate: true });
             }
-        } else {
-            // Cancel any pending open animation rAF
-            if (rAFRef.current) {
-                cancelAnimationFrame(rAFRef.current);
-                rAFRef.current = 0;
-            }
-            // Only animate closed if currently mounted (skip no-op close on initial mount
-            // which would register a stale onRest that interferes with future open animations)
-            if (isMountedRef.current) {
+        } else if (!isClosingRef.current) {
+            // Only animate closed from the isVisible effect if NOT already
+            // closing via drag/handleClose (which handle their own animation)
+            console.log('[BaseDrawer] CLOSE branch entered, isMounted:', isMounted, 'isVisible:', isVisible);
+            if (isMounted) {
+                console.log('[BaseDrawer] Animating CLOSE to 0');
                 api.start({
                     position: 0,
-                    immediate: false,
+                    immediate: !isMobile,
                     config: SPRING_CONFIGS.snap,
                     onRest: () => {
                         setIsMounted(false);
-                        isMountedRef.current = false;
                         document.body.style.overflow = '';
                     },
                 });
             }
         }
-        return () => {
-            // Cleanup: cancel pending rAF on effect re-run or unmount
-            if (rAFRef.current) {
-                cancelAnimationFrame(rAFRef.current);
-                rAFRef.current = 0;
-            }
-        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isVisible, isMobile, api]);
 
     const bindDrawerDrag = useDrag(
@@ -166,6 +169,8 @@ export function BaseDrawer({
 
                 // 4. CALLBACK + ANIMATE — close or snap back
                 if ((vy > GESTURE_THRESHOLDS.DRAWER_FLING_VELOCITY && dy > 0) || currentPosition < GESTURE_THRESHOLDS.DRAWER_CLOSE_THRESHOLD) {
+                    // Mark closing so the isVisible effect doesn't interfere
+                    isClosingRef.current = true;
                     // Close: animate to 0, then fire onClose
                     api.start({
                         position: 0,
@@ -173,7 +178,7 @@ export function BaseDrawer({
                         onRest: () => {
                             onClose();
                             setIsMounted(false);
-                            isMountedRef.current = false;
+                            document.body.style.overflow = '';
                         },
                     });
                 } else {
@@ -190,6 +195,8 @@ export function BaseDrawer({
 
     const handleClose = useCallback(() => {
         if (isMobile) {
+            // Mark closing so the isVisible effect doesn't interfere
+            isClosingRef.current = true;
             // Animate closed, then fire onClose
             api.start({
                 position: 0,
@@ -197,7 +204,7 @@ export function BaseDrawer({
                 onRest: () => {
                     onClose();
                     setIsMounted(false);
-                    isMountedRef.current = false;
+                    document.body.style.overflow = '';
                 },
             });
         } else {

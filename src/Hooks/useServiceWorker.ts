@@ -28,10 +28,19 @@ export function useServiceWorker() {
                 setRegistration(r);
 
                 // Check for updates periodically (every 5 minutes)
+                // Skip check when offline to avoid unhandled network errors
                 if (r) {
-                    intervalRef.current = window.setInterval(() => {
-                        console.log('[PWA] Checking for updates...');
-                        r.update();
+                    intervalRef.current = window.setInterval(async () => {
+                        if (!navigator.onLine) {
+                            console.log('[PWA] Skipping update check — offline');
+                            return;
+                        }
+                        try {
+                            console.log('[PWA] Checking for updates...');
+                            await r.update();
+                        } catch (error) {
+                            console.log('[PWA] Update check failed (likely offline):', error);
+                        }
                     }, 5 * 60 * 1000);
                 }
             },
@@ -53,16 +62,10 @@ export function useServiceWorker() {
             setIsUpdating(true);
             try { localStorage.removeItem('updateDismissed'); } catch { /* storage unavailable */ }
 
-            // Force cache bust by clearing caches
-            if ('caches' in window) {
-                const cacheNames = await caches.keys();
-                await Promise.all(
-                    cacheNames.map(cacheName => {
-                        console.log('[PWA] Clearing cache:', cacheName);
-                        return caches.delete(cacheName);
-                    })
-                );
-            }
+            // Let Workbox's cleanupOutdatedCaches handle stale cache removal automatically.
+            // Do NOT delete all caches here — the new SW needs time to activate and precache
+            // before old caches are removed. Deleting everything creates a race condition where
+            // the user lands on a page with no cache if the new SW hasn't finished precaching.
 
             await updateSW(true); // true = reload page
         }
