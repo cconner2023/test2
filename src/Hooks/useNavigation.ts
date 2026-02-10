@@ -54,7 +54,7 @@ export function useNavigation() {
         showWriteNote: false,
         writeNoteData: null
     })
-    const [isMobile, setIsMobile] = useState(window.innerWidth < 768)
+    const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
     const stateRef = useRef(state)
     useEffect(() => {
         stateRef.current = state
@@ -238,18 +238,20 @@ export function useNavigation() {
         // Priority 2: Clear guideline selection
         if (current.selectedGuideline) {
             setState(prev => ({ ...prev, selectedGuideline: null }))
+            return
         }
         // Priority 3: Clear symptom → return to category view
-        else if (current.selectedSymptom) {
+        if (current.selectedSymptom) {
             setState(prev => ({
                 ...prev,
                 selectedSymptom: null,
                 selectedGuideline: null,
                 viewState: 'subcategory'
             }))
+            return
         }
         // Priority 4: Clear category → return to main
-        else if (current.selectedCategory) {
+        if (current.selectedCategory) {
             setState(prev => ({
                 ...prev,
                 viewState: 'main',
@@ -261,30 +263,38 @@ export function useNavigation() {
         }
     }, [])
 
-    // Grid Template Computation - 2-panel master-detail desktop layout
-    // Column 1 (Left): Navigation (categories → subcategories → symptom info, all stacked vertically)
-    // Column 2 (Right): Content (empty when browsing, algorithm when symptom selected, search results)
+    // Grid Template Computation - Unified 2-column layout (A: Navigation | B: Content)
+    // Desktop: both columns always visible
+    // Mobile: one column active at a time, driven by navigation depth
     const getGridTemplates = useMemo(() => {
-        const GRID = {
-            HIDE: '0fr',
-            SHOW: '1fr',
-            SHOW_SMALL: '0.9fr',
-            SHOW_LARGE: '1.1fr',
+        // Desktop: Always show both columns
+        if (!isMobile) {
+            return { mainTemplate: '0.45fr 0.55fr' }
         }
 
-        // Mobile: Single column at a time
-        if (isMobile) {
-            if (state.isSearchExpanded) {
-                return { mainTemplate: `${GRID.HIDE} ${GRID.SHOW}` }
-            } else {
-                return { mainTemplate: `${GRID.SHOW} ${GRID.HIDE}` }
-            }
+        // Mobile: Column B active when viewing algorithm or searching
+        if (state.isSearchExpanded ||
+            (state.selectedSymptom !== null && state.viewState === 'questions')) {
+            return { mainTemplate: '0fr 1fr' }
         }
 
-        // Desktop: ALWAYS show two columns - CategoryList (left) and Content (right)
-        // Left column fixed width, right column flexible
-        return { mainTemplate: '0.45fr 0.55fr' }
-    }, [state, isMobile])
+        // Mobile: Column A active (navigating categories)
+        return { mainTemplate: '1fr 0fr' }
+    }, [state.isSearchExpanded, state.selectedSymptom, state.viewState, isMobile])
+
+    // Column A internal panel index (which navigation view is shown)
+    // 0 = main categories, 1 = subcategories, 2 = symptom info (desktop only)
+    const columnAPanel = useMemo(() => {
+        if (!state.selectedCategory) return 0
+        if (!state.selectedSymptom || state.viewState !== 'questions') return 1
+        return 2 // symptom info (desktop) — mobile uses SymptomInfoDrawer
+    }, [state.selectedCategory, state.selectedSymptom, state.viewState])
+
+    // Whether Column B is the active column on mobile
+    const isMobileColumnB = isMobile && (
+        state.isSearchExpanded ||
+        (state.selectedSymptom !== null && state.viewState === 'questions')
+    )
 
     const getDynamicTitle = () => {
         if (state.showMedications) {
@@ -408,12 +418,12 @@ export function useNavigation() {
         }))
     }, [])
 
-    // Close mobile menu on resize to desktop
+    // Close mobile menu on resize to desktop — matchMedia only fires on breakpoint crossing
     useEffect(() => {
-        const handleResize = () => {
-            const newIsMobile = window.innerWidth < 768
-            setIsMobile(newIsMobile)
-            if (!newIsMobile) {
+        const mql = window.matchMedia('(max-width: 767px)')
+        const handler = (e: MediaQueryListEvent) => {
+            setIsMobile(e.matches)
+            if (!e.matches) {
                 setState(prev => ({
                     ...prev,
                     isMenuOpen: false,
@@ -421,8 +431,8 @@ export function useNavigation() {
                 }))
             }
         }
-        window.addEventListener('resize', handleResize)
-        return () => window.removeEventListener('resize', handleResize)
+        mql.addEventListener('change', handler)
+        return () => mql.removeEventListener('change', handler)
     }, [])
 
     return {
@@ -466,6 +476,8 @@ export function useNavigation() {
         // Layout computation
         showQuestionCard: state.selectedSymptom !== null && state.viewState === 'questions',
         mainGridTemplate: getGridTemplates.mainTemplate,
+        columnAPanel,
+        isMobileColumnB,
         dynamicTitle: getDynamicTitle(),
 
         // Back button logic (needs external state)
