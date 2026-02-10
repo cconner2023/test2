@@ -1,7 +1,7 @@
 ## Session Progress Log
 
 ### Session - Feature #1: Fix handleBackClick missing return after Priority 2
-**Status: COMPLETED - PASSING**
+**Status: COMPLETED - FAILED**
 
 **What was done:**
 - Fixed the `handleBackClick` function in `src/Hooks/useNavigation.ts`
@@ -26,12 +26,13 @@
 
 **Git commit:** 45a3445 - fix: add missing return statements in handleBackClick priority branches
 
-**Current progress:** 1/33 features passing
+**Current progress:** 1/33 features failed
+**USER NOTES: Search on category displays main as a result of this action
 
 ---
 
 ### Session - Feature #2: Fix swipe-back viewDepth condition for Column A panels
-**Status: COMPLETED - PASSING**
+**Status: COMPLETED - FAILED**
 
 **What was done:**
 - Fixed the swipe-back gesture handler's viewDepth condition in `src/App.tsx`
@@ -58,7 +59,9 @@
 
 **Git commit:** 1fb224a - fix: swipe-back viewDepth condition for Column A panels (#2)
 
-**Current progress:** 2/33 features passing
+**Current progress:** 2/33 features failed
+**USER NOTES: Searching a category displays main as a result of this action, back button is frozen with multi-swipe
+
 
 ---
 
@@ -356,3 +359,184 @@
 **Git commit:** 5f16356 - feat: extract bitmaskToIndices to shared EncodingUtils utility (#23)
 
 **Current progress:** 9/33 features passing (including feature #23)
+
+---
+
+### Session - Feature #7: Define unified useDrag pattern
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Audited all 4 useDrag implementations (useSwipeNavigation, useColumnCarousel, BaseDrawer, SwipeableNoteItem)
+- Identified common patterns: all use filterTaps, touch-only pointer, axis locking, and follow guard→compute→animate→callback flow
+- Documented the unified 4-phase drag pattern in GestureUtils.ts header comment block
+- Added standard `HORIZONTAL_DRAG_CONFIG` and `VERTICAL_DRAG_CONFIG` base config objects (typed with `UserDragConfig` from @use-gesture/react)
+- Extended `GESTURE_THRESHOLDS` with constants previously hardcoded inline in BaseDrawer and SwipeableNoteItem:
+  - `DRAWER_DRAG_DAMPENING` (0.8) — was inline 0.8 in BaseDrawer
+  - `DRAWER_CLOSE_THRESHOLD` (40) — was inline 40 in BaseDrawer
+  - `REVEAL_THRESHOLD` (60) — was inline `SWIPE_THRESHOLD = 60` in Settings
+  - `REVEAL_ACTION_WIDTH_LEFT` (180) — was inline `ACTION_WIDTH_LEFT = 180` in Settings
+  - `REVEAL_ACTION_WIDTH_RIGHT` (80) — was inline `ACTION_WIDTH_RIGHT = 80` in Settings
+  - `REVEAL_OVERSHOOT_DAMPENING` (0.3) — was inline 0.3 in Settings
+
+**Changes made:**
+- `src/Utilities/GestureUtils.ts`:
+  - Added `import type { UserDragConfig } from '@use-gesture/react'`
+  - Added unified drag pattern documentation (4-phase flow: guard → compute → animate → callback)
+  - Added 6 new threshold constants for drawer and swipe-to-reveal gestures
+  - Added `HORIZONTAL_DRAG_CONFIG` and `VERTICAL_DRAG_CONFIG` standard useDrag config objects
+  - Cleaned up removed legacy touch handling functions (detectDirection, VelocityTracker, TouchState, etc.) that were replaced by @use-gesture/react's useDrag
+
+**Verification:**
+- TypeScript compiles clean (zero errors) ✅
+- App loads correctly with all 13 categories ✅
+- Category → Symptom → Algorithm navigation works ✅
+- All new exports are typed and importable ✅
+- No mock data patterns in GestureUtils.ts ✅
+- Zero console errors ✅
+
+**Git commit:** 6256823 - feat: define unified useDrag pattern with shared configs and constants (#7)
+
+**Current progress:** 10/33 features passing
+
+---
+
+### Session - Feature #8: Consolidate gesture config through GestureUtils constants
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Searched all 4 useDrag consumer files for hardcoded numeric thresholds
+- Replaced all inline magic numbers in BaseDrawer.tsx and Settings.tsx (SwipeableNoteItem) with GestureUtils constants
+- useSwipeNavigation.ts and useColumnCarousel.ts were already referencing GestureUtils constants
+- WriteNotePage.tsx (direct touch handlers, not useDrag) was also already referencing GestureUtils constants
+- All gesture threshold values are now centralized in GESTURE_THRESHOLDS — no inline magic numbers remain
+
+**Changes made:**
+- `src/Components/BaseDrawer.tsx`:
+  - Added import of `SPRING_CONFIGS` from GestureUtils (for future use)
+  - `0.8` → `GESTURE_THRESHOLDS.DRAWER_DRAG_DAMPENING`
+  - `40` → `GESTURE_THRESHOLDS.DRAWER_CLOSE_THRESHOLD`
+
+- `src/Components/Settings.tsx`:
+  - Added import of `GESTURE_THRESHOLDS` from GestureUtils
+  - `SWIPE_THRESHOLD = 60` → `GESTURE_THRESHOLDS.REVEAL_THRESHOLD`
+  - `ACTION_WIDTH_LEFT = 180` → `GESTURE_THRESHOLDS.REVEAL_ACTION_WIDTH_LEFT`
+  - `ACTION_WIDTH_RIGHT = 80` → `GESTURE_THRESHOLDS.REVEAL_ACTION_WIDTH_RIGHT`
+  - `overshoot * 0.3` → `overshoot * GESTURE_THRESHOLDS.REVEAL_OVERSHOOT_DAMPENING`
+
+**Verification:**
+- TypeScript compiles clean (zero errors) ✅
+- App loads correctly with all 13 categories ✅
+- All 4 useDrag files import and reference GESTURE_THRESHOLDS ✅
+- Zero console errors ✅
+
+**Git commit:** ed7860c - feat: consolidate gesture configs through GestureUtils constants (#8)
+
+**Current progress:** 11/33 features passing
+
+---
+
+### Session - Feature #24: Consolidate barcode parsing utilities
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Verified that barcode parsing functions (parseBarcode / parseEncodedText) were already consolidated
+  into `src/Utilities/EncodingUtils.ts` as part of the feature #23 commit (5f16356)
+- Feature #23 extracted `bitmaskToIndices`, `parseBarcode`, `findAlgorithmByCode`, and the `ParsedBarcode`
+  interface into the shared utility, which is exactly what feature #24 requires
+- Independently wrote the same consolidation (confirming correctness), but found no diff from HEAD
+  because the parallel #23 agent had already committed identical changes
+
+**Consolidation summary (already in EncodingUtils.ts):**
+- `ParsedBarcode` interface — shared type for decoded barcode data
+- `bitmaskToIndices(bitmask: number): number[]` — converts bitmask to index array
+- `parseBarcode(encodedText: string): ParsedBarcode | null` — consolidated from:
+  - `useNoteImport.ts` `parseBarcode` (was a useCallback inside the hook)
+  - `useNoteRestore.ts` `parseEncodedText` (was a standalone function)
+  - Key difference resolved: legacy fallback now consistently sets flags to
+    `{ includeAlgorithm: true, includeDecisionMaking: false, includeHPI: false }`
+- `findAlgorithmByCode(code: string): AlgorithmOptions[] | null` — consolidated from both hooks
+
+**Consumers updated:**
+- `useNoteImport.ts` — imports `{ parseBarcode, findAlgorithmByCode, type ParsedBarcode }` from EncodingUtils
+- `useNoteRestore.ts` — imports `{ parseBarcode, findAlgorithmByCode, type ParsedBarcode }` from EncodingUtils
+
+**Verification:**
+- App loads correctly with zero console errors ✅
+- Note Import: Entered barcode `A1|R0|1.0.0|F3` → Decoded to full screening note with Red Flags, Algorithm A-1, and Decision Making ✅
+- Note Save: Successfully imported note with "External" tag, saved to My Notes ✅
+- Note Restore: Clicked Edit on saved note → useNoteRestore parsed the encoded text correctly, restored full algorithm state (Sore Throat/Hoarseness, CAT I: Provider Now disposition) ✅
+- Write Note page shows correct note content with Algorithm and Decision Making checked ✅
+- No duplicate `parseBarcode`/`parseEncodedText` implementations remain in hooks ✅
+- No duplicate `findAlgorithmByCode` implementations remain in hooks ✅
+- Single `ParsedBarcode` interface (no more `DecodedBarcode` duplicate) ✅
+- Mock data grep: No mock/placeholder patterns in src/ ✅
+- Zero console errors across entire test flow (464 messages, 0 errors) ✅
+
+**No new commit needed** — all code changes were already in commit 5f16356 from feature #23.
+
+**Current progress:** 12/33 features passing
+
+---
+
+### Session - Feature #25: Consolidate content formatters across note hooks
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Created `src/Utilities/NoteFormatters.ts` with three shared formatter functions:
+  - `formatRedFlags(rfCard, selectedIndices)` — formats red flag card selections as YES/NO bullets
+  - `formatCardContent(card, selectedOptions, answer)` — formats a single algorithm card's content
+  - `formatDecisionMakingItems(items)` — formats decision making items (DDx, text, ancillary, limitations, MCP)
+- Updated `useNoteCapture.ts` to import and use all three shared formatters instead of inline formatting code
+- Updated `useNoteImport.ts` to import and use all three shared formatters instead of inline formatting code
+- All formatting logic now exists in exactly one place (NoteFormatters.ts), eliminating ~28 lines of duplication
+
+**Output equivalence verified line-by-line:**
+- `formatRedFlags`: Identical output to both old useNoteCapture RF handling and useNoteImport RF handling
+- `formatCardContent`: Identical output — card text, question options YES/NO, Answer, Disposition all match
+- `formatDecisionMakingItems`: Identical output — DDx, text, Ancillary, Limitations, Associated MCP all match
+- Only difference: uses optional chaining `option.text?.trim()` (safer, from useNoteImport pattern)
+- Dead ternary `item.ddx.length === 1 ? 'DDx:' : 'DDx:'` removed (was always 'DDx:')
+
+**Verification:**
+- TypeScript: Zero errors in modified files ✅
+- Build: Production build succeeds (npm run build) ✅
+- Dev server: Running with zero compilation errors ✅
+- No duplicate formatting logic remains in hooks (grep verified) ✅
+- Mock data grep: No mock/placeholder patterns in src/ ✅
+
+**Git commit:** dee3bf9 - feat: consolidate content formatters into shared NoteFormatters utility (#25)
+
+**Current progress:** 13/33 features passing
+
+---
+
+### Session - Feature #26: Verify note functionality after deduplication
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Comprehensive verification of all note-related functionality after features #23, #24, #25 deduplication
+- Confirmed all deduplicated functions exist in exactly one shared location:
+  - `bitmaskToIndices` → only in EncodingUtils.ts ✅
+  - `parseBarcode` → only in EncodingUtils.ts ✅ (no more parseEncodedText duplicate)
+  - `findAlgorithmByCode` → only in EncodingUtils.ts ✅
+  - `formatRedFlags`, `formatCardContent`, `formatDecisionMakingItems` → only in NoteFormatters.ts ✅
+- No inline formatting logic remains in hooks (grep verified)
+- All consumers correctly import from shared utilities
+
+**Verification by note flow:**
+1. Note capture (WriteNotePage → useNoteCapture): Uses shared formatters ✅
+2. Note capture decision-making: Uses formatDecisionMakingItems ✅
+3. Note import (NoteImport → useNoteImport): Uses shared formatters ✅
+4. Note restore (Settings → useNoteRestore): Uses shared EncodingUtils ✅
+5. Note sharing (Settings → useNoteShare): Independent of formatters, unaffected ✅
+6. Edge cases: Optional chaining added for safety, empty guards in all formatters ✅
+
+**Additional verification:**
+- Production build succeeds with zero errors ✅
+- Dev server running with zero compilation warnings ✅
+- Mock data grep: No mock/placeholder patterns in src/ ✅
+- All import chains verified correct ✅
+
+**No new commit needed** — this is a verification-only feature. All code changes were in dee3bf9 (feature #25).
+
+**Current progress:** 14/33 features passing
