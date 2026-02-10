@@ -2,6 +2,7 @@
 import { useCallback } from 'react';
 import type { AlgorithmOptions, decisionMakingType } from '../Types/AlgorithmTypes';
 import { parseBarcode, findAlgorithmByCode, type ParsedBarcode } from '../Utilities/EncodingUtils';
+import { formatRedFlags, formatCardContent, formatDecisionMakingItems } from '../Utilities/NoteFormatters';
 
 export const useNoteImport = () => {
     // Generate algorithm content matching useNoteCapture format
@@ -11,55 +12,25 @@ export const useNoteImport = () => {
     ): string => {
         const sections: string[] = [];
 
-        // Red flags
+        // Red flags — use shared formatter
         const rfCard = algorithmOptions[0];
-        if (rfCard?.type === 'rf' && rfCard.questionOptions) {
-            const flags: string[] = [];
-            rfCard.questionOptions.forEach((option, optionIndex) => {
-                const flagText = option.text?.trim();
-                if (flagText) {
-                    const isSelected = decoded.rfSelections.includes(optionIndex);
-                    flags.push(`  • ${flagText} - [${isSelected ? 'YES' : 'NO'}]`);
-                }
-            });
-            if (flags.length > 0) {
-                sections.push(`Red Flags:\n${flags.join('\n')}`);
-            }
+        if (rfCard?.type === 'rf') {
+            const rfText = formatRedFlags(rfCard, decoded.rfSelections);
+            if (rfText) sections.push(rfText);
         }
 
-        // Each card entry
+        // Each card entry — use shared formatter
         for (const entry of decoded.cardEntries) {
             const card = algorithmOptions[entry.index];
             if (!card || card.type === 'rf') continue;
 
-            const cardLines: string[] = [card.text];
+            // Resolve answer from answerIndex
+            const answer = (entry.answerIndex >= 0 && entry.answerIndex < card.answerOptions.length)
+                ? card.answerOptions[entry.answerIndex]
+                : null;
 
-            // Question options with YES/NO
-            if (card.questionOptions && card.questionOptions.length > 0) {
-                card.questionOptions.forEach((option, optIndex) => {
-                    const optionText = option.text?.trim();
-                    if (optionText) {
-                        const isSelected = entry.selections.includes(optIndex);
-                        cardLines.push(`  • ${optionText} - [${isSelected ? 'YES' : 'NO'}]`);
-                    }
-                });
-            }
-
-            // Answer
-            if (entry.answerIndex >= 0 && entry.answerIndex < card.answerOptions.length) {
-                const answer = card.answerOptions[entry.answerIndex];
-                cardLines.push(`Answer: ${answer.text}`);
-                if (answer.disposition && answer.disposition.length > 0) {
-                    const dispText = answer.disposition
-                        .map(d => `${d.type}: ${d.text}`)
-                        .join('; ');
-                    cardLines.push(`Disposition: ${dispText}`);
-                }
-            }
-
-            if (cardLines.length > 1) {
-                sections.push(cardLines.join('\n'));
-            }
+            const cardText = formatCardContent(card, entry.selections, answer);
+            if (cardText) sections.push(cardText);
         }
 
         return sections.join('\n');
@@ -100,7 +71,7 @@ export const useNoteImport = () => {
 
         if (!currentDisposition) return '';
 
-        // Find decision making items (same logic as useNoteCapture/DecisionMaking component)
+        // Find decision making items
         let decisionMakingItems: decisionMakingType[] = [];
 
         for (let i = decoded.cardEntries.length - 1; i >= 0; i--) {
@@ -135,48 +106,8 @@ export const useNoteImport = () => {
             }
         }
 
-        if (decisionMakingItems.length === 0) return '';
-
-        // Format decision making items (matching useNoteCapture output)
-        const sections: string[] = [];
-        decisionMakingItems.forEach((item, index) => {
-            const itemLines: string[] = [];
-            if (index > 0) itemLines.push('---');
-
-            if (item.ddx && item.ddx.length > 0) {
-                itemLines.push(`DDx: ${item.ddx.join(', ')}`);
-            }
-            if (item.text) {
-                itemLines.push(item.text);
-            }
-            if (item.ancillaryFind && item.ancillaryFind.length > 0) {
-                const ancTexts = item.ancillaryFind.map(a => a.modifier).filter(Boolean);
-                if (ancTexts.length > 0) {
-                    itemLines.push(`Ancillary: ${ancTexts.join(', ')}`);
-                }
-            }
-            if (item.specLim && item.specLim.length > 0) {
-                itemLines.push('Limitations:');
-                item.specLim.forEach(lim => itemLines.push(`  • ${lim}`));
-            }
-            if (item.assocMcp) {
-                const mcpLines: string[] = [];
-                if (item.assocMcp.text) mcpLines.push(item.assocMcp.text);
-                if (item.assocMcp.specLim && item.assocMcp.specLim.length > 0) {
-                    mcpLines.push('Limitations:');
-                    item.assocMcp.specLim.forEach(lim => mcpLines.push(`  • ${lim}`));
-                }
-                if (mcpLines.length > 0) {
-                    itemLines.push('Associated MCP:');
-                    mcpLines.forEach(line => itemLines.push(`  ${line}`));
-                }
-            }
-            if (itemLines.length > 0) {
-                sections.push(itemLines.join('\n'));
-            }
-        });
-
-        return sections.join('\n\n');
+        // Use shared formatter for the items
+        return formatDecisionMakingItems(decisionMakingItems);
     }, []);
 
     // Main import function - reconstructs full note matching useNoteCapture output
