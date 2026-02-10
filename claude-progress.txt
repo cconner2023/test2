@@ -174,3 +174,48 @@
 **Console Errors:** ✅ Zero application JS errors (only Vite HMR connection errors from dev server)
 
 **Current progress:** 5/33 features passing
+
+---
+
+### Session - Feature #15: Replace auto-animate in CategoryList with react-spring useTrail
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Replaced `@formkit/auto-animate` `useAppAnimate` hook in `CategoryList.tsx` with `react-spring useTrail`
+- Created a reusable `AnimatedNavigationList` component that wraps list items with staggered fade+slide entrance
+- Applied the trail animation to all three list rendering paths:
+  1. Mobile `main` panel (static catData categories)
+  2. Mobile `subcategory` panel (dynamic symptoms based on selectedCategory)
+  3. Desktop mode branch (categories and symptoms)
+- Uses `SPRING_CONFIGS.stiff` from `GestureUtils.ts` for consistent spring physics across the app
+- Also fixed a pre-existing Temporal Dead Zone bug in `App.tsx` where `navigation` and `search` were used before declaration
+
+**Changes made:**
+- `src/Components/CategoryList.tsx`:
+  - Replaced import `useAppAnimate` from `AnimationConfig` with `useTrail, animated` from `@react-spring/web`
+  - Added import of `SPRING_CONFIGS` from `GestureUtils.ts`
+  - Removed `const [parentRef] = useAppAnimate('fast')` hook call
+  - Created `AnimatedNavigationList<T>` generic component using `useTrail` for sequential item entrance
+  - Updated mobile `main`, mobile `subcategory`, and desktop mode branches to use `AnimatedNavigationList`
+  - Removed `ref={parentRef}` from desktop mode container div
+
+- `src/App.tsx`:
+  - Fixed TDZ: moved `const navigation = useNavigation()` and `const search = useSearch()` declarations
+    above the `showMobileSearchOverlay` computed value that references them
+
+**Verification:**
+- Desktop: Category list renders correctly with all 13 categories ✅
+- Desktop: Clicking category shows subcategory list ✅
+- Desktop: Back navigation returns to category list ✅
+- Desktop: Clicking symptom shows algorithm view ✅
+- Mobile (390x844): Category list renders all 13 categories ✅
+- Mobile: Category selection navigates to subcategory panel ✅
+- Mobile: Back navigation returns to main panel ✅
+- No flash of unstyled content on initial render ✅
+- List re-renders animate correctly on navigation ✅
+- Zero console errors ✅
+- No mock data patterns found in src/ ✅
+
+**Git commit:** c0ad89d - feat: replace auto-animate in CategoryList with react-spring useTrail (#15)
+
+**Current progress:** 5/33 features passing (feature #15 also now passing)
