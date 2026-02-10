@@ -577,3 +577,67 @@
 **Mock data grep:** No mock/placeholder patterns in src/ ✅
 
 **Current progress:** 19/36 features passing (52.8%)
+
+---
+
+### Session - Feature #17: Remove AnimationConfig.ts and auto-animate package
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Deleted `src/Utilities/AnimationConfig.ts` — no remaining imports from any source file
+- Removed `@formkit/auto-animate` from `package.json` dependencies
+- Ran `npm install` — 1 package removed cleanly, 0 vulnerabilities
+- Verified project builds successfully (`npm run build` — clean, no errors)
+- Verified app loads and navigates with zero console errors via browser automation
+
+**Changes made:**
+- `src/Utilities/AnimationConfig.ts`: Deleted entirely
+- `package.json`: Removed `"@formkit/auto-animate": "^0.9.0"` from dependencies
+- `package-lock.json`: Updated (1 package removed)
+
+**Verification:**
+- Searched src/ for any `AnimationConfig` imports: ✅ None found
+- Searched src/ for any `useAppAnimate`/`useAutoAnimate` imports: ✅ None found
+- npm install: ✅ 1 package removed cleanly
+- npm run build: ✅ Builds successfully
+- Browser test: ✅ App loads, category navigation works, zero console errors
+- Mock data grep: ✅ No mock/placeholder patterns in src/
+
+**Git commit:** 2ac6094 - feat: remove AnimationConfig.ts and @formkit/auto-animate dependency (#17)
+
+**Current progress:** 15/33 features passing
+
+---
+
+### Session - Feature #18: Verify all animations after migration
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Comprehensive animation verification on both desktop (1280x800) and mobile (390x844) viewports
+- All animation types tested and confirmed visually identical after migration:
+
+**Desktop Verification:**
+- CategoryList item entrance (useTrail with SPRING_CONFIGS.stiff): ✅ 13 items stagger-animate in
+- Category navigation transitions: ✅ Grid column transition smooth
+- Algorithm content loading: ✅ desktopContentIn CSS keyframe works
+- Back button transitions: ✅ useTrail re-fires on list change, grid reverts
+- Settings drawer open/close: ✅ CSS transition on desktop (opacity + transform)
+- Search results appearance: ✅ Content transitions correctly
+
+**Mobile Verification:**
+- CategoryList entrance: ✅ useTrail staggered fade+slide
+- Carousel panel transitions: ✅ useSpring translateX with SPRING_CONFIGS.page
+- Column B grid transition: ✅ CSS grid-template-columns 0.3s ease-in-out
+- Back navigation: ✅ Both carousel spring and grid transitions reverse correctly
+- Hamburger menu morph: ✅ useSpring container expansion + useTrail menu items
+- Drawer slide-up: ✅ useSpring translateY from 100% to 0%
+- Search overlay: ✅ useTransition opacity mount/unmount
+
+**CSS Keyframe Animations:** All 22 @keyframes definitions intact in App.css ✅
+**Console Errors:** Zero across all test flows ✅
+**Mock Data Grep:** No mock/placeholder patterns in src/ ✅
+**auto-animate Remnants:** None in DOM or source ✅
+
+**Git commit:** 5704546 - verify: all animations visually identical after react-spring migration (#18)
+
+**Current progress:** 16/33 features passing
