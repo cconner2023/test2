@@ -16,7 +16,7 @@ import { useNotesStorage } from './Hooks/useNotesStorage'
 import type { SavedNote } from './Hooks/useNotesStorage'
 import { useNoteRestore } from './Hooks/useNoteRestore'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
-import { useAppAnimate } from './Utilities/AnimationConfig'
+import { useTransition, animated } from '@react-spring/web'
 import UpdateNotification from './Components/UpdateNotification'
 import InstallPrompt from './Components/InstallPrompt'
 import StorageErrorToast from './Components/StorageErrorToast'
@@ -41,12 +41,20 @@ function AppContent() {
   const searchInputRef = useRef<HTMLInputElement>(null!)
   const { theme, toggleTheme } = useTheme()
 
-  const [contentRef] = useAppAnimate<HTMLDivElement>()
-
   const navigation = useNavigation()
   const search = useSearch()
   const notesStorage = useNotesStorage()
   const { restoreNote } = useNoteRestore()
+
+  // react-spring transition for mobile search overlay mount/unmount
+  // Replaces @formkit/auto-animate which animated child DOM mutations on the content container
+  const showMobileSearchOverlay = navigation.isMobile && !!search.searchInput
+  const mobileSearchTransition = useTransition(showMobileSearchOverlay, {
+    from: { opacity: 0 },
+    enter: { opacity: 1 },
+    leave: { opacity: 0 },
+    config: { tension: 300, friction: 30 },
+  })
 
   // Track whether the import shortcut was used to open import in scanning mode
   const [importInitialView, setImportInitialView] = useState<'input' | 'scanning' | undefined>(
@@ -507,7 +515,7 @@ function AppContent() {
         </div>
 
         {/* Content area — Unified 2-column grid (A: Navigation | B: Content) */}
-        <div ref={contentRef} className={`md:h-[94%] h-full relative overflow-hidden ${navigation.isMobile ? 'absolute inset-0' : 'mt-2 mx-2'
+        <div className={`md:h-[94%] h-full relative overflow-hidden ${navigation.isMobile ? 'absolute inset-0' : 'mt-2 mx-2'
           }`}>
           <div
             className="h-full grid gap-1"
@@ -571,19 +579,22 @@ function AppContent() {
           </div>
 
           {/* Mobile search overlay — rendered on top of grid when searching */}
-          {navigation.isMobile && search.searchInput && (
-            <div className="absolute inset-0 z-20 bg-themewhite animate-fadeIn">
-              <div className="h-full overflow-y-auto">
-                <div className="px-2 min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
-                  <SearchResults
-                    results={search.searchResults}
-                    searchTerm={search.searchInput}
-                    onResultClick={handleNavigationClick}
-                    isSearching={search.isSearching}
-                  />
+          {/* Uses react-spring useTransition for smooth mount/unmount (replaces auto-animate) */}
+          {mobileSearchTransition((style, show) =>
+            show && (
+              <animated.div style={style} className="absolute inset-0 z-20 bg-themewhite">
+                <div className="h-full overflow-y-auto">
+                  <div className="px-2 min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
+                    <SearchResults
+                      results={search.searchResults}
+                      searchTerm={search.searchInput}
+                      onResultClick={handleNavigationClick}
+                      isSearching={search.isSearching}
+                    />
+                  </div>
                 </div>
-              </div>
-            </div>
+              </animated.div>
+            )
           )}
         </div>
         {/* Menu backdrop - rendered at App level to avoid overflow-hidden clipping.

@@ -1,7 +1,8 @@
 // Components/CategoryList.tsx - Updated
 import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes'
 import { catData } from '../Data/CatData'
-import { useAppAnimate } from '../Utilities/AnimationConfig'
+import { useTrail, animated } from '@react-spring/web'
+import { SPRING_CONFIGS } from '../Utilities/GestureUtils'
 
 // Shared shape for guideline-like items (DDX, medcom, stp, gen all have text + optional id)
 export interface GuidelineItemData {
@@ -176,6 +177,43 @@ function NavigationRow({
     )
 }
 
+/** Animated list wrapper using react-spring useTrail for sequential item entrance.
+ *  Items animate in with a staggered fade+slide effect on mount and when item count changes. */
+function AnimatedNavigationList<T>({
+    items,
+    keyExtractor,
+    renderItem,
+}: {
+    items: T[]
+    keyExtractor: (item: T) => string | number
+    renderItem: (item: T, index: number) => React.ReactNode
+}) {
+    const trail = useTrail(items.length, {
+        from: { opacity: 0, y: 6 },
+        to: { opacity: 1, y: 0 },
+        config: SPRING_CONFIGS.stiff,
+    })
+
+    return (
+        <>
+            {trail.map((style, index) => {
+                const item = items[index]
+                return (
+                    <animated.div
+                        key={keyExtractor(item)}
+                        style={{
+                            opacity: style.opacity,
+                            transform: style.y.to((y: number) => `translateY(${y}px)`),
+                        }}
+                    >
+                        {renderItem(item, index)}
+                    </animated.div>
+                )
+            })}
+        </>
+    )
+}
+
 interface CategoryListProps {
     selectedCategory: catDataTypes | null
     selectedSymptom: subCatDataTypes | null
@@ -186,6 +224,8 @@ interface CategoryListProps {
     } | null
     onNavigate: (result: SearchResultType) => void
     desktopMode?: boolean
+    /** When set, renders only the specified mobile carousel panel (no conditional switching, no key remounts) */
+    mobilePanel?: 'main' | 'subcategory' | 'guidelines'
 }
 
 export function CategoryList({
@@ -194,9 +234,8 @@ export function CategoryList({
     selectedGuideline,
     onNavigate,
     desktopMode = false,
+    mobilePanel,
 }: CategoryListProps) {
-    const [parentRef] = useAppAnimate('fast')
-
     // Helper to convert category to SearchResultType
     const categoryToResult = (category: catDataTypes): SearchResultType => ({
         type: 'category',
@@ -242,11 +281,72 @@ export function CategoryList({
         }
     })
 
+    // Mobile carousel panel mode: render a single always-mounted view
+    // Each panel is a separate instance in App.tsx's carousel — no conditional switching
+    if (mobilePanel) {
+        switch (mobilePanel) {
+            case 'main':
+                return (
+                    <div className="flex flex-col h-full w-full">
+                        <div className="flex-1 overflow-y-auto pb-4 bg-themewhite">
+                            <AnimatedNavigationList
+                                items={catData.filter(Boolean)}
+                                keyExtractor={(category) => category.id}
+                                renderItem={(category) => (
+                                    <NavigationRow
+                                        icon={category.icon}
+                                        text={category.text}
+                                        onClick={() => onNavigate(categoryToResult(category))}
+                                        className="rounded-md border-b border-themewhite2/90 hover:bg-themewhite2"
+                                    />
+                                )}
+                            />
+                        </div>
+                    </div>
+                )
+            case 'subcategory':
+                return (
+                    <div className="flex flex-col h-full w-full">
+                        <div className="h-full flex-1 overflow-y-auto pb-4 bg-themewhite">
+                            <AnimatedNavigationList
+                                items={(selectedCategory?.contents ?? []).filter(Boolean)}
+                                keyExtractor={(symptom) => symptom.id}
+                                renderItem={(symptom) => (
+                                    <NavigationRow
+                                        icon={symptom.icon || "?"}
+                                        text={symptom.text || "Untitled Symptom"}
+                                        onClick={() => onNavigate(symptomToResult(symptom, selectedCategory!))}
+                                        className="rounded-sm border-b border-themewhite2/70"
+                                        extraContentClassName="bg-themewhite"
+                                    />
+                                )}
+                            />
+                        </div>
+                    </div>
+                )
+            case 'guidelines':
+                return (
+                    <div className="flex flex-col h-full w-full">
+                        {selectedSymptom && selectedCategory ? (
+                            <div className="flex-1 overflow-y-auto p-4">
+                                <SymptomGuidelines
+                                    symptom={selectedSymptom}
+                                    category={selectedCategory}
+                                    onNavigate={onNavigate}
+                                    guidelineToResult={guidelineToResult}
+                                />
+                            </div>
+                        ) : null}
+                    </div>
+                )
+        }
+    }
+
     // Desktop mode: Full navigation flow in a single column (master-detail Column 1)
     // Shows categories → subcategories → symptom info all stacked vertically
     if (desktopMode) {
         return (
-            <div ref={parentRef} className="h-full w-full">
+            <div className="h-full w-full">
                 {(!catData || !Array.isArray(catData)) ? (
                     <div key="error" className="h-full flex items-center justify-center text-primary">
                         Error loading category data
@@ -255,43 +355,35 @@ export function CategoryList({
                     <div key="desktop-nav" className="flex flex-col h-full w-full">
                         <div className="flex-1 overflow-y-auto pb-4">
                             {/* State 1: No category selected - show all categories */}
-                            {!selectedCategory && catData.map((category) => (
-                                category && (
-                                    <div
-                                        key={category.id}
-                                        className="flex py-3 px-2 w-full rounded-md border-b border-themewhite2/90 cursor-pointer hover:bg-themewhite2 min-w-0"
-                                        onClick={() => onNavigate(categoryToResult(category))}
-                                    >
-                                        <div className="px-3 py-2 flex text-[10pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
-                                            {category.icon}
-                                        </div>
-                                        <div className="h-full flex-1 min-w-0 p-[4px_10px_4px_10px] text-primary text-[10pt] flex items-center truncate">
-                                            {category.text}
-                                        </div>
-                                    </div>
-                                )
-                            ))}
+                            {!selectedCategory && (
+                                <AnimatedNavigationList
+                                    items={catData.filter(Boolean)}
+                                    keyExtractor={(category) => category.id}
+                                    renderItem={(category) => (
+                                        <NavigationRow
+                                            icon={category.icon}
+                                            text={category.text}
+                                            onClick={() => onNavigate(categoryToResult(category))}
+                                            className="rounded-md border-b border-themewhite2/90 hover:bg-themewhite2"
+                                        />
+                                    )}
+                                />
+                            )}
 
                             {/* State 2: Category selected, no symptom - show its symptoms */}
                             {selectedCategory && !selectedSymptom && (
-                                <>
-                                    {selectedCategory.contents?.map((symptom) => (
-                                        symptom && (
-                                            <div
-                                                key={symptom.id}
-                                                className="flex py-3 px-2 w-full rounded-sm border-b border-themewhite2/70 cursor-pointer min-w-0 hover:bg-themewhite2"
-                                                onClick={() => onNavigate(symptomToResult(symptom, selectedCategory))}
-                                            >
-                                                <div className="px-3 py-2 flex text-[10pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
-                                                    {symptom.icon || "?"}
-                                                </div>
-                                                <div className="h-full flex-1 min-w-0 text-primary text-[10pt] p-[4px_10px_4px_10px] flex items-center truncate">
-                                                    {symptom.text || "Untitled Symptom"}
-                                                </div>
-                                            </div>
-                                        )
-                                    ))}
-                                </>
+                                <AnimatedNavigationList
+                                    items={(selectedCategory.contents ?? []).filter(Boolean)}
+                                    keyExtractor={(symptom) => symptom.id}
+                                    renderItem={(symptom) => (
+                                        <NavigationRow
+                                            icon={symptom.icon || "?"}
+                                            text={symptom.text || "Untitled Symptom"}
+                                            onClick={() => onNavigate(symptomToResult(symptom, selectedCategory))}
+                                            className="rounded-sm border-b border-themewhite2/70 hover:bg-themewhite2"
+                                        />
+                                    )}
+                                />
                             )}
 
                             {/* State 3: Symptom selected - show symptom header and guidelines */}
@@ -310,77 +402,6 @@ export function CategoryList({
         )
     }
 
-    // Mobile mode: original behavior
-    return (
-        <div ref={parentRef} className="h-full w-full">
-            {(!catData || !Array.isArray(catData)) ? (
-                <div key="error" className="h-full flex items-center justify-center text-primary">
-                    Error loading category data
-                </div>
-            ) : (
-                <>
-                    {!selectedCategory && !selectedSymptom && (
-                        <div key="main" className="flex flex-col h-full w-full">
-                            <div className="flex-1 overflow-y-auto pb-4 bg-themewhite">
-                                {catData.map((category) => (
-                                    category && (
-                                        <div
-                                            key={category.id}
-                                            className="flex py-3 px-2 w-full rounded-md border-b border-themewhite2/90 cursor-pointer hover:bg-themewhite2 min-w-0"
-                                            onClick={() => onNavigate(categoryToResult(category))}
-                                        >
-                                            <div className="px-3 py-2 flex text-[10pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
-                                                {category.icon}
-                                            </div>
-                                            <div className="h-full flex-1 min-w-0 p-[4px_10px_4px_10px] text-primary text-[10pt] flex items-center truncate">
-                                                {category.text}
-                                            </div>
-                                        </div>
-                                    )
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* VIEW 2: Subcategory View - Show only selected category's symptoms */}
-                    {selectedCategory && !selectedSymptom && (
-                        <div key="cat" className="flex flex-col h-full w-full">
-                            <div className="h-full flex-1 overflow-y-auto pb-4 bg-themewhite">
-                                {selectedCategory.contents?.map((symptom) => (
-                                    symptom && (
-                                        <div
-                                            key={symptom.id}
-                                            className="flex py-3 px-2 w-full rounded-sm border-b border-themewhite2/70 cursor-pointer  min-w-0"
-                                            onClick={() => onNavigate(symptomToResult(symptom, selectedCategory))}
-                                        >
-                                            <div className="px-3 py-2 flex text-[10pt] font-bold items-center justify-center shrink-0 bg-themeblue3 text-white rounded-md">
-                                                {symptom.icon || "?"}
-                                            </div>
-                                            <div className="h-full flex-1 min-w-0 bg-themewhite text-primary text-[10pt] p-[4px_10px_4px_10px] flex items-center truncate">
-                                                {symptom.text || "Untitled Symptom"}
-                                            </div>
-                                        </div>
-                                    )
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* VIEW 3: Questions View - Show only selected symptom with guidelines */}
-                    {selectedSymptom && selectedCategory && (
-                        <div key="sym" className="flex flex-col h-full w-full">
-                            <div className="flex-1 overflow-y-auto p-4">
-                                <SymptomGuidelines
-                                    symptom={selectedSymptom}
-                                    category={selectedCategory}
-                                    onNavigate={onNavigate}
-                                    guidelineToResult={guidelineToResult}
-                                />
-                            </div>
-                        </div>
-                    )}
-                </>
-            )}
-        </div>
-    )
+    // Fallback — should not be reached in normal usage (mobile uses mobilePanel, desktop uses desktopMode)
+    return null
 }
