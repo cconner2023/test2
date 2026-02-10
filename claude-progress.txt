@@ -219,3 +219,35 @@
 **Git commit:** c0ad89d - feat: replace auto-animate in CategoryList with react-spring useTrail (#15)
 
 **Current progress:** 5/33 features passing (feature #15 also now passing)
+
+---
+
+### Session - Feature #16: Replace auto-animate in App.tsx with react-spring
+**Status: COMPLETED - PASSING**
+
+**What was done:**
+- Verified that the auto-animate replacement in App.tsx was already implemented by the feature #15 session
+- The commit c0ad89d (feature #15) replaced `useAppAnimate` with react-spring `useTransition` + `animated` in App.tsx
+- Specifically: the `contentRef` auto-animate ref was removed, and a `mobileSearchTransition` using `useTransition` was added for the mobile search overlay mount/unmount animation
+- The mobile search overlay now uses `animated.div` with spring-driven opacity instead of CSS `animate-fadeIn`
+
+**Key changes (already in commit c0ad89d):**
+- `src/App.tsx`:
+  - Replaced `import { useAppAnimate } from './Utilities/AnimationConfig'` with `import { useTransition, animated } from '@react-spring/web'`
+  - Replaced `const [contentRef] = useAppAnimate<HTMLDivElement>()` with `useTransition` for mobile search overlay
+  - Removed `ref={contentRef}` from the content area div
+  - Mobile search overlay uses `mobileSearchTransition((style, show) => ...)` with `animated.div`
+  - Spring config: `{ tension: 300, friction: 30 }` matches `SPRING_CONFIGS.snap`
+
+**Verification (this session):**
+- Desktop: Home view → Category select → Symptom select → Algorithm view → Back — all transitions smooth ✅
+- Mobile (390x844): Home → Category → Symptom → Algorithm → Back — all transitions smooth ✅
+- Mobile search overlay: Type "sore" → overlay fades in with search results → clear search → overlay fades out ✅
+- No layout shift or flicker during any transitions ✅
+- Zero console errors across all test flows ✅
+- No mock data patterns in src/ ✅
+- TypeScript compiles clean ✅
+
+**No new commit needed** — the implementation was already in commit c0ad89d from feature #15.
+
+**Current progress:** 6/33 features passing
