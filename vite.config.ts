@@ -56,7 +56,7 @@ export default defineConfig({
           {
             name: 'My Notes',
             short_name: 'My Notes',
-            description: 'View your saved notes',
+            description: 'View notes notes saved to this device',
             url: '/test2/?view=mynotes',
             icons: [
               {

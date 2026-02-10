@@ -19,6 +19,7 @@ import { useNoteRestore } from './Hooks/useNoteRestore'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
 import { useAppAnimate } from './Utilities/AnimationConfig'
 import UpdateNotification from './Components/UpdateNotification'
+import InstallPrompt from './Components/InstallPrompt'
 import StorageErrorToast from './Components/StorageErrorToast'
 import { Settings } from './Components/Settings'
 import { SymptomInfoDrawer } from './Components/SymptomInfoDrawer'
@@ -704,6 +705,7 @@ function AppContent() {
           </div>
         )}
         <UpdateNotification />
+        <InstallPrompt />
         <StorageErrorToast message={storageError} onDismiss={clearStorageError} />
         {/* Import Success Modal */}
         {showImportSuccessModal && (
