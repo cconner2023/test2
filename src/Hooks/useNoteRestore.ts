@@ -3,13 +3,110 @@
 // allowing users to view/edit previously saved triage notes.
 
 import { useCallback } from 'react';
+import { Algorithm } from '../Data/Algorithms';
+import { catData } from '../Data/CatData';
 import type { AlgorithmOptions, dispositionType } from '../Types/AlgorithmTypes';
 import type { CardState } from './useAlgorithm';
 import type { SavedNote } from './useNotesStorage';
 import type { WriteNoteData } from './useNavigation';
 import type { catDataTypes, subCatDataTypes } from '../Types/CatTypes';
-import { catData } from '../Data/CatData';
-import { parseBarcode, findAlgorithmByCode, type ParsedBarcode } from '../Utilities/EncodingUtils';
+
+// Convert a bitmask integer to array of set bit indices
+function bitmaskToIndices(bitmask: number): number[] {
+    const indices: number[] = [];
+    for (let i = 0; i < 32; i++) {
+        if ((bitmask >> i) & 1) {
+            indices.push(i);
+        }
+    }
+    return indices;
+}
+
+interface ParsedBarcode {
+    symptomCode: string;
+    rfSelections: number[];
+    cardEntries: { index: number; selections: number[]; answerIndex: number }[];
+    hpiText: string;
+    flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean };
+}
+
+function parseEncodedText(encodedText: string): ParsedBarcode | null {
+    if (!encodedText.trim()) return null;
+
+    const parts = encodedText.split('|');
+    const result: ParsedBarcode = {
+        symptomCode: '',
+        rfSelections: [],
+        cardEntries: [],
+        hpiText: '',
+        flags: { includeAlgorithm: true, includeDecisionMaking: true, includeHPI: false }
+    };
+
+    let legacyLastCard = -1;
+    let legacySelections: number[] = [];
+
+    // First non-empty part is always the symptom code (e.g. "A1", "F3")
+    // This must be extracted first to avoid prefix collisions with F (flags), etc.
+    const nonEmptyParts = parts.filter(p => p.length > 0);
+    if (nonEmptyParts.length > 0) {
+        result.symptomCode = nonEmptyParts[0];
+    }
+
+    // Parse remaining parts by prefix (skip the first which is the symptom code)
+    for (let partIdx = 1; partIdx < nonEmptyParts.length; partIdx++) {
+        const part = nonEmptyParts[partIdx];
+        const prefix = part[0];
+        const value = part.substring(1);
+
+        if (prefix === 'R') {
+            const bitmask = parseInt(value || '0', 36);
+            result.rfSelections = bitmaskToIndices(bitmask);
+        } else if (prefix === 'H') {
+            try {
+                result.hpiText = decodeURIComponent(atob(value));
+            } catch {
+                try {
+                    result.hpiText = atob(value);
+                } catch {
+                    result.hpiText = decodeURIComponent(value);
+                }
+            }
+        } else if (prefix === 'F') {
+            const flagsNum = parseInt(value, 10);
+            result.flags = {
+                includeAlgorithm: !!(flagsNum & 1),
+                includeDecisionMaking: !!(flagsNum & 2),
+                includeHPI: !!(flagsNum & 4)
+            };
+        } else if (prefix === 'L') {
+            legacyLastCard = parseInt(value, 10);
+        } else if (prefix === 'S') {
+            legacySelections = value === '0' ? [] : value.split('').map(n => parseInt(n, 10));
+        } else if (/^\d/.test(part)) {
+            // New format card entry: index.selections.answer
+            const segments = part.split('.');
+            if (segments.length >= 3) {
+                result.cardEntries.push({
+                    index: parseInt(segments[0], 10),
+                    selections: bitmaskToIndices(parseInt(segments[1], 36)),
+                    answerIndex: parseInt(segments[2], 10)
+                });
+            }
+        }
+    }
+
+    // Legacy format fallback
+    if (result.cardEntries.length === 0 && legacyLastCard > 0) {
+        result.cardEntries = [{
+            index: legacyLastCard,
+            selections: legacySelections,
+            answerIndex: -1
+        }];
+    }
+
+    if (!result.symptomCode) return null;
+    return result;
+}
 
 function findSymptomByCode(code: string): { category: catDataTypes; symptom: subCatDataTypes } | null {
     // Convert "A1" to "A-1" format
@@ -24,6 +121,12 @@ function findSymptomByCode(code: string): { category: catDataTypes; symptom: sub
         }
     }
     return null;
+}
+
+function findAlgorithmByCode(code: string): AlgorithmOptions[] | null {
+    const algorithmId = code.replace(/([A-Z])(\d+)/, '$1-$2');
+    const algorithm = Algorithm.find(item => item.id === algorithmId);
+    return algorithm?.options || null;
 }
 
 /**
@@ -100,7 +203,7 @@ export interface NoteRestoreResult {
 export function useNoteRestore() {
     const restoreNote = useCallback((note: SavedNote): NoteRestoreResult => {
         // 1. Parse the encoded text
-        const parsed = parseBarcode(note.encodedText);
+        const parsed = parseEncodedText(note.encodedText);
         if (!parsed) {
             return { success: false, error: 'Could not parse encoded text' };
         }

@@ -1,7 +1,6 @@
 import { useCallback } from 'react';
 import type { AlgorithmOptions, decisionMakingType } from '../Types/AlgorithmTypes';
 import type { CardState } from './useAlgorithm';
-import { formatRedFlags, formatCardContent, formatDecisionMakingItems } from '../Utilities/NoteFormatters';
 
 interface NoteCaptureOptions {
     includeAlgorithm: boolean;
@@ -29,23 +28,55 @@ export const useNoteCapture = (
             if (!state || !state.isVisible) {
                 return;
             }
-
-            // Red flags card — use shared formatter
+            const cardLines: string[] = [];
+            cardLines.push(`${card.text}`);
             if (card.type === 'rf') {
-                const rfText = formatRedFlags(card, state.selectedOptions);
-                if (rfText) sections.push(rfText);
-                return;
+                if (card.questionOptions && card.questionOptions.length > 0) {
+                    const flags: string[] = [];
+                    card.questionOptions.forEach((option, optionIndex) => {
+                        const flagText = option.text.trim();
+                        if (flagText) {
+                            const isSelected = state.selectedOptions.includes(optionIndex);
+                            flags.push(`  • ${flagText} - [${isSelected ? 'YES' : 'NO'}]`);
+                        }
+                    });
+
+                    if (flags.length > 0) {
+                        sections.push(`Red Flags:\n${flags.join('\n')}`);
+                    }
+                    return;
+                }
+            }
+            if (card.questionOptions && card.questionOptions.length > 0) {
+                card.questionOptions.forEach((option, optionIndex) => {
+                    const optionText = option.text.trim();
+                    if (optionText) {
+                        const isSelected = state.selectedOptions.includes(optionIndex);
+                        cardLines.push(`  • ${optionText} - [${isSelected ? 'YES' : 'NO'}]`);
+                    }
+                });
+            }
+            if (state.answer) {
+                cardLines.push(`Answer: ${state.answer.text}`);
+                if (state.answer.disposition && state.answer.disposition.length > 0) {
+                    const dispositionText = state.answer.disposition
+                        .map(d => `${d.type}: ${d.text}`)
+                        .join('; ');
+                    cardLines.push(`Disposition: ${dispositionText}`);
+                }
             }
 
-            // Regular card — use shared formatter
-            const cardText = formatCardContent(card, state.selectedOptions, state.answer);
-            if (cardText) sections.push(cardText);
+            if (cardLines.length > 1) {
+                sections.push(cardLines.join('\n'));
+            }
         });
         return sections.join('\n');
     }, [algorithmOptions, cardStates]);
 
     // Helper function to get decision making content for a specific disposition
     const getDecisionMakingContent = useCallback((dispositionType: string, dispositionText: string): string => {
+        const sections: string[] = [];
+
         // Find decision making content (same logic as in DecisionMaking component)
         const findTriggeringDecisionMaking = (): decisionMakingType[] => {
             for (let i = cardStates.length - 1; i >= 0; i--) {
@@ -75,7 +106,73 @@ export const useNoteCapture = (
         };
 
         const decisionMakingItems = findTriggeringDecisionMaking();
-        return formatDecisionMakingItems(decisionMakingItems);
+
+        if (decisionMakingItems.length === 0) {
+            return '';
+        }
+
+        // Format each decision making item
+        decisionMakingItems.forEach((item, index) => {
+            const itemLines: string[] = [];
+
+            // Add divider between items (except first)
+            if (index > 0) {
+                itemLines.push('---');
+            }
+
+            // Add DDx if present
+            if (item.ddx && item.ddx.length > 0) {
+                const ddxLabel = item.ddx.length === 1 ? 'DDx:' : 'DDx:';
+                const ddxList = item.ddx.join(', ');
+                itemLines.push(`${ddxLabel} ${ddxList}`);
+            }
+
+            // Add main text
+            if (item.text) {
+                itemLines.push(item.text);
+            }
+
+            // Add ancillary findings
+            if (item.ancillaryFind && item.ancillaryFind.length > 0) {
+                const ancillaryTexts = item.ancillaryFind
+                    .map(anc => anc.modifier)
+                    .filter(Boolean);
+                if (ancillaryTexts.length > 0) {
+                    itemLines.push(`Ancillary: ${ancillaryTexts.join(', ')}`);
+                }
+            }
+
+            // Add special limitations
+            if (item.specLim && item.specLim.length > 0) {
+                const limitations = item.specLim.map(lim => `  • ${lim}`);
+                itemLines.push('Limitations:');
+                itemLines.push(...limitations);
+            }
+
+            // Add associated MCP (nested) - without medications
+            if (item.assocMcp) {
+                const mcpLines: string[] = [];
+                if (item.assocMcp.text) {
+                    mcpLines.push(item.assocMcp.text);
+                }
+                if (item.assocMcp.specLim && item.assocMcp.specLim.length > 0) {
+                    const mcpLimits = item.assocMcp.specLim.map(lim => `  • ${lim}`);
+                    mcpLines.push('Limitations:');
+                    mcpLines.push(...mcpLimits);
+                }
+
+                if (mcpLines.length > 0) {
+                    itemLines.push('Associated MCP:');
+                    mcpLines.forEach(line => itemLines.push(`  ${line}`));
+                }
+            }
+
+            if (itemLines.length > 0) {
+                sections.push(itemLines.join('\n'));
+            }
+        });
+
+        return sections.join('\n\n');
     }, [algorithmOptions, cardStates]);
 
     const generateNote = useCallback((

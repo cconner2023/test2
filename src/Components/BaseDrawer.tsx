@@ -1,8 +1,7 @@
 // components/BaseDrawer.tsx
 import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
-import { useSpring, animated } from '@react-spring/web';
 import { useDrag } from '@use-gesture/react';
-import { GESTURE_THRESHOLDS, SPRING_CONFIGS, VERTICAL_DRAG_CONFIG, clamp } from '../Utilities/GestureUtils';
+import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils';
 
 /** Render prop type: children can receive handleClose for animated close */
 type DrawerRenderProp = (handleClose: () => void) => ReactNode;
@@ -60,21 +59,13 @@ export function BaseDrawer({
     );
     const isMobile = externalIsMobile ?? localIsMobile;
 
+    const [drawerPosition, setDrawerPosition] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
 
     const dragStartPosition = useRef(0);
-    // Track whether an animated close is in progress (from drag or handleClose)
-    // to prevent the declarative spring from overriding back to 100
-    const isClosingRef = useRef(false);
-    // Track StrictMode mount cycle — only the active instance should drive the spring
-    const mountedRef = useRef(true);
-
-    // Imperative react-spring controller for drag/close operations
-    const [springStyle, api] = useSpring(() => ({
-        position: 0,
-        config: SPRING_CONFIGS.snap,
-    }));
+    const animationFrameId = useRef<number>(0);
+    const timeoutRef = useRef<number | null>(null);
 
     // Fallback: only used when isMobile isn't passed externally.
     // matchMedia fires only on breakpoint crossing — no re-renders during normal resize.
@@ -87,137 +78,121 @@ export function BaseDrawer({
         }
     }, [externalIsMobile]);
 
-    // Mount/unmount and body overflow management
     useEffect(() => {
         if (isVisible) {
-            isClosingRef.current = false;
             setIsMounted(true);
+            setDrawerPosition(isMobile ? 0 : 100);
             document.body.style.overflow = 'hidden';
-        }
-    }, [isVisible]);
 
-    // Drive the spring position based on isVisible + isMobile.
-    // StrictMode-safe: cleanup marks ref false, so only the final mount's
-    // timeout fires. This prevents the first mount's animation from competing.
-    useEffect(() => {
-        mountedRef.current = true;
-
-        if (isVisible) {
             if (isMobile) {
-                // Reset to closed position synchronously
-                api.stop();
-                api.set({ position: 0 });
-                // Use setTimeout(0) to escape React's StrictMode double-invoke.
-                // StrictMode runs effect → cleanup → effect. The first effect's
-                // timeout is cancelled by cleanup, so only the second fires.
-                const timer = setTimeout(() => {
-                    if (mountedRef.current) {
-                        api.start({
-                            position: 100,
-                            immediate: false,
-                            config: SPRING_CONFIGS.snap,
-                        });
-                    }
-                }, 0);
-                return () => {
-                    mountedRef.current = false;
-                    clearTimeout(timer);
-                };
-            } else {
-                // Desktop: jump to full position immediately
-                api.start({ position: 100, immediate: true });
+                // Start opening animation for mobile
+                setTimeout(() => {
+                    setDrawerPosition(100);
+                }, 10);
             }
-        } else if (!isClosingRef.current) {
-            // Only animate closed from the isVisible effect if NOT already
-            // closing via drag/handleClose (which handle their own animation)
-            if (isMounted) {
-                api.start({
-                    position: 0,
-                    immediate: !isMobile,
-                    config: SPRING_CONFIGS.snap,
-                    onRest: () => {
-                        setIsMounted(false);
-                        document.body.style.overflow = '';
-                    },
-                });
-            }
+        } else {
+            // Start closing animation
+            setDrawerPosition(0);
+
+            timeoutRef.current = setTimeout(() => {
+                setIsMounted(false);
+                document.body.style.overflow = '';
+            }, 300); // Match animation duration
         }
 
-        return () => { mountedRef.current = false; };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isVisible, isMobile, api]);
+        return () => {
+            if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            if (closeDelayRef.current) clearTimeout(closeDelayRef.current);
+        };
+    }, [isVisible, isMobile]);
+
+    const closeDelayRef = useRef<number>(0);
+
+    const animateToPosition = useCallback((targetPosition: number) => {
+        if (animationFrameId.current) {
+            cancelAnimationFrame(animationFrameId.current);
+        }
+
+        const startPosition = drawerPosition;
+        const startTime = performance.now();
+        const duration = 300;
+
+        const animate = (timestamp: number) => {
+            const elapsed = timestamp - startTime;
+            const progress = Math.min(elapsed / duration, 1);
+            // Cubic ease-out: 1 - (1 - t)^3
+            const easeProgress = 1 - Math.pow(1 - progress, 3);
+            const currentPosition = startPosition + (targetPosition - startPosition) * easeProgress;
+
+            setDrawerPosition(currentPosition);
+
+            if (progress < 1) {
+                animationFrameId.current = requestAnimationFrame(animate);
+            } else {
+                animationFrameId.current = 0;
+                if (targetPosition === 0) {
+                    closeDelayRef.current = window.setTimeout(() => {
+                        onClose();
+                        setIsMounted(false);
+                        closeDelayRef.current = 0;
+                    }, 50);
+                }
+            }
+        };
+
+        animationFrameId.current = requestAnimationFrame(animate);
+    }, [drawerPosition, onClose]);
 
     const bindDrawerDrag = useDrag(
         ({ active, first, movement: [, my], velocity: [, vy], direction: [, dy], event, cancel }) => {
-            // 1. GUARD — only allow drag from drag-zone elements
+            // Only allow drag from drag-zone elements
             if (first) {
                 const target = event?.target as HTMLElement;
                 if (!target?.closest('[data-drag-zone]')) {
                     cancel();
                     return;
                 }
-                // Capture current spring value as drag start position
-                dragStartPosition.current = springStyle.position.get();
+                dragStartPosition.current = drawerPosition;
             }
 
             if (active) {
-                // 2. COMPUTE — apply dampening and clamp to valid range
                 setIsDragging(true);
-                const newPosition = clamp(
-                    dragStartPosition.current - (my * GESTURE_THRESHOLDS.DRAWER_DRAG_DAMPENING),
-                    GESTURE_THRESHOLDS.DRAWER_MIN_POSITION,
-                    100,
-                );
-                // 3. ANIMATE — immediate position update during drag
-                api.start({ position: newPosition, immediate: true });
+                const newPosition = clamp(dragStartPosition.current - (my * 0.8), 20, 100);
+                setDrawerPosition(newPosition);
             } else {
                 setIsDragging(false);
-                const currentPosition = springStyle.position.get();
-
-                // 4. CALLBACK + ANIMATE — close or snap back
-                if ((vy > GESTURE_THRESHOLDS.DRAWER_FLING_VELOCITY && dy > 0) || currentPosition < GESTURE_THRESHOLDS.DRAWER_CLOSE_THRESHOLD) {
-                    // Mark closing so the isVisible effect doesn't interfere
-                    isClosingRef.current = true;
-                    // Close: animate to 0, then fire onClose
-                    api.start({
-                        position: 0,
-                        config: SPRING_CONFIGS.fling,
-                        onRest: () => {
-                            onClose();
-                            setIsMounted(false);
-                            document.body.style.overflow = '';
-                        },
-                    });
+                // Swipe down closes, swipe up stays open
+                if ((vy > GESTURE_THRESHOLDS.DRAWER_FLING_VELOCITY && dy > 0) || drawerPosition < 40) {
+                    animateToPosition(0);
                 } else {
-                    // Snap back to fully open
-                    api.start({ position: 100, config: SPRING_CONFIGS.snap });
+                    animateToPosition(100);
                 }
             }
         },
         {
-            ...VERTICAL_DRAG_CONFIG,
             enabled: isMobile && !disableDrag,
+            axis: 'y',
+            filterTaps: true,
+            pointer: { touch: true },
         }
     );
 
     const handleClose = useCallback(() => {
         if (isMobile) {
-            // Mark closing so the isVisible effect doesn't interfere
-            isClosingRef.current = true;
-            // Animate closed, then fire onClose
-            api.start({
-                position: 0,
-                config: SPRING_CONFIGS.snap,
-                onRest: () => {
-                    onClose();
-                    setIsMounted(false);
-                    document.body.style.overflow = '';
-                },
-            });
+            animateToPosition(0);
         } else {
             onClose();
         }
-    }, [isMobile, api, onClose]);
+    }, [isMobile, animateToPosition, onClose]);
+
+    const mobileStyles = {
+        translateY: 100 - drawerPosition,
+        opacity: Math.min(1, drawerPosition / 60 + 0.2),
+        height: fullHeight,
+        borderRadius: '1.25rem 1.25rem 0 0',
+        boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
+    };
 
     // Desktop position-dependent classes — slide-in from top with opacity
     const desktopAlignClass = desktopPosition === 'left' ? 'left-0' : 'right-0';
@@ -234,36 +209,36 @@ export function BaseDrawer({
         <>
             {/* Mobile Drawer */}
             <div className={mobileOnly ? '' : 'md:hidden'}>
-                {/* Backdrop — animated opacity driven by spring */}
-                <animated.div
-                    className={`fixed inset-0 ${zIndex} bg-black`}
+                {/* Backdrop */}
+                <div
+                    className={`fixed inset-0 ${zIndex} bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
                     style={{
-                        opacity: springStyle.position.to(p => (p / 100) * backdropOpacity),
-                        pointerEvents: springStyle.position.to(p => p > 0 ? 'auto' : 'none') as unknown as string,
+                        opacity: (drawerPosition / 100) * backdropOpacity,
+                        pointerEvents: drawerPosition > 0 ? 'auto' : 'none',
                     }}
                     onClick={handleClose}
                 />
 
-                {/* Drawer Container — animated transform driven by spring */}
-                <animated.div
-                    className={`fixed left-0 right-0 ${zIndex} bg-themewhite3 ${mobileClassName}`}
+                {/* Drawer Container */}
+                <div
+                    className={`fixed left-0 right-0 ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName}`}
                     style={{
-                        height: fullHeight,
-                        maxHeight: fullHeight,
+                        height: mobileStyles.height,
+                        maxHeight: mobileStyles.height,
                         width: '100%',
                         bottom: 0,
-                        transform: springStyle.position.to(p => `translateY(${100 - p}%)`),
-                        opacity: springStyle.position.to(p => Math.min(1, p / 60 + 0.2)),
-                        borderRadius: '1.25rem 1.25rem 0 0',
+                        transform: `translateY(${mobileStyles.translateY}%)`,
+                        opacity: mobileStyles.opacity,
+                        borderRadius: mobileStyles.borderRadius,
                         willChange: isDragging ? 'transform' : 'auto',
-                        boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
+                        boxShadow: mobileStyles.boxShadow,
                         overflow: 'hidden',
                         visibility: isMounted ? 'visible' : 'hidden',
                     }}
                     {...bindDrawerDrag()}
                 >
                     {resolvedChildren}
-                </animated.div>
+                </div>
             </div>
 
             {/* Desktop Modal */}

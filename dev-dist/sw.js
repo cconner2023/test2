@@ -1,1 +1,102 @@
-if(!self.define){let s,a={};const e=(e,p)=>(e=new URL(e+".js",p).href,a[e]||new Promise(a=>{if("document"in self){const s=document.createElement("script");s.src=e,s.onload=a,document.head.appendChild(s)}else s=e,importScripts(e),a()}).then(()=>{let s=a[e];if(!s)throw new Error(`Module ${e} didn’t register its module`);return s}));self.define=(p,i)=>{const n=s||("document"in self?document.currentScript.src:"")||location.href;if(a[n])return;let r={};const l=s=>e(s,n),d={module:{uri:n},exports:r,require:l};a[n]=Promise.all(p.map(s=>d[s]||l(s))).then(s=>(i(...s),r))}}define(["./workbox-1d305bb8"],function(s){"use strict";self.addEventListener("message",s=>{s.data&&"SKIP_WAITING"===s.data.type&&self.skipWaiting()}),s.clientsClaim(),s.precacheAndRoute([{url:"index.html",revision:"421b5ecec8d5f237a7c38515bf426774"},{url:"icon-512.png",revision:"b2194a7c346b97746b127f2d0d9b13aa"},{url:"icon-512-maskable.png",revision:"b2194a7c346b97746b127f2d0d9b13aa"},{url:"icon-192.png",revision:"bbc951fe177cbc880153d776bad72641"},{url:"icon-144.png",revision:"390685e39dd217b4fb4ec6557f694306"},{url:"splash/splash-iphonexsmax-1242x2688.png",revision:"07425950a2bcd6d531c21e661434b263"},{url:"splash/splash-iphonexsmax-1242x2688-dark.png",revision:"b801d16a4b3d734f89ee2f848052691f"},{url:"splash/splash-iphonexr-828x1792.png",revision:"5675b714bc8ecb38da667057a6ab9ec6"},{url:"splash/splash-iphonexr-828x1792-dark.png",revision:"2ea26ee107abb3083c48c3b2eff96d8c"},{url:"splash/splash-iphonex-1125x2436.png",revision:"0e8ec28fd2a5f7d03d8f3ee02195ace6"},{url:"splash/splash-iphonex-1125x2436-dark.png",revision:"6d5ae91648793cd5f623271bc782b976"},{url:"splash/splash-iphone6plus-1242x2208.png",revision:"fb357d619f86a6c82196e95fa63416f4"},{url:"splash/splash-iphone6plus-1242x2208-dark.png",revision:"8f89fd89fee8315a5a88dc051c905472"},{url:"splash/splash-iphone6-750x1334.png",revision:"f28a59e828a1142f61d0dac4d43fad5b"},{url:"splash/splash-iphone6-750x1334-dark.png",revision:"4bd67815f4c00b46277aa022945fff3e"},{url:"splash/splash-iphone5-640x1136.png",revision:"9153d5f8ccb72f57ca04c8241acf7106"},{url:"splash/splash-iphone5-640x1136-dark.png",revision:"0d2c9a24f694b84f92e221ef4e6c7b6b"},{url:"splash/splash-iphone14promax-1290x2796.png",revision:"d51ac0e59513a5dc1fa0863fbc9dd089"},{url:"splash/splash-iphone14promax-1290x2796-dark.png",revision:"ebe6e34394f397d7f5440dc99fa2422e"},{url:"splash/splash-iphone14pro-1179x2556.png",revision:"a6c494d56e82fd1ba04f8c9a3ed6eeeb"},{url:"splash/splash-iphone14pro-1179x2556-dark.png",revision:"e1cc1c002adf4fcd6fc2ecca0470788a"},{url:"splash/splash-iphone12promax-1284x2778.png",revision:"3292d4b0d8847cf155412258ab92c59b"},{url:"splash/splash-iphone12promax-1284x2778-dark.png",revision:"7541b691b7dd8e1d7751f29b83ace12a"},{url:"splash/splash-iphone12mini-1080x2340.png",revision:"2675fe6e663beff16ba1239bff4ea453"},{url:"splash/splash-iphone12mini-1080x2340-dark.png",revision:"9f7e2ee493d95aaf9a7f928462426d28"},{url:"splash/splash-iphone12-1170x2532.png",revision:"1ce14f3250ec33c562ebb3bf1d3b9346"},{url:"splash/splash-iphone12-1170x2532-dark.png",revision:"43906d0d1163b3b6e6ac84f31e6eb107"},{url:"splash/splash-ipadpro129-2048x2732.png",revision:"0ef57b53434b7bc215cef1c4c029e651"},{url:"splash/splash-ipadpro129-2048x2732-dark.png",revision:"c7c81d4a35cff60346d39612ebd85b98"},{url:"splash/splash-ipadpro11-1668x2388.png",revision:"6781249b111332e1e3c3cb2323415278"},{url:"splash/splash-ipadpro11-1668x2388-dark.png",revision:"d568ad7ef8af74e1bd20cb50eba30715"},{url:"splash/splash-ipadpro105-1668x2224.png",revision:"29aca0f309b12440f8863042d2c33156"},{url:"splash/splash-ipadpro105-1668x2224-dark.png",revision:"4698efe08b7283a5d73da1f8875917a9"},{url:"splash/splash-ipadmini-1536x2048.png",revision:"d9490e904017cf238014e6d39d05a7af"},{url:"splash/splash-ipadmini-1536x2048-dark.png",revision:"3ca6f001865d9c4343d99f6ff2f956b3"},{url:"assets/workbox-window.prod.es5-BIl4cyR9.js",revision:null},{url:"assets/index-CsesCZjY.css",revision:null},{url:"assets/index-CfGnlNEo.js",revision:null},{url:"browserconfig.xml",revision:"748ce9d69e47e16baadf07de9a6062c5"},{url:"icon-144.png",revision:"390685e39dd217b4fb4ec6557f694306"},{url:"icon-192.png",revision:"bbc951fe177cbc880153d776bad72641"},{url:"icon-512-maskable.png",revision:"b2194a7c346b97746b127f2d0d9b13aa"},{url:"icon-512.png",revision:"b2194a7c346b97746b127f2d0d9b13aa"},{url:"splash/splash-ipadmini-1536x2048-dark.png",revision:"3ca6f001865d9c4343d99f6ff2f956b3"},{url:"splash/splash-ipadmini-1536x2048.png",revision:"d9490e904017cf238014e6d39d05a7af"},{url:"splash/splash-ipadpro105-1668x2224-dark.png",revision:"4698efe08b7283a5d73da1f8875917a9"},{url:"splash/splash-ipadpro105-1668x2224.png",revision:"29aca0f309b12440f8863042d2c33156"},{url:"splash/splash-ipadpro11-1668x2388-dark.png",revision:"d568ad7ef8af74e1bd20cb50eba30715"},{url:"splash/splash-ipadpro11-1668x2388.png",revision:"6781249b111332e1e3c3cb2323415278"},{url:"splash/splash-ipadpro129-2048x2732-dark.png",revision:"c7c81d4a35cff60346d39612ebd85b98"},{url:"splash/splash-ipadpro129-2048x2732.png",revision:"0ef57b53434b7bc215cef1c4c029e651"},{url:"splash/splash-iphone12-1170x2532-dark.png",revision:"43906d0d1163b3b6e6ac84f31e6eb107"},{url:"splash/splash-iphone12-1170x2532.png",revision:"1ce14f3250ec33c562ebb3bf1d3b9346"},{url:"splash/splash-iphone12mini-1080x2340-dark.png",revision:"9f7e2ee493d95aaf9a7f928462426d28"},{url:"splash/splash-iphone12mini-1080x2340.png",revision:"2675fe6e663beff16ba1239bff4ea453"},{url:"splash/splash-iphone12promax-1284x2778-dark.png",revision:"7541b691b7dd8e1d7751f29b83ace12a"},{url:"splash/splash-iphone12promax-1284x2778.png",revision:"3292d4b0d8847cf155412258ab92c59b"},{url:"splash/splash-iphone14pro-1179x2556-dark.png",revision:"e1cc1c002adf4fcd6fc2ecca0470788a"},{url:"splash/splash-iphone14pro-1179x2556.png",revision:"a6c494d56e82fd1ba04f8c9a3ed6eeeb"},{url:"splash/splash-iphone14promax-1290x2796-dark.png",revision:"ebe6e34394f397d7f5440dc99fa2422e"},{url:"splash/splash-iphone14promax-1290x2796.png",revision:"d51ac0e59513a5dc1fa0863fbc9dd089"},{url:"splash/splash-iphone5-640x1136-dark.png",revision:"0d2c9a24f694b84f92e221ef4e6c7b6b"},{url:"splash/splash-iphone5-640x1136.png",revision:"9153d5f8ccb72f57ca04c8241acf7106"},{url:"splash/splash-iphone6-750x1334-dark.png",revision:"4bd67815f4c00b46277aa022945fff3e"},{url:"splash/splash-iphone6-750x1334.png",revision:"f28a59e828a1142f61d0dac4d43fad5b"},{url:"splash/splash-iphone6plus-1242x2208-dark.png",revision:"8f89fd89fee8315a5a88dc051c905472"},{url:"splash/splash-iphone6plus-1242x2208.png",revision:"fb357d619f86a6c82196e95fa63416f4"},{url:"splash/splash-iphonex-1125x2436-dark.png",revision:"6d5ae91648793cd5f623271bc782b976"},{url:"splash/splash-iphonex-1125x2436.png",revision:"0e8ec28fd2a5f7d03d8f3ee02195ace6"},{url:"splash/splash-iphonexr-828x1792-dark.png",revision:"2ea26ee107abb3083c48c3b2eff96d8c"},{url:"splash/splash-iphonexr-828x1792.png",revision:"5675b714bc8ecb38da667057a6ab9ec6"},{url:"splash/splash-iphonexsmax-1242x2688-dark.png",revision:"b801d16a4b3d734f89ee2f848052691f"},{url:"splash/splash-iphonexsmax-1242x2688.png",revision:"07425950a2bcd6d531c21e661434b263"},{url:"manifest.webmanifest",revision:"a4f17a9bf6d6b737e72db22c523ba083"}],{}),s.cleanupOutdatedCaches(),s.registerRoute(new s.NavigationRoute(s.createHandlerBoundToURL("index.html"))),s.registerRoute(/^https:\/\/fonts\.googleapis\.com\/.*/i,new s.CacheFirst({cacheName:"google-fonts-cache",plugins:[new s.ExpirationPlugin({maxEntries:10,maxAgeSeconds:31536e3}),new s.CacheableResponsePlugin({statuses:[0,200]})]}),"GET")});
+/**
+ * Copyright 2018 Google Inc. All Rights Reserved.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// If the loader is already loaded, just stop.
+if (!self.define) {
+  let registry = {};
+
+  // Used for `eval` and `importScripts` where we can't get script URL by other means.
+  // In both cases, it's safe to use a global var because those functions are synchronous.
+  let nextDefineUri;
+
+  const singleRequire = (uri, parentUri) => {
+    uri = new URL(uri + ".js", parentUri).href;
+    return registry[uri] || (
+      
+        new Promise(resolve => {
+          if ("document" in self) {
+            const script = document.createElement("script");
+            script.src = uri;
+            script.onload = resolve;
+            document.head.appendChild(script);
+          } else {
+            nextDefineUri = uri;
+            importScripts(uri);
+            resolve();
+          }
+        })
+      
+      .then(() => {
+        let promise = registry[uri];
+        if (!promise) {
+          throw new Error(`Module ${uri} didn’t register its module`);
+        }
+        return promise;
+      })
+    );
+  };
+
+  self.define = (depsNames, factory) => {
+    const uri = nextDefineUri || ("document" in self ? document.currentScript.src : "") || location.href;
+    if (registry[uri]) {
+      // Module is already loading or loaded.
+      return;
+    }
+    let exports = {};
+    const require = depUri => singleRequire(depUri, uri);
+    const specialDeps = {
+      module: { uri },
+      exports,
+      require
+    };
+    registry[uri] = Promise.all(depsNames.map(
+      depName => specialDeps[depName] || require(depName)
+    )).then(deps => {
+      factory(...deps);
+      return exports;
+    });
+  };
+}
+define(['./workbox-ca84f546'], (function (workbox) { 'use strict';
+
+  self.addEventListener('message', event => {
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+      self.skipWaiting();
+    }
+  });
+  workbox.clientsClaim();
+
+  /**
+   * The precacheAndRoute() method efficiently caches and responds to
+   * requests for URLs in the manifest.
+   * See https://goo.gl/S9QRab
+   */
+  workbox.precacheAndRoute([{
+    "url": "index.html",
+    "revision": "0.t66to9jd78k"
+  }], {});
+  workbox.cleanupOutdatedCaches();
+  workbox.registerRoute(new workbox.NavigationRoute(workbox.createHandlerBoundToURL("index.html"), {
+    allowlist: [/^\/$/]
+  }));
+  workbox.registerRoute(/^https:\/\/fonts\.googleapis\.com\/.*/i, new workbox.CacheFirst({
+    "cacheName": "google-fonts-cache",
+    plugins: [new workbox.ExpirationPlugin({
+      maxEntries: 10,
+      maxAgeSeconds: 31536000
+    }), new workbox.CacheableResponsePlugin({
+      statuses: [0, 200]
+    })]
+  }), 'GET');
+
+}));

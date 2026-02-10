@@ -17,11 +17,6 @@ interface ColumnAProps {
   panelIndex: number
   onSwipeBack?: () => void
   onSwipeForward?: () => void
-  /** Callback to report carousel swiping state — used by cross-column swipe to avoid conflicts */
-  onSwipingChange?: (isSwiping: boolean) => void
-  /** Whether Column A is the active (visible) column on mobile.
-   *  When false, Column A is hidden (grid 0fr) and the carousel spring may drift. */
-  isActiveColumn?: boolean
 }
 
 export function ColumnA({
@@ -33,8 +28,6 @@ export function ColumnA({
   panelIndex,
   onSwipeBack,
   onSwipeForward,
-  onSwipingChange,
-  isActiveColumn = true,
 }: ColumnAProps) {
   // Mobile: 2 panels (main, subcategory). Desktop: 3 panels (+ symptom info)
   const panelCount = isMobile ? 2 : 3
@@ -43,19 +36,9 @@ export function ColumnA({
     enabled: isMobile,
     panelIndex: Math.min(panelIndex, panelCount - 1),
     panelCount,
-    isVisible: isActiveColumn,
     onSwipeBack,
     onSwipeForward,
   })
-
-  // Report carousel swiping state to parent so cross-column swipe can avoid conflicts
-  const prevSwipingRef = useRef(false)
-  useEffect(() => {
-    if (carousel.isSwiping !== prevSwipingRef.current) {
-      prevSwipingRef.current = carousel.isSwiping
-      onSwipingChange?.(carousel.isSwiping)
-    }
-  }, [carousel.isSwiping, onSwipingChange])
 
   // Scroll-to-top ref for subcategory panel when category changes
   const subcategoryScrollRef = useRef<HTMLDivElement>(null)

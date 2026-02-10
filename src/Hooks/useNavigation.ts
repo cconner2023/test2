@@ -238,20 +238,18 @@ export function useNavigation() {
         // Priority 2: Clear guideline selection
         if (current.selectedGuideline) {
             setState(prev => ({ ...prev, selectedGuideline: null }))
-            return
         }
         // Priority 3: Clear symptom → return to category view
-        if (current.selectedSymptom) {
+        else if (current.selectedSymptom) {
             setState(prev => ({
                 ...prev,
                 selectedSymptom: null,
                 selectedGuideline: null,
                 viewState: 'subcategory'
             }))
-            return
         }
         // Priority 4: Clear category → return to main
-        if (current.selectedCategory) {
+        else if (current.selectedCategory) {
             setState(prev => ({
                 ...prev,
                 viewState: 'main',

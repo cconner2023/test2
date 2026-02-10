@@ -16,7 +16,7 @@ import { useNotesStorage } from './Hooks/useNotesStorage'
 import type { SavedNote } from './Hooks/useNotesStorage'
 import { useNoteRestore } from './Hooks/useNoteRestore'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
-import { useTransition, animated } from '@react-spring/web'
+import { useAppAnimate } from './Utilities/AnimationConfig'
 import UpdateNotification from './Components/UpdateNotification'
 import InstallPrompt from './Components/InstallPrompt'
 import StorageErrorToast from './Components/StorageErrorToast'
@@ -41,20 +41,12 @@ function AppContent() {
   const searchInputRef = useRef<HTMLInputElement>(null!)
   const { theme, toggleTheme } = useTheme()
 
+  const [contentRef] = useAppAnimate<HTMLDivElement>()
+
   const navigation = useNavigation()
   const search = useSearch()
   const notesStorage = useNotesStorage()
   const { restoreNote } = useNoteRestore()
-
-  // react-spring transition for mobile search overlay mount/unmount
-  // Replaces @formkit/auto-animate which animated child DOM mutations on the content container
-  const showMobileSearchOverlay = navigation.isMobile && !!search.searchInput
-  const mobileSearchTransition = useTransition(showMobileSearchOverlay, {
-    from: { opacity: 0 },
-    enter: { opacity: 1 },
-    leave: { opacity: 0 },
-    config: { tension: 300, friction: 30 },
-  })
 
   // Track whether the import shortcut was used to open import in scanning mode
   const [importInitialView, setImportInitialView] = useState<'input' | 'scanning' | undefined>(
@@ -113,26 +105,13 @@ function AppContent() {
     }
   }, [navigation.showNoteImport, importInitialView])
 
-  // Track whether the ColumnA carousel is actively being swiped.
-  // This is shared with the cross-column swipe handler so only one
-  // gesture system processes a swipe at a time.
-  const [isCarouselSwiping, setIsCarouselSwiping] = useState(false)
-  const handleCarouselSwipingChange = useCallback((swiping: boolean) => {
-    setIsCarouselSwiping(swiping)
-  }, [])
-
-  // Unified swipe-back: works on both Column A panels (carousel) and Column B → Column A
-  // viewDepth reflects the total navigation depth: Column A panel index + 1 when in Column B
-  const swipeViewDepth = navigation.isMobileColumnB
-    ? navigation.columnAPanel + 1  // Column B: depth includes all Column A panels + Column B
-    : navigation.columnAPanel       // Column A: depth is the panel index (0 = home, 1 = subcategory)
+  // Cross-column swipe: swipe back from Column B (algorithm) to Column A
   const swipe = useSwipeNavigation({
-    enabled: navigation.isMobile && !search.searchInput && !navigation.isWriteNoteVisible && swipeViewDepth > 0,
-    viewDepth: swipeViewDepth,
+    enabled: navigation.isMobile && navigation.isMobileColumnB && !search.searchInput && !navigation.isWriteNoteVisible,
+    viewDepth: navigation.isMobileColumnB ? 1 : 0,
     onSwipeBack: useCallback(() => {
       navigation.handleBackClick()
     }, [navigation]),
-    isCarouselSwiping,
   })
 
   // When WriteNote closes, only clear the encoded text reference (not the note ID/source/algorithm state)
@@ -515,7 +494,7 @@ function AppContent() {
         </div>
 
         {/* Content area — Unified 2-column grid (A: Navigation | B: Content) */}
-        <div className={`md:h-[94%] h-full relative overflow-hidden ${navigation.isMobile ? 'absolute inset-0' : 'mt-2 mx-2'
+        <div ref={contentRef} className={`md:h-[94%] h-full relative overflow-hidden ${navigation.isMobile ? 'absolute inset-0' : 'mt-2 mx-2'
           }`}>
           <div
             className="h-full grid gap-1"
@@ -523,7 +502,7 @@ function AppContent() {
               gridTemplateColumns: navigation.mainGridTemplate,
               transition: 'grid-template-columns 0.3s ease-in-out',
             }}
-            {...(navigation.isMobile && swipeViewDepth > 0 ? swipe.touchHandlers : {})}
+            {...(navigation.isMobile && navigation.isMobileColumnB ? swipe.touchHandlers : {})}
           >
             {/* Column A: Navigation carousel */}
             <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
@@ -535,8 +514,6 @@ function AppContent() {
                 isMobile={navigation.isMobile}
                 panelIndex={navigation.columnAPanel}
                 onSwipeBack={() => navigation.handleBackClick()}
-                onSwipingChange={handleCarouselSwipingChange}
-                isActiveColumn={!navigation.isMobileColumnB}
               />
             </div>
 
@@ -579,22 +556,19 @@ function AppContent() {
           </div>
 
           {/* Mobile search overlay — rendered on top of grid when searching */}
-          {/* Uses react-spring useTransition for smooth mount/unmount (replaces auto-animate) */}
-          {mobileSearchTransition((style, show) =>
-            show && (
-              <animated.div style={style} className="absolute inset-0 z-20 bg-themewhite">
-                <div className="h-full overflow-y-auto">
-                  <div className="px-2 min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
-                    <SearchResults
-                      results={search.searchResults}
-                      searchTerm={search.searchInput}
-                      onResultClick={handleNavigationClick}
-                      isSearching={search.isSearching}
-                    />
-                  </div>
+          {navigation.isMobile && search.searchInput && (
+            <div className="absolute inset-0 z-20 bg-themewhite animate-fadeIn">
+              <div className="h-full overflow-y-auto">
+                <div className="px-2 min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
+                  <SearchResults
+                    results={search.searchResults}
+                    searchTerm={search.searchInput}
+                    onResultClick={handleNavigationClick}
+                    isSearching={search.isSearching}
+                  />
                 </div>
-              </animated.div>
-            )
+              </div>
+            </div>
           )}
         </div>
         {/* Menu backdrop - rendered at App level to avoid overflow-hidden clipping.

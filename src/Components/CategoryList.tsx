@@ -1,8 +1,7 @@
 // Components/CategoryList.tsx - Updated
 import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes'
 import { catData } from '../Data/CatData'
-import { useTrail, animated } from '@react-spring/web'
-import { SPRING_CONFIGS } from '../Utilities/GestureUtils'
+import { useAppAnimate } from '../Utilities/AnimationConfig'
 
 // Shared shape for guideline-like items (DDX, medcom, stp, gen all have text + optional id)
 export interface GuidelineItemData {
@@ -177,43 +176,6 @@ function NavigationRow({
     )
 }
 
-/** Animated list wrapper using react-spring useTrail for sequential item entrance.
- *  Items animate in with a staggered fade+slide effect on mount and when item count changes. */
-function AnimatedNavigationList<T>({
-    items,
-    keyExtractor,
-    renderItem,
-}: {
-    items: T[]
-    keyExtractor: (item: T) => string | number
-    renderItem: (item: T, index: number) => React.ReactNode
-}) {
-    const trail = useTrail(items.length, {
-        from: { opacity: 0, y: 6 },
-        to: { opacity: 1, y: 0 },
-        config: SPRING_CONFIGS.stiff,
-    })
-
-    return (
-        <>
-            {trail.map((style, index) => {
-                const item = items[index]
-                return (
-                    <animated.div
-                        key={keyExtractor(item)}
-                        style={{
-                            opacity: style.opacity,
-                            transform: style.y.to((y: number) => `translateY(${y}px)`),
-                        }}
-                    >
-                        {renderItem(item, index)}
-                    </animated.div>
-                )
-            })}
-        </>
-    )
-}
-
 interface CategoryListProps {
     selectedCategory: catDataTypes | null
     selectedSymptom: subCatDataTypes | null
@@ -236,6 +198,8 @@ export function CategoryList({
     desktopMode = false,
     mobilePanel,
 }: CategoryListProps) {
+    const [parentRef] = useAppAnimate('fast')
+
     // Helper to convert category to SearchResultType
     const categoryToResult = (category: catDataTypes): SearchResultType => ({
         type: 'category',
@@ -289,18 +253,17 @@ export function CategoryList({
                 return (
                     <div className="flex flex-col h-full w-full">
                         <div className="flex-1 overflow-y-auto pb-4 bg-themewhite">
-                            <AnimatedNavigationList
-                                items={catData.filter(Boolean)}
-                                keyExtractor={(category) => category.id}
-                                renderItem={(category) => (
+                            {catData.map((category) => (
+                                category && (
                                     <NavigationRow
+                                        key={category.id}
                                         icon={category.icon}
                                         text={category.text}
                                         onClick={() => onNavigate(categoryToResult(category))}
                                         className="rounded-md border-b border-themewhite2/90 hover:bg-themewhite2"
                                     />
-                                )}
-                            />
+                                )
+                            ))}
                         </div>
                     </div>
                 )
@@ -308,19 +271,18 @@ export function CategoryList({
                 return (
                     <div className="flex flex-col h-full w-full">
                         <div className="h-full flex-1 overflow-y-auto pb-4 bg-themewhite">
-                            <AnimatedNavigationList
-                                items={(selectedCategory?.contents ?? []).filter(Boolean)}
-                                keyExtractor={(symptom) => symptom.id}
-                                renderItem={(symptom) => (
+                            {selectedCategory?.contents?.map((symptom) => (
+                                symptom && (
                                     <NavigationRow
+                                        key={symptom.id}
                                         icon={symptom.icon || "?"}
                                         text={symptom.text || "Untitled Symptom"}
-                                        onClick={() => onNavigate(symptomToResult(symptom, selectedCategory!))}
+                                        onClick={() => onNavigate(symptomToResult(symptom, selectedCategory))}
                                         className="rounded-sm border-b border-themewhite2/70"
                                         extraContentClassName="bg-themewhite"
                                     />
-                                )}
-                            />
+                                )
+                            ))}
                         </div>
                     </div>
                 )
@@ -346,7 +308,7 @@ export function CategoryList({
     // Shows categories → subcategories → symptom info all stacked vertically
     if (desktopMode) {
         return (
-            <div className="h-full w-full">
+            <div ref={parentRef} className="h-full w-full">
                 {(!catData || !Array.isArray(catData)) ? (
                     <div key="error" className="h-full flex items-center justify-center text-primary">
                         Error loading category data
@@ -355,35 +317,33 @@ export function CategoryList({
                     <div key="desktop-nav" className="flex flex-col h-full w-full">
                         <div className="flex-1 overflow-y-auto pb-4">
                             {/* State 1: No category selected - show all categories */}
-                            {!selectedCategory && (
-                                <AnimatedNavigationList
-                                    items={catData.filter(Boolean)}
-                                    keyExtractor={(category) => category.id}
-                                    renderItem={(category) => (
-                                        <NavigationRow
-                                            icon={category.icon}
-                                            text={category.text}
-                                            onClick={() => onNavigate(categoryToResult(category))}
-                                            className="rounded-md border-b border-themewhite2/90 hover:bg-themewhite2"
-                                        />
-                                    )}
-                                />
-                            )}
+                            {!selectedCategory && catData.map((category) => (
+                                category && (
+                                    <NavigationRow
+                                        key={category.id}
+                                        icon={category.icon}
+                                        text={category.text}
+                                        onClick={() => onNavigate(categoryToResult(category))}
+                                        className="rounded-md border-b border-themewhite2/90 hover:bg-themewhite2"
+                                    />
+                                )
+                            ))}
 
                             {/* State 2: Category selected, no symptom - show its symptoms */}
                             {selectedCategory && !selectedSymptom && (
-                                <AnimatedNavigationList
-                                    items={(selectedCategory.contents ?? []).filter(Boolean)}
-                                    keyExtractor={(symptom) => symptom.id}
-                                    renderItem={(symptom) => (
-                                        <NavigationRow
-                                            icon={symptom.icon || "?"}
-                                            text={symptom.text || "Untitled Symptom"}
-                                            onClick={() => onNavigate(symptomToResult(symptom, selectedCategory))}
-                                            className="rounded-sm border-b border-themewhite2/70 hover:bg-themewhite2"
-                                        />
-                                    )}
-                                />
+                                <>
+                                    {selectedCategory.contents?.map((symptom) => (
+                                        symptom && (
+                                            <NavigationRow
+                                                key={symptom.id}
+                                                icon={symptom.icon || "?"}
+                                                text={symptom.text || "Untitled Symptom"}
+                                                onClick={() => onNavigate(symptomToResult(symptom, selectedCategory))}
+                                                className="rounded-sm border-b border-themewhite2/70 hover:bg-themewhite2"
+                                            />
+                                        )
+                                    ))}
+                                </>
                             )}
 
                             {/* State 3: Symptom selected - show symptom header and guidelines */}

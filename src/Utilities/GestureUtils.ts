@@ -1,48 +1,9 @@
-// Utilities/GestureUtils.ts - Gesture constants, physics helpers, and unified drag patterns
-// Used alongside @use-gesture/react + @react-spring/web for consistent touch handling
-
-import type { UserDragConfig } from '@use-gesture/react'
-
-//
-// ═══════════════════════════════════════════════════════════════════
-// UNIFIED DRAG PATTERN
-// ═══════════════════════════════════════════════════════════════════
-//
-// All useDrag handlers in the app follow the same 4-phase flow:
-//
-//   1. GUARD — Early return if gesture should be ignored
-//      (disabled, tap, wrong element, carousel conflict, etc.)
-//
-//   2. COMPUTE — Calculate position/offset from gesture input
-//      (pixel → percentage, clamp to bounds, apply dampening)
-//
-//   3. ANIMATE — Update spring or position via react-spring api
-//      (immediate: true during drag, animated spring on release)
-//
-//   4. CALLBACK — Fire navigation/action callback on gesture commit
-//      (onSwipeBack, onClose, onReveal — always BEFORE animation starts)
-//
-// Each implementation adapts this flow to its axis and use case:
-//
-//   • useSwipeNavigation  — Horizontal, detection-only (no spring, CSS grid animates)
-//   • useColumnCarousel   — Horizontal, spring-driven panel snapping
-//   • BaseDrawer          — Vertical, spring-driven drawer dismiss
-//   • SwipeableNoteItem   — Horizontal, spring-driven action reveal
-//
-// All implementations:
-//   - Use HORIZONTAL_DRAG_CONFIG or VERTICAL_DRAG_CONFIG for useDrag options
-//   - Reference GESTURE_THRESHOLDS for all threshold/dampening values
-//   - Use SPRING_CONFIGS for all animated transitions
-//   - Fire callbacks synchronously BEFORE animation starts
-//   - Use a commitRef to prevent double-fire on rapid gestures
-//
-// ═══════════════════════════════════════════════════════════════════
+// Utilities/GestureUtils.ts - Gesture constants and physics helpers
+// Used alongside @use-gesture/react for consistent touch handling
 
 /**
  * Shared constants for gesture detection thresholds.
  * Tuned for native-feeling touch interactions on mobile devices.
- *
- * Referenced by all 4 useDrag implementations — no inline threshold values.
  */
 export const GESTURE_THRESHOLDS = {
   /** Minimum movement (px) before committing to a direction */
@@ -63,20 +24,6 @@ export const GESTURE_THRESHOLDS = {
   MIN_DRAG_FOR_VELOCITY: 50,
   /** Page navigation threshold as fraction of container width */
   PAGE_NAV_FRACTION: 0.2,
-  /** Dampening factor for drawer vertical drag (applied to movement) */
-  DRAWER_DRAG_DAMPENING: 0.8,
-  /** Minimum drawer position (%) below which drawer closes on release */
-  DRAWER_CLOSE_THRESHOLD: 40,
-  /** Swipe-to-reveal threshold (px) — minimum swipe to reveal actions */
-  REVEAL_THRESHOLD: 60,
-  /** Swipe-to-reveal: left action panel width (px) */
-  REVEAL_ACTION_WIDTH_LEFT: 180,
-  /** Swipe-to-reveal: right action panel width (px) */
-  REVEAL_ACTION_WIDTH_RIGHT: 80,
-  /** Swipe-to-reveal: overshoot dampening beyond action width */
-  REVEAL_OVERSHOOT_DAMPENING: 0.3,
-  /** Drawer minimum drag position (%) — cannot drag above this */
-  DRAWER_MIN_POSITION: 20,
 } as const
 
 /**
@@ -93,69 +40,6 @@ export const SPRING_CONFIGS = {
   /** Stiff spring for quick resets */
   stiff: { tension: 400, friction: 35 },
 } as const
-
-// ─── Standard useDrag Configuration ────────────────────────────────
-//
-// All useDrag handlers use these base configs to ensure consistency.
-// Each config sets axis locking, tap filtering, and touch-only pointer mode.
-//
-// Usage: spread the base config and add `enabled` per-instance:
-//   useDrag(handler, { ...HORIZONTAL_DRAG_CONFIG, enabled: someCondition })
-
-/** Standard useDrag options for horizontal gestures (carousel, swipe-back, item reveal) */
-export const HORIZONTAL_DRAG_CONFIG: Partial<UserDragConfig> = {
-  axis: 'x',
-  filterTaps: true,
-  pointer: { touch: true },
-  from: () => [0, 0] as [number, number],
-}
-
-/** Standard useDrag options for vertical gestures (drawer drag-to-close) */
-export const VERTICAL_DRAG_CONFIG: Partial<UserDragConfig> = {
-  axis: 'y',
-  filterTaps: true,
-  pointer: { touch: true },
-}
-
-// ─── Drag Commit Helpers ───────────────────────────────────────────
-
-/**
- * Standard commit check for navigation gestures.
- * Tests whether a swipe-back should trigger based on distance OR velocity.
- *
- * Used by: useSwipeNavigation, useColumnCarousel
- */
-export function shouldCommitSwipe(
-  distance: number,
-  velocity: number,
-  direction: number,
-  distanceThreshold: number,
-  velocityThreshold: number = GESTURE_THRESHOLDS.FLING_VELOCITY,
-): boolean {
-  return distance > distanceThreshold || (velocity > velocityThreshold && direction > 0)
-}
-
-/**
- * Apply overshoot dampening for swipe-to-reveal gestures.
- * Applies rubber-band resistance when dragged beyond the action panel width.
- *
- * Used by: SwipeableNoteItem
- */
-export function revealDampedOffset(
-  offset: number,
-  leftWidth: number = GESTURE_THRESHOLDS.REVEAL_ACTION_WIDTH_LEFT,
-  rightWidth: number = GESTURE_THRESHOLDS.REVEAL_ACTION_WIDTH_RIGHT,
-  dampening: number = GESTURE_THRESHOLDS.REVEAL_OVERSHOOT_DAMPENING,
-): number {
-  if (offset > leftWidth) {
-    return leftWidth + (offset - leftWidth) * dampening
-  }
-  if (offset < -rightWidth) {
-    const overshoot = Math.abs(offset) - rightWidth
-    return -(rightWidth + overshoot * dampening)
-  }
-  return offset
-}
 
 // ─── Dampening / Physics ─────────────────────────────────────────
 
