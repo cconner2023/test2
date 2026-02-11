@@ -15,6 +15,7 @@ export interface WriteNoteData {
     selectedSymptom: { icon: string; text: string };
     initialPage?: number;
     initialHpiText?: string;
+    timestamp?: Date | null;
 }
 
 interface NavigationState {
@@ -383,8 +384,12 @@ export function useNavigation() {
         setState(prev => ({
             ...prev,
             showWriteNote: false,
-            writeNoteData: null
+            // Keep writeNoteData so BaseDrawer close animation has content
         }))
+        // Clear data after close animation completes (300ms animation + 50ms buffer)
+        setTimeout(() => {
+            setState(prev => prev.showWriteNote ? prev : { ...prev, writeNoteData: null })
+        }, 350)
     }, [])
 
     // Close mobile menu on resize to desktop — matchMedia only fires on breakpoint crossing

@@ -66,15 +66,30 @@ export function useColumnCarousel({
     })
   }, [api, panelCount])
 
-  // Sync spring when panel index changes externally
+  // Refs for sync effect — prevents effect from re-running when callback identities
+  // change due to parent re-renders (e.g., drawer open/close on desktop).
+  const animateRef = useRef(animateToPanel)
+  animateRef.current = animateToPanel
+  const snapRef = useRef(snapToPanel)
+  snapRef.current = snapToPanel
+
+  // Sync spring when panel index changes externally.
+  // Only depends on panelIndex and isSwiping — callback refs prevent
+  // unnecessary effect re-runs that could cause spring glitches.
   useEffect(() => {
     if (isSwiping) return
     const prev = prevPanelRef.current
     prevPanelRef.current = panelIndex
     if (prev !== panelIndex) {
-      animateToPanel(panelIndex)
+      // Snap immediately for large jumps (e.g., restoring a saved note: panel 0→2).
+      // Animate for single-step navigation (normal user browsing).
+      if (Math.abs(prev - panelIndex) > 1) {
+        snapRef.current(panelIndex)
+      } else {
+        animateRef.current(panelIndex)
+      }
     }
-  }, [panelIndex, isSwiping, animateToPanel])
+  }, [panelIndex, isSwiping])
 
   // Snap immediately to correct panel when becoming visible.
   // Prevents flash of wrong panel during CSS grid expansion from 0fr.

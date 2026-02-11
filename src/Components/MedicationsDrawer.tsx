@@ -63,13 +63,7 @@ export function MedicationsDrawer({
             isVisible={isVisible}
             onClose={onClose}
             fullHeight="90dvh"
-            backdropOpacity={0.3}
             desktopPosition="left"
-            desktopContainerMaxWidth="max-w-315"
-            desktopMaxWidth="max-w-md"
-            desktopPanelPadding=""
-            desktopHeight="h-[70vh]"
-            desktopTopOffset="4.5rem"
             header={{
                 title: selectedMedication ? selectedMedication.text : 'Medications',
                 showBack: !!selectedMedication,

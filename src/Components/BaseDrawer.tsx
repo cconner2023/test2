@@ -77,26 +77,17 @@ interface BaseDrawerProps {
     /** Children can be ReactNode or a render function receiving handleClose */
     children: ReactNode | DrawerRenderProp;
     fullHeight?: string;
-    desktopMaxWidth?: string;
     disableDrag?: boolean;
-    /** Backdrop opacity at full visibility. Default 0.9 */
+    /** Backdrop opacity at full visibility. Default 0.3 */
     backdropOpacity?: number;
-    /** Desktop panel origin position. Default 'right' */
+    /** Desktop panel column. 'right' overlays Column B (55%), 'left' overlays Column A (45%). Default 'right' */
     desktopPosition?: 'left' | 'right';
-    /** Outer container max-width class for desktop. Default 'max-w-315' */
-    desktopContainerMaxWidth?: string;
-    /** Fixed height class for desktop panel. Default '' (auto) */
-    desktopHeight?: string;
     /** If true, only render mobile drawer (no desktop modal). Default false */
     mobileOnly?: boolean;
     /** Extra className for the mobile drawer container */
     mobileClassName?: string;
-    /** Desktop inner panel padding overrides. Default 'py-3 pl-3 pr-5' */
-    desktopPanelPadding?: string;
     /** z-index class for mobile backdrop and drawer. Default 'z-60' */
     zIndex?: string;
-    /** Desktop panel top offset. Default '0.5rem' */
-    desktopTopOffset?: string;
     /** Optional header config. When provided, BaseDrawer renders a standardized
      *  header with drag handle (mobile), title, back button (optional), and
      *  close button (always). Children render below the header. */
@@ -108,26 +99,23 @@ export function BaseDrawer({
     onClose,
     children,
     fullHeight = '90dvh',
-    desktopMaxWidth = 'max-w-md',
     disableDrag = false,
-    backdropOpacity = 0.9,
+    backdropOpacity = 0.3,
     desktopPosition = 'right',
-    desktopContainerMaxWidth = 'max-w-315',
-    desktopHeight = '',
     mobileOnly = false,
     mobileClassName = '',
-    desktopPanelPadding = 'py-3 pl-3 pr-5',
     zIndex = 'z-60',
-    desktopTopOffset = '0.5rem',
     header,
 }: BaseDrawerProps) {
     const [drawerPosition, setDrawerPosition] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
+    const [desktopOpen, setDesktopOpen] = useState(false);
 
     const dragStartPosition = useRef(0);
     const animationFrameId = useRef<number>(0);
     const timeoutRef = useRef<number | null>(null);
+    const desktopOpenRef = useRef<number>(0);
 
     useEffect(() => {
         if (isVisible) {
@@ -139,9 +127,16 @@ export function BaseDrawer({
             setTimeout(() => {
                 setDrawerPosition(100);
             }, 10);
+
+            // Desktop: delay open state so the closed frame renders first,
+            // allowing the CSS transition to animate.
+            desktopOpenRef.current = window.setTimeout(() => {
+                setDesktopOpen(true);
+            }, 10);
         } else {
             // Start closing animation
             setDrawerPosition(0);
+            setDesktopOpen(false);
 
             timeoutRef.current = setTimeout(() => {
                 setIsMounted(false);
@@ -153,6 +148,7 @@ export function BaseDrawer({
             if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
             if (timeoutRef.current) clearTimeout(timeoutRef.current);
             if (closeDelayRef.current) clearTimeout(closeDelayRef.current);
+            if (desktopOpenRef.current) clearTimeout(desktopOpenRef.current);
         };
     }, [isVisible]);
 
@@ -243,9 +239,9 @@ export function BaseDrawer({
         boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
     };
 
-    // Desktop position-dependent classes — slide-in from top with opacity
+    // Desktop column overlay — position and width based on target column
     const desktopAlignClass = desktopPosition === 'left' ? 'left-0' : 'right-0';
-    const desktopOriginClass = desktopPosition === 'left' ? 'origin-top-left' : 'origin-top-right';
+    const desktopWidthClass = desktopPosition === 'left' ? 'w-[45%]' : 'w-[55%]';
 
     // Resolve children separately for mobile (animated close) and desktop (immediate close)
     const mobileChildren = typeof children === 'function'
@@ -307,57 +303,47 @@ export function BaseDrawer({
                 </div>
             </div>
 
-            {/* Desktop Modal */}
+            {/* Desktop Column Overlay */}
             {!mobileOnly && (
                 <div className="hidden md:block">
-                    {/* Backdrop */}
+                    {/* Backdrop — fixed to escape overflow-hidden */}
                     <div
                         className={`fixed inset-0 ${zIndex} bg-black transition-opacity duration-250 ease-out ${
-                            isVisible ? 'opacity-20 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                            desktopOpen ? 'opacity-20 pointer-events-auto' : 'opacity-0 pointer-events-none'
                         }`}
                         onClick={desktopHandleClose}
                     />
 
-                    {/* Panel — positioned relative to the max-w-315 content container */}
+                    {/* Panel — absolute within parent container (requires parent position: relative) */}
                     <div
-                        className={`fixed inset-x-0 top-0 ${zIndex} flex justify-center pointer-events-none`}
-                        style={{ paddingTop: desktopTopOffset }}
+                        className={`absolute ${desktopAlignClass} top-0 bottom-0 ${desktopWidthClass} ${zIndex}
+                            flex flex-col rounded-md border border-tertiary/20
+                            shadow-lg shadow-black/8 backdrop-blur-xl bg-themewhite3/95
+                            transform-gpu overflow-hidden text-primary/80 text-sm`}
+                        style={{
+                            transition: 'opacity 250ms cubic-bezier(0.25, 0.1, 0.25, 1), transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
+                            opacity: desktopOpen ? 1 : 0,
+                            transform: desktopOpen ? 'scale(1)' : 'scale(0.95)',
+                            transformOrigin: desktopPosition === 'left' ? 'top left' : 'top right',
+                            pointerEvents: desktopOpen ? 'auto' : 'none',
+                        }}
+                        onClick={(e) => e.stopPropagation()}
                     >
-                        <div className={`${desktopContainerMaxWidth} w-full relative`}>
-                            <div
-                                className={`absolute ${desktopAlignClass} ${desktopPanelPadding}
-                flex flex-col rounded-xl border border-tertiary/20
-                shadow-lg shadow-black/8 backdrop-blur-xl bg-themewhite3/95
-                transform-gpu overflow-hidden text-primary/80 text-sm
-                ${desktopOriginClass} ${desktopMaxWidth} w-full ${desktopHeight || 'h-auto'}
-                pointer-events-auto`}
-                                style={{
-                                    transition: 'opacity 250ms cubic-bezier(0.25, 0.1, 0.25, 1), transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
-                                    opacity: isVisible ? 1 : 0,
-                                    transform: isVisible
-                                        ? 'translateY(0) scale(1)'
-                                        : `translateY(-8px) scale(0.97)`,
-                                    pointerEvents: isVisible ? 'auto' : 'none',
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                {header && (
-                                    <DrawerHeader
-                                        title={header.title}
-                                        showBack={header.showBack}
-                                        onBack={header.onBack}
-                                        badge={header.badge}
-                                        onClose={desktopHandleClose}
-                                        isMobile={false}
-                                    />
-                                )}
-                                {header ? (
-                                    <div className="flex-1 min-h-0 overflow-hidden">
-                                        {desktopChildren}
-                                    </div>
-                                ) : desktopChildren}
+                        {header && (
+                            <DrawerHeader
+                                title={header.title}
+                                showBack={header.showBack}
+                                onBack={header.onBack}
+                                badge={header.badge}
+                                onClose={desktopHandleClose}
+                                isMobile={false}
+                            />
+                        )}
+                        {header ? (
+                            <div className="flex-1 min-h-0 overflow-hidden">
+                                {desktopChildren}
                             </div>
-                        </div>
+                        ) : desktopChildren}
                     </div>
                 </div>
             )}

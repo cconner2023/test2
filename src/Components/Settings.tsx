@@ -1,12 +1,14 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useDrag } from '@use-gesture/react';
 import { useSpring, animated } from '@react-spring/web';
-import { Moon, Sun, Shield, HelpCircle, ChevronUp, User, ChevronRight, Bug, PlusCircle, RefreshCw, FileText, Trash2, Share2, CheckSquare, Square, Eye, ClipboardCopy } from 'lucide-react';
+import { Moon, Sun, Shield, HelpCircle, ChevronUp, User, ChevronRight, Bug, PlusCircle, RefreshCw, FileText, Trash2, Share2, CheckSquare, Eye, ClipboardCopy } from 'lucide-react';
 import { ReleaseNotes, type ReleaseNoteTypes } from '../Data/Release';
 import { BaseDrawer } from './BaseDrawer';
 import type { SavedNote } from '../Hooks/useNotesStorage';
 import { useNoteShare } from '../Hooks/useNoteShare';
 import { GESTURE_THRESHOLDS, SPRING_CONFIGS, clamp, dampedOffset } from '../Utilities/GestureUtils';
+import { getColorClasses } from '../Utilities/ColorUtilities';
+import type { dispositionType } from '../Types/AlgorithmTypes';
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -14,7 +16,7 @@ interface SettingsDrawerProps {
     isDarkMode: boolean;
     onToggleTheme: () => void;
     isMobile?: boolean;
-    initialPanel?: 'main' | 'my-notes';
+    initialPanel?: 'main' | 'my-notes' | 'release-notes';
     initialSelectedId?: string | null;
     notes?: SavedNote[];
     onDeleteNote?: (noteId: string) => void;
@@ -53,14 +55,6 @@ const formatDate = (isoStr: string) => {
     } catch {
         return 'Unknown date';
     }
-};
-
-const getDispositionColor = (type: string) => {
-    if (type.includes('I') && !type.includes('II') && !type.includes('III') && !type.includes('IV')) return 'bg-red-500/10 text-red-600';
-    if (type.includes('II') && !type.includes('III') && !type.includes('IV')) return 'bg-yellow-500/10 text-yellow-700';
-    if (type.includes('III')) return 'bg-green-500/10 text-green-600';
-    if (type.includes('IV')) return 'bg-blue-500/10 text-blue-600';
-    return 'bg-tertiary/8 text-tertiary/60';
 };
 
 /* ────────────────────────────────────────────────────────────
@@ -319,13 +313,11 @@ const SwipeableNoteItem = ({
                 onClick={handleTap}
             >
                 <div className="flex items-center gap-3 px-3 py-3">
-                    <div className="shrink-0">
-                        {isSelected ? (
+                    {isSelected && (
+                        <div className="shrink-0">
                             <CheckSquare size={18} className="text-themeblue3" />
-                        ) : (
-                            <Square size={18} className="text-tertiary/30" />
-                        )}
-                    </div>
+                        </div>
+                    )}
                     <div className="shrink-0 w-8 h-8 rounded-full bg-themeblue3/10 flex items-center justify-center text-sm">
                         {note.symptomIcon || '\u{1F4CB}'}
                     </div>
@@ -335,7 +327,7 @@ const SwipeableNoteItem = ({
                                 {note.symptomText || 'Note'}
                             </p>
                             {note.dispositionType && (
-                                <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${getDispositionColor(note.dispositionType)}`}>
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${getColorClasses(note.dispositionType as dispositionType['type']).dispositionBadge}`}>
                                     {note.dispositionType}
                                 </span>
                             )}
@@ -504,13 +496,11 @@ const NoteItemSettings = ({
             onClick={() => onToggleSelect(note.id)}
         >
             <div className="flex items-center gap-3 px-3 py-3">
-                <div className="shrink-0">
-                    {isSelected ? (
+                {isSelected && (
+                    <div className="shrink-0">
                         <CheckSquare size={18} className="text-themeblue3" />
-                    ) : (
-                        <Square size={18} className="text-tertiary/30" />
-                    )}
-                </div>
+                    </div>
+                )}
                 <div className="shrink-0 w-8 h-8 rounded-full bg-themeblue3/10 flex items-center justify-center text-sm">
                     {note.symptomIcon || '\u{1F4CB}'}
                 </div>
@@ -520,7 +510,7 @@ const NoteItemSettings = ({
                             {note.symptomText || 'Note'}
                         </p>
                         {note.dispositionType && (
-                            <span className="text-[10px] text-tertiary/60 bg-tertiary/8 px-1.5 py-0.5 rounded shrink-0">
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${getColorClasses(note.dispositionType as dispositionType['type']).dispositionBadge}`}>
                                 {note.dispositionType}
                             </span>
                         )}
@@ -937,13 +927,6 @@ export const Settings = ({
             isVisible={isVisible}
             onClose={() => { setActivePanel('main'); setSlideDirection(''); onClose(); }}
             fullHeight="90dvh"
-            backdropOpacity={0.9}
-            desktopPosition="right"
-            desktopContainerMaxWidth="max-w-315"
-            desktopMaxWidth="max-w-sm"
-            desktopPanelPadding=""
-            desktopHeight="h-[550px]"
-            desktopTopOffset="4.5rem"
             disableDrag={false}
             header={headerConfig}
         >

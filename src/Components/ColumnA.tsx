@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, memo } from 'react'
 import { animated } from '@react-spring/web'
 import { CategoryList } from './CategoryList'
 import { useColumnCarousel } from '../Hooks/useColumnCarousel'
@@ -21,7 +21,7 @@ interface ColumnAProps {
   onSwipeForward?: () => void
 }
 
-export function ColumnA({
+export const ColumnA = memo(function ColumnA({
   selectedCategory,
   selectedSymptom,
   selectedGuideline,
@@ -121,4 +121,4 @@ export function ColumnA({
       </animated.div>
     </div>
   )
-}
+})

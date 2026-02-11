@@ -3,7 +3,6 @@ import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes'
 import type { CardState } from '../Hooks/useAlgorithm';
 import { useNoteCapture } from '../Hooks/useNoteCapture';
 import { getColorClasses } from '../Utilities/ColorUtilities';
-import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils';
 import { TextButton } from './TextButton';
 import { NoteBarcodeGenerator } from './Barcode';
 import { DecisionMaking } from './DecisionMaking';
@@ -24,6 +23,7 @@ export interface NoteSaveData {
 }
 
 interface WriteNoteProps {
+    isVisible: boolean;
     disposition: {
         type: DispositionType;
         text: string;
@@ -46,9 +46,11 @@ interface WriteNoteProps {
     initialHpiText?: string;
     noteSource?: string | null;
     onAfterSave?: () => void;
+    timestamp?: Date | null;
 }
 
 export const WriteNotePage = ({
+    isVisible,
     disposition,
     algorithmOptions = [],
     cardStates = [],
@@ -64,6 +66,7 @@ export const WriteNotePage = ({
     initialHpiText = '',
     noteSource = null,
     onAfterSave,
+    timestamp = null,
 }: WriteNoteProps) => {
     // Note content state
     const [note, setNote] = useState<string>(initialHpiText);
@@ -71,6 +74,10 @@ export const WriteNotePage = ({
     const [includeAlgorithm, setIncludeAlgorithm] = useState<boolean>(true);
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState<boolean>(true);
     const [includeHPI, setIncludeHPI] = useState<boolean>(!!initialHpiText);
+
+    // Saved note timestamp — preserved from the original note, cleared on content changes
+    const [noteTimestamp, setNoteTimestamp] = useState<Date | null>(timestamp);
+    const isFirstOptionChange = useRef(true);
     const [encodedValue, setEncodedValue] = useState<string>('');
     const [isCopied, setIsCopied] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
@@ -82,26 +89,16 @@ export const WriteNotePage = ({
 
     // Page navigation state (0=Decision Making, 1=Write Note, 2=View Note, 3=Share Note)
     const [currentPage, setCurrentPage] = useState(initialPage);
-
-    // Desktop expansion state for smooth animation
-    const [desktopExpanded, setDesktopExpanded] = useState(false);
+    const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
 
     // Refs
     const inputRef = useRef<HTMLTextAreaElement>(null);
-    const contentRef = useRef<HTMLDivElement>(null);
-    const carouselRef = useRef<HTMLDivElement>(null);
 
-    // Animate carousel to currentPage (button nav or swipe completion)
-    useEffect(() => {
-        if (!carouselRef.current) return;
-        carouselRef.current.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-        carouselRef.current.style.transform = `translateX(${-currentPage * 100}%)`;
-    }, [currentPage]);
-
-    // Ref-based drag state — no React re-renders during gesture
+    // Ref-based drag state for mobile swipe — no React re-renders during gesture
     const dragRef = useRef<{
         startX: number;
         startY: number;
+        lastX: number;
         locked: boolean | null; // null = undecided, true = horizontal, false = vertical
     } | null>(null);
     const currentPageRef = useRef(currentPage);
@@ -111,17 +108,6 @@ export const WriteNotePage = ({
     const { generateNote } = useNoteCapture(algorithmOptions, cardStates);
     const colors = getColorClasses(disposition.type);
 
-    // --- Desktop mount animation ---
-    useEffect(() => {
-        if (!isMobile) {
-            requestAnimationFrame(() => {
-                requestAnimationFrame(() => {
-                    setDesktopExpanded(true);
-                });
-            });
-        }
-    }, [isMobile]);
-
     // --- Copied state auto-revert ---
     useEffect(() => {
         if (isCopied) {
@@ -130,22 +116,26 @@ export const WriteNotePage = ({
         }
     }, [isCopied]);
 
+    // --- Clear saved timestamp when note content options change (skip initial render) ---
+    useEffect(() => {
+        if (isFirstOptionChange.current) {
+            isFirstOptionChange.current = false;
+            return;
+        }
+        setNoteTimestamp(null);
+    }, [includeAlgorithm, includeDecisionMaking, includeHPI, note]);
+
     // --- Preview note generation (eagerly updates so content is ready before navigating to View Note) ---
     useEffect(() => {
         const result = generateNote(
             { includeAlgorithm, includeDecisionMaking, customNote: includeHPI ? note : '' },
             disposition.type,
             disposition.text,
-            selectedSymptom
+            selectedSymptom,
+            noteTimestamp,
         );
         setPreviewNote(result.fullNote);
-    }, [note, includeAlgorithm, includeDecisionMaking, includeHPI, generateNote, disposition, selectedSymptom]);
-
-    // --- Close handler (animate out then unmount) ---
-    const handleDesktopClose = useCallback(() => {
-        setDesktopExpanded(false);
-        setTimeout(() => onExpansionChange(false), 400);
-    }, [onExpansionChange]);
+    }, [note, includeAlgorithm, includeDecisionMaking, includeHPI, generateNote, disposition, selectedSymptom, noteTimestamp]);
 
     // --- Copy handler ---
     const handleCopy = useCallback((text: string) => {
@@ -233,23 +223,36 @@ export const WriteNotePage = ({
         inputRef.current?.focus();
     };
 
+    // --- Slide animation helper (mirrors Settings pattern) ---
+    const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
+        setSlideDirection(direction);
+        setTimeout(() => setSlideDirection(''), 300);
+    }, []);
+
     // --- Page navigation ---
     const handleNext = useCallback(() => {
-        setCurrentPage(prev => Math.min(TOTAL_PAGES - 1, prev + 1));
-    }, []);
+        setCurrentPage(prev => {
+            if (prev >= TOTAL_PAGES - 1) return prev;
+            handleSlideAnimation('left');
+            return prev + 1;
+        });
+    }, [handleSlideAnimation]);
 
     const handlePageBack = useCallback(() => {
-        setCurrentPage(prev => Math.max(0, prev - 1));
-    }, []);
+        setCurrentPage(prev => {
+            if (prev <= 0) return prev;
+            handleSlideAnimation('right');
+            return prev - 1;
+        });
+    }, [handleSlideAnimation]);
 
-    // ========== PAGE SWIPE (horizontal, mobile only) — direct touch handlers ==========
+    // ========== PAGE SWIPE (horizontal, mobile only) — detect direction, trigger slide ==========
     const handleSwipeStart = useCallback((e: React.TouchEvent) => {
         if (!isMobile) return;
-        // Skip interactive elements — taps on toggles/buttons/inputs must not start a swipe
         const t = e.target as HTMLElement;
         if (t.closest('button, textarea, input, select, [role="checkbox"], [role="button"], [role="slider"]')) return;
         const touch = e.touches[0];
-        dragRef.current = { startX: touch.clientX, startY: touch.clientY, locked: null };
+        dragRef.current = { startX: touch.clientX, startY: touch.clientY, lastX: touch.clientX, locked: null };
     }, [isMobile]);
 
     const handleSwipeMove = useCallback((e: React.TouchEvent) => {
@@ -264,22 +267,12 @@ export const WriteNotePage = ({
         if (d.locked === null) {
             if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
             d.locked = Math.abs(dx) > Math.abs(dy);
-            if (!d.locked) { dragRef.current = null; return; } // vertical — bail
+            if (!d.locked) { dragRef.current = null; return; }
         }
         if (!d.locked) return;
 
+        d.lastX = touch.clientX;
         e.preventDefault();
-        const page = currentPageRef.current;
-        let dragX = dx * GESTURE_THRESHOLDS.PAGE_DRAG_DAMPENING;
-        // Edge resistance on first/last page
-        if (page === 0 && dragX > 0) dragX *= GESTURE_THRESHOLDS.EDGE_RESISTANCE;
-        if (page === TOTAL_PAGES - 1 && dragX < 0) dragX *= GESTURE_THRESHOLDS.EDGE_RESISTANCE;
-
-        // Direct DOM update — zero React re-renders during drag
-        if (carouselRef.current) {
-            carouselRef.current.style.transition = 'none';
-            carouselRef.current.style.transform = `translateX(calc(${-page * 100}% + ${dragX}px))`;
-        }
     }, []);
 
     const handleSwipeEnd = useCallback(() => {
@@ -287,28 +280,18 @@ export const WriteNotePage = ({
         dragRef.current = null;
         if (!d || d.locked !== true) return;
 
+        const swipeDx = d.lastX - d.startX;
         const page = currentPageRef.current;
-        const containerWidth = contentRef.current?.clientWidth || 300;
-        const threshold = containerWidth * GESTURE_THRESHOLDS.PAGE_NAV_FRACTION;
 
-        // Re-read final offset from the DOM transform
-        const matrix = carouselRef.current ? new DOMMatrix(getComputedStyle(carouselRef.current).transform) : null;
-        const currentX = matrix ? matrix.m41 : 0;
-        const pageX = -page * containerWidth;
-        const dragOffset = currentX - pageX;
-
-        if (dragOffset < -threshold && page < TOTAL_PAGES - 1) {
+        // Swipe left (negative dx) → next page; swipe right (positive dx) → previous page
+        if (swipeDx < -40 && page < TOTAL_PAGES - 1) {
+            handleSlideAnimation('left');
             setCurrentPage(page + 1);
-        } else if (dragOffset > threshold && page > 0) {
+        } else if (swipeDx > 40 && page > 0) {
+            handleSlideAnimation('right');
             setCurrentPage(page - 1);
-        } else {
-            // Snap back — re-enable transition and reset position
-            if (carouselRef.current) {
-                carouselRef.current.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
-                carouselRef.current.style.transform = `translateX(${-page * 100}%)`;
-            }
         }
-    }, []);
+    }, [handleSlideAnimation]);
 
     const renderContent = (closeHandler: () => void) => (
         <>
@@ -367,9 +350,8 @@ export const WriteNotePage = ({
                 </button>
             </div>
 
-            {/* Swipeable Content Area */}
+            {/* Content Area */}
             <div
-                ref={contentRef}
                 className="flex-1 overflow-hidden relative"
                 style={{ touchAction: isMobile ? 'pan-y' : 'auto' }}
                 onTouchStart={isMobile ? handleSwipeStart : undefined}
@@ -377,83 +359,86 @@ export const WriteNotePage = ({
                 onTouchEnd={isMobile ? handleSwipeEnd : undefined}
                 onTouchCancel={isMobile ? handleSwipeEnd : undefined}
             >
-                <div
-                    ref={carouselRef}
-                    className="flex h-full"
-                    style={{ transform: `translateX(${-currentPage * 100}%)` }}
-                >
+                <SlideWrapper slideDirection={slideDirection}>
                     {/* Page 0: Decision Making */}
-                    <div key="page-0-decision" className="w-full h-full shrink-0 overflow-y-auto">
-                        <DecisionMaking
-                            algorithmOptions={algorithmOptions}
-                            cardStates={cardStates}
-                            disposition={disposition}
-                            dispositionType={disposition.type}
-                        />
-                    </div>
+                    {currentPage === 0 && (
+                        <div className="w-full h-full overflow-y-auto">
+                            <DecisionMaking
+                                algorithmOptions={algorithmOptions}
+                                cardStates={cardStates}
+                                disposition={disposition}
+                                dispositionType={disposition.type}
+                            />
+                        </div>
+                    )}
 
                     {/* Page 1: Write Note Options */}
-                    <div key="page-1-write" className={`w-full h-full shrink-0 overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
-                        <div className="space-y-6">
-                            <div className="p-4">
-                                <div className="text-[10pt] font-normal text-primary mb-3">Note Content:</div>
-                                <div className="space-y-3">
-                                    <ToggleOption checked={includeAlgorithm} onChange={() => setIncludeAlgorithm(!includeAlgorithm)} label="Algorithm" colors={colors} />
-                                    <ToggleOption checked={includeDecisionMaking} onChange={() => setIncludeDecisionMaking(!includeDecisionMaking)} label="Decision Making" colors={colors} />
+                    {currentPage === 1 && (
+                        <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
+                            <div className="space-y-6">
+                                <div className="p-4">
+                                    <div className="text-[10pt] font-normal text-primary mb-3">Note Content:</div>
+                                    <div className="space-y-3">
+                                        <ToggleOption checked={includeAlgorithm} onChange={() => setIncludeAlgorithm(!includeAlgorithm)} label="Algorithm" colors={colors} />
+                                        <ToggleOption checked={includeDecisionMaking} onChange={() => setIncludeDecisionMaking(!includeDecisionMaking)} label="Decision Making" colors={colors} />
 
-                                    {!includeHPI && (
-                                        <ToggleOption
-                                            checked={includeHPI}
-                                            onChange={() => { setIncludeHPI(true); setTimeout(() => inputRef.current?.focus(), 100); }}
-                                            label="HPI or other clinical note"
-                                            colors={colors}
-                                        />
-                                    )}
+                                        {!includeHPI && (
+                                            <ToggleOption
+                                                checked={includeHPI}
+                                                onChange={() => { setIncludeHPI(true); setTimeout(() => inputRef.current?.focus(), 100); }}
+                                                label="HPI or other clinical note"
+                                                colors={colors}
+                                            />
+                                        )}
 
-                                    {includeHPI && (
-                                        <div>
-                                            <div className="flex items-center justify-center bg-themewhite text-tertiary rounded-md border border-themeblue3/10 shadow-xs transition-colors duration-200 focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
-                                                <textarea
-                                                    ref={inputRef}
-                                                    value={note}
-                                                    onChange={(e) => setNote(e.target.value)}
-                                                    className="text-tertiary bg-transparent outline-none text-[16px] md:text-[8pt] w-full px-4 py-2 rounded-l-full min-w-0 resize-none h-10 leading-5"
-                                                />
-                                                <div
-                                                    className="flex items-center justify-center px-2 py-2 bg-transparent stroke-themeblue3 cursor-pointer transition-colors duration-200 shrink-0"
-                                                    onClick={handleClearNoteAndHide}
-                                                    title="Remove HPI and clear notes"
-                                                    aria-label="Remove HPI and clear notes"
-                                                >
-                                                    <svg className="h-5 w-5 stroke-themeblue1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                                    </svg>
+                                        {includeHPI && (
+                                            <div>
+                                                <div className="flex items-center justify-center bg-themewhite text-tertiary rounded-md border border-themeblue3/10 shadow-xs transition-colors duration-200 focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
+                                                    <textarea
+                                                        ref={inputRef}
+                                                        value={note}
+                                                        onChange={(e) => setNote(e.target.value)}
+                                                        className="text-tertiary bg-transparent outline-none text-[16px] md:text-[8pt] w-full px-4 py-2 rounded-l-full min-w-0 resize-none h-10 leading-5"
+                                                    />
+                                                    <div
+                                                        className="flex items-center justify-center px-2 py-2 bg-transparent stroke-themeblue3 cursor-pointer transition-colors duration-200 shrink-0"
+                                                        onClick={handleClearNoteAndHide}
+                                                        title="Remove HPI and clear notes"
+                                                        aria-label="Remove HPI and clear notes"
+                                                    >
+                                                        <svg className="h-5 w-5 stroke-themeblue1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                                        </svg>
+                                                    </div>
+                                                </div>
+                                                <div className="flex justify-between items-center mt-2">
+                                                    <p className="text-xs text-secondary italic">Enter your HPI or other clinical notes above</p>
                                                 </div>
                                             </div>
-                                            <div className="flex justify-between items-center mt-2">
-                                                <p className="text-xs text-secondary italic">Enter your HPI or other clinical notes above</p>
-                                            </div>
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Page 2: View Note */}
-                    <div key="page-2-view" className={`w-full h-full shrink-0 overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
-                        <div className="space-y-6">
-                            <div className="relative">
-                                <div className="w-full max-h-96 p-3 rounded-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap overflow-y-auto">
-                                    {previewNote || "No content selected"}
+                    {currentPage === 2 && (
+                        <div className={`w-full h-full overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
+                            <div className="space-y-6">
+                                <div className="relative">
+                                    <div className="w-full max-h-96 p-3 rounded-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap overflow-y-auto">
+                                        {previewNote || "No content selected"}
+                                    </div>
+                                    <CopyButton onClick={() => handleCopy(previewNote)} title="Copy note to clipboard" />
                                 </div>
-                                <CopyButton onClick={() => handleCopy(previewNote)} title="Copy note to clipboard" />
                             </div>
                         </div>
-                    </div>
+                    )}
 
                     {/* Page 3: Share Note */}
-                    <div key="page-3-share" className={`w-full h-full shrink-0 overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
+                    {currentPage === 3 && (
+                        <div className={`w-full h-full overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                         <div className="space-y-6">
                             <div className="text-[10pt] font-normal text-primary">Share Encoded Note</div>
                             <div className="relative">
@@ -575,7 +560,8 @@ export const WriteNotePage = ({
                             )}
                         </div>
                     </div>
-                </div>
+                    )}
+                </SlideWrapper>
 
                 {/* Copied toast */}
                 {isCopied && (
@@ -611,41 +597,39 @@ export const WriteNotePage = ({
         </>
     );
 
-    // ========== MOBILE: Use BaseDrawer ==========
-    if (isMobile) {
-        return (
-            <BaseDrawer
-                isVisible={true}
-                onClose={() => onExpansionChange(false)}
-                fullHeight="90dvh"
-                backdropOpacity={0.3}
-                mobileOnly={true}
-                mobileClassName="flex flex-col bg-themewhite2"
-            >
-                {(handleClose) => renderContent(handleClose)}
-            </BaseDrawer>
-        );
-    }
-
-    // ========== DESKTOP: Inline expanded panel (no BaseDrawer needed) ==========
     return (
-        <div className="h-full w-full relative">
-            <div
-                className="h-full w-full rounded-md bg-themewhite2 overflow-hidden flex flex-col"
-                style={{
-                    transform: desktopExpanded ? 'scale(1) translateY(0)' : 'scale(0.95) translateY(20px)',
-                    opacity: desktopExpanded ? 1 : 0,
-                    transition: 'all 300ms cubic-bezier(0.175, 0.885, 0.32, 1.275)',
-                    transformOrigin: 'bottom center',
-                }}
-            >
-                {renderContent(handleDesktopClose)}
-            </div>
-        </div>
+        <BaseDrawer
+            isVisible={isVisible}
+            onClose={() => onExpansionChange(false)}
+            fullHeight="90dvh"
+            mobileClassName="flex flex-col bg-themewhite2"
+        >
+            {(handleClose) => renderContent(handleClose)}
+        </BaseDrawer>
     );
 };
 
 // ========== HELPER COMPONENTS ==========
+
+const SlideWrapper = ({
+    children,
+    slideDirection
+}: {
+    children: React.ReactNode;
+    slideDirection: 'left' | 'right' | '';
+}) => {
+    const slideClasses = {
+        '': '',
+        'left': 'animate-slide-in-left',
+        'right': 'animate-slide-in-right'
+    };
+
+    return (
+        <div className={`h-full w-full ${slideClasses[slideDirection]}`}>
+            {children}
+        </div>
+    );
+};
 
 const ToggleOption: React.FC<{
     checked: boolean;

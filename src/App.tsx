@@ -16,7 +16,6 @@ import { useNotesStorage } from './Hooks/useNotesStorage'
 import type { SavedNote } from './Hooks/useNotesStorage'
 import { useNoteRestore } from './Hooks/useNoteRestore'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
-import { useAppAnimate } from './Utilities/AnimationConfig'
 import UpdateNotification from './Components/UpdateNotification'
 import InstallPrompt from './Components/InstallPrompt'
 import StorageErrorToast from './Components/StorageErrorToast'
@@ -35,11 +34,18 @@ const _initialViewParam = (() => {
   return view
 })()
 
+// Post-update navigation: capture and clear the flag set before reload
+const _postUpdateNav = (() => {
+  try {
+    const nav = localStorage.getItem('postUpdateNav')
+    if (nav) localStorage.removeItem('postUpdateNav')
+    return nav
+  } catch { return null }
+})()
+
 function AppContent() {
   const searchInputRef = useRef<HTMLInputElement>(null!)
   const { theme, toggleTheme } = useTheme()
-
-  const [contentRef] = useAppAnimate<HTMLDivElement>()
 
   const navigation = useNavigation()
   const search = useSearch()
@@ -59,8 +65,8 @@ function AppContent() {
   const [showNoteSavedModal, setShowNoteSavedModal] = useState(false)
   // Track the note ID to pre-select in My Notes (used for duplicate import detection)
   const [myNotesInitialSelectedId, setMyNotesInitialSelectedId] = useState<string | null>(null)
-  // Track which panel Settings should open to ('main' or 'my-notes')
-  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'my-notes'>('main')
+  // Track which panel Settings should open to ('main', 'my-notes', or 'release-notes')
+  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'my-notes' | 'release-notes'>('main')
 
   // Storage error toast state — shown when localStorage operations fail
   const [storageError, setStorageError] = useState<string | null>(null)
@@ -81,11 +87,15 @@ function AppContent() {
 
   // Stable key suffix for AlgorithmPage — set once when restoring, cleared when navigating away
   // This prevents AlgorithmPage from remounting when WriteNote closes (which nulls restoredAlgorithmState)
-  const algorithmKeyRef = useRef<string>('fresh')
+  // State (not ref) so desktopContentKey useMemo re-evaluates when the suffix changes
+  const [algorithmKeySuffix, setAlgorithmKeySuffix] = useState('fresh')
 
-  // PWA App Shortcut: open the appropriate view based on the captured URL parameter
+  // PWA App Shortcut / Post-update: open the appropriate view on mount
   useEffect(() => {
-    if (_initialViewParam === 'mynotes') {
+    if (_postUpdateNav === 'release-notes') {
+      setSettingsInitialPanel('release-notes')
+      navigation.setShowSettings(true)
+    } else if (_initialViewParam === 'mynotes') {
       setSettingsInitialPanel('my-notes')
       navigation.setShowSettings(true)
     } else if (_initialViewParam === 'import') {
@@ -132,7 +142,7 @@ function AppContent() {
       setActiveNoteEncodedText(null)
       setActiveNoteSource(null)
       setRestoredAlgorithmState(null)
-      algorithmKeyRef.current = 'fresh'
+      setAlgorithmKeySuffix('fresh')
     }
   }, [navigation.showQuestionCard])
 
@@ -147,7 +157,7 @@ function AppContent() {
     // Navigation state change drives the grid column transition and Column A carousel
     navigation.handleNavigation(result)
     search.clearSearch()
-  }, [navigation, search])
+  }, [navigation.handleNavigation, search.clearSearch])
 
   const clearSearchAndCollapse = useCallback(() => {
     search.clearSearch()
@@ -291,7 +301,7 @@ function AppContent() {
     setActiveNoteId(note.id)
     setActiveNoteEncodedText(note.encodedText)
     setActiveNoteSource(note.source || 'device')
-    algorithmKeyRef.current = `restored-${note.id}`
+    setAlgorithmKeySuffix(`restored-${note.id}`)
 
     // Store restored algorithm state so AlgorithmPage can be pre-filled
     setRestoredAlgorithmState({
@@ -316,19 +326,21 @@ function AppContent() {
     // 2. Close Settings drawer (My Notes lives inside Settings)
     navigation.setShowSettings(false)
 
-    // 3. Open WriteNote wizard (slight delay for navigation to complete)
+    // 3. Open WriteNote wizard — synchronous so all state changes batch into one render.
+    //    This prevents Column A from briefly showing the wrong panel during the transition.
     const overrides = deriveOverrides?.(result)
     const noteData = overrides
       ? { ...result.writeNoteData, ...overrides }
       : result.writeNoteData
-    setTimeout(() => navigation.showWriteNote(noteData), 400)
+    navigation.showWriteNote(noteData)
   }, [restoreNote, navigation])
 
   // View note handler — restore and open WriteNote at the View Note panel (page 2)
   const handleViewNote = useCallback((note: SavedNote) => {
     restoreAndOpenNote(note, (result) => ({
       initialPage: 2,
-      initialHpiText: result.hpiText || ''
+      initialHpiText: result.hpiText || '',
+      timestamp: result.timestamp,
     }))
   }, [restoreAndOpenNote])
 
@@ -416,9 +428,9 @@ function AppContent() {
   const desktopContentKey = useMemo(() => {
     if (search.searchInput) return 'search'
     if (navigation.selectedSymptom && navigation.showQuestionCard)
-      return `algo-${navigation.selectedSymptom.icon}-${algorithmKeyRef.current}`
+      return `algo-${navigation.selectedSymptom.icon}-${algorithmKeySuffix}`
     return 'empty'
-  }, [search.searchInput, navigation.selectedSymptom, navigation.showQuestionCard])
+  }, [search.searchInput, navigation.selectedSymptom, navigation.showQuestionCard, algorithmKeySuffix])
 
   // Compute note status for algorithm page badge:
   // - 'saved' if we have an activeNoteId and source is not external
@@ -469,7 +481,7 @@ function AppContent() {
         </div>
 
         {/* Content area — Unified 2-column grid (A: Navigation | B: Content) */}
-        <div ref={contentRef} className="md:h-[94%] h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
+        <div className="md:h-[94%] h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
           <div
             className={`h-full grid gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${navigation.mobileGridClass} md:grid-cols-[0.45fr_0.55fr]`}
             {...(navigation.isMobile && navigation.isMobileColumnB ? swipe.touchHandlers : {})}
@@ -484,7 +496,7 @@ function AppContent() {
                 isMobile={navigation.isMobile}
                 panelIndex={navigation.columnAPanel}
                 isVisible={!navigation.isMobileColumnB}
-                onSwipeBack={() => navigation.handleBackClick()}
+                onSwipeBack={navigation.handleBackClick}
               />
             </div>
 
@@ -508,7 +520,7 @@ function AppContent() {
                 ) : navigation.selectedSymptom && navigation.showQuestionCard ? (
                   <div className="h-full overflow-hidden">
                     <AlgorithmPage
-                      key={`algo-${navigation.selectedSymptom.icon}-${algorithmKeyRef.current}`}
+                      key={`algo-${navigation.selectedSymptom.icon}-${algorithmKeySuffix}`}
                       selectedSymptom={navigation.selectedSymptom}
                       onExpandNote={handleExpandNote}
                       isMobile={navigation.isMobile}
@@ -582,32 +594,27 @@ function AppContent() {
           selectedCategory={navigation.selectedCategory}
           onNavigate={handleNavigationClick}
         />
-        {/* WriteNotePage - rendered at App level for proper z-index on mobile */}
-        {navigation.isWriteNoteVisible && navigation.writeNoteData && (
-          <div className={`${navigation.isMobile
-            ? 'fixed inset-0 z-50'
-            : 'absolute right-0 top-0 bottom-0 z-40 animate-desktopNoteExpand'
-            }`}
-            style={!navigation.isMobile ? { width: 'calc(55% - 2px)' } : undefined}
-          >
-            <WriteNotePage
-              disposition={navigation.writeNoteData.disposition}
-              algorithmOptions={navigation.writeNoteData.algorithmOptions}
-              cardStates={navigation.writeNoteData.cardStates}
-              onExpansionChange={navigation.closeWriteNote}
-              onNoteSave={handleNoteSave}
-              onNoteDelete={handleNoteDelete}
-              onNoteUpdate={handleNoteUpdate}
-              existingNoteId={activeNoteId}
-              existingEncodedText={activeNoteEncodedText}
-              selectedSymptom={navigation.writeNoteData.selectedSymptom}
-              isMobile={navigation.isMobile}
-              initialPage={navigation.writeNoteData.initialPage}
-              initialHpiText={navigation.writeNoteData.initialHpiText}
-              noteSource={activeNoteSource}
-              onAfterSave={handleAfterSave}
-            />
-          </div>
+        {/* WriteNotePage — BaseDrawer handles mobile/desktop positioning */}
+        {navigation.writeNoteData && (
+          <WriteNotePage
+            isVisible={navigation.isWriteNoteVisible}
+            disposition={navigation.writeNoteData.disposition}
+            algorithmOptions={navigation.writeNoteData.algorithmOptions}
+            cardStates={navigation.writeNoteData.cardStates}
+            onExpansionChange={navigation.closeWriteNote}
+            onNoteSave={handleNoteSave}
+            onNoteDelete={handleNoteDelete}
+            onNoteUpdate={handleNoteUpdate}
+            existingNoteId={activeNoteId}
+            existingEncodedText={activeNoteEncodedText}
+            selectedSymptom={navigation.writeNoteData.selectedSymptom}
+            isMobile={navigation.isMobile}
+            initialPage={navigation.writeNoteData.initialPage}
+            initialHpiText={navigation.writeNoteData.initialHpiText}
+            noteSource={activeNoteSource}
+            onAfterSave={handleAfterSave}
+            timestamp={navigation.writeNoteData.timestamp}
+          />
         )}
         <UpdateNotification />
         <InstallPrompt />

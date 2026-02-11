@@ -49,7 +49,6 @@ export function SymptomInfoDrawer({
             isVisible={isVisible}
             onClose={onClose}
             fullHeight="90dvh"
-            backdropOpacity={0.3}
             mobileOnly={true}
             mobileClassName="flex flex-col"
         >

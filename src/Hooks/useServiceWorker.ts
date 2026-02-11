@@ -52,6 +52,7 @@ export function useServiceWorker() {
             console.log('[PWA] Updating to new version...');
             setIsUpdating(true);
             try { localStorage.removeItem('updateDismissed'); } catch { /* storage unavailable */ }
+            try { localStorage.setItem('postUpdateNav', 'release-notes'); } catch { /* storage unavailable */ }
 
             // Force cache bust by clearing caches
             if ('caches' in window) {

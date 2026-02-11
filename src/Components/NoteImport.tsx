@@ -284,12 +284,6 @@ export function NoteImport({ isVisible, onClose, initialViewState, onImportSucce
             isVisible={isVisible}
             onClose={onClose}
             fullHeight="90dvh"
-            backdropOpacity={0.9}
-            desktopPosition="right"
-            desktopContainerMaxWidth="max-w-315"
-            desktopMaxWidth="max-w-sm"
-            desktopPanelPadding=""
-            desktopTopOffset="4.5rem"
             header={{ title }}
         >
             <NoteImportContent

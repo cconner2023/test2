@@ -15,6 +15,7 @@ export const getColorClasses = (type?: dispositionType['type']) => {
                 buttonClass: 'bg-themeredred/20 hover:bg-themeredred/30 text-primary',
                 barBg: 'bg-gradient-to-r from-themeredred/5 to-themeredred/10 border border-themeredred/20',
                 sliderClass: 'bg-themeredred',
+                dispositionBadge: 'bg-themeredred/10 text-themeredred',
             };
         case 'CAT II':
             return {
@@ -29,6 +30,7 @@ export const getColorClasses = (type?: dispositionType['type']) => {
                 buttonClass: 'bg-themeyellowlow/20 hover:bg-themeyellowlow/30 text-primary',
                 barBg: 'bg-gradient-to-r from-themeyellowlow/5 to-themeyellowlow/10 border border-themeyellowlow/20',
                 sliderClass: 'bg-themeyellowlow',
+                dispositionBadge: 'bg-themeyellowlow/15 text-primary',
             };
         case 'CAT III':
             return {
@@ -43,6 +45,7 @@ export const getColorClasses = (type?: dispositionType['type']) => {
                 buttonClass: 'bg-themegreen/20 hover:bg-themegreen/30 text-primary',
                 barBg: 'bg-gradient-to-r from-themegreen/5 to-themegreen/10 border border-themegreen/20',
                 sliderClass: 'bg-themegreen',
+                dispositionBadge: 'bg-themegreen/10 text-themegreen',
             };
         case 'CAT IV':
             return {
@@ -57,6 +60,7 @@ export const getColorClasses = (type?: dispositionType['type']) => {
                 buttonClass: 'bg-themeblue2/20 hover:bg-themeblue2/30 text-primary',
                 barBg: 'bg-gradient-to-r from-themeblue2/5 to-themeblue2/10 border border-themeblue2/20',
                 sliderClass: 'bg-themeblue2',
+                dispositionBadge: 'bg-themeblue2/10 text-themeblue2',
             };
         case 'OTHER':
             return {
@@ -71,6 +75,7 @@ export const getColorClasses = (type?: dispositionType['type']) => {
                 buttonClass: 'bg-themeblue3/20 hover:bg-themeblue3/30 text-themeblue3',
                 barBg: 'bg-gradient-to-r from-themeblue3/5 to-themeblue3/10 border border-themeblue3/20',
                 sliderClass: 'bg-themeblue3',
+                dispositionBadge: 'bg-themeblue3/10 text-themeblue3',
             };
         default:
             return {
@@ -85,6 +90,7 @@ export const getColorClasses = (type?: dispositionType['type']) => {
                 buttonClass: 'bg-themeblue3/20 hover:bg-themeblue3/30 text-white',
                 barBg: 'bg-gradient-to-r from-themeblue3/5 to-themeblue3/10 border border-themeblue3/20',
                 sliderClass: 'bg-themeblue3',
+                dispositionBadge: 'bg-themeblue3/10 text-themeblue3',
             };
     }
 };
