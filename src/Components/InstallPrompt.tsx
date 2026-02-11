@@ -9,7 +9,7 @@ const InstallPrompt: React.FC = () => {
     if (!showPrompt) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center pointer-events-none">
+        <div className="fixed inset-0 z-51 flex items-end sm:items-center justify-center pointer-events-none">
             {/* Subtle backdrop */}
             <div
                 className="absolute inset-0 bg-black/10 pointer-events-auto sm:bg-black/15 transition-opacity"
@@ -25,11 +25,11 @@ const InstallPrompt: React.FC = () => {
                         {/* Header row */}
                         <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-full bg-themegreen/15 flex items-center justify-center flex-shrink-0">
+                                <div className="w-10 h-10 rounded-full bg-themegreen/15 flex items-center justify-center shrink-0">
                                     <Download className="h-5 w-5 text-themegreen" />
                                 </div>
                                 <div>
-                                    <p className="text-sm font-semibold text-primary">Install App</p>
+                                    <p className="text-sm font-normal text-primary">Install App</p>
                                     <p className="text-xs text-tertiary mt-0.5">
                                         {isIOS
                                             ? 'Add to your home screen for quick access'

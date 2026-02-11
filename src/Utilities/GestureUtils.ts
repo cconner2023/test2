@@ -14,6 +14,8 @@ export const GESTURE_THRESHOLDS = {
   DRAWER_FLING_VELOCITY: 0.5,
   /** Default swipe-back threshold (px) */
   SWIPE_BACK_THRESHOLD: 80,
+  /** Horizontal swipe threshold for note item reveal actions (px) */
+  NOTE_SWIPE_THRESHOLD: 40,
   /** Dampening factor for drag resistance beyond threshold */
   OVERSHOOT_DAMPENING: 0.4,
   /** Dampening for page swipe drag */
@@ -39,6 +41,8 @@ export const SPRING_CONFIGS = {
   page: { tension: 280, friction: 26 },
   /** Stiff spring for quick resets */
   stiff: { tension: 400, friction: 35 },
+  /** Bouncy spring for overswipe snap-back */
+  bounce: { tension: 300, friction: 22 },
 } as const
 
 // ─── Dampening / Physics ─────────────────────────────────────────

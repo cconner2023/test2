@@ -1,4 +1,6 @@
 Refactor — Progress Log
+
+## ISSUES -- 
 =================================================
 ## Problem #1 [COMPLETED] - BaseDrawer.tsx used TWO redundant systems for mobile/desktop responsiveness
 =================================================
@@ -17,3 +19,11 @@ Refactor — Progress Log
 # Problem #8 [COMPLETED] -> drawer configuration on mobile.
 =================================================
 # Problem #9 [COMPLETED] -> Saved notes (Settings -> My Notes) swipe animation and multi-select
+=================================================
+# Problem #10 [COMPLETED] -> Saved notes (Settings -> My Notes) swipe animation and multi-select: reduce horizontal swipe threshold. Review useSwipeNavigation for duplicate code. # Resolution: Reduced swipe threshold from 60px to 40px. 
+=================================================
+# Problem #11 [COMPLETED] -> Download notification (useInstallPrompts.ts). This functions on mobile, but fails to render on desktop. The text saying 'App cached successfully' may interfere. We may need to run a check for desktop browsers, we may need to change our SW / manifest / vite # Resolution: Root cause was a race condition
+=================================================
+# Problem #12 [COMPLETED] -> Duplicate Code. 
+=================================================
+# Problem #13 [COMPLETED] -> PWA functionality. related to #11 - installed PWAs do not render the shortcuts or icons.

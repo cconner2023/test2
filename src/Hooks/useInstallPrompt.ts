@@ -8,6 +8,21 @@ interface BeforeInstallPromptEvent extends Event {
 
 const DISMISSED_KEY = 'installPromptDismissed';
 
+// ─── Module-level capture ────────────────────────────────────
+// beforeinstallprompt can fire before React mounts (especially on
+// desktop where Chrome doesn't gate it behind a user-engagement
+// heuristic). Capture it at the module level so we never lose it.
+let _capturedPrompt: BeforeInstallPromptEvent | null = null;
+const _listeners = new Set<(e: BeforeInstallPromptEvent) => void>();
+
+if (typeof window !== 'undefined') {
+    window.addEventListener('beforeinstallprompt', (e: Event) => {
+        e.preventDefault();
+        _capturedPrompt = e as BeforeInstallPromptEvent;
+        _listeners.forEach(fn => fn(_capturedPrompt!));
+    });
+}
+
 export function useInstallPrompt() {
     const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
     const [showPrompt, setShowPrompt] = useState(false);
@@ -42,14 +57,20 @@ export function useInstallPrompt() {
             return;
         }
 
-        const handler = (e: Event) => {
-            e.preventDefault();
-            setDeferredPrompt(e as BeforeInstallPromptEvent);
+        // If the event already fired before this effect ran, consume it now
+        if (_capturedPrompt) {
+            setDeferredPrompt(_capturedPrompt);
+            setShowPrompt(true);
+            return;
+        }
+
+        // Otherwise subscribe for future events
+        const handler = (e: BeforeInstallPromptEvent) => {
+            setDeferredPrompt(e);
             setShowPrompt(true);
         };
-
-        window.addEventListener('beforeinstallprompt', handler);
-        return () => window.removeEventListener('beforeinstallprompt', handler);
+        _listeners.add(handler);
+        return () => { _listeners.delete(handler); };
     }, []);
 
     // Hide prompt if app gets installed
@@ -57,6 +78,7 @@ export function useInstallPrompt() {
         const handler = () => {
             setShowPrompt(false);
             setDeferredPrompt(null);
+            _capturedPrompt = null;
         };
         window.addEventListener('appinstalled', handler);
         return () => window.removeEventListener('appinstalled', handler);
@@ -71,6 +93,7 @@ export function useInstallPrompt() {
             setShowPrompt(false);
         }
         setDeferredPrompt(null);
+        _capturedPrompt = null;
         setIsInstalling(false);
     }, [deferredPrompt]);
 

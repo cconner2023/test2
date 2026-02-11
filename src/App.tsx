@@ -26,12 +26,10 @@ import { MedicationsDrawer } from './Components/MedicationsDrawer'
 import { ColumnA } from './Components/ColumnA'
 
 // PWA App Shortcut: capture ?view= URL parameter once at module load time
-// This runs before React StrictMode can interfere with double-mounting
 const _initialViewParam = (() => {
   const params = new URLSearchParams(window.location.search)
   const view = params.get('view')
   if (view) {
-    // Clean up URL parameter immediately so it doesn't persist
     window.history.replaceState({}, '', window.location.pathname)
   }
   return view
@@ -136,10 +134,10 @@ function AppContent() {
 
   // Sync search expansion when transitioning to mobile with active search text
   useEffect(() => {
-    if (navigation.isMobile && search.searchInput.trim() && !navigation.isSearchExpanded) {
-      navigation.setSearchExpanded(true)
+    if (search.searchInput.trim()) {
+      navigation.expandSearchOnMobile()
     }
-  }, [navigation.isMobile, search.searchInput, navigation.isSearchExpanded, navigation.setSearchExpanded])
+  }, [navigation.isMobile, search.searchInput, navigation.expandSearchOnMobile])
 
   const handleNavigationClick = useCallback((result: SearchResultType) => {
     // Navigation state change drives the grid column transition and Column A carousel
@@ -171,17 +169,13 @@ function AppContent() {
   const handleSearchChange = (value: string) => {
     if (value.trim() !== "") {
       navigation.setShowNoteImport(false)
-      if (navigation.isMobile && !navigation.isSearchExpanded) {
-        navigation.setSearchExpanded(true)
-      }
+      navigation.expandSearchOnMobile()
     }
     search.handleSearchChange(value)
   }
 
   const handleSearchFocus = () => {
-    if (navigation.isMobile && !navigation.isSearchExpanded) {
-      navigation.setSearchExpanded(true)
-    }
+    navigation.expandSearchOnMobile()
   }
 
   const handleClearSearch = () => {
@@ -261,14 +255,19 @@ function AppContent() {
   }, [notesStorage])
 
   // View note handler — restore algorithm state from saved note and open WriteNote
-  const handleViewNote = useCallback((note: SavedNote) => {
+  // Shared helper: restore a saved note → navigate to its algorithm → open WriteNote
+  // Optional `deriveOverrides` callback receives the restore result to compute WriteNoteData overrides.
+  const restoreAndOpenNote = useCallback((
+    note: SavedNote,
+    deriveOverrides?: (result: ReturnType<typeof restoreNote>) => Partial<WriteNoteData>
+  ) => {
     const result = restoreNote(note)
     if (!result.success || !result.writeNoteData || !result.symptom || !result.category) {
       console.warn('Failed to restore note:', result.error)
       return
     }
 
-    // Track which saved note we're viewing
+    // Track which saved note we're viewing/editing
     setActiveNoteId(note.id)
     setActiveNoteEncodedText(note.encodedText)
     setActiveNoteSource(note.source || 'device')
@@ -297,58 +296,26 @@ function AppContent() {
     // 2. Close Settings drawer (My Notes lives inside Settings)
     navigation.setShowSettings(false)
 
-    // 3. Open WriteNote wizard with restored algorithm state (slight delay for navigation to complete)
-    setTimeout(() => {
-      navigation.showWriteNote(result.writeNoteData!)
-    }, 400)
+    // 3. Open WriteNote wizard (slight delay for navigation to complete)
+    const overrides = deriveOverrides?.(result)
+    const noteData = overrides
+      ? { ...result.writeNoteData, ...overrides }
+      : result.writeNoteData
+    setTimeout(() => navigation.showWriteNote(noteData), 400)
   }, [restoreNote, navigation])
 
-  // Edit note handler — restore algorithm state and open WriteNote wizard at Page 1 (content selection) with HPI pre-filled
+  // View note handler — restore and open WriteNote at the review page
+  const handleViewNote = useCallback((note: SavedNote) => {
+    restoreAndOpenNote(note)
+  }, [restoreAndOpenNote])
+
+  // Edit note handler — restore and open WriteNote at Page 1 with HPI pre-filled
   const handleEditNoteInWizard = useCallback((note: SavedNote) => {
-    const result = restoreNote(note)
-    if (!result.success || !result.writeNoteData || !result.symptom || !result.category) {
-      console.warn('Failed to restore note for editing:', result.error)
-      return
-    }
-
-    // Track which saved note we're editing
-    setActiveNoteId(note.id)
-    setActiveNoteEncodedText(note.encodedText)
-    setActiveNoteSource(note.source || 'device')
-    algorithmKeyRef.current = `restored-${note.id}`
-
-    // Store restored algorithm state so AlgorithmPage can be pre-filled
-    setRestoredAlgorithmState({
-      cardStates: result.writeNoteData.cardStates,
-      disposition: result.writeNoteData.disposition
-    })
-
-    // 1. Navigate to the algorithm view for this symptom
-    navigation.handleNavigation({
-      type: 'CC',
-      id: result.symptom.id,
-      icon: result.symptom.icon,
-      text: result.symptom.text,
-      data: {
-        categoryId: result.category.id,
-        symptomId: result.symptom.id,
-        categoryRef: result.category,
-        symptomRef: result.symptom
-      }
-    })
-
-    // 2. Close Settings drawer (My Notes lives inside Settings)
-    navigation.setShowSettings(false)
-
-    // 3. Open WriteNote wizard at Page 1 (content selection) with restored algorithm state and HPI
-    setTimeout(() => {
-      navigation.showWriteNote({
-        ...result.writeNoteData!,
-        initialPage: 1,
-        initialHpiText: result.hpiText || ''
-      })
-    }, 400)
-  }, [restoreNote, navigation])
+    restoreAndOpenNote(note, (result) => ({
+      initialPage: 1,
+      initialHpiText: result.hpiText || ''
+    }))
+  }, [restoreAndOpenNote])
 
   // Import success handler — checks for duplicates, saves imported note with 'external source' tag, then opens My Notes
   const handleImportSuccess = useCallback((data: ImportSuccessData) => {

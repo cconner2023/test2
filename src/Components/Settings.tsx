@@ -6,7 +6,7 @@ import { ReleaseNotes, type ReleaseNoteTypes } from '../Data/Release';
 import { BaseDrawer } from './BaseDrawer';
 import type { SavedNote } from '../Hooks/useNotesStorage';
 import { useNoteShare } from '../Hooks/useNoteShare';
-import { SPRING_CONFIGS, clamp } from '../Utilities/GestureUtils';
+import { GESTURE_THRESHOLDS, SPRING_CONFIGS, clamp, dampedOffset } from '../Utilities/GestureUtils';
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -71,10 +71,8 @@ const getDispositionColor = (type: string) => {
    Tap → toggles checkbox selection for bottom action bar.
    Action circles grow during swipe & bounce on overswipe.
    ──────────────────────────────────────────────────────────── */
-const SWIPE_THRESHOLD = 60;
 const ACTION_WIDTH_LEFT = 160;
 const ACTION_WIDTH_RIGHT = 70;
-const BOUNCE_CONFIG = { tension: 300, friction: 22 };
 
 const SwipeableNoteItem = ({
     note,
@@ -146,16 +144,12 @@ const SwipeableNoteItem = ({
             if (tap) return memo;
 
             const startOffset = first ? snapTargetRef.current : (memo ?? 0);
-            let newOffset = startOffset + mx;
+            const rawOffset = startOffset + mx;
 
-            // Overshoot dampening beyond action widths
-            if (newOffset > ACTION_WIDTH_LEFT) {
-                const overshoot = newOffset - ACTION_WIDTH_LEFT;
-                newOffset = ACTION_WIDTH_LEFT + overshoot * 0.3;
-            } else if (newOffset < -ACTION_WIDTH_RIGHT) {
-                const overshoot = Math.abs(newOffset) - ACTION_WIDTH_RIGHT;
-                newOffset = -(ACTION_WIDTH_RIGHT + overshoot * 0.3);
-            }
+            // Rubber-band dampening beyond action widths
+            const newOffset = rawOffset >= 0
+                ? dampedOffset(rawOffset, ACTION_WIDTH_LEFT)
+                : -dampedOffset(-rawOffset, ACTION_WIDTH_RIGHT);
 
             if (active) {
                 api.start({ x: newOffset, immediate: true });
@@ -164,18 +158,18 @@ const SwipeableNoteItem = ({
                 const wasOverswipeLeft = newOffset > ACTION_WIDTH_LEFT;
                 const wasOverswipeRight = newOffset < -ACTION_WIDTH_RIGHT;
 
-                if (newOffset > SWIPE_THRESHOLD) {
+                if (newOffset > GESTURE_THRESHOLDS.NOTE_SWIPE_THRESHOLD) {
                     snapTargetRef.current = ACTION_WIDTH_LEFT;
                     api.start({
                         x: ACTION_WIDTH_LEFT,
-                        config: wasOverswipeLeft ? BOUNCE_CONFIG : SPRING_CONFIGS.snap,
+                        config: wasOverswipeLeft ? SPRING_CONFIGS.bounce : SPRING_CONFIGS.snap,
                     });
                     setIsRevealed('left');
-                } else if (newOffset < -SWIPE_THRESHOLD) {
+                } else if (newOffset < -GESTURE_THRESHOLDS.NOTE_SWIPE_THRESHOLD) {
                     snapTargetRef.current = -ACTION_WIDTH_RIGHT;
                     api.start({
                         x: -ACTION_WIDTH_RIGHT,
-                        config: wasOverswipeRight ? BOUNCE_CONFIG : SPRING_CONFIGS.snap,
+                        config: wasOverswipeRight ? SPRING_CONFIGS.bounce : SPRING_CONFIGS.snap,
                     });
                     setIsRevealed('right');
                 } else {

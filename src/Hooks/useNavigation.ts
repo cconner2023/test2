@@ -258,30 +258,25 @@ export function useNavigation() {
         })
     }, [])
 
+    // Core derived boolean — reused by grid class, panel index, and column B check
+    const showQuestionCard = state.selectedSymptom !== null && state.viewState === 'questions'
+
     // Mobile grid class — which column is active (desktop handled by Tailwind md:)
     const mobileGridClass = useMemo(() => {
-        // Column B active when viewing algorithm or searching
-        if (state.isSearchExpanded ||
-            (state.selectedSymptom !== null && state.viewState === 'questions')) {
-            return 'grid-cols-[0fr_1fr]'
-        }
-        // Column A active (navigating categories)
+        if (state.isSearchExpanded || showQuestionCard) return 'grid-cols-[0fr_1fr]'
         return 'grid-cols-[1fr_0fr]'
-    }, [state.isSearchExpanded, state.selectedSymptom, state.viewState])
+    }, [state.isSearchExpanded, showQuestionCard])
 
     // Column A internal panel index (which navigation view is shown)
     // 0 = main categories, 1 = subcategories, 2 = symptom info (desktop only)
     const columnAPanel = useMemo(() => {
         if (!state.selectedCategory) return 0
-        if (!state.selectedSymptom || state.viewState !== 'questions') return 1
+        if (!showQuestionCard) return 1
         return 2 // symptom info (desktop) — mobile uses SymptomInfoDrawer
-    }, [state.selectedCategory, state.selectedSymptom, state.viewState])
+    }, [state.selectedCategory, showQuestionCard])
 
     // Whether Column B is the active column on mobile
-    const isMobileColumnB = isMobile && (
-        state.isSearchExpanded ||
-        (state.selectedSymptom !== null && state.viewState === 'questions')
-    )
+    const isMobileColumnB = isMobile && (state.isSearchExpanded || showQuestionCard)
 
     const getDynamicTitle = (): string => {
         if (state.viewState === 'questions' && state.selectedSymptom) {
@@ -348,6 +343,12 @@ export function useNavigation() {
     const setSearchExpanded = useCallback((expanded: boolean) => {
         setState(prev => ({ ...prev, isSearchExpanded: expanded }))
     }, [])
+
+    /** Expand search panel on mobile if not already expanded (no-op on desktop) */
+    const expandSearchOnMobile = useCallback(() => {
+        if (!isMobile) return
+        setState(prev => prev.isSearchExpanded ? prev : { ...prev, isSearchExpanded: true })
+    }, [isMobile])
 
     const toggleSymptomInfo = useCallback(() => {
         setState(prev => ({ ...prev, showSymptomInfo: !prev.showSymptomInfo }))
@@ -436,13 +437,14 @@ export function useNavigation() {
         setShowMedications,
         toggleSearchExpanded,
         setSearchExpanded,
+        expandSearchOnMobile,
         toggleSymptomInfo,
         setShowSymptomInfo,
         showWriteNote,
         closeWriteNote,
 
         // Layout computation
-        showQuestionCard: state.selectedSymptom !== null && state.viewState === 'questions',
+        showQuestionCard,
         mobileGridClass,
         columnAPanel,
         isMobileColumnB,
