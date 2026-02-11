@@ -1,0 +1,19 @@
+Refactor — Progress Log
+=================================================
+## Problem #1 [COMPLETED] - BaseDrawer.tsx used TWO redundant systems for mobile/desktop responsiveness
+=================================================
+# Problem #2 [COMPLETED] -> main component grid
+=================================================
+# Problem #3 [COMPLETED] -> main menu (mobile) button and title
+=================================================
+# Problem #4 [COMPLETED] -> main menu appearance on mobile
+=================================================
+# Problem #5 [COMPLETED] -> useNoteRestore, useNoteCapture, useNoteImport deduplicate code
+=================================================
+# Problem #6 [COMPLETED] -> useColumnCarousel, useNavigation, and useSwipeNavigation with common code
+=================================================
+# Problem #7 [COMPLETED] -> Mobile Back button functionality
+=================================================
+# Problem #8 [COMPLETED] -> drawer configuration on mobile.
+=================================================
+# Problem #9 [COMPLETED] -> Saved notes (Settings -> My Notes) swipe animation and multi-select

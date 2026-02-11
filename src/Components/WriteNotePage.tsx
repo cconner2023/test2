@@ -606,7 +606,6 @@ export const WriteNotePage = ({
             <BaseDrawer
                 isVisible={true}
                 onClose={() => onExpansionChange(false)}
-                isMobile={true}
                 fullHeight="90dvh"
                 backdropOpacity={0.3}
                 mobileOnly={true}

@@ -16,7 +16,6 @@ export interface ImportSuccessData {
 interface NoteImportProps {
     isVisible: boolean;
     onClose: () => void;
-    isMobile?: boolean;
     initialViewState?: ViewState;
     onImportSuccess?: (data: ImportSuccessData) => void;
 }
@@ -32,14 +31,10 @@ interface ContentState {
 
 // Shared content component - receives state from parent to persist across layout changes
 const NoteImportContent = ({
-    onClose,
-    isMobile,
     state,
     setState,
     onImportSuccess
 }: {
-    onClose: () => void;
-    isMobile: boolean;
     state: ContentState;
     setState: React.Dispatch<React.SetStateAction<ContentState>>;
     onImportSuccess?: (data: ImportSuccessData) => void;
@@ -122,177 +117,142 @@ const NoteImportContent = ({
         setState(prev => ({ ...prev, isCopied: true }));
     };
 
-    const getTitle = () => {
-        switch (state.viewState) {
-            case 'input': return 'Import Note';
-            case 'decoded': return 'Screening Note';
-            case 'scanning': return 'Scan Barcode';
-            default: return 'Import Note';
-        }
-    };
-
     return (
-        <>
-            {/* Drag Handle - Only visible on mobile */}
-            {isMobile && (
-                <div className="flex justify-center pt-3 pb-2" data-drag-zone style={{ touchAction: 'none' }}>
-                    <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
+        <div className="overflow-y-auto h-full">
+            {state.viewState === 'input' && (
+                <div className="flex flex-col p-4 md:p-6 h-max min-h-20">
+                    <div className="mb-4 relative">
+                        <div className="relative">
+                            <input
+                                ref={inputRef}
+                                type="text"
+                                value={state.inputText}
+                                onChange={(e) => setState(prev => ({ ...prev, inputText: e.target.value }))}
+                                className="w-full rounded-full p-2 pl-10 border border-themegray1 focus:bg-themewhite2 text-sm focus:outline-none bg-themewhite text-tertiary pr-10"
+                                placeholder="Enter barcode string or scan"
+                            />
+                            {state.inputText && (
+                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setState(prev => ({ ...prev, inputText: '' }))}
+                                        className="p-1 text-tertiary"
+                                        title="Clear input"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                        {state.scanError && (
+                            <div className="ml-2 mt-2 text-sm text-themeredred">
+                                {state.scanError}
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex gap-3 justify-between">
+                        <button
+                            onClick={handleStartScan}
+                            className="flex items-center gap-2 px-4 py-2 bg-themewhite2 text-secondary rounded-full text-sm font-medium hover:bg-themewhite transition-colors"
+                        >
+                            <Camera size={16} />
+                            Scan
+                        </button>
+                        <TextButton
+                            text="Decode"
+                            onClick={handleSubmit}
+                            variant='dispo-specific'
+                            className='bg-themeblue3 text-white rounded-full'
+                        />
+                    </div>
                 </div>
             )}
 
-            {/* Header */}
-            <div className="px-6 border-b border-tertiary/10 py-2 md:py-3" data-drag-zone style={{ touchAction: 'none' }}>
-                <div className="flex items-center justify-between">
-                    <h2 className="text-[11pt] font-normal text-primary md:text-[12pt]">
-                        {getTitle()}
-                    </h2>
-                    <button
-                        onClick={onClose}
-                        className="p-2 rounded-full hover:bg-themewhite2 md:hover:bg-themewhite active:scale-95 transition-all"
-                        aria-label="Close"
-                    >
-                        <X size={24} className="text-tertiary" />
-                    </button>
-                </div>
-            </div>
-
-            {/* Content */}
-            <div className={`overflow-y-auto ${isMobile ? 'h-[calc(100dvh-80px)]' : 'h-auto'}`}>
-                {state.viewState === 'input' && (
-                    <div className="flex flex-col p-4 md:p-6 h-max min-h-20">
-                        <div className="mb-4 relative">
-                            <div className="relative">
-                                <input
-                                    ref={inputRef}
-                                    type="text"
-                                    value={state.inputText}
-                                    onChange={(e) => setState(prev => ({ ...prev, inputText: e.target.value }))}
-                                    className="w-full rounded-full p-2 pl-10 border border-themegray1 focus:bg-themewhite2 text-sm focus:outline-none bg-themewhite text-tertiary pr-10"
-                                    placeholder="Enter barcode string or scan"
-                                />
-                                {state.inputText && (
-                                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                        <button
-                                            type="button"
-                                            onClick={() => setState(prev => ({ ...prev, inputText: '' }))}
-                                            className="p-1 text-tertiary"
-                                            title="Clear input"
-                                        >
-                                            <X size={16} />
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-                            {state.scanError && (
-                                <div className="ml-2 mt-2 text-sm text-themeredred">
-                                    {state.scanError}
-                                </div>
-                            )}
+            {state.viewState === 'scanning' && (
+                <div className="flex flex-col p-4 md:p-6 h-max min-h-60">
+                    <div className="relative rounded-xl overflow-hidden bg-black aspect-video mb-4">
+                        <video
+                            ref={videoRef}
+                            className="w-full h-full object-cover"
+                            playsInline
+                            muted
+                        />
+                        <div className="absolute inset-0 pointer-events-none">
+                            <div className="absolute inset-4 border-2 border-white/30 rounded-lg" />
+                            <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
+                            <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
                         </div>
-                        <div className="flex gap-3 justify-between">
-                            <button
-                                onClick={handleStartScan}
-                                className="flex items-center gap-2 px-4 py-2 bg-themewhite2 text-secondary rounded-full text-sm font-medium hover:bg-themewhite transition-colors"
-                            >
-                                <Camera size={16} />
-                                Scan
-                            </button>
+                        {isScanning && (
+                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
+                                Looking for PDF417 barcode...
+                            </div>
+                        )}
+                    </div>
+                    <div className="flex gap-3 justify-center">
+                        <TextButton
+                            text="Cancel"
+                            onClick={handleStopScan}
+                            variant='dispo-specific'
+                            className='bg-themewhite2 text-secondary rounded-full'
+                        />
+                    </div>
+                </div>
+            )}
+
+            {state.viewState === 'decoded' && (
+                <div className="flex flex-col p-4 md:p-6 min-h-20 h-max relative">
+                    {state.isCopied && (
+                        <div className="absolute inset-x-0 top-0 flex justify-center pointer-events-none z-10">
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-themeblue2 text-white shadow-lg">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                </svg>
+                                <span className="text-sm font-medium">Copied to Clipboard</span>
+                            </div>
+                        </div>
+                    )}
+                    <div className="mb-4 relative">
+                        <div className="w-full h-max p-3 rounded-md border border-themegray1/20 bg-themewhite3 text-tertiary text-sm whitespace-pre-wrap wrap-break-word overflow-y-auto max-h-96">
+                            {state.decodedText || "No decoded text available"}
+                        </div>
+                        <button
+                            onClick={handleCopyText}
+                            className="absolute top-3 right-3 p-2 text-tertiary hover:text-primary transition-colors"
+                            title="Copy note to clipboard"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 mt-4">
+                        <TextButton
+                            text="← Back"
+                            onClick={handleBack}
+                            variant='dispo-specific'
+                            className='bg-themewhite2 text-secondary rounded-full'
+                        />
+                        {onImportSuccess && (
                             <TextButton
-                                text="Decode"
-                                onClick={handleSubmit}
+                                text="Import Note"
+                                onClick={() => {
+                                    onImportSuccess({
+                                        encodedText: state.inputText,
+                                        decodedText: state.decodedText
+                                    });
+                                }}
                                 variant='dispo-specific'
                                 className='bg-themeblue3 text-white rounded-full'
                             />
-                        </div>
-                    </div>
-                )}
-
-                {state.viewState === 'scanning' && (
-                    <div className="flex flex-col p-4 md:p-6 h-max min-h-60">
-                        <div className="relative rounded-xl overflow-hidden bg-black aspect-video mb-4">
-                            <video
-                                ref={videoRef}
-                                className="w-full h-full object-cover"
-                                playsInline
-                                muted
-                            />
-                            <div className="absolute inset-0 pointer-events-none">
-                                <div className="absolute inset-4 border-2 border-white/30 rounded-lg" />
-                                <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
-                                <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
-                            </div>
-                            {isScanning && (
-                                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
-                                    Looking for PDF417 barcode...
-                                </div>
-                            )}
-                        </div>
-                        <div className="flex gap-3 justify-center">
-                            <TextButton
-                                text="Cancel"
-                                onClick={handleStopScan}
-                                variant='dispo-specific'
-                                className='bg-themewhite2 text-secondary rounded-full'
-                            />
-                        </div>
-                    </div>
-                )}
-
-                {state.viewState === 'decoded' && (
-                    <div className="flex flex-col p-4 md:p-6 min-h-20 h-max relative">
-                        {state.isCopied && (
-                            <div className="absolute inset-x-0 top-0 flex justify-center pointer-events-none z-10">
-                                <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-themeblue2 text-white shadow-lg">
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span className="text-sm font-medium">Copied to Clipboard</span>
-                                </div>
-                            </div>
                         )}
-                        <div className="mb-4 relative">
-                            <div className="w-full h-max p-3 rounded-md border border-themegray1/20 bg-themewhite3 text-tertiary text-sm whitespace-pre-wrap wrap-break-word overflow-y-auto max-h-96">
-                                {state.decodedText || "No decoded text available"}
-                            </div>
-                            <button
-                                onClick={handleCopyText}
-                                className="absolute top-3 right-3 p-2 text-tertiary hover:text-primary transition-colors"
-                                title="Copy note to clipboard"
-                            >
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                </svg>
-                            </button>
-                        </div>
-                        <div className="flex items-center justify-between gap-3 mt-4">
-                            <TextButton
-                                text="← Back"
-                                onClick={handleBack}
-                                variant='dispo-specific'
-                                className='bg-themewhite2 text-secondary rounded-full'
-                            />
-                            {onImportSuccess && (
-                                <TextButton
-                                    text="Import Note"
-                                    onClick={() => {
-                                        onImportSuccess({
-                                            encodedText: state.inputText,
-                                            decodedText: state.decodedText
-                                        });
-                                    }}
-                                    variant='dispo-specific'
-                                    className='bg-themeblue3 text-white rounded-full'
-                                />
-                            )}
-                        </div>
                     </div>
-                )}
-            </div>
-        </>
+                </div>
+            )}
+        </div>
     );
 };
 
-export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile, initialViewState, onImportSuccess }: NoteImportProps) {
+export function NoteImport({ isVisible, onClose, initialViewState, onImportSuccess }: NoteImportProps) {
     // Lifted content state - persists across mobile/desktop layout changes
     const [contentState, setContentState] = useState<ContentState>({
         viewState: initialViewState || 'input',
@@ -315,11 +275,14 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile, ini
         }
     }, [isVisible, initialViewState]);
 
+    const title = contentState.viewState === 'decoded' ? 'Screening Note'
+        : contentState.viewState === 'scanning' ? 'Scan Barcode'
+            : 'Import Note';
+
     return (
         <BaseDrawer
             isVisible={isVisible}
             onClose={onClose}
-            isMobile={externalIsMobile}
             fullHeight="90dvh"
             backdropOpacity={0.9}
             desktopPosition="right"
@@ -327,16 +290,13 @@ export function NoteImport({ isVisible, onClose, isMobile: externalIsMobile, ini
             desktopMaxWidth="max-w-sm"
             desktopPanelPadding=""
             desktopTopOffset="4.5rem"
+            header={{ title }}
         >
-            {(handleClose) => (
-                <NoteImportContent
-                    onClose={handleClose}
-                    isMobile={externalIsMobile ?? (typeof window !== 'undefined' && window.innerWidth < 768)}
-                    state={contentState}
-                    setState={setContentState}
-                    onImportSuccess={onImportSuccess}
-                />
-            )}
+            <NoteImportContent
+                state={contentState}
+                setState={setContentState}
+                onImportSuccess={onImportSuccess}
+            />
         </BaseDrawer>
     );
 }

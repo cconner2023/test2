@@ -1,19 +1,82 @@
 // components/BaseDrawer.tsx
 import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { useDrag } from '@use-gesture/react';
+import { X, ChevronLeft } from 'lucide-react';
 import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils';
 
 /** Render prop type: children can receive handleClose for animated close */
 type DrawerRenderProp = (handleClose: () => void) => ReactNode;
 
+/** Configuration for the optional built-in drawer header */
+export interface DrawerHeaderConfig {
+    title: string;
+    showBack?: boolean;
+    onBack?: () => void;
+    badge?: string;
+}
+
+/** Private header component rendered by BaseDrawer when header config is provided */
+function DrawerHeader({
+    title,
+    showBack = false,
+    onBack,
+    badge,
+    onClose,
+    isMobile,
+}: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean }) {
+    return (
+        <div className="shrink-0">
+            {isMobile && (
+                <div className="flex justify-center pt-3 pb-2" data-drag-zone style={{ touchAction: 'none' }}>
+                    <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
+                </div>
+            )}
+            <div className="px-6 border-b border-tertiary/10 py-3 md:py-4" data-drag-zone style={{ touchAction: 'none' }}>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0 transition-all duration-200">
+                        <div
+                            className="shrink-0 overflow-hidden transition-all duration-200"
+                            style={{
+                                width: showBack && onBack ? 40 : 0,
+                                opacity: showBack && onBack ? 1 : 0,
+                            }}
+                        >
+                            <button
+                                onClick={onBack}
+                                className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
+                                aria-label="Go back"
+                            >
+                                <ChevronLeft size={24} className="text-tertiary" />
+                            </button>
+                        </div>
+                        <h2 className="text-[11pt] font-normal text-primary md:text-2xl truncate">
+                            {title}
+                        </h2>
+                        {badge && (
+                            <span className="text-xs text-tertiary/60 bg-tertiary/10 px-2 py-0.5 rounded-full shrink-0">
+                                {badge}
+                            </span>
+                        )}
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="p-2 rounded-full hover:bg-themewhite2 md:hover:bg-themewhite active:scale-95 transition-all shrink-0"
+                        aria-label="Close"
+                    >
+                        <X size={24} className="text-tertiary" />
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 interface BaseDrawerProps {
     isVisible: boolean;
     onClose: () => void;
-    isMobile?: boolean;
     /** Children can be ReactNode or a render function receiving handleClose */
     children: ReactNode | DrawerRenderProp;
     fullHeight?: string;
-    desktopWidth?: string;
     desktopMaxWidth?: string;
     disableDrag?: boolean;
     /** Backdrop opacity at full visibility. Default 0.9 */
@@ -34,12 +97,15 @@ interface BaseDrawerProps {
     zIndex?: string;
     /** Desktop panel top offset. Default '0.5rem' */
     desktopTopOffset?: string;
+    /** Optional header config. When provided, BaseDrawer renders a standardized
+     *  header with drag handle (mobile), title, back button (optional), and
+     *  close button (always). Children render below the header. */
+    header?: DrawerHeaderConfig;
 }
 
 export function BaseDrawer({
     isVisible,
     onClose,
-    isMobile: externalIsMobile,
     children,
     fullHeight = '90dvh',
     desktopMaxWidth = 'max-w-md',
@@ -53,12 +119,8 @@ export function BaseDrawer({
     desktopPanelPadding = 'py-3 pl-3 pr-5',
     zIndex = 'z-60',
     desktopTopOffset = '0.5rem',
+    header,
 }: BaseDrawerProps) {
-    const [localIsMobile, setLocalIsMobile] = useState(
-        () => window.matchMedia('(max-width: 767px)').matches
-    );
-    const isMobile = externalIsMobile ?? localIsMobile;
-
     const [drawerPosition, setDrawerPosition] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
@@ -67,29 +129,16 @@ export function BaseDrawer({
     const animationFrameId = useRef<number>(0);
     const timeoutRef = useRef<number | null>(null);
 
-    // Fallback: only used when isMobile isn't passed externally.
-    // matchMedia fires only on breakpoint crossing — no re-renders during normal resize.
-    useEffect(() => {
-        if (externalIsMobile === undefined) {
-            const mql = window.matchMedia('(max-width: 767px)');
-            const handler = (e: MediaQueryListEvent) => setLocalIsMobile(e.matches);
-            mql.addEventListener('change', handler);
-            return () => mql.removeEventListener('change', handler);
-        }
-    }, [externalIsMobile]);
-
     useEffect(() => {
         if (isVisible) {
             setIsMounted(true);
-            setDrawerPosition(isMobile ? 0 : 100);
+            setDrawerPosition(0);
             document.body.style.overflow = 'hidden';
 
-            if (isMobile) {
-                // Start opening animation for mobile
-                setTimeout(() => {
-                    setDrawerPosition(100);
-                }, 10);
-            }
+            // Animate mobile drawer in (desktop ignores drawerPosition)
+            setTimeout(() => {
+                setDrawerPosition(100);
+            }, 10);
         } else {
             // Start closing animation
             setDrawerPosition(0);
@@ -105,7 +154,7 @@ export function BaseDrawer({
             if (timeoutRef.current) clearTimeout(timeoutRef.current);
             if (closeDelayRef.current) clearTimeout(closeDelayRef.current);
         };
-    }, [isVisible, isMobile]);
+    }, [isVisible]);
 
     const closeDelayRef = useRef<number>(0);
 
@@ -171,20 +220,20 @@ export function BaseDrawer({
             }
         },
         {
-            enabled: isMobile && !disableDrag,
+            enabled: !disableDrag,
             axis: 'y',
             filterTaps: true,
             pointer: { touch: true },
         }
     );
 
-    const handleClose = useCallback(() => {
-        if (isMobile) {
-            animateToPosition(0);
-        } else {
-            onClose();
-        }
-    }, [isMobile, animateToPosition, onClose]);
+    const mobileHandleClose = useCallback(() => {
+        animateToPosition(0);
+    }, [animateToPosition]);
+
+    const desktopHandleClose = useCallback(() => {
+        onClose();
+    }, [onClose]);
 
     const mobileStyles = {
         translateY: 100 - drawerPosition,
@@ -198,9 +247,12 @@ export function BaseDrawer({
     const desktopAlignClass = desktopPosition === 'left' ? 'left-0' : 'right-0';
     const desktopOriginClass = desktopPosition === 'left' ? 'origin-top-left' : 'origin-top-right';
 
-    // Resolve children: support both ReactNode and render prop
-    const resolvedChildren = typeof children === 'function'
-        ? (children as DrawerRenderProp)(handleClose)
+    // Resolve children separately for mobile (animated close) and desktop (immediate close)
+    const mobileChildren = typeof children === 'function'
+        ? (children as DrawerRenderProp)(mobileHandleClose)
+        : children;
+    const desktopChildren = typeof children === 'function'
+        ? (children as DrawerRenderProp)(desktopHandleClose)
         : children;
 
     if (!isMounted && !isVisible) return null;
@@ -216,12 +268,12 @@ export function BaseDrawer({
                         opacity: (drawerPosition / 100) * backdropOpacity,
                         pointerEvents: drawerPosition > 0 ? 'auto' : 'none',
                     }}
-                    onClick={handleClose}
+                    onClick={mobileHandleClose}
                 />
 
                 {/* Drawer Container */}
                 <div
-                    className={`fixed left-0 right-0 ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName}`}
+                    className={`fixed left-0 right-0 ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`}
                     style={{
                         height: mobileStyles.height,
                         maxHeight: mobileStyles.height,
@@ -237,7 +289,21 @@ export function BaseDrawer({
                     }}
                     {...bindDrawerDrag()}
                 >
-                    {resolvedChildren}
+                    {header && (
+                        <DrawerHeader
+                            title={header.title}
+                            showBack={header.showBack}
+                            onBack={header.onBack}
+                            badge={header.badge}
+                            onClose={mobileHandleClose}
+                            isMobile={true}
+                        />
+                    )}
+                    {header ? (
+                        <div className="flex-1 min-h-0 overflow-hidden">
+                            {mobileChildren}
+                        </div>
+                    ) : mobileChildren}
                 </div>
             </div>
 
@@ -249,7 +315,7 @@ export function BaseDrawer({
                         className={`fixed inset-0 ${zIndex} bg-black transition-opacity duration-250 ease-out ${
                             isVisible ? 'opacity-20 pointer-events-auto' : 'opacity-0 pointer-events-none'
                         }`}
-                        onClick={onClose}
+                        onClick={desktopHandleClose}
                     />
 
                     {/* Panel — positioned relative to the max-w-315 content container */}
@@ -275,7 +341,21 @@ export function BaseDrawer({
                                 }}
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                {resolvedChildren}
+                                {header && (
+                                    <DrawerHeader
+                                        title={header.title}
+                                        showBack={header.showBack}
+                                        onBack={header.onBack}
+                                        badge={header.badge}
+                                        onClose={desktopHandleClose}
+                                        isMobile={false}
+                                    />
+                                )}
+                                {header ? (
+                                    <div className="flex-1 min-h-0 overflow-hidden">
+                                        {desktopChildren}
+                                    </div>
+                                ) : desktopChildren}
                             </div>
                         </div>
                     </div>

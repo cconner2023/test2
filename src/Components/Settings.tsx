@@ -1,10 +1,12 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useDrag } from '@use-gesture/react';
-import { X, Moon, Sun, Shield, HelpCircle, ChevronUp, User, ChevronRight, ChevronLeft, Bug, PlusCircle, RefreshCw, FileText, Trash2, Pencil, Share2, CheckSquare, Square, Eye, ClipboardCopy } from 'lucide-react';
+import { useSpring, animated } from '@react-spring/web';
+import { Moon, Sun, Shield, HelpCircle, ChevronUp, User, ChevronRight, Bug, PlusCircle, RefreshCw, FileText, Trash2, Pencil, Share2, CheckSquare, Square, Eye, ClipboardCopy } from 'lucide-react';
 import { ReleaseNotes, type ReleaseNoteTypes } from '../Data/Release';
 import { BaseDrawer } from './BaseDrawer';
 import type { SavedNote } from '../Hooks/useNotesStorage';
 import { useNoteShare } from '../Hooks/useNoteShare';
+import { SPRING_CONFIGS, clamp } from '../Utilities/GestureUtils';
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -63,107 +65,16 @@ const getDispositionColor = (type: string) => {
 };
 
 /* ────────────────────────────────────────────────────────────
-   ActionMenu — Popup action menu shown on tap (mobile).
-   Displays View, Copy, Share, Delete actions for a note.
-   ──────────────────────────────────────────────────────────── */
-const ActionMenu = ({
-    note,
-    onView,
-    onCopy,
-    onShare,
-    onDelete,
-    onClose,
-    shareStatus,
-    copiedStatus,
-}: {
-    note: SavedNote;
-    onView: (note: SavedNote) => void;
-    onCopy: (note: SavedNote) => void;
-    onShare: (note: SavedNote) => void;
-    onDelete: (noteId: string) => void;
-    onClose: () => void;
-    shareStatus: string;
-    copiedStatus: boolean;
-}) => {
-    const [confirmDelete, setConfirmDelete] = useState(false);
-    const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout>>(0);
-
-    useEffect(() => {
-        return () => {
-            if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
-        };
-    }, []);
-
-    const handleDelete = () => {
-        if (confirmDelete) {
-            onDelete(note.id);
-            onClose();
-        } else {
-            setConfirmDelete(true);
-            if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
-            confirmTimeoutRef.current = setTimeout(() => setConfirmDelete(false), 5000);
-        }
-    };
-
-    return (
-        <div className="flex items-center justify-center gap-2 flex-wrap px-3 py-2 bg-themewhite2/80 rounded-b-lg border-t border-tertiary/10" data-action-menu>
-            <button
-                onClick={(e) => { e.stopPropagation(); onView(note); onClose(); }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 transition-all active:scale-95"
-                title="View / Edit note"
-            >
-                <Eye size={13} />
-                View
-            </button>
-            <button
-                onClick={(e) => { e.stopPropagation(); onCopy(note); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full transition-all active:scale-95 ${copiedStatus
-                    ? 'bg-green-500/15 text-green-600'
-                    : 'bg-teal-500/10 text-teal-600 hover:bg-teal-500/20'
-                    }`}
-                title="Copy encoded text"
-            >
-                <ClipboardCopy size={13} />
-                {copiedStatus ? 'Copied!' : 'Copy'}
-            </button>
-            <button
-                onClick={(e) => { e.stopPropagation(); onShare(note); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full transition-all active:scale-95 ${shareStatus === 'shared' || shareStatus === 'copied'
-                    ? 'bg-green-500/15 text-green-600'
-                    : shareStatus === 'generating' || shareStatus === 'sharing'
-                        ? 'bg-purple-500/15 text-purple-600'
-                        : 'bg-purple-500/10 text-purple-600 hover:bg-purple-500/20'
-                    }`}
-                title="Share note as image"
-            >
-                <Share2 size={13} />
-                {shareStatus === 'copied' ? 'Copied!' : shareStatus === 'shared' ? 'Shared!' : shareStatus === 'generating' || shareStatus === 'sharing' ? '...' : 'Share'}
-            </button>
-            <button
-                onClick={(e) => { e.stopPropagation(); handleDelete(); }}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full transition-all active:scale-95 ${confirmDelete
-                    ? 'bg-red-500 text-white'
-                    : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
-                    }`}
-                title={confirmDelete ? 'Confirm' : 'Delete note'}
-                aria-label={confirmDelete ? 'Confirm' : 'Delete'}
-            >
-                <Trash2 size={13} />
-                {confirmDelete ? 'Confirm' : 'Delete'}
-            </button>
-        </div>
-    );
-};
-
-/* ────────────────────────────────────────────────────────────
    SwipeableNoteItem — Mobile note item with swipe gestures.
    Swipe left → reveals delete (right side).
    Swipe right → reveals view, copy, share (left side).
-   Tap → toggles action menu.
+   Tap → toggles checkbox selection for bottom action bar.
+   Action circles grow during swipe & bounce on overswipe.
    ──────────────────────────────────────────────────────────── */
 const SWIPE_THRESHOLD = 60;
-const ACTION_WIDTH_LEFT = 180;
-const ACTION_WIDTH_RIGHT = 80;
+const ACTION_WIDTH_LEFT = 160;
+const ACTION_WIDTH_RIGHT = 70;
+const BOUNCE_CONFIG = { tension: 300, friction: 22 };
 
 const SwipeableNoteItem = ({
     note,
@@ -171,8 +82,8 @@ const SwipeableNoteItem = ({
     onCopy,
     onShare,
     onDelete,
-    activeMenuId,
-    onToggleMenu,
+    isSelected,
+    onToggleSelect,
     shareStatus,
     copiedStatus,
 }: {
@@ -181,24 +92,41 @@ const SwipeableNoteItem = ({
     onCopy: (note: SavedNote) => void;
     onShare: (note: SavedNote) => void;
     onDelete: (noteId: string) => void;
-    activeMenuId: string | null;
-    onToggleMenu: (noteId: string) => void;
+    isSelected: boolean;
+    onToggleSelect: (noteId: string) => void;
     shareStatus: string;
     copiedStatus: boolean;
 }) => {
-    const [offsetX, setOffsetX] = useState(0);
-    const [isDragging, setIsDragging] = useState(false);
     const [isRevealed, setIsRevealed] = useState<'left' | 'right' | null>(null);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout>>(0);
+    const snapTargetRef = useRef(0);
 
-    const showMenu = activeMenuId === note.id;
+    const [{ x }, api] = useSpring(() => ({ x: 0, config: SPRING_CONFIGS.snap }));
 
-    useEffect(() => {
-        if (!showMenu && isRevealed) {
-            // Keep revealed state as-is
-        }
-    }, [showMenu, isRevealed]);
+    // Staggered per-button reveals: each button starts later, slides in from a small offset
+    const STAGGER = 20;  // px offset between each button's reveal start
+    const SLIDE = 10;    // px horizontal slide distance per button
+
+    const leftButton = (index: number) => {
+        const start = index * STAGGER;
+        const end = ACTION_WIDTH_LEFT * 0.65 + index * STAGGER;
+        return {
+            scale: x.to(v => clamp((v - start) / (end - start), 0, 1)),
+            slideX: x.to(v => {
+                const t = clamp((v - start) / (end - start), 0, 1);
+                return (1 - t) * -SLIDE;
+            }),
+        };
+    };
+
+    const rightButton = {
+        scale: x.to(v => clamp(-v / (ACTION_WIDTH_RIGHT * 0.8), 0, 1)),
+        slideX: x.to(v => {
+            const t = clamp(-v / (ACTION_WIDTH_RIGHT * 0.8), 0, 1);
+            return (1 - t) * SLIDE;
+        }),
+    };
 
     useEffect(() => {
         return () => {
@@ -207,18 +135,17 @@ const SwipeableNoteItem = ({
     }, []);
 
     const closeSwipe = useCallback(() => {
-        setOffsetX(0);
+        snapTargetRef.current = 0;
+        api.start({ x: 0, config: SPRING_CONFIGS.snap });
         setIsRevealed(null);
         setConfirmDelete(false);
-    }, []);
+    }, [api]);
 
     const bindSwipe = useDrag(
         ({ active, first, movement: [mx], tap, memo }) => {
             if (tap) return memo;
 
-            // Capture starting offset at gesture start
-            const startOffset = first ? offsetX : (memo ?? 0);
-
+            const startOffset = first ? snapTargetRef.current : (memo ?? 0);
             let newOffset = startOffset + mx;
 
             // Overshoot dampening beyond action widths
@@ -231,19 +158,29 @@ const SwipeableNoteItem = ({
             }
 
             if (active) {
-                setIsDragging(true);
-                setOffsetX(newOffset);
+                api.start({ x: newOffset, immediate: true });
             } else {
-                setIsDragging(false);
-                // Snap to revealed position or back to center
+                // Determine if released from overswipe
+                const wasOverswipeLeft = newOffset > ACTION_WIDTH_LEFT;
+                const wasOverswipeRight = newOffset < -ACTION_WIDTH_RIGHT;
+
                 if (newOffset > SWIPE_THRESHOLD) {
-                    setOffsetX(ACTION_WIDTH_LEFT);
+                    snapTargetRef.current = ACTION_WIDTH_LEFT;
+                    api.start({
+                        x: ACTION_WIDTH_LEFT,
+                        config: wasOverswipeLeft ? BOUNCE_CONFIG : SPRING_CONFIGS.snap,
+                    });
                     setIsRevealed('left');
                 } else if (newOffset < -SWIPE_THRESHOLD) {
-                    setOffsetX(-ACTION_WIDTH_RIGHT);
+                    snapTargetRef.current = -ACTION_WIDTH_RIGHT;
+                    api.start({
+                        x: -ACTION_WIDTH_RIGHT,
+                        config: wasOverswipeRight ? BOUNCE_CONFIG : SPRING_CONFIGS.snap,
+                    });
                     setIsRevealed('right');
                 } else {
-                    setOffsetX(0);
+                    snapTargetRef.current = 0;
+                    api.start({ x: 0, config: SPRING_CONFIGS.snap });
                     setIsRevealed(null);
                 }
             }
@@ -262,8 +199,8 @@ const SwipeableNoteItem = ({
             closeSwipe();
             return;
         }
-        onToggleMenu(note.id);
-    }, [isRevealed, closeSwipe, onToggleMenu, note.id]);
+        onToggleSelect(note.id);
+    }, [isRevealed, closeSwipe, onToggleSelect, note.id]);
 
     const handleDeleteAction = useCallback(() => {
         if (confirmDelete) {
@@ -278,75 +215,105 @@ const SwipeableNoteItem = ({
 
     return (
         <div className="relative mb-2 rounded-lg overflow-hidden" data-note-item={note.id}>
-            {/* Left actions (revealed by swiping right): View, Copy, Share */}
-            {(offsetX > 0 || isRevealed === 'left') && (
-                <div
-                    className="absolute inset-y-0 left-0 flex items-center gap-1 pl-2 pr-1"
-                    style={{ width: ACTION_WIDTH_LEFT }}
-                >
+            {/* Left actions (revealed by swiping right): View, Copy, Share — staggered */}
+            <div
+                className="absolute inset-y-0 left-0 flex items-center justify-center gap-3 pl-3 pr-1"
+                style={{
+                    width: ACTION_WIDTH_LEFT,
+                    pointerEvents: isRevealed === 'left' ? 'auto' : 'none',
+                }}
+            >
+                {(() => { const b0 = leftButton(0); return (
+                <animated.div style={{ scale: b0.scale, x: b0.slideX }}>
                     <button
                         onClick={(e) => { e.stopPropagation(); onView(note); closeSwipe(); }}
-                        className="flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg bg-amber-500/15 text-amber-600 active:scale-95 transition-transform"
+                        className="flex flex-col items-center gap-1"
                         aria-label="View note"
                     >
-                        <Eye size={18} />
-                        <span className="text-[9px] font-medium">View</span>
+                        <div className="w-10 h-10 rounded-full bg-amber-500/15 text-amber-600 flex items-center justify-center active:scale-95 transition-transform">
+                            <Eye size={18} />
+                        </div>
+                        <span className="text-[9px] font-medium text-amber-600">View</span>
                     </button>
+                </animated.div>
+                ); })()}
+                {(() => { const b1 = leftButton(1); return (
+                <animated.div style={{ scale: b1.scale, x: b1.slideX }}>
                     <button
                         onClick={(e) => { e.stopPropagation(); onCopy(note); }}
-                        className="flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg bg-teal-500/15 text-teal-600 active:scale-95 transition-transform"
+                        className="flex flex-col items-center gap-1"
                         aria-label="Copy note"
                     >
-                        <ClipboardCopy size={18} />
-                        <span className="text-[9px] font-medium">{copiedStatus ? 'Copied!' : 'Copy'}</span>
+                        <div className="w-10 h-10 rounded-full bg-teal-500/15 text-teal-600 flex items-center justify-center active:scale-95 transition-transform">
+                            <ClipboardCopy size={18} />
+                        </div>
+                        <span className="text-[9px] font-medium text-teal-600">{copiedStatus ? 'Copied!' : 'Copy'}</span>
                     </button>
+                </animated.div>
+                ); })()}
+                {(() => { const b2 = leftButton(2); return (
+                <animated.div style={{ scale: b2.scale, x: b2.slideX }}>
                     <button
                         onClick={(e) => { e.stopPropagation(); onShare(note); }}
-                        className="flex flex-col items-center justify-center gap-0.5 px-2 py-2 rounded-lg bg-purple-500/15 text-purple-600 active:scale-95 transition-transform"
+                        className="flex flex-col items-center gap-1"
                         aria-label="Share note"
                     >
-                        <Share2 size={18} />
-                        <span className="text-[9px] font-medium">
+                        <div className="w-10 h-10 rounded-full bg-purple-500/15 text-purple-600 flex items-center justify-center active:scale-95 transition-transform">
+                            <Share2 size={18} />
+                        </div>
+                        <span className="text-[9px] font-medium text-purple-600">
                             {shareStatus === 'shared' || shareStatus === 'copied' ? 'Done!' : 'Share'}
                         </span>
                     </button>
-                </div>
-            )}
+                </animated.div>
+                ); })()}
+            </div>
 
             {/* Right action (revealed by swiping left): Delete */}
-            {(offsetX < 0 || isRevealed === 'right') && (
-                <div
-                    className="absolute inset-y-0 right-0 flex items-center justify-center pr-2 pl-1"
-                    style={{ width: ACTION_WIDTH_RIGHT }}
-                >
+            <div
+                className="absolute inset-y-0 right-0 flex items-center justify-center pr-3 pl-1"
+                style={{
+                    width: ACTION_WIDTH_RIGHT,
+                    pointerEvents: isRevealed === 'right' ? 'auto' : 'none',
+                }}
+            >
+                <animated.div style={{ scale: rightButton.scale, x: rightButton.slideX }}>
                     <button
                         onClick={(e) => { e.stopPropagation(); handleDeleteAction(); }}
-                        className={`flex flex-col items-center justify-center gap-0.5 px-3 py-2 rounded-lg active:scale-95 transition-all ${confirmDelete
-                            ? 'bg-red-500 text-white'
-                            : 'bg-red-500/15 text-red-500'
-                            }`}
+                        className="flex flex-col items-center gap-1"
                         aria-label={confirmDelete ? 'Confirm' : 'Delete note'}
                     >
-                        <Trash2 size={18} />
-                        <span className="text-[9px] font-medium">{confirmDelete ? 'Confirm' : 'Delete'}</span>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-colors ${confirmDelete
+                            ? 'bg-red-500 text-white'
+                            : 'bg-red-500/15 text-red-500'
+                            }`}>
+                            <Trash2 size={18} />
+                        </div>
+                        <span className={`text-[9px] font-medium text-red-500`}>
+                            {confirmDelete ? 'Confirm' : 'Delete'}
+                        </span>
                     </button>
-                </div>
-            )}
+                </animated.div>
+            </div>
 
             {/* Foreground: the actual note card, slides left/right */}
-            <div
-                className={`relative bg-themewhite border border-tertiary/10 rounded-lg ${showMenu ? 'border-themeblue3/30 bg-themeblue3/5' : ''
+            <animated.div
+                className={`relative bg-themewhite border rounded-lg ${isSelected
+                    ? 'border-themeblue3/50 bg-themeblue3/5 ring-1 ring-themeblue3/20'
+                    : 'border-tertiary/10'
                     }`}
-                style={{
-                    transform: `translateX(${offsetX}px)`,
-                    transition: isDragging ? 'none' : 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)',
-                    touchAction: 'pan-y',
-                    willChange: isDragging ? 'transform' : 'auto',
-                }}
+                style={{ x, touchAction: 'pan-y' }}
                 {...bindSwipe()}
                 onClick={handleTap}
             >
                 <div className="flex items-center gap-3 px-3 py-3">
+                    <div className="shrink-0">
+                        {isSelected ? (
+                            <CheckSquare size={18} className="text-themeblue3" />
+                        ) : (
+                            <Square size={18} className="text-tertiary/30" />
+                        )}
+                    </div>
                     <div className="shrink-0 w-8 h-8 rounded-full bg-themeblue3/10 flex items-center justify-center text-sm">
                         {note.symptomIcon || '\u{1F4CB}'}
                     </div>
@@ -373,21 +340,7 @@ const SwipeableNoteItem = ({
                         </div>
                     </div>
                 </div>
-            </div>
-
-            {/* Action menu (shown on tap) */}
-            {showMenu && !isRevealed && (
-                <ActionMenu
-                    note={note}
-                    onView={onView}
-                    onCopy={onCopy}
-                    onShare={onShare}
-                    onDelete={onDelete}
-                    onClose={() => onToggleMenu(note.id)}
-                    shareStatus={shareStatus}
-                    copiedStatus={copiedStatus}
-                />
-            )}
+            </animated.div>
         </div>
     );
 };
@@ -406,7 +359,7 @@ const ReleaseNoteItem = ({ note }: { note: ReleaseNoteTypes }) => {
     );
 };
 
-const ReleaseNotesPanel = ({ onBack, isMobile }: { onBack: () => void; isMobile: boolean }) => {
+const ReleaseNotesPanel = () => {
     const groupedNotes = ReleaseNotes.reduce<Record<string, ReleaseNoteTypes[]>>((acc, note) => {
         const version = note.version;
         if (!acc[version]) acc[version] = [];
@@ -417,26 +370,7 @@ const ReleaseNotesPanel = ({ onBack, isMobile }: { onBack: () => void; isMobile:
     const versions = Object.keys(groupedNotes).sort((a, b) => parseFloat(b) - parseFloat(a));
 
     return (
-        <div className="h-full flex flex-col">
-            {isMobile && (
-                <div className="flex justify-center pt-3 pb-2" data-drag-zone style={{ touchAction: 'none' }}>
-                    <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
-                </div>
-            )}
-            <div className="px-6 border-b border-tertiary/10 py-4 md:py-5">
-                <div className="flex items-center">
-                    <button
-                        onClick={onBack}
-                        className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all mr-2"
-                        aria-label="Go back"
-                    >
-                        <ChevronLeft size={24} className="text-tertiary" />
-                    </button>
-                    <h2 className="text-xl font-semibold text-primary md:text-2xl">Release Notes</h2>
-                </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-4 py-3 md:p-6">
+        <div className="h-full overflow-y-auto px-4 py-3 md:p-6">
                 {versions.map((version, versionIndex) => {
                     const notes = groupedNotes[version];
                     const isLatest = versionIndex === 0;
@@ -468,7 +402,6 @@ const ReleaseNotesPanel = ({ onBack, isMobile }: { onBack: () => void; isMobile:
                         </div>
                     );
                 })}
-            </div>
         </div>
     );
 };
@@ -476,8 +409,6 @@ const ReleaseNotesPanel = ({ onBack, isMobile }: { onBack: () => void; isMobile:
 const MainSettingsPanel = ({
     settingsOptions,
     onItemClick,
-    onClose,
-    isMobile
 }: {
     settingsOptions: Array<{
         icon: React.ReactNode;
@@ -487,30 +418,8 @@ const MainSettingsPanel = ({
         id: number;
     }>;
     onItemClick: (id: number) => void;
-    onClose: () => void;
-    isMobile: boolean;
 }) => (
-    <div className="h-full flex flex-col">
-        {isMobile && (
-            <div className="flex justify-center pt-3 pb-2" data-drag-zone style={{ touchAction: 'none' }}>
-                <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
-            </div>
-        )}
-
-        <div className="px-6 border-b border-tertiary/10 py-3 md:py-4" data-drag-zone style={{ touchAction: 'none' }}>
-            <div className="flex items-center justify-between">
-                <h2 className="text-[11pt] font-normal text-primary md:text-2xl">Settings</h2>
-                <button
-                    onClick={onClose}
-                    className="p-2 rounded-full hover:bg-themewhite2 md:hover:bg-themewhite active:scale-95 transition-all"
-                    aria-label="Close"
-                >
-                    <X size={24} className="text-tertiary" />
-                </button>
-            </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto">
+    <div className="h-full overflow-y-auto">
             <div className="px-4 py-3 md:p-5">
                 <div className="mb-4 pb-4 border-b border-tertiary/10">
                     <div className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2/10 active:scale-[0.98]
@@ -557,12 +466,11 @@ const MainSettingsPanel = ({
                     </div>
                 </div>
             </div>
-        </div>
     </div>
 );
 
 /* ────────────────────────────────────────────────────────────
-   NoteItemSettings — A single note row for the Settings-embedded My Notes panel.
+   NoteItemSettings
    No per-item action menu. Selection indicated by checkbox highlight.
    Actions live in the bottom panel action bar.
    ──────────────────────────────────────────────────────────── */
@@ -626,10 +534,9 @@ const NoteItemSettings = ({
    Acts like the Release Notes panel - slides in from the right,
    has a back button to return to Settings main.
    Desktop: checkbox selection + bottom action bar.
-   Mobile: swipe gestures + tap action menu (SwipeableNoteItem).
+   Mobile: swipe gestures + tap checkbox + shared bottom action bar.
    ──────────────────────────────────────────────────────────── */
 const MyNotesPanel = ({
-    onBack,
     isMobile,
     notes,
     onDeleteNote,
@@ -639,7 +546,6 @@ const MyNotesPanel = ({
     onCloseDrawer,
     initialSelectedId,
 }: {
-    onBack: () => void;
     isMobile: boolean;
     notes: SavedNote[];
     onDeleteNote: (noteId: string) => void;
@@ -649,29 +555,22 @@ const MyNotesPanel = ({
     onCloseDrawer: () => void;
     initialSelectedId?: string | null;
 }) => {
-    // Desktop state: checkbox selection + bottom action bar
+    // Shared state: checkbox selection + bottom action bar (both mobile & desktop)
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [confirmDelete, setConfirmDelete] = useState(false);
     const confirmDeleteRef = useRef(false);
     const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout>>(0);
 
-    // Mobile state: swipe + tap action menu
-    const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
-
     // Shared state
     const [copiedStatus, setCopiedStatus] = useState(false);
     const { shareNote, shareStatus } = useNoteShare();
 
-    // Pre-select / pre-open menu for initially selected note
+    // Pre-select for initially selected note
     useEffect(() => {
         if (initialSelectedId && notes.some(n => n.id === initialSelectedId)) {
-            if (isMobile) {
-                setActiveMenuId(initialSelectedId);
-            } else {
-                setSelectedIds(new Set([initialSelectedId]));
-            }
+            setSelectedIds(new Set([initialSelectedId]));
         }
-    }, [initialSelectedId, notes, isMobile]);
+    }, [initialSelectedId, notes]);
 
     // Clear selection when notes change (e.g., after delete)
     useEffect(() => {
@@ -686,14 +585,7 @@ const MyNotesPanel = ({
         });
     }, [notes]);
 
-    // Close mobile menu if the active note was deleted
-    useEffect(() => {
-        if (activeMenuId && !notes.some(n => n.id === activeMenuId)) {
-            setActiveMenuId(null);
-        }
-    }, [notes, activeMenuId]);
-
-    // Desktop handlers
+    // Shared handlers
     const handleToggleSelect = useCallback((noteId: string) => {
         setSelectedIds(prev => {
             const next = new Set(prev);
@@ -712,11 +604,6 @@ const MyNotesPanel = ({
         setSelectedIds(new Set());
         confirmDeleteRef.current = false;
         setConfirmDelete(false);
-    }, []);
-
-    // Mobile handlers
-    const handleToggleMenu = useCallback((noteId: string) => {
-        setActiveMenuId(prev => prev === noteId ? null : noteId);
     }, []);
 
     // Mobile view: consolidated view action (opens note in wizard)
@@ -740,7 +627,6 @@ const MyNotesPanel = ({
         if (onEditNoteInWizard) onEditNoteInWizard(note);
     }, [onCloseDrawer, onEditNoteInWizard]);
 
-    // Shared handlers
     const handleCopy = useCallback((note: SavedNote) => {
         if (note.encodedText) {
             navigator.clipboard.writeText(note.encodedText).then(() => {
@@ -781,33 +667,17 @@ const MyNotesPanel = ({
     const isMultiSelect = selectedCount > 1;
     const singleNote = isSingleSelect ? selectedNotes[0] : null;
 
+    // View handler adapts to mobile vs desktop
+    const handleSingleView = useCallback((note: SavedNote) => {
+        if (isMobile) {
+            handleMobileView(note);
+        } else {
+            handleViewNote(note);
+        }
+    }, [isMobile, handleMobileView, handleViewNote]);
+
     return (
         <div className="h-full flex flex-col">
-            {isMobile && (
-                <div className="flex justify-center pt-3 pb-2" data-drag-zone style={{ touchAction: 'none' }}>
-                    <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
-                </div>
-            )}
-            <div className="px-6 border-b border-tertiary/10 py-4 md:py-5">
-                <div className="flex items-center">
-                    <button
-                        onClick={onBack}
-                        className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all mr-2"
-                        aria-label="Go back"
-                    >
-                        <ChevronLeft size={24} className="text-tertiary" />
-                    </button>
-                    <div className="flex items-center gap-2">
-                        <h2 className="text-xl font-semibold text-primary md:text-2xl">My Notes</h2>
-                        {notes.length > 0 && (
-                            <span className="text-xs text-tertiary/60 bg-tertiary/10 px-2 py-0.5 rounded-full">
-                                {notes.length}
-                            </span>
-                        )}
-                    </div>
-                </div>
-            </div>
-
             <div className="flex-1 overflow-y-auto">
                 {notes.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
@@ -820,10 +690,10 @@ const MyNotesPanel = ({
                         </p>
                     </div>
                 ) : isMobile ? (
-                    /* Mobile: swipe gestures + tap action menu */
+                    /* Mobile: swipe gestures + tap to select */
                     <div className="p-3">
                         <p className="text-[10px] text-tertiary/40 text-center mb-2">
-                            Swipe or tap for actions
+                            Swipe for actions · Tap to select
                         </p>
                         {notes.map((note) => (
                             <SwipeableNoteItem
@@ -833,8 +703,8 @@ const MyNotesPanel = ({
                                 onCopy={handleCopy}
                                 onShare={handleShare}
                                 onDelete={onDeleteNote}
-                                activeMenuId={activeMenuId}
-                                onToggleMenu={handleToggleMenu}
+                                isSelected={selectedIds.has(note.id)}
+                                onToggleSelect={handleToggleSelect}
                                 shareStatus={shareStatus}
                                 copiedStatus={copiedStatus}
                             />
@@ -858,8 +728,8 @@ const MyNotesPanel = ({
                 )}
             </div>
 
-            {/* Bottom Action Bar — desktop only, visible when notes are selected */}
-            {!isMobile && selectedCount > 0 && (
+            {/* Bottom Action Bar — visible when notes are selected (mobile & desktop) */}
+            {selectedCount > 0 && (
                 <div className="shrink-0 border-t border-tertiary/10 bg-themewhite2">
                     {/* Selection info row */}
                     <div className="px-4 pt-3 pb-2 flex items-center justify-between">
@@ -879,7 +749,7 @@ const MyNotesPanel = ({
                         {isSingleSelect && singleNote && (
                             <div className="flex items-center justify-center gap-2 flex-wrap">
                                 <button
-                                    onClick={() => handleViewNote(singleNote)}
+                                    onClick={() => handleSingleView(singleNote)}
                                     className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-full bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 transition-all active:scale-95"
                                     title="View note in algorithm"
                                 >
@@ -1060,11 +930,30 @@ export const Settings = ({
         }
     ], [isDarkMode, onToggleTheme, handleItemClick]);
 
+    const headerConfig = useMemo(() => {
+        switch (activePanel) {
+            case 'main':
+                return { title: 'Settings' };
+            case 'my-notes':
+                return {
+                    title: 'My Notes',
+                    showBack: true,
+                    onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
+                    badge: notes.length > 0 ? String(notes.length) : undefined,
+                };
+            case 'release-notes':
+                return {
+                    title: 'Release Notes',
+                    showBack: true,
+                    onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
+                };
+        }
+    }, [activePanel, notes.length, handleSlideAnimation]);
+
     return (
         <BaseDrawer
             isVisible={isVisible}
             onClose={() => { setActivePanel('main'); setSlideDirection(''); onClose(); }}
-            isMobile={externalIsMobile}
             fullHeight="90dvh"
             backdropOpacity={0.9}
             desktopPosition="right"
@@ -1074,6 +963,7 @@ export const Settings = ({
             desktopHeight="h-[550px]"
             desktopTopOffset="4.5rem"
             disableDrag={false}
+            header={headerConfig}
         >
             {(handleClose) => (
                 <ContentWrapper slideDirection={slideDirection}>
@@ -1081,14 +971,11 @@ export const Settings = ({
                         <MainSettingsPanel
                             settingsOptions={buildSettingsOptions(handleClose)}
                             onItemClick={(id) => handleItemClick(id, handleClose)}
-                            onClose={handleClose}
-                            isMobile={externalIsMobile ?? (typeof window !== 'undefined' && window.innerWidth < 768)}
                         />
                     ) : activePanel === 'release-notes' ? (
-                        <ReleaseNotesPanel onBack={() => handleItemClick(-2, handleClose)} isMobile={externalIsMobile ?? (typeof window !== 'undefined' && window.innerWidth < 768)} />
+                        <ReleaseNotesPanel />
                     ) : (
                         <MyNotesPanel
-                            onBack={() => handleItemClick(-2, handleClose)}
                             isMobile={externalIsMobile ?? (typeof window !== 'undefined' && window.innerWidth < 768)}
                             notes={notes}
                             onDeleteNote={onDeleteNote || (() => { })}

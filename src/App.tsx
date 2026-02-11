@@ -427,13 +427,8 @@ function AppContent() {
     }, 300)
   }, [restoreNote, notesStorage, navigation])
 
-  // Title logic
-  const getTitle = () => {
-    if (search.searchInput) return { title: "", show: false }
-    return navigation.dynamicTitle
-  }
-
-  const title = getTitle()
+  // Title: empty when searching (hides dynamic title), otherwise from navigation
+  const title = search.searchInput ? "" : navigation.dynamicTitle
 
   // Content key — drives fade-in animation on content change
   const desktopContentKey = useMemo(() => {
@@ -453,8 +448,7 @@ function AppContent() {
 
   return (
     <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
-      <div className={`max-w-315 shrink flex-col w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1 relative ${navigation.isMobile ? '' : 'bg-themewhite pb-10'
-        }`}>
+      <div className="max-w-315 shrink flex-col w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1 relative md:bg-themewhite md:pb-10">
         {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
         <div className={`${navigation.isMobile
           ? 'absolute top-0 left-0 right-0 z-30 pt-[env(safe-area-inset-top)] backdrop-blur-xs bg-themewhite/10'
@@ -483,8 +477,7 @@ function AppContent() {
             ui={{
               showBack: navigation.shouldShowBackButton(!!search.searchInput.trim()),
               showMenu: navigation.shouldShowMenuButton(!!search.searchInput.trim()),
-              dynamicTitle: title.title,
-              showDynamicTitle: title.show,
+              dynamicTitle: title,
               medicationButtonText: navigation.getMedicationButtonText(),
               isMobile: navigation.isMobile,
               isAlgorithmView: navigation.showQuestionCard,
@@ -494,14 +487,9 @@ function AppContent() {
         </div>
 
         {/* Content area — Unified 2-column grid (A: Navigation | B: Content) */}
-        <div ref={contentRef} className={`md:h-[94%] h-full relative overflow-hidden ${navigation.isMobile ? 'absolute inset-0' : 'mt-2 mx-2'
-          }`}>
+        <div ref={contentRef} className="md:h-[94%] h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
           <div
-            className="h-full grid gap-1"
-            style={{
-              gridTemplateColumns: navigation.mainGridTemplate,
-              transition: 'grid-template-columns 0.3s ease-in-out',
-            }}
+            className={`h-full grid gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${navigation.mobileGridClass} md:grid-cols-[0.45fr_0.55fr]`}
             {...(navigation.isMobile && navigation.isMobileColumnB ? swipe.touchHandlers : {})}
           >
             {/* Column A: Navigation carousel */}
@@ -513,6 +501,7 @@ function AppContent() {
                 onNavigate={handleNavigationClick}
                 isMobile={navigation.isMobile}
                 panelIndex={navigation.columnAPanel}
+                isVisible={!navigation.isMobileColumnB}
                 onSwipeBack={() => navigation.handleBackClick()}
               />
             </div>
@@ -582,7 +571,6 @@ function AppContent() {
         <NoteImport
           isVisible={navigation.showNoteImport}
           onClose={() => navigation.setShowNoteImport(false)}
-          isMobile={navigation.isMobile}
           initialViewState={importInitialView}
           onImportSuccess={handleImportSuccess}
         />
@@ -605,7 +593,6 @@ function AppContent() {
           onClose={() => navigation.setShowMedications(false)}
           selectedMedication={navigation.selectedMedication}
           onMedicationSelect={navigation.handleMedicationSelect}
-          isMobile={navigation.isMobile}
         />
         <SymptomInfoDrawer
           isVisible={navigation.showSymptomInfo}

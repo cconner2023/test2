@@ -33,7 +33,6 @@ interface UIState {
   showBack?: boolean
   showMenu?: boolean
   dynamicTitle?: string
-  showDynamicTitle?: boolean
   medicationButtonText?: string
   isMobile: boolean
   isAlgorithmView?: boolean

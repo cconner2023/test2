@@ -15,6 +15,8 @@ interface ColumnAProps {
   onNavigate: (result: SearchResultType) => void
   isMobile: boolean
   panelIndex: number
+  /** Whether Column A is currently the visible column (has non-zero width) */
+  isVisible?: boolean
   onSwipeBack?: () => void
   onSwipeForward?: () => void
 }
@@ -26,6 +28,7 @@ export function ColumnA({
   onNavigate,
   isMobile,
   panelIndex,
+  isVisible,
   onSwipeBack,
   onSwipeForward,
 }: ColumnAProps) {
@@ -36,6 +39,7 @@ export function ColumnA({
     enabled: isMobile,
     panelIndex: Math.min(panelIndex, panelCount - 1),
     panelCount,
+    isVisible,
     onSwipeBack,
     onSwipeForward,
   })

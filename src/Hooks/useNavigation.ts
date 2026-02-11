@@ -55,6 +55,9 @@ export function useNavigation() {
         writeNoteData: null
     })
     const [isMobile, setIsMobile] = useState(() => window.matchMedia('(max-width: 767px)').matches)
+    // stateRef: provides current state inside callbacks without stale closures.
+    // Used by: handleSymptomSelect (fallback category lookup).
+    // Note: handleBackClick uses atomic setState(prev => ...) instead to avoid TOCTOU races.
     const stateRef = useRef(state)
     useEffect(() => {
         stateRef.current = state
@@ -222,63 +225,49 @@ export function useNavigation() {
         }))
     }, [])
 
-    // Back Button - Priority-based navigation stack
+    // Back Button - Navigation stack only (drawers have their own close controls)
+    // Uses atomic setState(prev => ...) so the conditional and update read the same snapshot,
+    // avoiding stale-ref races during rapid interactions (double-tap, swipe during transition).
     const handleBackClick = useCallback(() => {
-        const current = stateRef.current
-
-        // Priority 1: Medications overlay - deselect medication or close
-        if (current.showMedications) {
-            if (current.selectedMedication) {
-                setState(prev => ({ ...prev, selectedMedication: null }))
-            } else {
-                setState(prev => ({ ...prev, showMedications: false }))
+        setState(prev => {
+            // Priority 1: Clear guideline selection
+            if (prev.selectedGuideline) {
+                return { ...prev, selectedGuideline: null }
             }
-            return
-        }
-        // Priority 2: Clear guideline selection
-        if (current.selectedGuideline) {
-            setState(prev => ({ ...prev, selectedGuideline: null }))
-        }
-        // Priority 3: Clear symptom → return to category view
-        else if (current.selectedSymptom) {
-            setState(prev => ({
-                ...prev,
-                selectedSymptom: null,
-                selectedGuideline: null,
-                viewState: 'subcategory'
-            }))
-        }
-        // Priority 4: Clear category → return to main
-        else if (current.selectedCategory) {
-            setState(prev => ({
-                ...prev,
-                viewState: 'main',
-                selectedCategory: null,
-                selectedSymptom: null,
-                selectedMedication: null,
-                selectedGuideline: null
-            }))
-        }
+            // Priority 2: Clear symptom → return to category view
+            if (prev.selectedSymptom) {
+                return {
+                    ...prev,
+                    selectedSymptom: null,
+                    selectedGuideline: null,
+                    viewState: 'subcategory' as ViewState
+                }
+            }
+            // Priority 3: Clear category → return to main
+            if (prev.selectedCategory) {
+                return {
+                    ...prev,
+                    viewState: 'main' as ViewState,
+                    selectedCategory: null,
+                    selectedSymptom: null,
+                    selectedMedication: null,
+                    selectedGuideline: null
+                }
+            }
+            return prev
+        })
     }, [])
 
-    // Grid Template Computation - Unified 2-column layout (A: Navigation | B: Content)
-    // Desktop: both columns always visible
-    // Mobile: one column active at a time, driven by navigation depth
-    const getGridTemplates = useMemo(() => {
-        // Desktop: Always show both columns
-        if (!isMobile) {
-            return { mainTemplate: '0.45fr 0.55fr' }
-        }
-
-        // Mobile: Column B active when viewing algorithm or searching
+    // Mobile grid class — which column is active (desktop handled by Tailwind md:)
+    const mobileGridClass = useMemo(() => {
+        // Column B active when viewing algorithm or searching
         if (state.isSearchExpanded ||
             (state.selectedSymptom !== null && state.viewState === 'questions')) {
-            return { mainTemplate: '0fr 1fr' }
+            return 'grid-cols-[0fr_1fr]'
         }
-
-        // Mobile: Column A active (navigating categories)
-        return { mainTemplate: '1fr 0fr' }
-    }, [state.isSearchExpanded, state.selectedSymptom, state.viewState, isMobile])
+        // Column A active (navigating categories)
+        return 'grid-cols-[1fr_0fr]'
+    }, [state.isSearchExpanded, state.selectedSymptom, state.viewState])
 
     // Column A internal panel index (which navigation view is shown)
     // 0 = main categories, 1 = subcategories, 2 = symptom info (desktop only)
@@ -294,44 +283,25 @@ export function useNavigation() {
         (state.selectedSymptom !== null && state.viewState === 'questions')
     )
 
-    const getDynamicTitle = () => {
-        if (state.showMedications) {
-            if (state.selectedMedication) {
-                return { title: state.selectedMedication.text, show: true }
-            }
-            return { title: "Medications", show: true }
-        }
+    const getDynamicTitle = (): string => {
         if (state.viewState === 'questions' && state.selectedSymptom) {
-            return { title: state.selectedSymptom.text, show: true }
+            return state.selectedSymptom.text
         }
         if (state.viewState === 'subcategory' && state.selectedCategory) {
-            return { title: state.selectedCategory.text, show: true }
+            return state.selectedCategory.text
         }
-        return { title: "", show: false }
+        return ""
     }
-
-    // Shared condition: user has navigated away from main view
-    const hasActiveNavigation = Boolean(
-        state.showMedications ||
-        state.selectedCategory ||
-        state.selectedSymptom
-    )
-
-    // Check if any drawer that covers the menu is open (on mobile these cover the entire screen)
-    const isDrawerCoveringMenu = state.showNoteImport || state.showSettings || state.showMedications || state.showSymptomInfo
 
     const shouldShowBackButton = (hasSearchInput: boolean) => {
         if (hasSearchInput) return false
-        // Hide back button when any covering drawer is open on mobile (drawer has its own controls)
-        if (isMobile && isDrawerCoveringMenu) return false
         return Boolean(state.selectedCategory || state.selectedSymptom)
     }
 
+    // Menu shows when back button doesn't (and no search input)
     const shouldShowMenuButton = (hasSearchInput: boolean) => {
         if (hasSearchInput) return false
-        // Hide menu button when any covering drawer is open on mobile
-        if (isMobile && isDrawerCoveringMenu) return false
-        return isMobile ? !Boolean(state.selectedCategory || state.selectedSymptom) : true
+        return !Boolean(state.selectedCategory || state.selectedSymptom)
     }
 
     /** Static label — kept as a function for future localisation */
@@ -473,7 +443,7 @@ export function useNavigation() {
 
         // Layout computation
         showQuestionCard: state.selectedSymptom !== null && state.viewState === 'questions',
-        mainGridTemplate: getGridTemplates.mainTemplate,
+        mobileGridClass,
         columnAPanel,
         isMobileColumnB,
         dynamicTitle: getDynamicTitle(),

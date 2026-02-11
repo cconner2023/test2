@@ -14,6 +14,10 @@ interface UseColumnCarouselOptions {
   panelIndex: number
   /** Total number of panels */
   panelCount: number
+  /** Whether the carousel container is currently visible (has non-zero width).
+   *  When transitioning from hidden to visible, the carousel snaps immediately
+   *  to the correct panel to prevent flashing the wrong panel during CSS grid expansion. */
+  isVisible?: boolean
   /** Callback when swipe-back completes (panel decreases) */
   onSwipeBack?: () => void
   /** Callback when swipe-forward completes (panel increases) */
@@ -24,6 +28,7 @@ export function useColumnCarousel({
   enabled,
   panelIndex,
   panelCount,
+  isVisible,
   onSwipeBack,
   onSwipeForward,
 }: UseColumnCarouselOptions) {
@@ -70,6 +75,19 @@ export function useColumnCarousel({
       animateToPanel(panelIndex)
     }
   }, [panelIndex, isSwiping, animateToPanel])
+
+  // Snap immediately to correct panel when becoming visible.
+  // Prevents flash of wrong panel during CSS grid expansion from 0fr.
+  const wasVisibleRef = useRef(isVisible ?? true)
+  useEffect(() => {
+    const wasVisible = wasVisibleRef.current
+    const nowVisible = isVisible ?? true
+    wasVisibleRef.current = nowVisible
+
+    if (!wasVisible && nowVisible) {
+      snapToPanel(panelIndex)
+    }
+  }, [isVisible, panelIndex, snapToPanel])
 
   // Drag gesture handler
   const bind = useDrag(
