@@ -45,6 +45,7 @@ interface WriteNoteProps {
     initialPage?: number;
     initialHpiText?: string;
     noteSource?: string | null;
+    onAfterSave?: () => void;
 }
 
 export const WriteNotePage = ({
@@ -62,6 +63,7 @@ export const WriteNotePage = ({
     initialPage = 0,
     initialHpiText = '',
     noteSource = null,
+    onAfterSave,
 }: WriteNoteProps) => {
     // Note content state
     const [note, setNote] = useState<string>(initialHpiText);
@@ -175,8 +177,12 @@ export const WriteNotePage = ({
             return;
         }
         setIsSaved(true);
-        setTimeout(() => setIsSaved(false), 2500);
-    }, [encodedValue, previewNote, selectedSymptom, disposition, onNoteSave]);
+        if (onAfterSave) {
+            setTimeout(() => onAfterSave(), 800);
+        } else {
+            setTimeout(() => setIsSaved(false), 2500);
+        }
+    }, [encodedValue, previewNote, selectedSymptom, disposition, onNoteSave, onAfterSave]);
 
     // --- Delete note handler (two-tap confirmation) ---
     const handleDeleteNote = useCallback(() => {
@@ -204,7 +210,7 @@ export const WriteNotePage = ({
     // --- Update note handler (save changes to existing note) ---
     const handleUpdateNote = useCallback(() => {
         if (!existingNoteId || !encodedValue) return;
-        onNoteUpdate?.(existingNoteId, {
+        const result = onNoteUpdate?.(existingNoteId, {
             encodedText: encodedValue,
             previewText: previewNote.slice(0, 200),
             symptomIcon: selectedSymptom?.icon || '',
@@ -212,9 +218,14 @@ export const WriteNotePage = ({
             dispositionType: disposition.type,
             dispositionText: disposition.text,
         });
+        if (result === false) return;
         setIsSaved(true);
-        setTimeout(() => setIsSaved(false), 2500);
-    }, [existingNoteId, encodedValue, previewNote, selectedSymptom, disposition, onNoteUpdate]);
+        if (onAfterSave) {
+            setTimeout(() => onAfterSave(), 800);
+        } else {
+            setTimeout(() => setIsSaved(false), 2500);
+        }
+    }, [existingNoteId, encodedValue, previewNote, selectedSymptom, disposition, onNoteUpdate, onAfterSave]);
 
     const handleClearNoteAndHide = () => {
         setNote('');

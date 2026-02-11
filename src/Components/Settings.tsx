@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { useDrag } from '@use-gesture/react';
 import { useSpring, animated } from '@react-spring/web';
-import { Moon, Sun, Shield, HelpCircle, ChevronUp, User, ChevronRight, Bug, PlusCircle, RefreshCw, FileText, Trash2, Pencil, Share2, CheckSquare, Square, Eye, ClipboardCopy } from 'lucide-react';
+import { Moon, Sun, Shield, HelpCircle, ChevronUp, User, ChevronRight, Bug, PlusCircle, RefreshCw, FileText, Trash2, Share2, CheckSquare, Square, Eye, ClipboardCopy } from 'lucide-react';
 import { ReleaseNotes, type ReleaseNoteTypes } from '../Data/Release';
 import { BaseDrawer } from './BaseDrawer';
 import type { SavedNote } from '../Hooks/useNotesStorage';
@@ -20,7 +20,6 @@ interface SettingsDrawerProps {
     onDeleteNote?: (noteId: string) => void;
     onEditNote?: (noteId: string, updates: Partial<Omit<SavedNote, 'id' | 'createdAt'>>) => void;
     onViewNote?: (note: SavedNote) => void;
-    onEditNoteInWizard?: (note: SavedNote) => void;
 }
 
 // Extract the note type safely
@@ -98,6 +97,8 @@ const SwipeableNoteItem = ({
     const [isRevealed, setIsRevealed] = useState<'left' | 'right' | null>(null);
     const [confirmDelete, setConfirmDelete] = useState(false);
     const confirmTimeoutRef = useRef<ReturnType<typeof setTimeout>>(0);
+    const confirmDeleteStateRef = useRef(false);
+    confirmDeleteStateRef.current = confirmDelete;
     const snapTargetRef = useRef(0);
 
     const [{ x }, api] = useSpring(() => ({ x: 0, config: SPRING_CONFIGS.snap }));
@@ -132,6 +133,15 @@ const SwipeableNoteItem = ({
         };
     }, []);
 
+    // Keep card revealed while delete confirmation is active
+    useEffect(() => {
+        if (confirmDelete) {
+            snapTargetRef.current = -ACTION_WIDTH_RIGHT;
+            api.start({ x: -ACTION_WIDTH_RIGHT, config: SPRING_CONFIGS.snap });
+            setIsRevealed('right');
+        }
+    }, [confirmDelete, api]);
+
     const closeSwipe = useCallback(() => {
         snapTargetRef.current = 0;
         api.start({ x: 0, config: SPRING_CONFIGS.snap });
@@ -154,6 +164,13 @@ const SwipeableNoteItem = ({
             if (active) {
                 api.start({ x: newOffset, immediate: true });
             } else {
+                // Keep card revealed while delete confirmation is active
+                if (confirmDeleteStateRef.current) {
+                    snapTargetRef.current = -ACTION_WIDTH_RIGHT;
+                    api.start({ x: -ACTION_WIDTH_RIGHT, config: SPRING_CONFIGS.snap });
+                    return startOffset;
+                }
+
                 // Determine if released from overswipe
                 const wasOverswipeLeft = newOffset > ACTION_WIDTH_LEFT;
                 const wasOverswipeRight = newOffset < -ACTION_WIDTH_RIGHT;
@@ -190,11 +207,12 @@ const SwipeableNoteItem = ({
 
     const handleTap = useCallback(() => {
         if (isRevealed) {
+            if (confirmDelete) return;
             closeSwipe();
             return;
         }
         onToggleSelect(note.id);
-    }, [isRevealed, closeSwipe, onToggleSelect, note.id]);
+    }, [isRevealed, confirmDelete, closeSwipe, onToggleSelect, note.id]);
 
     const handleDeleteAction = useCallback(() => {
         if (confirmDelete) {
@@ -536,7 +554,6 @@ const MyNotesPanel = ({
     onDeleteNote,
     onEditNote,
     onViewNote,
-    onEditNoteInWizard,
     onCloseDrawer,
     initialSelectedId,
 }: {
@@ -545,7 +562,6 @@ const MyNotesPanel = ({
     onDeleteNote: (noteId: string) => void;
     onEditNote?: (noteId: string, updates: Partial<Omit<SavedNote, 'id' | 'createdAt'>>) => void;
     onViewNote?: (note: SavedNote) => void;
-    onEditNoteInWizard?: (note: SavedNote) => void;
     onCloseDrawer: () => void;
     initialSelectedId?: string | null;
 }) => {
@@ -600,26 +616,11 @@ const MyNotesPanel = ({
         setConfirmDelete(false);
     }, []);
 
-    // Mobile view: consolidated view action (opens note in wizard)
-    const handleMobileView = useCallback((note: SavedNote) => {
-        onCloseDrawer();
-        if (onEditNoteInWizard) {
-            onEditNoteInWizard(note);
-        } else if (onViewNote) {
-            onViewNote(note);
-        }
-    }, [onCloseDrawer, onEditNoteInWizard, onViewNote]);
-
-    // Desktop view/edit handlers
+    // View handler — closes drawer and opens note in WriteNotePage
     const handleViewNote = useCallback((note: SavedNote) => {
         onCloseDrawer();
         if (onViewNote) onViewNote(note);
     }, [onCloseDrawer, onViewNote]);
-
-    const handleEditNoteInWizard = useCallback((note: SavedNote) => {
-        onCloseDrawer();
-        if (onEditNoteInWizard) onEditNoteInWizard(note);
-    }, [onCloseDrawer, onEditNoteInWizard]);
 
     const handleCopy = useCallback((note: SavedNote) => {
         if (note.encodedText) {
@@ -661,14 +662,10 @@ const MyNotesPanel = ({
     const isMultiSelect = selectedCount > 1;
     const singleNote = isSingleSelect ? selectedNotes[0] : null;
 
-    // View handler adapts to mobile vs desktop
+    // View handler — unified for mobile and desktop
     const handleSingleView = useCallback((note: SavedNote) => {
-        if (isMobile) {
-            handleMobileView(note);
-        } else {
-            handleViewNote(note);
-        }
-    }, [isMobile, handleMobileView, handleViewNote]);
+        handleViewNote(note);
+    }, [handleViewNote]);
 
     return (
         <div className="h-full flex flex-col">
@@ -693,7 +690,7 @@ const MyNotesPanel = ({
                             <SwipeableNoteItem
                                 key={note.id}
                                 note={note}
-                                onView={handleMobileView}
+                                onView={handleViewNote}
                                 onCopy={handleCopy}
                                 onShare={handleShare}
                                 onDelete={onDeleteNote}
@@ -749,14 +746,6 @@ const MyNotesPanel = ({
                                 >
                                     <Eye size={14} />
                                     View
-                                </button>
-                                <button
-                                    onClick={() => handleEditNoteInWizard(singleNote)}
-                                    className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-full bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-all active:scale-95"
-                                    title="Edit note"
-                                >
-                                    <Pencil size={14} />
-                                    Edit
                                 </button>
                                 <button
                                     onClick={() => handleCopy(singleNote)}
@@ -850,7 +839,6 @@ export const Settings = ({
     onDeleteNote,
     onEditNote,
     onViewNote,
-    onEditNoteInWizard,
 }: SettingsDrawerProps) => {
     const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes'>('main');
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
@@ -975,7 +963,6 @@ export const Settings = ({
                             onDeleteNote={onDeleteNote || (() => { })}
                             onEditNote={onEditNote}
                             onViewNote={onViewNote}
-                            onEditNoteInWizard={onEditNoteInWizard}
                             onCloseDrawer={handleClose}
                             initialSelectedId={initialSelectedId}
                         />

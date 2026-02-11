@@ -55,6 +55,8 @@ function AppContent() {
   const [showImportSuccessModal, setShowImportSuccessModal] = useState(false)
   // Import duplicate modal state (shown when importing an already-saved note)
   const [showImportDuplicateModal, setShowImportDuplicateModal] = useState(false)
+  // Note saved modal state — shown after saving from WriteNotePage
+  const [showNoteSavedModal, setShowNoteSavedModal] = useState(false)
   // Track the note ID to pre-select in My Notes (used for duplicate import detection)
   const [myNotesInitialSelectedId, setMyNotesInitialSelectedId] = useState<string | null>(null)
   // Track which panel Settings should open to ('main' or 'my-notes')
@@ -68,6 +70,8 @@ function AppContent() {
   const [activeNoteId, setActiveNoteId] = useState<string | null>(null)
   const [activeNoteEncodedText, setActiveNoteEncodedText] = useState<string | null>(null)
   const [activeNoteSource, setActiveNoteSource] = useState<string | null>(null)
+  // Ref for after-save navigation (avoids stale closure with async React state)
+  const activeNoteIdRef = useRef<string | null>(null)
 
   // Restored algorithm state for pre-filling AlgorithmPage when viewing/editing saved notes
   const [restoredAlgorithmState, setRestoredAlgorithmState] = useState<{
@@ -217,6 +221,7 @@ function AppContent() {
       setActiveNoteId(result.noteId)
       setActiveNoteEncodedText(data.encodedText)
       setActiveNoteSource('device')
+      activeNoteIdRef.current = result.noteId
       return true
     }
     // Show error toast when save fails (e.g., quota exceeded)
@@ -253,6 +258,21 @@ function AppContent() {
     setStorageError(result.error || 'Failed to update note. Storage may be full.')
     return false
   }, [notesStorage])
+
+  // After-save navigation — closes WriteNote, shows modal, opens Settings → My Notes
+  const handleAfterSave = useCallback(() => {
+    const noteId = activeNoteIdRef.current
+    navigation.closeWriteNote()
+
+    setShowNoteSavedModal(true)
+    setTimeout(() => setShowNoteSavedModal(false), 2500)
+
+    setTimeout(() => {
+      setMyNotesInitialSelectedId(noteId)
+      setSettingsInitialPanel('my-notes')
+      navigation.setShowSettings(true)
+    }, 300)
+  }, [navigation])
 
   // View note handler — restore algorithm state from saved note and open WriteNote
   // Shared helper: restore a saved note → navigate to its algorithm → open WriteNote
@@ -304,15 +324,10 @@ function AppContent() {
     setTimeout(() => navigation.showWriteNote(noteData), 400)
   }, [restoreNote, navigation])
 
-  // View note handler — restore and open WriteNote at the review page
+  // View note handler — restore and open WriteNote at the View Note panel (page 2)
   const handleViewNote = useCallback((note: SavedNote) => {
-    restoreAndOpenNote(note)
-  }, [restoreAndOpenNote])
-
-  // Edit note handler — restore and open WriteNote at Page 1 with HPI pre-filled
-  const handleEditNoteInWizard = useCallback((note: SavedNote) => {
     restoreAndOpenNote(note, (result) => ({
-      initialPage: 1,
+      initialPage: 2,
       initialHpiText: result.hpiText || ''
     }))
   }, [restoreAndOpenNote])
@@ -553,7 +568,6 @@ function AppContent() {
           onDeleteNote={notesStorage.deleteNote}
           onEditNote={notesStorage.updateNote}
           onViewNote={handleViewNote}
-          onEditNoteInWizard={handleEditNoteInWizard}
         />
         <MedicationsDrawer
           isVisible={navigation.showMedications}
@@ -591,6 +605,7 @@ function AppContent() {
               initialPage={navigation.writeNoteData.initialPage}
               initialHpiText={navigation.writeNoteData.initialHpiText}
               noteSource={activeNoteSource}
+              onAfterSave={handleAfterSave}
             />
           </div>
         )}
@@ -608,6 +623,20 @@ function AppContent() {
               </div>
               <p className="text-sm font-medium text-primary">Note Imported Successfully</p>
               <p className="text-xs text-tertiary/60">Saved with external source tag</p>
+            </div>
+          </div>
+        )}
+        {/* Note Saved Modal — shown after saving from WriteNotePage */}
+        {showNoteSavedModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-none">
+            <div className="bg-themewhite rounded-2xl shadow-2xl border border-tertiary/10 px-8 py-6 flex flex-col items-center gap-3 animate-[fadeInScale_0.3s_ease-out]">
+              <div className="w-12 h-12 rounded-full bg-green-500/15 flex items-center justify-center">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-primary">Note Saved</p>
+              <p className="text-xs text-tertiary/60">Saved to My Notes</p>
             </div>
           </div>
         )}

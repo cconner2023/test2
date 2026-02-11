@@ -1,4 +1,8 @@
 Refactor — Progress Log
+## RESTRICTIONS --
+# 1 do not edit data, overal functionality, or UI without explicit instructions to do so
+# 2 Ensure code is readable, maintainable, and has no duplicates
+# 3 review your changes upon completion, and clean up any dead or orphaned code. 
 
 ## ISSUES -- 
 =================================================
@@ -27,3 +31,15 @@ Refactor — Progress Log
 # Problem #12 [COMPLETED] -> Duplicate Code. 
 =================================================
 # Problem #13 [COMPLETED] -> PWA functionality. related to #11 - installed PWAs do not render the shortcuts or icons.
+=================================================
+# Problem #14 [COMPLETED] -> App.tsx and NoteImport.tsx handle the navigation from an imported note to the settings -> my notes and selects the saved note. in WriteNotePage.tsx when 'save note' or 'save changes' is selected, we should use our navigation hooks to close WriteNotePage, navigate back to main, open settings -> my notes, and select the recently saved note. We can also trigger our App.tsx 'note saved' modal. # Resolution: Added onAfterSave callback to WriteNotePage. After successful save/update, shows brief success (800ms), then closes WriteNotePage, displays "Note Saved" modal, and opens Settings → My Notes with the saved note pre-selected.
+=================================================
+# Problem #15 [COMPLETED] -> mobile delete in settings double tap
+=================================================
+# Problem #16 [COMPLETED] -> edit note from settings -> my notes. edit removed. view note navigates to proper panel. 
+=================================================
+# Problem #17 [PENDING] -> settings -> my notes navigation to saved note and back. (desktop) navigation opens correct panel, but does not change the main content (2 col grid) to match the correct algorithm. back does not function correctly after navigating back from a saved WriteNotePage
+=================================================
+# Problem #18 [PENDING] -> mobile drawer backdrop. All drawer backdrops are somewhat different. They should match medications.
+=================================================
+# Problem #19 [PENDING] -> if a new version is 'installed', we should navigate to settings -> release notes after the reload
