@@ -7,6 +7,8 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
+    { version: '2.6.10', type: 'changed', text: 'thought about a server, panicked. that\'s way too much learning for one night.' },
+    { version: '2.6.10', type: 'changed', text: 'write note wizard simplified' },
     { version: '2.6.1', type: 'added', text: 'delete, edit, re-save, your notes' },
     { version: '2.6.1', type: 'bug', text: 'Responsive desktop / mobile' },
     { version: '2.6.1', type: 'changed', text: 'Import note from other devices' },
