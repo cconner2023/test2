@@ -109,6 +109,8 @@ export const WriteNotePage = ({
     const [showDecisionMaking, setShowDecisionMaking] = useState(false);
     // Note preview collapsible state (Review & Share page)
     const [showPreview, setShowPreview] = useState(true);
+    // Encoded note collapsible state (Review & Share page)
+    const [showBarcode, setShowBarcode] = useState(true);
 
     // Hooks
     const { generateNote } = useNoteCapture(algorithmOptions, cardStates);
@@ -498,89 +500,82 @@ export const WriteNotePage = ({
                                     )}
                                 </div>
 
-                                {/* Encoded barcode */}
+                                {/* Collapsible encoded note */}
                                 <div>
-                                    <div className="text-[10pt] font-normal text-primary mb-2">Encoded Note</div>
-                                    <NoteBarcodeGenerator
-                                        algorithmOptions={algorithmOptions}
-                                        cardStates={cardStates}
-                                        noteOptions={{
-                                            includeAlgorithm,
-                                            includeDecisionMaking,
-                                            customNote: includeHPI ? note : ''
-                                        }}
-                                        symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
-                                        onEncodedValueChange={setEncodedValue}
-                                    />
+                                    <button
+                                        onClick={() => setShowBarcode(prev => !prev)}
+                                        className="w-full flex items-center justify-between p-3 rounded-md bg-themewhite text-xs text-secondary hover:bg-themewhite3 transition-colors"
+                                    >
+                                        <span className="font-medium">Encoded Note</span>
+                                        <div className="flex items-center gap-1">
+                                            <span
+                                                onClick={(e) => { e.stopPropagation(); handleCopy(encodedValue); }}
+                                                className="p-1.5 text-tertiary hover:text-primary transition-colors rounded-full hover:bg-themewhite3"
+                                                title="Copy encoded text"
+                                                role="button"
+                                                tabIndex={0}
+                                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handleCopy(encodedValue); } }}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                </svg>
+                                            </span>
+                                            <span
+                                                onClick={(e) => { e.stopPropagation(); handleShare(); }}
+                                                className={`p-1.5 transition-colors rounded-full ${shareStatus === 'shared' || shareStatus === 'copied'
+                                                    ? 'text-green-600'
+                                                    : shareStatus === 'generating' || shareStatus === 'sharing'
+                                                        ? 'text-purple-600'
+                                                        : 'text-tertiary hover:text-primary hover:bg-themewhite3'
+                                                }`}
+                                                title="Share note as image"
+                                                role="button"
+                                                tabIndex={0}
+                                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handleShare(); } }}
+                                            >
+                                                {shareStatus === 'generating' || shareStatus === 'sharing' ? (
+                                                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                    </svg>
+                                                ) : shareStatus === 'shared' || shareStatus === 'copied' ? (
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                ) : (
+                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                                    </svg>
+                                                )}
+                                            </span>
+                                            <svg
+                                                className={`w-4 h-4 transition-transform duration-200 ${showBarcode ? 'rotate-180' : ''}`}
+                                                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </div>
+                                    </button>
+                                    {showBarcode && (
+                                        <div className="mt-1">
+                                            <NoteBarcodeGenerator
+                                                algorithmOptions={algorithmOptions}
+                                                cardStates={cardStates}
+                                                noteOptions={{
+                                                    includeAlgorithm,
+                                                    includeDecisionMaking,
+                                                    customNote: includeHPI ? note : ''
+                                                }}
+                                                symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
+                                                onEncodedValueChange={setEncodedValue}
+                                                layout={encodedValue.length > 80 ? 'col' : 'row'}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
 
-                                {/* Action buttons — horizontal layout consistent with My Notes action bar */}
+                                {/* Action buttons — Save / Save Changes / Delete */}
                                 <div className="flex items-center justify-center gap-2 flex-wrap pt-2">
-                                    {/* Copy encoded */}
-                                    <button
-                                        onClick={() => handleCopy(encodedValue)}
-                                        disabled={!encodedValue}
-                                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-full bg-themewhite3 text-tertiary hover:bg-themeblue3/10 hover:text-themeblue3 transition-all active:scale-95 disabled:opacity-40"
-                                        title="Copy encoded value"
-                                    >
-                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                        </svg>
-                                        Copy
-                                    </button>
-
-                                    {/* Share */}
-                                    <button
-                                        onClick={handleShare}
-                                        disabled={!encodedValue || shareStatus === 'generating' || shareStatus === 'sharing'}
-                                        className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-full transition-all active:scale-95 disabled:opacity-40
-                                            ${shareStatus === 'shared' || shareStatus === 'copied'
-                                                ? 'bg-green-500/15 text-green-600 dark:text-green-300'
-                                                : shareStatus === 'error'
-                                                    ? 'bg-themeredred/15 text-themeredred'
-                                                    : 'bg-themeblue3/10 text-themeblue3 hover:bg-themeblue3/20'
-                                            }`}
-                                        title="Share note as image"
-                                    >
-                                        {shareStatus === 'generating' || shareStatus === 'sharing' ? (
-                                            <>
-                                                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                                </svg>
-                                                {shareStatus === 'generating' ? 'Generating...' : 'Sharing...'}
-                                            </>
-                                        ) : shareStatus === 'shared' ? (
-                                            <>
-                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                                </svg>
-                                                Shared
-                                            </>
-                                        ) : shareStatus === 'copied' ? (
-                                            <>
-                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                                </svg>
-                                                Copied
-                                            </>
-                                        ) : shareStatus === 'error' ? (
-                                            <>
-                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                                </svg>
-                                                Failed
-                                            </>
-                                        ) : (
-                                            <>
-                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                                                </svg>
-                                                Share
-                                            </>
-                                        )}
-                                    </button>
-
                                     {/* Save (new note) */}
                                     {onNoteSave && !isAlreadySaved && (
                                         <button

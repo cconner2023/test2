@@ -14,6 +14,7 @@ interface NoteBarcodeGeneratorProps {
     };
     symptomCode?: string;
     onEncodedValueChange?: (value: string) => void;
+    layout?: 'row' | 'col';
 }
 
 export function NoteBarcodeGenerator({
@@ -21,7 +22,8 @@ export function NoteBarcodeGenerator({
     cardStates,
     noteOptions,
     symptomCode = "A1",
-    onEncodedValueChange
+    onEncodedValueChange,
+    layout = 'col'
 }: NoteBarcodeGeneratorProps) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [encodedValue, setEncodedValue] = useState<string>('');
@@ -59,26 +61,25 @@ export function NoteBarcodeGenerator({
         }
     }, [encodedValue]);
 
+    const isRow = layout === 'row';
+
     return (
         <div className="p-2 bg-themewhite2">
-            {/* Barcode display area - stacked vertically (flex-col) for compact presentation */}
-            <div className="flex flex-col items-center gap-3">
-                {/* PDF417 Barcode */}
-                <div className="flex flex-col items-center">
-                    <div className="text-[9pt] text-secondary mb-1.5 font-medium">PDF417 Barcode</div>
+            <div className={`flex ${isRow ? 'flex-row items-start gap-3' : 'flex-col items-center gap-3'}`}>
+                {/* PDF417 Barcode — fixed display size */}
+                <div className={`shrink-0 ${isRow ? '' : 'flex justify-center'}`}>
                     <canvas
                         ref={canvasRef}
                         width={300}
                         height={120}
                         className="border border-gray-300 bg-white rounded-md"
-                        style={{ width: '220px', height: 'auto', maxWidth: '100%' }}
+                        style={{ width: '200px', height: 'auto' }}
                     />
                 </div>
 
                 {/* Encoded string display */}
-                <div className="text-[10pt] text-secondary w-full">
-                    <div className="text-[9pt] mb-1 font-medium text-center">Encoded String:</div>
-                    <code className="text-xs break-all bg-themewhite3 p-2 rounded block">
+                <div className={`text-secondary ${isRow ? 'flex-1 min-w-0' : 'w-full'}`}>
+                    <code className="text-xs break-all bg-themewhite3 p-2 rounded block max-h-24 overflow-y-auto">
                         {encodedValue}
                     </code>
                 </div>

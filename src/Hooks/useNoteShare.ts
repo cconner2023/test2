@@ -26,17 +26,56 @@ function roundRect(
 }
 
 /**
+ * Theme-aware color palettes for the share image.
+ * Maps to the app's CSS custom properties from App.css.
+ */
+const SHARE_COLORS = {
+    light: {
+        background: '#f0f2f5',      // themewhite2
+        cardBg: '#fffbfb',          // themewhite
+        cardBorder: '#e2e8f0',
+        title: '#1e1e23',           // primary
+        symptom: '#464650',         // secondary
+        date: '#848b92',            // tertiary
+        encodedBlockBg: '#f0f2f5',  // themewhite2
+        encodedText: '#464650',     // secondary
+        footer: '#c4bebe',          // themegray1
+        barcodeBg: '#ffffff',
+    },
+    dark: {
+        background: '#192d3d',      // themewhite2
+        cardBg: '#0f1923',          // themewhite
+        cardBorder: '#374b5b',      // themegray1
+        title: '#cbd1d6',           // primary
+        symptom: '#b3bac9',         // secondary
+        date: '#848b92',            // tertiary
+        encodedBlockBg: '#141e28',  // themewhite3
+        encodedText: '#b3bac9',     // secondary
+        footer: '#374b5b',          // themegray1
+        barcodeBg: '#ffffff',       // barcode always white for scannability
+    },
+} as const;
+
+/**
  * Generates a shareable image canvas containing the PDF417 barcode,
- * note metadata, and encoded string.
+ * note metadata, and encoded string. Renders at 2x resolution for
+ * sharp output on high-DPI screens and respects the current theme.
  */
 function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
+    // Detect current theme from DOM
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const colors = isDark ? SHARE_COLORS.dark : SHARE_COLORS.light;
+
+    // 2x scale for sharp output on high-DPI displays
+    const scale = 2;
+
     // ── 1. Generate barcode on a temporary canvas ──
     const barcodeCanvas = document.createElement('canvas');
     barcodeCanvas.width = 300;
     barcodeCanvas.height = 120;
     const bCtx = barcodeCanvas.getContext('2d');
     if (bCtx) {
-        bCtx.fillStyle = '#ffffff';
+        bCtx.fillStyle = colors.barcodeBg;
         bCtx.fillRect(0, 0, 300, 120);
     }
 
@@ -69,39 +108,44 @@ function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
     const encodedLines = Math.ceil(note.encodedText.length / charsPerLine);
     const encodedBlockH = encodedLines * (encodedFontSize + 4) + 16; // padding
 
+    const barcodePad = 8;
+    const barcodeContainerH = barcodeDisplayH + barcodePad * 2;
+
     const canvasH =
-        pad +            // top padding
-        lineH +          // "ADTMC Note" title
-        12 +             // gap
-        lineH +          // symptom text
-        lineH +          // disposition line
-        lineH +          // date line
-        16 +             // gap before barcode
-        barcodeDisplayH +// barcode
-        12 +             // gap
-        encodedBlockH +  // encoded string block
-        16 +             // gap
-        lineH +          // footer
-        pad;             // bottom padding
+        pad +                // top padding
+        lineH +              // "ADTMC Note" title
+        12 +                 // gap
+        lineH +              // symptom text
+        lineH +              // disposition line
+        lineH +              // date line
+        16 +                 // gap before barcode
+        barcodeContainerH +  // barcode container (barcode + padding)
+        12 +                 // gap
+        encodedBlockH +      // encoded string block
+        16 +                 // gap
+        lineH +              // footer
+        pad;                 // bottom padding
 
     const canvas = document.createElement('canvas');
-    canvas.width = canvasW;
-    canvas.height = canvasH;
+    // Render at 2x resolution for sharp text and barcode on Retina/HiDPI
+    canvas.width = canvasW * scale;
+    canvas.height = canvasH * scale;
     const ctx = canvas.getContext('2d')!;
+    ctx.scale(scale, scale);
 
     // Background
-    ctx.fillStyle = '#f8fafc';
+    ctx.fillStyle = colors.background;
     ctx.fillRect(0, 0, canvasW, canvasH);
 
-    // Content area with white rounded card
+    // Content area with rounded card
     const cardX = 16;
     const cardY = 16;
     const cardW = canvasW - 32;
     const cardH = canvasH - 32;
-    ctx.fillStyle = '#ffffff';
+    ctx.fillStyle = colors.cardBg;
     roundRect(ctx, cardX, cardY, cardW, cardH, 12);
     ctx.fill();
-    ctx.strokeStyle = '#e2e8f0';
+    ctx.strokeStyle = colors.cardBorder;
     ctx.lineWidth = 1;
     roundRect(ctx, cardX, cardY, cardW, cardH, 12);
     ctx.stroke();
@@ -109,7 +153,7 @@ function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
     let y = pad + 8;
 
     // ── Title ──
-    ctx.fillStyle = '#1e293b';
+    ctx.fillStyle = colors.title;
     ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('ADTMC Note', canvasW / 2, y);
@@ -117,14 +161,14 @@ function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
 
     // ── Symptom icon + text ──
     ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    ctx.fillStyle = '#334155';
+    ctx.fillStyle = colors.symptom;
     const symptomLabel = `${note.symptomIcon || '📋'} ${note.symptomText || 'Note'}`;
     ctx.fillText(symptomLabel, canvasW / 2, y);
     y += lineH;
 
     // ── Disposition badge ──
     if (note.dispositionType) {
-        // Disposition color
+        // Disposition colors are semantic — same for both themes
         let badgeColor = '#6b7280';
         const dt = note.dispositionType.toUpperCase();
         if (dt.includes('I') && !dt.includes('II') && !dt.includes('III') && !dt.includes('IV')) badgeColor = '#dc2626';
@@ -140,7 +184,7 @@ function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
     }
 
     // ── Date ──
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = colors.date;
     ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     try {
         const date = new Date(note.createdAt);
@@ -158,23 +202,37 @@ function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
     }
     y += lineH + 12;
 
-    // ── PDF417 Barcode ──
-    const barcodeX = (canvasW - barcodeDisplayW) / 2;
-    ctx.drawImage(barcodeCanvas, barcodeX, y, barcodeDisplayW, barcodeDisplayH);
-    y += barcodeDisplayH + 8;
+    // ── PDF417 Barcode (white container with border, matching in-app style) ──
+    const barcodeContainerW = barcodeDisplayW + barcodePad * 2;
+    const barcodeContainerX = (canvasW - barcodeContainerW) / 2;
+
+    // White background
+    ctx.fillStyle = colors.barcodeBg;
+    roundRect(ctx, barcodeContainerX, y, barcodeContainerW, barcodeContainerH, 6);
+    ctx.fill();
+    // Subtle border
+    ctx.strokeStyle = isDark ? '#4b5563' : '#d1d5db'; // gray-600 / gray-300
+    ctx.lineWidth = 1;
+    roundRect(ctx, barcodeContainerX, y, barcodeContainerW, barcodeContainerH, 6);
+    ctx.stroke();
+
+    // Draw barcode inside the container
+    const barcodeX = barcodeContainerX + barcodePad;
+    ctx.drawImage(barcodeCanvas, barcodeX, y + barcodePad, barcodeDisplayW, barcodeDisplayH);
+    y += barcodeContainerH + 8;
 
     // Label under barcode
-    ctx.fillStyle = '#94a3b8';
+    ctx.fillStyle = colors.date;
     ctx.font = '9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText('PDF417 Barcode', canvasW / 2, y);
     y += 16;
 
     // ── Encoded string block ──
-    ctx.fillStyle = '#f1f5f9';
+    ctx.fillStyle = colors.encodedBlockBg;
     roundRect(ctx, pad, y, contentW, encodedBlockH, 6);
     ctx.fill();
 
-    ctx.fillStyle = '#475569';
+    ctx.fillStyle = colors.encodedText;
     ctx.font = `${encodedFontSize}px "Courier New", monospace`;
     ctx.textAlign = 'left';
     const encodedText = note.encodedText;
@@ -188,7 +246,7 @@ function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
 
     // ── Footer ──
     ctx.textAlign = 'center';
-    ctx.fillStyle = '#cbd5e1';
+    ctx.fillStyle = colors.footer;
     ctx.font = '9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillText('ADTMC • MEDCOM PAM 40-7-21', canvasW / 2, y);
 
