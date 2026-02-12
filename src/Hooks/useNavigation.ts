@@ -392,6 +392,20 @@ export function useNavigation() {
         }, 350)
     }, [])
 
+    /** Reset navigation to main categories view — clears all selections and closes WriteNote */
+    const resetToMain = useCallback(() => {
+        setState(prev => ({
+            ...prev,
+            viewState: 'main' as ViewState,
+            selectedCategory: null,
+            selectedSymptom: null,
+            selectedGuideline: null,
+            selectedMedication: null,
+            showWriteNote: false,
+            writeNoteData: null,
+        }))
+    }, [])
+
     // Close mobile menu on resize to desktop — matchMedia only fires on breakpoint crossing
     useEffect(() => {
         const mql = window.matchMedia('(max-width: 767px)')
@@ -447,6 +461,7 @@ export function useNavigation() {
         setShowSymptomInfo,
         showWriteNote,
         closeWriteNote,
+        resetToMain,
 
         // Layout computation
         showQuestionCard,

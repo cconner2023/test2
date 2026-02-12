@@ -80,7 +80,7 @@ export function useServiceWorker() {
 
     const dismissUpdate = useCallback(() => {
         setUpdateAvailable(false);
-        try { localStorage.setItem('updateDismissed', 'true'); } catch { /* storage unavailable */ }
+        try { localStorage.setItem('updateDismissed', Date.now().toString()); } catch { /* storage unavailable */ }
 
         // Auto-remove dismissal after 1 hour
         if (dismissTimeoutRef.current) clearTimeout(dismissTimeoutRef.current);

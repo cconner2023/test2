@@ -18,11 +18,17 @@ const UpdateNotification: React.FC = () => {
     const [showOfflineToast, setShowOfflineToast] = useState(false);
 
     useEffect(() => {
-        // Load dismissed state from localStorage
+        // Load dismissed state from localStorage (timestamp-based, 1-hour expiry)
         try {
             const dismissedState = localStorage.getItem('updateDismissed');
             if (dismissedState) {
-                setDismissed(true);
+                const dismissedAt = parseInt(dismissedState, 10);
+                if (!isNaN(dismissedAt) && Date.now() - dismissedAt < 60 * 60 * 1000) {
+                    setDismissed(true);
+                } else {
+                    // Expired — clean up stale flag
+                    localStorage.removeItem('updateDismissed');
+                }
             }
         } catch {
             // localStorage unavailable — treat as not dismissed

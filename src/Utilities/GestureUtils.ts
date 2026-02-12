@@ -15,7 +15,7 @@ export const GESTURE_THRESHOLDS = {
   /** Default swipe-back threshold (px) */
   SWIPE_BACK_THRESHOLD: 80,
   /** Horizontal swipe threshold for note item reveal actions (px) */
-  NOTE_SWIPE_THRESHOLD: 40,
+  NOTE_SWIPE_THRESHOLD: 15,
   /** Dampening factor for drag resistance beyond threshold */
   OVERSHOOT_DAMPENING: 0.4,
   /** Dampening for page swipe drag */

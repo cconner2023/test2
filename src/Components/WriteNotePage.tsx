@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import { useNoteCapture } from '../Hooks/useNoteCapture';
+import { useNoteShare } from '../Hooks/useNoteShare';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { TextButton } from './TextButton';
 import { NoteBarcodeGenerator } from './Barcode';
@@ -10,8 +11,8 @@ import { BaseDrawer } from './BaseDrawer';
 
 type DispositionType = dispositionType['type'];
 
-const PAGE_LABELS = ['Decision Making', 'Write Note', 'View Note', 'Share Note'];
-const TOTAL_PAGES = 4;
+const PAGE_LABELS = ['Write Note', 'Review & Share'];
+const TOTAL_PAGES = 2;
 
 export interface NoteSaveData {
     encodedText: string;
@@ -87,7 +88,7 @@ export const WriteNotePage = ({
     const confirmDeleteRef = useRef(false);
     const confirmDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout>>(0);
 
-    // Page navigation state (0=Decision Making, 1=Write Note, 2=View Note, 3=Share Note)
+    // Page navigation state (0=Write Note, 1=Review & Share)
     const [currentPage, setCurrentPage] = useState(initialPage);
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
 
@@ -104,8 +105,14 @@ export const WriteNotePage = ({
     const currentPageRef = useRef(currentPage);
     currentPageRef.current = currentPage;
 
+    // Decision Making collapsible state
+    const [showDecisionMaking, setShowDecisionMaking] = useState(false);
+    // Note preview collapsible state (Review & Share page)
+    const [showPreview, setShowPreview] = useState(true);
+
     // Hooks
     const { generateNote } = useNoteCapture(algorithmOptions, cardStates);
+    const { shareNote, shareStatus } = useNoteShare();
     const colors = getColorClasses(disposition.type);
 
     // --- Copied state auto-revert ---
@@ -142,6 +149,21 @@ export const WriteNotePage = ({
         navigator.clipboard.writeText(text);
         setIsCopied(true);
     }, []);
+
+    // --- Share handler ---
+    const handleShare = useCallback(() => {
+        if (!encodedValue) return;
+        shareNote({
+            id: existingNoteId || '',
+            encodedText: encodedValue,
+            createdAt: noteTimestamp?.toISOString() || new Date().toISOString(),
+            symptomIcon: selectedSymptom?.icon || '',
+            symptomText: selectedSymptom?.text || 'Note',
+            dispositionType: disposition.type,
+            dispositionText: disposition.text,
+            previewText: previewNote.slice(0, 200),
+        }, isMobile);
+    }, [encodedValue, existingNoteId, noteTimestamp, selectedSymptom, disposition, previewNote, isMobile, shareNote]);
 
     // --- Determine button state based on existing note ---
     // isAlreadySaved: note exists in storage (existingNoteId is set)
@@ -360,22 +382,37 @@ export const WriteNotePage = ({
                 onTouchCancel={isMobile ? handleSwipeEnd : undefined}
             >
                 <SlideWrapper slideDirection={slideDirection}>
-                    {/* Page 0: Decision Making */}
+                    {/* Page 0: Write Note (includes Decision Making as collapsible section) */}
                     {currentPage === 0 && (
-                        <div className="w-full h-full overflow-y-auto">
-                            <DecisionMaking
-                                algorithmOptions={algorithmOptions}
-                                cardStates={cardStates}
-                                disposition={disposition}
-                                dispositionType={disposition.type}
-                            />
-                        </div>
-                    )}
-
-                    {/* Page 1: Write Note Options */}
-                    {currentPage === 1 && (
                         <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
-                            <div className="space-y-6">
+                            <div className="space-y-4">
+                                {/* Decision Making collapsible */}
+                                <div className="mx-2 mt-2">
+                                    <button
+                                        onClick={() => setShowDecisionMaking(prev => !prev)}
+                                        className="w-full flex items-center justify-between p-3 rounded-md bg-themewhite text-xs text-secondary hover:bg-themewhite3 transition-colors"
+                                    >
+                                        <span className="font-medium">Decision Making</span>
+                                        <svg
+                                            className={`w-4 h-4 transition-transform duration-200 ${showDecisionMaking ? 'rotate-180' : ''}`}
+                                            fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                        >
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                    </button>
+                                    {showDecisionMaking && (
+                                        <div className="mt-1 rounded-md border border-themegray1/15 overflow-hidden">
+                                            <DecisionMaking
+                                                algorithmOptions={algorithmOptions}
+                                                cardStates={cardStates}
+                                                disposition={disposition}
+                                                dispositionType={disposition.type}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Note content options */}
                                 <div className="p-4">
                                     <div className="text-[10pt] font-normal text-primary mb-3">Note Content:</div>
                                     <div className="space-y-3">
@@ -422,144 +459,238 @@ export const WriteNotePage = ({
                         </div>
                     )}
 
-                    {/* Page 2: View Note */}
-                    {currentPage === 2 && (
+                    {/* Page 1: Review & Share */}
+                    {currentPage === 1 && (
                         <div className={`w-full h-full overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
-                            <div className="space-y-6">
-                                <div className="relative">
-                                    <div className="w-full max-h-96 p-3 rounded-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap overflow-y-auto">
-                                        {previewNote || "No content selected"}
-                                    </div>
-                                    <CopyButton onClick={() => handleCopy(previewNote)} title="Copy note to clipboard" />
+                            <div className="space-y-4">
+                                {/* Collapsible note preview */}
+                                <div>
+                                    <button
+                                        onClick={() => setShowPreview(prev => !prev)}
+                                        className="w-full flex items-center justify-between p-3 rounded-md bg-themewhite text-xs text-secondary hover:bg-themewhite3 transition-colors"
+                                    >
+                                        <span className="font-medium">Note Preview</span>
+                                        <div className="flex items-center gap-2">
+                                            <span
+                                                onClick={(e) => { e.stopPropagation(); handleCopy(previewNote); }}
+                                                className="p-1.5 text-tertiary hover:text-primary transition-colors rounded-full hover:bg-themewhite3"
+                                                title="Copy note text"
+                                                role="button"
+                                                tabIndex={0}
+                                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handleCopy(previewNote); } }}
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                                </svg>
+                                            </span>
+                                            <svg
+                                                className={`w-4 h-4 transition-transform duration-200 ${showPreview ? 'rotate-180' : ''}`}
+                                                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </div>
+                                    </button>
+                                    {showPreview && (
+                                        <div className="mt-1 p-3 rounded-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto border border-themegray1/15">
+                                            {previewNote || "No content selected"}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Encoded barcode */}
+                                <div>
+                                    <div className="text-[10pt] font-normal text-primary mb-2">Encoded Note</div>
+                                    <NoteBarcodeGenerator
+                                        algorithmOptions={algorithmOptions}
+                                        cardStates={cardStates}
+                                        noteOptions={{
+                                            includeAlgorithm,
+                                            includeDecisionMaking,
+                                            customNote: includeHPI ? note : ''
+                                        }}
+                                        symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
+                                        onEncodedValueChange={setEncodedValue}
+                                    />
+                                </div>
+
+                                {/* Action buttons — horizontal layout consistent with My Notes action bar */}
+                                <div className="flex items-center justify-center gap-2 flex-wrap pt-2">
+                                    {/* Copy encoded */}
+                                    <button
+                                        onClick={() => handleCopy(encodedValue)}
+                                        disabled={!encodedValue}
+                                        className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-full bg-themewhite3 text-tertiary hover:bg-themeblue3/10 hover:text-themeblue3 transition-all active:scale-95 disabled:opacity-40"
+                                        title="Copy encoded value"
+                                    >
+                                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                        </svg>
+                                        Copy
+                                    </button>
+
+                                    {/* Share */}
+                                    <button
+                                        onClick={handleShare}
+                                        disabled={!encodedValue || shareStatus === 'generating' || shareStatus === 'sharing'}
+                                        className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-full transition-all active:scale-95 disabled:opacity-40
+                                            ${shareStatus === 'shared' || shareStatus === 'copied'
+                                                ? 'bg-green-500/15 text-green-600 dark:text-green-300'
+                                                : shareStatus === 'error'
+                                                    ? 'bg-themeredred/15 text-themeredred'
+                                                    : 'bg-themeblue3/10 text-themeblue3 hover:bg-themeblue3/20'
+                                            }`}
+                                        title="Share note as image"
+                                    >
+                                        {shareStatus === 'generating' || shareStatus === 'sharing' ? (
+                                            <>
+                                                <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                                                </svg>
+                                                {shareStatus === 'generating' ? 'Generating...' : 'Sharing...'}
+                                            </>
+                                        ) : shareStatus === 'shared' ? (
+                                            <>
+                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                Shared
+                                            </>
+                                        ) : shareStatus === 'copied' ? (
+                                            <>
+                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                                Copied
+                                            </>
+                                        ) : shareStatus === 'error' ? (
+                                            <>
+                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                </svg>
+                                                Failed
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                                                </svg>
+                                                Share
+                                            </>
+                                        )}
+                                    </button>
+
+                                    {/* Save (new note) */}
+                                    {onNoteSave && !isAlreadySaved && (
+                                        <button
+                                            onClick={handleSaveNote}
+                                            disabled={isSaved || !encodedValue}
+                                            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-full transition-all active:scale-95 disabled:opacity-40
+                                                ${saveFailed
+                                                    ? 'bg-themeredred/15 text-themeredred'
+                                                    : isSaved
+                                                        ? 'bg-green-500/15 text-green-600 dark:text-green-300'
+                                                        : 'bg-themewhite3 text-tertiary hover:bg-themeblue3/10 hover:text-themeblue3'
+                                                }`}
+                                            title={saveFailed ? 'Storage full' : isSaved ? 'Saved' : 'Save to My Notes'}
+                                        >
+                                            {saveFailed ? (
+                                                <>
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                                    </svg>
+                                                    Failed
+                                                </>
+                                            ) : isSaved ? (
+                                                <>
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                    Saved
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                                    </svg>
+                                                    Save
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
+
+                                    {/* Save Changes (existing note, content changed) */}
+                                    {isAlreadySaved && hasContentChanged && onNoteUpdate && (
+                                        <button
+                                            onClick={handleUpdateNote}
+                                            disabled={isSaved || !encodedValue}
+                                            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-full transition-all active:scale-95 disabled:opacity-40
+                                                ${isSaved
+                                                    ? 'bg-green-500/15 text-green-600 dark:text-green-300'
+                                                    : 'bg-themeblue3/10 text-themeblue3 hover:bg-themeblue3/20'
+                                                }`}
+                                            title={isSaved ? 'Changes saved' : 'Save changes'}
+                                        >
+                                            {isSaved ? (
+                                                <>
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                    Saved
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                                    </svg>
+                                                    Save Changes
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
+
+                                    {/* Delete (existing note, no content change) */}
+                                    {isAlreadySaved && !hasContentChanged && onNoteDelete && (
+                                        <button
+                                            onClick={handleDeleteNote}
+                                            disabled={isDeleted}
+                                            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-full transition-all active:scale-95 disabled:opacity-40
+                                                ${isDeleted
+                                                    ? 'bg-themeredred/15 text-themeredred'
+                                                    : confirmDelete
+                                                        ? 'bg-red-500 text-white'
+                                                        : 'bg-themewhite3 text-themeredred hover:bg-themeredred/10'
+                                                }`}
+                                            title={confirmDelete ? 'Tap again to confirm' : 'Delete note'}
+                                        >
+                                            {isDeleted ? (
+                                                <>
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                                    </svg>
+                                                    Deleted
+                                                </>
+                                            ) : confirmDelete ? (
+                                                <>
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                    Confirm
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                    </svg>
+                                                    Delete
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         </div>
-                    )}
-
-                    {/* Page 3: Share Note */}
-                    {currentPage === 3 && (
-                        <div className={`w-full h-full overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
-                        <div className="space-y-6">
-                            <div className="text-[10pt] font-normal text-primary">Share Encoded Note</div>
-                            <div className="relative">
-                                <NoteBarcodeGenerator
-                                    algorithmOptions={algorithmOptions}
-                                    cardStates={cardStates}
-                                    noteOptions={{
-                                        includeAlgorithm,
-                                        includeDecisionMaking,
-                                        customNote: includeHPI ? note : ''
-                                    }}
-                                    symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
-                                    onEncodedValueChange={setEncodedValue}
-                                />
-                                <CopyButton onClick={() => handleCopy(encodedValue)} title="Copy encoded value" />
-                            </div>
-                            {/* Note action button: Save / Delete / Save Changes */}
-                            {onNoteSave && !isAlreadySaved && (
-                                <button
-                                    onClick={handleSaveNote}
-                                    disabled={isSaved || !encodedValue}
-                                    className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 active:scale-95
-                                        ${saveFailed
-                                            ? 'bg-themeredred/15 text-themeredred'
-                                            : isSaved
-                                                ? 'bg-green-500/20 text-green-700 dark:text-green-300'
-                                                : 'bg-themewhite3 text-tertiary hover:bg-themeblue3/10 hover:text-themeblue3'
-                                        }`}
-                                >
-                                    {saveFailed ? (
-                                        <>
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                            </svg>
-                                            Save Failed — Storage Full
-                                        </>
-                                    ) : isSaved ? (
-                                        <>
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            Saved to My Notes
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                                            </svg>
-                                            Save to My Notes
-                                        </>
-                                    )}
-                                </button>
-                            )}
-                            {/* Already saved + content changed → Save Changes */}
-                            {isAlreadySaved && hasContentChanged && onNoteUpdate && (
-                                <button
-                                    onClick={handleUpdateNote}
-                                    disabled={isSaved || !encodedValue}
-                                    className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 active:scale-95
-                                        ${isSaved
-                                            ? 'bg-green-500/20 text-green-700 dark:text-green-300'
-                                            : 'bg-themeblue3/10 text-themeblue3 hover:bg-themeblue3/20'
-                                        }`}
-                                >
-                                    {isSaved ? (
-                                        <>
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            Changes Saved
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                            </svg>
-                                            Save Changes
-                                        </>
-                                    )}
-                                </button>
-                            )}
-                            {/* Already saved + no content change → Delete Note (two-tap confirmation) */}
-                            {isAlreadySaved && !hasContentChanged && onNoteDelete && (
-                                <button
-                                    onClick={handleDeleteNote}
-                                    disabled={isDeleted}
-                                    className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full text-sm font-medium transition-all duration-300 active:scale-95
-                                        ${isDeleted
-                                            ? 'bg-themeredred/15 text-themeredred'
-                                            : confirmDelete
-                                                ? 'bg-red-500 text-white'
-                                                : 'bg-themewhite3 text-themeredred hover:bg-themeredred/10'
-                                        }`}
-                                    title={confirmDelete ? 'Tap again to confirm delete' : 'Delete note'}
-                                >
-                                    {isDeleted ? (
-                                        <>
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            Note Deleted
-                                        </>
-                                    ) : confirmDelete ? (
-                                        <>
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                            Confirm Delete
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                            Delete Note
-                                        </>
-                                    )}
-                                </button>
-                            )}
-                        </div>
-                    </div>
                     )}
                 </SlideWrapper>
 
@@ -655,14 +786,3 @@ const ToggleOption: React.FC<{
     </div>
 );
 
-const CopyButton: React.FC<{ onClick: () => void; title: string }> = ({ onClick, title }) => (
-    <button
-        onClick={onClick}
-        className="absolute top-3 right-3 p-2 text-tertiary hover:text-primary transition-colors"
-        title={title}
-    >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-        </svg>
-    </button>
-);

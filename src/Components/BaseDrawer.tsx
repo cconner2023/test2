@@ -100,7 +100,7 @@ export function BaseDrawer({
     children,
     fullHeight = '90dvh',
     disableDrag = false,
-    backdropOpacity = 0.3,
+    backdropOpacity = 0.95,
     desktopPosition = 'right',
     mobileOnly = false,
     mobileClassName = '',
@@ -283,22 +283,25 @@ export function BaseDrawer({
                         overflow: 'hidden',
                         visibility: isMounted ? 'visible' : 'hidden',
                     }}
-                    {...bindDrawerDrag()}
+                    {...(header ? {} : bindDrawerDrag())}
                 >
-                    {header && (
-                        <DrawerHeader
-                            title={header.title}
-                            showBack={header.showBack}
-                            onBack={header.onBack}
-                            badge={header.badge}
-                            onClose={mobileHandleClose}
-                            isMobile={true}
-                        />
-                    )}
                     {header ? (
-                        <div className="flex-1 min-h-0 overflow-hidden">
-                            {mobileChildren}
-                        </div>
+                        <>
+                            {/* Drag bound to header only — keeps content gestures clean */}
+                            <div {...bindDrawerDrag()}>
+                                <DrawerHeader
+                                    title={header.title}
+                                    showBack={header.showBack}
+                                    onBack={header.onBack}
+                                    badge={header.badge}
+                                    onClose={mobileHandleClose}
+                                    isMobile={true}
+                                />
+                            </div>
+                            <div className="flex-1 min-h-0 overflow-hidden">
+                                {mobileChildren}
+                            </div>
+                        </>
                     ) : mobileChildren}
                 </div>
             </div>
@@ -308,9 +311,8 @@ export function BaseDrawer({
                 <div className="hidden md:block">
                     {/* Backdrop — fixed to escape overflow-hidden */}
                     <div
-                        className={`fixed inset-0 ${zIndex} bg-black transition-opacity duration-250 ease-out ${
-                            desktopOpen ? 'opacity-20 pointer-events-auto' : 'opacity-0 pointer-events-none'
-                        }`}
+                        className={`fixed inset-0 ${zIndex} bg-black transition-opacity duration-250 ease-out ${desktopOpen ? 'opacity-20 pointer-events-auto' : 'opacity-0 pointer-events-none'
+                            }`}
                         onClick={desktopHandleClose}
                     />
 
