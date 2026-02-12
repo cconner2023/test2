@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
-const APP_VERSION = '2.6.1.1'
+const APP_VERSION = '2.6.2'
 
 export default defineConfig({
   base: '/test2/',
