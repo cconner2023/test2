@@ -7,6 +7,7 @@ interface NoteCaptureOptions {
     includeAlgorithm: boolean;
     includeDecisionMaking: boolean;
     customNote: string;
+    signature?: string;
 }
 
 interface NoteCaptureResult {

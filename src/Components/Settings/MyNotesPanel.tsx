@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useDrag } from '@use-gesture/react';
-import { FileText, Trash2, Share2, CheckSquare, Square, Eye, ClipboardCopy } from 'lucide-react';
+import { FileText, Trash2, Share2, CheckSquare, Eye, ClipboardCopy } from 'lucide-react';
 import type { SavedNote } from '../../Hooks/useNotesStorage';
 import { useNoteShare } from '../../Hooks/useNoteShare';
 import { getColorClasses } from '../../Utilities/ColorUtilities';
@@ -41,27 +41,25 @@ const NoteItemContent = ({ note, isSelected }: { note: SavedNote; isSelected: bo
             {note.symptomIcon || '\u{1F4CB}'}
         </div>
         <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-primary truncate">
-                    {note.symptomText || 'Note'}
-                </p>
-                {note.dispositionType && (
-                    <span className={`text-[10px] px-1.5 py-0.5 rounded shrink-0 ${getColorClasses(note.dispositionType as dispositionType['type']).dispositionBadge}`}>
-                        {note.dispositionType}
-                    </span>
-                )}
-            </div>
+            <p className="text-sm font-medium text-primary truncate">
+                {note.symptomText || 'Note'}
+            </p>
             <div className="flex items-center gap-2 mt-0.5">
                 <p className="text-xs text-tertiary/60">
                     {formatDate(note.createdAt)}
                 </p>
-                {note.source === 'external source' && (
+                {note.source?.startsWith('external') && (
                     <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 shrink-0">
-                        External
+                        {note.source.includes(':') ? note.source.split(':')[1] : 'External'}
                     </span>
                 )}
             </div>
         </div>
+        {note.dispositionType && (
+            <span className={`text-[10px] font-medium px-2 py-1 rounded-full shrink-0 ${getColorClasses(note.dispositionType as dispositionType['type']).dispositionBadge}`}>
+                {note.dispositionType}
+            </span>
+        )}
     </div>
 );
 
@@ -170,30 +168,30 @@ const SwipeableNoteItem = ({
                         className="flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform"
                         aria-label="View note"
                     >
-                        <div className="w-9 h-9 rounded-full bg-amber-500/15 flex items-center justify-center">
-                            <Eye size={16} className="text-amber-600" />
+                        <div className="w-9 h-9 rounded-full bg-amber-500/10 flex items-center justify-center">
+                            <Eye size={16} className="text-themeyellow" />
                         </div>
-                        <span className="text-[9px] font-medium text-amber-600">View</span>
+                        <span className="text-[9px] font-normal text-tertiary">View</span>
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); onCopy(note); }}
                         className="flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform"
                         aria-label="Copy note"
                     >
-                        <div className="w-9 h-9 rounded-full bg-teal-500/15 flex items-center justify-center">
-                            <ClipboardCopy size={16} className="text-teal-600" />
+                        <div className="w-9 h-9 rounded-full bg-teal-500/10 flex items-center justify-center">
+                            <ClipboardCopy size={16} className="text-themegreen" />
                         </div>
-                        <span className="text-[9px] font-medium text-teal-600">Copy</span>
+                        <span className="text-[9px] font-normal text-tertiary">Copy</span>
                     </button>
                     <button
                         onClick={(e) => { e.stopPropagation(); onShare(note); }}
                         className="flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform"
                         aria-label="Share note"
                     >
-                        <div className="w-9 h-9 rounded-full bg-purple-500/15 flex items-center justify-center">
-                            <Share2 size={16} className="text-purple-600" />
+                        <div className="w-9 h-9 rounded-full bg-themeblue3/30 flex items-center justify-center">
+                            <Share2 size={16} className="text-themeblue2" />
                         </div>
-                        <span className="text-[9px] font-medium text-purple-600">Share</span>
+                        <span className="text-[9px] font-normal text-tertiary">Share</span>
                     </button>
                 </div>
             )}
@@ -219,10 +217,10 @@ const SwipeableNoteItem = ({
                         className="flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform"
                         aria-label={confirmDelete ? 'Confirm delete' : 'Delete note'}
                     >
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${confirmDelete ? 'bg-red-500' : 'bg-red-500/15'}`}>
-                            <Trash2 size={16} className={confirmDelete ? 'text-white' : 'text-red-500'} />
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${confirmDelete ? 'bg-themeredred/40' : 'bg-themeredred/15'}`}>
+                            <Trash2 size={16} className={confirmDelete ? 'text-themeredred' : 'text-themeredred'} />
                         </div>
-                        <span className={`text-[9px] font-medium ${confirmDelete ? 'text-red-600' : 'text-red-500'}`}>
+                        <span className={`text-[9px] font-medium ${confirmDelete ? 'text-themeredred/60' : 'text-themeredred'}`}>
                             {confirmDelete ? 'Confirm' : 'Delete'}
                         </span>
                     </button>
@@ -244,22 +242,31 @@ const SwipeableNoteItem = ({
                 onClick={handleTap}
             >
                 <div className="flex items-center gap-3 px-3 py-3">
-                    <div className="shrink-0">
-                        {isSelected
-                            ? <CheckSquare size={18} className="text-themeblue3" />
-                            : <Square size={18} className="text-tertiary/30" />}
-                    </div>
-                    <div className="shrink-0 w-8 h-8 rounded-full bg-themeblue3/10 flex items-center justify-center text-sm">
-                        {note.symptomIcon || '\u{1F4CB}'}
-                    </div>
+                    {isSelected && (
+                        <div className="shrink-0">
+                            <CheckSquare size={18} className="text-themeblue3" />
+                        </div>
+                    )}
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-primary truncate">
                             {note.symptomText || 'Note'}
                         </p>
-                        <p className="text-xs text-tertiary/60 mt-0.5">
-                            {formatDate(note.createdAt)}
-                        </p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                            <p className="text-xs text-tertiary/60">
+                                {formatDate(note.createdAt)}
+                            </p>
+                            {note.source?.startsWith('external') && (
+                                <span className="text-[9px] font-normal px-1.5 py-0.5 rounded-full text-tertiary shrink-0">
+                                    {note.source.includes(':') ? note.source.split(':')[1] : 'External'}
+                                </span>
+                            )}
+                        </div>
                     </div>
+                    {note.dispositionType && (
+                        <span className={`text-[10px] font-medium px-2 py-1 rounded-full shrink-0 ${getColorClasses(note.dispositionType as dispositionType['type']).badgeBg}`}>
+                            {note.dispositionType}
+                        </span>
+                    )}
                 </div>
             </div>
         </div>
@@ -302,7 +309,6 @@ export const MyNotesPanel = ({
     isMobile,
     notes,
     onDeleteNote,
-    onEditNote,
     onViewNote,
     onCloseDrawer,
     initialSelectedId,

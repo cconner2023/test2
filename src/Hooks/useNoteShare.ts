@@ -2,6 +2,7 @@
 import { useCallback, useState } from 'react';
 import PDF417 from 'pdf417-generator';
 import type { SavedNote } from './useNotesStorage';
+import { parseNoteEncoding } from '../Utilities/NoteCodec';
 
 type ShareStatus = 'idle' | 'generating' | 'sharing' | 'shared' | 'copied' | 'error';
 
@@ -57,14 +58,40 @@ const SHARE_COLORS = {
 } as const;
 
 /**
+ * Formats a Date into military DDHHmmMONYYYY string (e.g. "122148FEB2026").
+ */
+function formatMilitaryDate(date: Date): string {
+    const day = date.getDate().toString().padStart(2, '0');
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+    const year = date.getFullYear();
+    return `${day}${hours}${minutes}${month}${year}`;
+}
+
+/**
  * Generates a shareable image canvas containing the PDF417 barcode,
  * note metadata, and encoded string. Renders at 2x resolution for
  * sharp output on high-DPI screens and respects the current theme.
+ *
+ * Layout:
+ *   ADTMC Note  DDHHmmMONYYYY
+ *   CAT — disposition text
+ *   [barcode]
+ *   encoded text
+ *   Author: RANK LastName
  */
 function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
     // Detect current theme from DOM
     const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
     const colors = isDark ? SHARE_COLORS.dark : SHARE_COLORS.light;
+
+    // Extract author from encoded text
+    const parsed = parseNoteEncoding(note.encodedText);
+    const author = parsed?.user;
+    const authorLabel = author?.lastName
+        ? `Author: ${[author.rank, author.lastName].filter(Boolean).join(' ')}`
+        : '';
 
     // 2x scale for sharp output on high-DPI displays
     const scale = 2;
@@ -79,7 +106,6 @@ function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
         bCtx.fillRect(0, 0, 300, 120);
     }
 
-    // Use the same rendering approach as Barcode.tsx
     if (PDF417 && typeof (PDF417 as any).draw === 'function') {
         (PDF417 as any).draw(note.encodedText, barcodeCanvas);
     } else {
@@ -95,7 +121,6 @@ function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
     const canvasW = 440;
     const contentW = canvasW - pad * 2;
 
-    // Layout: title → symptom line → date → barcode → encoded string → footer
     const lineH = 22;
     const barcodeDisplayW = Math.min(contentW, 340);
     const barcodeDisplayH = Math.round(
@@ -106,28 +131,24 @@ function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
     const encodedFontSize = 10;
     const charsPerLine = Math.floor(contentW / (encodedFontSize * 0.6));
     const encodedLines = Math.ceil(note.encodedText.length / charsPerLine);
-    const encodedBlockH = encodedLines * (encodedFontSize + 4) + 16; // padding
+    const encodedBlockH = encodedLines * (encodedFontSize + 4) + 16;
 
     const barcodePad = 8;
     const barcodeContainerH = barcodeDisplayH + barcodePad * 2;
 
     const canvasH =
         pad +                // top padding
-        lineH +              // "ADTMC Note" title
+        lineH +              // "ADTMC Note" + date
         12 +                 // gap
-        lineH +              // symptom text
-        lineH +              // disposition line
-        lineH +              // date line
+        (note.dispositionType ? lineH + 8 : 0) + // CAT line
         16 +                 // gap before barcode
-        barcodeContainerH +  // barcode container (barcode + padding)
+        barcodeContainerH +  // barcode
         12 +                 // gap
         encodedBlockH +      // encoded string block
-        16 +                 // gap
-        lineH +              // footer
+        (authorLabel ? 16 + lineH : 0) + // author line
         pad;                 // bottom padding
 
     const canvas = document.createElement('canvas');
-    // Render at 2x resolution for sharp text and barcode on Retina/HiDPI
     canvas.width = canvasW * scale;
     canvas.height = canvasH * scale;
     const ctx = canvas.getContext('2d')!;
@@ -152,23 +173,27 @@ function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
 
     let y = pad + 8;
 
-    // ── Title ──
+    // ── Title + Date on one line ──
+    let dateStr = '';
+    try {
+        dateStr = formatMilitaryDate(new Date(note.createdAt));
+    } catch { /* ignore */ }
+
     ctx.fillStyle = colors.title;
-    ctx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('ADTMC Note', canvasW / 2, y);
+    ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('ADTMC Note', pad, y);
+
+    if (dateStr) {
+        ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        ctx.fillStyle = colors.date;
+        ctx.textAlign = 'right';
+        ctx.fillText(dateStr, canvasW - pad, y);
+    }
     y += lineH + 8;
 
-    // ── Symptom icon + text ──
-    ctx.font = '14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    ctx.fillStyle = colors.symptom;
-    const symptomLabel = `${note.symptomIcon || '📋'} ${note.symptomText || 'Note'}`;
-    ctx.fillText(symptomLabel, canvasW / 2, y);
-    y += lineH;
-
-    // ── Disposition badge ──
+    // ── CAT — disposition ──
     if (note.dispositionType) {
-        // Disposition colors are semantic — same for both themes
         let badgeColor = '#6b7280';
         const dt = note.dispositionType.toUpperCase();
         if (dt.includes('I') && !dt.includes('II') && !dt.includes('III') && !dt.includes('IV')) badgeColor = '#dc2626';
@@ -179,53 +204,26 @@ function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
         const dispText = note.dispositionType + (note.dispositionText ? ` — ${note.dispositionText}` : '');
         ctx.fillStyle = badgeColor;
         ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        ctx.textAlign = 'center';
         ctx.fillText(dispText, canvasW / 2, y);
-        y += lineH;
+        y += lineH + 8;
     }
 
-    // ── Date ──
-    ctx.fillStyle = colors.date;
-    ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    try {
-        const date = new Date(note.createdAt);
-        const day = date.getDate().toString().padStart(2, '0');
-        const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-        const year = date.getFullYear().toString().slice(2);
-        const time = date.toLocaleTimeString('en-US', {
-            hour12: false,
-            hour: '2-digit',
-            minute: '2-digit',
-        });
-        ctx.fillText(`${day}${month}${year} ${time}`, canvasW / 2, y);
-    } catch {
-        ctx.fillText(note.createdAt, canvasW / 2, y);
-    }
-    y += lineH + 12;
-
-    // ── PDF417 Barcode (white container with border, matching in-app style) ──
+    // ── Barcode (white container with border) ──
     const barcodeContainerW = barcodeDisplayW + barcodePad * 2;
     const barcodeContainerX = (canvasW - barcodeContainerW) / 2;
 
-    // White background
     ctx.fillStyle = colors.barcodeBg;
     roundRect(ctx, barcodeContainerX, y, barcodeContainerW, barcodeContainerH, 6);
     ctx.fill();
-    // Subtle border
-    ctx.strokeStyle = isDark ? '#4b5563' : '#d1d5db'; // gray-600 / gray-300
+    ctx.strokeStyle = isDark ? '#4b5563' : '#d1d5db';
     ctx.lineWidth = 1;
     roundRect(ctx, barcodeContainerX, y, barcodeContainerW, barcodeContainerH, 6);
     ctx.stroke();
 
-    // Draw barcode inside the container
     const barcodeX = barcodeContainerX + barcodePad;
     ctx.drawImage(barcodeCanvas, barcodeX, y + barcodePad, barcodeDisplayW, barcodeDisplayH);
-    y += barcodeContainerH + 8;
-
-    // Label under barcode
-    ctx.fillStyle = colors.date;
-    ctx.font = '9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    ctx.fillText('PDF417 Barcode', canvasW / 2, y);
-    y += 16;
+    y += barcodeContainerH + 12;
 
     // ── Encoded string block ──
     ctx.fillStyle = colors.encodedBlockBg;
@@ -242,13 +240,16 @@ function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
         ctx.fillText(line, pad + 8, textY);
         textY += encodedFontSize + 4;
     }
-    y += encodedBlockH + 12;
+    y += encodedBlockH;
 
-    // ── Footer ──
-    ctx.textAlign = 'center';
-    ctx.fillStyle = colors.footer;
-    ctx.font = '9px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    ctx.fillText('ADTMC • MEDCOM PAM 40-7-21', canvasW / 2, y);
+    // ── Author ──
+    if (authorLabel) {
+        y += 16;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = colors.date;
+        ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+        ctx.fillText(authorLabel, canvasW - pad, y);
+    }
 
     return canvas;
 }

@@ -3,6 +3,8 @@ import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes'
 import type { CardState } from '../Hooks/useAlgorithm';
 import { useNoteCapture } from '../Hooks/useNoteCapture';
 import { useNoteShare } from '../Hooks/useNoteShare';
+import { useUserProfile } from '../Hooks/useUserProfile';
+import { formatSignature } from '../Utilities/NoteFormatter';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { TextButton } from './TextButton';
 import { NoteBarcodeGenerator } from './Barcode';
@@ -114,6 +116,8 @@ export const WriteNotePage = ({
 
     // Hooks
     const { generateNote } = useNoteCapture(algorithmOptions, cardStates);
+    const { profile } = useUserProfile();
+    const signature = formatSignature(profile);
     const { shareNote, shareStatus } = useNoteShare();
     const colors = getColorClasses(disposition.type);
 
@@ -137,14 +141,14 @@ export const WriteNotePage = ({
     // --- Preview note generation (eagerly updates so content is ready before navigating to View Note) ---
     useEffect(() => {
         const result = generateNote(
-            { includeAlgorithm, includeDecisionMaking, customNote: includeHPI ? note : '' },
+            { includeAlgorithm, includeDecisionMaking, customNote: includeHPI ? note : '', signature },
             disposition.type,
             disposition.text,
             selectedSymptom,
             noteTimestamp,
         );
         setPreviewNote(result.fullNote);
-    }, [note, includeAlgorithm, includeDecisionMaking, includeHPI, generateNote, disposition, selectedSymptom, noteTimestamp]);
+    }, [note, includeAlgorithm, includeDecisionMaking, includeHPI, generateNote, disposition, selectedSymptom, noteTimestamp, signature]);
 
     // --- Copy handler ---
     const handleCopy = useCallback((text: string) => {
@@ -340,11 +344,13 @@ export const WriteNotePage = ({
                     <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-primary">{PAGE_LABELS[currentPage]}</span>
                         {noteSource && (
-                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${noteSource === 'external source'
+                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${noteSource?.startsWith('external')
                                 ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
                                 : 'bg-themeblue3/15 text-themeblue3'
                                 }`}>
-                                {noteSource === 'external source' ? 'Saved Note (External)' : 'Saved Note'}
+                                {noteSource?.startsWith('external')
+                                    ? `External${noteSource.includes(':') ? ': ' + noteSource.split(':')[1] : ''}`
+                                    : 'Saved Note'}
                             </span>
                         )}
                     </div>
@@ -564,7 +570,8 @@ export const WriteNotePage = ({
                                                 noteOptions={{
                                                     includeAlgorithm,
                                                     includeDecisionMaking,
-                                                    customNote: includeHPI ? note : ''
+                                                    customNote: includeHPI ? note : '',
+                                                    user: profile,
                                                 }}
                                                 symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
                                                 onEncodedValueChange={setEncodedValue}

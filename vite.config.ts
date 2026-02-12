@@ -1,9 +1,7 @@
 import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
-
-// App version - update this to trigger cache busting
-const APP_VERSION = '2.6.10'
+const APP_VERSION = '2.6.1.1'
 
 export default defineConfig({
   base: '/test2/',

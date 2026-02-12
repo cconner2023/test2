@@ -4,6 +4,7 @@
 
 import type { AlgorithmOptions, decisionMakingType } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
+import type { UserTypes } from '../Data/User';
 
 // ---------------------------------------------------------------------------
 // Timestamp
@@ -178,6 +179,25 @@ export function formatDecisionMakingContent(
 }
 
 // ---------------------------------------------------------------------------
+// Signature
+// ---------------------------------------------------------------------------
+
+export function formatSignature(profile: UserTypes): string {
+    if (!profile.lastName) return '';
+    const parts = [
+        profile.lastName,
+        profile.firstName ?? '',
+        profile.middleInitial ?? '',
+    ].filter(Boolean).join(' ');
+    const suffix = [
+        profile.credential,
+        profile.rank,
+        profile.component,
+    ].filter(Boolean).join(', ');
+    return suffix ? `Signed: ${parts} ${suffix}` : `Signed: ${parts}`;
+}
+
+// ---------------------------------------------------------------------------
 // Full note assembly
 // ---------------------------------------------------------------------------
 
@@ -185,6 +205,7 @@ export interface NoteAssemblyOptions {
     includeAlgorithm: boolean;
     includeDecisionMaking: boolean;
     customNote: string;
+    signature?: string;
 }
 
 export interface AssembledNote {
@@ -245,6 +266,11 @@ export function assembleNote(
             fullNoteParts.push(decisionMakingContent);
             fullNoteParts.push('');
         }
+    }
+
+    // Signature
+    if (options.signature) {
+        fullNoteParts.push(options.signature);
     }
 
     return {

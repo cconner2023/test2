@@ -5,6 +5,8 @@
 
 import { Algorithm } from '../Data/Algorithms';
 import { catData } from '../Data/CatData';
+import { ranks, credentials, components } from '../Data/User';
+import type { UserTypes } from '../Data/User';
 import type { AlgorithmOptions, dispositionType } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import type { catDataTypes, subCatDataTypes } from '../Types/CatTypes';
@@ -20,12 +22,14 @@ export interface ParsedNote {
     hpiText: string;
     flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean };
     timestamp: Date | null;
+    user: UserTypes | null;
 }
 
 export interface NoteEncodeOptions {
     includeAlgorithm: boolean;
     includeDecisionMaking: boolean;
     customNote: string;
+    user?: UserTypes;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +92,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         hpiText: '',
         flags: { includeAlgorithm: true, includeDecisionMaking: true, includeHPI: false },
         timestamp: null,
+        user: null,
     };
 
     let legacyLastCard = -1;
@@ -127,6 +132,26 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
             const epoch = parseInt(value, 36);
             if (!isNaN(epoch)) {
                 result.timestamp = new Date(epoch * 1000);
+            }
+        } else if (prefix === 'U') {
+            // User segment: rankIdx.credIdx.compIdx.base64(first|last|middle)
+            const segs = value.split('.');
+            if (segs.length >= 4) {
+                const ri = parseInt(segs[0], 10);
+                const ci = parseInt(segs[1], 10);
+                const coi = parseInt(segs[2], 10);
+                let names = ['', '', ''];
+                try {
+                    names = decodeURIComponent(atob(segs.slice(3).join('.'))).split('|');
+                } catch { /* ignore decode errors */ }
+                result.user = {
+                    firstName: names[0] || undefined,
+                    lastName: names[1] || undefined,
+                    middleInitial: names[2] || undefined,
+                    rank: ri >= 0 ? ranks[ri] : undefined,
+                    credential: ci >= 0 ? credentials[ci] : undefined,
+                    component: coi >= 0 ? components[coi] : undefined,
+                };
             }
         } else if (prefix === 'L') {
             legacyLastCard = parseInt(value, 10);
@@ -224,7 +249,21 @@ export function encodeNoteState(
     if (customNote) flags |= 4;
     parts.push(`F${flags}`);
 
-    // 6. Timestamp (epoch seconds in base36)
+    // 6. User profile (indexed enums + base64 name)
+    const user = noteOptions.user;
+    if (user?.lastName) {
+        const ri = user.rank ? ranks.indexOf(user.rank) : -1;
+        const ci = user.credential ? credentials.indexOf(user.credential) : -1;
+        const coi = user.component ? components.indexOf(user.component) : -1;
+        const nameStr = `${user.firstName ?? ''}|${user.lastName ?? ''}|${user.middleInitial ?? ''}`;
+        try {
+            parts.push(`U${ri}.${ci}.${coi}.${btoa(encodeURIComponent(nameStr))}`);
+        } catch {
+            parts.push(`U${ri}.${ci}.${coi}.${encodeURIComponent(nameStr)}`);
+        }
+    }
+
+    // 7. Timestamp (epoch seconds in base36)
     parts.push(`T${Math.floor(Date.now() / 1000).toString(36)}`);
 
     return parts.join('|');

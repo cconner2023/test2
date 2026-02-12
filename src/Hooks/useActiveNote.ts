@@ -12,6 +12,7 @@ import type { SavedNote } from './useNotesStorage'
 import type { useNavigation } from './useNavigation'
 import type { useNotesStorage } from './useNotesStorage'
 import type { NoteRestoreResult } from './useNoteRestore'
+import { parseNoteEncoding } from '../Utilities/NoteCodec'
 
 interface UseActiveNoteParams {
   navigation: ReturnType<typeof useNavigation>
@@ -275,6 +276,13 @@ export function useActiveNote({
       return
     }
 
+    // Extract author from encoded barcode
+    const parsed = parseNoteEncoding(data.encodedText)
+    const author = parsed?.user
+    const externalSource = author?.lastName
+      ? `external:${author.rank ? author.rank + ' ' : ''}${author.lastName}`
+      : 'external'
+
     // Build a temporary SavedNote-like object to use restoreNote
     const tempNote: SavedNote = {
       id: '',
@@ -285,7 +293,7 @@ export function useActiveNote({
       dispositionType: '',
       dispositionText: '',
       previewText: data.decodedText.slice(0, 200),
-      source: 'external source',
+      source: externalSource,
     }
 
     // Restore note to get algorithm state + symptom/category info
@@ -295,7 +303,7 @@ export function useActiveNote({
       return
     }
 
-    // 1. Save the note to storage with 'external source' tag
+    // 1. Save the note to storage with external source tag
     const disposition = result.writeNoteData.disposition
     const saveResult = notesStorage.saveNote({
       encodedText: data.encodedText,
@@ -304,7 +312,7 @@ export function useActiveNote({
       symptomText: result.symptom.text || 'Imported Note',
       dispositionType: disposition.type,
       dispositionText: disposition.text,
-      source: 'external source',
+      source: externalSource,
     })
 
     if (!saveResult.success) {
@@ -339,7 +347,7 @@ export function useActiveNote({
 
   // Compute note status for algorithm page badge
   const algorithmNoteStatus: 'new' | 'saved' | 'external' | null = activeNoteId
-    ? (activeNoteSource === 'external source' ? 'external' : 'saved')
+    ? (activeNoteSource?.startsWith('external') ? 'external' : 'saved')
     : null
 
   return {

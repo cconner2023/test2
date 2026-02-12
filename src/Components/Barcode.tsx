@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import PDF417 from 'pdf417-generator';
 import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
+import type { UserTypes } from '../Data/User';
 import { encodeNoteState } from '../Utilities/NoteCodec';
 
 interface NoteBarcodeGeneratorProps {
@@ -11,6 +12,7 @@ interface NoteBarcodeGeneratorProps {
         includeAlgorithm: boolean;
         includeDecisionMaking: boolean;
         customNote: string;
+        user?: UserTypes;
     };
     symptomCode?: string;
     onEncodedValueChange?: (value: string) => void;
@@ -30,7 +32,7 @@ export function NoteBarcodeGenerator({
 
     const compactString = useMemo(() =>
         encodeNoteState(algorithmOptions, cardStates, noteOptions, symptomCode),
-        [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.includeDecisionMaking, noteOptions.customNote, symptomCode]
+        [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.includeDecisionMaking, noteOptions.customNote, noteOptions.user, symptomCode]
     );
 
     // Update state and notify parent when encoded value changes
