@@ -2207,7 +2207,7 @@ export const catData: catDataTypes[] = [
                 id: 1,
                 icon: "K-1",
                 text: "Exertional Heat Illness/ Hyperthermia",
-                gen: [{}],
+                gen: [{ text: 'Heat injury results from an excessive loss of water and salt from the body or a breakdown of the body’s cooling mechanism. Risks include inadequate acclimatization, illness, blood donation, poor physical fitness, obesity, using drugs such as antihistamines (Benadryl®, Atarax®, CTM®), decongestants (Sudafed®), high blood pressure (diuretics, beta blockers) and psychiatrics (tricyclic antidepressants, antipsychotics).' }],
                 medcom: [
                     medcomTrainingData[13],
                     medcomTrainingData[15],
@@ -2231,7 +2231,7 @@ export const catData: catDataTypes[] = [
                 id: 2,
                 icon: "K-2",
                 text: "Hypothermia",
-                gen: [{}],
+                gen: [{ text: 'Hypothermia, or a lower than normal body temperature, can be the result of heat loss from exposure to cold or wet environments, inadequate heat production due to poor nutrition or exhaustion, or inaccurate heat regulation from using drugs such as nicotine, alcohol, and medications with anticholinergic side effects.' }],
                 medcom: [
                     medcomTrainingData[13],
                     medcomTrainingData[15],
@@ -2257,7 +2257,7 @@ export const catData: catDataTypes[] = [
                 id: 3,
                 icon: "K-3",
                 text: "Immersion Foot",
-                gen: [{}],
+                gen: [{ text: 'Immersion foot usually results when the skin is exposed to wet, cold foot gear or from immersion at temperatures from 32°F to 59°F for over two to three days (nonfreezing cold injury (NFCI) or immersion foot). NFCI can result in an infection acutely or cold intolerance and pain syndromes chronically. Prolonged exposure to wet environments at temperatures greater than 59°F (jungle foot) can also result in acute pain or injury but typically do not cause chronic issues. Presentation is with a white, wrinkled, numb, painless extremity. After warmed, it becomes a mottled pale blue with delayed capillary refill and start of swelling (hours to days). Progresses to a red, swollen painful extremity with blisters in areas of tissue damage (days to weeks). Can remain sensitive to cold, painful to cold, cool to touch, excessive sweating, or painful for weeks to years.' }],
                 medcom: [
                     medcomTrainingData[13],
                     medcomTrainingData[15],
@@ -2283,7 +2283,7 @@ export const catData: catDataTypes[] = [
                 id: 4,
                 icon: "K-4",
                 text: "Chapped Skin/Windburn",
-                gen: [{}],
+                gen: [{ text: 'Chapping is the unusually rapid drying of skin due to exposure to a hot or cold dry wind which draws water out of the skin. Generally, it is not a medical problem unless cracking or fissuring with a secondary infection takes place. The involved skin heals as new skin cells develop.' }],
                 medcom: [
                     medcomTrainingData[13],
                     medcomTrainingData[17]
@@ -2296,7 +2296,7 @@ export const catData: catDataTypes[] = [
                 id: 5,
                 icon: "K-5",
                 text: "Frostbite",
-                gen: [{}],
+                gen: [{ text: 'Frostbite results from the skin (usually on the toes, fingers, or face) being exposed to extreme cold for an extended period of time. Lower temperatures and high winds result in shorter times to injury. Immediate evaluation is required.' }],
                 medcom: [],
                 stp: [],
                 redFlags: [],
@@ -2306,7 +2306,7 @@ export const catData: catDataTypes[] = [
                 id: 6,
                 icon: "K-6",
                 text: "Crabs/Lice (Pediculosis) ",
-                gen: [{}],
+                gen: [{ text: 'Crabs/lice are tiny insects that are visible to the naked eye that infest the hairy areas of the body (groin, body hair, and scalp). The insect deposits eggs (nits) and attaches them at the bases of hair shafts. The lice require a diet of human blood and will die within three days after removal from the body. The possibility of spreading infection to close associates by intimate contact or common use of clothing, beds, or toilet articles is real.' }],
                 medcom: [
                     medcomTrainingData[2],
                     medcomTrainingData[13]
@@ -2328,7 +2328,7 @@ export const catData: catDataTypes[] = [
                 id: 7,
                 icon: "K-7",
                 text: "Insect Bites (Not Crabs/Lice)",
-                gen: [{}],
+                gen: [{ text: 'Insect bites are characterized by itching, local swelling, mild pain, and redness. All of these reactions represent a local reaction to the sting of the insect. Document any history of tick bites and include the location of the bite.' }],
                 medcom: [
                     medcomTrainingData[2],
                     medcomTrainingData[13]

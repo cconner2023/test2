@@ -8016,22 +8016,31 @@ export const Algorithm: AlgorithmType[] = [
                 questionOptions: [
                     { text: "Patient appears confused, delirious, or unresponsive" },
                     { text: "Dry skin" },
-                    { text: "Temperature > 103&#176; F" }
+                    { text: "Temperature > 103°F" }
                 ],
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "action placeholder"
+                                modifier: 'Ice sheets/douse the patient with water. Start an IV as ordered by doctor or PA. Monitor rectal body temperature. Transport to emergency treatment area.'
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['heat stroke', ''],
+                                text: 'A “yes” response to any of the questions may indicate heatstroke with a breakdown of the body’s heat regulating mechanism. Heatstroke is characterized by high body temperature (>103°F), altered mental status (i.e., confusion, delirium, syncope and/or coma) and, in most cases, an absence of sweating. This condition has a high mortality rate and is a MEDICAL EMERGENCY. Lowering the body temperature is the most important treatment. Placing icepacks/ice sheets in the groin, arm pits and behind the neck, along with ice sheets under and on top the Soldier allows for rapid cooling. An alternative is dousing the Soldier with water and gently fanning to allow for evaporative cooling. Start an intravenous infusion. Monitor the Soldier’s body (rectal) temperature. Transport to an emergency treatment location if available.',
+                                ancillaryFind: [
+                                    { type: 'protocol', modifier: 'rectal temperature' },
+                                    { type: 'protocol', modifier: 'obtain IV access' },
+                                    { type: 'protocol', modifier: 'active cooling protocol' },
+                                ]
                             }
                         ],
                         next: null,
@@ -8039,13 +8048,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -8062,14 +8064,14 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['heat exhaustion'],
+                                text: 'A “yes” response to questions may indicate heat exhaustion which occurs as a result of an excessive loss of water and salt from the body. The syndrome is characterized by profuse perspiration, pallor, and perhaps low blood pressure. The mortality rate from this disorder, if treated, is extremely low. Moving the Soldier to a cool area for rest and the administration of fluids (orally or intravenous infusion, depending on severity of symptoms) will result in prompt recovery. Untreated heat exhaustion may progress to heatstroke.',
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
@@ -8078,15 +8080,15 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['mild heat injury'],
+                                text: 'COOL: place the Soldier in a cool or shaded place. HYDRATE: give the Soldier at least one liter of cool water to drink in the first 30 minutes and then at least one liter of water per hour the next two hours. Advise the Soldier to decrease their activity for the next 24 hours. REASSESS: if the Soldier’s symptoms do not begin to resolve themselves within 30 minutes, if they get worse, or if the Soldier’s temperature exceeds 100.3° F, refer the Soldier to the supervising privileged provider.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'COOL: place the Soldier in a cool or shaded place. HYDRATE: Give the Soldier at least one liter of cool water to drink in the first 30 minutes and then at least one liter of water per hour the next 2 hours. Advise the Soldier to decrease his activity for the next 24 hours. REASSESS: If the Soldier\'s symptoms do not begin to resolve themselves within 30 minutes, if they get worse, or if the Soldier\'s temperature exceeds 101°F'
+                                }
                             }
                         ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
-                            }
-                        ],
+                        disposition: [Disposition[2]],
                         next: null,
                         selectAll: false
                     }
@@ -8126,17 +8128,25 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "action placeholder"
+                                modifier: 'support ABCs. IVs. transport horizontal on stretcher. start warming.'
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['hypothermia', 'head injury', 'frostbite'],
+                                text: 'Mild hypothermia presents with body temperature 90-95oF, normal mental status, tachycardia, tachypnea, and shivering. Moderate hypothermia presents with body temperature 82-90° F, lethargy, bradycardia with arrhythmias, and hypoventilation without shivering. Severe hypothermia presents with body temperature <82° F, coma, asystole, and apnea so that the Soldier may appear dead but resuscitation is still possible. Note any discrepancy between the extent of an abnormal vital sign and the degree of hypothermia may represent an underlying alternate cause for the vital sign abnormality like a head injury for confusion or hypovolemia for tachycardia. Frostbite may appear white or grayish-yellow and be hard or waxy to the touch. Support the Soldier’s airway, breathing, circulation, start two large bore IVs with warmed fluids, remove wet clothes, use body heat, blankets, and space/hypothermia blanket to rewarm, and transport horizontally.',
+                                ancillaryFind: [
+                                    { type: 'protocol', modifier: 'obtain IV access' },
+                                    { type: 'protocol', modifier: 'active warming protocols' },
+                                ]
                             }
                         ],
                         next: null,
@@ -8144,13 +8154,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -8168,26 +8171,19 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['opioid use', 'behavioral health medication use', 'alcohol use'],
+                                text: 'Symptoms of hypothermia with a normal temperature suggests an alternative diagnosis. Opioids, behavioral health medications, and alcohol can include medications for anxiety, depression, antipsychotics can impair thermoregulation. Severe pain associated with a nonfreezing cold injury requires further evaluation and management'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 4,
                         selectAll: false
@@ -8201,17 +8197,17 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 type: "OTHER",
                                 text: "Screen Immersion Foot K-3"
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['immersion foot', 'non-freezing cold injury'],
+                                text: 'See protocol K-3 for immersion foot. Immersion foot usually results when the skin is exposed to wet, cold foot gear or from immersion at temperatures from 32° F to 59° F for over two to three days (nonfreezing cold injury (NFCI) or immersion foot) and presents with a white, wrinkled, numb, painless extremity.'
                             }
                         ],
                         next: null,
@@ -8219,16 +8215,16 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                ddx: ['cold without criteria for hypothermia'],
+                                text: 'move Soldier to warm area. Remove wet clothing. Rewarm through utilizing body heat and space/hypothermia blanket. Do not place numb area by heat source (risk of burns).',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'move to warm area, remove wet clothes, and rewarm through body heat and space/hypothermia blanket. Monitor closely and elevate care if not improving within 30 minutes.'
+                                }
                             }
                         ],
                         next: null,
@@ -8270,17 +8266,22 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "action placeholder"
+                                modifier: 'remove wet clothes. rewarm the soldier if hypothermic'
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['frostbite', 'hypothermia', 'gangrene', 'infection'],
+                                text: 'Frostbite, hypothermia, and signs of gangrene represent a serious medical condition that requires prompt treatment. Severe pain or signs of an infection (fever, red streaks, or swollen glands) require further evaluation by a privileged provider. Hypothermia should be rewarmed once the Soldier is under shelter and able to stay warm. Do not rub the extremity. Do not rewarm the extremity in NFCI unless frostbite is also present. During the exam, it is important to look for other injuries, especially in the setting of trauma.',
+                                specLim: ['limit exposure to cold environments']
                             }
                         ],
                         next: null,
@@ -8288,13 +8289,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -8315,8 +8309,7 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'Symptoms lasting longer than one week will need a more in-depth evaluation. If the Soldier is unable to perform duties, a profile for one week may initially be required.'
                             }
                         ],
                         disposition: [Disposition[1]],
@@ -8325,16 +8318,23 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                ddx: ['immersion foot'],
+                                text: 'rewarm the extremity gradually with bed rest, elevation of the extremity, and air drying at room temperature. Rapid warming can increase pain, swelling, and risk of further injury in the extremity. Limit activities with affected extremity and keep elevated for three days. Soldier may have a “slapping, flat footed” gait upon starting to walk that should improve within a week. Rehydrate with warm IV fluids and provide tetanus prophylaxis if required (discuss with AEM prior to giving). Ibuprofen, amitriptyline (requires a privileged provider prescription) as needed for pain. A fan to cool the affected extremity can also help with the pain. Refer to AEM if pain is not controlled. Return to clinic if new symptoms develop, condition worsens, signs of infection.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Rest, elevate, and air dry affected extremity at room temperature. Limit activities for 3 days. Rehydrate with warm IVF, tetanus prophylaxis (AEM approval required). Ketorolac for moderate pain. Ibuprofen as needed for minor pain. Amitriptyline at night as needed for pain (provider prescription required). RTC if symptoms are worsening, signs of infection, new symptoms developing, or symptoms are not controlled with the MCP not improving after 1 week.',
+                                    medFind: [medList[23], medList[24]],
+                                    ancillaryFind: [
+                                        { type: 'protocol', modifier: 'obtain IV access' },
+                                        { type: 'protocol', modifier: 'tetanus prophylaxis' },
+                                        { type: 'med', modifier: 'Amitriptyline' },
+                                    ],
+                                    specLim: ['limit activities for 3 days', 'elevate affected extremity x 3 days']
+                                }
                             }
                         ],
                         next: null,
@@ -8364,29 +8364,29 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['windburn', 'infection', 'cold weather injury'],
+                                text: 'Since exposure to dry wind causes chapping, involvement of areas other than the hands and face or not being exposed to dry wind makes this diagnosis unlikely, and the Soldier should be referred for further evaluation. Presence of inflammation other than simple skin redness warms of the possibility of infection and requires evaluation for possible antibiotics. Numbness can be a sign of a cold injury.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                ddx: ['chapped skin'],
+                                text: 'cover the exposed area so that it is no longer exposed to the drying wind. Apply moisturizing lotion (oil-based cream or ointment). Apply petroleum jelly or lip balm to the lips. Moisturizing cream can also protect from further wind effects',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Cover affected skin area. Apply moisturizing lotion to affected area. Apply petroleum jelly or lip balm to the lips, if needed. RTC if symptoms are worsening, signs of infection, or new symptoms develop.'
+                                }
                             }
                         ],
                         next: null,
@@ -8417,17 +8417,17 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[0], modifier: 'pad or splint affected area. Move Soldier to a warm area. Remove wet clothing. Rewarm using body head and space/hypothermia blanket. Do not rub area, place area near fire/heating element, or rewarm area if chance of refreezing. Tetanus prophylaxis' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[0],
-                                modifier: "action placeholder"
+                                ddx: ['frostbite'],
+                                text: 'Presentation includes complaints of a cold, numb, and clumsy affected area. Area may appear white or grayish-yellow and be hard or waxy to the touch. Blisters or cyanosis will be present after rewarming.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'pad or splint the affected area. Avoid walking/standing on frostbitten feet. If walking required for evacuation, do not rewarm prior to walking. Move Soldier to warm area. Remove wet clothing. Do not rewarm frostbitten area if there is a possibility of the area refreezing. Rewarm with placing area in warm water or body heat and space/hypothermia blanket. Do not place frostbitten area by heat source (risk of burns with sensory loss) or rub the frostbitten area.',
+                                    ancillaryFind: [{ type: 'protocol', modifier: 'passive warming protocol' }]
+                                }
                             }
                         ],
                         next: null,
@@ -8435,16 +8435,17 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[2],
+                                modifier: 'pad or splint affected area. Move Soldier to a warm area. Remove wet clothing. Rewarm using body head and space/hypothermia blanket. Do not rub area, place area near fire/heating element, or rewarm area if chance of refreezing. Tetanus prophylaxis'
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['immersion foot'],
+                                text: 'If not hypothermia or frostbite, screen for trench foot (protocol K-3).'
                             }
                         ],
                         next: null,
@@ -8473,29 +8474,68 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['secondary infection', 'contact dermatitis', 'scabies'],
+                                text: 'Secondary infection is common due associated itching. If nits and lice are not seen, then further evaluation is needed for a different diagnosis (contact dermatitis or scabies).'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                ddx: ['pediculosis'],
+                                text: 'wash clothes, sleeping linens, sleeping bag in hot water (above 149°F) or have them dry cleaned. If unable to wash or dry clean, place in a sealed bag for two weeks.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'launder clothes and bed linens in hot water.'
+                                }
+                            },
                             {
-                                ...Disposition[2],
+                                type: 'dmp',
+                                ddx: ['pediculosis (body)'],
+                                text: 'lice live on the seams of the clothing. Permethrin 5% application can also be used in addition to laundering the clothes',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'apply permethrin 5% cream to body.',
+                                    ancillaryFind: [{ type: 'med', modifier: 'permethrin 5% topical cream' }]
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['pediculosis (head)'],
+                                text: 'wash the area without using conditioner and towel dry. Apply permethrin cream to saturate the affected area. Leave on for 10 minutes. Rinse with warm (not hot) water. Use a close toothed comb to remove nits (eggs from base of hair follicles). Repeat in one week if nits or lice are still present.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'wash hair without conditioner and towel dry. Apply permethrin 1% cream. leave on for 10 minutes. Rinse with warm waer. Remove nits and dead lice with thin toothed comb',
+                                    medFind: [medList[33]]
+
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['pediculosis (pubic)'],
+                                text: 'screen for other STIs. Treat recent sexual contacts at the same time. Skin should be cool and dry. Apply permethrin cream to all affected areas (groin, buttock, thighs, trunk, and axillae) for 10 minutes and then rinse off in warm water. Remove nits with tweezers or thin toothed comb. Follow-up in 10 days. If unable to follow-up, retreat with permethrin cream in 10 days due to 40% of Soldiers not having cleared the infection with one treatment.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'screen for other STDs. Treat sexual partners at same time. Apply permethrin 1% cream to cool, dry areas (groin, buttock, upper thighs, trunk, axillae) for 10 minutes. Rinse with warm water. Follow-up in 10 days for repeat evaluation',
+                                    medFind: [medList[33]],
+                                    ancillaryFind: [
+                                        { type: 'lab', modifier: 'RPR / syphilis screen' },
+                                        { type: 'lab', modifier: 'HIV' },
+                                        { type: 'lab', modifier: 'GC/CT NAAT' },
+                                        { type: 'lab', modifier: 'Urinalysis' },
+                                        { type: 'protocol', modifier: 'contact tracing' },
+
+                                    ]
+                                }
                             }
                         ],
                         next: null,
@@ -8529,16 +8569,22 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
+                                modifier: 'Epi pen if indicated'
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                text: 'Wheezing, shortness of breath: immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['anaphylaxis'],
+                                text: 'Red flags, hives, or history of severe reaction from similar insect bite (bee sting allergy), have Soldier inject epinephrine pen if indicated (signs of respiratory or circulatory compromise) and refer to a privileged provider immediately. Reported poisonous insect bite (brown recluse, black widow, etc.) should also be immediately referred.',
+                                medFind: [medList[17]]
                             }
                         ],
                         next: null,
@@ -8546,13 +8592,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -8569,29 +8608,29 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'If no signs of an insect bite can be seen, a blister or ulcer is present, or there is moderate to severe pain, refer to the AEM for further evaluation because it may be something other than an insect bite.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
+                                ddx: ['insect bite'],
+                                text: 'remove any stinger, head of tick, or other biting apparatus left at the bite site. Clean with povidone-iodine (betadine) solution. Apply calamine lotion or hydrocortisone 1% cream four times per day as needed for itching. Apply cold compress or ice pack as needed for swelling. Return to clinic if symptoms worsen, new symptoms develop, or symptoms are not improving within 48 hours',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'remove any stinger, head of tick, or other biting apparatus. Clean site with povidone-iodine solution. Apply calamine lotion or hydrocortisone 1% cream every 6 hours as needed for itching. Apply an ice pack as needed for swelling. RTC if symptoms worsen, new symptoms develop, or symptoms are not improving within 48 hours',
+                                    medFind: [medList[37], medList[12], medList[21]]
+                                }
                             }
                         ],
                         next: null,
