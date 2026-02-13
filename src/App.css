@@ -13,9 +13,10 @@
       --color-themeblue1:rgba(129,161,181,1);
       --color-themeblue2: rgba(21, 142, 172,1);
       --color-themeblue3: rgba(0,66,92,1);
+      --color-themepurple: rgba(120,75,160,1);
       --color-primary: rgba(30, 30, 35, 1);    /* Near-black for primary color */
-      --color-secondary: rgba(70, 70, 80, 1); 
-      --color-tertiary: rgba(70, 70, 80, 1); 
+      --color-secondary: rgba(70, 70, 80, 1);
+      --color-tertiary: rgba(70, 70, 80, 1);
     }
 }
 [data-theme="light"] {
@@ -31,9 +32,10 @@
   --color-themeblue1:rgba(129,161,181,1);
   --color-themeblue2: rgba(21, 142, 172,1);
   --color-themeblue3: rgba(0,66,92,1);
+  --color-themepurple: rgba(120,75,160,1);
   --color-primary: rgba(30, 30, 35, 1);    /* Near-black for primary color */
-  --color-secondary: rgba(70, 70, 80, 1); 
-  --color-tertiary: rgba(132, 139, 146, 1); 
+  --color-secondary: rgba(70, 70, 80, 1);
+  --color-tertiary: rgba(132, 139, 146, 1);
 }
 [data-theme="dark"] {
   --color-themeredred: rgb(170, 65, 65, 1);
@@ -48,6 +50,7 @@
   --color-themeblue1: rgba(129, 161, 181, 1);
   --color-themeblue2: rgba(21, 142, 172, 1);
   --color-themeblue3: rgba(0, 66, 92, 1);
+  --color-themepurple: rgba(120,75,160,1);
   --color-primary: rgba(203,209,214,1);
   --color-secondary: rgba(179,186,201,1);
   --color-tertiary:rgba(132, 139, 146, 1);
@@ -66,6 +69,7 @@
     --color-themeblue1: rgba(129, 161, 181, 1);
     --color-themeblue2: rgba(21, 142, 172, 1);
     --color-themeblue3: rgba(0, 66, 92, 1);
+    --color-themepurple: rgba(120,75,160,1);
     --color-primary: rgba(203,209,214,1);
     --color-secondary: rgba(179,186,201,1);
     --color-tertiary: rgba(132, 139, 146, 1);
@@ -84,6 +88,7 @@
   --color-themeblue1:var(--color-themeblue1);
   --color-themeblue2: var(--color-themeblue2);
   --color-themeblue3: var(--color-themeblue3);
+  --color-themepurple: var(--color-themepurple);
   --color-primary: var(--color-primary); 
   --color-secondary: var(--color-secondary);
   --color-tertiary: var(--color-tertiary);

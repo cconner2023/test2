@@ -140,7 +140,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                 const ri = parseInt(segs[0], 10);
                 const ci = parseInt(segs[1], 10);
                 const coi = parseInt(segs[2], 10);
-                let names = ['', '', ''];
+                let names: string[] = [];
                 try {
                     names = decodeURIComponent(atob(segs.slice(3).join('.'))).split('|');
                 } catch { /* ignore decode errors */ }
@@ -151,6 +151,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                     rank: ri >= 0 ? ranks[ri] : undefined,
                     credential: ci >= 0 ? credentials[ci] : undefined,
                     component: coi >= 0 ? components[coi] : undefined,
+                    uic: names[3] || undefined,
                 };
             }
         } else if (prefix === 'L') {
@@ -255,7 +256,7 @@ export function encodeNoteState(
         const ri = user.rank ? ranks.indexOf(user.rank) : -1;
         const ci = user.credential ? credentials.indexOf(user.credential) : -1;
         const coi = user.component ? components.indexOf(user.component) : -1;
-        const nameStr = `${user.firstName ?? ''}|${user.lastName ?? ''}|${user.middleInitial ?? ''}`;
+        const nameStr = `${user.firstName ?? ''}|${user.lastName ?? ''}|${user.middleInitial ?? ''}|${user.uic ?? ''}`;
         try {
             parts.push(`U${ri}.${ci}.${coi}.${btoa(encodeURIComponent(nameStr))}`);
         } catch {
@@ -267,6 +268,16 @@ export function encodeNoteState(
     parts.push(`T${Math.floor(Date.now() / 1000).toString(36)}`);
 
     return parts.join('|');
+}
+
+// ---------------------------------------------------------------------------
+// Content comparison (ignores volatile segments like timestamp)
+// ---------------------------------------------------------------------------
+
+/** Compare two encoded note strings ignoring the timestamp segment (T...) */
+export function encodedContentEquals(a: string, b: string): boolean {
+    const strip = (s: string) => s.split('|').filter(p => !p.startsWith('T')).join('|');
+    return strip(a) === strip(b);
 }
 
 // ---------------------------------------------------------------------------

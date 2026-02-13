@@ -6,6 +6,7 @@ import { useNoteShare } from '../Hooks/useNoteShare';
 import { useUserProfile } from '../Hooks/useUserProfile';
 import { formatSignature } from '../Utilities/NoteFormatter';
 import { getColorClasses } from '../Utilities/ColorUtilities';
+import { encodedContentEquals } from '../Utilities/NoteCodec';
 import { TextButton } from './TextButton';
 import { NoteBarcodeGenerator } from './Barcode';
 import { DecisionMaking } from './DecisionMaking';
@@ -175,7 +176,7 @@ export const WriteNotePage = ({
     // isAlreadySaved: note exists in storage (existingNoteId is set)
     // hasContentChanged: encoded value differs from what was saved
     const isAlreadySaved = Boolean(existingNoteId);
-    const hasContentChanged = isAlreadySaved && encodedValue !== '' && encodedValue !== existingEncodedText;
+    const hasContentChanged = isAlreadySaved && encodedValue !== '' && !encodedContentEquals(encodedValue, existingEncodedText || '');
 
     // --- Save note handler (new note) ---
     const handleSaveNote = useCallback(() => {
@@ -533,7 +534,7 @@ export const WriteNotePage = ({
                                                     : shareStatus === 'generating' || shareStatus === 'sharing'
                                                         ? 'text-purple-600'
                                                         : 'text-tertiary hover:text-primary hover:bg-themewhite3'
-                                                }`}
+                                                    }`}
                                                 title="Share note as image"
                                                 role="button"
                                                 tabIndex={0}
@@ -593,7 +594,7 @@ export const WriteNotePage = ({
                                                     ? 'bg-themeredred/15 text-themeredred'
                                                     : isSaved
                                                         ? 'bg-green-500/15 text-green-600 dark:text-green-300'
-                                                        : 'bg-themewhite3 text-tertiary hover:bg-themeblue3/10 hover:text-themeblue3'
+                                                        : 'bg-themewhite3 text-primary hover:bg-themeblue3/10 hover:text-themeblue3'
                                                 }`}
                                             title={saveFailed ? 'Storage full' : isSaved ? 'Saved' : 'Save to My Notes'}
                                         >

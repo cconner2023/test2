@@ -168,7 +168,7 @@ const SwipeableNoteItem = ({
                         className="flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform"
                         aria-label="View note"
                     >
-                        <div className="w-9 h-9 rounded-full bg-amber-500/10 flex items-center justify-center">
+                        <div className="w-9 h-9 rounded-full bg-themeyellow/10 flex items-center justify-center">
                             <Eye size={16} className="text-themeyellow" />
                         </div>
                         <span className="text-[9px] font-normal text-tertiary">View</span>
@@ -178,7 +178,7 @@ const SwipeableNoteItem = ({
                         className="flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform"
                         aria-label="Copy note"
                     >
-                        <div className="w-9 h-9 rounded-full bg-teal-500/10 flex items-center justify-center">
+                        <div className="w-9 h-9 rounded-full bg-themegreen/10 flex items-center justify-center">
                             <ClipboardCopy size={16} className="text-themegreen" />
                         </div>
                         <span className="text-[9px] font-normal text-tertiary">Copy</span>
@@ -500,7 +500,7 @@ export const MyNotesPanel = ({
                             <div className="flex items-center justify-center gap-2 flex-wrap">
                                 <button
                                     onClick={() => handleSingleView(singleNote)}
-                                    className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-full bg-amber-500/10 text-amber-600 hover:bg-amber-500/20 transition-all active:scale-95"
+                                    className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-full bg-themeyellow/10 text-themeyellow hover:bg-themeyellow/20 transition-all active:scale-95"
                                     title="View note in algorithm"
                                 >
                                     <Eye size={14} />
@@ -509,8 +509,8 @@ export const MyNotesPanel = ({
                                 <button
                                     onClick={() => handleCopy(singleNote)}
                                     className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${copiedStatus
-                                        ? 'bg-green-500/15 text-green-600'
-                                        : 'bg-teal-500/10 text-teal-600 hover:bg-teal-500/20'
+                                        ? 'bg-themegreen/15 text-themegreen'
+                                        : 'bg-themegreen/10 text-themegreen hover:bg-themegreen/20'
                                         }`}
                                     title="Copy encoded text"
                                 >
@@ -520,10 +520,10 @@ export const MyNotesPanel = ({
                                 <button
                                     onClick={() => handleShare(singleNote)}
                                     className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${shareStatus === 'shared' || shareStatus === 'copied'
-                                        ? 'bg-green-500/15 text-green-600'
+                                        ? 'bg-themegreen/15 text-themegreen'
                                         : shareStatus === 'generating' || shareStatus === 'sharing'
-                                            ? 'bg-purple-500/15 text-purple-600'
-                                            : 'bg-purple-500/10 text-purple-600 hover:bg-purple-500/20'
+                                            ? 'bg-themeblue2/15 text-themeblue2'
+                                            : 'bg-themeblue2/10 text-themeblue2 hover:bg-themeblue2/20'
                                         }`}
                                     title="Share note as image"
                                 >
@@ -534,7 +534,7 @@ export const MyNotesPanel = ({
                                     onClick={handleDelete}
                                     className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${confirmDelete
                                         ? 'bg-themeredred text-white'
-                                        : 'bg-red-500/10 text-red-500 hover:bg-red-500/20'
+                                        : 'bg-themeredred/10 text-themeredred hover:bg-themeredred/20'
                                         }`}
                                     title={confirmDelete ? 'Tap again to confirm delete' : 'Delete note'}
                                 >
@@ -550,7 +550,7 @@ export const MyNotesPanel = ({
                                     onClick={handleDelete}
                                     className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-full transition-all active:scale-95 ${confirmDelete
                                         ? 'bg-themeredred text-white'
-                                        : 'bg-themeredred text-white hover:bg-red-600'
+                                        : 'bg-themeredred text-white hover:bg-themeredred/80'
                                         }`}
                                 >
                                     <Trash2 size={14} />

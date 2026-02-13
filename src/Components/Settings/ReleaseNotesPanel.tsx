@@ -1,4 +1,4 @@
-import { Bug, PlusCircle, RefreshCw } from 'lucide-react';
+import { Bug, PlusCircle, RefreshCw, CalendarClock, Loader } from 'lucide-react';
 import { ReleaseNotes, type ReleaseNoteTypes } from '../../Data/Release';
 
 // Extract the note type safely
@@ -11,6 +11,8 @@ const NOTE_ICONS: Record<NoteType, {
     bug: { icon: Bug, className: "text-red-500" },
     added: { icon: PlusCircle, className: "text-green-500" },
     changed: { icon: RefreshCw, className: "text-blue-500" },
+    planned: { icon: CalendarClock, className: "text-yellow-500" },
+    started: { icon: Loader, className: "text-orange-500" },
     default: { icon: PlusCircle, className: "text-tertiary" }
 };
 

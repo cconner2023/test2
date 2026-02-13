@@ -9,14 +9,20 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(APP_VERSION),
   },
   plugins: [
+    {
+      name: 'html-version',
+      transformIndexHtml(html) {
+        return html.replace(/%APP_VERSION%/g, APP_VERSION)
+      }
+    },
     tailwindcss(),
     VitePWA({
       registerType: 'prompt',
       includeAssets: ['icon-144.png', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'browserconfig.xml', 'splash/*.png'],
       manifest: {
         name: `ADTMC V${APP_VERSION}`,
-        short_name: 'ADTMC',
-        description: 'ADTMC documentation and barcode generation',
+        short_name: `ADTMC ${APP_VERSION}`,
+        description: 'ADTMC documentation',
         start_url: '/test2/',
         display: 'standalone',
         background_color: '#ffffff',

@@ -1,12 +1,15 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, ChevronUp, ChevronRight, FileText, Check } from 'lucide-react';
+import { Moon, Sun, Shield, ChevronUp, ChevronRight, FileText, Check, Camera, X, BookOpen } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import type { SavedNote } from '../../Hooks/useNotesStorage';
-import { useProfileAvatar } from '../../Hooks/useProfileAvatar';
+import { useProfileAvatar, resizeImage } from '../../Hooks/useProfileAvatar';
 import { useUserProfile } from '../../Hooks/useUserProfile';
+import { useSwipeBack } from '../../Hooks/useSwipeBack';
 import { MyNotesPanel } from './MyNotesPanel';
 import { ReleaseNotesPanel } from './ReleaseNotesPanel';
 import { UserProfilePanel } from './UserProfilePanel';
+import { TrainingPanel, type TrainingView } from './TrainingPanel';
+import type { subjectAreaArray, subjectAreaArrayOptions } from '../../Types/CatTypes';
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -26,6 +29,8 @@ const MainSettingsPanel = ({
     settingsOptions,
     onItemClick,
     avatarSvg,
+    customImage,
+    isCustom,
     displayName,
     displaySub,
     onAvatarClick,
@@ -40,6 +45,8 @@ const MainSettingsPanel = ({
     }>;
     onItemClick: (id: number) => void;
     avatarSvg: React.ReactNode;
+    customImage: string | null;
+    isCustom: boolean;
     displayName: string;
     displaySub: string;
     onAvatarClick: () => void;
@@ -54,7 +61,9 @@ const MainSettingsPanel = ({
                         className="mr-4 w-12 h-12 rounded-full overflow-hidden shrink-0
                                    active:scale-95 transition-transform"
                     >
-                        {avatarSvg}
+                        {isCustom && customImage ? (
+                            <img src={customImage} alt="Profile" className="w-full h-full object-cover" />
+                        ) : avatarSvg}
                     </button>
                     <button
                         onClick={onProfileClick}
@@ -101,13 +110,15 @@ const MainSettingsPanel = ({
     </div>
 );
 
-// Content wrapper with slide animation
+// Content wrapper with slide animation and optional swipe-back
 const ContentWrapper = ({
     children,
-    slideDirection
+    slideDirection,
+    swipeHandlers,
 }: {
     children: React.ReactNode;
     slideDirection: 'left' | 'right' | '';
+    swipeHandlers?: { onTouchStart: React.TouchEventHandler; onTouchMove: React.TouchEventHandler; onTouchEnd: React.TouchEventHandler };
 }) => {
     const slideClasses = {
         '': '',
@@ -116,7 +127,7 @@ const ContentWrapper = ({
     };
 
     return (
-        <div className={`h-full w-full ${slideClasses[slideDirection]}`}>
+        <div className={`h-full w-full ${slideClasses[slideDirection]}`} {...swipeHandlers}>
             {children}
         </div>
     );
@@ -125,33 +136,93 @@ const ContentWrapper = ({
 const AvatarPickerPanel = ({
     avatarList,
     currentAvatarId,
+    isCustom,
+    customImage,
     onSelect,
+    onUpload,
+    onClearCustom,
 }: {
     avatarList: Array<{ id: string; svg: React.ReactNode }>;
     currentAvatarId: string;
+    isCustom: boolean;
+    customImage: string | null;
     onSelect: (id: string) => void;
-}) => (
-    <div className="h-full overflow-y-auto">
-        <div className="px-4 py-3 md:p-5">
-            <div className="grid grid-cols-3 gap-4 justify-items-center md:grid-cols-4">
-                {avatarList.map((avatar) => (
+    onUpload: (file: File) => void;
+    onClearCustom: () => void;
+}) => {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    return (
+        <div className="h-full overflow-y-auto">
+            <div className="px-4 py-3 md:p-5">
+                <div className="grid grid-cols-3 gap-4 justify-items-center md:grid-cols-4">
+                    {/* Custom image avatar (if uploaded) */}
+                    {customImage && (
+                        <div className="relative">
+                            <button
+                                onClick={() => onSelect('custom')}
+                                className="relative w-16 h-16 rounded-full overflow-hidden transition-all active:scale-95"
+                            >
+                                <img src={customImage} alt="Custom" className="w-full h-full object-cover" />
+                                {isCustom && (
+                                    <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-full">
+                                        <Check size={20} className="text-white" />
+                                    </div>
+                                )}
+                            </button>
+                            <button
+                                onClick={onClearCustom}
+                                className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-themeredred flex items-center justify-center active:scale-90 transition-transform"
+                                aria-label="Remove custom photo"
+                            >
+                                <X size={12} className="text-white" />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* SVG avatars */}
+                    {avatarList.map((avatar) => (
+                        <button
+                            key={avatar.id}
+                            onClick={() => onSelect(avatar.id)}
+                            className="relative w-16 h-16 rounded-full overflow-hidden transition-all active:scale-95"
+                        >
+                            {avatar.svg}
+                            {avatar.id === currentAvatarId && !isCustom && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-full">
+                                    <Check size={20} className="text-white" />
+                                </div>
+                            )}
+                        </button>
+                    ))}
+
+                    {/* Upload button */}
                     <button
-                        key={avatar.id}
-                        onClick={() => onSelect(avatar.id)}
-                        className="relative w-16 h-16 rounded-full overflow-hidden transition-all active:scale-95"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-16 h-16 rounded-full border-2 border-dashed border-tertiary/30
+                                   flex items-center justify-center transition-all active:scale-95
+                                   hover:border-tertiary/50 hover:bg-themewhite2/50"
+                        aria-label="Upload photo"
                     >
-                        {avatar.svg}
-                        {avatar.id === currentAvatarId && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-full">
-                                <Check size={20} className="text-white" />
-                            </div>
-                        )}
+                        <Camera size={22} className="text-tertiary/50" />
                     </button>
-                ))}
+                </div>
+
+                <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) onUpload(file);
+                        e.target.value = '';
+                    }}
+                />
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 export const Settings = ({
     isVisible,
@@ -166,10 +237,12 @@ export const Settings = ({
     onEditNote,
     onViewNote,
 }: SettingsDrawerProps) => {
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile'>('main');
-    const { currentAvatar, setAvatar, avatarList } = useProfileAvatar();
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | TrainingView>('main');
+    const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useProfileAvatar();
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
+    const [selectedSubjectArea, setSelectedSubjectArea] = useState<subjectAreaArray | null>(null);
+    const [selectedTask, setSelectedTask] = useState<subjectAreaArrayOptions | null>(null);
     const prevVisibleRef = useRef(false);
 
     // Set initial panel when drawer opens
@@ -212,6 +285,12 @@ export const Settings = ({
                 handleSlideAnimation('left');
                 setActivePanel('user-profile');
                 break;
+            case 7:
+                handleSlideAnimation('left');
+                setSelectedSubjectArea(null);
+                setSelectedTask(null);
+                setActivePanel('training');
+                break;
             default:
                 break;
         }
@@ -224,6 +303,13 @@ export const Settings = ({
             action: () => handleItemClick(1, closeDrawer),
             color: 'text-tertiary',
             id: 1
+        },
+        {
+            icon: <BookOpen size={20} />,
+            label: 'Training',
+            action: () => handleItemClick(7, closeDrawer),
+            color: 'text-tertiary',
+            id: 7
         },
         {
             icon: isDarkMode ? <Sun size={20} /> : <Moon size={20} />,
@@ -240,6 +326,47 @@ export const Settings = ({
             id: 4
         }
     ], [isDarkMode, onToggleTheme, handleItemClick]);
+
+    // Training panel navigation helpers
+    const handleTrainingSelectArea = useCallback((area: subjectAreaArray) => {
+        setSelectedSubjectArea(area);
+        setSelectedTask(null);
+        handleSlideAnimation('left');
+        setActivePanel('training-tasks');
+    }, [handleSlideAnimation]);
+
+    const handleTrainingSelectTask = useCallback((task: subjectAreaArrayOptions) => {
+        setSelectedTask(task);
+        handleSlideAnimation('left');
+        setActivePanel('training-detail');
+    }, [handleSlideAnimation]);
+
+    const handleTrainingBack = useCallback(() => {
+        if (activePanel === 'training-detail') {
+            handleSlideAnimation('right');
+            setActivePanel('training-tasks');
+            setSelectedTask(null);
+        } else if (activePanel === 'training-tasks') {
+            handleSlideAnimation('right');
+            setActivePanel('training');
+            setSelectedSubjectArea(null);
+        } else if (activePanel === 'training') {
+            handleSlideAnimation('right');
+            setActivePanel('main');
+        }
+    }, [activePanel, handleSlideAnimation]);
+
+    // Swipe-back for sub-panels (mobile touch only)
+    const swipeHandlers = useSwipeBack(
+        useMemo(() => {
+            if (activePanel === 'main') return undefined;
+            if (activePanel === 'training-detail' || activePanel === 'training-tasks' || activePanel === 'training') {
+                return handleTrainingBack;
+            }
+            return () => { handleSlideAnimation('right'); setActivePanel('main'); };
+        }, [activePanel, handleSlideAnimation, handleTrainingBack]),
+        activePanel !== 'main',
+    );
 
     const headerConfig = useMemo(() => {
         switch (activePanel) {
@@ -270,24 +397,44 @@ export const Settings = ({
                     showBack: true,
                     onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
                 };
+            case 'training':
+                return {
+                    title: 'Training',
+                    showBack: true,
+                    onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
+                };
+            case 'training-tasks':
+                return {
+                    title: selectedSubjectArea?.text || 'Tasks',
+                    showBack: true,
+                    onBack: handleTrainingBack,
+                };
+            case 'training-detail':
+                return {
+                    title: selectedTask?.icon || 'Task',
+                    showBack: true,
+                    onBack: handleTrainingBack,
+                };
         }
-    }, [activePanel, notes.length, handleSlideAnimation]);
+    }, [activePanel, notes.length, handleSlideAnimation, selectedSubjectArea, selectedTask, handleTrainingBack]);
 
     return (
         <BaseDrawer
             isVisible={isVisible}
-            onClose={() => { setActivePanel('main'); setSlideDirection(''); onClose(); }}
+            onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedSubjectArea(null); setSelectedTask(null); onClose(); }}
             fullHeight="90dvh"
             disableDrag={false}
             header={headerConfig}
         >
             {(handleClose) => (
-                <ContentWrapper slideDirection={slideDirection}>
+                <ContentWrapper slideDirection={slideDirection} swipeHandlers={activePanel !== 'main' ? swipeHandlers : undefined}>
                     {activePanel === 'main' ? (
                         <MainSettingsPanel
                             settingsOptions={buildSettingsOptions(handleClose)}
                             onItemClick={(id) => handleItemClick(id, handleClose)}
                             avatarSvg={currentAvatar.svg}
+                            customImage={customImage}
+                            isCustom={isCustom}
                             displayName={
                                 profile.lastName
                                     ? `${profile.rank ? profile.rank + ' ' : ''}${profile.lastName}${profile.firstName ? ', ' + profile.firstName.charAt(0) + '.' : ''}`
@@ -310,14 +457,39 @@ export const Settings = ({
                         <AvatarPickerPanel
                             avatarList={avatarList}
                             currentAvatarId={currentAvatar.id}
+                            isCustom={isCustom}
+                            customImage={customImage}
                             onSelect={(id) => {
-                                setAvatar(id);
+                                if (id === 'custom') {
+                                    setAvatar('custom');
+                                } else {
+                                    setAvatar(id);
+                                }
                                 handleSlideAnimation('right');
                                 setActivePanel('main');
                             }}
+                            onUpload={async (file) => {
+                                try {
+                                    const dataUrl = await resizeImage(file);
+                                    setCustomImage(dataUrl);
+                                    handleSlideAnimation('right');
+                                    setActivePanel('main');
+                                } catch {
+                                    // silently fail on unsupported image
+                                }
+                            }}
+                            onClearCustom={clearCustomImage}
                         />
                     ) : activePanel === 'release-notes' ? (
                         <ReleaseNotesPanel />
+                    ) : activePanel === 'training' || activePanel === 'training-tasks' || activePanel === 'training-detail' ? (
+                        <TrainingPanel
+                            view={activePanel}
+                            selectedSubjectArea={selectedSubjectArea}
+                            selectedTask={selectedTask}
+                            onSelectArea={handleTrainingSelectArea}
+                            onSelectTask={handleTrainingSelectTask}
+                        />
                     ) : (
                         <MyNotesPanel
                             isMobile={externalIsMobile ?? (typeof window !== 'undefined' && window.innerWidth < 768)}

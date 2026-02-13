@@ -1,12 +1,16 @@
 export interface ReleaseNoteTypes {
     version: string;
     date?: string;
-    type: 'bug' | 'added' | 'changed'
+    type: 'bug' | 'added' | 'changed' | 'planned' | 'started'
     text?: string,
     explain?: string
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
+    { version: '2.6.2', type: 'planned', text: 'server and a back-end if you know any cloud computing people' },
+    { version: '2.6.2', type: 'planned', text: 'UIC linking | DODID ' },
+    { version: '2.6.2', type: 'started', text: 'unit designation' },
+    { version: '2.6.2', type: 'started', text: 'training' },
     { version: '2.6.2', type: 'added', text: 'signature block creation and avatars' },
     { version: '2.6.2', type: 'changed', text: 'thought about a server, panicked. I\'m not about to learn back-end dev overnight.' },
     { version: '2.6.2', type: 'changed', text: 'write note wizard simplified' },
