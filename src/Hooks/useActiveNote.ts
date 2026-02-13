@@ -343,19 +343,11 @@ export function useActiveNote({
     setMyNotesInitialSelectedId(null)
   }, [])
 
-  // ── Derived state ──────────────────────────────────────────
-
-  // Compute note status for algorithm page badge
-  const algorithmNoteStatus: 'new' | 'saved' | 'external' | null = activeNoteId
-    ? (activeNoteSource?.startsWith('external') ? 'external' : 'saved')
-    : null
-
   return {
     // Active note state
     activeNoteId,
     activeNoteEncodedText,
     activeNoteSource,
-    algorithmNoteStatus,
     algorithmKeySuffix,
     restoredAlgorithmState,
 

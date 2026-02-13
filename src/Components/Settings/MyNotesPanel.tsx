@@ -1,10 +1,12 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import { useDrag } from '@use-gesture/react';
 import { FileText, Trash2, Share2, CheckSquare, Eye, ClipboardCopy } from 'lucide-react';
 import type { SavedNote } from '../../Hooks/useNotesStorage';
 import { useNoteShare } from '../../Hooks/useNoteShare';
 import { getColorClasses } from '../../Utilities/ColorUtilities';
 import type { dispositionType } from '../../Types/AlgorithmTypes';
+import { parseNoteEncoding } from '../../Utilities/NoteCodec';
+import { useUserProfile } from '../../Hooks/useUserProfile';
 
 /* ────────────────────────────────────────────────────────────
    Utility: format date (shared by note items)
@@ -27,19 +29,53 @@ const formatDate = (isoStr: string) => {
 };
 
 /* ────────────────────────────────────────────────────────────
+   Utility: group notes by date (newest first), sort by acuity within each group
+   ──────────────────────────────────────────────────────────── */
+const ACUITY_ORDER: Record<string, number> = {
+    'CAT I': 0, 'CAT II': 1, 'CAT III': 2, 'CAT IV': 3, 'OTHER': 4,
+};
+
+function formatDateHeader(isoStr: string): string {
+    try {
+        const date = new Date(isoStr);
+        const day = date.getDate().toString().padStart(2, '0');
+        const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+        const year = date.getFullYear().toString().slice(2);
+        return `${day} ${month} ${year}`;
+    } catch {
+        return 'Unknown';
+    }
+}
+
+function groupAndSortNotes(notes: SavedNote[]): { key: string; label: string; notes: SavedNote[] }[] {
+    const groups = new Map<string, { label: string; notes: SavedNote[] }>();
+    for (const note of notes) {
+        const d = new Date(note.createdAt);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        if (!groups.has(key)) {
+            groups.set(key, { label: formatDateHeader(note.createdAt), notes: [] });
+        }
+        groups.get(key)!.notes.push(note);
+    }
+    for (const group of groups.values()) {
+        group.notes.sort((a, b) => (ACUITY_ORDER[a.dispositionType] ?? 5) - (ACUITY_ORDER[b.dispositionType] ?? 5));
+    }
+    return Array.from(groups.entries())
+        .sort(([a], [b]) => b.localeCompare(a))
+        .map(([key, { label, notes }]) => ({ key, label, notes }));
+}
+
+/* ────────────────────────────────────────────────────────────
    NoteItemContent — Shared note display (icon, text, badge, date).
    Used by both SwipeableNoteItem (mobile) and NoteItemSettings (desktop).
    ──────────────────────────────────────────────────────────── */
-const NoteItemContent = ({ note, isSelected }: { note: SavedNote; isSelected: boolean }) => (
+const NoteItemContent = ({ note, isSelected, isOwn }: { note: SavedNote; isSelected: boolean; isOwn?: boolean }) => (
     <div className="flex items-center gap-3 px-3 py-3">
         {isSelected && (
             <div className="shrink-0">
                 <CheckSquare size={18} className="text-themeblue3" />
             </div>
         )}
-        <div className="shrink-0 w-8 h-8 rounded-full bg-themeblue3/10 flex items-center justify-center text-sm">
-            {note.symptomIcon || '\u{1F4CB}'}
-        </div>
         <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-primary truncate">
                 {note.symptomText || 'Note'}
@@ -48,9 +84,9 @@ const NoteItemContent = ({ note, isSelected }: { note: SavedNote; isSelected: bo
                 <p className="text-xs text-tertiary/60">
                     {formatDate(note.createdAt)}
                 </p>
-                {note.source?.startsWith('external') && (
-                    <span className="text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 shrink-0">
-                        {note.source.includes(':') ? note.source.split(':')[1] : 'External'}
+                {(isOwn || note.source?.startsWith('external')) && (
+                    <span className="text-[9px] font-normal px-1.5 py-0.5 rounded-full text-tertiary shrink-0">
+                        {isOwn ? 'My Note' : `External${note.source?.includes(':') ? ` - ${note.source.split(':')[1]}` : ''}`}
                     </span>
                 )}
             </div>
@@ -61,6 +97,37 @@ const NoteItemContent = ({ note, isSelected }: { note: SavedNote; isSelected: bo
             </span>
         )}
     </div>
+);
+
+/* ────────────────────────────────────────────────────────────
+   ActionCircle — Reusable circle-icon + label action button.
+   Used in swipe actions and bottom action bar for consistent UI.
+   ──────────────────────────────────────────────────────────── */
+const ActionCircle = ({
+    icon,
+    label,
+    bgClass,
+    textClass,
+    onClick,
+    ariaLabel,
+}: {
+    icon: ReactNode;
+    label: string;
+    bgClass: string;
+    textClass?: string;
+    onClick: (e: React.MouseEvent) => void;
+    ariaLabel?: string;
+}) => (
+    <button
+        onClick={onClick}
+        className="flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform"
+        aria-label={ariaLabel || label}
+    >
+        <div className={`w-9 h-9 rounded-full flex items-center justify-center ${bgClass}`}>
+            {icon}
+        </div>
+        <span className={`text-[9px] ${textClass ?? 'font-normal text-themeyellowlow'}`}>{label}</span>
+    </button>
 );
 
 /* ────────────────────────────────────────────────────────────
@@ -82,6 +149,9 @@ const SwipeableNoteItem = ({
     onDelete,
     isSelected,
     onToggleSelect,
+    isOwn,
+    copyLabel,
+    shareLabel,
 }: {
     note: SavedNote;
     onView: (note: SavedNote) => void;
@@ -90,8 +160,9 @@ const SwipeableNoteItem = ({
     onDelete: (noteId: string) => void;
     isSelected: boolean;
     onToggleSelect: (noteId: string) => void;
-    shareStatus: string;
-    copiedStatus: boolean;
+    isOwn?: boolean;
+    copyLabel?: string;
+    shareLabel?: string;
 }) => {
     const [offsetX, setOffsetX] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
@@ -163,36 +234,29 @@ const SwipeableNoteItem = ({
                     className="absolute inset-y-0 left-0 flex items-center gap-1 pl-2 pr-1"
                     style={{ width: SNAP_LEFT }}
                 >
-                    <button
+                    <ActionCircle
+                        icon={<Eye size={16} className="text-themeyellow" />}
+                        label="View"
+                        bgClass="bg-themeyellow/10"
                         onClick={(e) => { e.stopPropagation(); onView(note); closeSwipe(); }}
-                        className="flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform"
-                        aria-label="View note"
-                    >
-                        <div className="w-9 h-9 rounded-full bg-themeyellow/10 flex items-center justify-center">
-                            <Eye size={16} className="text-themeyellow" />
-                        </div>
-                        <span className="text-[9px] font-normal text-tertiary">View</span>
-                    </button>
-                    <button
+                        ariaLabel="View note"
+                    />
+                    <ActionCircle
+                        icon={<ClipboardCopy size={16} className="text-themegreen" />}
+                        label={copyLabel ?? 'Copy'}
+                        bgClass="bg-themegreen/10"
+                        textClass={copyLabel === 'Copied!' ? 'font-normal text-themegreen' : 'text-themegreen'}
                         onClick={(e) => { e.stopPropagation(); onCopy(note); }}
-                        className="flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform"
-                        aria-label="Copy note"
-                    >
-                        <div className="w-9 h-9 rounded-full bg-themegreen/10 flex items-center justify-center">
-                            <ClipboardCopy size={16} className="text-themegreen" />
-                        </div>
-                        <span className="text-[9px] font-normal text-tertiary">Copy</span>
-                    </button>
-                    <button
+                        ariaLabel="Copy note"
+                    />
+                    <ActionCircle
+                        icon={<Share2 size={16} className="text-themeblue2" />}
+                        label={shareLabel ?? 'Share'}
+                        bgClass="bg-themeblue2/15"
+                        textClass={shareLabel === 'Shared!' || shareLabel === 'Copied!' ? 'font-normal text-themeblue2' : 'text-themeblue2'}
                         onClick={(e) => { e.stopPropagation(); onShare(note); }}
-                        className="flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform"
-                        aria-label="Share note"
-                    >
-                        <div className="w-9 h-9 rounded-full bg-themeblue3/30 flex items-center justify-center">
-                            <Share2 size={16} className="text-themeblue2" />
-                        </div>
-                        <span className="text-[9px] font-normal text-tertiary">Share</span>
-                    </button>
+                        ariaLabel="Share note"
+                    />
                 </div>
             )}
 
@@ -202,7 +266,11 @@ const SwipeableNoteItem = ({
                     className="absolute inset-y-0 right-0 flex items-center justify-center pr-2 pl-1"
                     style={{ width: SNAP_RIGHT }}
                 >
-                    <button
+                    <ActionCircle
+                        icon={<Trash2 size={16} className="text-themeredred" />}
+                        label={confirmDelete ? 'Confirm' : 'Delete'}
+                        bgClass={confirmDelete ? 'bg-themeredred/40' : 'bg-themeredred/15'}
+                        textClass={confirmDelete ? 'font-medium text-themeredred' : 'font-medium text-themeredred/60'}
                         onClick={(e) => {
                             e.stopPropagation();
                             if (confirmDelete) {
@@ -214,16 +282,8 @@ const SwipeableNoteItem = ({
                                 confirmTimeoutRef.current = setTimeout(() => setConfirmDelete(false), 5000);
                             }
                         }}
-                        className="flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform"
-                        aria-label={confirmDelete ? 'Confirm delete' : 'Delete note'}
-                    >
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center transition-colors ${confirmDelete ? 'bg-themeredred/40' : 'bg-themeredred/15'}`}>
-                            <Trash2 size={16} className={confirmDelete ? 'text-themeredred' : 'text-themeredred'} />
-                        </div>
-                        <span className={`text-[9px] font-medium ${confirmDelete ? 'text-themeredred/60' : 'text-themeredred'}`}>
-                            {confirmDelete ? 'Confirm' : 'Delete'}
-                        </span>
-                    </button>
+                        ariaLabel={confirmDelete ? 'Confirm delete' : 'Delete note'}
+                    />
                 </div>
             )}
 
@@ -255,15 +315,15 @@ const SwipeableNoteItem = ({
                             <p className="text-xs text-tertiary/60">
                                 {formatDate(note.createdAt)}
                             </p>
-                            {note.source?.startsWith('external') && (
+                            {(isOwn || note.source?.startsWith('external')) && (
                                 <span className="text-[9px] font-normal px-1.5 py-0.5 rounded-full text-tertiary shrink-0">
-                                    {note.source.includes(':') ? note.source.split(':')[1] : 'External'}
+                                    {isOwn ? 'My Note' : `External${note.source?.includes(':') ? ` - ${note.source.split(':')[1]}` : ''}`}
                                 </span>
                             )}
                         </div>
                     </div>
                     {note.dispositionType && (
-                        <span className={`text-[10px] font-medium px-2 py-1 rounded-full shrink-0 ${getColorClasses(note.dispositionType as dispositionType['type']).badgeBg}`}>
+                        <span className={`text-[10px] font-normal px-2 py-1 rounded-full shrink-0 ${getColorClasses(note.dispositionType as dispositionType['type']).badgeBg}`}>
                             {note.dispositionType}
                         </span>
                     )}
@@ -282,10 +342,12 @@ const NoteItemSettings = ({
     note,
     isSelected,
     onToggleSelect,
+    isOwn,
 }: {
     note: SavedNote;
     isSelected: boolean;
     onToggleSelect: (noteId: string) => void;
+    isOwn?: boolean;
 }) => (
     <div
         className={`relative rounded-lg mb-2 cursor-pointer transition-all duration-150 ${isSelected
@@ -294,7 +356,7 @@ const NoteItemSettings = ({
             }`}
         onClick={() => onToggleSelect(note.id)}
     >
-        <NoteItemContent note={note} isSelected={isSelected} />
+        <NoteItemContent note={note} isSelected={isSelected} isOwn={isOwn} />
     </div>
 );
 
@@ -311,7 +373,6 @@ export const MyNotesPanel = ({
     onDeleteNote,
     onViewNote,
     onCloseDrawer,
-    initialSelectedId,
 }: {
     isMobile: boolean;
     notes: SavedNote[];
@@ -330,13 +391,26 @@ export const MyNotesPanel = ({
     // Shared state
     const [copiedStatus, setCopiedStatus] = useState(false);
     const { shareNote, shareStatus } = useNoteShare();
+    const { profile } = useUserProfile();
 
-    // Pre-select for initially selected note
-    useEffect(() => {
-        if (initialSelectedId && notes.some(n => n.id === initialSelectedId)) {
-            setSelectedIds(new Set([initialSelectedId]));
+    // Sort notes: grouped by date (newest first) then by acuity within each group
+    const groupedNotes = useMemo(() => groupAndSortNotes(notes), [notes]);
+
+    // Determine which notes belong to the current user (any origination)
+    const ownNoteIds = useMemo(() => {
+        const ids = new Set<string>();
+        if (!profile.lastName) return ids;
+        for (const note of notes) {
+            const parsed = parseNoteEncoding(note.encodedText);
+            if (!parsed?.user) continue;
+            const nameMatch =
+                parsed.user.lastName?.toLowerCase() === profile.lastName.toLowerCase() &&
+                (parsed.user.firstName?.toLowerCase() ?? '') === (profile.firstName?.toLowerCase() ?? '');
+            const unitMatch = (parsed.user.uic ?? '') === (profile.uic ?? '');
+            if (nameMatch && unitMatch) ids.add(note.id);
         }
-    }, [initialSelectedId, notes]);
+        return ids;
+    }, [notes, profile.lastName, profile.firstName, profile.uic]);
 
     // Clear selection when notes change (e.g., after delete)
     useEffect(() => {
@@ -418,6 +492,13 @@ export const MyNotesPanel = ({
     const isMultiSelect = selectedCount > 1;
     const singleNote = isSingleSelect ? selectedNotes[0] : null;
 
+    // Computed labels for consistent text feedback across swipe + action bar
+    const copyLabel = copiedStatus ? 'Copied!' : 'Copy';
+    const shareLabel = shareStatus === 'copied' ? 'Copied!'
+        : shareStatus === 'shared' ? 'Shared!'
+            : (shareStatus === 'generating' || shareStatus === 'sharing') ? '...'
+                : 'Share';
+
     // View handler — unified for mobile and desktop
     const handleSingleView = useCallback((note: SavedNote) => {
         handleViewNote(note);
@@ -432,7 +513,7 @@ export const MyNotesPanel = ({
                             <FileText size={28} className="text-tertiary/30" />
                         </div>
                         <p className="text-sm font-medium text-primary/70 mb-1">No saved notes</p>
-                        <p className="text-xs text-tertiary/50 max-w-[240px]">
+                        <p className="text-xs text-tertiary/50 max-w-60">
                             Notes you save from the Write Note page will appear here.
                         </p>
                     </div>
@@ -442,19 +523,27 @@ export const MyNotesPanel = ({
                         <p className="text-[10px] text-tertiary/40 text-center mb-2">
                             Swipe for actions · Tap to select
                         </p>
-                        {notes.map((note) => (
-                            <SwipeableNoteItem
-                                key={note.id}
-                                note={note}
-                                onView={handleViewNote}
-                                onCopy={handleCopy}
-                                onShare={handleShare}
-                                onDelete={onDeleteNote}
-                                isSelected={selectedIds.has(note.id)}
-                                onToggleSelect={handleToggleSelect}
-                                shareStatus={shareStatus}
-                                copiedStatus={copiedStatus}
-                            />
+                        {groupedNotes.map((group, idx) => (
+                            <div key={group.key}>
+                                <p className={`text-[10px] font-medium text-tertiary/50 uppercase tracking-wider px-1 pb-1 ${idx === 0 ? 'pt-1' : 'pt-4'}`}>
+                                    {group.label}
+                                </p>
+                                {group.notes.map((note) => (
+                                    <SwipeableNoteItem
+                                        key={note.id}
+                                        note={note}
+                                        onView={handleViewNote}
+                                        onCopy={handleCopy}
+                                        onShare={handleShare}
+                                        onDelete={onDeleteNote}
+                                        isSelected={selectedIds.has(note.id)}
+                                        onToggleSelect={handleToggleSelect}
+                                        isOwn={ownNoteIds.has(note.id)}
+                                        copyLabel={copyLabel}
+                                        shareLabel={shareLabel}
+                                    />
+                                ))}
+                            </div>
                         ))}
                     </div>
                 ) : (
@@ -463,13 +552,21 @@ export const MyNotesPanel = ({
                         <p className="text-[10px] text-tertiary/40 text-center mb-2">
                             Tap to select · Multi-select for bulk actions
                         </p>
-                        {notes.map((note) => (
-                            <NoteItemSettings
-                                key={note.id}
-                                note={note}
-                                isSelected={selectedIds.has(note.id)}
-                                onToggleSelect={handleToggleSelect}
-                            />
+                        {groupedNotes.map((group, idx) => (
+                            <div key={group.key}>
+                                <p className={`text-[10px] font-medium text-tertiary/50 uppercase tracking-wider px-1 pb-1 ${idx === 0 ? 'pt-1' : 'pt-4'}`}>
+                                    {group.label}
+                                </p>
+                                {group.notes.map((note) => (
+                                    <NoteItemSettings
+                                        key={note.id}
+                                        note={note}
+                                        isSelected={selectedIds.has(note.id)}
+                                        onToggleSelect={handleToggleSelect}
+                                        isOwn={ownNoteIds.has(note.id)}
+                                    />
+                                ))}
+                            </div>
                         ))}
                     </div>
                 )}
@@ -497,65 +594,50 @@ export const MyNotesPanel = ({
                     {/* Action buttons */}
                     <div className="px-4 pb-3">
                         {isSingleSelect && singleNote && (
-                            <div className="flex items-center justify-center gap-2 flex-wrap">
-                                <button
+                            <div className="flex items-center justify-center gap-4">
+                                <ActionCircle
+                                    icon={<Eye size={16} className="text-themeyellow" />}
+                                    label="View"
+                                    bgClass="bg-themeyellow/10"
                                     onClick={() => handleSingleView(singleNote)}
-                                    className="flex items-center gap-1.5 px-3 py-2 text-xs rounded-full bg-themeyellow/10 text-themeyellow hover:bg-themeyellow/20 transition-all active:scale-95"
-                                    title="View note in algorithm"
-                                >
-                                    <Eye size={14} />
-                                    View
-                                </button>
-                                <button
+                                    ariaLabel="View note in algorithm"
+                                />
+                                <ActionCircle
+                                    icon={<ClipboardCopy size={16} className="text-themegreen" />}
+                                    label={copyLabel}
+                                    bgClass="bg-themegreen/10"
+                                    textClass={copiedStatus ? 'font-normal text-themegreen' : 'text-themegreen'}
                                     onClick={() => handleCopy(singleNote)}
-                                    className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${copiedStatus
-                                        ? 'bg-themegreen/15 text-themegreen'
-                                        : 'bg-themegreen/10 text-themegreen hover:bg-themegreen/20'
-                                        }`}
-                                    title="Copy encoded text"
-                                >
-                                    <ClipboardCopy size={14} />
-                                    {copiedStatus ? 'Copied!' : 'Copy'}
-                                </button>
-                                <button
+                                    ariaLabel="Copy encoded text"
+                                />
+                                <ActionCircle
+                                    icon={<Share2 size={16} className="text-themeblue2" />}
+                                    label={shareLabel}
+                                    bgClass="bg-themeblue2/15"
+                                    textClass={shareStatus === 'shared' || shareStatus === 'copied' ? 'font-normal text-themeblue2' : 'text-themeblue2'}
                                     onClick={() => handleShare(singleNote)}
-                                    className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${shareStatus === 'shared' || shareStatus === 'copied'
-                                        ? 'bg-themegreen/15 text-themegreen'
-                                        : shareStatus === 'generating' || shareStatus === 'sharing'
-                                            ? 'bg-themeblue2/15 text-themeblue2'
-                                            : 'bg-themeblue2/10 text-themeblue2 hover:bg-themeblue2/20'
-                                        }`}
-                                    title="Share note as image"
-                                >
-                                    <Share2 size={14} />
-                                    {shareStatus === 'copied' ? 'Copied!' : shareStatus === 'shared' ? 'Shared!' : shareStatus === 'generating' || shareStatus === 'sharing' ? '...' : 'Share'}
-                                </button>
-                                <button
+                                    ariaLabel="Share note as image"
+                                />
+                                <ActionCircle
+                                    icon={<Trash2 size={16} className="text-themeredred" />}
+                                    label={confirmDelete ? 'Confirm' : 'Delete'}
+                                    bgClass={confirmDelete ? 'bg-themeredred/40' : 'bg-themeredred/15'}
+                                    textClass={confirmDelete ? 'font-medium text-themeredred' : 'font-medium text-themeredred/60'}
                                     onClick={handleDelete}
-                                    className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-full transition-all active:scale-95 ${confirmDelete
-                                        ? 'bg-themeredred text-white'
-                                        : 'bg-themeredred/10 text-themeredred hover:bg-themeredred/20'
-                                        }`}
-                                    title={confirmDelete ? 'Tap again to confirm delete' : 'Delete note'}
-                                >
-                                    <Trash2 size={14} />
-                                    {confirmDelete ? 'Confirm' : 'Delete'}
-                                </button>
+                                    ariaLabel={confirmDelete ? 'Tap again to confirm delete' : 'Delete note'}
+                                />
                             </div>
                         )}
 
                         {isMultiSelect && (
-                            <div className="flex items-center justify-center gap-2">
-                                <button
+                            <div className="flex items-center justify-center gap-4">
+                                <ActionCircle
+                                    icon={<Trash2 size={16} className="text-white" />}
+                                    label={confirmDelete ? `Confirm (${selectedCount})` : `Delete (${selectedCount})`}
+                                    bgClass="bg-themeredred"
+                                    textClass="font-medium text-themeredred"
                                     onClick={handleDelete}
-                                    className={`flex items-center gap-1.5 px-4 py-2 text-xs rounded-full transition-all active:scale-95 ${confirmDelete
-                                        ? 'bg-themeredred text-white'
-                                        : 'bg-themeredred text-white hover:bg-themeredred/80'
-                                        }`}
-                                >
-                                    <Trash2 size={14} />
-                                    {confirmDelete ? `Confirm Delete (${selectedCount})` : `Delete (${selectedCount})`}
-                                </button>
+                                />
                             </div>
                         )}
                     </div>

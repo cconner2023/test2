@@ -83,7 +83,7 @@ export const WriteNotePage = ({
     const [noteTimestamp, setNoteTimestamp] = useState<Date | null>(timestamp);
     const isFirstOptionChange = useRef(true);
     const [encodedValue, setEncodedValue] = useState<string>('');
-    const [isCopied, setIsCopied] = useState(false);
+    const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null);
     const [isSaved, setIsSaved] = useState(false);
     const [saveFailed, setSaveFailed] = useState(false);
     const [isDeleted, setIsDeleted] = useState(false);
@@ -108,12 +108,16 @@ export const WriteNotePage = ({
     const currentPageRef = useRef(currentPage);
     currentPageRef.current = currentPage;
 
-    // Decision Making collapsible state
-    const [showDecisionMaking, setShowDecisionMaking] = useState(false);
-    // Note preview collapsible state (Review & Share page)
-    const [showPreview, setShowPreview] = useState(true);
-    // Encoded note collapsible state (Review & Share page)
-    const [showBarcode, setShowBarcode] = useState(true);
+    // Decision Making collapsible state (auto-expanded so user sees it immediately)
+    const [showDecisionMaking, setShowDecisionMaking] = useState(true);
+    // Note Selection collapsible state (Review & Share page — starts expanded)
+    const [showNoteSelection, setShowNoteSelection] = useState(true);
+    // Selection confirmed — reveals Note Preview + Encoded Note
+    const [selectionConfirmed, setSelectionConfirmed] = useState(false);
+    // Note preview collapsible state (Review & Share page — collapsed until confirmed)
+    const [showPreview, setShowPreview] = useState(false);
+    // Encoded note collapsible state (Review & Share page — collapsed until confirmed)
+    const [showBarcode, setShowBarcode] = useState(false);
 
     // Hooks
     const { generateNote } = useNoteCapture(algorithmOptions, cardStates);
@@ -124,11 +128,11 @@ export const WriteNotePage = ({
 
     // --- Copied state auto-revert ---
     useEffect(() => {
-        if (isCopied) {
-            const id = window.setTimeout(() => setIsCopied(false), 2000);
+        if (copiedTarget) {
+            const id = window.setTimeout(() => setCopiedTarget(null), 2000);
             return () => clearTimeout(id);
         }
-    }, [isCopied]);
+    }, [copiedTarget]);
 
     // --- Clear saved timestamp when note content options change (skip initial render) ---
     useEffect(() => {
@@ -152,9 +156,9 @@ export const WriteNotePage = ({
     }, [note, includeAlgorithm, includeDecisionMaking, includeHPI, generateNote, disposition, selectedSymptom, noteTimestamp, signature]);
 
     // --- Copy handler ---
-    const handleCopy = useCallback((text: string) => {
+    const handleCopy = useCallback((text: string, target: 'preview' | 'encoded') => {
         navigator.clipboard.writeText(text);
-        setIsCopied(true);
+        setCopiedTarget(target);
     }, []);
 
     // --- Share handler ---
@@ -344,16 +348,16 @@ export const WriteNotePage = ({
                 <div className="flex flex-col gap-1.5 flex-1">
                     <div className="flex items-center gap-2">
                         <span className="text-sm font-medium text-primary">{PAGE_LABELS[currentPage]}</span>
-                        {noteSource && (
-                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${noteSource?.startsWith('external')
-                                ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                                : 'bg-themeblue3/15 text-themeblue3'
-                                }`}>
-                                {noteSource?.startsWith('external')
-                                    ? `External${noteSource.includes(':') ? ': ' + noteSource.split(':')[1] : ''}`
-                                    : 'Saved Note'}
-                            </span>
-                        )}
+                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${noteSource?.startsWith('external')
+                            ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                            : noteSource
+                                ? 'bg-themeblue3/15 text-themeblue3'
+                                : 'bg-themegray1/15 text-secondary'
+                            }`}>
+                            {noteSource?.startsWith('external')
+                                ? `External${noteSource.includes(':') ? ': ' + noteSource.split(':')[1] : ''}`
+                                : noteSource ? 'Saved: My Note' : 'New Note'}
+                        </span>
                     </div>
                     <div className="flex gap-1.5">
                         {PAGE_LABELS.map((_, idx) => (
@@ -421,49 +425,6 @@ export const WriteNotePage = ({
                                     )}
                                 </div>
 
-                                {/* Note content options */}
-                                <div className="p-4">
-                                    <div className="text-[10pt] font-normal text-primary mb-3">Note Content:</div>
-                                    <div className="space-y-3">
-                                        <ToggleOption checked={includeAlgorithm} onChange={() => setIncludeAlgorithm(!includeAlgorithm)} label="Algorithm" colors={colors} />
-                                        <ToggleOption checked={includeDecisionMaking} onChange={() => setIncludeDecisionMaking(!includeDecisionMaking)} label="Decision Making" colors={colors} />
-
-                                        {!includeHPI && (
-                                            <ToggleOption
-                                                checked={includeHPI}
-                                                onChange={() => { setIncludeHPI(true); setTimeout(() => inputRef.current?.focus(), 100); }}
-                                                label="HPI or other clinical note"
-                                                colors={colors}
-                                            />
-                                        )}
-
-                                        {includeHPI && (
-                                            <div>
-                                                <div className="flex items-center justify-center bg-themewhite text-tertiary rounded-md border border-themeblue3/10 shadow-xs transition-colors duration-200 focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
-                                                    <textarea
-                                                        ref={inputRef}
-                                                        value={note}
-                                                        onChange={(e) => setNote(e.target.value)}
-                                                        className="text-tertiary bg-transparent outline-none text-[16px] md:text-[8pt] w-full px-4 py-2 rounded-l-full min-w-0 resize-none h-10 leading-5"
-                                                    />
-                                                    <div
-                                                        className="flex items-center justify-center px-2 py-2 bg-transparent stroke-themeblue3 cursor-pointer transition-colors duration-200 shrink-0"
-                                                        onClick={handleClearNoteAndHide}
-                                                        title="Remove HPI and clear notes"
-                                                        aria-label="Remove HPI and clear notes"
-                                                    >
-                                                        <svg className="h-5 w-5 stroke-themeblue1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                                        </svg>
-                                                    </div>
-                                                </div>
-                                                <div className="flex justify-between items-center mt-2">
-                                                    <p className="text-xs text-secondary italic">Enter your HPI or other clinical notes above</p>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
                             </div>
                         </div>
                     )}
@@ -472,6 +433,85 @@ export const WriteNotePage = ({
                     {currentPage === 1 && (
                         <div className={`w-full h-full overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                             <div className="space-y-4">
+                                {/* Collapsible Note Selection (confirm flow) */}
+                                <div>
+                                    <button
+                                        onClick={() => setShowNoteSelection(prev => !prev)}
+                                        className="w-full flex items-center justify-between p-3 rounded-md bg-themewhite text-xs text-secondary hover:bg-themewhite3 transition-colors"
+                                    >
+                                        <span className="font-medium">Note Selection</span>
+                                        <div className="flex items-center gap-2">
+                                            {selectionConfirmed && (
+                                                <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            )}
+                                            <svg
+                                                className={`w-4 h-4 transition-transform duration-200 ${showNoteSelection ? 'rotate-180' : ''}`}
+                                                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                            </svg>
+                                        </div>
+                                    </button>
+                                    {showNoteSelection && (
+                                        <div className="mt-1 p-4 rounded-md border border-themegray1/15 bg-themewhite3">
+                                            <div className="space-y-3">
+                                                <ToggleOption checked={includeAlgorithm} onChange={() => setIncludeAlgorithm(!includeAlgorithm)} label="Algorithm" colors={colors} />
+                                                <ToggleOption checked={includeDecisionMaking} onChange={() => setIncludeDecisionMaking(!includeDecisionMaking)} label="Decision Making" colors={colors} />
+
+                                                {!includeHPI && (
+                                                    <ToggleOption
+                                                        checked={includeHPI}
+                                                        onChange={() => { setIncludeHPI(true); setTimeout(() => inputRef.current?.focus(), 100); }}
+                                                        label="HPI or other clinical note"
+                                                        colors={colors}
+                                                    />
+                                                )}
+
+                                                {includeHPI && (
+                                                    <div>
+                                                        <div className="flex items-center justify-center bg-themewhite text-tertiary rounded-md border border-themeblue3/10 shadow-xs transition-colors duration-200 focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
+                                                            <textarea
+                                                                ref={inputRef}
+                                                                value={note}
+                                                                onChange={(e) => setNote(e.target.value)}
+                                                                className="text-tertiary bg-transparent outline-none text-[16px] md:text-[8pt] w-full px-4 py-2 rounded-l-full min-w-0 resize-none h-10 leading-5"
+                                                            />
+                                                            <div
+                                                                className="flex items-center justify-center px-2 py-2 bg-transparent stroke-themeblue3 cursor-pointer transition-colors duration-200 shrink-0"
+                                                                onClick={handleClearNoteAndHide}
+                                                                title="Remove HPI and clear notes"
+                                                                aria-label="Remove HPI and clear notes"
+                                                            >
+                                                                <svg className="h-5 w-5 stroke-themeblue1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                                                                </svg>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex justify-between items-center mt-2">
+                                                            <p className="text-xs text-secondary italic">Enter your HPI or other clinical notes above</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex justify-end mt-4">
+                                                <button
+                                                    onClick={() => {
+                                                        setSelectionConfirmed(true);
+                                                        setShowNoteSelection(false);
+                                                        setShowPreview(true);
+                                                        setShowBarcode(true);
+                                                    }}
+                                                    className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-full transition-all active:scale-95 ${colors.buttonClass}`}
+                                                >
+                                                    Confirm
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
                                 {/* Collapsible note preview */}
                                 <div>
                                     <button
@@ -480,18 +520,12 @@ export const WriteNotePage = ({
                                     >
                                         <span className="font-medium">Note Preview</span>
                                         <div className="flex items-center gap-2">
-                                            <span
-                                                onClick={(e) => { e.stopPropagation(); handleCopy(previewNote); }}
-                                                className="p-1.5 text-tertiary hover:text-primary transition-colors rounded-full hover:bg-themewhite3"
+                                            <ActionIconButton
+                                                onClick={() => handleCopy(previewNote, 'preview')}
+                                                status={copiedTarget === 'preview' ? 'done' : 'idle'}
+                                                variant="copy"
                                                 title="Copy note text"
-                                                role="button"
-                                                tabIndex={0}
-                                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handleCopy(previewNote); } }}
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                                </svg>
-                                            </span>
+                                            />
                                             <svg
                                                 className={`w-4 h-4 transition-transform duration-200 ${showPreview ? 'rotate-180' : ''}`}
                                                 fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -515,46 +549,20 @@ export const WriteNotePage = ({
                                     >
                                         <span className="font-medium">Encoded Note</span>
                                         <div className="flex items-center gap-1">
-                                            <span
-                                                onClick={(e) => { e.stopPropagation(); handleCopy(encodedValue); }}
-                                                className="p-1.5 text-tertiary hover:text-primary transition-colors rounded-full hover:bg-themewhite3"
+                                            <ActionIconButton
+                                                onClick={() => handleCopy(encodedValue, 'encoded')}
+                                                status={copiedTarget === 'encoded' ? 'done' : 'idle'}
+                                                variant="copy"
                                                 title="Copy encoded text"
-                                                role="button"
-                                                tabIndex={0}
-                                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handleCopy(encodedValue); } }}
-                                            >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                                </svg>
-                                            </span>
-                                            <span
-                                                onClick={(e) => { e.stopPropagation(); handleShare(); }}
-                                                className={`p-1.5 transition-colors rounded-full ${shareStatus === 'shared' || shareStatus === 'copied'
-                                                    ? 'text-green-600'
-                                                    : shareStatus === 'generating' || shareStatus === 'sharing'
-                                                        ? 'text-purple-600'
-                                                        : 'text-tertiary hover:text-primary hover:bg-themewhite3'
-                                                    }`}
+                                            />
+                                            <ActionIconButton
+                                                onClick={handleShare}
+                                                status={shareStatus === 'shared' || shareStatus === 'copied' ? 'done'
+                                                    : shareStatus === 'generating' || shareStatus === 'sharing' ? 'busy'
+                                                        : 'idle'}
+                                                variant="share"
                                                 title="Share note as image"
-                                                role="button"
-                                                tabIndex={0}
-                                                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); handleShare(); } }}
-                                            >
-                                                {shareStatus === 'generating' || shareStatus === 'sharing' ? (
-                                                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                                    </svg>
-                                                ) : shareStatus === 'shared' || shareStatus === 'copied' ? (
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                                    </svg>
-                                                ) : (
-                                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                                                    </svg>
-                                                )}
-                                            </span>
+                                            />
                                             <svg
                                                 className={`w-4 h-4 transition-transform duration-200 ${showBarcode ? 'rotate-180' : ''}`}
                                                 fill="none" stroke="currentColor" viewBox="0 0 24 24"
@@ -697,17 +705,6 @@ export const WriteNotePage = ({
                     )}
                 </SlideWrapper>
 
-                {/* Copied toast */}
-                {isCopied && (
-                    <div className="absolute inset-x-0 top-4 flex justify-center pointer-events-none z-10">
-                        <div className={`flex items-center gap-2 px-4 py-2 rounded-full ${colors.symptomClass} shadow-lg`}>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                            </svg>
-                            <span className="text-sm font-medium">Copied to Clipboard</span>
-                        </div>
-                    </div>
-                )}
             </div>
 
             {/* Footer with navigation buttons */}
@@ -744,6 +741,52 @@ export const WriteNotePage = ({
 };
 
 // ========== HELPER COMPONENTS ==========
+
+const ActionIconButton = ({
+    onClick,
+    status,
+    variant,
+    title,
+}: {
+    onClick: () => void;
+    status: 'idle' | 'busy' | 'done';
+    variant: 'copy' | 'share';
+    title: string;
+}) => {
+    const colorClass = status === 'done' ? 'text-green-600'
+        : status === 'busy' ? 'text-purple-600'
+            : 'text-tertiary hover:text-primary hover:bg-themewhite3';
+
+    return (
+        <span
+            onClick={(e) => { e.stopPropagation(); onClick(); }}
+            className={`p-1.5 transition-colors rounded-full ${colorClass}`}
+            title={title}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onClick(); } }}
+        >
+            {status === 'busy' ? (
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+            ) : status === 'done' ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                </svg>
+            ) : variant === 'copy' ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+            ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+            )}
+        </span>
+    );
+};
 
 const SlideWrapper = ({
     children,

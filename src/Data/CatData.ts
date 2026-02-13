@@ -2357,7 +2357,7 @@ export const catData: catDataTypes[] = [
                 id: 1,
                 icon: "L-1",
                 text: "Exposed to Hepatitis or HIV",
-                gen: [{}],
+                gen: [{ text: 'This protocol is to be used in locations where a local policy is not already in place for the screening of potential HIV or Hepatitis exposures.' }],
                 medcom: [],
                 stp: [],
                 redFlags: [
@@ -2373,7 +2373,7 @@ export const catData: catDataTypes[] = [
                 id: 2,
                 icon: "L-2",
                 text: "Dental Problems",
-                gen: [{}],
+                gen: [{ text: 'Problems with the teeth are usually self-evident. Symptom of dental pain may be a result of a non-dental source such as myofascial inflammation, migraine headache, maxillary sinusitis, ear issues, temporomandibular joint pain, or nerve pain. Always inquire about other complaints before referring the Soldier to a dentist.' }],
                 medcom: [medcomTrainingData[13]],
                 stp: [],
                 redFlags: [

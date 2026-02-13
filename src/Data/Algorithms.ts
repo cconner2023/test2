@@ -8664,17 +8664,28 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "action placeholder"
+                                modifier: "wound care. Document exposure"
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['HIV exposure', 'hepatitis B exposure', 'hepatitis C exposure'],
+                                text: 'Known or high risk contacts for HIV should be offered prophylaxis medications to decrease the risk of infection if they had non-intact skin, mucous membrane, blood, or at risk body fluid exposures. Prophylaxis medications should be started within two hours of initial exposure but no later than 72 hours. With hepatitis B, immunoglobulin should be provided within 24 hours of exposure but no later than one week. With hepatitis C, post exposure management is with early detection and treatment of an infection',
+                                ancillaryFind: [
+                                    { type: 'med', modifier: 'HIV post-exposure prophylaxis within 2-72 hours of exposure' },
+                                    { type: 'lab', modifier: 'HIV' },
+                                    { type: 'lab', modifier: 'HEP B panel' },
+                                    { type: 'lab', modifier: 'HEP C panel' },
+                                    { type: 'med', modifier: 'Hepatitis B immunoglobulin within 24 hours - 1 week of exposure' },
+                                ]
                             }
                         ],
                         next: null,
@@ -8682,13 +8693,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -8705,30 +8709,41 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['HIV exposure', 'hepatitis B exposure', 'hepatitis C exposure'],
+                                text: 'Feces, nasal secretions, saliva, gastric secretions, sputum, sweat, tears, and urine are not considered to be infectious without blood being present within them. Intact skin is a successful barrier to potentially infectious fluid. Note that cuts, abrasions, dermatitis are not considered intact skin. These exposures should be referred to the AEM for counseling and referral to a privileged provider if needed. Exposures that are over seven days old are no longer within the window for prophylaxis treatment. They should be referred to the AEM for counseling and required laboratory testing.',
+                                ancillaryFind: [
+                                    { type: 'lab', modifier: 'HIV' },
+                                    { type: 'lab', modifier: 'HEP B panel' },
+                                    { type: 'lab', modifier: 'HEP C panel' },
+                                    { type: 'protocol', modifier: 'infectious disease counseling' },
+                                ]
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[2],
-                                modifier: "Treatment Protocol"
+                                ddx: ['HIV exposure', 'hepatitis B exposure', 'hepatitis C exposure'],
+                                text: 'for Soldiers who are exposed to blood or body fluids through a wound or mucous membrane, wash the area with soap and water or flush the mucous membranes with saline or water. Clean any wounds with an alcohol-based hand hygiene agent. Alcohol helps kills the HIV virus. Document the exposure with: source person and Soldier risk factors, serologic tests (HIV, hepatitis B, hepatitis C), type of exposure to include instrument (hollow bore needle, scalpel if indicated), time of incident, body fluid involved, body location of exposure to include depth of wound, and contact time with contaminated fluid. If the source person is known to be infected, it is important to determine the person’s most recent viral load and previous treatment to include drug resistance.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Ensure the following information is documented in the healthcare record before the patient leaves: HCP - the following information should be obtained from the injured HCP and verified from their medical/occupational health record. Dates of HepB immunizations, post-immunization titer, if known, previous testing (if available) for HBV and HCV, Tetanus immunization status, current medications, current or underlying medical conditions that might influence use of/response to vaccination. EXPOSURE - the following information regardint the exposure should be obtained: the date and time of the exposure, nature of the exposure (i.e., non-intact skin, mucosal, percutaneous, human bite), type of fluid (i.e., blood, blood contaminated fluid, or other contaminated fluid), body location of the exposure and contact time with the contaminated fluid, for percutaneous injuries a description of the injury (e.g., depth of wound, solid versus hollow needle, sharp use in source patient) ',
+                                    ancillaryFind: [
+                                        { type: 'lab', modifier: 'HIV' },
+                                        { type: 'lab', modifier: 'HEP B panel' },
+                                        { type: 'lab', modifier: 'HEP C panel' },
+                                        { type: 'protocol', modifier: 'infectious disease counseling' },
+                                    ]
+                                }
                             }
                         ],
                         next: null,

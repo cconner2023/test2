@@ -13,11 +13,11 @@ interface AlgorithmProps {
     isMobile?: boolean;
     initialCardStates?: import('../Hooks/useAlgorithm').CardState[];
     initialDisposition?: dispositionType | null;
-    /** Note status to display: null = no note, 'new' = unsaved, 'saved' = saved note, 'external' = imported external note */
-    noteStatus?: 'new' | 'saved' | 'external' | null;
+    /** Note source string: null = new note, 'external:user' = imported, anything else = saved */
+    noteSource?: string | null;
 }
 
-export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false, initialCardStates, initialDisposition, noteStatus = null }: AlgorithmProps) {
+export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false, initialCardStates, initialDisposition, noteSource = null }: AlgorithmProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const markerRef = useRef<HTMLDivElement>(null);
     const prevDispositionRef = useRef<dispositionType | null>(null);
@@ -171,15 +171,17 @@ export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false,
                 >
                     <div className="flex items-center gap-1.5 py-2 px-3 rounded-md bg-themewhite2 border border-tertiary/10 shadow-sm text-[11px] font-medium text-primary mb-3">
                         <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            {noteStatus === 'saved' ? (
+                            {noteSource && !noteSource.startsWith('external') ? (
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                            ) : noteStatus === 'external' ? (
+                            ) : noteSource?.startsWith('external') ? (
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
                             ) : (
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             )}
                         </svg>
-                        {noteStatus === 'saved' ? 'Saved Note' : noteStatus === 'external' ? 'External Note' : 'New Note'}
+                        {noteSource?.startsWith('external')
+                            ? `External${noteSource.includes(':') ? ': ' + noteSource.split(':')[1] : ''}`
+                            : noteSource ? 'Saved: My Note' : 'New Note'}
                     </div>
                 </div>
 

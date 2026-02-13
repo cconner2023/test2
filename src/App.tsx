@@ -218,7 +218,7 @@ function AppContent() {
                       isMobile={navigation.isMobile}
                       initialCardStates={activeNote.restoredAlgorithmState?.cardStates}
                       initialDisposition={activeNote.restoredAlgorithmState?.disposition}
-                      noteStatus={activeNote.algorithmNoteStatus}
+                      noteSource={activeNote.activeNoteSource}
                     />
                   </div>
                 ) : (
