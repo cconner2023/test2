@@ -1,15 +1,15 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Moon, Sun, Shield, ChevronUp, ChevronRight, FileText, Check, Camera, X, BookOpen } from 'lucide-react';
-import { BaseDrawer } from '../Menus/BaseDrawer';
-import type { SavedNote } from '../../Hooks/useNotesStorage';
-import { useProfileAvatar, resizeImage } from '../../Hooks/useProfileAvatar';
-import { useUserProfile } from '../../Hooks/useUserProfile';
-import { useSwipeBack } from '../../Hooks/useSwipeBack';
+import { BaseDrawer } from '../BaseDrawer';
+import type { SavedNote } from '../../../Hooks/useNotesStorage';
+import { useProfileAvatar, resizeImage } from '../../../Hooks/useProfileAvatar';
+import { useUserProfile } from '../../../Hooks/useUserProfile';
+import { useSwipeBack } from '../../../Hooks/useSwipeBack';
 import { MyNotesPanel } from './MyNotesPanel';
 import { ReleaseNotesPanel } from './ReleaseNotesPanel';
 import { UserProfilePanel } from './UserProfilePanel';
 import { TrainingPanel, type TrainingView } from './TrainingPanel';
-import type { subjectAreaArray, subjectAreaArrayOptions } from '../../Types/CatTypes';
+import type { subjectAreaArray, subjectAreaArrayOptions } from '../../../Types/CatTypes';
 
 interface SettingsDrawerProps {
     isVisible: boolean;
