@@ -1497,17 +1497,22 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "[ACT1 PLACEHOLDER]"
+                                modifier: 'immobilize the injured extremity before transport or referral'
                             }
                         ],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                text: 'Red Flags. If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Abnormal distal pulse or sensation in the setting of trauma is a medical emergency requiring immediate evaluation.'
+                                ddx: [],
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” Abnormal distal pulse or sensation in the setting of trauma is a medical emergency requiring immediate evaluation.'
                             },
                             {
                                 type: 'dmp',
-                                text: 'DP 1. In the setting of trauma, the red flags are an indicator of a medical emergency. Immobilize the affected extremity prior to transport. A red, warm, swollen joint or pain with fever can be a sign of an infected joint requiring immediate surgical evaluation. Trauma and Pain without recent trauma or overuse injury may represent a systemic problem to include rheumatoid arthritis or Lyme disease.'
+                                ddx: ['fracture', 'dislocation', 'septic joint', 'rheumatoid arthritis', 'lyme disease'],
+                                text: 'In the setting of trauma, the red flags are an indicator of a medical emergency. Immobilize the affected extremity prior to transport. A red, warm, swollen joint or pain with fever can be a sign of an infected joint requiring immediate surgical evaluation. Trauma and pain without recent trauma or overuse injury may represent a systemic problem to include rheumatoid arthritis or Lyme disease.',
+                                ancillaryFind: [
+                                    { type: 'protocol', modifier: 'immobilize affected extremity prior to transport' }
+                                ]
                             }
                         ],
                         next: null,
@@ -1537,15 +1542,16 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[1],
-                                text: "AEM Now, PT if available"
+                                text: "AEM Now, PT/OT if available"
                             }
                         ],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
+                                ddx: ['carpal tunnel syndrome', 'tendon instability', 'ganglion'],
+                                text: 'Index finger or thumb numbness, pain, or weakness are symptoms of carpal tunnel syndrome. Clicking or popping with pain can be a sign of tendon instability. Ganglion is a mobile mass over a tendon that can be referred for drainage and treatment.',
+                                ancillaryFind: [{ type: 'refer', modifier: 'PT/OT if available' }]
+                            },
                         ],
                         next: null,
                         selectAll: true
@@ -1556,8 +1562,15 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['sprain', 'overuse', 'strain'],
+                                text: 'the best treatment is conservative measures including a home exercise program for mobilization and strengthening and analgesics as needed. Instruct the Soldier to work the injured wrist through its range of motion (but not vigorous enough to cause pain) at least twice each day to preserve mobility after a 20-minute application of ice. Follow established local protocols for home exercise. Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain. Instruct the Soldier to seek medical assistance if pain becomes severe enough to prevent performance of normal duties/activities, worsening of other symptoms, symptoms last longer than one week. If direct access to physical therapy (physical therapy sick call) / occupational therapy is available, consider direct referral to physical therapy / occupational therapy in accordance with local policy.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'provide home exercise program, activity modification as appropriate. Intermittent ice or heat for inflammation. medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain as needed. Refer to PT/OT if direct access is available. Follow-up immediate follow-up for DP1 or DP2 symptoms. Routine follow-up is recommended for any symptoms that do not improve or worsen.',
+                                    medFind: [medList[23], medList[24], medList[28]],
+                                    ancillaryFind: [{ type: 'refer', modifier: 'PT/OT if direct access available' }],
+                                    specLim: ['may lift, push, pull up to 5 lbs.', 'may wrap or wear a brace for comfort', 'no repetitive bending of wrist', 'perform stretching, core strengthening, home regiment during PT/OT']
+                                }
                             }
                         ],
                         next: null,
@@ -1932,17 +1945,17 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[0], modifier: 'immobilize the injured extremity before transport' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”'
+                            },
                             {
-                                ...Disposition[0],
-                                modifier: "[ACT1 PLACEHOLDER]"
+                                type: 'dmp',
+                                ddx: ['fracture', 'dislocation', 'achilles tendon rupture'],
+                                text: 'In the setting of trauma, deformity with loss of peripheral pulses or sensation is an indication of a medical emergency. Immobilize the affected extremity prior to transport. If posterior ankle pain, have the Soldier lie on his or her stomach and squeeze the calf. The test is positive if the foot does not plantar flex with squeezing the calf indicative of a possible Achilles tendon rupture. Pain unrelated to overuse or injury could be an inflammatory process requiring further evaluation.'
                             }
                         ],
                         next: null,
@@ -1950,13 +1963,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -1977,15 +1983,19 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['fracture', 'contusion'],
+                                text: 'Ottawa rules are a way of screening for the likelihood of a fracture associated with an ankle sprain. Inability to bear weight after and take four steps, tenderness over the posterior tip of the medial or lateral malleolus, or tenderness at the proximal metatarsal are signs of a potential fracture. Squeeze test evaluates for syndesmotic sprain by compressing the fibula against the tibia at the mid-calf.',
+                                ancillaryFind: [
+                                    { type: 'protocol', modifier: 'Ottawa ankle rules' },
+                                    { type: 'rad', modifier: 'x-ray' },
+                                ]
                             }
                         ],
                         disposition: [
                             {
                                 ...Disposition[1],
                                 text: "AEM Now, PT if available",
-                                modifier: "[ACT2 PLACEHOLDER]"
+                                modifier: "x-ray, crutches, and PT education"
                             }
                         ],
                         next: null,
@@ -1996,8 +2006,15 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['strain', 'sprain', 'contusion'],
+                                text: 'the best treatment is conservative measures including a home exercise program for mobilization and strengthening and analgesics as needed. Instruct the Soldier to work the injured ankle through its range of motion at least three times each day to increase mobility. This should ideally be done after a 20-minute application of ice. The range of motion exercise should not be vigorous enough to cause pain. Follow established local protocols for home exercise. Medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain. Instruct the Soldier to seek medical assistance if pain becomes severe enough as to prevent performance of normal duties/activities, worsening, not improving within one week. If direct access to physical therapy (Physical Therapy sick call) is available, consider direct referral to physical therapy in accordance with local policy.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'provide home exercise program and wrap the ankle and activity modification as appropriate. intermittent ice or heat for inflammation. elevate for swelling. medication: analgesic balm for mild pain, ibuprofen (1st line) and ketorolac (2nd line) for moderate pain as needed. Refer to PT if direct access is available. Follow-up: immediate follow-up for DP1 or DP2 symptoms. Return to clinic if worsening or not improving within 1 week.',
+                                    medFind: [medList[28], medList[23], medList[24]],
+                                    ancillaryFind: [{ type: 'refer', modifier: 'PT if direct access available' }],
+                                    specLim: ['no running, jumping, rucking but may walk up to 1/4 mile at own pace/distance and stand up to 20min', 'may lift, carry up to 25 lbs.', 'limit walking over uneven terrain', 'perform stretching, strengthening home regiment during PT', 'may wear brace or wrap']
+                                }
                             }
                         ],
                         disposition: [Disposition[2]],
@@ -2033,18 +2050,23 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [
+                            {
+                                ...Disposition[0],
+                                text: "Provider Now. Bone Stress Injury (BSI) policy",
+                                modifier: "immobilize the injured extremity before transport"
+                            }
+                        ],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.”'
+                            },
                             {
-                                ...Disposition[0],
-                                text: "Provider Now, BSI Policy",
-                                modifier: "[ACT1 PLACEHOLDER]"
+                                type: 'dmp',
+                                ddx: [],
+                                text: 'In the setting of trauma, deformity with loss of peripheral pulses or sensation is an indication of a medical emergency. Immobilize the affected extremity prior to transport. Constant pain can be a sign of a more serious injury. Unrelated to overuse or injury can be a sign of inflammation requiring further evaluation.'
                             }
                         ],
                         next: null,
@@ -2052,13 +2074,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -2076,17 +2091,17 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [
+                            {
+                                ...Disposition[1],
+                                text: "AEM Now, PT if appropriate"
+                            }
+                        ],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
                                 text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[1],
-                                text: "AEM Now, PT if appropriate"
                             }
                         ],
                         next: null,
@@ -2094,6 +2109,7 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -2101,7 +2117,6 @@ export const Algorithm: AlgorithmType[] = [
                                 text: ''
                             }
                         ],
-                        disposition: [Disposition[2]],
                         next: null,
                         selectAll: false
                     }
@@ -8780,26 +8795,24 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[0], text: 'Dentist or Provider Now' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['exposed pulp', 'oral infection'],
+                                text: 'Exposed pulp (feathery material in middle of tooth) knocked out tooth with tooth present, severe pain, signs of oral infection (redness, gum bleeding, and swelling) should be referred to the Dentist. Trauma with associated jaw pain, sinus problems with tooth pain, heart symptoms with jaw pain (SOB, sweating, lightheaded, chest pain/pressure), signs of face infection, or if the dentist is not available should be referred to the supervising privileged provider',
+                                ancillaryFind: [{ type: 'refer', modifier: 'dental' }]
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -8817,17 +8830,17 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[1],
                                 text: "Dentist or AEM Now"
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['broken tooth without exposued pulp', 'TMJ dysfunction', 'infection'],
+                                text: 'AEM can provide temporary pain medications and treatment for a broken tooth (pulp is not showing). Jaw pain not from trauma can be further evaluated by the AEM for temporomandibular joint dysfunction or infection.'
                             }
                         ],
                         next: null,
@@ -8835,17 +8848,26 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                ddx: ['furry tongue', 'leukoplakia'],
+                                text: 'benign condition often due to antibiotic use, tobacco use or poor oral hygiene. Treatment is to brush the area with toothpaste and a soft toothbrush three times per day. White patches on the oral mucosa (leukoplakia) is a benign condition often due to smokeless tobacco use or mechanical irritation (braces, chewing). Instruct on importance of surveillance during dental visits, because there is a risk that it could progress to cancer over the next 10 years. If an area is indurated, refer to a dentist now to be evaluated to determine if a biopsy is necessary.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Furry tongue - brush the tongue with toothpaste and a soft toothbrush 3 times per day. White plaque (leukoplakia): counsel the Soldier on importance of surveillance during yearly dental exams. If an indurated area is present, Soldier should be referred to a dentist',
+                                    ancillaryFind: [{ type: 'refer', modifier: 'dental if induration present' }]
+                                }
+                            },
                             {
-                                ...Disposition[2],
-                                modifier: "Treatment Protocol"
+                                type: 'dmp',
+                                ddx: ['halitosis'],
+                                text: 'mostly commonly from poor oral hygiene and caused by bacteria on material between the teeth and on the back third of the tongue. It can also be related to eating certain types of food/beverages, smoking, low saliva flow states (sleeping, dry mouth), or infection/inflammation (tonsils, sinuses, bronchitis). After obtaining a history, refer to provider or dentist if indicated. Otherwise, instruct on the likely cause and importance of proper oral hygiene with brushing three times per day and flossing daily. Return to clinic if symptoms are not improving within one week or additional symptoms develop.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'screen for causes of bad breath. Refer to provider or dentist if indicated. Otherwise, counsel on likely cause and importance of good oral hygiene. RTC if not improving within 1 week or new symptoms develop.'
+                                }
                             }
                         ],
                         next: null,
@@ -8868,7 +8890,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: []
             },
             {
-                text: "Oral Exam",
+                text: "Perform an oral Exam",
                 type: "action",
                 questionOptions: [],
                 answerOptions: []
@@ -8887,26 +8909,23 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['stevens-Johnson syndrome', 'erythema multiforme', 'lupus', 'behcet\'s syndrome', 'crohn\'s disease'],
+                                text: 'Diffuse lesions can be a sign of an inflammatory disorder (Stevens-Johnson syndrome, erythema multiforme). Painless lesion can be a sign of lupus. Lesions within the mouth and groin can represent Behcet’s syndrome. Mouth sores can be a sign of Crohn’s Disease requiring further evaluation by the supervising privileged provider. Lesions that have been present for over two weeks need further evaluation to rule out other causes.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -8923,30 +8942,41 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['HSV', 'HZV'],
+                                text: 'Herpes simplex and herpes zoster can both presents as a cluster of ulcers. When it is within the mouth, refer the Soldier to the AEM for further evaluation. Large oral ulcers could be from other causes or require additional treatment.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
+                                ddx: ['aphthous ulcer (canker sore)'],
+                                text: 'most common oral ulcer. They present as small, painful, shallow, round, or oval oral ulcers with a grayish base. Apply ¼ inch of triamcinolone oral paste to the ulcer at bedtime. It should resolve 10-14 days. Refer to the supervising privileged provider if there is a history of severe stomach pain or bloody diarrhea. Instruct the Soldier to return to the clinic for further evaluation if new symptoms develop, symptoms worsen, or the symptoms are not controlled with the current regimen or resolved within two weeks.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'apply 1/4 inch of triamcinolone acetate oral paste to the ulcer at bedtime. It should resolve in 10-14 days. RTC if symptoms are worsening, new symptoms developing, or symptoms are not controlled with the MCP or resolved within 2 weeks.',
+                                    ancillaryFind: [{ type: 'med', modifier: 'triamcinolone acetate oral paste' }]
+
+                                }
+                            },
                             {
-                                ...Disposition[2],
-                                modifier: "Treatment Protocol"
+                                type: 'dmp',
+                                ddx: ['hand, foot, and mouth disease'],
+                                text: 'common in children. It presents with oval pale papules with a red rim on the palms and soles of the feet with an aphthous ulcer. Elevated temperature, feeling tired, and a sore throat often start before the lesions appear. Treatment is supportive. Provide acetaminophen as needed for elevated temperature and ibuprofen as needed for malaise. Lozenges, salt water gargles (1/4 teaspoon of salt in 1 cup of warm water) and drinking warm fluids may also help with the sore throat. Instruct the Soldier to return to the clinic for further evaluation if new symptoms develop, symptoms worsen, or the symptoms are not controlled with the current regimen or resolved within two weeks.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'lesions on the palms and soles of the feet. provide ketorolac, acetaminophen every 6 hours as needed for fever, ibuprofen every 6 hours as needed for malaise, and lozenges or lidocaine gargle as needed for sore throat. RTC if symptoms are worsening, new symptoms developing, or symptoms are not controlled with the MCP or resolved within 2 weeks.',
+                                    medFind: [medList[24], medList[0], medList[23], medList[8], medList[25]]
+                                }
                             }
                         ],
                         next: null,
@@ -8977,17 +9007,17 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 type: "OTHER",
                                 text: "Place secure message or T-Con for Provider"
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['repeat prescription'],
+                                text: 'Narcotics, psychiatric medications, sleeping medicines, birth control, and chronic medications should be referred to a privileged provider as a secure message or telephone consult. The privileged provider will need to determine if the underlying condition is still being adequately treated and when the next follow-up appointment is needed.'
                             }
                         ],
                         next: null,
@@ -8995,13 +9025,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -9018,17 +9041,12 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[1], text: "Refer to AEM" }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                ...Disposition[1],
-                                text: "Refer to AEM"
+                                ddx: ['repeat prescription'],
+                                text: 'Acute conditions that have failed initial treatment should be referred to the supervising privileged provider for further evaluation. Acute medication can be re-provided if the Soldier lost his or her medication. Prior to re-providing the medication, review the Soldier’s medical record to determine how much longer he or she is supposed to be on the medication.'
                             }
                         ],
                         next: null,
@@ -9036,17 +9054,17 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 type: "OTHER",
                                 text: "Provide Acute OTC Medication"
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['repeat prescription'],
+                                text: 'Acute conditions that have failed initial treatment should be referred to the supervising privileged provider for further evaluation. Acute medication can be re-provided if the Soldier lost his or her medication. Prior to re-providing the medication, review the Soldier’s medical record to determine how much longer he or she is supposed to be on the medication.'
                             }
                         ],
                         next: null,
@@ -9060,14 +9078,14 @@ export const Algorithm: AlgorithmType[] = [
         id: "L-5",
         options: [
             {
-                text: "Provide Counseling",
-                type: "action",
+                text: "Red Flags",
+                type: "rf",
                 questionOptions: [],
                 answerOptions: []
             },
             {
-                text: "Red Flags",
-                type: "rf",
+                text: "Provide Counseling",
+                type: "action",
                 questionOptions: [],
                 answerOptions: []
             },
@@ -9083,17 +9101,17 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 type: "OTHER",
                                 text: "Schedule appointment with PCM"
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['requesting vasectomy'],
+                                text: 'Vasectomy is for permanent birth control. If the Soldier is not in a stable relationship with acceptance of the other person, doesn’t already have kids, or is under 30 years old, then refer to the privileged provider for counseling prior to referring the Soldier for a vasectomy. If the privileged provider performs vasectomies, the privileged provider will need to counsel the Soldier before the procedure.'
                             }
                         ],
                         next: null,
@@ -9101,17 +9119,17 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 type: "OTHER",
                                 text: "Message Provider or Local Policy"
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['requesting vasectomy'],
+                                text: 'Process to schedule a vasectomy varies by location. Message the privileged provider (Secure Messaging, T-con, etc.) to request a referral for the procedure or follow local process if different.'
                             }
                         ],
                         next: null,
@@ -9125,14 +9143,14 @@ export const Algorithm: AlgorithmType[] = [
         id: "L-6",
         options: [
             {
-                text: "Provide Counseling",
-                type: "action",
+                text: "Red Flags",
+                type: "rf",
                 questionOptions: [],
                 answerOptions: []
             },
             {
-                text: "Red Flags",
-                type: "rf",
+                text: "Provide Counseling",
+                type: "action",
                 questionOptions: [],
                 answerOptions: []
             },
@@ -9149,17 +9167,17 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 type: "CAT I",
                                 text: "Provider Now (Rabies) or AEM Now"
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['requires rabies ppx', 'routine immunization'],
+                                text: 'Rabies immunoglobulin needs to be referred to the supervising privileged provider. Routine immunizations are normally provided only at scheduled times. If the immunization is requested early, is not on the required immunization series, is contraindication, or you are not trained to provide, then refer the Soldier to the AEM. Contraindications include history of a severe reaction to a vaccine, eggs or egg protein, neomycin, or streptomycin. Being immunocompromised, around an immunocompromised person, or pregnant are contraindications that require further evaluation.'
                             }
                         ],
                         next: null,
@@ -9167,14 +9185,19 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                ddx: ['routine immunization'],
+                                text: 'If the clinic does not have the immunization requested, refer the Soldier to the appropriate location (readiness clinic, immunizations, etc.). If the clinic does have the immunization and you are trained to provide it, obtain approval from your AEM. After obtaining approval, counsel the Soldier on the immunization, confirm that there are no contraindications, and provide the vaccine according to the package insert. After providing the vaccine, document the vaccination information in the appropriate databases or follow the local policy to have the information documented. Observe Soldier for 15 minutes post-immunization prior to discharge. Have the Soldier return to clinic if symptoms develop after the vaccination to include a rash, local redness or infection, or fever.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'If you don\'t have the immunization, refer to the appropriate location (readiness clinic, immunization, etc.). Obtain approval from the AEM. Counsel the patient on the vaccine. Confirm no contraindications. Provide the vaccine according to the packaged insert. Document the vaccination information in the required databases or follow local policy to have it documented. RTC if symptoms develop after the vaccine to include redness or infection at vaccine site, rash, anaphylaxis, seizure, or any other serious symptoms.',
+                                    ancillaryFind: [{ type: 'protocol', modifier: 'give immunization' }]
+                                }
                             }
                         ],
-                        disposition: [Disposition[2]],
                         next: null,
                         selectAll: false
                     }
@@ -9186,14 +9209,14 @@ export const Algorithm: AlgorithmType[] = [
         id: "L-7",
         options: [
             {
-                text: "Lymph node exam",
-                type: "action",
+                text: "Red Flags",
+                type: "rf",
                 questionOptions: [],
                 answerOptions: []
             },
             {
-                text: "Red Flags",
-                type: "rf",
+                text: "Lymph node exam",
+                type: "action",
                 questionOptions: [],
                 answerOptions: []
             },
@@ -9212,30 +9235,34 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now.” These can be signs of significant underlying medical problems'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['systemic illness', 'fibrosis'],
+                                text: 'Unexplained weight loss and enlarged nodes in multiple body areas may represent a systemic illness. Supraclavicular and posterior cervical may represent a more concerning illness. Non-mobile and hard or rubbery nodes may represent nodal fibrosis. Lack a recent infection (within two weeks) or inflammation in the area of the lymph node to cause the lymph node to enlarge requires further evaluation by the supervising privileged provider.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 type: "OTHER",
                                 text: "Screen for infection Sx"
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['infection'],
+                                text: 'Lymph nodes that are associated with a localized infection or inflammation may be screened according to patient presentation of potential infectious exposure/history, chills, sweats, fatigue, and/or intermittent fever (although, persistent fevers and/or any associated abnormal vital signs will require evaluation by supervising privileged provider).'
                             }
                         ],
                         next: null,
@@ -9271,17 +9298,17 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "action placeholder"
+                                modifier: 'lay in dark, quiet room if BP elevated'
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['hypertension', 'hypertensive urgency', 'aortic aneurysm'],
+                                text: 'If the blood pressure is greater than 150/90 (either one or both of the two numbers are elevated), recheck the blood pressure after five minutes. If it is still greater than 150/90 or the systolic blood pressure is lower than 90 refer the Soldier to a privileged provider for evaluation. Blood pressure over 180/120 is considered severe (hypertensive urgency) and requires prompt treatment. Severe hypertension can cause permanent end organ damage. Have the Soldier lay down in a dark, quiet room while waiting for transport or to be seen by the privileged provider. A difference of greater than 15mmHg between arms suggests an arterial issue.'
                             }
                         ],
                         next: null,
@@ -9289,13 +9316,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -9312,17 +9332,21 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
                             {
                                 ...Disposition[1],
-                                modifier: "action placeholder"
+                                modifier: 'start IVF if orthostatic'
+                            }
+                        ],
+                        decisionMaking: [
+                            {
+                                type: 'dmp',
+                                ddx: ['orthostatic hypotension', 'last day of BP check'],
+                                text: 'On the last day of the blood pressure check, refer the Soldier to the AEM to evaluate the recorded blood pressures. Orthostatic hypotension is usually associated with feeling lightheaded upon standing and systolic blood pressure drops by 20, diastolic blood pressure drops by 10, or heart rate increases by 20 with standing.',
+                                ancillaryFind: [
+                                    { type: 'protocol', modifier: 'tilts test' },
+                                    { type: 'protocol', modifier: 'obtain IV access' },
+                                ]
                             }
                         ],
                         next: null,
@@ -9330,17 +9354,12 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                type: "CAT III",
-                                text: "RTD"
+                                ddx: ['BP check'],
+                                text: ' If it is not the last blood pressure check, remind the Soldier to return for his or her next check. '
                             }
                         ],
                         next: null,
@@ -9372,17 +9391,11 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[4], text: 'Schedule appointment or refer for service' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Schedule appointment or Refer for Service"
+                                text: 'If MEDPROS is identified as being red, instruct the Soldier on how to correct the medical readiness deficiencies, and schedule an appointment as needed.'
                             }
                         ],
                         next: null,
@@ -9390,13 +9403,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -9414,17 +9420,11 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[4], text: 'Schedule appointment' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Schedule Appointment"
+                                text: 'Identification of a non-deployable profile, behavioral health appointments, specialty care appointments, or a pregnant or postpartum Soldier requires a referral to the supervising privileged provider for further evaluation prior to having the form signed. '
                             }
                         ],
                         next: null,
@@ -9432,17 +9432,11 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [{ ...Disposition[4], text: 'Fill out paper. Provider review and sign' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Fill out paper Provider review and sign"
+                                text: 'If no deficiencies or issues are identified, fill out the form for the supervising privileged provider to review and sign. Instruct the Soldier to wait or return at a later specified time depending on supervising privileged provider availability and local policy.'
                             }
                         ],
                         next: null,
@@ -9473,18 +9467,20 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[4], text: 'Schedule Provider Appointment', modifier: 'Screening labs. BHC referral. Dietician referral' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Schedule Provider Appointment",
-                                modifier: "action placeholder"
+                                ddx: ['obesity', 'thyroid disorder', 'diabetes'],
+                                text: 'Soldiers who are enrolled in the Army Body Composition Program (AR 600-9) are required to meet with a dietician or privileged provider if a dietician is not available. The privileged provider should screen the Soldier for medical causes of his or her weight gain. Screening labs include TSH, lipids, fasting glucose, and liver function tests. Hypothyroidism can cause weight gain and should be screened for with a TSH. Obesity is associated with diabetes, high cholesterol, and inflammation of the liver. Cholesterol, fasting glucose, and liver function tests should be screened to look for associated medical problems. Evaluation should also include screening for sleep apnea, hypertension, polycystic ovary syndrome, osteoarthritis, heartburn, and depression by history and physical exam. Soldier should be referred to the dietician while the lab results and privileged provider appointment are pending. Behavioral health consult should be offered and information about other poster services (wellness centered) provided. Same screening should be performed for Soldiers who’s BMI is over 30, have been struggling to maintain their weight through multiple diets for over six months, or have a history of being placed on the Army Body Composition Program.',
+                                ancillaryFind: [
+                                    { type: 'lab', modifier: 'TSH' },
+                                    { type: 'lab', modifier: 'lipid panel' },
+                                    { type: 'lab', modifier: 'fasting glucose' },
+                                    { type: 'lab', modifier: 'liver function test' },
+                                    { type: 'refer', modifier: 'dietician' },
+                                    { type: 'refer', modifier: 'behavioral health if indicated' },
+                                ]
                             }
                         ],
                         next: null,
@@ -9492,13 +9488,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -9516,18 +9505,18 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[4], text: 'Wellness center or dietician referral' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Wellness Center or Dietician Referral",
-                                modifier: "action placeholder"
+                                ddx: ['obesity', 'overweight'],
+                                text: 'Soldiers who are requesting assistance with weight control that is a new issue should be provided information on community resources that are available which may include the Wellness Center, access to a dietician, an athletic trainer, or strength and conditioning coach and offered a referral to behavioral health consultant if available.',
+                                ancillaryFind: [
+                                    { type: 'refer', modifier: 'Armed Forces Wellness Center' },
+                                    { type: 'refer', modifier: 'dietician' },
+                                    { type: 'refer', modifier: 'H2F' },
+                                    { type: 'refer', modifier: 'behavioral health if indicated' },
+                                ]
                             }
                         ],
                         next: null,
@@ -9535,17 +9524,17 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [{ ...Disposition[4], text: 'Wellness center or dietician referral' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Schedule Provider Appointment"
+                                text: 'provided information on community resources that are available which may include the Wellness Center, access to a dietician, an athletic trainer, or strength and conditioning coach and offered a referral to behavioral health consultant if available.',
+                                ancillaryFind: [
+                                    { type: 'refer', modifier: 'Armed Forces Wellness Center' },
+                                    { type: 'refer', modifier: 'dietician' },
+                                    { type: 'refer', modifier: 'H2F' },
+                                    { type: 'refer', modifier: 'behavioral health if indicated' },
+                                ]
                             }
                         ],
                         next: null,
@@ -9576,26 +9565,18 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'If Soldier appears sick or unstable (pale, sweaty, dazed look in eyes), confused or has an altered mental status, uncomfortable (can’t stop moving or refusing to move due to pain), has abnormal vital signs, or describes pain as five or higher, refer to the supervising privileged provider now for further evaluation and treatment. All of these scenarios may represent a more significant illness or injury.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -9609,30 +9590,23 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'If the complaint is not on the list, does not fit under another protocol, and the Soldier appears stable with normal vital signs, refer to the AEM for further evaluation, treatment, and disposition. '
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
+                        disposition: [{ ...Disposition[4], text: "Screen Symptoms" }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Screen Symptoms"
+                                text: 'If the complaint is not on the list but you recognize it as being under a protocol on the list or another way of saying a complaint that is on the list, screen according to the protocol that the Soldier’s complaint refers to.'
                             }
                         ],
                         next: null,
@@ -9661,29 +9635,17 @@ export const Algorithm: AlgorithmType[] = [
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'If the Soldier has symptoms, screen the Soldier according to the protocol that represents his or her symptoms. Since nonprescription medications can be dangerous if not used properly, the Soldier should be screened first to ensure that the medications requested are appropriate for his or her current symptoms.'
                             }
                         ],
                         disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Screen Symptoms",
-                                modifier: "action placeholder"
-                            }
+                            { ...Disposition[4], text: 'Screen Symptoms', modifier: 'discuss with AEM' }
                         ],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 2,
                         selectAll: false
@@ -9701,14 +9663,73 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
+                                text: 'If a Soldier is traveling on temporary duty (TDY) to a location where medical care is not easily accessible and local policy supports providing travel medications, he or she may request a travel pack of medications. Evaluate for the risk of malaria and other diseases. Discuss the request with the supervising privileged provider. Provide travel medications as authorized by your supervising privileged provider and local policy. Example medications include ibuprofen (pain), diphenhydramine (allergies/ reaction), pseudoephedrine (congestion), loperamide and ciprofloxacin (diarrhea), doxycycline (malaria prophylaxis). Supervising privileged provider must approve all travel medications.'
                             }
                         ],
+                        disposition: [{ ...Disposition[4], text: 'provide travel pack medications', modifier: 'local SOP or discuss with provider' }],
+                        next: null,
+                        selectAll: true
+                    },
+                    {
+                        text: "No",
                         disposition: [
+                            { ...Disposition[4], text: 'Discuss with AEM' }
+                        ],
+                        next: null,
+                        selectAll: false
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        id: "L-13",
+        options: [
+            {
+                text: "Rescreen Algorithm",
+                type: "action",
+                questionOptions: [],
+                answerOptions: []
+            },
+            {
+                text: "Red Flags",
+                type: "rf",
+                questionOptions: [
+                    { text: 'Abnormal Vital Signs/Fever > 101°F' },
+                    { text: 'Shortness of Breath' },
+                    { text: 'Cough with or without blood clots or frank blood' },
+                    { text: 'Stiff neck' },
+                    { text: 'Altered mental status' },
+                    { text: 'Cyanosis' },
+                    { text: 'Ancillary muscle use' },
+                    { text: 'SIRS criteria' },
+                    { text: 'Airway Swelling' },
+                    { text: 'Hives' },
+                    { text: 'heat injury' },
+                    { text: 'light sensitivity' },
+                    { text: 'pregnant' },
+                    { text: 'Seizure' },
+                    { text: 'Lightheaded' },
+                ],
+                answerOptions: []
+            },
+            {
+                text: "Do any of the following apply?",
+                type: "initial",
+                questionOptions: [
+                    { text: "Fever > 101°F " },
+                    { text: "Cough" },
+                    { text: "shortness of breath" },
+                ],
+                answerOptions: [
+                    {
+                        text: "Yes",
+                        disposition: [{ ...Disposition[0], modifier: 'mask patient' }],
+                        decisionMaking: [
                             {
-                                type: "CAT III",
-                                text: "Provide Travel Pack Medications",
-                                modifier: "action placeholder"
+                                type: 'dmp',
+                                ddx: ['COVID-19'],
+                                text: 'If the Soldier presents with red flags (shortness of breath, fever >101°F, and cough) immediately mask patient and disposition the Soldier as “Provider Now.”'
                             }
                         ],
                         next: null,
@@ -9716,17 +9737,36 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
+                        disposition: [],
+                        next: 3,
+                        selectAll: false
+                    }
+                ]
+            },
+            {
+                text: "Has patient had contact with a COVID positive person?",
+                type: "choice",
+                questionOptions: [],
+                answerOptions: [
+                    {
+                        text: "Yes",
+                        disposition: [{ ...Disposition[1], modifier: 'mask patient' }],
+                        next: null,
+                        selectAll: true
+                    },
+                    {
+                        text: "No",
+                        disposition: [Disposition[2]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Schedule Provider Appointment"
+                                text: 'MCP for COVID-19: see A3 cold symptoms/allergies/cough. See D1 for shortness of breath. See G2 for fever/chills',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'home, no care/testing required. If symptoms develop contact command',
+                                    specLim: ['quarters/quarantine x 14 days', 'follow local policy']
+                                }
                             }
                         ],
                         next: null,
@@ -9740,14 +9780,14 @@ export const Algorithm: AlgorithmType[] = [
         id: "M-1",
         options: [
             {
-                text: "Rescreen Algorithm",
-                type: "action",
+                text: "Red Flags",
+                type: "rf",
                 questionOptions: [],
                 answerOptions: []
             },
             {
-                text: "Red Flags",
-                type: "rf",
+                text: "Rescreen Algorithm",
+                type: "action",
                 questionOptions: [],
                 answerOptions: []
             },
@@ -9761,26 +9801,19 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[0]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
+                                text: 'If the Soldier is worsening on treatment or failed the previous treatment regimen, he or she should be referred to the supervising privileged provider.'
                             }
                         ],
-                        disposition: [Disposition[0]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -9794,27 +9827,20 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [Disposition[1]],
                         decisionMaking: [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
+                                text: 'Soldier should not be screened to below the AEM level when he or she returns to the clinic for the same issue that was previously treated with minor-care. Soldier has the option to elevate his or her disposition to the next higher level (Provider Now) if he or she feels uncomfortable with seeing an AEM.'
                             }
                         ],
-                        disposition: [Disposition[1]],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [Disposition[1]],
+                        disposition: [{ ...Disposition[4], text: 'screen soldier' }],
                         next: null,
                         selectAll: false
                     }
@@ -9852,27 +9878,15 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 type: 'dmp',
                                 ddx: [],
-                                text: ''
+                                text: 'Rescreen the Soldier if he or she appears acutely ill. Refer to the supervising privileged provider if he or she is worsening, not improving, or screen as “Provider Now” in the protocol.'
                             }
                         ],
-                        disposition: [
-                            {
-                                ...Disposition[0],
-                                modifier: "action placeholder"
-                            }
-                        ],
+                        disposition: [{ ...Disposition[0], modifier: 'rescreen if acutely ill' }],
                         next: null,
                         selectAll: true
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [],
                         next: 3,
                         selectAll: false
@@ -9886,18 +9900,11 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
+                        disposition: [{ ...Disposition[4], text: 'schedule appointment', modifier: 'discuss with AEM' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
-                        disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Make an Appointment",
-                                modifier: "action placeholder"
+                                text: 'If possible, refer the Soldier to the original privileged provider. If the original privileged provider is not available, discuss the situation with the AEM. Based on local policy and original privileged provider availability, the Soldier may be scheduled with a different privileged provider that is covering for the original privileged provider or scheduled with the original privileged provider when he or she is next available. Explain to the Soldier when his or her follow-up will be.'
                             }
                         ],
                         next: null,
@@ -9905,18 +9912,8 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                ddx: [],
-                                text: ''
-                            }
-                        ],
                         disposition: [
-                            {
-                                type: "OTHER",
-                                text: "Make an Appointment"
-                            }
+                            { ...Disposition[4], text: 'schedule appointment' }
                         ],
                         next: null,
                         selectAll: false
