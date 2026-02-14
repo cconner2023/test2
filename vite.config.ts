@@ -82,6 +82,19 @@ export default defineConfig({
                 type: 'image/png'
               }
             ]
+          },
+          {
+            name: 'My Training',
+            short_name: 'Training',
+            description: 'View your training progress',
+            url: '/test2/?view=training',
+            icons: [
+              {
+                src: '/test2/icon-192.png',
+                sizes: '192x192',
+                type: 'image/png'
+              }
+            ]
           }
         ]
       },

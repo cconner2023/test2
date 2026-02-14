@@ -42,7 +42,7 @@ export function useActiveNote({
 
   // ── Settings targeting state ───────────────────────────────
   const [myNotesInitialSelectedId, setMyNotesInitialSelectedId] = useState<string | null>(null)
-  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'my-notes' | 'release-notes'>('main')
+  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'my-notes' | 'release-notes' | 'training'>('main')
 
   // ── Storage error state ────────────────────────────────────
   const [storageError, setStorageError] = useState<string | null>(null)
@@ -73,6 +73,9 @@ export function useActiveNote({
       navigation.setShowSettings(true)
     } else if (initialViewParam === 'import') {
       navigation.setShowNoteImport(true)
+    } else if (initialViewParam === 'training') {
+      setSettingsInitialPanel('training')
+      navigation.setShowSettings(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // Run only once on mount

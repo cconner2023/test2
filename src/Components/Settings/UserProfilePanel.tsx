@@ -1,6 +1,5 @@
 import type { UserTypes } from '../../Data/User';
-import { credentials, components, ranksByComponent, unitLevelsByComponent } from '../../Data/User';
-import { unitStructure, type UnitNode } from '../../Data/UnitData';
+import { credentials, components, ranksByComponent } from '../../Data/User';
 
 interface UserProfilePanelProps {
     profile: UserTypes;
@@ -65,42 +64,8 @@ const SelectInput = ({
     </label>
 );
 
-// ---------------------------------------------------------------------------
-// Walk the unit tree to find dropdown options at a given depth
-// ---------------------------------------------------------------------------
-
-function getTreeOptionsAtLevel(tree: UnitNode[], selections: string[], level: number): string[] | null {
-    let nodes = tree;
-    for (let i = 0; i < level; i++) {
-        const match = nodes.find(n => n.name === selections[i]);
-        if (!match?.children || match.children.length === 0) return null;
-        nodes = match.children;
-    }
-    return nodes.length > 0 ? nodes.map(n => n.name) : null;
-}
-
-/** Walk the tree through the current selections, return the UIC of the deepest matched node */
-function getUicFromSelection(tree: UnitNode[], selections: string[]): string | undefined {
-    let nodes = tree;
-    let lastUic: string | undefined;
-    for (const sel of selections) {
-        const match = nodes.find(n => n.name === sel);
-        if (!match) break;
-        if (match.uic) lastUic = match.uic;
-        nodes = match.children ?? [];
-    }
-    return lastUic;
-}
-
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
 export const UserProfilePanel = ({ profile, onUpdate }: UserProfilePanelProps) => {
     const componentRanks = profile.component ? ranksByComponent[profile.component] : [];
-    const levelNames = profile.component ? unitLevelsByComponent[profile.component] : [];
-    const tree = profile.component ? unitStructure[profile.component] ?? [] : [];
-    const selections = profile.unitSelections ?? [];
 
     const handleComponentChange = (val: string) => {
         const newComponent = (val || undefined) as UserTypes['component'];
@@ -108,16 +73,8 @@ export const UserProfilePanel = ({ profile, onUpdate }: UserProfilePanelProps) =
         if (profile.rank && (!newComponent || !ranksByComponent[newComponent].includes(profile.rank))) {
             updates.rank = undefined;
         }
-        updates.unitSelections = undefined;
         updates.uic = undefined;
         onUpdate(updates);
-    };
-
-    const handleUnitChange = (level: number, value: string) => {
-        const next = selections.slice(0, level);
-        if (value) next.push(value);
-        const uic = next.length > 0 ? getUicFromSelection(tree, next) : undefined;
-        onUpdate({ unitSelections: next.length > 0 ? next : undefined, uic });
     };
 
     return (
@@ -174,42 +131,13 @@ export const UserProfilePanel = ({ profile, onUpdate }: UserProfilePanelProps) =
                         />
                     )}
 
-                    {/* Cascading unit selectors */}
-                    {profile.component && levelNames.length > 0 && (
-                        <div className="pt-2">
-                            <p className="text-xs font-medium text-tertiary/60 uppercase tracking-wide mb-3">Unit Information</p>
-                            <div className="space-y-3">
-                                {levelNames.map((levelName, idx) => {
-                                    // Only show if prior level is filled (or it's the first)
-                                    if (idx > 0 && !selections[idx - 1]) return null;
-
-                                    const treeOptions = getTreeOptionsAtLevel(tree, selections, idx);
-
-                                    if (treeOptions) {
-                                        return (
-                                            <SelectInput
-                                                key={levelName}
-                                                label={levelName}
-                                                value={selections[idx] ?? ''}
-                                                onChange={(val) => handleUnitChange(idx, val)}
-                                                options={treeOptions}
-                                            />
-                                        );
-                                    }
-
-                                    return (
-                                        <TextInput
-                                            key={levelName}
-                                            label={levelName}
-                                            value={selections[idx] ?? ''}
-                                            onChange={(val) => handleUnitChange(idx, val)}
-                                            placeholder={`Enter ${levelName.toLowerCase()}`}
-                                        />
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    )}
+                    <TextInput
+                        label="UIC"
+                        value={profile.uic ?? ''}
+                        onChange={(val) => onUpdate({ uic: val.toUpperCase() || undefined })}
+                        placeholder="W12ABC"
+                        maxLength={6}
+                    />
                 </div>
 
                 {profile.lastName && profile.credential && (

@@ -9,9 +9,7 @@ export interface UserTypes {
     credential?: Credential;
     rank?: Rank;
     component?: Component;
-    /** Cascading unit selections from highest to lowest organizational level */
-    unitSelections?: string[];
-    /** Unit Identification Code derived from the selected unit tree node */
+    /** Unit Identification Code */
     uic?: string;
 }
 
@@ -41,13 +39,5 @@ export const ranks: string[] = (() => {
     }
     return [...legacy, ...additional];
 })();
-
-/** Unit level names by component, ordered top-down (highest → lowest) */
-export const unitLevelsByComponent: Record<Component, readonly string[]> = {
-    USA: ['Corps', 'Division', 'Brigade', 'Battalion', 'Company'],
-    USN: ['Fleet', 'Command', 'Group', 'Squadron', 'Unit'],
-    USMC: ['MEF', 'Division', 'Regiment', 'Battalion', 'Company'],
-    USAF: ['MAJCOM', 'Wing', 'Group', 'Squadron', 'Flight'],
-};
 
 // signature example: Signed: Conner Christopher D PA-C, CPT, USA

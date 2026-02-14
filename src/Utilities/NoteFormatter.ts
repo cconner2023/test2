@@ -227,7 +227,6 @@ export function assembleNote(
     timestamp?: Date | null,
 ): AssembledNote {
     const fullNoteParts: string[] = [];
-    const noteDate = timestamp ?? new Date();
     const customNote = options.customNote.trim();
 
     // HPI
@@ -237,9 +236,11 @@ export function assembleNote(
         fullNoteParts.push('');
     }
 
-    // Timestamp
-    fullNoteParts.push(formatTimestamp(noteDate));
-    fullNoteParts.push('');
+    // Timestamp — only included when explicitly provided (set on Confirm)
+    if (timestamp) {
+        fullNoteParts.push(formatTimestamp(timestamp));
+        fullNoteParts.push('');
+    }
 
     // Algorithm content
     let algorithmContent: string | undefined;

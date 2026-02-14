@@ -7,7 +7,6 @@ import { useUserProfile } from '../Hooks/useUserProfile';
 import { formatSignature } from '../Utilities/NoteFormatter';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { encodedContentEquals } from '../Utilities/NoteCodec';
-import { TextButton } from './TextButton';
 import { NoteBarcodeGenerator } from './Barcode';
 import { DecisionMaking } from './DecisionMaking';
 import { BaseDrawer } from './BaseDrawer';
@@ -79,9 +78,8 @@ export const WriteNotePage = ({
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState<boolean>(true);
     const [includeHPI, setIncludeHPI] = useState<boolean>(!!initialHpiText);
 
-    // Saved note timestamp — preserved from the original note, cleared on content changes
+    // Note timestamp — only applied when the user clicks Confirm
     const [noteTimestamp, setNoteTimestamp] = useState<Date | null>(timestamp);
-    const isFirstOptionChange = useRef(true);
     const [encodedValue, setEncodedValue] = useState<string>('');
     const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null);
     const [isSaved, setIsSaved] = useState(false);
@@ -110,14 +108,14 @@ export const WriteNotePage = ({
 
     // Decision Making collapsible state (auto-expanded so user sees it immediately)
     const [showDecisionMaking, setShowDecisionMaking] = useState(true);
-    // Note Selection collapsible state (Review & Share page — starts expanded)
-    const [showNoteSelection, setShowNoteSelection] = useState(true);
+    // Note Selection collapsible state — collapsed for saved notes, expanded for new
+    const [showNoteSelection, setShowNoteSelection] = useState(!existingNoteId);
     // Selection confirmed — reveals Note Preview + Encoded Note
-    const [selectionConfirmed, setSelectionConfirmed] = useState(false);
-    // Note preview collapsible state (Review & Share page — collapsed until confirmed)
-    const [showPreview, setShowPreview] = useState(false);
-    // Encoded note collapsible state (Review & Share page — collapsed until confirmed)
-    const [showBarcode, setShowBarcode] = useState(false);
+    const [selectionConfirmed, setSelectionConfirmed] = useState(Boolean(existingNoteId));
+    // Note preview collapsible state — expanded for saved notes
+    const [showPreview, setShowPreview] = useState(Boolean(existingNoteId));
+    // Encoded note collapsible state — expanded for saved notes
+    const [showBarcode, setShowBarcode] = useState(Boolean(existingNoteId));
 
     // Hooks
     const { generateNote } = useNoteCapture(algorithmOptions, cardStates);
@@ -133,15 +131,6 @@ export const WriteNotePage = ({
             return () => clearTimeout(id);
         }
     }, [copiedTarget]);
-
-    // --- Clear saved timestamp when note content options change (skip initial render) ---
-    useEffect(() => {
-        if (isFirstOptionChange.current) {
-            isFirstOptionChange.current = false;
-            return;
-        }
-        setNoteTimestamp(null);
-    }, [includeAlgorithm, includeDecisionMaking, includeHPI, note]);
 
     // --- Preview note generation (eagerly updates so content is ready before navigating to View Note) ---
     useEffect(() => {
@@ -178,9 +167,9 @@ export const WriteNotePage = ({
 
     // --- Determine button state based on existing note ---
     // isAlreadySaved: note exists in storage (existingNoteId is set)
-    // hasContentChanged: encoded value differs from what was saved
+    // hasContentChanged: only evaluated after user clicks Confirm
     const isAlreadySaved = Boolean(existingNoteId);
-    const hasContentChanged = isAlreadySaved && encodedValue !== '' && !encodedContentEquals(encodedValue, existingEncodedText || '');
+    const hasContentChanged = isAlreadySaved && selectionConfirmed && encodedValue !== '' && !encodedContentEquals(encodedValue, existingEncodedText || '');
 
     // --- Save note handler (new note) ---
     const handleSaveNote = useCallback(() => {
@@ -339,50 +328,63 @@ export const WriteNotePage = ({
                 </div>
             )}
 
-            {/* Header: page title + step dots + close */}
+            {/* Header — aligned with BaseDrawer */}
             <div
-                className="flex items-center justify-between px-4 py-2 border-b border-themegray1/20 bg-transparent"
+                className="px-6 border-b border-tertiary/10 py-3 md:py-4"
                 style={isMobile ? { touchAction: 'none' } : {}}
                 data-drag-zone
             >
-                <div className="flex flex-col gap-1.5 flex-1">
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-primary">{PAGE_LABELS[currentPage]}</span>
-                        <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${noteSource?.startsWith('external')
-                            ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                            : noteSource
-                                ? 'bg-themeblue3/15 text-themeblue3'
-                                : 'bg-themegray1/15 text-secondary'
-                            }`}>
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 min-w-0 transition-all duration-200">
+                        <div
+                            className="shrink-0 overflow-hidden transition-all duration-200"
+                            style={{
+                                width: currentPage > 0 ? 40 : 0,
+                                opacity: currentPage > 0 ? 1 : 0,
+                            }}
+                        >
+                            <button
+                                onClick={handlePageBack}
+                                className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
+                                aria-label="Go back"
+                            >
+                                <svg className="w-6 h-6 text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+                                </svg>
+                            </button>
+                        </div>
+                        <h2 className="text-[11pt] font-normal text-primary md:text-2xl truncate">
+                            {PAGE_LABELS[currentPage]}
+                        </h2>
+                        <span className="text-xs text-tertiary shrink-0">
                             {noteSource?.startsWith('external')
                                 ? `External${noteSource.includes(':') ? ': ' + noteSource.split(':')[1] : ''}`
                                 : noteSource ? 'Saved: My Note' : 'New Note'}
                         </span>
                     </div>
-                    <div className="flex gap-1.5">
-                        {PAGE_LABELS.map((_, idx) => (
-                            <div
-                                key={idx}
-                                className={`h-1 rounded-full transition-all duration-300 ${idx === currentPage
-                                    ? `w-4 ${colors.symptomClass}`
-                                    : idx < currentPage
-                                        ? `w-1.5 ${colors.symptomClass} opacity-40`
-                                        : 'w-1.5 bg-themegray1/30'
-                                    }`}
-                            />
-                        ))}
-                    </div>
+                    <button
+                        onClick={closeHandler}
+                        className="p-2 rounded-full hover:bg-themewhite2 md:hover:bg-themewhite active:scale-95 transition-all shrink-0"
+                        aria-label="Close"
+                    >
+                        <svg className="w-6 h-6 text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
-                <button
-                    onClick={closeHandler}
-                    className="shrink-0 ml-4 p-2 text-tertiary hover:text-primary transition-colors rounded-full hover:bg-themewhite3"
-                    title="Close"
-                    aria-label="Close"
-                >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
+                <div className="flex gap-1.5 mt-2">
+                    {PAGE_LABELS.map((_, idx) => (
+                        <div
+                            key={idx}
+                            className={`h-1 rounded-full transition-all duration-300 ${idx === currentPage
+                                ? `w-4 ${colors.symptomClass}`
+                                : idx < currentPage
+                                    ? `w-1.5 ${colors.symptomClass} opacity-40`
+                                    : 'w-1.5 bg-themegray1/30'
+                                }`}
+                        />
+                    ))}
+                </div>
             </div>
 
             {/* Content Area */}
@@ -498,6 +500,7 @@ export const WriteNotePage = ({
                                             <div className="flex justify-end mt-4">
                                                 <button
                                                     onClick={() => {
+                                                        if (!noteTimestamp) setNoteTimestamp(new Date());
                                                         setSelectionConfirmed(true);
                                                         setShowNoteSelection(false);
                                                         setShowPreview(true);
@@ -590,116 +593,6 @@ export const WriteNotePage = ({
                                     )}
                                 </div>
 
-                                {/* Action buttons — Save / Save Changes / Delete */}
-                                <div className="flex items-center justify-center gap-2 flex-wrap pt-2">
-                                    {/* Save (new note) */}
-                                    {onNoteSave && !isAlreadySaved && (
-                                        <button
-                                            onClick={handleSaveNote}
-                                            disabled={isSaved || !encodedValue}
-                                            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-full transition-all active:scale-95 disabled:opacity-40
-                                                ${saveFailed
-                                                    ? 'bg-themeredred/15 text-themeredred'
-                                                    : isSaved
-                                                        ? 'bg-green-500/15 text-green-600 dark:text-green-300'
-                                                        : 'bg-themewhite3 text-primary hover:bg-themeblue3/10 hover:text-themeblue3'
-                                                }`}
-                                            title={saveFailed ? 'Storage full' : isSaved ? 'Saved' : 'Save to My Notes'}
-                                        >
-                                            {saveFailed ? (
-                                                <>
-                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                                    </svg>
-                                                    Failed
-                                                </>
-                                            ) : isSaved ? (
-                                                <>
-                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                                    </svg>
-                                                    Saved
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                                                    </svg>
-                                                    Save
-                                                </>
-                                            )}
-                                        </button>
-                                    )}
-
-                                    {/* Save Changes (existing note, content changed) */}
-                                    {isAlreadySaved && hasContentChanged && onNoteUpdate && (
-                                        <button
-                                            onClick={handleUpdateNote}
-                                            disabled={isSaved || !encodedValue}
-                                            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-full transition-all active:scale-95 disabled:opacity-40
-                                                ${isSaved
-                                                    ? 'bg-green-500/15 text-green-600 dark:text-green-300'
-                                                    : 'bg-themeblue3/10 text-themeblue3 hover:bg-themeblue3/20'
-                                                }`}
-                                            title={isSaved ? 'Changes saved' : 'Save changes'}
-                                        >
-                                            {isSaved ? (
-                                                <>
-                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                                    </svg>
-                                                    Saved
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                                    </svg>
-                                                    Save Changes
-                                                </>
-                                            )}
-                                        </button>
-                                    )}
-
-                                    {/* Delete (existing note, no content change) */}
-                                    {isAlreadySaved && !hasContentChanged && onNoteDelete && (
-                                        <button
-                                            onClick={handleDeleteNote}
-                                            disabled={isDeleted}
-                                            className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-full transition-all active:scale-95 disabled:opacity-40
-                                                ${isDeleted
-                                                    ? 'bg-themeredred/15 text-themeredred'
-                                                    : confirmDelete
-                                                        ? 'bg-red-500 text-white'
-                                                        : 'bg-themewhite3 text-themeredred hover:bg-themeredred/10'
-                                                }`}
-                                            title={confirmDelete ? 'Tap again to confirm' : 'Delete note'}
-                                        >
-                                            {isDeleted ? (
-                                                <>
-                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                                    </svg>
-                                                    Deleted
-                                                </>
-                                            ) : confirmDelete ? (
-                                                <>
-                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                    </svg>
-                                                    Confirm
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                    </svg>
-                                                    Delete
-                                                </>
-                                            )}
-                                        </button>
-                                    )}
-                                </div>
                             </div>
                         </div>
                     )}
@@ -707,21 +600,105 @@ export const WriteNotePage = ({
 
             </div>
 
-            {/* Footer with navigation buttons */}
+            {/* Footer with navigation / action buttons */}
             <div
                 className={`flex items-center gap-2 justify-between shrink-0 ${isMobile ? 'px-6 pt-4 pb-6' : 'p-4'}`}
                 style={isMobile ? { paddingBottom: 'max(2rem, calc(env(safe-area-inset-bottom, 0px) + 2rem))' } : {}}
             >
-                {currentPage > 0 ? (
-                    <TextButton text="← Back" onClick={handlePageBack} variant="dispo-specific" className="bg-themewhite3 text-tertiary rounded-full" />
-                ) : (
-                    <div />
-                )}
+                <div />
                 <div className="flex items-center gap-2">
                     {currentPage < TOTAL_PAGES - 1 ? (
-                        <TextButton text="Next →" onClick={handleNext} variant="dispo-specific" className={`${colors.buttonClass} rounded-full`} />
+                        <button
+                            onClick={handleNext}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all ${colors.buttonClass}`}
+                            aria-label="Next"
+                        >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
+                            </svg>
+                        </button>
                     ) : (
-                        <TextButton text="Done" onClick={closeHandler} variant="dispo-specific" className={`${colors.buttonClass} rounded-full`} />
+                        <>
+                            {/* Save (new note) — circle icon */}
+                            {onNoteSave && !isAlreadySaved && (
+                                <button
+                                    onClick={handleSaveNote}
+                                    disabled={isSaved || !encodedValue}
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40
+                                        ${saveFailed
+                                            ? 'bg-themeredred/15 text-themeredred'
+                                            : isSaved
+                                                ? 'bg-green-500/15 text-green-600 dark:text-green-300'
+                                                : colors.buttonClass
+                                        }`}
+                                    title={saveFailed ? 'Storage full' : isSaved ? 'Saved' : 'Save to My Notes'}
+                                >
+                                    {saveFailed ? (
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                        </svg>
+                                    ) : isSaved ? (
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                                        </svg>
+                                    )}
+                                </button>
+                            )}
+
+                            {/* Save Changes (existing note, content changed) — circle icon */}
+                            {isAlreadySaved && hasContentChanged && onNoteUpdate && (
+                                <button
+                                    onClick={handleUpdateNote}
+                                    disabled={isSaved || !encodedValue}
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40
+                                        ${isSaved
+                                            ? 'bg-green-500/15 text-green-600 dark:text-green-300'
+                                            : 'bg-themeblue3/10 text-themeblue3 hover:bg-themeblue3/20'
+                                        }`}
+                                    title={isSaved ? 'Changes saved' : 'Save changes'}
+                                >
+                                    {isSaved ? (
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                        </svg>
+                                    )}
+                                </button>
+                            )}
+
+                            {/* Delete (existing note, no content change) — circle icon */}
+                            {isAlreadySaved && !hasContentChanged && onNoteDelete && (
+                                <button
+                                    onClick={handleDeleteNote}
+                                    disabled={isDeleted}
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40
+                                        ${isDeleted
+                                            ? 'bg-themeredred/15 text-themeredred'
+                                            : confirmDelete
+                                                ? 'bg-red-500 text-white'
+                                                : 'bg-themewhite3 text-themeredred hover:bg-themeredred/10'
+                                        }`}
+                                    title={confirmDelete ? 'Tap again to confirm' : 'Delete note'}
+                                >
+                                    {isDeleted ? (
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                        </svg>
+                                    ) : (
+                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    )}
+                                </button>
+                            )}
+                        </>
                     )}
                 </div>
             </div>

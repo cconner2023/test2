@@ -17,7 +17,7 @@ interface SettingsDrawerProps {
     isDarkMode: boolean;
     onToggleTheme: () => void;
     isMobile?: boolean;
-    initialPanel?: 'main' | 'my-notes' | 'release-notes';
+    initialPanel?: 'main' | 'my-notes' | 'release-notes' | 'training';
     initialSelectedId?: string | null;
     notes?: SavedNote[];
     onDeleteNote?: (noteId: string) => void;
