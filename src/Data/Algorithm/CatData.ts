@@ -1,5 +1,5 @@
-import type { catDataTypes, sideMenuDataType, subjectAreaArray, subjectAreaArrayOptions, medcom } from "../Types/CatTypes";
-import { stp68wTraining } from './NewTraining';
+import type { catDataTypes, sideMenuDataType, subjectAreaArray, subjectAreaArrayOptions, medcom } from "../../Types/CatTypes";
+import { stp68wTraining } from '../Training/TrainingTaskList';
 
 export const menuData: sideMenuDataType[] = [
     {

@@ -1,8 +1,8 @@
 import { useRef, useEffect, memo } from 'react'
 import { animated } from '@react-spring/web'
 import { CategoryList } from './CategoryList'
-import { useColumnCarousel } from '../Hooks/useColumnCarousel'
-import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes'
+import { useColumnCarousel } from '../../Hooks/useColumnCarousel'
+import type { catDataTypes, subCatDataTypes, SearchResultType } from '../../Types/CatTypes'
 
 interface ColumnAProps {
   selectedCategory: catDataTypes | null

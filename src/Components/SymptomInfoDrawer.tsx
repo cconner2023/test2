@@ -1,7 +1,7 @@
 import { X } from 'lucide-react';
-import { BaseDrawer } from './BaseDrawer';
-import { SymptomGuidelines } from './CategoryList';
-import type { GuidelineItemData } from './CategoryList';
+import { BaseDrawer } from './Menus/BaseDrawer';
+import { SymptomGuidelines } from './BasePage/CategoryList';
+import type { GuidelineItemData } from './BasePage/CategoryList';
 import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes';
 
 interface SymptomInfoDrawerProps {

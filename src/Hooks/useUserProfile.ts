@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { UserTypes } from '../Data/User';
+import type { UserTypes } from '../Data/User/User';
 
 const STORAGE_KEY = 'adtmc_user_profile';
 

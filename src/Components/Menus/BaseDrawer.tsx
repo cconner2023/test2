@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { useDrag } from '@use-gesture/react';
 import { X, ChevronLeft } from 'lucide-react';
-import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils';
+import { GESTURE_THRESHOLDS, clamp } from '../../Utilities/GestureUtils';
 
 /** Render prop type: children can receive handleClose for animated close */
 type DrawerRenderProp = (handleClose: () => void) => ReactNode;

@@ -2,7 +2,7 @@ import { useRef, useEffect, useState, useMemo } from 'react';
 import PDF417 from 'pdf417-generator';
 import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
-import type { UserTypes } from '../Data/User';
+import type { UserTypes } from '../Data/User/User';
 import { encodeNoteState } from '../Utilities/NoteCodec';
 
 interface NoteBarcodeGeneratorProps {

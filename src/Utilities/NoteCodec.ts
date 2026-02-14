@@ -3,10 +3,10 @@
 // Centralises the pipe-delimited barcode format so every consumer
 // (useNoteRestore, useNoteImport, useNoteCapture, Barcode.tsx) uses one source.
 
-import { Algorithm } from '../Data/Algorithms';
-import { catData } from '../Data/CatData';
-import { ranks, credentials, components } from '../Data/User';
-import type { UserTypes } from '../Data/User';
+import { Algorithm } from '../Data/Algorithm/Algorithms';
+import { catData } from '../Data/Algorithm/CatData';
+import { ranks, credentials, components } from '../Data/User/User';
+import type { UserTypes } from '../Data/User/User';
 import type { AlgorithmOptions, dispositionType } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import type { catDataTypes, subCatDataTypes } from '../Types/CatTypes';

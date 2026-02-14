@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
-import { profileAvatars } from '../Data/ProfileAvatars';
-import type { ProfileAvatar } from '../Data/ProfileAvatars';
+import { profileAvatars } from '../Data/User/ProfileAvatars';
+import type { ProfileAvatar } from '../Data/User/ProfileAvatars';
 
 const STORAGE_KEY = 'adtmc_profile_avatar';
 const CUSTOM_IMAGE_KEY = 'adtmc_profile_custom_avatar';

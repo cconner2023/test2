@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Moon, Sun, Shield, ChevronUp, ChevronRight, FileText, Check, Camera, X, BookOpen } from 'lucide-react';
-import { BaseDrawer } from '../BaseDrawer';
+import { BaseDrawer } from '../Menus/BaseDrawer';
 import type { SavedNote } from '../../Hooks/useNotesStorage';
 import { useProfileAvatar, resizeImage } from '../../Hooks/useProfileAvatar';
 import { useUserProfile } from '../../Hooks/useUserProfile';

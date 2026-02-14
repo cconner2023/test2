@@ -1,10 +1,10 @@
 // components/NoteImport.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Camera, ScanLine } from 'lucide-react';
-import { TextButton } from './TextButton';
+import { TextButton } from '../TextButton';
 import { BaseDrawer } from './BaseDrawer';
-import { useNoteImport } from '../Hooks/useNoteImport';
-import { useBarcodeScanner } from '../Hooks/useBarcodeScanner';
+import { useNoteImport } from '../../Hooks/useNoteImport';
+import { useBarcodeScanner } from '../../Hooks/useBarcodeScanner';
 
 export type ViewState = 'input' | 'decoded' | 'scanning';
 

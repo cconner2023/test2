@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes'
-import { catData } from '../Data/CatData'
-import type { medListTypes } from '../Data/MedData'
+import { catData } from '../Data/Algorithm/CatData'
+import type { medListTypes } from '../Data/Medication/MedData'
 import type { AlgorithmOptions, dispositionType } from '../Types/AlgorithmTypes'
 import type { CardState } from './useAlgorithm'
 

@@ -1,15 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes';
-import type { CardState } from '../Hooks/useAlgorithm';
-import { useNoteCapture } from '../Hooks/useNoteCapture';
-import { useNoteShare } from '../Hooks/useNoteShare';
-import { useUserProfile } from '../Hooks/useUserProfile';
-import { formatSignature } from '../Utilities/NoteFormatter';
-import { getColorClasses } from '../Utilities/ColorUtilities';
-import { encodedContentEquals } from '../Utilities/NoteCodec';
-import { NoteBarcodeGenerator } from './Barcode';
+import type { dispositionType, AlgorithmOptions } from '../../../Types/AlgorithmTypes';
+import type { CardState } from '../../../Hooks/useAlgorithm';
+import { useNoteCapture } from '../../../Hooks/useNoteCapture';
+import { useNoteShare } from '../../../Hooks/useNoteShare';
+import { useUserProfile } from '../../../Hooks/useUserProfile';
+import { formatSignature } from '../../../Utilities/NoteFormatter';
+import { getColorClasses } from '../../../Utilities/ColorUtilities';
+import { encodedContentEquals } from '../../../Utilities/NoteCodec';
+import { NoteBarcodeGenerator } from '../../Barcode';
 import { DecisionMaking } from './DecisionMaking';
-import { BaseDrawer } from './BaseDrawer';
+import { BaseDrawer } from '../BaseDrawer';
 
 type DispositionType = dispositionType['type'];
 
