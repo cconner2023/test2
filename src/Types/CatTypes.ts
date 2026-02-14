@@ -40,17 +40,17 @@ export interface stp {
 }
 
 export interface subjectAreaArray {
-    id?: number,
-    icon?: string,
-    text?: string,
-    isParent?: boolean
+    id: number,
+    icon: string,
+    text: string,
+    isParent: boolean
     options: subjectAreaArrayOptions[]
 }
 export interface subjectAreaArrayOptions {
-    id?: number,
-    icon?: string,
-    text?: string,
-    isParent?: boolean
+    id: number,
+    icon: string,
+    text: string,
+    isParent: boolean
     parentId: number
 }
 

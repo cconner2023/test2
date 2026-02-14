@@ -3,6 +3,7 @@ export interface TaskTrainingData {
     title: string
     conditions: string
     standards: string
+    caution?: string
     performanceSteps: PerformanceStep[]
 }
 
@@ -19,10 +20,39 @@ export function getTaskData(taskNumber: string): TaskTrainingData | undefined {
     return trainingTaskData.find(t => t.taskNumber === taskNumber)
 }
 
+
+
+
+
+
 export const trainingTaskData: readonly TaskTrainingData[] = [
-    // Subject Area 1: Vital Signs
+    // Trauma Management: Assess Patient Vital Signs
     {
-        taskNumber: "081-833-0012",
+        taskNumber: "081-000-1001",
+        title: "Assess Patient Vital Signs",
+        caution: 'All body fluids should be considered potentially infectious so always observe body substance isolation (BSI) precautions by wearing gloves and eye protection as a minimal standard of protection.',
+        conditions: 'In an operational environment you are to obtain vital signs and determine if a patient’s vital signs are within normal limits. You are provided with a watch with a second hand (analog or digital), thermometer (electronic, glass, or tympanic), alcohol pads, cover probes, water soluble lubricant, stethoscope, sphygmomanometer, pulse oximetry device, sensing probe, pen, and SF 600 (Chronological Record of Medical Care) or electronic medical record (EMR). The use of an automated vital signs monitor is allowed if available.',
+        standards: "Assess the patient’s vital signs, in accordance with the PHTLS Prehospital Trauma Life Support, while adhering to all warnings and cautions with 100% accuracy utilizing GO/ NO GO criteria",
+        performanceSteps: [
+            { number: "1", text: "Gather necessary equipment: stethoscope and sphygmomanometer." },
+            { number: "2", text: "Identify the patient and explain the procedure." },
+            { number: "3", text: "Position the patient with the arm supported at heart level." },
+            { number: "4", text: "Apply the blood pressure cuff to the upper arm." },
+            { number: "4a", text: "Center the bladder of the cuff over the brachial artery.", isSubStep: true },
+            { number: "4b", text: "Wrap the cuff snugly around the arm approximately 1 inch above the antecubital fossa.", isSubStep: true },
+            { number: "5", text: "Palpate the radial pulse and inflate the cuff until the pulse is no longer felt. Note the reading." },
+            { number: "6", text: "Deflate the cuff completely and wait 15-30 seconds." },
+            { number: "7", text: "Place the stethoscope over the brachial artery." },
+            { number: "8", text: "Inflate the cuff 20-30 mmHg above the previously noted reading." },
+            { number: "9", text: "Slowly deflate the cuff at a rate of 2-3 mmHg per second.", note: "Deflating too quickly may result in an inaccurate reading." },
+            { number: "10", text: "Note the reading when the first Korotkoff sound is heard (systolic pressure)." },
+            { number: "11", text: "Note the reading when the Korotkoff sounds disappear (diastolic pressure)." },
+            { number: "12", text: "Completely deflate and remove the cuff." },
+            { number: "13", text: "Record the blood pressure reading, the arm used, and the patient's position." },
+        ]
+    },
+    {
+        taskNumber: "081-000-1001-alt",
         title: "Measure a Patient's Blood Pressure",
         conditions: "You have a patient who requires a blood pressure measurement. You will need a stethoscope and a sphygmomanometer (blood pressure cuff). The patient is in a clinical or field environment.",
         standards: "Obtain an accurate systolic and diastolic blood pressure reading using a manual sphygmomanometer and stethoscope. Record the reading correctly.",
@@ -44,10 +74,10 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
             { number: "13", text: "Record the blood pressure reading, the arm used, and the patient's position." },
         ]
     },
-    // Subject Area 2: Medical Treatment
+    // Medication Management: Treat a Poisoned Casualty
     {
-        taskNumber: "081-833-0004",
-        title: "Initiate Treatment for a Poisoned Casualty",
+        taskNumber: "081-000-0025",
+        title: "Treat a Poisoned Casualty",
         conditions: "You are treating a casualty who has ingested, inhaled, absorbed, or been injected with a potentially toxic substance. Field or clinical setting with standard medical supplies available.",
         standards: "Identify the signs and symptoms of poisoning, initiate appropriate treatment based on the route of exposure, and prepare the casualty for evacuation if necessary.",
         performanceSteps: [
@@ -69,10 +99,10 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
             { number: "8", text: "Prepare the casualty for evacuation. Bring any containers, labels, or samples of the suspected poison." },
         ]
     },
-    // Subject Area 3: Trauma Treatment
+    // Trauma Management: Treat a Casualty with a Neck Wound
     {
-        taskNumber: "081-833-0091",
-        title: "Initiate Treatment for Neck Wounds",
+        taskNumber: "081-68W-0091",
+        title: "Treat a Casualty with a Neck Wound",
         conditions: "You are treating a casualty with a wound to the neck in a field or clinical environment. Standard medical supplies are available including occlusive dressings.",
         standards: "Control hemorrhage, maintain the airway, and prevent air embolism. Prepare the casualty for evacuation.",
         performanceSteps: [
@@ -89,9 +119,9 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
             { number: "8", text: "Prepare the casualty for urgent evacuation." },
         ]
     },
-    // Subject Area 4: Airway Management
+    // Airway Management: Administer Oxygen
     {
-        taskNumber: "081-833-0158",
+        taskNumber: "081-000-0073",
         title: "Administer Oxygen",
         conditions: "You have a patient requiring supplemental oxygen. Oxygen delivery equipment is available including cylinder, regulator, and delivery devices (nasal cannula, non-rebreather mask).",
         standards: "Correctly set up oxygen delivery equipment, select the appropriate delivery device, administer oxygen at the prescribed or appropriate flow rate, and monitor the patient.",
@@ -112,10 +142,10 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
             { number: "6", text: "Document the flow rate, delivery device, time initiated, and patient response." },
         ]
     },
-    // Subject Area 5: Venipuncture and IV Therapy
+    // Fluid Management: Administer Fluids Through an Infusion
     {
-        taskNumber: "081-833-0033",
-        title: "Initiate an Intravenous Infusion",
+        taskNumber: "081-68W-0314",
+        title: "Administer Fluids Through an Infusion",
         conditions: "You have a patient requiring intravenous (IV) fluid therapy. IV supplies are available including IV solution, administration set, catheters, tourniquet, antiseptic, tape, and sharps container.",
         standards: "Successfully establish a patent IV line using aseptic technique. Regulate the flow rate as prescribed or appropriate. Secure the site and monitor for complications.",
         performanceSteps: [

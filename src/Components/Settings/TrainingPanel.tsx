@@ -1,10 +1,29 @@
-import { useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Check, ChevronRight, AlertTriangle, Info, Lock } from 'lucide-react'
-import { TrainingStpData } from '../../Data/CatData'
+import { stp68wTraining } from '../../Data/NewTraining'
 import { getTaskData } from '../../Data/TrainingData'
 import type { TaskTrainingData, PerformanceStep } from '../../Data/TrainingData'
 import type { subjectAreaArray, subjectAreaArrayOptions } from '../../Types/CatTypes'
 import { useTrainingProgress } from '../../Hooks/useTrainingProgress'
+
+// Convert a skill level's subject areas to the subjectAreaArray format
+function toSubjectAreaArrays(skillLevelIdx: number): subjectAreaArray[] {
+    const level = stp68wTraining[skillLevelIdx]
+    if (!level) return []
+    return level.subjectArea.map((area, areaIdx) => ({
+        id: areaIdx,
+        icon: level.skillLevel,
+        text: area.name,
+        isParent: true,
+        options: area.tasks.map((task, taskIdx) => ({
+            id: taskIdx,
+            icon: task.id,
+            text: task.title,
+            isParent: false,
+            parentId: areaIdx
+        }))
+    }))
+}
 
 // ─── Sub-view: Subject Area List ─────────────────────────────────────────────
 
@@ -14,15 +33,35 @@ function SubjectAreaList({
     onSelectArea: (area: subjectAreaArray) => void
 }) {
     const { getSubjectAreaProgress } = useTrainingProgress()
+    const [selectedLevel, setSelectedLevel] = useState(0)
+    const areas = useMemo(() => toSubjectAreaArrays(selectedLevel), [selectedLevel])
 
     return (
         <div className="h-full overflow-y-auto">
             <div className="px-4 py-3 md:p-5">
-                <p className="text-xs text-tertiary/60 mb-4">
-                    STP 8-68W13-SM-TG — Select a subject area to begin studying.
+                <p className="text-xs text-tertiary/60 mb-3">
+                    STP 8-68W13-SM-TG — Select a skill level and subject area to begin studying.
                 </p>
+
+                {/* Skill Level Tabs */}
+                <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 -mx-1 px-1">
+                    {stp68wTraining.map((level, idx) => (
+                        <button
+                            key={idx}
+                            onClick={() => setSelectedLevel(idx)}
+                            className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all active:scale-[0.97]
+                                ${idx === selectedLevel
+                                    ? 'bg-themeblue2 text-white'
+                                    : 'bg-themewhite2 text-tertiary/70 hover:text-primary'
+                                }`}
+                        >
+                            {level.skillLevel}
+                        </button>
+                    ))}
+                </div>
+
                 <div className="space-y-2">
-                    {TrainingStpData.map((area) => {
+                    {areas.map((area) => {
                         const { completed, total } = getSubjectAreaProgress(area)
                         const allDone = total > 0 && completed === total
 

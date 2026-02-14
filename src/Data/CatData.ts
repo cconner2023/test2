@@ -1,4 +1,5 @@
-import type { catDataTypes, sideMenuDataType, subjectAreaArray, medcom } from "../Types/CatTypes";
+import type { catDataTypes, sideMenuDataType, subjectAreaArray, subjectAreaArrayOptions, medcom } from "../Types/CatTypes";
+import { stp68wTraining } from './NewTraining';
 
 export const menuData: sideMenuDataType[] = [
     {
@@ -176,402 +177,51 @@ export const medcomTrainingData: medcom[] = [
     }
 ]
 
-export const TrainingStpData: subjectAreaArray[] = [
-    {
-        id: 0,
-        icon: "Subject Area 1",
-        text: "Vital Signs",
-        isParent: true,
-        options: [
-            {
-                id: 0,
-                icon: "081-833-0012",
-                text: "Measure a Patient's Blood Pressure",
-                isParent: false,
-                parentId: 0
+// Build TrainingStpData from NewTraining.ts, consolidating tasks across all skill levels
+function buildTrainingStpData(): subjectAreaArray[] {
+    const areaMap = new Map<string, Map<string, string>>()
+
+    for (const level of stp68wTraining) {
+        for (const area of level.subjectArea) {
+            if (!areaMap.has(area.name)) {
+                areaMap.set(area.name, new Map())
             }
-        ]
-    },
-    {
-        id: 1,
-        icon: "Subject Area 2",
-        text: "Medical Treatment",
-        isParent: true,
-        options: [
-            {
-                id: 0,
-                icon: "081-833-0004",
-                text: "Initiate Treatment for a Poisoned Casualty",
-                isParent: false,
-                parentId: 1
-            },
-            {
-                id: 1,
-                icon: "081-833-0063",
-                text: "Initiate Treatment for a Soft Tissue Injury",
-                isParent: false,
-                parentId: 1
+            const tasks = areaMap.get(area.name)!
+            for (const task of area.tasks) {
+                if (!tasks.has(task.id)) {
+                    tasks.set(task.id, task.title)
+                }
             }
-        ]
-    },
-    {
-        id: 2,
-        icon: "Subject Area 3",
-        text: "Trauma Treatment",
-        isParent: true,
-        options: [
-            {
-                id: 0,
-                icon: "081-833-0091",
-                text: "Initiate Treatment for Neck Wounds",
-                isParent: false,
-                parentId: 2
-            },
-            {
-                id: 1,
-                icon: "081-833-0177",
-                text: "Apply a Cervical Collar",
-                isParent: false,
-                parentId: 2
-            },
-            {
-                id: 2,
-                icon: "081-833-0181",
-                text: "Apply a Long Spine Board",
-                isParent: false,
-                parentId: 2
-            }
-        ]
-    },
-    {
-        id: 3,
-        icon: "Subject Area 4",
-        text: "Airway Management",
-        isParent: true,
-        options: [
-            {
-                id: 0,
-                icon: "081-833-0158",
-                text: "Administer Oxygen",
-                isParent: false,
-                parentId: 3
-            }
-        ]
-    },
-    {
-        id: 4,
-        icon: "Subject Area 5",
-        text: "Venipuncture and IV Therapy",
-        isParent: true,
-        options: [
-            {
-                id: 0,
-                icon: "081-833-0033",
-                text: "Initiate an Intravenous Infusion",
-                isParent: false,
-                parentId: 4
-            }
-        ]
-    },
-    {
-        id: 5,
-        icon: "Subject Area 6",
-        text: "Primary Care",
-        isParent: true,
-        options: [
-            {
-                id: 0,
-                icon: "081-833-0193",
-                text: "Perform Visual Acuity Testing",
-                isParent: false,
-                parentId: 5
-            },
-            {
-                id: 1,
-                icon: "081-833-0125",
-                text: "Treat Skin Disorders",
-                isParent: false,
-                parentId: 5
-            },
-            {
-                id: 2,
-                icon: "081-833-0241",
-                text: "Provide Treatment for Common Ear Infections",
-                isParent: false,
-                parentId: 5
-            },
-            {
-                id: 3,
-                icon: "081-833-0242",
-                text: "Provide Treatment for Sinus Infections",
-                isParent: false,
-                parentId: 5
-            },
-            {
-                id: 4,
-                icon: "081-833-0243",
-                text: "Provide Care for Common Throat Infections",
-                isParent: false,
-                parentId: 5
-            },
-            {
-                id: 5,
-                icon: "081-833-0245",
-                text: "Provide Care for Common Respiratory Disorders",
-                isParent: false,
-                parentId: 5
-            },
-            {
-                id: 6,
-                icon: "081-833-0246",
-                text: "Provide Treatment for a Behavioral Emergency",
-                isParent: false,
-                parentId: 5
-            },
-            {
-                id: 7,
-                icon: "081-833-0247",
-                text: "Perform a Military Acute Concussion Evaluation 2 (MACE 2) Screening for mild Traumatic Brain Injury",
-                isParent: false,
-                parentId: 5
-            },
-            {
-                id: 8,
-                icon: "081-833-0254",
-                text: "Perform a head, eyes, ears, nose, and throat (HEENT) Exam",
-                isParent: false,
-                parentId: 5
-            },
-            {
-                id: 9,
-                icon: "081-833-0239",
-                text: "Provide Treatment for Abdominal Disorders",
-                isParent: false,
-                parentId: 5
-            }
-        ]
-    },
-    // index 6
-    {
-        id: 6,
-        icon: "Subject Area 7",
-        text: "Musculoskeletal",
-        isParent: true,
-        options: [
-            {
-                id: 0,
-                icon: "081-833-0222",
-                text: "Treat Common Musculoskeletal Disorders",
-                isParent: false,
-                parentId: 6
-            },
-            {
-                id: 1,
-                icon: "081-833-0263",
-                text: "Apply a Rigid Splint",
-                isParent: false,
-                parentId: 6
-            },
-            {
-                id: 2,
-                icon: "081-833-0264",
-                text: "Apply an Elastic Bandage",
-                isParent: false,
-                parentId: 6
-            },
-            {
-                id: 3,
-                icon: "081-833-0266",
-                text: "Immobilize the Pelvis",
-                isParent: false,
-                parentId: 6
-            },
-            {
-                id: 4,
-                icon: "081-833-0268",
-                text: "Perform an Examination of the Knee",
-                isParent: false,
-                parentId: 6
-            },
-            {
-                id: 5,
-                icon: "081-833-0269",
-                text: "Perform an Examination of the Shoulder",
-                isParent: false,
-                parentId: 6
-            },
-            {
-                id: 6,
-                icon: "081-833-0270",
-                text: "Perform an Examination of the Elbow",
-                isParent: false,
-                parentId: 6
-            },
-            {
-                id: 7,
-                icon: "081-833-0272",
-                text: "Perform an Examination of the Ankle",
-                isParent: false,
-                parentId: 6
-            },
-            {
-                id: 8,
-                icon: "081-833-0273",
-                text: "Perform an Examination of the Wrist",
-                isParent: false,
-                parentId: 6
-            },
-            {
-                id: 9,
-                icon: "081-833-0274",
-                text: "Perform an Examination of the Hip",
-                isParent: false,
-                parentId: 6
-            }
-        ]
-    },
-    // index 7
-    {
-        id: 7,
-        icon: "Subject Area 11",
-        text: "Force Health Protection",
-        isParent: true,
-        options: [
-            {
-                id: 0,
-                icon: "081-833-0038",
-                text: "Initiate Treatment for a Heat Injury",
-                isParent: false,
-                parentId: 7
-            },
-            {
-                id: 1,
-                icon: "081-833-0039",
-                text: "Treat a Casualty for a Cold Injury",
-                isParent: false,
-                parentId: 7
-            }
-        ]
-    },
-    // index 8
-    {
-        id: 8,
-        icon: "Subject Area 12",
-        text: "Medical Treatment",
-        isParent: true,
-        options: [
-            {
-                id: 0,
-                icon: "081-833-3007",
-                text: "Obtain an Electrocardiogram",
-                isParent: false,
-                parentId: 8
-            }
-        ]
-    },
-    {
-        id: 9,
-        icon: "Subject Area 15",
-        text: "Primary Care",
-        isParent: true,
-        options: [
-            {
-                id: 0,
-                icon: "081-833-0059",
-                text: "Irrigate an Obstructed Ear",
-                isParent: false,
-                parentId: 9
-            },
-            {
-                id: 1,
-                icon: "081-833-0248",
-                text: "Obtain a Throat Culture",
-                isParent: false,
-                parentId: 9
-            },
-            {
-                id: 2,
-                icon: "081-833-0255",
-                text: "Utilize a Urine Test Strip",
-                isParent: false,
-                parentId: 9
-            },
-            {
-                id: 3,
-                icon: "081-833-0256",
-                text: "Test a Stool Sample",
-                isParent: false,
-                parentId: 9
-            },
-            {
-                id: 4,
-                icon: "081-833-0257",
-                text: "Operate a Glucometer",
-                isParent: false,
-                parentId: 9
-            }
-        ]
-    },
-    {
-        id: 10,
-        icon: "Subject Area 16",
-        text: "CBRN",
-        isParent: true,
-        options: [
-            {
-                id: 0,
-                icon: "081-833-0280",
-                text: "Provide Treatment for a Radiation Casualty",
-                isParent: false,
-                parentId: 10
-            }
-        ]
-    },
-    {
-        id: 11,
-        icon: "Subject Area 18",
-        text: "Medication Administration",
-        isParent: true,
-        options: [
-            {
-                id: 0,
-                icon: "081-833-0015",
-                text: "Administer Eye Medications",
-                isParent: false,
-                parentId: 11
-            },
-            {
-                id: 1,
-                icon: "081-833-0020",
-                text: "Administer Ear Medications",
-                isParent: false,
-                parentId: 11
-            },
-            {
-                id: 2,
-                icon: "081-833-3020",
-                text: "Administer Topical Medications",
-                isParent: false,
-                parentId: 11
-            }
-        ]
-    },
-    {
-        id: 12,
-        icon: "Subject Area 20",
-        text: "Medical Treatment",
-        isParent: true,
-        options: [
-            {
-                id: 0,
-                icon: "081-833-0026",
-                text: "Perform Suture Removal",
-                isParent: false,
-                parentId: 12
-            }
-        ]
+        }
     }
-]
+
+    const result: subjectAreaArray[] = []
+    let areaIdx = 0
+    for (const [name, tasks] of areaMap) {
+        const parentId = areaIdx
+        const options: subjectAreaArrayOptions[] = []
+        let taskIdx = 0
+        for (const [id, title] of tasks) {
+            options.push({ id: taskIdx, icon: id, text: title, isParent: false, parentId })
+            taskIdx++
+        }
+        result.push({ id: areaIdx, icon: name, text: name, isParent: true, options })
+        areaIdx++
+    }
+
+    return result
+}
+
+export const TrainingStpData: subjectAreaArray[] = buildTrainingStpData()
+
+// Helper to find an STP task by its ID across all consolidated subject areas
+function stpTask(taskId: string): subjectAreaArrayOptions {
+    for (const area of TrainingStpData) {
+        const task = area.options.find(t => t.icon === taskId)
+        if (task) return task
+    }
+    return { id: 0, icon: taskId, text: taskId, isParent: false, parentId: 0 }
+}
 //Complaints - nested here to use in SearchHook
 export const catData: catDataTypes[] = [
     {
@@ -587,9 +237,9 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[11]],
                 stp: [
-                    TrainingStpData[5].options[4],
-                    TrainingStpData[5].options[8],
-                    TrainingStpData[9].options[1]
+                    stpTask("081-68W-0243"),
+                    stpTask("081-68W-0254"),
+                    stpTask("081-000-1008")
                 ],
                 redFlags: [
                     { text: "SOB" },
@@ -614,9 +264,8 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[3]],
                 stp: [
-                    TrainingStpData[5].options[8],
-                    TrainingStpData[5].options[2],
-                    TrainingStpData[11].options[1]
+                    stpTask("081-68W-0254"),
+                    stpTask("081-68W-0241")
                 ],
                 redFlags: [
                     { text: "Stiff Neck AND Fever" },
@@ -644,10 +293,10 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[19]
                 ],
                 stp: [
-                    TrainingStpData[5].options[8],
-                    TrainingStpData[5].options[3],
-                    TrainingStpData[5].options[4],
-                    TrainingStpData[5].options[5]
+                    stpTask("081-68W-0254"),
+                    stpTask("081-68W-0242"),
+                    stpTask("081-68W-0243"),
+                    stpTask("081-68W-0245")
                 ],
                 redFlags: [
                     { text: "Abnormal Vital Signs" },
@@ -671,10 +320,8 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[3]],
                 stp: [
-                    TrainingStpData[5].options[8],
-                    TrainingStpData[5].options[2],
-                    TrainingStpData[9].options[0],
-                    TrainingStpData[11].options[1]
+                    stpTask("081-68W-0254"),
+                    stpTask("081-68W-0241")
                 ],
                 redFlags: [
                     { text: "Altered Mental Status" },
@@ -699,7 +346,7 @@ export const catData: catDataTypes[] = [
                 text: "Nosebleed/Nose Trauma ",
                 gen: [{}],
                 medcom: [],
-                stp: [TrainingStpData[5].options[8]],
+                stp: [stpTask("081-68W-0254")],
                 redFlags: [
                     { text: "Airway Compromise" },
                     { text: "Orthostatic Hypotension" },
@@ -728,7 +375,7 @@ export const catData: catDataTypes[] = [
                 text: "Back Pain",
                 gen: [{}],
                 medcom: [medcomTrainingData[14]],
-                stp: [TrainingStpData[6].options[0]],
+                stp: [stpTask("081-000-0103")],
                 redFlags: [
                     { text: "Fever" },
                     { text: "Saddle Anesthesia" },
@@ -755,10 +402,10 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[14]],
                 stp: [
-                    TrainingStpData[6].options[0],
-                    TrainingStpData[2].options[0],
-                    TrainingStpData[2].options[1],
-                    TrainingStpData[2].options[2]
+                    stpTask("081-000-0103"),
+                    stpTask("081-68W-0091"),
+                    stpTask("081-000-0083"),
+                    stpTask("081-000-0112")
                 ],
                 redFlags: [
                     { text: "Bony step off/midline tenderness to palpation" },
@@ -781,8 +428,8 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[14]],
                 stp: [
-                    TrainingStpData[6].options[5],
-                    TrainingStpData[6].options[0]
+                    stpTask("081-68W-0269"),
+                    stpTask("081-000-0103")
                 ],
                 redFlags: [
                     { text: "Distal Pulses Abnormal" },
@@ -805,8 +452,8 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[14]],
                 stp: [
-                    TrainingStpData[6].options[6],
-                    TrainingStpData[6].options[0]
+                    stpTask("081-68W-0270"),
+                    stpTask("081-000-0103")
                 ],
                 redFlags: [
                     { text: "Distal Pulses Abnormal" },
@@ -828,8 +475,8 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[14]],
                 stp: [
-                    TrainingStpData[6].options[0],
-                    TrainingStpData[6].options[8]
+                    stpTask("081-000-0103"),
+                    stpTask("081-68W-0273")
                 ],
                 redFlags: [
                     { text: "Distal Pulses Abnormal" },
@@ -853,9 +500,9 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[14]],
                 stp: [
-                    TrainingStpData[6].options[0],
-                    TrainingStpData[6].options[1],
-                    TrainingStpData[6].options[2]
+                    stpTask("081-000-0103"),
+                    stpTask("081-68W-0263"),
+                    stpTask("081-000-0110")
                 ],
                 redFlags: [
                     { text: "Abnormal Capillary Refill" },
@@ -880,9 +527,9 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[14]],
                 stp: [
-                    TrainingStpData[6].options[9],
-                    TrainingStpData[6].options[0],
-                    TrainingStpData[6].options[3]
+                    stpTask("081-68W-0274"),
+                    stpTask("081-000-0103"),
+                    stpTask("081-000-0111")
                 ],
                 redFlags: [
                     { text: "Abnormal PMS" },
@@ -908,10 +555,10 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[14]],
                 stp: [
-                    TrainingStpData[6].options[4],
-                    TrainingStpData[6].options[0],
-                    TrainingStpData[6].options[1],
-                    TrainingStpData[6].options[2]
+                    stpTask("081-68W-0268"),
+                    stpTask("081-000-0103"),
+                    stpTask("081-68W-0263"),
+                    stpTask("081-000-0110")
                 ],
                 redFlags: [
                     { text: "Abnormal PMS" },
@@ -933,10 +580,10 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[14]],
                 stp: [
-                    TrainingStpData[6].options[7],
-                    TrainingStpData[6].options[0],
-                    TrainingStpData[6].options[1],
-                    TrainingStpData[6].options[2]
+                    stpTask("081-68W-0272"),
+                    stpTask("081-000-0103"),
+                    stpTask("081-68W-0263"),
+                    stpTask("081-000-0110")
                 ],
                 redFlags: [
                     { text: "Abnormal Distal Pulse" },
@@ -959,9 +606,9 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[14]],
                 stp: [
-                    TrainingStpData[6].options[0],
-                    TrainingStpData[6].options[1],
-                    TrainingStpData[6].options[2]
+                    stpTask("081-000-0103"),
+                    stpTask("081-68W-0263"),
+                    stpTask("081-000-0110")
                 ],
                 redFlags: [
                     { text: "Abnormal Distal Pulse" },
@@ -986,8 +633,8 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[14]],
                 stp: [
-                    TrainingStpData[6].options[0],
-                    TrainingStpData[6].options[2]
+                    stpTask("081-000-0103"),
+                    stpTask("081-000-0110")
                 ],
                 redFlags: [
                     { text: "Abnormal Distal Pulse" },
@@ -1044,9 +691,9 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[23]],
                 stp: [
-                    TrainingStpData[1].options[0],
-                    TrainingStpData[5].options[9],
-                    TrainingStpData[10].options[0]
+                    stpTask("081-000-0025"),
+                    stpTask("081-68W-0239"),
+                    stpTask("081-000-0118")
                 ],
                 redFlags: [
                     { text: "Vomiting Blood or Coffee Grinds, Melena" },
@@ -1069,7 +716,7 @@ export const catData: catDataTypes[] = [
                 text: "Abdominal and Flank Pain",
                 gen: [{}],
                 medcom: [medcomTrainingData[23]],
-                stp: [TrainingStpData[5].options[9]],
+                stp: [stpTask("081-68W-0239")],
                 redFlags: [
                     { text: "Abnormal Vitals" },
                     { text: "Abdominal rigidity/rebound (bump chair)" },
@@ -1097,8 +744,8 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [],
                 stp: [
-                    TrainingStpData[5].options[9],
-                    TrainingStpData[9].options[3]
+                    stpTask("081-68W-0239"),
+                    stpTask("081-000-1008")
                 ],
                 redFlags: [
                     { text: "Toilette FULL of Blood" },
@@ -1120,7 +767,7 @@ export const catData: catDataTypes[] = [
                 text: "Constipation",
                 gen: [{}],
                 medcom: [],
-                stp: [TrainingStpData[5].options[9]],
+                stp: [stpTask("081-68W-0239")],
                 redFlags: [
                     { text: "Diarrhea at night" },
                     { text: "Iron deficiency anemia" },
@@ -1140,7 +787,7 @@ export const catData: catDataTypes[] = [
                 text: "Difficulty When Swallowing",
                 gen: [{}],
                 medcom: [medcomTrainingData[23]],
-                stp: [TrainingStpData[5].options[8]],
+                stp: [stpTask("081-68W-0254")],
                 redFlags: [
                     { text: "Airway compromise" },
                     { text: "Coughing, choking when swallowing" }
@@ -1159,8 +806,8 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[24]],
                 stp: [
-                    TrainingStpData[8].options[0],
-                    TrainingStpData[5].options[9]
+                    stpTask("081-000-0131"),
+                    stpTask("081-68W-0239")
                 ],
                 redFlags: [
                     { text: "Vomiting Blood or Coffee Grinds" },
@@ -1196,8 +843,8 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[24]
                 ],
                 stp: [
-                    TrainingStpData[4].options[0],
-                    TrainingStpData[5].options[5]
+                    stpTask("081-68W-0314"),
+                    stpTask("081-68W-0245")
                 ],
                 redFlags: [
                     { text: "Cyanosis" },
@@ -1228,8 +875,8 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[24]
                 ],
                 stp: [
-                    TrainingStpData[8].options[0],
-                    TrainingStpData[3].options[0]
+                    stpTask("081-000-0131"),
+                    stpTask("081-000-0073")
                 ],
                 redFlags: [
                     { text: "Irregular Pulse" },
@@ -1314,7 +961,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[23],
                     medcomTrainingData[22]
                 ],
-                stp: [TrainingStpData[9].options[2]],
+                stp: [stpTask("081-000-1008")],
                 redFlags: [
                     { text: "Female Pelvic Pain with Intercourse" },
                     { text: "Pregnant" },
@@ -1340,7 +987,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[23],
                     medcomTrainingData[22]
                 ],
-                stp: [TrainingStpData[9].options[2]],
+                stp: [stpTask("081-000-1008")],
                 redFlags: [
                     { text: "Inability to void x 12 hours" },
                     { text: "Fever" },
@@ -1377,9 +1024,9 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[24]
                 ],
                 stp: [
-                    TrainingStpData[8].options[0],
-                    TrainingStpData[4].options[0],
-                    TrainingStpData[7].options[0]
+                    stpTask("081-000-0131"),
+                    stpTask("081-68W-0314"),
+                    stpTask("081-000-0016")
                 ],
                 redFlags: [
                     { text: "Abnormal Vital Signs" },
@@ -1433,7 +1080,7 @@ export const catData: catDataTypes[] = [
                     text: '“Numbness” may be used by the Soldier to describe muscle weakness, malaise, confusion, or abnormal sensation including tingling (a “pins and needles” sensation). Paralysis/weakness is a condition that refers to a loss of muscular strength resulting in difficulty or inability to move a body part. A complete loss of muscular strength is paralysis; a partial loss is weakness.'
                 }],
                 medcom: [medcomTrainingData[18]],
-                stp: [TrainingStpData[9].options[4]],
+                stp: [stpTask("081-68W-0170")],
                 redFlags: [
                     { text: "Localized to a Region or 1 sided" },
                     { text: "Recent Trauma" },
@@ -1464,8 +1111,8 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[23]
                 ],
                 stp: [
-                    TrainingStpData[9].options[4],
-                    TrainingStpData[3].options[0]
+                    stpTask("081-68W-0170"),
+                    stpTask("081-000-0073")
                 ],
                 redFlags: [
                     { text: "Abnormal Vital Signs" },
@@ -1491,7 +1138,7 @@ export const catData: catDataTypes[] = [
                     text: 'The terms “depression, nervousness, anxiety, tension” and complaints of “nerves” or “being upset” may all be used by Soldiers to describe problems with mood. Complaints such as these are often due to situational or behavioral health factors, but may also be due to a physical condition. Everyone experiences emotional distress from time to time. However, when symptoms become continuous or interfere with daily functioning, or when suicidal or homicidal thoughts or self-harm are reported, the complaint must be taken seriously and further evaluated.'
                 }],
                 medcom: [],
-                stp: [TrainingStpData[5].options[6]],
+                stp: [stpTask("081-68W-0246")],
                 redFlags: [
                     { text: "Homicidal Intent or Attempt" },
                     { text: "Suicide Intent or Attempt" },
@@ -1512,7 +1159,7 @@ export const catData: catDataTypes[] = [
                 text: "Minor Traumatic Brain Injury",
                 gen: [{}],
                 medcom: [],
-                stp: [TrainingStpData[5].options[7]],
+                stp: [stpTask("081-000-0023")],
                 redFlags: [
                     { text: "Deteriorating Level of Consciousness" },
                     { text: "Double Vision" },
@@ -1611,7 +1258,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[4],
                     medcomTrainingData[20]
                 ],
-                stp: [TrainingStpData[11].options[0]],
+                stp: [stpTask("081-68W-0040")],
                 redFlags: [
                     { text: "Fixed, Abnormal Pupil" },
                     { text: "Visual Acuity Change" },
@@ -1635,7 +1282,7 @@ export const catData: catDataTypes[] = [
                 text: "Eyelid Problem",
                 gen: [{ text: 'Eyelid problems include serious effects of trauma to simple conditions of inflammation.' }],
                 medcom: [medcomTrainingData[4]],
-                stp: [TrainingStpData[11].options[0]],
+                stp: [stpTask("081-68W-0040")],
                 redFlags: [
                     { text: "Open Globe" },
                     { text: "High Risk Laceration" },
@@ -1656,8 +1303,8 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'Decreased vision can mean that images are less distinct or that a portion of the visual field is “blacked out.” The Soldier may refer to the spots as stars, flashes, or floaters.' }],
                 medcom: [medcomTrainingData[14]],
                 stp: [
-                    TrainingStpData[5].options[0],
-                    TrainingStpData[2].options[1]
+                    stpTask("081-000-0092"),
+                    stpTask("081-000-0083")
                 ],
                 redFlags: [
                     { text: "Trauma" },
@@ -1681,8 +1328,8 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'Double vision means seeing two images of a single object.' }],
                 medcom: [medcomTrainingData[14]],
                 stp: [
-                    TrainingStpData[5].options[0],
-                    TrainingStpData[2].options[1]
+                    stpTask("081-000-0092"),
+                    stpTask("081-000-0083")
                 ],
                 redFlags: [
                     { text: "Trauma" },
@@ -1818,8 +1465,8 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'If the cause of the condition is unknown to the Soldier, this first protocol provides the category/level of care indicated by the Soldiers symptoms' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
-                    TrainingStpData[5].options[1],
-                    TrainingStpData[11].options[2]
+                    stpTask("081-68W-0125"),
+                    stpTask("081-000-1006")
                 ],
                 redFlags: [{ text: "Airway Compromise/Swelling" }],
                 DDX: [
@@ -1841,8 +1488,8 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[21]
                 ],
                 stp: [
-                    TrainingStpData[5].options[1],
-                    TrainingStpData[11].options[2]
+                    stpTask("081-68W-0125"),
+                    stpTask("081-000-1006")
                 ],
                 redFlags: [],
                 DDX: [
@@ -1860,8 +1507,8 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[2]],
                 stp: [
-                    TrainingStpData[5].options[1],
-                    TrainingStpData[11].options[2]
+                    stpTask("081-68W-0125"),
+                    stpTask("081-000-1006")
                 ],
                 redFlags: [{ text: "Facial Cellulitis" }],
                 DDX: [
@@ -1881,8 +1528,8 @@ export const catData: catDataTypes[] = [
                 }],
                 medcom: [],
                 stp: [
-                    TrainingStpData[5].options[1],
-                    TrainingStpData[11].options[2]
+                    stpTask("081-68W-0125"),
+                    stpTask("081-000-1006")
                 ],
                 redFlags: [
                     { text: "Scaling with Visible Inflammation" },
@@ -1904,8 +1551,8 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'While most hair loss is natural and hereditary, any hair loss that is sudden or extreme in nature may have resulted from a fungal infection or other forms of illness or as a result of using certain medications. When treated promptly and properly, hair growth typically resumes.' }],
                 medcom: [],
                 stp: [
-                    TrainingStpData[5].options[1],
-                    TrainingStpData[11].options[2]
+                    stpTask("081-68W-0125"),
+                    stpTask("081-000-1006")
                 ],
                 redFlags: [],
                 DDX: [
@@ -1923,8 +1570,8 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'Tinea pedis (athlete\'s foot) most commonly occurs with frequently wearing damp socks and/ or tight fitting shoes.It is contagious and can be spread by contact with an infected person or contaminated surface.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
-                    TrainingStpData[5].options[1],
-                    TrainingStpData[11].options[2]
+                    stpTask("081-68W-0125"),
+                    stpTask("081-000-1006")
                 ],
                 redFlags: [
                     { text: "Diabetic Soldiers" },
@@ -1944,8 +1591,8 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'Tinea cruris (also known as jock itch) is a dermatophyte infection involving the crural (superior medial portion of the thigh) fold. The spreading of tinea pedis is often the cause for these infections. Infection may spread to the perineum and perianal areas, into the gluteal cleft, or onto the buttocks.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
-                    TrainingStpData[5].options[1],
-                    TrainingStpData[11].options[2]
+                    stpTask("081-68W-0125"),
+                    stpTask("081-000-1006")
                 ],
                 redFlags: [
                     { text: "Diabetes" },
@@ -1965,8 +1612,8 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'Tinea versicolor is a common superficial fungal infection that appears as “spots” (lighter, darker, or redder than surrounding skin) on the neck, chest, back, and arms usually with no other symptoms. The rash is typically scaly and painless. It may be noticed in the summer when affected areas fail to tan after sun exposure.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
-                    TrainingStpData[5].options[1],
-                    TrainingStpData[11].options[2]
+                    stpTask("081-68W-0125"),
+                    stpTask("081-000-1006")
                 ],
                 redFlags: [],
                 DDX: [
@@ -1983,8 +1630,8 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'A boil is usually caused by bacteria that enters through a hair follicle. A painful nodule enclosing a core of pus forms in the skin. Tenderness, warmth, swelling, and firm area, and pain may be present around the area of inflammation. An extremely large boil or numerous boils can produce fever. Boils are also known as furuncles if they have single cores or carbuncles if they have multiple cores.' }],
                 medcom: [],
                 stp: [
-                    TrainingStpData[5].options[1],
-                    TrainingStpData[11].options[2]
+                    stpTask("081-68W-0125"),
+                    stpTask("081-000-1006")
                 ],
                 redFlags: [
                     { text: "Location over Tailbone" },
@@ -2009,8 +1656,8 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'Fever blisters result from an acute viral infection that frequently occurs around the mouth or on the lips. Fever blisters usually occur with multiple vesicular lesions on an erythematous base. Lesions can be painful and last for 10-14 days. Initial infection can be associated with systemic symptoms, like fever and malaise. Viral infection resides in the nerve cells after the initial infection and can reoccur when the body is under stress. Re-emergence of the cold sores is often preceded by prodromal symptoms of pain, burning, tingling, or itching for six hours to 2.5 days. Cold sores are contagious and spread through contact.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
-                    TrainingStpData[5].options[1],
-                    TrainingStpData[11].options[2]
+                    stpTask("081-68W-0125"),
+                    stpTask("081-000-1006")
                 ],
                 redFlags: [{ text: "Eye Pain" }],
                 DDX: [
@@ -2029,7 +1676,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[2],
                     medcomTrainingData[26]
                 ],
-                stp: [TrainingStpData[1].options[1]],
+                stp: [stpTask("081-68W-0063")],
                 redFlags: [
                     { text: "SIRS Criteria" },
                     { text: "Animal Bite, Scratch" }
@@ -2051,7 +1698,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[10],
                     medcomTrainingData[26]
                 ],
-                stp: [TrainingStpData[12].options[0]],
+                stp: [stpTask("081-000-0051")],
                 redFlags: [
                     { text: "Fever" },
                     { text: "Pus/redness/swelling" }
@@ -2065,8 +1712,8 @@ export const catData: catDataTypes[] = [
                 gen: [{ text: 'Drugs can cause an acute rash of small red spots over the entire body in individuals who are sensitivity to them, like antibiotics or sulfonamides. Contact dermatitis results when the skin comes in contact with anything in the environment that causes an inflammatory reaction, like shoe materials, watchbands, earrings, and poison ivy. Contact area can present with burning, itching, redness, and fissures or vesicles. Poison ivy is the most common example of this group and related to an oil in the plant’s leaves. Symptoms usually develop within 24 to 48 hours of contact.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
-                    TrainingStpData[5].options[1],
-                    TrainingStpData[11].options[2]
+                    stpTask("081-68W-0125"),
+                    stpTask("081-000-1006")
                 ],
                 redFlags: [
                     { text: "Airway Swelling" },
@@ -2090,8 +1737,8 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[17]
                 ],
                 stp: [
-                    TrainingStpData[5].options[1],
-                    TrainingStpData[11].options[2]
+                    stpTask("081-68W-0125"),
+                    stpTask("081-000-1006")
                 ],
                 redFlags: [
                     { text: "Trouble Breathing" },
@@ -2115,7 +1762,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[9],
                     medcomTrainingData[30]
                 ],
-                stp: [TrainingStpData[11].options[2]],
+                stp: [stpTask("081-000-1006")],
                 redFlags: [
                     { text: "Fever/malaise" },
                     { text: "Epidermal sloughing" }
@@ -2137,7 +1784,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[9],
                     medcomTrainingData[26]
                 ],
-                stp: [TrainingStpData[5].options[1]],
+                stp: [stpTask("081-68W-0125")],
                 redFlags: [],
                 DDX: [
                     { text: "Callus" },
@@ -2158,7 +1805,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[12],
                     medcomTrainingData[26]
                 ],
-                stp: [TrainingStpData[5].options[1]],
+                stp: [stpTask("081-68W-0125")],
                 redFlags: [],
                 DDX: [
                     { text: "Cutaneous Wart" },
@@ -2213,7 +1860,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[15],
                     medcomTrainingData[17]
                 ],
-                stp: [TrainingStpData[7].options[0]],
+                stp: [stpTask("081-000-0016")],
                 redFlags: [
                     { text: "Altered mental status" },
                     { text: "Abnormal vital signs" }
@@ -2238,7 +1885,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[16],
                     medcomTrainingData[17]
                 ],
-                stp: [TrainingStpData[7].options[1]],
+                stp: [stpTask("081-000-0017")],
                 redFlags: [
                     { text: "T<96 degrees F" },
                     { text: "Altered Mental Status" },
@@ -2264,7 +1911,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[16],
                     medcomTrainingData[17]
                 ],
-                stp: [TrainingStpData[7].options[1]],
+                stp: [stpTask("081-000-0017")],
                 redFlags: [
                     { text: "Gangrene/Necrosis" },
                     { text: "Hemorrhagic Blisters" },
@@ -2312,8 +1959,8 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[13]
                 ],
                 stp: [
-                    TrainingStpData[5].options[1],
-                    TrainingStpData[11].options[2]
+                    stpTask("081-68W-0125"),
+                    stpTask("081-000-1006")
                 ],
                 redFlags: [],
                 DDX: [
@@ -2333,7 +1980,7 @@ export const catData: catDataTypes[] = [
                     medcomTrainingData[2],
                     medcomTrainingData[13]
                 ],
-                stp: [TrainingStpData[7].options[1]],
+                stp: [stpTask("081-000-0017")],
                 redFlags: [
                     { text: "Swelling of Lips or Tongue" },
                     { text: "Trouble Breathing" },
@@ -2455,7 +2102,7 @@ export const catData: catDataTypes[] = [
                 text: "Blood Pressure Check",
                 gen: [{}],
                 medcom: [],
-                stp: [TrainingStpData[0].options[0]],
+                stp: [stpTask("081-000-1001")],
                 redFlags: [],
                 DDX: []
             },
@@ -2485,7 +2132,7 @@ export const catData: catDataTypes[] = [
                 text: "Complaint Not on the List",
                 gen: [{}],
                 medcom: [],
-                stp: [TrainingStpData[0].options[0]],
+                stp: [stpTask("081-000-1001")],
                 redFlags: [],
                 DDX: []
             },
@@ -2495,7 +2142,7 @@ export const catData: catDataTypes[] = [
                 text: "Request for Nonprescription or Traveling Medication",
                 gen: [{}],
                 medcom: [medcomTrainingData[13]],
-                stp: [TrainingStpData[0].options[0]],
+                stp: [stpTask("081-000-1001")],
                 redFlags: [],
                 DDX: []
             }
