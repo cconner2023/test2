@@ -2197,7 +2197,7 @@ export const catData: catDataTypes[] = [
                 icon: "M-1",
                 text: "No Signs of Improvement",
                 gen: [{ text: 'This refers to a Soldier who returns for further care not part of a scheduled follow-up. Soldier should NOT be screened to a minor-care protocol. As a follow-up visit, the Soldier should receive a more detailed evaluation and be seen by the privileged provider or AEM (if treated with a minor care protocol at the previous visit).' }],
-                medcom: [medcomTrainingData[31]],
+                medcom: [],
                 stp: [],
                 redFlags: [],
                 DDX: []
@@ -2207,7 +2207,7 @@ export const catData: catDataTypes[] = [
                 icon: "M-2",
                 text: "Return Requested by Provider",
                 gen: [{ text: 'Many Soldiers are told to return for follow up. Write the previous level of care and name of the privileged provider on the screening note.' }],
-                medcom: [medcomTrainingData[31]],
+                medcom: [],
                 stp: [],
                 redFlags: [],
                 DDX: []
