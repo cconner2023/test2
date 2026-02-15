@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import type { subjectAreaArray } from '../Types/CatTypes'
-import { getTaskData } from '../Data/Training/TrainingData'
+import { getTaskData } from '../Data/TrainingData'
 
 interface TaskProgress {
     lastViewedAt: string

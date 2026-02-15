@@ -1,5 +1,5 @@
 import { Bug, PlusCircle, RefreshCw, CalendarClock, Loader } from 'lucide-react';
-import { type ReleaseNoteTypes, ReleaseNotes } from '../../../Data/Release';
+import { type ReleaseNoteTypes, ReleaseNotes } from '../../Data/Release';
 
 // Extract the note type safely
 type NoteType = Exclude<ReleaseNoteTypes['type'], undefined> | 'default';

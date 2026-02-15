@@ -1,12 +1,12 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import { useDrag } from '@use-gesture/react';
 import { FileText, Trash2, Share2, CheckSquare, Eye, ClipboardCopy } from 'lucide-react';
-import type { SavedNote } from '../../../Hooks/useNotesStorage';
-import { useNoteShare } from '../../../Hooks/useNoteShare';
-import { getColorClasses } from '../../../Utilities/ColorUtilities';
-import type { dispositionType } from '../../../Types/AlgorithmTypes';
-import { parseNoteEncoding } from '../../../Utilities/NoteCodec';
-import { useUserProfile } from '../../../Hooks/useUserProfile';
+import type { SavedNote } from '../../Hooks/useNotesStorage';
+import { useNoteShare } from '../../Hooks/useNoteShare';
+import { getColorClasses } from '../../Utilities/ColorUtilities';
+import type { dispositionType } from '../../Types/AlgorithmTypes';
+import { parseNoteEncoding } from '../../Utilities/NoteCodec';
+import { useUserProfile } from '../../Hooks/useUserProfile';
 
 /* ────────────────────────────────────────────────────────────
    Utility: format date (shared by note items)

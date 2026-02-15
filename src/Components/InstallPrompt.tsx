@@ -1,7 +1,7 @@
 // Components/InstallPrompt.tsx
 import React from 'react';
 import { X, Download, Share } from 'lucide-react';
-import { useInstallPrompt } from '../../Hooks/useInstallPrompt';
+import { useInstallPrompt } from '../Hooks/useInstallPrompt';
 
 const InstallPrompt: React.FC = () => {
     const { showPrompt, install, dismiss, isInstalling, isIOS } = useInstallPrompt();

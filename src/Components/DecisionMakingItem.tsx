@@ -1,8 +1,8 @@
 // components/DecisionMakingItem.tsx - FIXED VERSION
 import { useState, useRef, useEffect } from 'react'
-import type { decisionMakingType } from '../../../Types/AlgorithmTypes'
-import type { getColorClasses } from '../../../Utilities/ColorUtilities'
-import type { medListTypes } from '../../../Data/Medication/MedData'
+import type { decisionMakingType } from '../Types/AlgorithmTypes'
+import type { getColorClasses } from '../Utilities/ColorUtilities'
+import type { medListTypes } from '../Data/MedData'
 
 interface DecisionMakingItemProps {
     item: decisionMakingType;

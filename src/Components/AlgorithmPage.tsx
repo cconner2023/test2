@@ -1,17 +1,17 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
-import { useAlgorithm } from '../../Hooks/useAlgorithm';
-import type { subCatDataTypes } from '../../Types/CatTypes';
-import type { dispositionType } from '../../Types/AlgorithmTypes';
-import { Algorithm as AlgorithmData } from '../../Data/Algorithm/Algorithms';
+import { useAlgorithm } from '../Hooks/useAlgorithm';
+import type { subCatDataTypes } from '../Types/CatTypes';
+import type { dispositionType } from '../Types/AlgorithmTypes';
+import { Algorithm as AlgorithmData } from '../Data/Algorithms';
 import { QuestionCard } from './QuestionCard';
-import { getColorClasses } from '../../Utilities/ColorUtilities';
-import type { WriteNoteData } from '../../Hooks/useNavigation';
+import { getColorClasses } from '../Utilities/ColorUtilities';
+import type { WriteNoteData } from '../Hooks/useNavigation';
 
 interface AlgorithmProps {
     selectedSymptom: subCatDataTypes | null;
     onExpandNote?: (data: WriteNoteData) => void;
     isMobile?: boolean;
-    initialCardStates?: import('../../Hooks/useAlgorithm').CardState[];
+    initialCardStates?: import('../Hooks/useAlgorithm').CardState[];
     initialDisposition?: dispositionType | null;
     /** Note source string: null = new note, 'external:user' = imported, anything else = saved */
     noteSource?: string | null;

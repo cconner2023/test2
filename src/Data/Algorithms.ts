@@ -1,5 +1,5 @@
-import type { AlgorithmType, dispositionType } from "../../Types/AlgorithmTypes";
-import { medList } from "../Medication/MedData";
+import type { AlgorithmType, dispositionType } from "../Types/AlgorithmTypes";
+import { medList } from "./MedData";
 
 // disposition types. text updated if required.
 export const Disposition: dispositionType[] = [

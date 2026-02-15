@@ -1,7 +1,7 @@
 // Components/UpdateNotification.tsx
 import React, { useEffect, useState } from 'react';
 import { X, Download, Wifi, RefreshCw } from 'lucide-react';
-import { useServiceWorker } from '../../Hooks/useServiceWorker';
+import { useServiceWorker } from '../Hooks/useServiceWorker';
 
 const UpdateNotification: React.FC = () => {
     const {

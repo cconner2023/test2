@@ -4,7 +4,7 @@
 
 import type { AlgorithmOptions, decisionMakingType } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
-import type { UserTypes } from '../Data/User/User';
+import type { UserTypes } from '../Data/User';
 
 // ---------------------------------------------------------------------------
 // Timestamp

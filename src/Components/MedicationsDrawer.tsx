@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
 import { X, ChevronLeft } from 'lucide-react';
 import { MedicationPage } from './MedicationPage';
-import { BaseDrawer } from '../BaseDrawer';
-import { medList, type medListTypes } from '../../../Data/Medication/MedData';
-import { useSwipeBack } from '../../../Hooks/useSwipeBack';
+import { BaseDrawer } from './BaseDrawer';
+import { medList, type medListTypes } from '../Data/MedData';
+import { useSwipeBack } from '../Hooks/useSwipeBack';
 
 interface MedicationsDrawerProps {
     isVisible: boolean;

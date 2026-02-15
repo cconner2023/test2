@@ -2,8 +2,8 @@
 import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, HelpCircle } from "lucide-react";
 import { useRef, useEffect } from "react";
 import { useSpring, useTrail, animated } from '@react-spring/web';
-import type { NavTopProps } from "../../Types/NavTopTypes";
-import { menuData } from "../../Data/Algorithm/CatData";
+import type { NavTopProps } from "../Types/NavTopTypes";
+import { menuData } from "../Data/CatData";
 
 // Icon map for menu items
 const iconMap: Record<string, React.ReactNode> = {

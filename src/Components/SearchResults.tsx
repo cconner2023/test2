@@ -1,5 +1,5 @@
 // Components/SearchResults.tsx - COMPLETE WORKING VERSION
-import type { SearchResultType } from '../../Types/CatTypes'
+import type { SearchResultType } from "../Types/CatTypes";
 
 export interface SearchResultsProps {
     results: SearchResultType[]

@@ -1,7 +1,7 @@
 // components/QuestionCard.tsx
-import { getColorClasses } from '../../Utilities/ColorUtilities';
-import type { AlgorithmOptions } from '../../Types/AlgorithmTypes';
-import type { CardState } from '../../Hooks/useAlgorithm';
+import { getColorClasses } from '../Utilities/ColorUtilities';
+import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
+import type { CardState } from '../Hooks/useAlgorithm';
 
 interface QuestionCardProps {
     algorithmOptions: AlgorithmOptions[];

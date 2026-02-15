@@ -1,4 +1,4 @@
-import type { medListTypes } from "../../../Data/Medication/MedData"
+import type { medListTypes } from "../Data/MedData"
 
 interface MedicationPageProps {
     medication: medListTypes

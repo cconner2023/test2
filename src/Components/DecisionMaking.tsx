@@ -1,11 +1,11 @@
 // components/DecisionMaking.tsx
 import { useState } from 'react'
-import { getColorClasses } from '../../../Utilities/ColorUtilities'
-import type { AlgorithmOptions, decisionMakingType, dispositionType } from '../../../Types/AlgorithmTypes'
-import type { CardState } from '../../../Hooks/useAlgorithm'
+import { getColorClasses } from '../Utilities/ColorUtilities'
+import type { AlgorithmOptions, decisionMakingType, dispositionType } from '../Types/AlgorithmTypes'
+import type { CardState } from '../Hooks/useAlgorithm'
 import { DecisionMakingItem } from './DecisionMakingItem'
-import { MedicationPage } from '../Medications/MedicationPage'
-import type { medListTypes } from '../../../Data/Medication/MedData'
+import { MedicationPage } from './MedicationPage'
+import type { medListTypes } from '../Data/MedData'
 
 interface DecisionMakingProps {
     algorithmOptions?: AlgorithmOptions[];

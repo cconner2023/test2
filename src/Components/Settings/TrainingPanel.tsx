@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { Check, ChevronRight, AlertTriangle, Info, Lock } from 'lucide-react'
-import { stp68wTraining } from '../../../Data/Training/TrainingTaskList'
-import { getTaskData } from '../../../Data/Training/TrainingData'
-import type { TaskTrainingData, PerformanceStep } from '../../../Data/Training/TrainingData'
-import type { subjectAreaArray, subjectAreaArrayOptions } from '../../../Types/CatTypes'
-import { useTrainingProgress } from '../../../Hooks/useTrainingProgress'
+import { stp68wTraining } from '../../Data/TrainingTaskList'
+import { getTaskData } from '../../Data/TrainingData'
+import type { TaskTrainingData, PerformanceStep } from '../../Data/TrainingData'
+import type { subjectAreaArray, subjectAreaArrayOptions } from '../../Types/CatTypes'
+import { useTrainingProgress } from '../../Hooks/useTrainingProgress'
 // Convert a skill level's subject areas to the subjectAreaArray format
 function toSubjectAreaArrays(skillLevelIdx: number): subjectAreaArray[] {
     const level = stp68wTraining[skillLevelIdx]

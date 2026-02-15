@@ -1,5 +1,5 @@
-import type { UserTypes } from "../../../Data/User/User";
-import { credentials, components, ranksByComponent } from "../../../Data/User/User";
+import type { UserTypes } from "../../Data/User";
+import { credentials, components, ranksByComponent } from "../../Data/User";
 
 interface UserProfilePanelProps {
     profile: UserTypes;

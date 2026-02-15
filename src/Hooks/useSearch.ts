@@ -1,7 +1,7 @@
 // Hooks/useSearch.ts
 import { useState, useRef, useCallback, useMemo } from 'react'
-import { catData } from '../Data/Algorithm/CatData'
-import { medList } from '../Data/Medication/MedData'
+import { catData } from '../Data/CatData'
+import { medList } from '../Data/MedData'
 import type { SearchResultType } from '../Types/CatTypes'
 
 export function useSearch() {

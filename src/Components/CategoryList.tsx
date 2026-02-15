@@ -1,7 +1,7 @@
 // Components/CategoryList.tsx - Updated
-import type { catDataTypes, subCatDataTypes, SearchResultType } from '../../Types/CatTypes'
-import { catData } from '../../Data/Algorithm/CatData'
-import { useAppAnimate } from '../../Utilities/AnimationConfig'
+import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes'
+import { catData } from '../Data/CatData'
+import { useAppAnimate } from '../Utilities/AnimationConfig'
 
 // Shared shape for guideline-like items (DDX, medcom, stp, gen all have text + optional id)
 export interface GuidelineItemData {
