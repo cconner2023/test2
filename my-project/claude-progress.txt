@@ -78,3 +78,52 @@ Notes:
 - No code changes were required — codebase was already clean
 
 Current completion: 2/86 features passing (2.3%)
+
+-------------------------------------------------------------------------------
+
+Session: 2026-02-15 (session 3)
+Feature: #2 - Database schema applied correctly
+Status: SKIPPED — External blocker (no database credentials available)
+
+BLOCKER DETAILS:
+  Supabase project is active (REST API responds 200, Auth health OK).
+  Only the anon key is available — insufficient for DDL operations.
+  Missing any of: SUPABASE_ACCESS_TOKEN, SUPABASE_SERVICE_ROLE_KEY, or DB password.
+  Exhaustive connection attempts to all pooler regions (AWS + Fly.io) failed with
+  "Tenant or user not found". Direct DB host does not resolve. No Supabase dashboard
+  login credentials available.
+
+WHAT WAS DONE:
+  1. Made migration SQL fully idempotent (DO $$ blocks for triggers + policies)
+     File: supabase/migrations/001_initial_schema.sql
+  2. Created setup-database.mjs — Node.js script that accepts a DB URL and applies migration
+     Usage: node setup-database.mjs "postgresql://postgres.[ref]:[password]@[host]:6543/postgres"
+  3. Created public/setup.html — Browser-based setup page with:
+     - Direct link to Supabase SQL Editor
+     - Copy-to-clipboard for full migration SQL (embedded, idempotent version)
+     - Auto-verify button that checks all 5 tables via REST API
+  4. Verified migration SQL defines correct schema for all 5 tables:
+     - clinics (id, name, uic, created_at, updated_at)
+     - profiles (id, display_name, rank, uic, role, clinic_id, created_at, updated_at)
+     - notes (id, user_id, clinic_id, timestamp, display_name, rank, uic,
+              algorithm_reference, hpi_encoded, is_imported, source_device,
+              created_at, updated_at, deleted_at)
+     - training_completions (id, user_id, training_item_id, completed,
+              completed_at, created_at, updated_at)
+     - sync_queue (id, user_id, action, table_name, record_id, payload,
+              created_at, synced_at, status)
+  5. All RLS policies defined for all 5 tables
+  6. Foreign key constraints, partial indexes, updated_at triggers all defined
+  7. Auto-create profile trigger on auth.users insert
+
+TO UNBLOCK (project owner must do one of):
+  a) Paste SQL from supabase/migrations/001_initial_schema.sql into Supabase SQL Editor
+     URL: https://supabase.com/dashboard/project/rkkyhhxcsqwyxwrpfrle/sql/new
+  b) Run: node setup-database.mjs "<database-connection-url>"
+     (DB URL found in Supabase Dashboard > Project Settings > Database > Connection string)
+  c) Set SUPABASE_ACCESS_TOKEN env var, then: npx supabase link && npx supabase db push
+  d) Open http://localhost:5173/test2/setup.html for guided setup with verification
+
+After applying, verify via setup.html or run: node check-schema.mjs
+
+Current completion: 2/86 features passing (2.3%)

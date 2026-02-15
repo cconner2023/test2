@@ -1,11 +1,16 @@
 -- =============================================================================
--- PackageBackEnd - Initial Database Schema
+-- PackageBackEnd - Initial Database Schema (Idempotent)
 -- =============================================================================
--- This migration creates all tables, indexes, and RLS policies for the
--- PackageBackEnd application as defined in app_spec.txt.
+-- This migration creates all tables, indexes, triggers, and RLS policies for
+-- the PackageBackEnd application as defined in app_spec.txt.
 --
--- Run this against your Supabase project via the SQL Editor or CLI.
--- Supabase URL: https://rkkyhhxcsqwyxwrpfrle.supabase.co
+-- IDEMPOTENT: Safe to run multiple times — uses IF NOT EXISTS / DO $$ blocks.
+--
+-- Run this against your Supabase project via the SQL Editor:
+--   https://supabase.com/dashboard/project/rkkyhhxcsqwyxwrpfrle/sql/new
+--
+-- Or via CLI:
+--   node setup-database.mjs "<database-url>"
 -- =============================================================================
 
 -- Enable UUID extension (should already be enabled in Supabase)
@@ -112,22 +117,29 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Apply updated_at triggers
-CREATE TRIGGER update_profiles_updated_at
-  BEFORE UPDATE ON public.profiles
-  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
-CREATE TRIGGER update_clinics_updated_at
-  BEFORE UPDATE ON public.clinics
-  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
-CREATE TRIGGER update_notes_updated_at
-  BEFORE UPDATE ON public.notes
-  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
-
-CREATE TRIGGER update_training_completions_updated_at
-  BEFORE UPDATE ON public.training_completions
-  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+-- Apply updated_at triggers (idempotent)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_profiles_updated_at') THEN
+    CREATE TRIGGER update_profiles_updated_at
+      BEFORE UPDATE ON public.profiles
+      FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_clinics_updated_at') THEN
+    CREATE TRIGGER update_clinics_updated_at
+      BEFORE UPDATE ON public.clinics
+      FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_notes_updated_at') THEN
+    CREATE TRIGGER update_notes_updated_at
+      BEFORE UPDATE ON public.notes
+      FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_training_completions_updated_at') THEN
+    CREATE TRIGGER update_training_completions_updated_at
+      BEFORE UPDATE ON public.training_completions
+      FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
+  END IF;
+END $$;
 
 -- =============================================================================
 -- AUTO-CREATE PROFILE ON AUTH SIGNUP
@@ -141,16 +153,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Trigger: automatically create a profile when a new user signs up
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+-- Trigger: automatically create a profile when a new user signs up (idempotent)
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'on_auth_user_created') THEN
+    CREATE TRIGGER on_auth_user_created
+      AFTER INSERT ON auth.users
+      FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+  END IF;
+END $$;
 
 -- =============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
 -- =============================================================================
 
--- Enable RLS on all tables
+-- Enable RLS on all tables (idempotent — safe to run multiple times)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.clinics ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.notes ENABLE ROW LEVEL SECURITY;
@@ -158,106 +174,129 @@ ALTER TABLE public.training_completions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.sync_queue ENABLE ROW LEVEL SECURITY;
 
 -- ---- PROFILES ----
--- Users can read their own profile
-CREATE POLICY "Users can read own profile"
-  ON public.profiles FOR SELECT
-  USING (auth.uid() = id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read own profile' AND tablename = 'profiles') THEN
+    CREATE POLICY "Users can read own profile"
+      ON public.profiles FOR SELECT
+      USING (auth.uid() = id);
+  END IF;
 
--- Users can update their own profile
-CREATE POLICY "Users can update own profile"
-  ON public.profiles FOR UPDATE
-  USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update own profile' AND tablename = 'profiles') THEN
+    CREATE POLICY "Users can update own profile"
+      ON public.profiles FOR UPDATE
+      USING (auth.uid() = id)
+      WITH CHECK (auth.uid() = id);
+  END IF;
 
--- Supervisors can read profiles in their clinic
-CREATE POLICY "Supervisors can read clinic profiles"
-  ON public.profiles FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles AS p
-      WHERE p.id = auth.uid()
-      AND p.role IN ('supervisor', 'dev')
-      AND p.clinic_id IS NOT NULL
-      AND p.clinic_id = public.profiles.clinic_id
-    )
-  );
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Supervisors can read clinic profiles' AND tablename = 'profiles') THEN
+    CREATE POLICY "Supervisors can read clinic profiles"
+      ON public.profiles FOR SELECT
+      USING (
+        EXISTS (
+          SELECT 1 FROM public.profiles AS p
+          WHERE p.id = auth.uid()
+          AND p.role IN ('supervisor', 'dev')
+          AND p.clinic_id IS NOT NULL
+          AND p.clinic_id = public.profiles.clinic_id
+        )
+      );
+  END IF;
+END $$;
 
 -- ---- CLINICS ----
--- Authenticated users can read clinics
-CREATE POLICY "Authenticated users can read clinics"
-  ON public.clinics FOR SELECT
-  USING (auth.role() = 'authenticated');
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated users can read clinics' AND tablename = 'clinics') THEN
+    CREATE POLICY "Authenticated users can read clinics"
+      ON public.clinics FOR SELECT
+      USING (auth.role() = 'authenticated');
+  END IF;
 
--- Dev role can create/update clinics
-CREATE POLICY "Dev can manage clinics"
-  ON public.clinics FOR ALL
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid() AND profiles.role = 'dev'
-    )
-  );
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Dev can manage clinics' AND tablename = 'clinics') THEN
+    CREATE POLICY "Dev can manage clinics"
+      ON public.clinics FOR ALL
+      USING (
+        EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE profiles.id = auth.uid() AND profiles.role = 'dev'
+        )
+      );
+  END IF;
+END $$;
 
 -- ---- NOTES ----
--- Users can read their own notes (excluding soft-deleted)
-CREATE POLICY "Users can read own notes"
-  ON public.notes FOR SELECT
-  USING (auth.uid() = user_id AND deleted_at IS NULL);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read own notes' AND tablename = 'notes') THEN
+    CREATE POLICY "Users can read own notes"
+      ON public.notes FOR SELECT
+      USING (auth.uid() = user_id AND deleted_at IS NULL);
+  END IF;
 
--- Users can read notes in their clinic
-CREATE POLICY "Users can read clinic notes"
-  ON public.notes FOR SELECT
-  USING (
-    deleted_at IS NULL
-    AND clinic_id IS NOT NULL
-    AND EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid() AND profiles.clinic_id = notes.clinic_id
-    )
-  );
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can read clinic notes' AND tablename = 'notes') THEN
+    CREATE POLICY "Users can read clinic notes"
+      ON public.notes FOR SELECT
+      USING (
+        deleted_at IS NULL
+        AND clinic_id IS NOT NULL
+        AND EXISTS (
+          SELECT 1 FROM public.profiles
+          WHERE profiles.id = auth.uid() AND profiles.clinic_id = notes.clinic_id
+        )
+      );
+  END IF;
 
--- Users can create their own notes
-CREATE POLICY "Users can create own notes"
-  ON public.notes FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can create own notes' AND tablename = 'notes') THEN
+    CREATE POLICY "Users can create own notes"
+      ON public.notes FOR INSERT
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
 
--- Users can update their own notes
-CREATE POLICY "Users can update own notes"
-  ON public.notes FOR UPDATE
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can update own notes' AND tablename = 'notes') THEN
+    CREATE POLICY "Users can update own notes"
+      ON public.notes FOR UPDATE
+      USING (auth.uid() = user_id)
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
 
--- Users can delete (soft-delete) their own notes
-CREATE POLICY "Users can delete own notes"
-  ON public.notes FOR DELETE
-  USING (auth.uid() = user_id);
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can delete own notes' AND tablename = 'notes') THEN
+    CREATE POLICY "Users can delete own notes"
+      ON public.notes FOR DELETE
+      USING (auth.uid() = user_id);
+  END IF;
+END $$;
 
 -- ---- TRAINING COMPLETIONS ----
--- Users can CRUD their own completions
-CREATE POLICY "Users can manage own training"
-  ON public.training_completions FOR ALL
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can manage own training' AND tablename = 'training_completions') THEN
+    CREATE POLICY "Users can manage own training"
+      ON public.training_completions FOR ALL
+      USING (auth.uid() = user_id)
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
 
--- Supervisors can read completions in their clinic
-CREATE POLICY "Supervisors can read clinic training"
-  ON public.training_completions FOR SELECT
-  USING (
-    EXISTS (
-      SELECT 1 FROM public.profiles AS supervisor
-      WHERE supervisor.id = auth.uid()
-      AND supervisor.role IN ('supervisor', 'dev')
-      AND supervisor.clinic_id IS NOT NULL
-      AND supervisor.clinic_id = (
-        SELECT p.clinic_id FROM public.profiles AS p
-        WHERE p.id = training_completions.user_id
-      )
-    )
-  );
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Supervisors can read clinic training' AND tablename = 'training_completions') THEN
+    CREATE POLICY "Supervisors can read clinic training"
+      ON public.training_completions FOR SELECT
+      USING (
+        EXISTS (
+          SELECT 1 FROM public.profiles AS supervisor
+          WHERE supervisor.id = auth.uid()
+          AND supervisor.role IN ('supervisor', 'dev')
+          AND supervisor.clinic_id IS NOT NULL
+          AND supervisor.clinic_id = (
+            SELECT p.clinic_id FROM public.profiles AS p
+            WHERE p.id = training_completions.user_id
+          )
+        )
+      );
+  END IF;
+END $$;
 
 -- ---- SYNC QUEUE ----
--- Users can only access their own sync records
-CREATE POLICY "Users can manage own sync queue"
-  ON public.sync_queue FOR ALL
-  USING (auth.uid() = user_id)
-  WITH CHECK (auth.uid() = user_id);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Users can manage own sync queue' AND tablename = 'sync_queue') THEN
+    CREATE POLICY "Users can manage own sync queue"
+      ON public.sync_queue FOR ALL
+      USING (auth.uid() = user_id)
+      WITH CHECK (auth.uid() = user_id);
+  END IF;
+END $$;
