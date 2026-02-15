@@ -1,0 +1,24 @@
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.tsx'
+
+// Clean up legacy service worker and cache from old test2 deployment
+if ('caches' in window) {
+  caches.delete('pwa-cache-v1');
+}
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.getRegistrations().then(registrations => {
+    for (const reg of registrations) {
+      if (reg.active?.scriptURL.includes('serviceWorker.js')) {
+        reg.unregister();
+      }
+    }
+  });
+}
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)

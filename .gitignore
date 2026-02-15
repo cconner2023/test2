@@ -1,0 +1,49 @@
+# Dependencies
+my-project/node_modules/
+node_modules/
+
+# Build outputs
+my-project/dist/
+my-project/dist-ssr/
+my-project/dev-dist/
+
+# Environment files (contain secrets)
+.env
+.env.local
+*.env*.local
+my-project/.env
+my-project/.env.local
+
+# AutoForge internal files
+.autoforge/features.db
+.autoforge/features.db-shm
+.autoforge/features.db-wal
+.autoforge/.agent.lock
+
+# Editor files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# PWA generated files
+my-project/public/sw.js
+my-project/public/workbox-*.js
+my-project/public/sw.*.js
+my-project/public/*.webmanifest
+
+# OS files
+Thumbs.db
+desktop.ini
+
+# Reference documents (large PDFs)
+*.pdf
