@@ -1,4 +1,5 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import * as notesApi from '../lib/notesService';
 
 export interface SavedNote {
     id: string;
@@ -14,13 +15,12 @@ export interface SavedNote {
 
 const STORAGE_KEY = 'adtmc_saved_notes';
 
-function loadNotes(): SavedNote[] {
+function loadNotesFromLocalStorage(): SavedNote[] {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (!raw) return [];
         const parsed = JSON.parse(raw);
         if (!Array.isArray(parsed)) return [];
-        // Validate each entry has required fields (parsed is unknown[])
         return parsed.filter(
             (n: unknown): n is SavedNote => {
                 const record = n as Record<string, unknown>;
@@ -32,31 +32,85 @@ function loadNotes(): SavedNote[] {
             }
         );
     } catch {
-        // Corrupted cache - return empty
         console.warn('Failed to load saved notes from localStorage, resetting.');
         return [];
     }
 }
 
-function persistNotes(notes: SavedNote[]): boolean {
+function persistNotesToLocalStorage(notes: SavedNote[]): boolean {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
         return true;
     } catch (e) {
-        // Quota exceeded or other storage error
         console.error('Failed to save notes to localStorage:', e);
         return false;
     }
 }
 
 export function useNotesStorage() {
-    const [notes, setNotes] = useState<SavedNote[]>(() => loadNotes());
+    const [notes, setNotes] = useState<SavedNote[]>(() => loadNotesFromLocalStorage());
+    const apiAvailable = useRef<boolean | null>(null);
+    const initialLoadDone = useRef(false);
+
+    // Check API availability and load notes from database on mount
+    useEffect(() => {
+        let cancelled = false;
+
+        async function init() {
+            try {
+                const health = await notesApi.checkApiHealth();
+                if (cancelled) return;
+
+                apiAvailable.current = health.ok;
+
+                if (health.ok) {
+                    console.log('[NotesStorage] API server available, loading from database');
+                    const dbNotes = await notesApi.fetchNotes();
+                    if (cancelled) return;
+
+                    // Merge: if localStorage has notes not in DB, push them to DB
+                    const localNotes = loadNotesFromLocalStorage();
+                    const dbIds = new Set(dbNotes.map(n => n.id));
+                    const notInDb = localNotes.filter(n => !dbIds.has(n.id));
+
+                    if (notInDb.length > 0) {
+                        console.log(`[NotesStorage] Syncing ${notInDb.length} local notes to database`);
+                        for (const note of notInDb) {
+                            try {
+                                await notesApi.createNote(note);
+                            } catch (err) {
+                                console.warn('[NotesStorage] Failed to sync note to DB:', err);
+                            }
+                        }
+                        // Re-fetch to get the complete list
+                        const allNotes = await notesApi.fetchNotes();
+                        if (!cancelled) {
+                            setNotes(allNotes);
+                            persistNotesToLocalStorage(allNotes);
+                        }
+                    } else {
+                        setNotes(dbNotes);
+                        persistNotesToLocalStorage(dbNotes);
+                    }
+                } else {
+                    console.log('[NotesStorage] API server not available, using localStorage only');
+                }
+            } catch (err) {
+                console.warn('[NotesStorage] API init failed, using localStorage:', err);
+                apiAvailable.current = false;
+            }
+            initialLoadDone.current = true;
+        }
+
+        init();
+        return () => { cancelled = true; };
+    }, []);
 
     // Keep state in sync if another tab changes localStorage
     useEffect(() => {
         const handleStorage = (e: StorageEvent) => {
             if (e.key === STORAGE_KEY) {
-                setNotes(loadNotes());
+                setNotes(loadNotesFromLocalStorage());
             }
         };
         window.addEventListener('storage', handleStorage);
@@ -70,29 +124,60 @@ export function useNotesStorage() {
             createdAt: new Date().toISOString(),
         };
 
-        const updated = [newNote, ...loadNotes()]; // prepend newest
-        const success = persistNotes(updated);
+        // Update localStorage and state immediately (optimistic)
+        const updated = [newNote, ...loadNotesFromLocalStorage()];
+        const success = persistNotesToLocalStorage(updated);
         if (success) {
             setNotes(updated);
+
+            // Persist to database asynchronously
+            if (apiAvailable.current) {
+                notesApi.createNote(newNote).then(() => {
+                    console.log(`[NotesStorage] Note ${newNote.id} saved to database`);
+                }).catch(err => {
+                    console.warn('[NotesStorage] Failed to save note to DB:', err);
+                });
+            }
+
             return { success: true, noteId: newNote.id };
         }
         return { success: false, error: 'Storage quota exceeded. Please delete some notes.' };
     }, []);
 
     const deleteNote = useCallback((noteId: string) => {
-        const current = loadNotes();
+        const current = loadNotesFromLocalStorage();
         const updated = current.filter(n => n.id !== noteId);
-        persistNotes(updated);
+        persistNotesToLocalStorage(updated);
         setNotes(updated);
+
+        // Delete from database asynchronously
+        if (apiAvailable.current) {
+            notesApi.deleteNote(noteId).then(() => {
+                console.log(`[NotesStorage] Note ${noteId} deleted from database`);
+            }).catch(err => {
+                console.warn('[NotesStorage] Failed to delete note from DB:', err);
+            });
+        }
     }, []);
 
     const clearAllNotes = useCallback(() => {
-        persistNotes([]);
+        // Clear localStorage
+        persistNotesToLocalStorage([]);
         setNotes([]);
+
+        // If API available, we'd need to delete all from DB too
+        // For now this is a localStorage-only operation
+        if (apiAvailable.current) {
+            notesApi.fetchNotes().then(dbNotes => {
+                for (const note of dbNotes) {
+                    notesApi.deleteNote(note.id).catch(() => {});
+                }
+            }).catch(() => {});
+        }
     }, []);
 
     const updateNote = useCallback((noteId: string, updates: Partial<Omit<SavedNote, 'id'>>, refreshTimestamp = false): { success: boolean; error?: string } => {
-        const current = loadNotes();
+        const current = loadNotesFromLocalStorage();
         const index = current.findIndex(n => n.id === noteId);
         if (index === -1) return { success: false, error: 'Note not found.' };
         current[index] = {
@@ -100,9 +185,23 @@ export function useNotesStorage() {
             ...updates,
             ...(refreshTimestamp ? { createdAt: new Date().toISOString() } : {}),
         };
-        const success = persistNotes(current);
+        const success = persistNotesToLocalStorage(current);
         if (success) {
             setNotes(current);
+
+            // Update in database asynchronously
+            if (apiAvailable.current) {
+                const dbUpdates = {
+                    ...updates,
+                    ...(refreshTimestamp ? { createdAt: new Date().toISOString() } : {}),
+                };
+                notesApi.updateNote(noteId, dbUpdates).then(() => {
+                    console.log(`[NotesStorage] Note ${noteId} updated in database`);
+                }).catch(err => {
+                    console.warn('[NotesStorage] Failed to update note in DB:', err);
+                });
+            }
+
             return { success: true };
         }
         return { success: false, error: 'Failed to update note.' };

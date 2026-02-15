@@ -26,6 +26,11 @@ dist-ssr
 .autoforge/
 features.db
 dev-dist/
+data/
+scripts/
+
+# Supabase migrations (database already set up)
+supabase/
 
 # Editor directories and files
 .vscode/*

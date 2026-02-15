@@ -30,7 +30,7 @@ The `init.sh` script will:
 
 ## Environment Variables
 
-Copy `.env/.env.example` to `.env.local` at the project root:
+Copy `.env.example` to `.env.local` at the project root:
 
 ```
 VITE_SUPABASE_URL=https://your-project.supabase.co
@@ -39,22 +39,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 
 **Security:** The anon key is safe for client-side use with Row Level Security (RLS) enabled. Never commit the service role key.
 
-## Database Setup
-
-Run the SQL migration in your Supabase project SQL Editor:
-
-```
-supabase/migrations/001_initial_schema.sql
-```
-
-This creates:
-- **profiles** — User profiles (linked to Supabase Auth)
-- **clinics** — Clinic/unit records (UIC-based)
-- **notes** — Medical triage notes with soft delete
-- **training_completions** — Training item completion tracking
-- **sync_queue** — Offline mutation queue
-
-All tables have Row Level Security (RLS) policies enforcing user-scoped access.
+**Note:** Database is already configured in Supabase. No local migration needed for front-end deployment.
 
 ## Project Structure
 

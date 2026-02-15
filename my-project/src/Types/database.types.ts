@@ -81,6 +81,11 @@ export interface Database {
           uic: string | null
           algorithm_reference: string | null
           hpi_encoded: string | null
+          symptom_icon: string | null
+          symptom_text: string | null
+          disposition_type: string | null
+          disposition_text: string | null
+          preview_text: string | null
           is_imported: boolean
           source_device: string | null
           created_at: string
@@ -97,6 +102,11 @@ export interface Database {
           uic?: string | null
           algorithm_reference?: string | null
           hpi_encoded?: string | null
+          symptom_icon?: string | null
+          symptom_text?: string | null
+          disposition_type?: string | null
+          disposition_text?: string | null
+          preview_text?: string | null
           is_imported?: boolean
           source_device?: string | null
           created_at?: string
@@ -112,6 +122,11 @@ export interface Database {
           uic?: string | null
           algorithm_reference?: string | null
           hpi_encoded?: string | null
+          symptom_icon?: string | null
+          symptom_text?: string | null
+          disposition_type?: string | null
+          disposition_text?: string | null
+          preview_text?: string | null
           is_imported?: boolean
           source_device?: string | null
           updated_at?: string

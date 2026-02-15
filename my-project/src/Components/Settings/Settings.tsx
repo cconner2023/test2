@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, ChevronUp, ChevronRight, FileText, Check, Camera, X, BookOpen } from 'lucide-react';
+import { Moon, Sun, Shield, ChevronUp, ChevronRight, FileText, Check, Camera, X, BookOpen, UserCog, LogOut } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import type { SavedNote } from '../../Hooks/useNotesStorage';
 import { useProfileAvatar, resizeImage } from '../../Hooks/useProfileAvatar';
@@ -8,8 +8,17 @@ import { useSwipeBack } from '../../Hooks/useSwipeBack';
 import { MyNotesPanel } from './MyNotesPanel';
 import { ReleaseNotesPanel } from './ReleaseNotesPanel';
 import { UserProfilePanel } from './UserProfilePanel';
+import { UserProfileDisplay } from './UserProfileDisplay';
+import { ProfileChangeRequestForm } from './ProfileChangeRequestForm';
+import { AccountRequestForm } from './AccountRequestForm';
+import { AdminPanel } from './AdminPanel';
+import { GuestOptionsPanel } from './GuestOptionsPanel';
+import { LoginPanel } from './LoginPanel';
 import { TrainingPanel, type TrainingView } from './TrainingPanel';
 import type { subjectAreaArray, subjectAreaArrayOptions } from '../../Types/CatTypes';
+import { supabase } from '../../lib/supabase';
+import { isDevUser } from '../../lib/adminService';
+import { useAuth } from '../../Hooks/useAuth';
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -237,13 +246,44 @@ export const Settings = ({
     onEditNote,
     onViewNote,
 }: SettingsDrawerProps) => {
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | TrainingView>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'guest-options' | 'login' | TrainingView>('main');
+    const [isDevRole, setIsDevRole] = useState(false);
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useProfileAvatar();
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const [selectedSubjectArea, setSelectedSubjectArea] = useState<subjectAreaArray | null>(null);
     const [selectedTask, setSelectedTask] = useState<subjectAreaArrayOptions | null>(null);
     const prevVisibleRef = useRef(false);
+    const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+    const { signOut } = useAuth();
+
+    // Check authentication status and dev role
+    useEffect(() => {
+        const checkAuth = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            setIsAuthenticated(!!user);
+
+            if (user) {
+                const isDev = await isDevUser();
+                setIsDevRole(isDev);
+            }
+        };
+
+        checkAuth();
+
+        const { data: authListener } = supabase.auth.onAuthStateChange((_, session) => {
+            setIsAuthenticated(!!session?.user);
+            if (session?.user) {
+                isDevUser().then(setIsDevRole);
+            } else {
+                setIsDevRole(false);
+            }
+        });
+
+        return () => {
+            authListener.subscription.unsubscribe();
+        };
+    }, []);
 
     // Set initial panel when drawer opens
     useEffect(() => {
@@ -291,41 +331,86 @@ export const Settings = ({
                 setSelectedTask(null);
                 setActivePanel('training');
                 break;
+            case 8:
+                handleSlideAnimation('left');
+                setActivePanel('admin');
+                break;
+            case 11:
+                handleSlideAnimation('left');
+                setActivePanel('guest-options');
+                break;
+            case 12:
+                handleSlideAnimation('left');
+                setActivePanel('profile-change-request');
+                break;
+            case 14:
+                handleSlideAnimation('left');
+                setActivePanel('login');
+                break;
             default:
                 break;
         }
     }, [handleSlideAnimation]);
 
-    const buildSettingsOptions = useCallback((closeDrawer: () => void) => [
-        {
-            icon: <FileText size={20} />,
-            label: 'My Notes',
-            action: () => handleItemClick(1, closeDrawer),
-            color: 'text-tertiary',
-            id: 1
-        },
-        {
-            icon: <BookOpen size={20} />,
-            label: 'Training',
-            action: () => handleItemClick(7, closeDrawer),
-            color: 'text-tertiary',
-            id: 7
-        },
-        {
-            icon: isDarkMode ? <Sun size={20} /> : <Moon size={20} />,
-            label: 'Toggle Theme',
-            action: onToggleTheme,
-            color: 'text-primary',
-            id: 0
-        },
-        {
-            icon: <Shield size={20} />,
-            label: 'Release Notes',
-            action: () => handleItemClick(4, closeDrawer),
-            color: 'text-tertiary',
-            id: 4
+    const buildSettingsOptions = useCallback((closeDrawer: () => void) => {
+        const options = [
+            {
+                icon: <FileText size={20} />,
+                label: 'My Notes',
+                action: () => handleItemClick(1, closeDrawer),
+                color: 'text-tertiary',
+                id: 1
+            },
+            {
+                icon: <BookOpen size={20} />,
+                label: 'Training',
+                action: () => handleItemClick(7, closeDrawer),
+                color: 'text-tertiary',
+                id: 7
+            },
+            {
+                icon: isDarkMode ? <Sun size={20} /> : <Moon size={20} />,
+                label: 'Toggle Theme',
+                action: onToggleTheme,
+                color: 'text-primary',
+                id: 0
+            },
+            {
+                icon: <Shield size={20} />,
+                label: 'Release Notes',
+                action: () => handleItemClick(4, closeDrawer),
+                color: 'text-tertiary',
+                id: 4
+            }
+        ];
+
+        // Add admin option for dev users
+        if (isDevRole) {
+            options.push({
+                icon: <UserCog size={20} />,
+                label: 'Admin Panel',
+                action: () => handleItemClick(8, closeDrawer),
+                color: 'text-themeblue2',
+                id: 8
+            });
         }
-    ], [isDarkMode, onToggleTheme, handleItemClick]);
+
+        // Add logout option for authenticated users
+        if (isAuthenticated) {
+            options.push({
+                icon: <LogOut size={20} />,
+                label: 'Sign Out',
+                action: async () => {
+                    await signOut();
+                    closeDrawer();
+                },
+                color: 'text-red-600',
+                id: 13
+            });
+        }
+
+        return options;
+    }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isAuthenticated, signOut]);
 
     // Training panel navigation helpers
     const handleTrainingSelectArea = useCallback((area: subjectAreaArray) => {
@@ -415,6 +500,30 @@ export const Settings = ({
                     showBack: true,
                     onBack: handleTrainingBack,
                 };
+            case 'admin':
+                return {
+                    title: 'Admin Panel',
+                    showBack: true,
+                    onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
+                };
+            case 'guest-options':
+                return {
+                    title: 'Sign In',
+                    showBack: true,
+                    onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
+                };
+            case 'profile-change-request':
+                return {
+                    title: 'Request Changes',
+                    showBack: true,
+                    onBack: () => { handleSlideAnimation('right'); setActivePanel('user-profile'); },
+                };
+            case 'login':
+                return {
+                    title: 'Sign In',
+                    showBack: true,
+                    onBack: () => { handleSlideAnimation('right'); setActivePanel('guest-options'); },
+                };
         }
     }, [activePanel, notes.length, handleSlideAnimation, selectedSubjectArea, selectedTask, handleTrainingBack]);
 
@@ -422,13 +531,13 @@ export const Settings = ({
         <BaseDrawer
             isVisible={isVisible}
             onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedSubjectArea(null); setSelectedTask(null); onClose(); }}
-            fullHeight="90dvh"
-            disableDrag={false}
-            header={headerConfig}
-        >
-            {(handleClose) => (
-                <ContentWrapper slideDirection={slideDirection} swipeHandlers={activePanel !== 'main' ? swipeHandlers : undefined}>
-                    {activePanel === 'main' ? (
+                fullHeight="90dvh"
+                disableDrag={false}
+                header={headerConfig}
+            >
+                {(handleClose) => (
+                    <ContentWrapper slideDirection={slideDirection} swipeHandlers={activePanel !== 'main' ? swipeHandlers : undefined}>
+                        {activePanel === 'main' ? (
                         <MainSettingsPanel
                             settingsOptions={buildSettingsOptions(handleClose)}
                             onItemClick={(id) => handleItemClick(id, handleClose)}
@@ -436,23 +545,38 @@ export const Settings = ({
                             customImage={customImage}
                             isCustom={isCustom}
                             displayName={
-                                profile.lastName
-                                    ? `${profile.rank ? profile.rank + ' ' : ''}${profile.lastName}${profile.firstName ? ', ' + profile.firstName.charAt(0) + '.' : ''}`
-                                    : 'Set Up Profile'
+                                isAuthenticated
+                                    ? (profile.lastName
+                                        ? `${profile.rank ? profile.rank + ' ' : ''}${profile.lastName}${profile.firstName ? ', ' + profile.firstName.charAt(0) + '.' : ''}`
+                                        : 'Set Up Profile')
+                                    : 'Guest'
                             }
                             displaySub={
-                                profile.credential
-                                    ? `${profile.credential}${profile.component ? ' \u00b7 ' + profile.component : ''}`
-                                    : 'Tap to set up'
+                                isAuthenticated
+                                    ? (profile.credential
+                                        ? `${profile.credential}${profile.component ? ' \u00b7 ' + profile.component : ''}`
+                                        : 'Tap to set up')
+                                    : 'Tap to sign in or request account'
                             }
                             onAvatarClick={() => handleItemClick(5, handleClose)}
-                            onProfileClick={() => handleItemClick(6, handleClose)}
+                            onProfileClick={() => {
+                                if (!isAuthenticated) {
+                                    handleItemClick(11, handleClose); // Show guest options
+                                } else {
+                                    handleItemClick(6, handleClose); // Show profile editor
+                                }
+                            }}
                         />
                     ) : activePanel === 'user-profile' ? (
-                        <UserProfilePanel
-                            profile={profile}
-                            onUpdate={updateProfile}
-                        />
+                        isAuthenticated === false ? (
+                            <AccountRequestForm />
+                        ) : (
+                            <UserProfileDisplay
+                                onRequestChange={() => handleItemClick(12, handleClose)}
+                            />
+                        )
+                    ) : activePanel === 'profile-change-request' ? (
+                        <ProfileChangeRequestForm />
                     ) : activePanel === 'avatar-picker' ? (
                         <AvatarPickerPanel
                             avatarList={avatarList}
@@ -482,6 +606,27 @@ export const Settings = ({
                         />
                     ) : activePanel === 'release-notes' ? (
                         <ReleaseNotesPanel />
+                    ) : activePanel === 'admin' ? (
+                        <AdminPanel />
+                    ) : activePanel === 'guest-options' ? (
+                        <GuestOptionsPanel
+                            onSignIn={() => handleItemClick(14, handleClose)}
+                            onRequestAccount={() => {
+                                handleSlideAnimation('left');
+                                setActivePanel('user-profile');
+                            }}
+                        />
+                    ) : activePanel === 'login' ? (
+                        <LoginPanel
+                            onSuccess={() => {
+                                handleSlideAnimation('right');
+                                setActivePanel('main');
+                            }}
+                            onRequestAccount={() => {
+                                handleSlideAnimation('left');
+                                setActivePanel('user-profile');
+                            }}
+                        />
                     ) : activePanel === 'training' || activePanel === 'training-tasks' || activePanel === 'training-detail' ? (
                         <TrainingPanel
                             view={activePanel}
@@ -500,9 +645,9 @@ export const Settings = ({
                             onCloseDrawer={handleClose}
                             initialSelectedId={initialSelectedId}
                         />
-                    )}
-                </ContentWrapper>
-            )}
-        </BaseDrawer>
+                        )}
+                    </ContentWrapper>
+                )}
+            </BaseDrawer>
     );
 };
