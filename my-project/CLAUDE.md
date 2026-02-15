@@ -4,13 +4,13 @@ description: Create an app spec for autonomous coding (project)
 
 # PROJECT DIRECTORY
 
-This command **requires** the project directory as an argument via `C:\Users\cconn\Desktop\V2`.
+This command **requires** the project directory as an argument via `C:\Users\cconn\Desktop\V2\my-project`.
 
 **Example:** `/create-spec generations/my-app`
 
-**Output location:** `C:\Users\cconn\Desktop\V2/.autoforge/prompts/app_spec.txt` and `C:\Users\cconn\Desktop\V2/.autoforge/prompts/initializer_prompt.md`
+**Output location:** `C:\Users\cconn\Desktop\V2\my-project/.autoforge/prompts/app_spec.txt` and `C:\Users\cconn\Desktop\V2\my-project/.autoforge/prompts/initializer_prompt.md`
 
-If `C:\Users\cconn\Desktop\V2` is empty, inform the user they must provide a project path and exit.
+If `C:\Users\cconn\Desktop\V2\my-project` is empty, inform the user they must provide a project path and exit.
 
 ---
 
@@ -347,13 +347,13 @@ First ask in conversation if they want to make changes.
 
 ## Output Directory
 
-The output directory is: `C:\Users\cconn\Desktop\V2/.autoforge/prompts/`
+The output directory is: `C:\Users\cconn\Desktop\V2\my-project/.autoforge/prompts/`
 
 Once the user approves, generate these files:
 
 ## 1. Generate `app_spec.txt`
 
-**Output path:** `C:\Users\cconn\Desktop\V2/.autoforge/prompts/app_spec.txt`
+**Output path:** `C:\Users\cconn\Desktop\V2\my-project/.autoforge/prompts/app_spec.txt`
 
 Create a new file using this XML structure:
 
@@ -489,7 +489,7 @@ Create a new file using this XML structure:
 
 ## 2. Update `initializer_prompt.md`
 
-**Output path:** `C:\Users\cconn\Desktop\V2/.autoforge/prompts/initializer_prompt.md`
+**Output path:** `C:\Users\cconn\Desktop\V2\my-project/.autoforge/prompts/initializer_prompt.md`
 
 If the output directory has an existing `initializer_prompt.md`, read it and update the feature count.
 If not, copy from `.claude/templates/initializer_prompt.template.md` first, then update.
@@ -512,7 +512,7 @@ After:  **CRITICAL:** You must create exactly **25** features using the `feature
 
 ## 3. Write Status File (REQUIRED - Do This Last)
 
-**Output path:** `C:\Users\cconn\Desktop\V2/.autoforge/prompts/.spec_status.json`
+**Output path:** `C:\Users\cconn\Desktop\V2\my-project/.autoforge/prompts/.spec_status.json`
 
 **CRITICAL:** After you have completed ALL requested file changes, write this status file to signal completion to the UI. This is required for the "Continue to Project" button to appear.
 
@@ -559,11 +559,11 @@ Write this JSON file:
 
 Once files are generated, tell the user what to do next:
 
-> "Your specification files have been created in `C:\Users\cconn\Desktop\V2/.autoforge/prompts/`!
+> "Your specification files have been created in `C:\Users\cconn\Desktop\V2\my-project/.autoforge/prompts/`!
 >
 > **Files created:**
-> - `C:\Users\cconn\Desktop\V2/.autoforge/prompts/app_spec.txt`
-> - `C:\Users\cconn\Desktop\V2/.autoforge/prompts/initializer_prompt.md`
+> - `C:\Users\cconn\Desktop\V2\my-project/.autoforge/prompts/app_spec.txt`
+> - `C:\Users\cconn\Desktop\V2\my-project/.autoforge/prompts/initializer_prompt.md`
 >
 > The **Continue to Project** button should now appear. Click it to start the autonomous coding agent!
 >

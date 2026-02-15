@@ -23,6 +23,10 @@ dist/
 dist-ssr
 *.local
 .claude/
+.autoforge/
+features.db
+dev-dist/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

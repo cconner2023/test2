@@ -39,9 +39,10 @@
     <environment_setup>
       - Node.js 18+
       - npm or pnpm
-      - Supabase project (cloud or local via supabase CLI)
+      - Supabase project: https://rkkyhhxcsqwyxwrpfrle.supabase.co (fresh/empty — no existing schema, tables, or RLS policies)
       - Environment variables: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
       - .env file (not committed) with Supabase credentials
+      - All database tables, schema, and RLS policies must be created from scratch
     </environment_setup>
   </prerequisites>
 
@@ -55,13 +56,20 @@
     </do_not_modify>
     <do_not_perform>
       - Build or deploy — handled by the project owner
+      - Do NOT run `npm run build`, `vite build`, or any build/deploy commands
       - Edit static reference data
     </do_not_perform>
     <allowed>
       - Code cleanup when touching existing processes
       - Adding Supabase infrastructure alongside existing functionality
       - Fixing or rewriting service worker and cache logic
+      - Running `npm run dev` or `vite dev` to check for TypeScript errors
     </allowed>
+    <supabase_setup>
+      - Supabase project is fresh/empty — no existing tables, schema, or policies
+      - All database infrastructure must be created from scratch
+      - Supabase URL: https://rkkyhhxcsqwyxwrpfrle.supabase.co
+    </supabase_setup>
   </constraints>
 
   <security_and_access_control>
