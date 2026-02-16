@@ -29,7 +29,8 @@ data/
 scripts/
 .claude
 .claude/
-# Supabase migrations (database already set up)
+# SQL migrations (applied directly in Supabase)
+sql/
 supabase/
 # Editor directories and files
 .vscode/*
