@@ -90,6 +90,15 @@ export async function submitAccountRequest(
 
     const result = data as { id: string; status_check_token: string; message: string } | null
 
+    // Fire-and-forget: notify dev users via push notification
+    supabase.functions.invoke('send-push-notification', {
+      body: {
+        type: 'new_account',
+        name: `${request.firstName} ${request.lastName}`.trim(),
+        email: request.email,
+      },
+    }).catch(() => { /* push notification delivery is best-effort */ })
+
     return {
       success: true,
       statusCheckToken: result?.status_check_token,

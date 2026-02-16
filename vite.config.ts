@@ -17,6 +17,9 @@ export default defineConfig({
     },
     tailwindcss(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.ts',
       registerType: 'prompt',
       includeAssets: ['icon-144.png', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'browserconfig.xml', 'splash/*.png'],
       manifest: {
@@ -98,85 +101,8 @@ export default defineConfig({
           }
         ]
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-        cleanupOutdatedCaches: true,
-        skipWaiting: false,
-        clientsClaim: true,
-
-        // SPA fallback: serve cached index.html for all navigation requests under /test2/
-        navigateFallback: 'index.html',
-        navigateFallbackAllowlist: [/^\/test2\//],
-
-        // Exclude Supabase API and auth callback URLs from navigation fallback
-        navigateFallbackDenylist: [/^\/test2\/auth\//, /\/rest\/v1\//, /\/auth\/v1\//],
-
-        runtimeCaching: [
-          // Google Fonts stylesheets (CSS)
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'google-fonts-stylesheets',
-              expiration: {
-                maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          // Google Fonts files (woff2) - CacheFirst since font files are immutable
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-webfonts',
-              expiration: {
-                maxEntries: 30,
-                maxAgeSeconds: 60 * 60 * 24 * 365 // 1 year
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          // Supabase REST API - NetworkFirst with offline fallback
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
-            handler: 'NetworkFirst',
-            options: {
-              cacheName: 'supabase-api-cache',
-              networkTimeoutSeconds: 10,
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 // 24 hours
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          },
-          // Supabase Auth — no route registered. Requests pass through to the
-          // browser's default fetch, so offline failures are handled by app code
-          // instead of causing FetchEvent.respondWith TypeError in the SW.
-          // Supabase Storage - CacheFirst for uploaded files
-          {
-            urlPattern: /^https:\/\/.*\.supabase\.co\/storage\/v1\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'supabase-storage-cache',
-              expiration: {
-                maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 days
-              },
-              cacheableResponse: {
-                statuses: [0, 200]
-              }
-            }
-          }
-        ]
       },
       devOptions: {
         enabled: false // PWA disabled in dev; test with 'npm run preview' after build
