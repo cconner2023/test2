@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { checkSupabaseConnection } from './lib/supabase'
+import { checkSupabaseConnection } from './lib/supabase.ts'
 
 // Verify Supabase connection on startup (non-blocking)
 checkSupabaseConnection().then(result => {
