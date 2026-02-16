@@ -1,0 +1,95 @@
+// Hooks/useServiceWorker.ts
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { registerSW } from 'virtual:pwa-register';
+
+export function useServiceWorker() {
+    const [updateAvailable, setUpdateAvailable] = useState(false);
+    const [offlineReady, setOfflineReady] = useState(false);
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [registration, setRegistration] = useState<ServiceWorkerRegistration | undefined>();
+    const intervalRef = useRef<number>(0);
+
+    // Store the update function from registerSW
+    const [updateSW, setUpdateSW] = useState<((reloadPage?: boolean) => Promise<void>) | null>(null);
+
+    useEffect(() => {
+        const update = registerSW({
+            immediate: true,
+            onNeedRefresh() {
+                console.log('[PWA] New content available, update needed');
+                setUpdateAvailable(true);
+            },
+            onOfflineReady() {
+                console.log('[PWA] App ready to work offline');
+                setOfflineReady(true);
+            },
+            onRegistered(r) {
+                console.log('[PWA] Service Worker registered:', r?.scope);
+                setRegistration(r);
+
+                // Check for updates periodically (every 5 minutes)
+                if (r) {
+                    intervalRef.current = window.setInterval(() => {
+                        console.log('[PWA] Checking for updates...');
+                        r.update();
+                    }, 5 * 60 * 1000);
+                }
+            },
+            onRegisterError(error) {
+                console.error('[PWA] Service Worker registration failed:', error);
+            }
+        });
+
+        setUpdateSW(() => update);
+
+        return () => {
+            if (intervalRef.current) clearInterval(intervalRef.current);
+        };
+    }, []);
+
+    const skipWaiting = useCallback(async () => {
+        if (updateSW) {
+            console.log('[PWA] Updating to new version...');
+            setIsUpdating(true);
+            try { localStorage.removeItem('updateDismissed'); } catch { /* storage unavailable */ }
+            try { localStorage.setItem('postUpdateNav', 'release-notes'); } catch { /* storage unavailable */ }
+
+            // Workbox cleanupOutdatedCaches handles old cache removal automatically.
+            // Do NOT clear caches here — the new SW's precache is already populated
+            // and deleting it would break offline loading after the reload.
+            await updateSW(true); // true = reload page
+        }
+    }, [updateSW]);
+
+    const checkForUpdate = useCallback(() => {
+        if (registration) {
+            console.log('[PWA] Manual update check...');
+            registration.update();
+        }
+    }, [registration]);
+
+    const dismissTimeoutRef = useRef<number>(0);
+
+    const dismissUpdate = useCallback(() => {
+        setUpdateAvailable(false);
+        try { localStorage.setItem('updateDismissed', Date.now().toString()); } catch { /* storage unavailable */ }
+
+        // Auto-remove dismissal after 1 hour
+        if (dismissTimeoutRef.current) clearTimeout(dismissTimeoutRef.current);
+        dismissTimeoutRef.current = window.setTimeout(() => {
+            try { localStorage.removeItem('updateDismissed'); } catch { /* storage unavailable */ }
+            dismissTimeoutRef.current = 0;
+        }, 60 * 60 * 1000);
+    }, []);
+
+    return {
+        updateAvailable,
+        offlineReady,
+        skipWaiting,
+        checkForUpdate,
+        dismissUpdate,
+        registration,
+        isUpdating,
+        appVersion: __APP_VERSION__
+    };
+}
