@@ -25,7 +25,6 @@ dist-ssr
 .autoforge/
 features.db
 dev-dist/
-data/
 scripts/
 .claude
 .claude/
