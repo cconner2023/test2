@@ -97,7 +97,7 @@ function AppContent() {
         const taskId = result.data.taskId
         if (taskId) {
           if (result.data?.categoryRef && result.data?.symptomRef) {
-            // Symptom context exists — navigate to algorithm only
+            // Symptom context exists — navigate to algorithm and open training drawer
             navigation.handleNavigation({
               type: 'CC',
               id: result.data.symptomId!,
@@ -108,6 +108,15 @@ function AppContent() {
                 symptomId: result.data.symptomId,
                 categoryRef: result.data.categoryRef,
                 symptomRef: result.data.symptomRef
+              }
+            })
+            // Deferred so it doesn't get clobbered by CLOSE_ALL_DRAWERS in handleNavigation
+            requestAnimationFrame(() => {
+              if (navigation.isMobile) {
+                navigation.setShowTrainingDrawer(taskId)
+              } else {
+                activeNote.openTrainingTask(taskId)
+                navigation.setShowSettings(true)
               }
             })
           } else {
@@ -124,12 +133,12 @@ function AppContent() {
         return
       }
 
-      // MEDCOM items — navigate to algorithm if symptom context exists, otherwise open training drawer
-      if (result.data.guidelineType === 'medcom') {
+      // STP/MEDCOM items from CategoryList/SymptomInfoDrawer — taskId is on result.icon
+      if (result.data.guidelineType === 'stp' || result.data.guidelineType === 'medcom') {
         const taskId = result.icon
         if (taskId && getTaskData(taskId)) {
           if (result.data?.categoryRef && result.data?.symptomRef) {
-            // Symptom context exists — navigate to algorithm only
+            // Symptom context exists — navigate to algorithm and open training drawer
             navigation.handleNavigation({
               type: 'CC',
               id: result.data.symptomId!,
@@ -140,6 +149,15 @@ function AppContent() {
                 symptomId: result.data.symptomId,
                 categoryRef: result.data.categoryRef,
                 symptomRef: result.data.symptomRef
+              }
+            })
+            // Deferred so it doesn't get clobbered by CLOSE_ALL_DRAWERS in handleNavigation
+            requestAnimationFrame(() => {
+              if (navigation.isMobile) {
+                navigation.setShowTrainingDrawer(taskId)
+              } else {
+                activeNote.openTrainingTask(taskId)
+                navigation.setShowSettings(true)
               }
             })
           } else {
@@ -252,6 +270,7 @@ function AppContent() {
               isMobile: navigation.isMobile,
               isAlgorithmView: navigation.showQuestionCard,
               isMenuOpen: navigation.isMenuOpen,
+              noteSource: navigation.showQuestionCard ? activeNote.activeNoteSource : null,
               mobileAvatar: {
                 avatarSvg: currentAvatar.svg,
                 customImage,
@@ -283,7 +302,7 @@ function AppContent() {
 
             {/* Column B: Content (algorithm / search / empty) */}
             <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
-              <div key={desktopContentKey} className="h-full animate-desktopContentIn">
+              <div key={desktopContentKey} className="h-full animate-desktopContentIn md:pt-3">
                 {!navigation.isMobile && search.searchInput ? (
                   <div className="h-full overflow-y-auto">
                     <div className="px-2 min-h-full">

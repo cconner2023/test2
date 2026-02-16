@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
+import { writeFileSync, mkdirSync } from 'fs'
+import { resolve } from 'path'
 const APP_VERSION = '2.6.2'
 
 export default defineConfig({
@@ -13,6 +15,17 @@ export default defineConfig({
       name: 'html-version',
       transformIndexHtml(html) {
         return html.replace(/%APP_VERSION%/g, APP_VERSION)
+      }
+    },
+    {
+      name: 'generate-version-json',
+      writeBundle(options) {
+        const outDir = options.dir || resolve('dist')
+        mkdirSync(outDir, { recursive: true })
+        writeFileSync(
+          resolve(outDir, 'version.json'),
+          JSON.stringify({ version: APP_VERSION })
+        )
       }
     },
     tailwindcss(),
@@ -102,7 +115,7 @@ export default defineConfig({
         ]
       },
       injectManifest: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,mp3}'],
       },
       devOptions: {
         enabled: false // PWA disabled in dev; test with 'npm run preview' after build

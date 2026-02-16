@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Lock, Delete } from 'lucide-react'
+import { Lock, Delete, ScanFace } from 'lucide-react'
 import {
   verifyPin,
   setSessionUnlocked,
@@ -7,6 +7,11 @@ import {
   recordFailedAttempt,
   resetLockout,
 } from '../lib/pinService'
+import {
+  isBiometricAvailable,
+  isBiometricEnrolled,
+  verifyBiometric,
+} from '../lib/biometricService'
 
 interface PinLockScreenProps {
   onUnlock: () => void
@@ -18,6 +23,29 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
   const [shaking, setShaking] = useState(false)
   const [lockout, setLockout] = useState(checkLockout())
   const lockoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const [biometricReady, setBiometricReady] = useState(false)
+  const biometricAttempted = useRef(false)
+
+  // Check biometric availability on mount
+  useEffect(() => {
+    let cancelled = false
+    async function check() {
+      if (!isBiometricEnrolled()) return
+      const available = await isBiometricAvailable()
+      if (!cancelled && available) setBiometricReady(true)
+    }
+    check()
+    return () => { cancelled = true }
+  }, [])
+
+  // Auto-trigger biometric on mount (requires user gesture on some browsers,
+  // but iOS standalone PWAs allow it on page load for platform authenticators)
+  useEffect(() => {
+    if (!biometricReady || biometricAttempted.current) return
+    biometricAttempted.current = true
+    handleBiometric()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [biometricReady])
 
   // Countdown timer for lockout
   useEffect(() => {
@@ -39,6 +67,19 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
       if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current)
     }
   }, [lockout.isLockedOut])
+
+  const handleBiometric = useCallback(async () => {
+    try {
+      const success = await verifyBiometric()
+      if (success) {
+        resetLockout()
+        setSessionUnlocked()
+        onUnlock()
+      }
+    } catch {
+      // User cancelled or biometric failed — fall back to PIN
+    }
+  }, [onUnlock])
 
   const handleSubmit = useCallback(async (pin: string) => {
     const valid = await verifyPin(pin)
@@ -95,7 +136,7 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
     ['1', '2', '3'],
     ['4', '5', '6'],
     ['7', '8', '9'],
-    ['', '0', 'back'],
+    [biometricReady ? 'bio' : '', '0', 'back'],
   ]
 
   return (
@@ -135,6 +176,19 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
         {keypadButtons.flat().map((key, idx) => {
           if (key === '') {
             return <div key={idx} />
+          }
+          if (key === 'bio') {
+            return (
+              <button
+                key={idx}
+                onClick={handleBiometric}
+                disabled={lockout.isLockedOut}
+                className="w-[74px] h-[74px] rounded-full flex items-center justify-center
+                           active:bg-themeblue2/20 transition-colors disabled:opacity-30"
+              >
+                <ScanFace size={26} className="text-themeblue2" />
+              </button>
+            )
           }
           if (key === 'back') {
             return (

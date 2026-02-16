@@ -4,6 +4,7 @@ import { BaseDrawer } from './BaseDrawer'
 import { getTaskData } from '../Data/TrainingData'
 import type { PerformanceStep } from '../Data/TrainingData'
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
+import { AudioAidPlayer } from './AudioAidPlayer'
 
 interface TrainingDrawerProps {
     isVisible: boolean
@@ -121,6 +122,11 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
                         <p className="text-sm text-primary/80 leading-relaxed">{taskData.standards}</p>
                     </div>
                 </div>
+
+                {/* Audio Training Aids */}
+                {taskData.audioAids && taskData.audioAids.length > 0 && (
+                    <AudioAidPlayer audioAids={taskData.audioAids} />
+                )}
 
                 {/* Performance Steps */}
                 <div className="mb-4">

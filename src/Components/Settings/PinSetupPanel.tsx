@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Lock, ShieldCheck, ShieldX, Delete, KeyRound, Trash2 } from 'lucide-react'
+import { Lock, ShieldCheck, ShieldX, Delete, KeyRound, Trash2, ScanFace } from 'lucide-react'
 import {
   isPinEnabled,
   savePin,
@@ -9,6 +9,12 @@ import {
   recordFailedAttempt,
   resetLockout,
 } from '../../lib/pinService'
+import {
+  isBiometricAvailable,
+  isBiometricEnrolled,
+  enrollBiometric,
+  removeBiometric,
+} from '../../lib/biometricService'
 
 type PinView = 'status' | 'set-new' | 'confirm-new' | 'verify-current' | 'change-new' | 'change-confirm'
 
@@ -23,6 +29,22 @@ export const PinSetupPanel = () => {
   const [lockout, setLockout] = useState(checkLockout())
   const [pendingAction, setPendingAction] = useState<'change' | 'remove' | null>(null)
   const lockoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Biometric state
+  const [bioAvailable, setBioAvailable] = useState(false)
+  const [bioEnrolled, setBioEnrolled] = useState(isBiometricEnrolled())
+  const [bioLoading, setBioLoading] = useState(false)
+
+  // Check biometric availability
+  useEffect(() => {
+    let cancelled = false
+    async function check() {
+      const available = await isBiometricAvailable()
+      if (!cancelled) setBioAvailable(available)
+    }
+    check()
+    return () => { cancelled = true }
+  }, [])
 
   // Lockout countdown
   useEffect(() => {
@@ -51,6 +73,30 @@ export const PinSetupPanel = () => {
     setShaking(true)
     setTimeout(() => { setShaking(false); setDigits('') }, 400)
   }, [])
+
+  const handleBiometricToggle = useCallback(async () => {
+    setBioLoading(true)
+    try {
+      if (bioEnrolled) {
+        removeBiometric()
+        setBioEnrolled(false)
+        setSuccess('Face ID / Touch ID disabled')
+        setTimeout(() => setSuccess(''), 2000)
+      } else {
+        const enrolled = await enrollBiometric()
+        if (enrolled) {
+          setBioEnrolled(true)
+          setSuccess('Face ID / Touch ID enabled')
+          setTimeout(() => setSuccess(''), 2000)
+        } else {
+          setError('Biometric setup was cancelled or failed')
+          setTimeout(() => setError(''), 3000)
+        }
+      }
+    } finally {
+      setBioLoading(false)
+    }
+  }, [bioEnrolled])
 
   const handleSubmit = useCallback(async (pin: string) => {
     switch (view) {
@@ -84,7 +130,9 @@ export const PinSetupPanel = () => {
             setView('change-new')
           } else if (pendingAction === 'remove') {
             removePin()
+            removeBiometric()
             setPinEnabled(false)
+            setBioEnrolled(false)
             setSuccess('PIN removed')
             setTimeout(() => { resetState(); setView('status') }, 1200)
           }
@@ -184,6 +232,13 @@ export const PinSetupPanel = () => {
             </div>
           )}
 
+          {error && (
+            <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-themeredred/10">
+              <ShieldX size={16} className="text-themeredred" />
+              <span className="text-sm text-themeredred font-medium">{error}</span>
+            </div>
+          )}
+
           {!pinEnabled ? (
             <button
               onClick={() => { resetState(); setView('set-new') }}
@@ -195,6 +250,29 @@ export const PinSetupPanel = () => {
             </button>
           ) : (
             <div className="space-y-2">
+              {/* Biometric toggle — only show when PIN is enabled and device supports it */}
+              {bioAvailable && (
+                <button
+                  onClick={handleBiometricToggle}
+                  disabled={bioLoading}
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all active:scale-[0.98] ${
+                    bioEnrolled
+                      ? 'bg-themegreen/10 hover:bg-themegreen/15'
+                      : 'bg-themeblue2/10 hover:bg-themeblue2/15'
+                  } disabled:opacity-50`}
+                >
+                  <ScanFace size={18} className={bioEnrolled ? 'text-themegreen' : 'text-themeblue2'} />
+                  <div className="flex-1 text-left">
+                    <span className={`text-sm font-medium ${bioEnrolled ? 'text-themegreen' : 'text-themeblue2'}`}>
+                      {bioLoading ? 'Setting up...' : bioEnrolled ? 'Face ID / Touch ID On' : 'Enable Face ID / Touch ID'}
+                    </span>
+                    <p className="text-[11px] text-tertiary/70 mt-0.5">
+                      {bioEnrolled ? 'Tap to disable biometric unlock' : 'Use biometrics instead of PIN to unlock'}
+                    </p>
+                  </div>
+                </button>
+              )}
+
               <button
                 onClick={() => { resetState(); setPendingAction('change'); setView('verify-current') }}
                 className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-themeblue2/10

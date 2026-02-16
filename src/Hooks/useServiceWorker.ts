@@ -12,11 +12,26 @@ export function useServiceWorker() {
     // Store the update function from registerSW
     const [updateSW, setUpdateSW] = useState<((reloadPage?: boolean) => Promise<void>) | null>(null);
 
+    // Reference to updateSW for use inside registerSW callbacks
+    const updateSWRef = useRef<((reloadPage?: boolean) => Promise<void>) | null>(null);
+
     useEffect(() => {
         const update = registerSW({
             immediate: true,
-            onNeedRefresh() {
-                console.log('[PWA] New content available, update needed');
+            async onNeedRefresh() {
+                console.log('[PWA] New content available, checking version...');
+                try {
+                    const res = await fetch(`${import.meta.env.BASE_URL}version.json?t=${Date.now()}`);
+                    const { version: newVersion } = await res.json();
+                    if (newVersion === __APP_VERSION__) {
+                        console.log('[PWA] Same version, applying update silently');
+                        if (updateSWRef.current) await updateSWRef.current(true);
+                        return;
+                    }
+                    console.log(`[PWA] New version ${newVersion} (current: ${__APP_VERSION__}), prompting user`);
+                } catch (e) {
+                    console.warn('[PWA] Could not fetch version.json, showing update prompt', e);
+                }
                 setUpdateAvailable(true);
             },
             onOfflineReady() {
@@ -40,6 +55,7 @@ export function useServiceWorker() {
             }
         });
 
+        updateSWRef.current = update;
         setUpdateSW(() => update);
 
         return () => {

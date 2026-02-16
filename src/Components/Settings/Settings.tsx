@@ -125,7 +125,7 @@ const MainSettingsPanel = ({
                 {settingsOptions.map((item, idx) => {
                     if (item.type === 'header') {
                         return (
-                            <div key={`header-${idx}`} className="px-4 pt-4 pb-1">
+                            <div key={`header-${idx}`} className="px-6 pt-4 pb-1">
                                 <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">{item.label}</p>
                             </div>
                         );
@@ -137,9 +137,9 @@ const MainSettingsPanel = ({
                                 item.action();
                                 onItemClick(item.id);
                             }}
-                            className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2 active:scale-[0.98]
+                            className="flex items-center w-full px-6 py-3.5 hover:bg-themewhite2 active:scale-[0.98]
                                          transition-all rounded-xl group
-                                         md:px-4 md:py-3"
+                                         md:px-6 md:py-3"
                         >
                             <div className={`mr-4 ${item.color} md:group-hover:scale-110 md:transition-transform`}>
                                 {item.icon}
@@ -478,11 +478,11 @@ export const Settings = ({
 
     const buildSettingsOptions = useCallback((closeDrawer: () => void): SettingsItem[] => {
         const items: SettingsItem[] = [
-            // Top section (no header): My Notes, Training
+            // Top section (no header)
             {
                 type: 'option',
                 icon: <FileText size={20} />,
-                label: 'My Notes',
+                label: isAuthenticated ? 'My Clinic' : 'My Notes',
                 action: () => handleItemClick(1, closeDrawer),
                 color: 'text-tertiary',
                 id: 1
@@ -490,12 +490,42 @@ export const Settings = ({
             {
                 type: 'option',
                 icon: <BookOpen size={20} />,
-                label: 'Training',
+                label: 'My Training',
                 action: () => handleItemClick(7, closeDrawer),
                 color: 'text-tertiary',
                 id: 7
             },
-            // PREFERENCES section
+        ];
+
+        // ROLES section - only if user has supervisor or admin roles
+        if (isSupervisorRole || isDevRole) {
+            items.push({ type: 'header', label: 'Roles' });
+
+            if (isSupervisorRole) {
+                items.push({
+                    type: 'option',
+                    icon: <ClipboardCheck size={20} />,
+                    label: 'Supervisor',
+                    action: () => handleItemClick(9, closeDrawer),
+                    color: 'text-amber-500',
+                    id: 9
+                });
+            }
+
+            if (isDevRole) {
+                items.push({
+                    type: 'option',
+                    icon: <UserCog size={20} />,
+                    label: 'Admin Panel',
+                    action: () => handleItemClick(8, closeDrawer),
+                    color: 'text-themeblue2',
+                    id: 8
+                });
+            }
+        }
+
+        // PREFERENCES section
+        items.push(
             { type: 'header', label: 'Preferences' },
             {
                 type: 'option',
@@ -523,34 +553,10 @@ export const Settings = ({
                 color: 'text-tertiary',
                 id: 4
             }
-        ];
-
-        // Add supervisor option for supervisor users
-        if (isSupervisorRole) {
-            items.push({
-                type: 'option',
-                icon: <ClipboardCheck size={20} />,
-                label: 'Supervisor',
-                action: () => handleItemClick(9, closeDrawer),
-                color: 'text-amber-500',
-                id: 9
-            });
-        }
-
-        // Add admin option for dev users
-        if (isDevRole) {
-            items.push({
-                type: 'option',
-                icon: <UserCog size={20} />,
-                label: 'Admin Panel',
-                action: () => handleItemClick(8, closeDrawer),
-                color: 'text-themeblue2',
-                id: 8
-            });
-        }
+        );
 
         return items;
-    }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isSupervisorRole]);
+    }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isSupervisorRole, isAuthenticated]);
 
     // Training panel navigation helpers
     const handleTrainingSelectArea = useCallback((area: subjectAreaArray) => {
@@ -598,8 +604,8 @@ export const Settings = ({
             case 'main':
                 return { title: 'Settings' };
             case 'my-notes': {
-                const myNotesTitle = isAuthenticated && profile.clinicName
-                    ? profile.clinicName
+                const myNotesTitle = isAuthenticated
+                    ? (profile.clinicName || 'My Clinic')
                     : 'My Notes';
                 // Deduplicate personal + clinic notes for an accurate badge count
                 const combinedIds = new Set([
@@ -634,7 +640,7 @@ export const Settings = ({
                 };
             case 'training':
                 return {
-                    title: 'Training',
+                    title: 'My Training',
                     showBack: true,
                     onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
                 };

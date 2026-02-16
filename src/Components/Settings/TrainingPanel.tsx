@@ -5,6 +5,7 @@ import { getTaskData } from '../../Data/TrainingData'
 import type { TaskTrainingData, PerformanceStep } from '../../Data/TrainingData'
 import type { subjectAreaArray, subjectAreaArrayOptions } from '../../Types/CatTypes'
 import { useTrainingCompletions } from '../../Hooks/useTrainingCompletions'
+import { AudioAidPlayer } from '../AudioAidPlayer'
 // Convert a skill level's subject areas to the subjectAreaArray format
 function toSubjectAreaArrays(skillLevelIdx: number): subjectAreaArray[] {
     const level = stp68wTraining[skillLevelIdx]
@@ -262,6 +263,11 @@ function TaskDetail({
                         <p className="text-sm text-primary/80 leading-relaxed">{taskData.standards}</p>
                     </div>
                 </div>
+
+                {/* Audio Training Aids */}
+                {taskData.audioAids && taskData.audioAids.length > 0 && (
+                    <AudioAidPlayer audioAids={taskData.audioAids} />
+                )}
 
                 {/* Performance Steps */}
                 <div className="mb-4">

@@ -186,34 +186,33 @@ export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false,
     return (
         <div className="w-full h-full relative overflow-hidden">
             <div key="algorithm-view" className="h-full flex flex-col">
-                {/* Note status header — sticky at top, styled as card */}
-                <div
-                    className={`shrink-0 ${isMobile ? 'px-2' : ''}`}
-                    style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' } : undefined}
-                >
-                    <div className="flex items-center gap-1.5 py-2 px-3 rounded-md bg-themewhite2 border border-tertiary/10 shadow-sm text-[11px] font-medium text-primary mb-3">
-                        <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            {noteSource && !noteSource.startsWith('external') ? (
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                            ) : noteSource?.startsWith('external') ? (
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            ) : (
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            )}
-                        </svg>
-                        {noteSource?.startsWith('external')
-                            ? `External${noteSource.includes(':') ? ': ' + noteSource.split(':')[1] : ''}`
-                            : noteSource ? 'Saved: My Note' : 'New Note'}
+                {/* Note status header — on desktop only (mobile shows it in NavTop) */}
+                {!isMobile && (
+                    <div className="shrink-0">
+                        <div className="flex items-center gap-1.5 py-2 px-3 rounded-md bg-themewhite2 border border-tertiary/10 shadow-sm text-[11px] font-medium text-primary mb-3">
+                            <svg className="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                {noteSource && !noteSource.startsWith('external') ? (
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                                ) : noteSource?.startsWith('external') ? (
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                                ) : (
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                )}
+                            </svg>
+                            {noteSource?.startsWith('external')
+                                ? `External${noteSource.includes(':') ? ': ' + noteSource.split(':')[1] : ''}`
+                                : noteSource ? 'Saved: My Note' : 'New Note'}
+                        </div>
                     </div>
-                </div>
-
+                )}
                 <div
                     ref={containerRef}
-                    className={`flex-1 overflow-y-auto ${isTransitioning ? 'transition-none' : ''}`}
+                    className={`flex-1 overflow-y-auto ${isMobile ? 'bg-themewhite' : ''} ${isTransitioning ? 'transition-none' : ''}`}
                 >
                     {/* Content area */}
                     <div
-                        className={`pb-4 ${isMobile ? 'px-2 bg-themewhite min-h-full' : ''}`}
+                        className={`pb-4 ${isMobile ? 'px-2 min-h-full' : ''}`}
+                        style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' } : undefined}
                     >
                         <QuestionCard
                             algorithmOptions={algorithmOptions}
