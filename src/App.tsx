@@ -1,4 +1,4 @@
-import { useRef, useCallback, useEffect, useMemo } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import './App.css'
 import { NavTop } from './Components/NavTop'
 import { SearchResults } from './Components/SearchResults'
@@ -25,6 +25,8 @@ import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useAuth } from './Hooks/useAuth'
 import { TrainingDrawer } from './Components/TrainingDrawer'
 import { getTaskData } from './Data/TrainingData'
+import { isPinEnabled, isSessionUnlocked } from './lib/pinService'
+import { PinLockScreen } from './Components/PinLockScreen'
 
 // PWA App Shortcut: capture ?view= URL parameter once at module load time
 const _initialViewParam = (() => {
@@ -48,6 +50,11 @@ const _postUpdateNav = (() => {
 function AppContent() {
   const searchInputRef = useRef<HTMLInputElement>(null!)
   const { theme, toggleTheme } = useTheme()
+  const [isPinLocked, setIsPinLocked] = useState(() => isPinEnabled() && !isSessionUnlocked())
+
+  const handlePinUnlock = useCallback(() => {
+    setIsPinLocked(false)
+  }, [])
 
   const navigation = useNavigation()
   const search = useSearch()
@@ -404,6 +411,7 @@ function AppContent() {
         <FeedbackModal visible={activeNote.showNoteSavedModal} variant="success" title="Note Saved" subtitle="Saved to My Notes" />
         <FeedbackModal visible={activeNote.showImportDuplicateModal} variant="warning" title="Note Already Saved" subtitle="This note already exists in your saved notes" />
       </div>
+      {isPinLocked && <PinLockScreen onUnlock={handlePinUnlock} />}
     </div>
   )
 }

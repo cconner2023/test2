@@ -577,3 +577,14 @@ input, select, textarea {
     box-shadow: inset 1px 1px 1px 0 rgba(255, 255, 255, 0.08),
                 inset -1px -1px 1px 0 rgba(255, 255, 255, 0.04);
 }
+
+/* PIN lock error shake animation */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 50%, 90% { transform: translateX(-6px); }
+  30%, 70% { transform: translateX(6px); }
+}
+
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}

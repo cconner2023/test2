@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, ChevronUp, ChevronRight, FileText, Check, Camera, X, BookOpen, UserCog, LogOut, ClipboardCheck } from 'lucide-react';
+import { Moon, Sun, Shield, ChevronUp, ChevronRight, FileText, Check, Camera, X, BookOpen, UserCog, LogOut, ClipboardCheck, Lock } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import type { SavedNote } from '../../Hooks/useNotesStorage';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
@@ -16,6 +16,7 @@ import { SupervisorPanel } from './SupervisorPanel';
 import { GuestOptionsPanel } from './GuestOptionsPanel';
 import { LoginPanel } from './LoginPanel';
 import { TrainingPanel, type TrainingView } from './TrainingPanel';
+import { PinSetupPanel } from './PinSetupPanel';
 import type { subjectAreaArray, subjectAreaArrayOptions } from '../../Types/CatTypes';
 import { stp68wTraining } from '../../Data/TrainingTaskList';
 import { getTaskData } from '../../Data/TrainingData';
@@ -51,6 +52,10 @@ interface SettingsDrawerProps {
     };
 }
 
+type SettingsItem =
+    | { type: 'option'; icon: React.ReactNode; label: string; action: () => void; color: string; id: number }
+    | { type: 'header'; label: string };
+
 const MainSettingsPanel = ({
     settingsOptions,
     onItemClick,
@@ -65,13 +70,7 @@ const MainSettingsPanel = ({
     onSignOut,
     isAuthenticated,
 }: {
-    settingsOptions: Array<{
-        icon: React.ReactNode;
-        label: string;
-        action: () => void;
-        color: string;
-        id: number;
-    }>;
+    settingsOptions: SettingsItem[];
     onItemClick: (id: number) => void;
     avatarSvg: React.ReactNode;
     customImage: string | null;
@@ -123,26 +122,35 @@ const MainSettingsPanel = ({
             </div>
 
             <div className="space-y-1 md:space-y-3">
-                {settingsOptions.map((option) => (
-                    <button
-                        key={option.id}
-                        onClick={() => {
-                            option.action();
-                            onItemClick(option.id);
-                        }}
-                        className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2 active:scale-[0.98]
-                                     transition-all rounded-xl group
-                                     md:px-4 md:py-3"
-                    >
-                        <div className={`mr-4 ${option.color} md:group-hover:scale-110 md:transition-transform`}>
-                            {option.icon}
-                        </div>
-                        <span className="flex-1 text-left text-base text-primary font-medium md:font-[11pt]">
-                            {option.label}
-                        </span>
-                        <ChevronUp size={16} className="text-tertiary/40 rotate-90 md:hidden" />
-                    </button>
-                ))}
+                {settingsOptions.map((item, idx) => {
+                    if (item.type === 'header') {
+                        return (
+                            <div key={`header-${idx}`} className="px-4 pt-4 pb-1">
+                                <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">{item.label}</p>
+                            </div>
+                        );
+                    }
+                    return (
+                        <button
+                            key={item.id}
+                            onClick={() => {
+                                item.action();
+                                onItemClick(item.id);
+                            }}
+                            className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2 active:scale-[0.98]
+                                         transition-all rounded-xl group
+                                         md:px-4 md:py-3"
+                        >
+                            <div className={`mr-4 ${item.color} md:group-hover:scale-110 md:transition-transform`}>
+                                {item.icon}
+                            </div>
+                            <span className="flex-1 text-left text-base text-primary font-medium md:font-[11pt]">
+                                {item.label}
+                            </span>
+                            <ChevronUp size={16} className="text-tertiary/40 rotate-90 md:hidden" />
+                        </button>
+                    );
+                })}
             </div>
 
             <div className="mt-8 pt-6 border-t border-tertiary/10 md:mt-10">
@@ -286,7 +294,7 @@ export const Settings = ({
     onViewNote,
     avatar,
 }: SettingsDrawerProps) => {
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | TrainingView>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | TrainingView>('main');
     const [isDevRole, setIsDevRole] = useState(false);
     const [isSupervisorRole, setIsSupervisorRole] = useState(false);
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = avatar;
@@ -459,14 +467,20 @@ export const Settings = ({
                 handleSlideAnimation('left');
                 setActivePanel('login');
                 break;
+            case 15:
+                handleSlideAnimation('left');
+                setActivePanel('pin-setup');
+                break;
             default:
                 break;
         }
     }, [handleSlideAnimation]);
 
-    const buildSettingsOptions = useCallback((closeDrawer: () => void) => {
-        const options = [
+    const buildSettingsOptions = useCallback((closeDrawer: () => void): SettingsItem[] => {
+        const items: SettingsItem[] = [
+            // Top section (no header): My Notes, Training
             {
+                type: 'option',
                 icon: <FileText size={20} />,
                 label: 'My Notes',
                 action: () => handleItemClick(1, closeDrawer),
@@ -474,13 +488,17 @@ export const Settings = ({
                 id: 1
             },
             {
+                type: 'option',
                 icon: <BookOpen size={20} />,
                 label: 'Training',
                 action: () => handleItemClick(7, closeDrawer),
                 color: 'text-tertiary',
                 id: 7
             },
+            // PREFERENCES section
+            { type: 'header', label: 'Preferences' },
             {
+                type: 'option',
                 icon: isDarkMode ? <Sun size={20} /> : <Moon size={20} />,
                 label: 'Toggle Theme',
                 action: onToggleTheme,
@@ -488,6 +506,17 @@ export const Settings = ({
                 id: 0
             },
             {
+                type: 'option',
+                icon: <Lock size={20} />,
+                label: 'App Lock',
+                action: () => handleItemClick(15, closeDrawer),
+                color: 'text-tertiary',
+                id: 15
+            },
+            // ABOUT section
+            { type: 'header', label: 'About' },
+            {
+                type: 'option',
                 icon: <Shield size={20} />,
                 label: 'Release Notes',
                 action: () => handleItemClick(4, closeDrawer),
@@ -498,7 +527,8 @@ export const Settings = ({
 
         // Add supervisor option for supervisor users
         if (isSupervisorRole) {
-            options.push({
+            items.push({
+                type: 'option',
                 icon: <ClipboardCheck size={20} />,
                 label: 'Supervisor',
                 action: () => handleItemClick(9, closeDrawer),
@@ -509,7 +539,8 @@ export const Settings = ({
 
         // Add admin option for dev users
         if (isDevRole) {
-            options.push({
+            items.push({
+                type: 'option',
                 icon: <UserCog size={20} />,
                 label: 'Admin Panel',
                 action: () => handleItemClick(8, closeDrawer),
@@ -518,7 +549,7 @@ export const Settings = ({
             });
         }
 
-        return options;
+        return items;
     }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isSupervisorRole]);
 
     // Training panel navigation helpers
@@ -649,6 +680,12 @@ export const Settings = ({
                     showBack: true,
                     onBack: () => { handleSlideAnimation('right'); setActivePanel('guest-options'); },
                 };
+            case 'pin-setup':
+                return {
+                    title: 'App Lock',
+                    showBack: true,
+                    onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
+                };
         }
     }, [activePanel, notes, clinicNotes, isAuthenticated, profile.clinicName, handleSlideAnimation, selectedSubjectArea, selectedTask, handleTrainingBack]);
 
@@ -765,6 +802,8 @@ export const Settings = ({
                                 setActivePanel('user-profile');
                             }}
                         />
+                    ) : activePanel === 'pin-setup' ? (
+                        <PinSetupPanel />
                     ) : activePanel === 'training' || activePanel === 'training-tasks' || activePanel === 'training-detail' ? (
                         <TrainingPanel
                             view={activePanel}

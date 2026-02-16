@@ -8,27 +8,22 @@ export function useAuth() {
   const [isGuest, setIsGuest] = useState(true) // Start as guest by default
 
   useEffect(() => {
-    // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(session.user)
-        setIsGuest(false) // Not guest if authenticated
-      } else {
-        setIsGuest(true) // Default to guest
-      }
-      setLoading(false)
-    })
-
-    // Listen for auth changes
+    // Rely on onAuthStateChange for all auth state transitions.
+    // Modern Supabase fires INITIAL_SESSION as its first event,
+    // restoring the persisted session from localStorage.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
+        setIsGuest(true)
+      } else if (session?.user) {
         setUser(session.user)
         setIsGuest(false)
-      } else {
-        setUser(null)
-        setIsGuest(true) // Back to guest on logout
+      }
+      // Only clear loading after the initial session check completes
+      if (event === 'INITIAL_SESSION') {
+        setLoading(false)
       }
     })
 

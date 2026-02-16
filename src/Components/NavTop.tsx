@@ -1,7 +1,7 @@
 // NavTop.tsx - Simplified version with grouped props
 import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, HelpCircle } from "lucide-react";
 import { useRef, useEffect } from "react";
-import { useSpring, useTrail, animated } from '@react-spring/web';
+import { useSpring, useTrail, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { menuData } from "../Data/CatData";
 
@@ -37,7 +37,6 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
     const {
         showBack = false,
-        showMenu = false,
         dynamicTitle,
         medicationButtonText = "Medications",
         isMobile,
@@ -52,8 +51,6 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
     // Mobile-specific UI flags
     const shouldShowInfoButton = isMobile && isAlgorithmView && !isSearchExpanded;
-    const shouldShowMenuButton = showMenu && isMobile;
-
     // Menu spring: container expansion
     const containerSpring = useSpring({
         width: isMenuOpen ? 224 : 44,
@@ -64,6 +61,31 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         padLeft: isMenuOpen ? 12 : 2,
         padRight: isMenuOpen ? 20 : 2,
         config: { tension: 220, friction: 26 },
+    });
+
+    // Menu button spring: hidden when menu open OR navigated to detail (showBack)
+    const buttonSpring = useSpring({
+        opacity: (isMenuOpen || showBack) ? 0 : 1,
+        x: isMenuOpen ? 3 : showBack ? -3 : 0,
+        scale: (isMenuOpen || showBack) ? 1.05 : 1,
+        config: { tension: 220, friction: 26 },
+    });
+
+    // Back button spring: slides in from right when showBack, out to right when dismissed
+    const backButtonSpring = useSpring({
+        opacity: showBack ? 1 : 0,
+        x: showBack ? 0 : 3,
+        scale: showBack ? 1 : 1.05,
+        config: { tension: 280, friction: 24 },
+    });
+
+    // Desktop back button spring: animates maxWidth to prevent layout push
+    const desktopBackSpring = useSpring({
+        maxWidth: showBack ? 150 : 0,
+        opacity: showBack ? 1 : 0,
+        scale: showBack ? 1 : 0.95,
+        gap: showBack ? 8 : 0,
+        config: { tension: 260, friction: 24 },
     });
 
     // Menu spring: staggered item reveal
@@ -146,25 +168,32 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
             {/* Left section: buttons - hidden when mobile search is expanded */}
             {(!isMobile || !isSearchExpanded) && (
                 <div className="flex items-center shrink-0">
-                    {/* Mobile: Back button in its own container */}
-                    {isMobile && showBack && (
-                        <div className={BUTTON_CLASSES.mobileContainer}>
-                            <button
-                                onClick={onBackClick}
-                                className={`${BUTTON_CLASSES.mobileButton} active:scale-90`}
-                                aria-label="Go back"
-                                title="Go back"
-                            >
-                                <ChevronLeft className="w-5 h-5 stroke-current" />
-                            </button>
-                        </div>
-                    )}
-
-                    {/* Mobile: Morphing menu button/panel */}
-                    {shouldShowMenuButton && (
+                    {/* Mobile: Back + Menu button crossfade */}
+                    {isMobile && (
                         <div className="relative">
                             {/* Invisible spacer to maintain navbar layout - 44px to match button */}
                             <div className="w-11 h-11" />
+
+                            {/* Back button - slides in from right, out to right */}
+                            <animated.div
+                                className="absolute top-0.5 left-1 z-40"
+                                style={{
+                                    opacity: backButtonSpring.opacity,
+                                    transform: to([backButtonSpring.x, backButtonSpring.scale], (x, s) => `translateX(${x}px) scale(${s})`),
+                                    pointerEvents: showBack ? 'auto' : 'none',
+                                }}
+                            >
+                                <div className={BUTTON_CLASSES.mobileContainer}>
+                                    <button
+                                        onClick={onBackClick}
+                                        className={`${BUTTON_CLASSES.mobileButton} active:scale-90`}
+                                        aria-label="Go back"
+                                        title="Go back"
+                                    >
+                                        <ChevronLeft className="w-5 h-5 stroke-current" />
+                                    </button>
+                                </div>
+                            </animated.div>
 
                             {/* Backdrop is rendered at App level to avoid overflow-hidden clipping */}
 
@@ -180,12 +209,21 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                     paddingBottom: containerSpring.padBottom,
                                     paddingLeft: containerSpring.padLeft,
                                     paddingRight: containerSpring.padRight,
+                                    opacity: buttonSpring.opacity.to(o => isMenuOpen ? 1 : o),
+                                    pointerEvents: (isMenuOpen || !showBack) ? 'auto' : 'none',
                                 }}
                             >
                                 {/* Border overlay - always visible */}
                                 <div className="absolute inset-0 rounded-inherit pointer-events-none border border-tertiary/15" />
-                                {/* Menu button - avatar on mobile, opens menu */}
-                                {!isMenuOpen && (
+                                {/* Menu button - avatar on mobile, fades in with right-to-left slide */}
+                                <animated.div
+                                    className="absolute top-0.5 left-0.5 w-10 h-10 flex items-center justify-center z-20"
+                                    style={{
+                                        opacity: buttonSpring.opacity,
+                                        transform: to([buttonSpring.x, buttonSpring.scale], (x, s) => `translateX(${x}px) scale(${s})`),
+                                        pointerEvents: (isMenuOpen || showBack) ? 'none' : 'auto',
+                                    }}
+                                >
                                     <button
                                         onClick={onMenuClick}
                                         className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform overflow-hidden"
@@ -207,7 +245,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                             <Menu className="w-5 h-5 stroke-current" />
                                         )}
                                     </button>
-                                )}
+                                </animated.div>
 
                                 {/* Menu items: staggered spring reveal */}
                                 <div className="relative z-10 space-y-0.5">
@@ -236,11 +274,20 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
                     {/* Desktop buttons - no menu button */}
                     {!isMobile && (
-                        <div className="flex justify-center items-center space-x-2 shrink-0">
-                            {showBack && (
+                        <div className="flex justify-center items-center shrink-0">
+                            <animated.div
+                                className="overflow-hidden shrink-0"
+                                style={{
+                                    maxWidth: desktopBackSpring.maxWidth,
+                                    marginRight: desktopBackSpring.gap,
+                                    opacity: desktopBackSpring.opacity,
+                                    transform: desktopBackSpring.scale.to(s => `scale(${s})`),
+                                    pointerEvents: showBack ? 'auto' : 'none',
+                                }}
+                            >
                                 <button
                                     onClick={onBackClick}
-                                    className={BUTTON_CLASSES.desktop}
+                                    className={`${BUTTON_CLASSES.desktop} whitespace-nowrap`}
                                     aria-label="Go back"
                                     title="Go back"
                                 >
@@ -249,7 +296,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                         Back
                                     </span>
                                 </button>
-                            )}
+                            </animated.div>
                             <button
                                 onClick={onMedicationClick}
                                 className={BUTTON_CLASSES.desktop}
