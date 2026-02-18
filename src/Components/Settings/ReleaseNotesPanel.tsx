@@ -41,7 +41,7 @@ export const ReleaseNotesPanel = () => {
     const versions = Object.keys(groupedNotes).sort((a, b) => parseFloat(b) - parseFloat(a));
 
     return (
-        <div className="h-full overflow-y-auto px-4 py-3 md:p-6">
+        <div className="h-full overflow-y-auto px-4 py-3 md:p-5">
             {versions.map((version, versionIndex) => {
                 const notes = groupedNotes[version];
                 const isLatest = versionIndex === 0;

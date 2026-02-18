@@ -1,6 +1,9 @@
 // PIN Lock Service — device-level security gate
 // Uses Web Crypto API for SHA-256 hashing (no external deps)
 // Stores hash+salt in localStorage, unlock flag in sessionStorage
+// Cloud sync via Supabase RPCs for cross-device persistence
+
+import { supabase } from './supabase'
 
 const STORAGE_KEYS = {
   hash: 'adtmc_pin_hash',
@@ -146,5 +149,35 @@ export function resetLockout(): void {
     sessionStorage.removeItem(STORAGE_KEYS.lockoutUntil)
   } catch {
     // fail silently
+  }
+}
+
+// --- Cloud sync (best-effort, fire-and-forget) ---
+
+export async function syncPinToCloud(hash: string, salt: string): Promise<void> {
+  try {
+    await supabase.rpc('update_own_security_settings', {
+      p_pin_hash: hash,
+      p_pin_salt: salt,
+    })
+  } catch {
+    // best-effort — local PIN already saved
+  }
+}
+
+export async function clearPinFromCloud(): Promise<void> {
+  try {
+    await supabase.rpc('clear_own_pin')
+  } catch {
+    // best-effort
+  }
+}
+
+export function hydrateFromCloud(hash: string, salt: string): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.hash, hash)
+    localStorage.setItem(STORAGE_KEYS.salt, salt)
+  } catch {
+    // localStorage unavailable
   }
 }

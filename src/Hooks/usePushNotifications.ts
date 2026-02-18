@@ -27,7 +27,7 @@ export function usePushNotifications() {
     })
   }, [])
 
-  const subscribe = useCallback(async () => {
+  const subscribe = useCallback(async (): Promise<boolean> => {
     setLoading(true)
     setError(null)
     const result = await subscribeToPush()
@@ -37,9 +37,10 @@ export function usePushNotifications() {
       setError(result.error || 'Failed to subscribe')
     }
     setLoading(false)
+    return result.success
   }, [])
 
-  const unsubscribe = useCallback(async () => {
+  const unsubscribe = useCallback(async (): Promise<boolean> => {
     setLoading(true)
     setError(null)
     const result = await unsubscribeFromPush()
@@ -49,6 +50,7 @@ export function usePushNotifications() {
       setError(result.error || 'Failed to unsubscribe')
     }
     setLoading(false)
+    return result.success
   }, [])
 
   return { isSupported, isSubscribed, loading, error, subscribe, unsubscribe }

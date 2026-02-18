@@ -100,6 +100,9 @@ export interface Database {
           roles: string[]
           clinic_id: string | null
           avatar_id: string | null
+          pin_hash: string | null
+          pin_salt: string | null
+          notifications_enabled: boolean
           created_at: string
           updated_at: string
         }
@@ -116,6 +119,9 @@ export interface Database {
           roles?: string[]
           clinic_id?: string | null
           avatar_id?: string | null
+          pin_hash?: string | null
+          pin_salt?: string | null
+          notifications_enabled?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -132,6 +138,9 @@ export interface Database {
           roles?: string[]
           clinic_id?: string | null
           avatar_id?: string | null
+          pin_hash?: string | null
+          pin_salt?: string | null
+          notifications_enabled?: boolean
           updated_at?: string
         }
       }
@@ -442,6 +451,18 @@ export interface Database {
       get_note_author_display: {
         Args: { p_user_id: string }
         Returns: string
+      }
+      update_own_security_settings: {
+        Args: {
+          p_pin_hash?: string
+          p_pin_salt?: string
+          p_notifications_enabled?: boolean
+        }
+        Returns: void
+      }
+      clear_own_pin: {
+        Args: Record<string, never>
+        Returns: void
       }
     }
     Enums: {

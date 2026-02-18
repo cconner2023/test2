@@ -13,6 +13,8 @@ export interface UserTypes {
     uic?: string;
     /** Clinic name resolved from the user's clinic_id association */
     clinicName?: string;
+    /** Whether the user wants push notifications (synced to cloud) */
+    notificationsEnabled?: boolean;
 }
 
 export const credentials: Credential[] = ['EMT-B', 'EMT-A', 'EMT-P', 'PA-C', 'NP', 'MD', 'DO'];

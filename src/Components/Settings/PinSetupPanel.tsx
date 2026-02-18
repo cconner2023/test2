@@ -8,6 +8,9 @@ import {
   checkLockout,
   recordFailedAttempt,
   resetLockout,
+  getStoredPin,
+  syncPinToCloud,
+  clearPinFromCloud,
 } from '../../lib/pinService'
 import {
   isBiometricAvailable,
@@ -110,6 +113,8 @@ export const PinSetupPanel = () => {
       case 'confirm-new':
         if (pin === firstPin) {
           await savePin(pin)
+          const stored = getStoredPin()
+          if (stored) syncPinToCloud(stored.hash, stored.salt)
           resetLockout()
           setPinEnabled(true)
           setSuccess('PIN enabled')
@@ -130,6 +135,7 @@ export const PinSetupPanel = () => {
             setView('change-new')
           } else if (pendingAction === 'remove') {
             removePin()
+            clearPinFromCloud()
             removeBiometric()
             setPinEnabled(false)
             setBioEnrolled(false)
@@ -155,6 +161,8 @@ export const PinSetupPanel = () => {
       case 'change-confirm':
         if (pin === firstPin) {
           await savePin(pin)
+          const changedStored = getStoredPin()
+          if (changedStored) syncPinToCloud(changedStored.hash, changedStored.salt)
           resetLockout()
           setPinEnabled(true)
           setSuccess('PIN changed')
@@ -221,8 +229,8 @@ export const PinSetupPanel = () => {
           </div>
 
           <p className="text-xs text-tertiary/70 mb-5 leading-relaxed">
-            When enabled, a 4-digit PIN is required each time you open the app in a new tab.
-            Your PIN persists across sign-outs and protects cached notes on this device.
+            When enabled, a 4-digit PIN will be required each time you open the application.
+            Your PIN persists across devices and protects cached notes.
           </p>
 
           {success && (
@@ -255,11 +263,10 @@ export const PinSetupPanel = () => {
                 <button
                   onClick={handleBiometricToggle}
                   disabled={bioLoading}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all active:scale-[0.98] ${
-                    bioEnrolled
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all active:scale-[0.98] ${bioEnrolled
                       ? 'bg-themegreen/10 hover:bg-themegreen/15'
                       : 'bg-themeblue2/10 hover:bg-themeblue2/15'
-                  } disabled:opacity-50`}
+                    } disabled:opacity-50`}
                 >
                   <ScanFace size={18} className={bioEnrolled ? 'text-themegreen' : 'text-themeblue2'} />
                   <div className="flex-1 text-left">
@@ -299,7 +306,7 @@ export const PinSetupPanel = () => {
   // PIN entry views (set, confirm, verify, change)
   return (
     <div className="h-full overflow-y-auto">
-      <div className="flex flex-col items-center px-4 py-4 md:py-5">
+      <div className="flex flex-col items-center px-4 py-3 md:p-5">
         {/* Label */}
         <p className="text-sm font-medium text-primary mb-1">{viewLabels[view]}</p>
         {error && (
@@ -315,18 +322,17 @@ export const PinSetupPanel = () => {
           {[0, 1, 2, 3].map(i => (
             <div
               key={i}
-              className={`w-3 h-3 rounded-full transition-all duration-150 ${
-                i < digits.length
+              className={`w-3 h-3 rounded-full transition-all duration-150 ${i < digits.length
                   ? error ? 'bg-themeredred scale-110' : 'bg-themeblue2 scale-110'
                   : 'bg-themegray1/50'
-              }`}
+                }`}
             />
           ))}
         </div>
 
         {/* Compact keypad */}
         <div className="grid grid-cols-3 gap-x-5 gap-y-2 w-[220px]">
-          {['1','2','3','4','5','6','7','8','9','','0','back'].map((key, idx) => {
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'back'].map((key, idx) => {
             if (key === '') return <div key={idx} />
             if (key === 'back') {
               return (

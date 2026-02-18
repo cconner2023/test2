@@ -637,7 +637,7 @@ export const MyNotesPanel = ({
                     </div>
                 ) : isMobile ? (
                     /* Mobile: swipe gestures + tap to select */
-                    <div className="p-3">
+                    <div className="px-4 py-3 md:p-5">
                         <p className="text-[10px] text-tertiary/40 text-center mb-2">
                             Swipe for actions · Tap to select
                         </p>
@@ -666,7 +666,7 @@ export const MyNotesPanel = ({
                     </div>
                 ) : (
                     /* Desktop: checkbox selection + bottom action bar */
-                    <div className="p-3 md:p-4">
+                    <div className="px-4 py-3 md:p-5">
                         <p className="text-[10px] text-tertiary/40 text-center mb-2">
                             Tap to select · Multi-select for bulk actions
                         </p>

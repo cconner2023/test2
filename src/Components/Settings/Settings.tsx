@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, ChevronUp, ChevronRight, FileText, Check, Camera, X, BookOpen, UserCog, LogOut, ClipboardCheck, Lock, MessageSquare } from 'lucide-react';
+import { Moon, Sun, Shield, ChevronUp, ChevronRight, FileText, Check, Camera, X, BookOpen, UserCog, LogOut, ClipboardCheck, Lock, MessageSquare, Bell, HelpCircle } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import type { SavedNote } from '../../Hooks/useNotesStorage';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
@@ -17,6 +17,7 @@ import { GuestOptionsPanel } from './GuestOptionsPanel';
 import { LoginPanel } from './LoginPanel';
 import { TrainingPanel, type TrainingView } from './TrainingPanel';
 import { PinSetupPanel } from './PinSetupPanel';
+import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { FeedbackPanel } from './FeedbackPanel';
 import type { subjectAreaArrayOptions } from '../../Types/CatTypes';
 import { stp68wTraining } from '../../Data/TrainingTaskList';
@@ -55,7 +56,7 @@ interface SettingsDrawerProps {
 }
 
 type SettingsItem =
-    | { type: 'option'; icon: React.ReactNode; label: string; action: () => void; color: string; id: number }
+    | { type: 'option'; icon: React.ReactNode; label: string; action: () => void; color: string; id: number; disabled?: boolean }
     | { type: 'header'; label: string };
 
 const MainSettingsPanel = ({
@@ -84,55 +85,65 @@ const MainSettingsPanel = ({
     onProfileClick: () => void;
     onSignOut?: () => void;
     isAuthenticated?: boolean;
-}) => (
-    <div className="h-full overflow-y-auto">
-        <div className="px-4 py-3 md:p-4">
-            <div className="mb-4 pb-4 border-b border-tertiary/10">
-                <div className="flex items-center w-full px-4 py-3.5 md:px-5 md:py-3.5">
-                    <button
-                        onClick={onAvatarClick}
-                        className="mr-4 w-12 h-12 rounded-full overflow-hidden shrink-0
-                                   active:scale-95 transition-transform"
-                    >
-                        {isCustom && customImage ? (
-                            <img src={customImage} alt="Profile" className="w-full h-full object-cover" />
-                        ) : avatarSvg}
-                    </button>
-                    <button
-                        onClick={onProfileClick}
-                        className="flex-1 min-w-0 text-left hover:bg-themewhite2/10 active:scale-[1]
-                                   transition-all rounded-lg -my-2 py-2 px-2 -mx-2"
-                    >
-                        <p className="text-base font-semibold text-primary md:text-[12pt]">{displayName}</p>
-                        <p className="text-xs text-tertiary md:text-sm">{displaySub}</p>
-                        {displayClinic && (
-                            <p className="text-xs text-tertiary md:text-sm mt-0.5">{displayClinic}</p>
-                        )}
-                    </button>
-                    {isAuthenticated ? (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onSignOut?.(); }}
-                            className="shrink-0 ml-2 p-1.5 rounded-full hover:bg-tertiary/10 active:scale-90 transition-all"
-                            aria-label="Sign out"
-                        >
-                            <LogOut size={18} className="text-themeredred" />
-                        </button>
-                    ) : (
-                        <ChevronRight size={20} className="text-tertiary/40 shrink-0 ml-2" />
-                    )}
-                </div>
-            </div>
+}) => {
+    // Separate top row items (no header before them) from grid sections
+    const topItems: Extract<SettingsItem, { type: 'option' }>[] = [];
+    const gridSections: { label: string; items: Extract<SettingsItem, { type: 'option' }>[] }[] = [];
 
-            <div className="space-y-1 md:space-y-3">
-                {settingsOptions.map((item, idx) => {
-                    if (item.type === 'header') {
-                        return (
-                            <div key={`header-${idx}`} className="px-6 pt-4 pb-1">
-                                <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">{item.label}</p>
-                            </div>
-                        );
-                    }
-                    return (
+    let currentSection: { label: string; items: Extract<SettingsItem, { type: 'option' }>[] } | null = null;
+    for (const item of settingsOptions) {
+        if (item.type === 'header') {
+            currentSection = { label: item.label, items: [] };
+            gridSections.push(currentSection);
+        } else if (currentSection) {
+            currentSection.items.push(item);
+        } else {
+            topItems.push(item);
+        }
+    }
+
+    return (
+        <div className="h-full overflow-y-auto">
+            <div className="px-4 py-3 md:p-5">
+                <div className="mb-4 pb-4 border-b border-tertiary/10">
+                    <div className="flex items-center w-full px-4 py-3.5 md:px-5 md:py-3.5">
+                        <button
+                            onClick={onAvatarClick}
+                            className="mr-4 w-12 h-12 rounded-full overflow-hidden shrink-0
+                                       active:scale-95 transition-transform"
+                        >
+                            {isCustom && customImage ? (
+                                <img src={customImage} alt="Profile" className="w-full h-full object-cover" />
+                            ) : avatarSvg}
+                        </button>
+                        <button
+                            onClick={onProfileClick}
+                            className="flex-1 min-w-0 text-left hover:bg-themewhite2/10 active:scale-[1]
+                                       transition-all rounded-lg -my-2 py-2 px-2 -mx-2"
+                        >
+                            <p className="text-base font-semibold text-primary md:text-[12pt]">{displayName}</p>
+                            <p className="text-xs text-tertiary md:text-sm">{displaySub}</p>
+                            {displayClinic && (
+                                <p className="text-xs text-tertiary md:text-sm mt-0.5">{displayClinic}</p>
+                            )}
+                        </button>
+                        {isAuthenticated ? (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onSignOut?.(); }}
+                                className="shrink-0 ml-2 p-1.5 rounded-full hover:bg-tertiary/10 active:scale-90 transition-all"
+                                aria-label="Sign out"
+                            >
+                                <LogOut size={18} className="text-themeredred" />
+                            </button>
+                        ) : (
+                            <ChevronRight size={20} className="text-tertiary/40 shrink-0 ml-2" />
+                        )}
+                    </div>
+                </div>
+
+                {/* Top row items — My Notes & My Training (unchanged) */}
+                <div className="space-y-1 md:space-y-3">
+                    {topItems.map((item) => (
                         <button
                             key={item.id}
                             onClick={() => {
@@ -151,19 +162,57 @@ const MainSettingsPanel = ({
                             </span>
                             <ChevronUp size={16} className="text-tertiary/40 rotate-90 md:hidden" />
                         </button>
-                    );
-                })}
-            </div>
+                    ))}
+                </div>
 
-            <div className="mt-8 pt-6 border-t border-tertiary/10 md:mt-10">
-                <div className="text-center">
-                    <p className="text-sm text-tertiary/60 font-medium md:text-base">ADTMC MEDCOM PAM 40-7-21</p>
-                    <p className="text-xs text-tertiary/40 mt-1 md:text-sm">Version {__APP_VERSION__}</p>
+                {/* Grid sections — Roles, Preferences, About as box cards */}
+                {gridSections.map((section) => (
+                    <div key={section.label} className="mt-4 px-6 md:px-6">
+                        <div className="pb-2">
+                            <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">{section.label}</p>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 max-w-[85%]">
+                            {section.items.map((item) => (
+                                <button
+                                    key={item.id}
+                                    onClick={() => {
+                                        if (item.disabled) return;
+                                        item.action();
+                                        onItemClick(item.id);
+                                    }}
+                                    disabled={item.disabled}
+                                    className={`relative flex flex-col items-center justify-center gap-1
+                                               rounded-lg px-2 py-2 border transition-all
+                                               ${item.disabled
+                                                   ? 'border-tertiary/10 bg-themewhite2/50 opacity-50 cursor-not-allowed'
+                                                   : 'border-tertiary/15 bg-themewhite2 hover:bg-themeblue2/10 hover:border-themeblue2/25 active:scale-[0.97] group'
+                                               }`}
+                                >
+                                    <div className={`${item.disabled ? 'text-tertiary/40' : item.color} ${!item.disabled ? 'group-hover:scale-110' : ''} transition-transform`}>
+                                        {item.icon}
+                                    </div>
+                                    <span className={`text-[11px] font-medium text-center leading-tight ${item.disabled ? 'text-tertiary/40' : 'text-primary'}`}>
+                                        {item.label}
+                                    </span>
+                                    {item.disabled && (
+                                        <span className="text-[8px] text-tertiary/40 font-medium uppercase tracking-wide">Soon</span>
+                                    )}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                ))}
+
+                <div className="mt-8 pt-6 border-t border-tertiary/10 md:mt-10">
+                    <div className="text-center">
+                        <p className="text-sm text-tertiary/60 font-medium md:text-base">ADTMC MEDCOM PAM 40-7-21</p>
+                        <p className="text-xs text-tertiary/40 mt-1 md:text-sm">Version {__APP_VERSION__}</p>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-);
+    );
+};
 
 // Content wrapper with slide animation and optional swipe-back
 const ContentWrapper = ({
@@ -297,7 +346,7 @@ export const Settings = ({
     avatar,
     onNotePanelChange,
 }: SettingsDrawerProps) => {
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'feedback' | TrainingView>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | TrainingView>('main');
     const [isDevRole, setIsDevRole] = useState(false);
     const [isSupervisorRole, setIsSupervisorRole] = useState(false);
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = avatar;
@@ -465,6 +514,10 @@ export const Settings = ({
                 handleSlideAnimation('left');
                 setActivePanel('feedback');
                 break;
+            case 17:
+                handleSlideAnimation('left');
+                setActivePanel('notification-settings');
+                break;
             default:
                 break;
         }
@@ -532,11 +585,23 @@ export const Settings = ({
             {
                 type: 'option',
                 icon: <Lock size={20} />,
-                label: 'App Lock',
+                label: 'Security',
                 action: () => handleItemClick(15, closeDrawer),
                 color: 'text-tertiary',
                 id: 15
             },
+            {
+                type: 'option',
+                icon: <Bell size={20} />,
+                label: 'Notifications',
+                action: () => {},
+                color: 'text-tertiary',
+                id: 17,
+                disabled: true
+            },
+        );
+
+        items.push(
             // ABOUT section
             { type: 'header', label: 'About' },
             {
@@ -554,6 +619,15 @@ export const Settings = ({
                 action: () => handleItemClick(16, closeDrawer),
                 color: 'text-themegreen',
                 id: 16
+            },
+            {
+                type: 'option',
+                icon: <HelpCircle size={20} />,
+                label: 'Help & Support',
+                action: () => {},
+                color: 'text-tertiary',
+                id: 18,
+                disabled: true
             }
         );
 
@@ -674,6 +748,12 @@ export const Settings = ({
             case 'pin-setup':
                 return {
                     title: 'App Lock',
+                    showBack: true,
+                    onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
+                };
+            case 'notification-settings':
+                return {
+                    title: 'Notifications',
                     showBack: true,
                     onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
                 };
@@ -801,6 +881,8 @@ export const Settings = ({
                         />
                     ) : activePanel === 'feedback' ? (
                         <FeedbackPanel />
+                    ) : activePanel === 'notification-settings' ? (
+                        <NotificationSettingsPanel />
                     ) : activePanel === 'pin-setup' ? (
                         <PinSetupPanel />
                     ) : activePanel === 'training' || activePanel === 'training-detail' ? (

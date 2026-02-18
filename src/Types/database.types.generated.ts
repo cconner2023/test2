@@ -192,6 +192,9 @@ export type Database = {
           id: string
           last_name: string | null
           middle_initial: string | null
+          notifications_enabled: boolean
+          pin_hash: string | null
+          pin_salt: string | null
           rank: string | null
           roles: string[]
           uic: string | null
@@ -208,6 +211,9 @@ export type Database = {
           id: string
           last_name?: string | null
           middle_initial?: string | null
+          notifications_enabled?: boolean
+          pin_hash?: string | null
+          pin_salt?: string | null
           rank?: string | null
           roles?: string[]
           uic?: string | null
@@ -224,6 +230,9 @@ export type Database = {
           id?: string
           last_name?: string | null
           middle_initial?: string | null
+          notifications_enabled?: boolean
+          pin_hash?: string | null
+          pin_salt?: string | null
           rank?: string | null
           roles?: string[]
           uic?: string | null
@@ -470,6 +479,18 @@ export type Database = {
           p_clinic_id: string | null
         }
         Returns: Json
+      }
+      update_own_security_settings: {
+        Args: {
+          p_pin_hash?: string
+          p_pin_salt?: string
+          p_notifications_enabled?: boolean
+        }
+        Returns: undefined
+      }
+      clear_own_pin: {
+        Args: Record<string, never>
+        Returns: undefined
       }
     }
     Enums: {

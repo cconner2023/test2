@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { UserTypes } from '../Data/User';
 import { supabase } from '../lib/supabase';
+import { isPinEnabled, hydrateFromCloud } from '../lib/pinService';
 
 const STORAGE_KEY = 'adtmc_user_profile';
 
@@ -39,6 +40,7 @@ export function useUserProfile() {
             if (data) {
                 // clinics is returned as an object { name } or null from the foreign-key join
                 const clinicRow = data.clinics as { name: string } | null;
+
                 const next: UserTypes = {
                     firstName: data.first_name ?? undefined,
                     lastName: data.last_name ?? undefined,
@@ -49,6 +51,25 @@ export function useUserProfile() {
                     uic: data.uic ?? undefined,
                     clinicName: clinicRow?.name ?? undefined,
                 };
+
+                // Best-effort: fetch security columns (may not exist pre-migration)
+                try {
+                    const { data: sec } = await supabase
+                        .from('profiles')
+                        .select('pin_hash, pin_salt, notifications_enabled')
+                        .eq('id', userId)
+                        .single();
+
+                    if (sec) {
+                        if (sec.pin_hash && sec.pin_salt && !isPinEnabled()) {
+                            hydrateFromCloud(sec.pin_hash, sec.pin_salt);
+                        }
+                        next.notificationsEnabled = sec.notifications_enabled ?? false;
+                    }
+                } catch {
+                    // columns don't exist yet — ignore
+                }
+
                 setProfile(next);
                 saveProfile(next);
             }
