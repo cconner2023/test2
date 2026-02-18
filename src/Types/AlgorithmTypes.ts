@@ -9,6 +9,7 @@ export interface AlgorithmOptions {
     type: "choice" | "count" | "action" | "initial" | 'rf',
     questionOptions: questionOptions[],
     answerOptions: answerOptions[],
+    performable?: boolean,
     initialVisible?: boolean,
     screenerConfig?: ScreenerConfig
 }

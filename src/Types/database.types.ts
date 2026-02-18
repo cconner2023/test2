@@ -267,6 +267,41 @@ export interface Database {
           updated_at?: string
         }
       }
+      feedback: {
+        Row: {
+          id: string
+          user_id: string | null
+          display_name: string | null
+          rating: number
+          comments: string | null
+          most_useful_feature: string | null
+          desired_feature: string | null
+          needs_improvement: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          display_name?: string | null
+          rating: number
+          comments?: string | null
+          most_useful_feature?: string | null
+          desired_feature?: string | null
+          needs_improvement?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          display_name?: string | null
+          rating?: number
+          comments?: string | null
+          most_useful_feature?: string | null
+          desired_feature?: string | null
+          needs_improvement?: string | null
+          created_at?: string
+        }
+      }
       sync_queue: {
         Row: {
           id: string

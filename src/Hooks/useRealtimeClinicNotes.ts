@@ -69,6 +69,8 @@ interface UseRealtimeClinicNotesOptions {
   userId: string | null
   isAuthenticated: boolean
   isPageVisible: boolean
+  /** Only subscribe when the note panel is open. */
+  isNotePanelOpen: boolean
   /** Called for notes from other clinic members. */
   onClinicUpsert: (note: SavedNote) => void
   onClinicDelete: (noteId: string) => void
@@ -82,6 +84,7 @@ export function useRealtimeClinicNotes({
   userId,
   isAuthenticated,
   isPageVisible,
+  isNotePanelOpen,
   onClinicUpsert,
   onClinicDelete,
   onPersonalUpsert,
@@ -115,8 +118,8 @@ export function useRealtimeClinicNotes({
   }, [])
 
   useEffect(() => {
-    // Pause when backgrounded, not authenticated, or missing IDs
-    if (!isAuthenticated || !clinicId || !userId || !isPageVisible) {
+    // Pause when backgrounded, not authenticated, missing IDs, or note panel is closed
+    if (!isAuthenticated || !clinicId || !userId || !isPageVisible || !isNotePanelOpen) {
       cleanup()
       return
     }
@@ -210,5 +213,5 @@ export function useRealtimeClinicNotes({
     channelRef.current = channel
 
     return cleanup
-  }, [isAuthenticated, clinicId, userId, isPageVisible, cleanup])
+  }, [isAuthenticated, clinicId, userId, isPageVisible, isNotePanelOpen, cleanup])
 }

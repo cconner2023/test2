@@ -114,7 +114,7 @@ async function migrateFromLocalStorage(userId: string): Promise<number> {
   }
 }
 
-export function useNotesStorage() {
+export function useNotesStorage(isNotePanelOpen = false) {
   const [notes, setNotes] = useState<SavedNote[]>([]);
   const [clinicNotes, setClinicNotes] = useState<SavedNote[]>([]);
   const [online, setOnline] = useState<boolean>(checkOnline());
@@ -679,6 +679,7 @@ export function useNotesStorage() {
     userId: realtimeUserId,
     isAuthenticated: realtimeAuthenticated,
     isPageVisible,
+    isNotePanelOpen,
     onClinicUpsert: handleClinicUpsert,
     onClinicDelete: handleClinicDelete,
     onPersonalUpsert: handlePersonalUpsert,

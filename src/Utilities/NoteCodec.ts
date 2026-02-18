@@ -26,6 +26,7 @@ export interface ParsedNote {
     rfSelections: number[];
     cardEntries: { index: number; selections: number[]; answerIndex: number }[];
     screenerEntries: ScreenerEntry[];
+    actionEntries: { index: number; status: 'performed' | 'deferred' }[];
     hpiText: string;
     flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean };
     timestamp: Date | null;
@@ -97,6 +98,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         rfSelections: [],
         cardEntries: [],
         screenerEntries: [],
+        actionEntries: [],
         hpiText: '',
         flags: { includeAlgorithm: true, includeDecisionMaking: true, includeHPI: false },
         timestamp: null,
@@ -161,6 +163,14 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                     component: coi >= 0 ? components[coi] : undefined,
                     uic: names[3] || undefined,
                 };
+            }
+        } else if (prefix === 'A') {
+            // Action status segment: A{cardIndex}.{P|D}
+            const aSegs = value.split('.');
+            if (aSegs.length >= 2) {
+                const idx = parseInt(aSegs[0], 10);
+                const status = aSegs[1] === 'D' ? 'deferred' : 'performed';
+                result.actionEntries.push({ index: idx, status });
             }
         } else if (prefix === 'Q') {
             // Screener segment: Q{id}.{responseDigits}[.{followUpIdx}]
@@ -269,6 +279,14 @@ export function encodeNoteState(
             seg += `.${state.followUpResponse}`;
         }
         parts.push(seg);
+    }
+
+    // 3c. Action status entries for non-screener action cards
+    for (let i = 0; i < cardStates.length; i++) {
+        const state = cardStates[i];
+        const card = algorithmOptions[i];
+        if (!state?.isVisible || !card || card.type !== 'action' || card.screenerConfig || !state.actionStatus) continue;
+        parts.push(`A${i}.${state.actionStatus === 'deferred' ? 'D' : 'P'}`);
     }
 
     // 4. HPI text (base64 encoded)
@@ -390,6 +408,16 @@ export function reconstructCardStates(
             cardStates[cardIdx].completedScreenerId = entry.id;
             if (entry.followUp !== undefined) {
                 cardStates[cardIdx].followUpResponse = entry.followUp;
+            }
+        }
+    }
+
+    // Apply action status entries
+    for (const entry of parsed.actionEntries) {
+        if (entry.index >= 0 && entry.index < cardStates.length) {
+            cardStates[entry.index].actionStatus = entry.status;
+            if (entry.status === 'deferred') {
+                lastDisposition = { type: "OTHER", text: "defer to AEM" };
             }
         }
     }

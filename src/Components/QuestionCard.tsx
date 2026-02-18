@@ -3,7 +3,7 @@ import { getColorClasses } from '../Utilities/ColorUtilities';
 import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import { getScreenerMaxScore, getScreenerScore, isScreenerGateOpen } from '../Data/SpecTesting';
-import { Check, ClipboardList } from 'lucide-react';
+import { Check, ClipboardList, X } from 'lucide-react';
 
 interface QuestionCardProps {
     algorithmOptions: AlgorithmOptions[];
@@ -13,6 +13,7 @@ interface QuestionCardProps {
     onAnswer: (cardIndex: number, answerIndex: number) => void;
     onQuestionOption: (cardIndex: number, optionIndex: number) => void;
     onOpenScreener?: (cardIndex: number) => void;
+    onActionStatus?: (cardIndex: number, status: 'performed' | 'deferred') => void;
 }
 
 // components/QuestionCard.tsx
@@ -22,7 +23,8 @@ export const QuestionCard = ({
     isTransitioning,
     onAnswer,
     onQuestionOption,
-    onOpenScreener
+    onOpenScreener,
+    onActionStatus
 }: QuestionCardProps) => {
     return (
         <div className="space-y-0">
@@ -118,6 +120,94 @@ export const QuestionCard = ({
                     );
                 }
 
+                // Non-screener action card — Performed / Deferred buttons
+                if (isAction) {
+                    const isPerformed = card.actionStatus === 'performed';
+                    const isDeferred = card.actionStatus === 'deferred';
+                    const hasStatus = isPerformed || isDeferred;
+
+                    return (
+                        <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
+                            <div className={`flex flex-col rounded-md w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed ${isDeferred ? 'border-themeredred/30' : 'border-themeblue2/30'}`}>
+                                <div className="px-4 py-3 text-center">
+                                    <div className={`text-[9pt] font-semibold mb-1 uppercase tracking-wider ${isDeferred ? 'text-themeredred' : 'text-themeblue2'}`}>
+                                        Action Required
+                                    </div>
+                                    <div className="text-[10pt] font-normal text-primary/80">
+                                        {question.text}
+                                    </div>
+                                </div>
+
+                                {/* Read-only question options list */}
+                                {question.questionOptions && question.questionOptions.length > 0 && (
+                                    <div className="px-3 pb-2">
+                                        <div className="space-y-2">
+                                            {question.questionOptions.map((opt, optIndex) => (
+                                                <div
+                                                    key={optIndex}
+                                                    className="text-xs p-2 rounded-md bg-themewhite3 text-tertiary cursor-default"
+                                                >
+                                                    <div className="font-normal flex items-center">
+                                                        {opt.text}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Performed / Deferred buttons or status badge */}
+                                {hasStatus ? (
+                                    <div className="px-4 pb-3 pt-1">
+                                        {isPerformed ? (
+                                            <div className="flex items-center justify-center gap-2 bg-themegreen/10 rounded-md px-3 py-2.5">
+                                                <Check size={14} className="text-themegreen" />
+                                                <span className="text-xs font-medium text-themegreen">Performed</span>
+                                            </div>
+                                        ) : (
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex items-center justify-center gap-2 bg-themeredred/10 rounded-md px-3 py-2.5">
+                                                    <X size={14} className="text-themeredred" />
+                                                    <span className="text-xs font-medium text-themeredred">Deferred</span>
+                                                </div>
+                                                <div className="text-[9px] text-center text-tertiary uppercase tracking-wider">
+                                                    defer to AEM
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <div className="px-4 pb-3 pt-1 flex gap-2">
+                                        <button
+                                            onClick={() => onActionStatus?.(card.index, 'performed')}
+                                            disabled={isTransitioning}
+                                            className="flex-1 py-2.5 text-xs text-white bg-themegreen rounded-md font-medium active:scale-[0.98] transition-all"
+                                        >
+                                            Performed
+                                        </button>
+                                        <button
+                                            onClick={() => onActionStatus?.(card.index, 'deferred')}
+                                            disabled={isTransitioning}
+                                            className="flex-1 py-2.5 text-xs text-themeredred border border-themeredred rounded-md font-medium active:scale-[0.98] transition-all"
+                                        >
+                                            Deferred
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+
+                            {hasNext && (
+                                <div className="flex flex-col items-center py-1">
+                                    <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '0ms' }} />
+                                    <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '100ms' }} />
+                                    <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '200ms' }} />
+                                    <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '290ms' }} />
+                                </div>
+                            )}
+                        </div>
+                    );
+                }
+
                 return (
                     <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
                         <div
@@ -126,18 +216,15 @@ export const QuestionCard = ({
               bg-themewhite2 border
               ${isRF
                                     ? 'border-2 border-dashed border-themeredred/30'
-                                    : isAction
-                                        ? 'border-3 border-dashed border-themeblue2/30'
-                                        : 'border-themewhite/10'
+                                    : 'border-themewhite/10'
                                 }
             `}
                         >
                             {/* Question Header */}
-                            <div className={`px-4 py-3 ${isRF ? 'text-center text-themeredred' : isAction ? 'text-center text-themeblue2' : 'text-primary/80'}`}>
-                                {/* Title for RF and Action cards */}
-                                {(isRF || isAction) && (
+                            <div className={`px-4 py-3 ${isRF ? 'text-center text-themeredred' : 'text-primary/80'}`}>
+                                {/* Title for RF cards */}
+                                {isRF && (
                                     <div className="text-[9pt] font-semibold mb-1 uppercase tracking-wider">
-                                        {isRF ? '' : 'Action Required'}
                                     </div>
                                 )}
                                 <div className="text-[10pt] font-normal">
@@ -161,13 +248,11 @@ export const QuestionCard = ({
                                                     }}
                                                     className={`
                                                 text-xs p-2 rounded-md transition-all duration-200
-                                                ${isAction
-                                                            ? 'bg-themewhite3 text-tertiary'
-                                                            : isSelected
-                                                                ? isRF
-                                                                    ? 'bg-themeredred text-white'
-                                                                    : `${cardColors.symptomClass} border-dashed`
-                                                                : 'bg-themewhite3 text-tertiary'
+                                                ${isSelected
+                                                            ? isRF
+                                                                ? 'bg-themeredred text-white'
+                                                                : `${cardColors.symptomClass} border-dashed`
+                                                            : 'bg-themewhite3 text-tertiary'
                                                         }
                                                 ${(isRF || isChoice || isCount || isInitial) ? 'cursor-pointer' : 'cursor-default'}
                                             `}

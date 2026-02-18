@@ -38,6 +38,7 @@ export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false,
         handleAnswer: hookHandleAnswer,
         getVisibleCards,
         setScreenerResults,
+        setActionStatus,
     } = useAlgorithm(algorithmOptions, initialCardStates, initialDisposition);
 
     // Screener drawer state
@@ -222,6 +223,7 @@ export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false,
                             onAnswer={handleAnswer}
                             onQuestionOption={handleQuestionOption}
                             onOpenScreener={handleOpenScreener}
+                            onActionStatus={setActionStatus}
                         />
 
                         {/* Disposition card — inline after last question card */}

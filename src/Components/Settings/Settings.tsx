@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, ChevronUp, ChevronRight, FileText, Check, Camera, X, BookOpen, UserCog, LogOut, ClipboardCheck, Lock } from 'lucide-react';
+import { Moon, Sun, Shield, ChevronUp, ChevronRight, FileText, Check, Camera, X, BookOpen, UserCog, LogOut, ClipboardCheck, Lock, MessageSquare } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import type { SavedNote } from '../../Hooks/useNotesStorage';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
@@ -17,6 +17,7 @@ import { GuestOptionsPanel } from './GuestOptionsPanel';
 import { LoginPanel } from './LoginPanel';
 import { TrainingPanel, type TrainingView } from './TrainingPanel';
 import { PinSetupPanel } from './PinSetupPanel';
+import { FeedbackPanel } from './FeedbackPanel';
 import type { subjectAreaArrayOptions } from '../../Types/CatTypes';
 import { stp68wTraining } from '../../Data/TrainingTaskList';
 import { getTaskData } from '../../Data/TrainingData';
@@ -50,6 +51,7 @@ interface SettingsDrawerProps {
         setCustomImage: (dataUrl: string) => void;
         clearCustomImage: () => void;
     };
+    onNotePanelChange?: (isOpen: boolean) => void;
 }
 
 type SettingsItem =
@@ -293,8 +295,9 @@ export const Settings = ({
     onEditNote,
     onViewNote,
     avatar,
+    onNotePanelChange,
 }: SettingsDrawerProps) => {
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | TrainingView>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'feedback' | TrainingView>('main');
     const [isDevRole, setIsDevRole] = useState(false);
     const [isSupervisorRole, setIsSupervisorRole] = useState(false);
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = avatar;
@@ -304,6 +307,11 @@ export const Settings = ({
     const prevVisibleRef = useRef(false);
     const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
     const { signOut } = useAuth();
+
+    // Notify parent when note panel opens/closes
+    useEffect(() => {
+        onNotePanelChange?.(isVisible && activePanel === 'my-notes');
+    }, [isVisible, activePanel, onNotePanelChange]);
 
     // Check authentication status, dev role, and supervisor role
     useEffect(() => {
@@ -453,6 +461,10 @@ export const Settings = ({
                 handleSlideAnimation('left');
                 setActivePanel('pin-setup');
                 break;
+            case 16:
+                handleSlideAnimation('left');
+                setActivePanel('feedback');
+                break;
             default:
                 break;
         }
@@ -534,6 +546,14 @@ export const Settings = ({
                 action: () => handleItemClick(4, closeDrawer),
                 color: 'text-tertiary',
                 id: 4
+            },
+            {
+                type: 'option',
+                icon: <MessageSquare size={20} />,
+                label: 'Feedback',
+                action: () => handleItemClick(16, closeDrawer),
+                color: 'text-themegreen',
+                id: 16
             }
         );
 
@@ -657,6 +677,12 @@ export const Settings = ({
                     showBack: true,
                     onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
                 };
+            case 'feedback':
+                return {
+                    title: 'Feedback',
+                    showBack: true,
+                    onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
+                };
         }
     }, [activePanel, notes, clinicNotes, isAuthenticated, profile.clinicName, handleSlideAnimation, selectedTask, handleTrainingBack]);
 
@@ -773,6 +799,8 @@ export const Settings = ({
                                 setActivePanel('user-profile');
                             }}
                         />
+                    ) : activePanel === 'feedback' ? (
+                        <FeedbackPanel />
                     ) : activePanel === 'pin-setup' ? (
                         <PinSetupPanel />
                     ) : activePanel === 'training' || activePanel === 'training-detail' ? (

@@ -115,6 +115,24 @@ export function formatAlgorithmContent(
             return; // skip normal card processing for this action card
         }
 
+        // Non-screener action card with performed/deferred status
+        if (card.type === 'action' && state.actionStatus) {
+            const statusText = state.actionStatus === 'performed'
+                ? '[PERFORMED]'
+                : '[DEFERRED - defer to AEM]';
+            const actionLines: string[] = [`${card.text} ${statusText}`];
+            if (card.questionOptions && card.questionOptions.length > 0) {
+                card.questionOptions.forEach((option) => {
+                    const optionText = option.text?.trim();
+                    if (optionText) {
+                        actionLines.push(`  • ${optionText}`);
+                    }
+                });
+            }
+            sections.push(actionLines.join('\n'));
+            return;
+        }
+
         if (card.questionOptions && card.questionOptions.length > 0) {
             card.questionOptions.forEach((option, optionIndex) => {
                 const optionText = option.text?.trim();

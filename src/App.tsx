@@ -70,7 +70,8 @@ function AppContent() {
 
   const navigation = useNavigation()
   const search = useSearch()
-  const notesStorage = useNotesStorage()
+  const [isNotePanelOpen, setIsNotePanelOpen] = useState(false)
+  const notesStorage = useNotesStorage(isNotePanelOpen)
   const { restoreNote } = useNoteRestore()
   const { user } = useAuth()
   const avatarState = useProfileAvatar(user?.id)
@@ -393,6 +394,7 @@ function AppContent() {
           onEditNote={notesStorage.updateNote}
           onViewNote={activeNote.handleViewNote}
           avatar={avatarState}
+          onNotePanelChange={setIsNotePanelOpen}
         />
         <MedicationsDrawer
           isVisible={navigation.showMedications}

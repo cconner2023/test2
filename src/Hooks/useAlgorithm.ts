@@ -11,6 +11,7 @@ export interface CardState {
     screenerResponses?: number[];
     followUpResponse?: number;
     completedScreenerId?: string;
+    actionStatus?: 'performed' | 'deferred';
 }
 
 /** Creates a blank (reset) card state, preserving only visibility and index */
@@ -23,6 +24,7 @@ const resetCard = (card: CardState): CardState => ({
     screenerResponses: undefined,
     followUpResponse: undefined,
     completedScreenerId: undefined,
+    actionStatus: undefined,
 });
 
 /** Resets all cards after `afterIndex`, skipping RF cards. Returns a new array. */
@@ -311,7 +313,7 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
         return cardStates.some((c, idx) =>
             idx > initialCardIndex &&
             algorithmOptions[idx]?.type !== 'rf' &&
-            c.answer !== null
+            (c.answer !== null || c.actionStatus !== undefined)
         );
     })();
 
@@ -322,7 +324,7 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
             let lastAnsweredIndex = -1;
             for (let i = prev.length - 1; i >= 0; i--) {
                 if (rfCardIndices.includes(i)) continue;
-                if (prev[i].answer !== null) {
+                if (prev[i].answer !== null || prev[i].actionStatus !== undefined) {
                     lastAnsweredIndex = i;
                     break;
                 }
@@ -337,7 +339,8 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
                 ...newCardStates[lastAnsweredIndex],
                 answer: null,
                 selectedOptions: [],
-                count: 0
+                count: 0,
+                actionStatus: undefined,
             };
 
             if (lastAnsweredIndex === initialCardIndex) {
@@ -359,6 +362,11 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
                 let newDisposition: dispositionType | null = null;
                 for (let i = lastAnsweredIndex - 1; i >= 0; i--) {
                     if (rfCardIndices.includes(i)) continue;
+                    // Check for deferred action cards
+                    if (newCardStates[i].actionStatus === 'deferred') {
+                        newDisposition = { type: "OTHER", text: "defer to AEM" };
+                        break;
+                    }
                     const cardAnswer = newCardStates[i].answer;
                     if (cardAnswer?.disposition?.[0]) {
                         newDisposition = cardAnswer.disposition[0];
@@ -392,6 +400,25 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
         });
     }, []);
 
+    // Set performed/deferred status on a non-screener action card
+    const setActionStatus = useCallback((
+        cardIndex: number,
+        status: 'performed' | 'deferred',
+    ) => {
+        setCardStates(prev => {
+            const newStates = [...prev];
+            if (cardIndex < 0 || cardIndex >= newStates.length) return prev;
+            newStates[cardIndex] = {
+                ...newStates[cardIndex],
+                actionStatus: status,
+            };
+            return newStates;
+        });
+        if (status === 'deferred') {
+            setCurrentDisposition({ type: "OTHER", text: "defer to AEM" });
+        }
+    }, []);
+
     return {
         cardStates,
         currentDisposition,
@@ -401,6 +428,7 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
         resetAlgorithm,
         canGoBack,
         goBackOneCard,
-        setScreenerResults
+        setScreenerResults,
+        setActionStatus,
     };
 };

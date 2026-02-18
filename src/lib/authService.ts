@@ -77,6 +77,17 @@ export async function signIn(
     password,
   })
 
+  // Fire-and-forget: notify dev users of login
+  if (!error && data.user) {
+    supabase.functions.invoke('send-push-notification', {
+      body: {
+        type: 'user_login',
+        name: null,
+        email,
+      },
+    }).catch(() => { /* push notification delivery is best-effort */ })
+  }
+
   return {
     user: data.user,
     session: data.session,
