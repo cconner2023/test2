@@ -1,5 +1,4 @@
 import { useState, useCallback } from 'react'
-import { motion, AnimatePresence, LayoutGroup } from 'motion/react'
 import { X, GitBranch, FileText, Import, Settings, BookOpen, Pill } from 'lucide-react'
 
 interface HowToClip {
@@ -50,8 +49,6 @@ const HOW_TO_CLIPS: HowToClip[] = [
 
 ]
 
-const springTransition = { type: 'spring' as const, stiffness: 400, damping: 30 }
-
 export const HowToPanel = () => {
     const [activeClip, setActiveClip] = useState<string | null>(null)
 
@@ -67,18 +64,15 @@ export const HowToPanel = () => {
                     Some short walkthroughs are available to help you navigate the application. We're always expanding our help section. Leave feedback if you think there's an item missing.
                 </p>
 
-                <LayoutGroup>
                     <div className="grid grid-cols-3 gap-2">
                         {HOW_TO_CLIPS.map((clip) => {
                             const isActive = activeClip === clip.id
                             const isDisabled = !clip.src
 
                             return (
-                                <motion.div
+                                <div
                                     key={clip.id}
-                                    layout
-                                    transition={springTransition}
-                                    className={isActive ? 'col-span-3' : ''}
+                                    className={`transition-all duration-200 ease-out ${isActive ? 'col-span-3' : ''}`}
                                 >
                                     <button
                                         onClick={() => handleTileClick(clip)}
@@ -113,34 +107,31 @@ export const HowToPanel = () => {
                                             {isActive && <X size={16} className="text-tertiary/40" />}
                                         </div>
 
-                                        {/* Video — only when expanded */}
-                                        <AnimatePresence>
-                                            {isActive && clip.src && (
-                                                <motion.div
-                                                    initial={{ height: 0, opacity: 0 }}
-                                                    animate={{ height: 'auto', opacity: 1 }}
-                                                    exit={{ height: 0, opacity: 0 }}
-                                                    transition={{ duration: 0.25, ease: 'easeInOut' }}
-                                                    className="overflow-hidden"
-                                                >
-                                                    <div className="p-2" onClick={e => e.stopPropagation()}>
-                                                        <video
-                                                            key={clip.id}
-                                                            src={`${import.meta.env.BASE_URL}${clip.src}`}
-                                                            controls
-                                                            playsInline
-                                                            className="w-full rounded-lg"
-                                                        />
+                                        {/* Video — CSS animated expand/collapse */}
+                                        <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
+                                            isActive && clip.src ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                                        }`}>
+                                            <div className="overflow-hidden">
+                                                <div className="p-2" onClick={e => e.stopPropagation()}>
+                                                    <div className="w-full aspect-video rounded-lg bg-black/5">
+                                                        {isActive && clip.src && (
+                                                            <video
+                                                                key={clip.id}
+                                                                src={`${import.meta.env.BASE_URL}${clip.src}`}
+                                                                controls
+                                                                playsInline
+                                                                className="w-full h-full rounded-lg"
+                                                            />
+                                                        )}
                                                     </div>
-                                                </motion.div>
-                                            )}
-                                        </AnimatePresence>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </button>
-                                </motion.div>
+                                </div>
                             )
                         })}
                     </div>
-                </LayoutGroup>
             </div>
         </div>
     )
