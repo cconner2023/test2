@@ -1,9 +1,8 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { ChevronRight, ChevronLeft, Check, X, Ban, AlertTriangle, Info, Clock, FileText, Users } from 'lucide-react'
+import { useState, useEffect, useMemo, useCallback, useRef, type MutableRefObject } from 'react'
+import { ChevronRight, Check, X, Ban, AlertTriangle, Info, Clock, FileText, Users, Wind, Droplets, ShieldPlus, Stethoscope, Pill, Bone, Ambulance, BookOpen, Search, Lock } from 'lucide-react'
 import { stp68wTraining } from '../../Data/TrainingTaskList'
 import { getTaskData, isTaskTestable } from '../../Data/TrainingData'
 import type { PerformanceStep } from '../../Data/TrainingData'
-import type { subjectAreaArray, subjectAreaArrayOptions } from '../../Types/CatTypes'
 import type { StepResult, ClinicMedic } from '../../Types/SupervisorTestTypes'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useTrainingCompletions } from '../../Hooks/useTrainingCompletions'
@@ -25,22 +24,76 @@ function formatMedicName(medic: ClinicMedic): string {
   return parts.join(' ') || 'Unknown'
 }
 
-function toSubjectAreaArrays(skillLevelIdx: number): subjectAreaArray[] {
-  const level = stp68wTraining[skillLevelIdx]
-  if (!level) return []
-  return level.subjectArea.map((area, areaIdx) => ({
-    id: areaIdx,
-    icon: level.skillLevel,
-    text: area.name,
-    isParent: true,
-    options: area.tasks.map((task, taskIdx) => ({
-      id: taskIdx,
-      icon: task.id,
-      text: task.title,
-      isParent: false,
-      parentId: areaIdx,
-    })),
-  }))
+const subjectAreaIcons: Record<string, React.ReactNode> = {
+  'Airway Management': <Wind size={14} />,
+  'Fluid Management': <Droplets size={14} />,
+  'Force Health Protection': <ShieldPlus size={14} />,
+  'Medical Management': <Stethoscope size={14} />,
+  'Medication Management': <Pill size={14} />,
+  'Trauma Management': <Bone size={14} />,
+  'Triage and Evacuation': <Ambulance size={14} />,
+}
+
+const skillLevelLabels: Record<string, string> = {
+  'Readiness Requirements': 'RR',
+  'Skill Level 1': 'SL1',
+  'Skill Level 2': 'SL2',
+  'Skill Level 3': 'SL3',
+}
+
+const categoryOrder = [
+  'Airway Management',
+  'Fluid Management',
+  'Force Health Protection',
+  'Medical Management',
+  'Medication Management',
+  'Trauma Management',
+  'Triage and Evacuation',
+]
+
+interface FlatTask {
+  taskId: string
+  title: string
+  levelIdx: number
+  levelName: string
+  areaName: string
+}
+
+function buildTestableTasksByCategory(): Map<string, FlatTask[]> {
+  const seen = new Map<string, Set<string>>()
+  const grouped = new Map<string, FlatTask[]>()
+
+  for (const cat of categoryOrder) {
+    grouped.set(cat, [])
+    seen.set(cat, new Set())
+  }
+
+  stp68wTraining.forEach((level, levelIdx) => {
+    level.subjectArea.forEach((area) => {
+      if (!grouped.has(area.name)) {
+        grouped.set(area.name, [])
+        seen.set(area.name, new Set())
+      }
+      const seenSet = seen.get(area.name)!
+      area.tasks.forEach((task) => {
+        if (seenSet.has(task.id)) return
+        seenSet.add(task.id)
+        grouped.get(area.name)!.push({
+          taskId: task.id,
+          title: task.title,
+          levelIdx,
+          levelName: level.skillLevel,
+          areaName: area.name,
+        })
+      })
+    })
+  })
+
+  for (const tasks of grouped.values()) {
+    tasks.sort((a, b) => a.levelIdx - b.levelIdx || a.title.localeCompare(b.title))
+  }
+
+  return grouped
 }
 
 // ─── Step Callout (reused pattern from TrainingPanel) ────────────────────────
@@ -117,93 +170,139 @@ function SelectMedicStep({
   )
 }
 
-// ─── Step 2: Select Task ─────────────────────────────────────────────────────
+// ─── Step 2: Select Task (flat list matching TrainingPanel UI) ───────────────
 
 function SelectTaskStep({
   onSelectTask,
-  onBack,
   medicName,
 }: {
   onSelectTask: (taskNumber: string, taskTitle: string) => void
-  onBack: () => void
   medicName: string
 }) {
-  const [selectedLevel, setSelectedLevel] = useState(0)
-  const [selectedArea, setSelectedArea] = useState<subjectAreaArray | null>(null)
-  const areas = useMemo(() => toSubjectAreaArrays(selectedLevel), [selectedLevel])
+  const [searchQuery, setSearchQuery] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  if (selectedArea) {
-    return (
-      <div>
-        <button onClick={() => setSelectedArea(null)} className="flex items-center gap-1 text-sm text-themeblue2 mb-3 hover:underline">
-          <ChevronLeft size={16} /> Back to subjects
-        </button>
-        <p className="text-xs text-tertiary/60 mb-3">
-          Testing <span className="font-medium text-primary">{medicName}</span> &mdash; select a task:
-        </p>
-        <div className="space-y-1">
-          {selectedArea.options.map((task: subjectAreaArrayOptions) => {
-            const hasData = isTaskTestable(task.icon)
-            return (
-              <button
-                key={task.id}
-                onClick={() => hasData && onSelectTask(task.icon, task.text)}
-                disabled={!hasData}
-                className={`flex items-center w-full px-4 py-3 rounded-xl text-left transition-all
-                  ${hasData ? 'hover:bg-themewhite2 active:scale-[0.98] cursor-pointer' : 'opacity-40 cursor-not-allowed'}`}
-              >
-                <div className="flex-1 min-w-0">
-                  <p className="text-[8pt] text-tertiary/50 font-mono">{task.icon}</p>
-                  <p className={`text-sm font-medium truncate ${hasData ? 'text-primary' : 'text-tertiary'}`}>{task.text}</p>
-                </div>
-                {hasData && <ChevronRight size={16} className="text-tertiary/30 shrink-0 ml-2" />}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-    )
-  }
+  const allByCategory = useMemo(() => buildTestableTasksByCategory(), [])
+
+  const displayCategories = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase()
+    if (!q) return allByCategory
+
+    const filtered = new Map<string, FlatTask[]>()
+    for (const [cat, tasks] of allByCategory) {
+      const matched = tasks.filter(
+        t => t.title.toLowerCase().includes(q) || t.taskId.toLowerCase().includes(q)
+      )
+      if (matched.length > 0) filtered.set(cat, matched)
+    }
+    return filtered
+  }, [searchQuery, allByCategory])
+
+  const totalResults = useMemo(() => {
+    let n = 0
+    for (const tasks of displayCategories.values()) n += tasks.length
+    return n
+  }, [displayCategories])
+
+  const isSearching = searchQuery.trim().length > 0
 
   return (
     <div>
-      <button onClick={onBack} className="flex items-center gap-1 text-sm text-themeblue2 mb-3 hover:underline">
-        <ChevronLeft size={16} /> Back to medic list
-      </button>
       <p className="text-xs text-tertiary/60 mb-3">
-        Testing <span className="font-medium text-primary">{medicName}</span> &mdash; select a subject area:
+        Testing <span className="font-medium text-primary">{medicName}</span> &mdash; select a task:
       </p>
 
-      {/* Skill Level Tabs */}
-      <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 -mx-1 px-1">
-        {stp68wTraining.map((level, idx) => (
+      {/* Search Bar */}
+      <div className="relative mb-3">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary/40 pointer-events-none" />
+        <input
+          ref={inputRef}
+          type="text"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search tasks..."
+          className="w-full pl-8 pr-8 py-2 rounded-lg bg-themewhite2 text-sm text-primary
+                     placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
+        />
+        {searchQuery && (
           <button
-            key={idx}
-            onClick={() => setSelectedLevel(idx)}
-            className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-medium transition-all active:scale-[0.97]
-              ${idx === selectedLevel ? 'bg-themeblue2 text-white' : 'bg-themewhite2 text-tertiary/70 hover:text-primary'}`}
+            onClick={() => { setSearchQuery(''); inputRef.current?.focus() }}
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-tertiary/10 transition-colors"
           >
-            {level.skillLevel}
+            <X size={14} className="text-tertiary/50" />
           </button>
-        ))}
+        )}
       </div>
 
-      <div className="space-y-2">
-        {areas.map((area) => (
-          <button
-            key={area.id}
-            onClick={() => setSelectedArea(area)}
-            className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2 active:scale-[0.98]
-                       transition-all rounded-xl text-left"
-          >
-            <div className="flex-1 min-w-0">
-              <p className="text-[9pt] text-tertiary/50 font-medium uppercase tracking-wider">{area.icon}</p>
-              <p className="text-base text-primary font-medium truncate">{area.text}</p>
+      {isSearching && (
+        <p className="text-[10px] text-tertiary/50 mb-2">
+          {totalResults} result{totalResults !== 1 ? 's' : ''}
+        </p>
+      )}
+
+      {totalResults === 0 && isSearching ? (
+        <p className="text-sm text-tertiary/40 text-center py-8">No tasks match your search.</p>
+      ) : (
+        <div className="space-y-1">
+          {Array.from(displayCategories).map(([categoryName, tasks]) => (
+            <div key={categoryName}>
+              {/* Group header */}
+              <div className="px-6 pt-4 pb-1 flex items-center justify-between">
+                <div className="flex items-center gap-1.5 text-tertiary/50">
+                  {subjectAreaIcons[categoryName] ?? <BookOpen size={14} />}
+                  <p className="text-[10px] font-semibold tracking-widest uppercase">
+                    {categoryName}
+                  </p>
+                </div>
+                <p className="text-[10px] text-tertiary/40">
+                  {tasks.length}
+                </p>
+              </div>
+
+              {/* Tasks */}
+              {tasks.map((task) => {
+                const testable = isTaskTestable(task.taskId)
+                const badge = skillLevelLabels[task.levelName] ?? task.levelName
+
+                return (
+                  <button
+                    key={task.taskId}
+                    onClick={() => testable && onSelectTask(task.taskId, task.title)}
+                    disabled={!testable}
+                    className={`flex items-center w-full px-6 py-3 rounded-xl text-left transition-all
+                      ${testable
+                        ? 'hover:bg-themewhite2 active:scale-[0.98] cursor-pointer'
+                        : 'opacity-40 cursor-not-allowed'
+                      }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium truncate ${testable ? 'text-primary' : 'text-tertiary'}`}>
+                        {task.title}
+                      </p>
+                      <p className="text-[8pt] text-tertiary/50 font-mono">
+                        {task.taskId}
+                      </p>
+                      {!testable && (
+                        <p className="text-[8pt] text-tertiary/40 flex items-center gap-1 mt-0.5">
+                          <Lock size={9} /> Not testable
+                        </p>
+                      )}
+                    </div>
+                    <div className="shrink-0 ml-2 flex items-center gap-2">
+                      <span className="px-1.5 py-0.5 rounded text-[8pt] font-semibold bg-themewhite2 text-tertiary/60">
+                        {badge}
+                      </span>
+                      {testable && (
+                        <ChevronRight size={16} className="text-tertiary/30" />
+                      )}
+                    </div>
+                  </button>
+                )
+              })}
             </div>
-            <ChevronRight size={16} className="text-tertiary/40 shrink-0 ml-2" />
-          </button>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -214,13 +313,11 @@ function EvaluationStep({
   taskNumber,
   taskTitle,
   medicName,
-  onBack,
   onSubmit,
 }: {
   taskNumber: string
   taskTitle: string
   medicName: string
-  onBack: () => void
   onSubmit: (stepResults: StepResult[], notes: string) => void
 }) {
   const taskData = getTaskData(taskNumber)
@@ -266,10 +363,6 @@ function EvaluationStep({
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto pb-36">
-        <button onClick={onBack} className="flex items-center gap-1 text-sm text-themeblue2 mb-3 hover:underline">
-          <ChevronLeft size={16} /> Back to task selection
-        </button>
-
         {/* Header */}
         <div className="mb-4">
           <p className="text-[8pt] text-tertiary/50 font-mono">{taskNumber}</p>
@@ -555,7 +648,13 @@ function HistoryTab({ clinicUsers, currentUserId }: { clinicUsers: ClinicMedic[]
 
 type WizardStep = 'select-medic' | 'select-task' | 'evaluate'
 
-export function SupervisorPanel() {
+export function SupervisorPanel({
+  backRef,
+  onBackToMain,
+}: {
+  backRef?: MutableRefObject<(() => void) | null>
+  onBackToMain?: () => void
+}) {
   const [isSupervisor, setIsSupervisor] = useState(false)
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -610,6 +709,18 @@ export function SupervisorPanel() {
     setSelectedTaskNumber(null)
     setSelectedTaskTitle(null)
   }, [])
+
+  // Keep backRef in sync so the drawer header back button navigates wizard steps
+  useEffect(() => {
+    if (!backRef) return
+    if (activeTab === 'history' || wizardStep === 'select-medic') {
+      backRef.current = onBackToMain ?? null
+    } else if (wizardStep === 'select-task') {
+      backRef.current = () => setWizardStep('select-medic')
+    } else if (wizardStep === 'evaluate') {
+      backRef.current = () => setWizardStep('select-task')
+    }
+  }, [backRef, onBackToMain, wizardStep, activeTab])
 
   const handleSelectMedic = useCallback((medic: ClinicMedic) => {
     setSelectedMedic(medic)
@@ -686,7 +797,6 @@ export function SupervisorPanel() {
         ) : wizardStep === 'select-task' && selectedMedic ? (
           <SelectTaskStep
             onSelectTask={handleSelectTask}
-            onBack={() => setWizardStep('select-medic')}
             medicName={formatMedicName(selectedMedic)}
           />
         ) : wizardStep === 'evaluate' && selectedMedic && selectedTaskNumber && selectedTaskTitle ? (
@@ -694,7 +804,6 @@ export function SupervisorPanel() {
             taskNumber={selectedTaskNumber}
             taskTitle={selectedTaskTitle}
             medicName={formatMedicName(selectedMedic)}
-            onBack={() => setWizardStep('select-task')}
             onSubmit={handleSubmitEvaluation}
           />
         ) : null}

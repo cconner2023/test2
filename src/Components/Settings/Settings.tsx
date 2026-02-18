@@ -73,6 +73,7 @@ const MainSettingsPanel = ({
     onProfileClick,
     onSignOut,
     isAuthenticated,
+    isConnected,
 }: {
     settingsOptions: SettingsItem[];
     onItemClick: (id: number) => void;
@@ -86,6 +87,7 @@ const MainSettingsPanel = ({
     onProfileClick: () => void;
     onSignOut?: () => void;
     isAuthenticated?: boolean;
+    isConnected?: boolean;
 }) => {
     // Separate top row items (no header before them) from grid sections
     const topItems: Extract<SettingsItem, { type: 'option' }>[] = [];
@@ -208,6 +210,12 @@ const MainSettingsPanel = ({
                     <div className="text-center">
                         <p className="text-sm text-tertiary/60 font-medium md:text-base">ADTMC MEDCOM PAM 40-7-21</p>
                         <p className="text-xs text-tertiary/40 mt-1 md:text-sm">Version {__APP_VERSION__}</p>
+                        <div className="flex items-center justify-center gap-1.5 mt-2">
+                            <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-themegreen' : 'bg-themeredred'}`} />
+                            <span className={`text-[11px] font-medium ${isConnected ? 'text-themegreen' : 'text-themeredred'}`}>
+                                {isConnected ? 'Connected' : 'Offline'}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -355,13 +363,33 @@ export const Settings = ({
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const [selectedTask, setSelectedTask] = useState<subjectAreaArrayOptions | null>(null);
     const prevVisibleRef = useRef(false);
+    const supervisorBackRef = useRef<(() => void) | null>(null);
     const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+    const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
     const { signOut } = useAuth();
 
     // Notify parent when note panel opens/closes
     useEffect(() => {
         onNotePanelChange?.(isVisible && activePanel === 'my-notes');
     }, [isVisible, activePanel, onNotePanelChange]);
+
+    // Supabase realtime WebSocket for device status — active only while settings is open
+    useEffect(() => {
+        if (!isVisible) {
+            setIsSupabaseConnected(false);
+            return;
+        }
+
+        const channel = supabase.channel('device-status-ping');
+
+        channel.subscribe((status) => {
+            setIsSupabaseConnected(status === 'SUBSCRIBED');
+        });
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
+    }, [isVisible]);
 
     // Check authentication status, dev role, and supervisor role
     useEffect(() => {
@@ -559,7 +587,7 @@ export const Settings = ({
                     icon: <ClipboardCheck size={20} />,
                     label: 'Supervisor',
                     action: () => handleItemClick(9, closeDrawer),
-                    color: 'text-amber-500',
+                    color: 'text-tertiary',
                     id: 9
                 });
             }
@@ -570,7 +598,7 @@ export const Settings = ({
                     icon: <UserCog size={20} />,
                     label: 'Admin Panel',
                     action: () => handleItemClick(8, closeDrawer),
-                    color: 'text-themeblue2',
+                    color: 'text-tertiary',
                     id: 8
                 });
             }
@@ -584,7 +612,7 @@ export const Settings = ({
                 icon: isDarkMode ? <Sun size={20} /> : <Moon size={20} />,
                 label: 'Toggle Theme',
                 action: onToggleTheme,
-                color: 'text-primary',
+                color: 'text-tertiary',
                 id: 0
             },
             {
@@ -622,7 +650,7 @@ export const Settings = ({
                 icon: <MessageSquare size={20} />,
                 label: 'Feedback',
                 action: () => handleItemClick(16, closeDrawer),
-                color: 'text-themegreen',
+                color: 'text-tertiary',
                 id: 16
             },
             {
@@ -730,7 +758,7 @@ export const Settings = ({
                 return {
                     title: 'Supervisor',
                     showBack: true,
-                    onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
+                    onBack: () => { supervisorBackRef.current?.(); },
                 };
             case 'guest-options':
                 return {
@@ -827,6 +855,7 @@ export const Settings = ({
                             }}
                             onSignOut={async () => { await clearAllUserData(); await signOut(); handleClose(); }}
                             isAuthenticated={!!isAuthenticated}
+                            isConnected={isSupabaseConnected}
                         />
                     ) : activePanel === 'user-profile' ? (
                         isAuthenticated === false ? (
@@ -870,7 +899,10 @@ export const Settings = ({
                     ) : activePanel === 'admin' ? (
                         <AdminPanel />
                     ) : activePanel === 'supervisor' ? (
-                        <SupervisorPanel />
+                        <SupervisorPanel
+                            backRef={supervisorBackRef}
+                            onBackToMain={() => { handleSlideAnimation('right'); setActivePanel('main'); }}
+                        />
                     ) : activePanel === 'guest-options' ? (
                         <GuestOptionsPanel
                             onSignIn={() => handleItemClick(14, handleClose)}
