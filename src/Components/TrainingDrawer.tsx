@@ -55,7 +55,7 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
 
     // Mark as viewed on mount
     useEffect(() => {
-        markTaskViewed(taskId, 0)
+        markTaskViewed(taskId)
     }, [taskId, markTaskViewed])
 
     // Observe bottom of content to mark completed

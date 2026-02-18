@@ -75,6 +75,18 @@ registerRoute(
   })
 );
 
+// How-To video clips — cached on first watch, not precached
+registerRoute(
+  /\/howTo\/.*\.mp4$/i,
+  new CacheFirst({
+    cacheName: 'howto-videos',
+    plugins: [
+      new ExpirationPlugin({ maxEntries: 15, maxAgeSeconds: 60 * 60 * 24 * 90 }),
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+    ],
+  })
+);
+
 // ─── Push notifications ──────────────────────────────────────────────
 
 self.addEventListener('push', (event) => {

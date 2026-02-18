@@ -656,11 +656,11 @@ export const Settings = ({
             {
                 type: 'option',
                 icon: <HelpCircle size={20} />,
-                label: 'Help & Support',
+                label: 'Help & Tutorials',
                 action: () => { },
                 color: 'text-tertiary',
                 id: 18,
-                disabled: true
+                disabled: false
             }
         );
 

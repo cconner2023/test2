@@ -264,8 +264,8 @@ export const PinSetupPanel = () => {
                   onClick={handleBiometricToggle}
                   disabled={bioLoading}
                   className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all active:scale-[0.98] ${bioEnrolled
-                      ? 'bg-themegreen/10 hover:bg-themegreen/15'
-                      : 'bg-themeblue2/10 hover:bg-themeblue2/15'
+                    ? 'bg-themegreen/10 hover:bg-themegreen/15'
+                    : 'bg-themeblue2/10 hover:bg-themeblue2/15'
                     } disabled:opacity-50`}
                 >
                   <ScanFace size={18} className={bioEnrolled ? 'text-themegreen' : 'text-themeblue2'} />
@@ -323,8 +323,8 @@ export const PinSetupPanel = () => {
             <div
               key={i}
               className={`w-3 h-3 rounded-full transition-all duration-150 ${i < digits.length
-                  ? error ? 'bg-themeredred scale-110' : 'bg-themeblue2 scale-110'
-                  : 'bg-themegray1/50'
+                ? error ? 'bg-themeredred scale-110' : 'bg-themeblue2 scale-110'
+                : 'bg-themegray1/50'
                 }`}
             />
           ))}

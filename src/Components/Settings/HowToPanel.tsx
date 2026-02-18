@@ -1,10 +1,10 @@
-import { useState } from 'react'
-import { Play, ChevronDown, GitBranch, FileText, Copy, Save, UserPlus, LogIn, Settings, BookOpen } from 'lucide-react'
+import { useState, useCallback } from 'react'
+import { motion, AnimatePresence, LayoutGroup } from 'motion/react'
+import { X, GitBranch, FileText, Import, Settings, BookOpen, Pill } from 'lucide-react'
 
 interface HowToClip {
     id: string
     title: string
-    description: string
     icon: React.ReactNode
     /** Path relative to public/, e.g. "howTo/algorithm.mp4" */
     src: string | null
@@ -12,122 +12,135 @@ interface HowToClip {
 
 const HOW_TO_CLIPS: HowToClip[] = [
     {
-        id: 'algorithm',
-        title: 'Using the Algorithm',
-        description: 'Navigate through the clinical decision algorithm, follow branches, and reach treatment recommendations.',
-        icon: <GitBranch size={20} />,
-        src: null, // placeholder — replace with "howTo/algorithm.mp4"
-    },
-    {
-        id: 'select-note',
-        title: 'Selecting Your Note',
-        description: 'How to select, view, and manage your saved clinical notes.',
+        id: 'note-actions',
+        title: 'Note Actions',
         icon: <FileText size={20} />,
-        src: null, // placeholder — replace with "howTo/select-note.mp4"
+        src: 'howTo/Note Actions.mp4',
     },
     {
-        id: 'copy-share',
-        title: 'Copy or Share a Note',
-        description: 'Copy note contents to your clipboard or share via your device\'s share sheet.',
-        icon: <Copy size={20} />,
-        src: null, // placeholder — replace with "howTo/copy-share.mp4"
-    },
-    {
-        id: 'save-note',
-        title: 'Saving a Note',
-        description: 'Save your clinical note for later reference from any point in the algorithm.',
-        icon: <Save size={20} />,
-        src: null, // placeholder — replace with "howTo/save-note.mp4"
-    },
-    {
-        id: 'create-account',
-        title: 'Creating an Account',
-        description: 'Request an account and get set up with your clinic and credentials.',
-        icon: <UserPlus size={20} />,
-        src: null, // placeholder — replace with "howTo/create-account.mp4"
-    },
-    {
-        id: 'login',
-        title: 'Logging In',
-        description: 'Sign in to your account to access clinic features and synced notes.',
-        icon: <LogIn size={20} />,
-        src: null, // placeholder — replace with "howTo/login.mp4"
+        id: 'note-import',
+        title: 'Importing Notes',
+        icon: <Import size={20} />,
+        src: 'howTo/Note Import.mp4',
     },
     {
         id: 'settings',
         title: 'Settings Overview',
-        description: 'Tour of the settings panel — profile, preferences, theme, and security options.',
         icon: <Settings size={20} />,
-        src: null, // placeholder — replace with "howTo/settings.mp4"
+        src: 'howTo/settings.mp4',
     },
     {
         id: 'training',
-        title: 'Log & Test Training',
-        description: 'How to log completed training tasks, test your knowledge, and track progress.',
+        title: 'Training',
         icon: <BookOpen size={20} />,
-        src: null, // placeholder — replace with "howTo/training.mp4"
+        src: 'howTo/training.mp4',
     },
+    {
+        id: 'medications',
+        title: 'Medications',
+        icon: <Pill size={20} />,
+        src: null,
+    },
+    {
+        id: 'algorithm',
+        title: 'Using the Algorithm',
+        icon: <GitBranch size={20} />,
+        src: null,
+    },
+
 ]
 
-const ClipCard = ({ clip }: { clip: HowToClip }) => {
-    const [expanded, setExpanded] = useState(false)
-
-    return (
-        <div className="rounded-xl border border-tertiary/15 bg-themewhite2/50 overflow-hidden transition-all">
-            <button
-                onClick={() => setExpanded(!expanded)}
-                className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2 active:scale-[0.99] transition-all"
-            >
-                <div className="mr-3 text-themeblue2 shrink-0">
-                    {clip.icon}
-                </div>
-                <div className="flex-1 text-left min-w-0">
-                    <p className="text-sm font-semibold text-primary leading-tight">{clip.title}</p>
-                    <p className="text-xs text-tertiary/60 mt-0.5 leading-snug">{clip.description}</p>
-                </div>
-                <ChevronDown
-                    size={16}
-                    className={`text-tertiary/40 shrink-0 ml-2 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
-                />
-            </button>
-
-            {expanded && (
-                <div className="px-4 pb-4 animate-fadeInScale">
-                    {clip.src ? (
-                        <div className="rounded-lg overflow-hidden bg-black/5">
-                            <video
-                                src={`${import.meta.env.BASE_URL}${clip.src}`}
-                                autoPlay
-                                loop
-                                muted
-                                playsInline
-                                className="w-full rounded-lg"
-                            />
-                        </div>
-                    ) : (
-                        <div className="flex flex-col items-center justify-center py-10 rounded-lg bg-tertiary/5 border border-dashed border-tertiary/20">
-                            <Play size={28} className="text-tertiary/30 mb-2" />
-                            <p className="text-xs text-tertiary/40 font-medium">Clip coming soon</p>
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-    )
-}
+const springTransition = { type: 'spring' as const, stiffness: 400, damping: 30 }
 
 export const HowToPanel = () => {
+    const [activeClip, setActiveClip] = useState<string | null>(null)
+
+    const handleTileClick = useCallback((clip: HowToClip) => {
+        if (!clip.src) return
+        setActiveClip(prev => prev === clip.id ? null : clip.id)
+    }, [])
+
     return (
         <div className="h-full overflow-y-auto">
             <div className="px-4 py-3 md:p-5">
                 <p className="text-sm text-tertiary/60 mb-4 md:text-base">
-                    Short walkthroughs for getting the most out of the app.
+                    Some short walkthroughs are available to help you navigate the application. We're always expanding our help section. Leave feedback if you think there's an item missing.
                 </p>
-                <div className="space-y-2">
-                    {HOW_TO_CLIPS.map((clip) => (
-                        <ClipCard key={clip.id} clip={clip} />
-                    ))}
-                </div>
+
+                <LayoutGroup>
+                    <div className="grid grid-cols-3 gap-2">
+                        {HOW_TO_CLIPS.map((clip) => {
+                            const isActive = activeClip === clip.id
+                            const isDisabled = !clip.src
+
+                            return (
+                                <motion.div
+                                    key={clip.id}
+                                    layout
+                                    transition={springTransition}
+                                    className={isActive ? 'col-span-3' : ''}
+                                >
+                                    <button
+                                        onClick={() => handleTileClick(clip)}
+                                        disabled={isDisabled}
+                                        className={`w-full border overflow-hidden transition-colors duration-200
+                                            ${isActive
+                                                ? 'rounded-xl border-themeblue2/40 bg-themeblue2/10'
+                                                : isDisabled
+                                                    ? 'rounded-lg border-tertiary/10 bg-themewhite2/50 opacity-50 cursor-not-allowed'
+                                                    : 'rounded-lg border-tertiary/15 bg-themewhite2 hover:bg-themeblue2/10 hover:border-themeblue2/25 active:scale-[0.97] group'
+                                            }`}
+                                    >
+                                        {/* Header — always rendered, adapts layout */}
+                                        <div className={
+                                            isActive
+                                                ? 'flex items-center gap-2 px-3 py-2.5 border-b border-themeblue2/15'
+                                                : 'flex flex-col items-center justify-center gap-1 px-2 h-16'
+                                        }>
+                                            <div className={`relative ${isDisabled ? 'text-tertiary/40' : 'text-themeblue2'} ${!isDisabled && !isActive ? 'group-hover:scale-110' : ''} transition-transform`}>
+                                                {clip.icon}
+                                                {!isActive && isDisabled && (
+                                                    <span className="absolute -top-1.5 -right-3 text-[7px] text-tertiary/40 font-medium uppercase tracking-wide">Soon</span>
+                                                )}
+                                            </div>
+                                            <span className={
+                                                isActive
+                                                    ? 'text-sm font-semibold text-primary flex-1 text-left'
+                                                    : `text-[11px] font-medium text-center leading-tight ${isDisabled ? 'text-tertiary/40' : 'text-primary'}`
+                                            }>
+                                                {clip.title}
+                                            </span>
+                                            {isActive && <X size={16} className="text-tertiary/40" />}
+                                        </div>
+
+                                        {/* Video — only when expanded */}
+                                        <AnimatePresence>
+                                            {isActive && clip.src && (
+                                                <motion.div
+                                                    initial={{ height: 0, opacity: 0 }}
+                                                    animate={{ height: 'auto', opacity: 1 }}
+                                                    exit={{ height: 0, opacity: 0 }}
+                                                    transition={{ duration: 0.25, ease: 'easeInOut' }}
+                                                    className="overflow-hidden"
+                                                >
+                                                    <div className="p-2">
+                                                        <video
+                                                            key={clip.id}
+                                                            src={`${import.meta.env.BASE_URL}${clip.src}`}
+                                                            controls
+                                                            playsInline
+                                                            className="w-full rounded-lg"
+                                                        />
+                                                    </div>
+                                                </motion.div>
+                                            )}
+                                        </AnimatePresence>
+                                    </button>
+                                </motion.div>
+                            )
+                        })}
+                    </div>
+                </LayoutGroup>
             </div>
         </div>
     )
