@@ -119,6 +119,15 @@ export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false,
         }, 550);
     };
 
+    // Action status wrapper — triggers animation when pending cards are revealed
+    const handleActionStatus = (cardIndex: number, status: 'performed' | 'deferred') => {
+        setIsTransitioning(true);
+        setActionStatus(cardIndex, status);
+        setTimeout(() => {
+            setScrollTrigger(prev => prev + 1);
+        }, 550);
+    };
+
     // Screener handlers
     const handleOpenScreener = useCallback((cardIndex: number) => {
         setOpenScreenerCardIndex(cardIndex);
@@ -126,7 +135,11 @@ export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false,
 
     const handleScreenerComplete = useCallback((screenerId: string, responses: number[], followUp?: number) => {
         if (openScreenerCardIndex !== null) {
+            setIsTransitioning(true);
             setScreenerResults(openScreenerCardIndex, screenerId, responses, followUp);
+            setTimeout(() => {
+                setScrollTrigger(prev => prev + 1);
+            }, 550);
         }
         setOpenScreenerCardIndex(null);
     }, [openScreenerCardIndex, setScreenerResults]);
@@ -223,7 +236,7 @@ export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false,
                             onAnswer={handleAnswer}
                             onQuestionOption={handleQuestionOption}
                             onOpenScreener={handleOpenScreener}
-                            onActionStatus={setActionStatus}
+                            onActionStatus={handleActionStatus}
                         />
 
                         {/* Disposition card — inline after last question card */}

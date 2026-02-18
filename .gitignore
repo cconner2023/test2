@@ -30,6 +30,8 @@ scripts/
 .claude/
 # SQL migrations (applied directly in Supabase)
 sql/
+.sql
+.supabase
 supabase/
 # Editor directories and files
 .vscode/*

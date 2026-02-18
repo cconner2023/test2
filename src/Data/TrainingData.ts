@@ -12,6 +12,7 @@ export interface TaskTrainingData {
     caution?: string
     performanceSteps: PerformanceStep[]
     audioAids?: AudioAid[]
+    gradedSteps?: string[]
 }
 
 export interface PerformanceStep {
@@ -25,6 +26,11 @@ export interface PerformanceStep {
 
 export function getTaskData(taskNumber: string): TaskTrainingData | undefined {
     return trainingTaskData.find(t => t.taskNumber === taskNumber)
+}
+
+export function isTaskTestable(taskNumber: string): boolean {
+    const data = trainingTaskData.find(t => t.taskNumber === taskNumber)
+    return !!data?.gradedSteps && data.gradedSteps.length > 0
 }
 
 
@@ -215,6 +221,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
         conditions: "In an operational environment, you have a patient that requires suctioning. You may have a portable suction apparatus, suction tubing, a rigid or flexible suction catheter, saline solution or sterile water, basin, gloves, goggles, collection bottle, oxygen delivery system, and an SF 600 (Chronological Record of Medical Care), or the patient's electronic medical record (EMR). You have performed a patient care handwash, gathered equipment, and performed a patient baseline vital signs assessment.",
         standards: "Perform suctioning in accordance with the Clinical Patient Guidelines, while adhering to all warnings and cautions, without error, using the task GO/NO GO checklist.",
         caution: "All body fluids should be considered potentially infectious. Always observe body substance isolation precautions by wearing gloves and eye protection as a minimal standard of protection.",
+        gradedSteps: ["1","2","3","4","5","6","7","8","9","10","11"],
         performanceSteps: [
             { number: "1", text: "Prepare equipment.", warning: "Eye protection is required when performing suctioning procedures." },
             { number: "1a", text: "Turn on the suction in order to check proper functioning.", isSubStep: true },
@@ -296,6 +303,7 @@ export const trainingTaskData: readonly TaskTrainingData[] = [
         conditions: "You are in an operational environment. You have an unconscious patient in need of a definitive airway. You will have access to Committee on Tactical Combat Casualty Care (CoTCCC), recommended intermediate airway device, gloves, syringe, stethoscope, bag valve mask (BVM), pulse oximeter, pen, clipboard, combat lifesaver qualified Soldiers, DD Form 1380 (Tactical Combat Casualty Care (TCCC) Card (Instructions)), and the patient's SF 600, (Chronological Record of Medical Care), or electronic medical record (EMR).",
         standards: "Place an intermediate airway device in accordance with PHTLS Prehospital Trauma Life Support and Tactical Combat Casualty Care (TCCC) Guidelines while adhering to all warnings and cautions without error, using the task GO/NO GO checklist.",
         caution: "All body fluids should be considered potentially infectious so always observe body substance isolation (BSI) precautions by wearing gloves and eye protection as a minimal standard of protection.",
+        gradedSteps: ["1","2","3","4","5","6","7","8","9","10","11","12","13","14","15","16","17","18","19","20","21","22"],
         performanceSteps: [
             { number: "1", text: "Take BSI precautions." },
             { number: "2", text: "Inspect the upper airway for visible obstruction." },

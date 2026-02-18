@@ -1,5 +1,5 @@
 // hooks/useAlgorithm.ts
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef } from 'react';
 import type { AlgorithmOptions, answerOptions, dispositionType } from '../Types/AlgorithmTypes';
 
 export interface CardState {
@@ -38,15 +38,29 @@ const resetCardsAfter = (
         return resetCard(c);
     });
 
-/** Makes the "next" cards visible according to an answer's `next` field. Mutates in place. */
-const revealNextCards = (states: CardState[], next: number | number[] | null): void => {
-    if (next === null) return;
-    const indices = Array.isArray(next) ? next : [next];
-    for (const idx of indices) {
+/**
+ * Reveals cards from `next`, pausing at action cards. Mutates states in place.
+ * Returns remaining indices that weren't revealed (pending).
+ */
+const revealWithPause = (
+    states: CardState[],
+    next: number | number[] | null,
+    algorithmOpts: AlgorithmOptions[],
+): number[] => {
+    if (next === null) return [];
+    const indices = Array.isArray(next) ? [...next].sort((a, b) => a - b) : [next];
+
+    for (let i = 0; i < indices.length; i++) {
+        const idx = indices[i];
         if (idx >= 0 && idx < states.length) {
             states[idx] = { ...states[idx], isVisible: true };
+            if (algorithmOpts[idx]?.type === 'action') {
+                return indices.slice(i + 1);
+            }
         }
     }
+
+    return [];
 };
 
 export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardStates?: CardState[], initialDisposition?: dispositionType | null) => {
@@ -82,6 +96,7 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
     const [currentDisposition, setCurrentDisposition] = useState<dispositionType | null>(
         initialDisposition !== undefined ? initialDisposition : null
     );
+    const pendingRevealsRef = useRef<number[]>([]);
 
     /** Count total RF selections across all RF cards (optionally overriding one card's count) */
     const countTotalRFSelections = useCallback((
@@ -118,13 +133,14 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
 
             if (answerChanged) {
                 newStates = resetCardsAfter(newStates, targetIndex, algorithmOptions);
-                revealNextCards(newStates, yesAnswer.next);
+                pendingRevealsRef.current = revealWithPause(newStates, yesAnswer.next, algorithmOptions);
             }
         } else if (prevAnswer?.text === question.answerOptions[0]?.text) {
             // Was "Yes", now nothing selected — clear and reset
             newStates[targetIndex] = { ...newStates[targetIndex], answer: null };
             setCurrentDisposition(null);
             newStates = resetCardsAfter(newStates, targetIndex, algorithmOptions);
+            pendingRevealsRef.current = [];
         }
 
         return newStates;
@@ -208,7 +224,7 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
             // Reset all cards after this one if answer changes
             if (card.answer?.text !== answer.text) {
                 newCardStates = resetCardsAfter(newCardStates, cardIndex, algorithmOptions);
-                revealNextCards(newCardStates, answer.next);
+                pendingRevealsRef.current = revealWithPause(newCardStates, answer.next, algorithmOptions);
             }
 
             setCurrentDisposition(answer.disposition?.[0] || null);
@@ -284,7 +300,7 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
 
         // Reset all cards after this one and reveal next cards
         newCardStates = resetCardsAfter(newCardStates, cardIndex, algorithmOptions);
-        revealNextCards(newCardStates, answer.next);
+        pendingRevealsRef.current = revealWithPause(newCardStates, answer.next, algorithmOptions);
         setCurrentDisposition(answer.disposition?.[0] || null);
 
         return newCardStates;
@@ -302,6 +318,7 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
     }, [cardStates]);
 
     const resetAlgorithm = useCallback(() => {
+        pendingRevealsRef.current = [];
         setCardStates(initializeCardStates());
         setCurrentDisposition(null);
     }, [initializeCardStates]);
@@ -319,6 +336,7 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
 
     // Go back one card in the algorithm decision history
     const goBackOneCard = useCallback(() => {
+        pendingRevealsRef.current = [];
         setCardStates(prev => {
             // Find the last answered non-RF card (furthest in the algorithm)
             let lastAnsweredIndex = -1;
@@ -380,13 +398,15 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
         });
     }, [initialCardIndex, rfCardIndices, algorithmOptions]);
 
-    // Set screener results on an action card (non-blocking — does not affect algorithm flow)
+    // Set screener results on an action card — also flushes pending reveals
     const setScreenerResults = useCallback((
         cardIndex: number,
         screenerId: string,
         responses: number[],
         followUp?: number,
     ) => {
+        // Capture pending before the updater — React strict mode calls it twice
+        const pending = pendingRevealsRef.current;
         setCardStates(prev => {
             const newStates = [...prev];
             if (cardIndex < 0 || cardIndex >= newStates.length) return prev;
@@ -396,15 +416,19 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
                 completedScreenerId: screenerId,
                 followUpResponse: followUp,
             };
+            // Flush pending reveals (pause again at the next action card)
+            pendingRevealsRef.current = revealWithPause(newStates, pending, algorithmOptions);
             return newStates;
         });
-    }, []);
+    }, [algorithmOptions]);
 
     // Set performed/deferred status on a non-screener action card
     const setActionStatus = useCallback((
         cardIndex: number,
         status: 'performed' | 'deferred',
     ) => {
+        // Capture pending before the updater — React strict mode calls it twice
+        const pending = pendingRevealsRef.current;
         setCardStates(prev => {
             const newStates = [...prev];
             if (cardIndex < 0 || cardIndex >= newStates.length) return prev;
@@ -412,12 +436,14 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
                 ...newStates[cardIndex],
                 actionStatus: status,
             };
+            // Flush pending reveals (pause again at the next action card)
+            pendingRevealsRef.current = revealWithPause(newStates, pending, algorithmOptions);
             return newStates;
         });
         if (status === 'deferred') {
             setCurrentDisposition({ type: "OTHER", text: "defer to AEM" });
         }
-    }, []);
+    }, [algorithmOptions]);
 
     return {
         cardStates,

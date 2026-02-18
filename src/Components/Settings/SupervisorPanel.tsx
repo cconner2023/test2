@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { ChevronRight, ChevronLeft, Check, X, Ban, AlertTriangle, Info, Clock, FileText, Users } from 'lucide-react'
 import { stp68wTraining } from '../../Data/TrainingTaskList'
-import { getTaskData } from '../../Data/TrainingData'
+import { getTaskData, isTaskTestable } from '../../Data/TrainingData'
 import type { PerformanceStep } from '../../Data/TrainingData'
 import type { subjectAreaArray, subjectAreaArrayOptions } from '../../Types/CatTypes'
 import type { StepResult, ClinicMedic } from '../../Types/SupervisorTestTypes'
@@ -143,7 +143,7 @@ function SelectTaskStep({
         </p>
         <div className="space-y-1">
           {selectedArea.options.map((task: subjectAreaArrayOptions) => {
-            const hasData = !!getTaskData(task.icon)
+            const hasData = isTaskTestable(task.icon)
             return (
               <button
                 key={task.id}
@@ -231,10 +231,14 @@ function EvaluationStep({
     return <div className="text-center py-12 text-tertiary/60">Task data not available</div>
   }
 
-  const totalSteps = taskData.performanceSteps.length
-  const evaluatedCount = results.size
+  const gradedSet = new Set(taskData.gradedSteps ?? [])
+  const gradedStepNumbers = taskData.performanceSteps
+    .filter(s => gradedSet.has(s.number))
+    .map(s => s.number)
+  const totalSteps = gradedStepNumbers.length
+  const evaluatedCount = gradedStepNumbers.filter(n => results.has(n)).length
   const allEvaluated = evaluatedCount === totalSteps
-  const hasNoGo = Array.from(results.values()).some(v => v === 'NO_GO')
+  const hasNoGo = gradedStepNumbers.some(n => results.get(n) === 'NO_GO')
   const overallPreview = !allEvaluated ? null : hasNoGo ? 'FAIL' : 'PASS'
 
   const toggleResult = (stepNumber: string, value: 'GO' | 'NO_GO') => {
@@ -250,10 +254,12 @@ function EvaluationStep({
   }
 
   const handleSubmit = () => {
-    const stepResults: StepResult[] = taskData.performanceSteps.map(step => ({
-      stepNumber: step.number,
-      result: results.get(step.number) ?? null,
-    }))
+    const stepResults: StepResult[] = taskData.performanceSteps
+      .filter(step => gradedSet.has(step.number))
+      .map(step => ({
+        stepNumber: step.number,
+        result: results.get(step.number) ?? null,
+      }))
     onSubmit(stepResults, notes)
   }
 
@@ -291,6 +297,7 @@ function EvaluationStep({
           <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Performance Steps</p>
           <div className="space-y-1">
             {taskData.performanceSteps.map((step: PerformanceStep) => {
+              const isGraded = gradedSet.has(step.number)
               const currentResult = results.get(step.number)
               return (
                 <div key={step.number} className={`bg-themewhite2 rounded-lg px-3 py-2.5 ${step.isSubStep ? 'ml-5' : ''}`}>
@@ -299,35 +306,37 @@ function EvaluationStep({
                       {step.number}
                     </span>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-primary">{step.text}</p>
+                      <p className={`text-sm ${isGraded ? 'text-primary' : 'text-tertiary/50'}`}>{step.text}</p>
                       {step.warning && <StepCallout type="warning" text={step.warning} />}
                       {step.caution && <StepCallout type="caution" text={step.caution} />}
                       {step.note && <StepCallout type="note" text={step.note} />}
                     </div>
                   </div>
-                  {/* GO / NO GO buttons */}
-                  <div className="flex gap-2 mt-2 ml-8">
-                    <button
-                      onClick={() => toggleResult(step.number, 'GO')}
-                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.97]
-                        ${currentResult === 'GO'
-                          ? 'bg-green-600 text-white'
-                          : 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
-                        }`}
-                    >
-                      <Check size={14} /> GO
-                    </button>
-                    <button
-                      onClick={() => toggleResult(step.number, 'NO_GO')}
-                      className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.97]
-                        ${currentResult === 'NO_GO'
-                          ? 'bg-red-600 text-white'
-                          : 'bg-red-50 text-red-700 border border-red-200 hover:bg-red-100'
-                        }`}
-                    >
-                      <X size={14} /> NO GO
-                    </button>
-                  </div>
+                  {/* GO / NO GO buttons — only for graded steps */}
+                  {isGraded && (
+                    <div className="flex gap-2 mt-2 ml-8">
+                      <button
+                        onClick={() => toggleResult(step.number, 'GO')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.97]
+                          ${currentResult === 'GO'
+                            ? 'bg-themegreen text-white'
+                            : 'bg-themegreen/10 text-themegreen border border-themegreen/20 hover:bg-themegreen/20'
+                          }`}
+                      >
+                        <Check size={14} /> GO
+                      </button>
+                      <button
+                        onClick={() => toggleResult(step.number, 'NO_GO')}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.97]
+                          ${currentResult === 'NO_GO'
+                            ? 'bg-themeredred text-white'
+                            : 'bg-themeredred/10 text-themeredred border border-themeredred/20 hover:bg-themeredred/20'
+                          }`}
+                      >
+                        <X size={14} /> NO GO
+                      </button>
+                    </div>
+                  )}
                 </div>
               )
             })}
@@ -357,7 +366,7 @@ function EvaluationStep({
           </span>
           {overallPreview && (
             <span className={`px-3 py-1 rounded-full text-xs font-bold ${
-              overallPreview === 'PASS' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+              overallPreview === 'PASS' ? 'bg-themegreen/15 text-themegreen' : 'bg-themeredred/15 text-themeredred'
             }`}>
               {overallPreview}
             </span>
@@ -366,8 +375,8 @@ function EvaluationStep({
         <button
           onClick={handleSubmit}
           disabled={!allEvaluated}
-          className="w-full py-3 rounded-xl bg-amber-500 text-white text-sm font-semibold
-                     hover:bg-amber-600 active:scale-[0.98] transition-all
+          className="w-full py-3 rounded-xl bg-themeblue2 text-white text-sm font-semibold
+                     hover:bg-themeblue2/90 active:scale-[0.98] transition-all
                      disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Submit Evaluation
@@ -465,7 +474,7 @@ function HistoryTab({ clinicUsers, currentUserId }: { clinicUsers: ClinicMedic[]
                 </p>
               </div>
               <span className={`shrink-0 ml-2 px-3 py-1 rounded-full text-xs font-bold ${
-                overallResult === 'PASS' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                overallResult === 'PASS' ? 'bg-themegreen/15 text-themegreen' : 'bg-themeredred/15 text-themeredred'
               }`}>
                 {overallResult}
               </span>
@@ -480,22 +489,29 @@ function HistoryTab({ clinicUsers, currentUserId }: { clinicUsers: ClinicMedic[]
                   </p>
                 </div>
 
-                {record.stepResults && (
-                  <div className="space-y-1">
-                    {record.stepResults.map((sr) => (
-                      <div key={sr.stepNumber} className="flex items-center gap-2 py-1">
-                        <span className="text-[9pt] text-tertiary/50 font-mono w-6 text-right">{sr.stepNumber}</span>
-                        {sr.result === 'GO' ? (
-                          <span className="px-2 py-0.5 rounded text-[9pt] font-bold bg-green-100 text-green-700">GO</span>
-                        ) : sr.result === 'NO_GO' ? (
-                          <span className="px-2 py-0.5 rounded text-[9pt] font-bold bg-red-100 text-red-700">NO GO</span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded text-[9pt] bg-gray-100 text-gray-500">--</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                {record.stepResults && (() => {
+                  const taskDef = getTaskData(record.trainingItemId)
+                  const gradedFilter = taskDef?.gradedSteps ? new Set(taskDef.gradedSteps) : null
+                  const displayResults = gradedFilter
+                    ? record.stepResults.filter(sr => gradedFilter.has(sr.stepNumber))
+                    : record.stepResults
+                  return (
+                    <div className="space-y-1">
+                      {displayResults.map((sr) => (
+                        <div key={sr.stepNumber} className="flex items-center gap-2 py-1">
+                          <span className="text-[9pt] text-tertiary/50 font-mono w-6 text-right">{sr.stepNumber}</span>
+                          {sr.result === 'GO' ? (
+                            <span className="px-2 py-0.5 rounded text-[9pt] font-bold bg-themegreen/15 text-themegreen">GO</span>
+                          ) : sr.result === 'NO_GO' ? (
+                            <span className="px-2 py-0.5 rounded text-[9pt] font-bold bg-themeredred/15 text-themeredred">NO GO</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[9pt] bg-tertiary/10 text-tertiary/50">--</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )
+                })()}
 
                 {record.supervisorNotes && (
                   <div className="mt-3 p-2 bg-themewhite rounded text-sm">
@@ -507,7 +523,7 @@ function HistoryTab({ clinicUsers, currentUserId }: { clinicUsers: ClinicMedic[]
                   <div className="mt-3 flex gap-2">
                     <button
                       onClick={() => handleDelete(record.id)}
-                      className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
+                      className="flex-1 py-2 rounded-lg bg-themeredred text-white text-sm font-medium hover:bg-themeredred/90 transition-colors"
                     >
                       Confirm Delete
                     </button>
@@ -521,7 +537,7 @@ function HistoryTab({ clinicUsers, currentUserId }: { clinicUsers: ClinicMedic[]
                 ) : (
                   <button
                     onClick={() => setDeletingId(record.id)}
-                    className="mt-3 text-xs text-red-500 hover:underline"
+                    className="mt-3 text-xs text-themeredred hover:underline"
                   >
                     Delete record
                   </button>
@@ -650,14 +666,14 @@ export function SupervisorPanel() {
           <button
             onClick={() => { setActiveTab('new-test'); resetWizard() }}
             className={`flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold transition-colors
-              ${activeTab === 'new-test' ? 'bg-amber-500 text-white' : 'bg-themewhite2 text-tertiary/70 hover:bg-themewhite2/80'}`}
+              ${activeTab === 'new-test' ? 'bg-themeblue2 text-white' : 'bg-themewhite2 text-tertiary/70 hover:bg-themewhite2/80'}`}
           >
             <FileText size={14} /> New Test
           </button>
           <button
             onClick={() => setActiveTab('history')}
             className={`flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold transition-colors
-              ${activeTab === 'history' ? 'bg-amber-500 text-white' : 'bg-themewhite2 text-tertiary/70 hover:bg-themewhite2/80'}`}
+              ${activeTab === 'history' ? 'bg-themeblue2 text-white' : 'bg-themewhite2 text-tertiary/70 hover:bg-themewhite2/80'}`}
           >
             <Clock size={14} /> History
           </button>
