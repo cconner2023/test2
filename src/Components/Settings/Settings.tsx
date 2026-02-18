@@ -19,6 +19,7 @@ import { TrainingPanel, type TrainingView } from './TrainingPanel';
 import { PinSetupPanel } from './PinSetupPanel';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { FeedbackPanel } from './FeedbackPanel';
+import { HowToPanel } from './HowToPanel';
 import type { subjectAreaArrayOptions } from '../../Types/CatTypes';
 import { stp68wTraining } from '../../Data/TrainingTaskList';
 import { getTaskData } from '../../Data/TrainingData';
@@ -184,9 +185,9 @@ const MainSettingsPanel = ({
                                     className={`relative flex flex-col items-center justify-center gap-1
                                                rounded-lg px-2 py-2 border transition-all
                                                ${item.disabled
-                                                   ? 'border-tertiary/10 bg-themewhite2/50 opacity-50 cursor-not-allowed'
-                                                   : 'border-tertiary/15 bg-themewhite2 hover:bg-themeblue2/10 hover:border-themeblue2/25 active:scale-[0.97] group'
-                                               }`}
+                                            ? 'border-tertiary/10 bg-themewhite2/50 opacity-50 cursor-not-allowed'
+                                            : 'border-tertiary/15 bg-themewhite2 hover:bg-themeblue2/10 hover:border-themeblue2/25 active:scale-[0.97] group'
+                                        }`}
                                 >
                                     <div className={`${item.disabled ? 'text-tertiary/40' : item.color} ${!item.disabled ? 'group-hover:scale-110' : ''} transition-transform`}>
                                         {item.icon}
@@ -346,7 +347,7 @@ export const Settings = ({
     avatar,
     onNotePanelChange,
 }: SettingsDrawerProps) => {
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | TrainingView>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'how-to' | TrainingView>('main');
     const [isDevRole, setIsDevRole] = useState(false);
     const [isSupervisorRole, setIsSupervisorRole] = useState(false);
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = avatar;
@@ -518,6 +519,10 @@ export const Settings = ({
                 handleSlideAnimation('left');
                 setActivePanel('notification-settings');
                 break;
+            case 18:
+                handleSlideAnimation('left');
+                setActivePanel('how-to');
+                break;
             default:
                 break;
         }
@@ -594,7 +599,7 @@ export const Settings = ({
                 type: 'option',
                 icon: <Bell size={20} />,
                 label: 'Notifications',
-                action: () => {},
+                action: () => { },
                 color: 'text-tertiary',
                 id: 17,
                 disabled: true
@@ -624,7 +629,7 @@ export const Settings = ({
                 type: 'option',
                 icon: <HelpCircle size={20} />,
                 label: 'Help & Support',
-                action: () => {},
+                action: () => { },
                 color: 'text-tertiary',
                 id: 18,
                 disabled: true
@@ -763,6 +768,12 @@ export const Settings = ({
                     showBack: true,
                     onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
                 };
+            case 'how-to':
+                return {
+                    title: 'Help & Support',
+                    showBack: true,
+                    onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
+                };
         }
     }, [activePanel, notes, clinicNotes, isAuthenticated, profile.clinicName, handleSlideAnimation, selectedTask, handleTrainingBack]);
 
@@ -881,6 +892,8 @@ export const Settings = ({
                         />
                     ) : activePanel === 'feedback' ? (
                         <FeedbackPanel />
+                    ) : activePanel === 'how-to' ? (
+                        <HowToPanel />
                     ) : activePanel === 'notification-settings' ? (
                         <NotificationSettingsPanel />
                     ) : activePanel === 'pin-setup' ? (
