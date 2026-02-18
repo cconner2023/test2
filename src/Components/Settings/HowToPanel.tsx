@@ -123,7 +123,7 @@ export const HowToPanel = () => {
                                                     transition={{ duration: 0.25, ease: 'easeInOut' }}
                                                     className="overflow-hidden"
                                                 >
-                                                    <div className="p-2">
+                                                    <div className="p-2" onClick={e => e.stopPropagation()}>
                                                         <video
                                                             key={clip.id}
                                                             src={`${import.meta.env.BASE_URL}${clip.src}`}

@@ -798,7 +798,7 @@ export const Settings = ({
                 };
             case 'how-to':
                 return {
-                    title: 'Help & Support',
+                    title: 'Help & Tutorials',
                     showBack: true,
                     onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
                 };

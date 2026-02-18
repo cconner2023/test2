@@ -74,10 +74,7 @@ export function SymptomInfoDrawer({
                         <SymptomGuidelines
                             symptom={selectedSymptom}
                             category={selectedCategory}
-                            onNavigate={(result) => {
-                                onNavigate(result);
-                                handleClose();
-                            }}
+                            onNavigate={onNavigate}
                             guidelineToResult={guidelineToResult}
                         />
                     </div>

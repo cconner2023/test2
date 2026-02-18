@@ -103,6 +103,7 @@ export function SymptomGuidelines({
             {/* Guideline Section Cards */}
             {sections.map((section, sectionIdx) => {
                 const isTraining = section.type === 'medcom' || section.type === 'stp'
+                const isDDX = section.type === 'DDX'
 
                 return (
                     <div key={section.key} className="flex flex-col items-center">
@@ -120,8 +121,8 @@ export function SymptomGuidelines({
                                     {section.items.map((item, index) => (
                                         <div
                                             key={`${section.key}-${item.id || index}`}
-                                            onClick={() => onNavigate(guidelineToResult(section.type, item, index, symptom, category))}
-                                            className="text-xs p-2 rounded-md bg-themewhite3 text-tertiary cursor-pointer transition-all duration-200 hover:bg-themewhite"
+                                            {...(!isDDX ? { onClick: () => onNavigate(guidelineToResult(section.type, item, index, symptom, category)) } : {})}
+                                            className={`text-xs p-2 rounded-md bg-themewhite3 text-tertiary transition-all duration-200 ${isDDX ? '' : 'cursor-pointer hover:bg-themewhite'}`}
                                         >
                                             <div className="font-normal">
                                                 {isTraining && item.icon && (
