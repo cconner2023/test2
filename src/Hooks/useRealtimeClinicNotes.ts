@@ -2,12 +2,16 @@
  * useRealtimeClinicNotes -- Supabase Realtime subscription for clinic notes.
  *
  * Subscribes to INSERT, UPDATE, and DELETE events on the `notes` table
- * filtered by `clinic_id`. When another clinic member creates, updates,
- * or deletes a note, the change is reflected in the local state without
- * requiring a manual refresh or full sync.
+ * filtered by `clinic_id`. All notes in the clinic (including the current
+ * user's own notes) are handled through this single channel. The caller
+ * provides separate callbacks for clinic-member events vs own-user events,
+ * allowing cross-device sync of personal notes without a second channel.
  *
  * This hook is additive -- it enhances the existing offline-first sync
  * mechanism without replacing it.
+ *
+ * The channel automatically pauses when the page is hidden (backgrounded)
+ * and resumes when visible again, reducing battery drain on mobile devices.
  *
  * IMPORTANT: Requires the `notes` table to be added to the Supabase
  * Realtime publication. See sql/011_enable_realtime_notes.sql.
@@ -64,26 +68,43 @@ interface UseRealtimeClinicNotesOptions {
   clinicId: string | null
   userId: string | null
   isAuthenticated: boolean
-  onUpsert: (note: SavedNote) => void
-  onDelete: (noteId: string) => void
+  isPageVisible: boolean
+  /** Called for notes from other clinic members. */
+  onClinicUpsert: (note: SavedNote) => void
+  onClinicDelete: (noteId: string) => void
+  /** Called for the current user's own notes (cross-device sync). */
+  onPersonalUpsert: (note: SavedNote) => void
+  onPersonalDelete: (noteId: string) => void
 }
 
 export function useRealtimeClinicNotes({
   clinicId,
   userId,
   isAuthenticated,
-  onUpsert,
-  onDelete,
+  isPageVisible,
+  onClinicUpsert,
+  onClinicDelete,
+  onPersonalUpsert,
+  onPersonalDelete,
 }: UseRealtimeClinicNotesOptions): void {
   const channelRef = useRef<RealtimeChannel | null>(null)
 
   // Use refs for callbacks to avoid resubscribing on every render
-  const onUpsertRef = useRef(onUpsert)
-  const onDeleteRef = useRef(onDelete)
+  const onClinicUpsertRef = useRef(onClinicUpsert)
+  const onClinicDeleteRef = useRef(onClinicDelete)
+  const onPersonalUpsertRef = useRef(onPersonalUpsert)
+  const onPersonalDeleteRef = useRef(onPersonalDelete)
   useEffect(() => {
-    onUpsertRef.current = onUpsert
-    onDeleteRef.current = onDelete
-  }, [onUpsert, onDelete])
+    onClinicUpsertRef.current = onClinicUpsert
+    onClinicDeleteRef.current = onClinicDelete
+    onPersonalUpsertRef.current = onPersonalUpsert
+    onPersonalDeleteRef.current = onPersonalDelete
+  }, [onClinicUpsert, onClinicDelete, onPersonalUpsert, onPersonalDelete])
+
+  const userIdRef = useRef(userId)
+  useEffect(() => {
+    userIdRef.current = userId
+  }, [userId])
 
   const cleanup = useCallback(() => {
     if (channelRef.current) {
@@ -94,7 +115,8 @@ export function useRealtimeClinicNotes({
   }, [])
 
   useEffect(() => {
-    if (!isAuthenticated || !clinicId || !userId) {
+    // Pause when backgrounded, not authenticated, or missing IDs
+    if (!isAuthenticated || !clinicId || !userId || !isPageVisible) {
       cleanup()
       return
     }
@@ -107,32 +129,40 @@ export function useRealtimeClinicNotes({
     /**
      * Handle a Realtime postgres_changes event.
      *
-     * Using a single wildcard ('*') listener for all event types on the
-     * same table+filter combination. This avoids potential issues with
-     * multiple `.on()` calls for the same channel competing for events,
-     * and simplifies the event routing logic.
+     * Routes events to either personal or clinic callbacks based on
+     * whether the event's user_id matches the current user. This
+     * replaces the old two-channel setup (clinic + personal) with a
+     * single channel, halving WebSocket connections for notes.
      */
     const handlePayload = (payload: RealtimePostgresChangesPayload<RealtimeNoteRow>) => {
       const eventType = payload.eventType
+      const currentUserId = userIdRef.current
 
       if (eventType === 'INSERT' || eventType === 'UPDATE') {
         const row = payload.new
-        // Skip events from the current user -- their own notes are
-        // managed locally via IndexedDB and appear in the `notes` array.
-        if (row.user_id === userId) return
+        const note = realtimeRowToSavedNote(row)
 
-        console.log(`[RealtimeClinicNotes] ${eventType}: ${row.id} by ${row.user_id}`)
-        onUpsertRef.current(realtimeRowToSavedNote(row))
+        // Soft-deleted notes should be treated as deletes
+        if (row.deleted_at) {
+          if (row.user_id === currentUserId) {
+            onPersonalDeleteRef.current(row.id)
+          } else {
+            onClinicDeleteRef.current(row.id)
+          }
+          return
+        }
+
+        if (row.user_id === currentUserId) {
+          onPersonalUpsertRef.current(note)
+        } else {
+          onClinicUpsertRef.current(note)
+        }
         return
       }
 
       if (eventType === 'DELETE') {
         // Without REPLICA IDENTITY FULL, payload.old only contains the
-        // primary key column(s). We defensively handle both cases:
-        //   - Full row: check user_id to skip own deletions
-        //   - PK only:  skip the user_id check (safe because own notes
-        //               aren't in clinicNotes anyway -- they're excluded
-        //               by the fetchClinicNotesFromServer query)
+        // primary key column(s). We defensively handle both cases.
         const oldRow = payload.old as Partial<RealtimeNoteRow>
         const noteId = oldRow.id
 
@@ -141,11 +171,15 @@ export function useRealtimeClinicNotes({
           return
         }
 
-        // If we have user_id info, skip own deletions for correctness
-        if (oldRow.user_id && oldRow.user_id === userId) return
-
-        console.log(`[RealtimeClinicNotes] DELETE: ${noteId}`)
-        onDeleteRef.current(noteId)
+        // Route to the appropriate handler based on user_id (if available)
+        if (oldRow.user_id && oldRow.user_id === currentUserId) {
+          onPersonalDeleteRef.current(noteId)
+        } else {
+          // Either from another user, or user_id unknown (PK-only payload)
+          // — route to clinic handler. Safe because personal notes that
+          // don't match will be a no-op in the clinic state filter.
+          onClinicDeleteRef.current(noteId)
+        }
       }
     }
 
@@ -176,5 +210,5 @@ export function useRealtimeClinicNotes({
     channelRef.current = channel
 
     return cleanup
-  }, [isAuthenticated, clinicId, userId, cleanup])
+  }, [isAuthenticated, clinicId, userId, isPageVisible, cleanup])
 }

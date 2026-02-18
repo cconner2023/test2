@@ -46,6 +46,7 @@ import {
 } from '../lib/syncService';
 import { supabase } from '../lib/supabase';
 import { useRealtimeTrainingCompletions } from './useRealtimeTrainingCompletions';
+import { usePageVisibility } from './usePageVisibility';
 import { getTaskData } from '../Data/TrainingData';
 import type { CompletionResult } from '../Types/database.types';
 import type { StepResult } from '../Types/SupervisorTestTypes';
@@ -191,6 +192,9 @@ export function useTrainingCompletions() {
   // State copies for the Realtime hook
   const [realtimeUserId, setRealtimeUserId] = useState<string | null>(null);
   const [realtimeAuthenticated, setRealtimeAuthenticated] = useState(false);
+
+  // Page visibility — pauses realtime channels when backgrounded
+  const isPageVisible = usePageVisibility();
 
   // Auth version counter — incremented on SIGNED_IN / SIGNED_OUT to
   // trigger the init effect to re-run with the new user context.
@@ -347,6 +351,19 @@ export function useTrainingCompletions() {
       }
     };
   }, [refreshCompletions, authVersion]);
+
+  // ── Catch-up refresh when page becomes visible ─────────────
+
+  const prevVisibleRef = useRef(true);
+  useEffect(() => {
+    if (isPageVisible && !prevVisibleRef.current && initDone.current) {
+      const userId = userIdRef.current;
+      if (userId && userId !== 'guest') {
+        refreshCompletions(userId);
+      }
+    }
+    prevVisibleRef.current = isPageVisible;
+  }, [isPageVisible, refreshCompletions]);
 
   // ── Query Operations ───────────────────────────────────────
 
@@ -570,6 +587,7 @@ export function useTrainingCompletions() {
   useRealtimeTrainingCompletions({
     userId: realtimeUserId,
     isAuthenticated: realtimeAuthenticated,
+    isPageVisible,
     onUpsert: handleRealtimeUpsert,
     onDelete: handleRealtimeDelete,
   });

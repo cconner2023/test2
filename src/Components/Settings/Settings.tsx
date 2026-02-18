@@ -17,7 +17,7 @@ import { GuestOptionsPanel } from './GuestOptionsPanel';
 import { LoginPanel } from './LoginPanel';
 import { TrainingPanel, type TrainingView } from './TrainingPanel';
 import { PinSetupPanel } from './PinSetupPanel';
-import type { subjectAreaArray, subjectAreaArrayOptions } from '../../Types/CatTypes';
+import type { subjectAreaArrayOptions } from '../../Types/CatTypes';
 import { stp68wTraining } from '../../Data/TrainingTaskList';
 import { getTaskData } from '../../Data/TrainingData';
 import { supabase } from '../../lib/supabase';
@@ -300,7 +300,6 @@ export const Settings = ({
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = avatar;
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
-    const [selectedSubjectArea, setSelectedSubjectArea] = useState<subjectAreaArray | null>(null);
     const [selectedTask, setSelectedTask] = useState<subjectAreaArrayOptions | null>(null);
     const prevVisibleRef = useRef(false);
     const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
@@ -357,8 +356,7 @@ export const Settings = ({
         if (isVisible && !prevVisibleRef.current) {
             // Deep-link to a specific training task if requested
             if (initialPanel === 'training' && initialTrainingTaskId && getTaskData(initialTrainingTaskId)) {
-                // Find the task's subject area across all skill levels
-                let foundArea: subjectAreaArray | null = null;
+                // Find the task across all skill levels for deep-linking
                 let foundTask: subjectAreaArrayOptions | null = null;
 
                 for (let levelIdx = 0; levelIdx < stp68wTraining.length && !foundTask; levelIdx++) {
@@ -368,19 +366,6 @@ export const Settings = ({
                         const taskIdx = area.tasks.findIndex(t => t.id === initialTrainingTaskId);
                         if (taskIdx !== -1) {
                             const task = area.tasks[taskIdx];
-                            foundArea = {
-                                id: areaIdx,
-                                icon: level.skillLevel,
-                                text: area.name,
-                                isParent: true,
-                                options: area.tasks.map((t, tIdx) => ({
-                                    id: tIdx,
-                                    icon: t.id,
-                                    text: t.title,
-                                    isParent: false,
-                                    parentId: areaIdx,
-                                })),
-                            };
                             foundTask = {
                                 id: taskIdx,
                                 icon: task.id,
@@ -392,13 +377,11 @@ export const Settings = ({
                     }
                 }
 
-                if (foundArea && foundTask) {
-                    setSelectedSubjectArea(foundArea);
+                if (foundTask) {
                     setSelectedTask(foundTask);
                     setActivePanel('training-detail');
                     setSlideDirection('');
                 } else {
-                    // Fallback: open training list if task not found in hierarchy
                     setActivePanel('training');
                     setSlideDirection('');
                 }
@@ -443,7 +426,6 @@ export const Settings = ({
                 break;
             case 7:
                 handleSlideAnimation('left');
-                setSelectedSubjectArea(null);
                 setSelectedTask(null);
                 setActivePanel('training');
                 break;
@@ -559,13 +541,6 @@ export const Settings = ({
     }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isSupervisorRole, isAuthenticated]);
 
     // Training panel navigation helpers
-    const handleTrainingSelectArea = useCallback((area: subjectAreaArray) => {
-        setSelectedSubjectArea(area);
-        setSelectedTask(null);
-        handleSlideAnimation('left');
-        setActivePanel('training-tasks');
-    }, [handleSlideAnimation]);
-
     const handleTrainingSelectTask = useCallback((task: subjectAreaArrayOptions) => {
         setSelectedTask(task);
         handleSlideAnimation('left');
@@ -575,12 +550,8 @@ export const Settings = ({
     const handleTrainingBack = useCallback(() => {
         if (activePanel === 'training-detail') {
             handleSlideAnimation('right');
-            setActivePanel('training-tasks');
-            setSelectedTask(null);
-        } else if (activePanel === 'training-tasks') {
-            handleSlideAnimation('right');
             setActivePanel('training');
-            setSelectedSubjectArea(null);
+            setSelectedTask(null);
         } else if (activePanel === 'training') {
             handleSlideAnimation('right');
             setActivePanel('main');
@@ -591,7 +562,7 @@ export const Settings = ({
     const swipeHandlers = useSwipeBack(
         useMemo(() => {
             if (activePanel === 'main') return undefined;
-            if (activePanel === 'training-detail' || activePanel === 'training-tasks' || activePanel === 'training') {
+            if (activePanel === 'training-detail' || activePanel === 'training') {
                 return handleTrainingBack;
             }
             return () => { handleSlideAnimation('right'); setActivePanel('main'); };
@@ -644,15 +615,9 @@ export const Settings = ({
                     showBack: true,
                     onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
                 };
-            case 'training-tasks':
-                return {
-                    title: selectedSubjectArea?.text || 'Tasks',
-                    showBack: true,
-                    onBack: handleTrainingBack,
-                };
             case 'training-detail':
                 return {
-                    title: selectedTask?.icon || 'Task',
+                    title: selectedTask?.text || 'Task',
                     showBack: true,
                     onBack: handleTrainingBack,
                 };
@@ -693,12 +658,12 @@ export const Settings = ({
                     onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
                 };
         }
-    }, [activePanel, notes, clinicNotes, isAuthenticated, profile.clinicName, handleSlideAnimation, selectedSubjectArea, selectedTask, handleTrainingBack]);
+    }, [activePanel, notes, clinicNotes, isAuthenticated, profile.clinicName, handleSlideAnimation, selectedTask, handleTrainingBack]);
 
     return (
         <BaseDrawer
             isVisible={isVisible}
-            onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedSubjectArea(null); setSelectedTask(null); onClose(); }}
+            onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedTask(null); onClose(); }}
             fullHeight="90dvh"
             disableDrag={false}
             header={headerConfig}
@@ -810,12 +775,10 @@ export const Settings = ({
                         />
                     ) : activePanel === 'pin-setup' ? (
                         <PinSetupPanel />
-                    ) : activePanel === 'training' || activePanel === 'training-tasks' || activePanel === 'training-detail' ? (
+                    ) : activePanel === 'training' || activePanel === 'training-detail' ? (
                         <TrainingPanel
                             view={activePanel}
-                            selectedSubjectArea={selectedSubjectArea}
                             selectedTask={selectedTask}
-                            onSelectArea={handleTrainingSelectArea}
                             onSelectTask={handleTrainingSelectTask}
                         />
                     ) : (

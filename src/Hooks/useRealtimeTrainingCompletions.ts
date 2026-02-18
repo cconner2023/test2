@@ -7,10 +7,12 @@
  * removes a training completion on another device, the change is reflected
  * locally without requiring a manual refresh or page reload.
  *
- * Follows the same pattern as useRealtimePersonalNotes: handlers are
- * idempotent -- on the originating device the optimistic state already
- * matches, so the upsert is a no-op (or harmless overwrite with the same
- * data).
+ * Handlers are idempotent -- on the originating device the optimistic
+ * state already matches, so the upsert is a no-op (or harmless overwrite
+ * with the same data).
+ *
+ * The channel automatically pauses when the page is hidden (backgrounded)
+ * and resumes when visible again, reducing battery drain.
  *
  * Requires the `training_completions` table to be in the Supabase Realtime
  * publication.
@@ -58,6 +60,7 @@ function realtimeRowToTrainingCompletionUI(row: RealtimeTrainingCompletionRow): 
 interface UseRealtimeTrainingCompletionsOptions {
   userId: string | null
   isAuthenticated: boolean
+  isPageVisible: boolean
   onUpsert: (completion: TrainingCompletionUI) => void
   onDelete: (completionId: string) => void
 }
@@ -65,6 +68,7 @@ interface UseRealtimeTrainingCompletionsOptions {
 export function useRealtimeTrainingCompletions({
   userId,
   isAuthenticated,
+  isPageVisible,
   onUpsert,
   onDelete,
 }: UseRealtimeTrainingCompletionsOptions): void {
@@ -86,7 +90,8 @@ export function useRealtimeTrainingCompletions({
   }, [])
 
   useEffect(() => {
-    if (!isAuthenticated || !userId) {
+    // Pause when backgrounded, not authenticated, or missing userId
+    if (!isAuthenticated || !userId || !isPageVisible) {
       cleanup()
       return
     }
@@ -144,5 +149,5 @@ export function useRealtimeTrainingCompletions({
     channelRef.current = channel
 
     return cleanup
-  }, [isAuthenticated, userId, cleanup])
+  }, [isAuthenticated, userId, isPageVisible, cleanup])
 }

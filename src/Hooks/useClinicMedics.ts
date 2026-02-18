@@ -45,12 +45,9 @@ export function useClinicMedics() {
         return
       }
 
-      // Filter to medic role only (roles is a text[] column)
+      // Return all clinic members except the current user
       const medicProfiles: ClinicMedic[] = (clinicProfiles || [])
-        .filter(p => {
-          const roles = p.roles as string[] | null
-          return roles?.includes('medic')
-        })
+        .filter(p => p.id !== user.id)
         .map(p => ({
           id: p.id,
           firstName: p.first_name,

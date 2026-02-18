@@ -37,7 +37,7 @@ import {
 } from '../lib/syncService';
 import { supabase } from '../lib/supabase';
 import { useRealtimeClinicNotes } from './useRealtimeClinicNotes';
-import { useRealtimePersonalNotes } from './useRealtimePersonalNotes';
+import { usePageVisibility } from './usePageVisibility';
 
 // Re-export SavedNote from notesService so existing imports
 // from './useNotesStorage' continue to work.
@@ -134,6 +134,9 @@ export function useNotesStorage() {
   // Auth version counter — incremented on SIGNED_IN / SIGNED_OUT to
   // trigger the init effect to re-run with the new user context.
   const [authVersion, setAuthVersion] = useState(0);
+
+  // Page visibility — pauses realtime channels when backgrounded
+  const isPageVisible = usePageVisibility();
 
   // ── Auth state tracking — re-init on login/logout ─────────
 
@@ -364,6 +367,26 @@ export function useNotesStorage() {
     };
   }, []);
 
+  // ── Catch-up sync when page becomes visible ────────────────
+  // Realtime channels are paused while backgrounded, so we refresh
+  // notes from IndexedDB + server when the user returns.
+
+  const prevVisibleRef = useRef(true);
+  useEffect(() => {
+    // Only trigger on transition from hidden → visible
+    if (isPageVisible && !prevVisibleRef.current && initDone.current) {
+      const userId = userIdRef.current;
+      if (userId && userId !== 'guest' && checkOnline()) {
+        refreshNotes(userId);
+        const clinicId = clinicIdRef.current;
+        if (clinicId) {
+          refreshClinicNotes(clinicId, userId);
+        }
+      }
+    }
+    prevVisibleRef.current = isPageVisible;
+  }, [isPageVisible, refreshNotes, refreshClinicNotes]);
+
   // ── CRUD Operations ─────────────────────────────────────────
 
   const saveNote = useCallback(
@@ -562,9 +585,11 @@ export function useNotesStorage() {
     }
   }, [refreshNotes, refreshClinicNotes]);
 
-  // ── Realtime: clinic notes subscription ────────────────────
+  // ── Realtime: unified clinic notes subscription ─────────────
+  // A single channel handles both clinic-member events (→ clinicNotes)
+  // and own-user cross-device events (→ notes + IndexedDB).
 
-  const handleRealtimeUpsert = useCallback((note: SavedNote) => {
+  const handleClinicUpsert = useCallback((note: SavedNote) => {
     setClinicNotes((prev) => {
       const idx = prev.findIndex((n) => n.id === note.id);
       if (idx >= 0) {
@@ -584,26 +609,14 @@ export function useNotesStorage() {
     });
   }, []);
 
-  const handleRealtimeDelete = useCallback((noteId: string) => {
+  const handleClinicDelete = useCallback((noteId: string) => {
     setClinicNotes((prev) => prev.filter((n) => n.id !== noteId));
   }, []);
 
-  useRealtimeClinicNotes({
-    clinicId: realtimeClinicId,
-    userId: realtimeUserId,
-    isAuthenticated: realtimeAuthenticated,
-    onUpsert: handleRealtimeUpsert,
-    onDelete: handleRealtimeDelete,
-  });
-
-  // ── Realtime: personal notes subscription (cross-device) ──
-
-  const handleRealtimePersonalUpsert = useCallback((note: SavedNote) => {
+  const handlePersonalUpsert = useCallback((note: SavedNote) => {
     setNotes((prev) => {
       const idx = prev.findIndex((n) => n.id === note.id);
       if (idx >= 0) {
-        // Note already exists (optimistic from this device) — update if
-        // the incoming version is the same age or newer.
         const existing = prev[idx];
         const existingTime = new Date(existing.createdAt).getTime();
         const incomingTime = new Date(note.createdAt).getTime();
@@ -612,9 +625,8 @@ export function useNotesStorage() {
           next[idx] = note;
           return next;
         }
-        return prev; // Local is newer, skip
+        return prev;
       }
-      // New note from another device — insert sorted
       return [note, ...prev].sort(
         (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
@@ -654,20 +666,23 @@ export function useNotesStorage() {
     }
   }, []);
 
-  const handleRealtimePersonalDelete = useCallback((noteId: string) => {
+  const handlePersonalDelete = useCallback((noteId: string) => {
     setNotes((prev) => prev.filter((n) => n.id !== noteId));
 
-    // Also remove from IndexedDB
     idbHardDelete(noteId).catch((err) => {
       console.warn('[NotesStorage] Failed to delete realtime personal note from IndexedDB:', err);
     });
   }, []);
 
-  useRealtimePersonalNotes({
+  useRealtimeClinicNotes({
+    clinicId: realtimeClinicId,
     userId: realtimeUserId,
     isAuthenticated: realtimeAuthenticated,
-    onUpsert: handleRealtimePersonalUpsert,
-    onDelete: handleRealtimePersonalDelete,
+    isPageVisible,
+    onClinicUpsert: handleClinicUpsert,
+    onClinicDelete: handleClinicDelete,
+    onPersonalUpsert: handlePersonalUpsert,
+    onPersonalDelete: handlePersonalDelete,
   });
 
   return {

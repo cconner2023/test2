@@ -3,6 +3,7 @@ import { profileAvatars } from '../Data/ProfileAvatars';
 import type { ProfileAvatar } from '../Data/ProfileAvatars';
 import { supabase } from '../lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { usePageVisibility } from './usePageVisibility';
 
 const STORAGE_KEY = 'adtmc_profile_avatar';
 const CUSTOM_IMAGE_KEY = 'adtmc_profile_custom_avatar';
@@ -79,6 +80,7 @@ export function useProfileAvatar(userId?: string) {
     const [avatarId, setAvatarId] = useState<string>(loadAvatarId);
     const [customImage, setCustomImageState] = useState<string | null>(loadCustomImage);
     const hasSyncedRef = useRef<string | null>(null);
+    const isPageVisible = usePageVisibility();
 
     const isCustom = avatarId === 'custom' && customImage !== null;
 
@@ -112,8 +114,9 @@ export function useProfileAvatar(userId?: string) {
 
     // Realtime: subscribe to avatar_id changes on the user's own profile row
     // so that changing avatar on one device updates all other logged-in devices.
+    // Pauses when the page is backgrounded to reduce battery drain.
     useEffect(() => {
-        if (!userId) return;
+        if (!userId || !isPageVisible) return;
 
         const channel: RealtimeChannel = supabase
             .channel(`profile-avatar:${userId}`)
@@ -147,7 +150,7 @@ export function useProfileAvatar(userId?: string) {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [userId]);
+    }, [userId, isPageVisible]);
 
     const setAvatar = useCallback((id: string) => {
         setAvatarId(id);

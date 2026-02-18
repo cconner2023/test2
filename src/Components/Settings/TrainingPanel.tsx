@@ -1,11 +1,21 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Check, ChevronRight, AlertTriangle, Info, Lock } from 'lucide-react'
+import { Check, ChevronRight, AlertTriangle, Info, Lock, Wind, Droplets, ShieldPlus, Stethoscope, Pill, Bone, Ambulance, BookOpen } from 'lucide-react'
 import { stp68wTraining } from '../../Data/TrainingTaskList'
 import { getTaskData } from '../../Data/TrainingData'
 import type { TaskTrainingData, PerformanceStep } from '../../Data/TrainingData'
 import type { subjectAreaArray, subjectAreaArrayOptions } from '../../Types/CatTypes'
 import { useTrainingCompletions } from '../../Hooks/useTrainingCompletions'
 import { AudioAidPlayer } from '../AudioAidPlayer'
+const subjectAreaIcons: Record<string, React.ReactNode> = {
+    'Airway Management': <Wind size={14} />,
+    'Fluid Management': <Droplets size={14} />,
+    'Force Health Protection': <ShieldPlus size={14} />,
+    'Medical Management': <Stethoscope size={14} />,
+    'Medication Management': <Pill size={14} />,
+    'Trauma Management': <Bone size={14} />,
+    'Triage and Evacuation': <Ambulance size={14} />,
+}
+
 // Convert a skill level's subject areas to the subjectAreaArray format
 function toSubjectAreaArrays(skillLevelIdx: number): subjectAreaArray[] {
     const level = stp68wTraining[skillLevelIdx]
@@ -25,14 +35,14 @@ function toSubjectAreaArrays(skillLevelIdx: number): subjectAreaArray[] {
     }))
 }
 
-// ─── Sub-view: Subject Area List ─────────────────────────────────────────────
+// ─── Sub-view: Training List (grouped by subject area headers) ──────────────
 
-function SubjectAreaList({
-    onSelectArea,
+function TrainingList({
+    onSelectTask,
 }: {
-    onSelectArea: (area: subjectAreaArray) => void
+    onSelectTask: (task: subjectAreaArrayOptions) => void
 }) {
-    const { getSubjectAreaProgress } = useTrainingCompletions()
+    const { getSubjectAreaProgress, isTaskCompleted, isTaskViewed } = useTrainingCompletions()
     const [selectedLevel, setSelectedLevel] = useState(0)
     const areas = useMemo(() => toSubjectAreaArrays(selectedLevel), [selectedLevel])
 
@@ -40,7 +50,7 @@ function SubjectAreaList({
         <div className="h-full overflow-y-auto">
             <div className="px-4 py-3 md:p-5">
                 <p className="text-xs text-tertiary/60 mb-3">
-                    STP 8-68W13-SM-TG — Select a skill level and subject area to begin studying.
+                    STP 8-68W13-SM-TG — Select a skill level and task to begin studying.
                 </p>
 
                 {/* Skill Level Tabs */}
@@ -60,99 +70,70 @@ function SubjectAreaList({
                     ))}
                 </div>
 
-                <div className="space-y-2">
+                <div className="space-y-1">
                     {areas.map((area) => {
                         const { completed, total } = getSubjectAreaProgress(area)
-                        const allDone = total > 0 && completed === total
 
                         return (
-                            <button
-                                key={area.id}
-                                onClick={() => onSelectArea(area)}
-                                className="flex items-center w-full px-4 py-3.5 hover:bg-themewhite2 active:scale-[0.98]
-                                           transition-all rounded-xl group text-left"
-                            >
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-[9pt] text-tertiary/50 font-medium uppercase tracking-wider">
-                                        {area.icon}
-                                    </p>
-                                    <p className="text-base text-primary font-medium truncate">
-                                        {area.text}
-                                    </p>
+                            <div key={area.id}>
+                                {/* Group header */}
+                                <div className="px-6 pt-4 pb-1 flex items-center justify-between">
+                                    <div className="flex items-center gap-1.5 text-tertiary/50">
+                                        {subjectAreaIcons[area.text] ?? <BookOpen size={14} />}
+                                        <p className="text-[10px] font-semibold tracking-widest uppercase">
+                                            {area.text}
+                                        </p>
+                                    </div>
                                     {total > 0 && (
-                                        <p className="text-[9pt] text-tertiary/50 mt-0.5">
-                                            {completed}/{total} completed
+                                        <p className="text-[10px] text-tertiary/40">
+                                            {completed}/{total}
                                         </p>
                                     )}
                                 </div>
-                                {allDone ? (
-                                    <Check size={18} className="text-themegreen shrink-0 ml-2" />
-                                ) : (
-                                    <ChevronRight size={16} className="text-tertiary/40 shrink-0 ml-2" />
-                                )}
-                            </button>
-                        )
-                    })}
-                </div>
-            </div>
-        </div>
-    )
-}
 
-// ─── Sub-view: Task List ─────────────────────────────────────────────────────
+                                {/* Tasks under this area */}
+                                {area.options.map((task) => {
+                                    const hasData = !!getTaskData(task.icon)
+                                    const taskCompleted = isTaskCompleted(task.icon)
+                                    const viewed = isTaskViewed(task.icon)
 
-function TaskList({
-    subjectArea,
-    onSelectTask,
-}: {
-    subjectArea: subjectAreaArray
-    onSelectTask: (task: subjectAreaArrayOptions) => void
-}) {
-    const { isTaskCompleted, isTaskViewed } = useTrainingCompletions()
-
-    return (
-        <div className="h-full overflow-y-auto">
-            <div className="px-4 py-3 md:p-5">
-                <div className="space-y-1">
-                    {subjectArea.options.map((task) => {
-                        const hasData = !!getTaskData(task.icon)
-                        const completed = isTaskCompleted(task.icon)
-                        const viewed = isTaskViewed(task.icon)
-
-                        return (
-                            <button
-                                key={task.id}
-                                onClick={() => hasData && onSelectTask(task)}
-                                disabled={!hasData}
-                                className={`flex items-center w-full px-4 py-3 rounded-xl text-left transition-all
-                                    ${hasData
-                                        ? 'hover:bg-themewhite2 active:scale-[0.98] cursor-pointer'
-                                        : 'opacity-40 cursor-not-allowed'
-                                    }`}
-                            >
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-[8pt] text-tertiary/50 font-mono">
-                                        {task.icon}
-                                    </p>
-                                    <p className={`text-sm font-medium truncate ${hasData ? 'text-primary' : 'text-tertiary'}`}>
-                                        {task.text}
-                                    </p>
-                                    {!hasData && (
-                                        <p className="text-[8pt] text-tertiary/40 flex items-center gap-1 mt-0.5">
-                                            <Lock size={9} /> Coming soon
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="shrink-0 ml-2">
-                                    {completed ? (
-                                        <Check size={16} className="text-themegreen" />
-                                    ) : viewed ? (
-                                        <div className="w-2 h-2 rounded-full bg-themeyellow" />
-                                    ) : hasData ? (
-                                        <ChevronRight size={16} className="text-tertiary/30" />
-                                    ) : null}
-                                </div>
-                            </button>
+                                    return (
+                                        <button
+                                            key={task.id}
+                                            onClick={() => hasData && onSelectTask(task)}
+                                            disabled={!hasData}
+                                            className={`flex items-center w-full px-6 py-3 rounded-xl text-left transition-all
+                                                ${hasData
+                                                    ? 'hover:bg-themewhite2 active:scale-[0.98] cursor-pointer'
+                                                    : 'opacity-40 cursor-not-allowed'
+                                                }`}
+                                        >
+                                            <div className="flex-1 min-w-0">
+                                                <p className={`text-sm font-medium truncate ${hasData ? 'text-primary' : 'text-tertiary'}`}>
+                                                    {task.text}
+                                                </p>
+                                                <p className="text-[8pt] text-tertiary/50 font-mono">
+                                                    {task.icon}
+                                                </p>
+                                                {!hasData && (
+                                                    <p className="text-[8pt] text-tertiary/40 flex items-center gap-1 mt-0.5">
+                                                        <Lock size={9} /> Coming soon
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="shrink-0 ml-2">
+                                                {taskCompleted ? (
+                                                    <Check size={16} className="text-themegreen" />
+                                                ) : viewed ? (
+                                                    <div className="w-2 h-2 rounded-full bg-themeyellow" />
+                                                ) : hasData ? (
+                                                    <ChevronRight size={16} className="text-tertiary/30" />
+                                                ) : null}
+                                            </div>
+                                        </button>
+                                    )
+                                })}
+                            </div>
                         )
                     })}
                 </div>
@@ -299,21 +280,17 @@ function TaskDetail({
 
 // ─── Exported Panel ──────────────────────────────────────────────────────────
 
-export type TrainingView = 'training' | 'training-tasks' | 'training-detail'
+export type TrainingView = 'training' | 'training-detail'
 
 interface TrainingPanelProps {
     view: TrainingView
-    selectedSubjectArea: subjectAreaArray | null
     selectedTask: subjectAreaArrayOptions | null
-    onSelectArea: (area: subjectAreaArray) => void
     onSelectTask: (task: subjectAreaArrayOptions) => void
 }
 
 export function TrainingPanel({
     view,
-    selectedSubjectArea,
     selectedTask,
-    onSelectArea,
     onSelectTask,
 }: TrainingPanelProps) {
     if (view === 'training-detail' && selectedTask) {
@@ -323,9 +300,5 @@ export function TrainingPanel({
         }
     }
 
-    if (view === 'training-tasks' && selectedSubjectArea) {
-        return <TaskList subjectArea={selectedSubjectArea} onSelectTask={onSelectTask} />
-    }
-
-    return <SubjectAreaList onSelectArea={onSelectArea} />
+    return <TrainingList onSelectTask={onSelectTask} />
 }

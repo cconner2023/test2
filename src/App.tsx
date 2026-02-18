@@ -25,7 +25,7 @@ import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useAuth } from './Hooks/useAuth'
 import { TrainingDrawer } from './Components/TrainingDrawer'
 import { getTaskData } from './Data/TrainingData'
-import { isPinEnabled, isSessionUnlocked } from './lib/pinService'
+import { isPinEnabled, isSessionUnlocked, clearSessionUnlocked } from './lib/pinService'
 import { PinLockScreen } from './Components/PinLockScreen'
 
 // PWA App Shortcut: capture ?view= URL parameter once at module load time
@@ -51,6 +51,18 @@ function AppContent() {
   const searchInputRef = useRef<HTMLInputElement>(null!)
   const { theme, toggleTheme } = useTheme()
   const [isPinLocked, setIsPinLocked] = useState(() => isPinEnabled() && !isSessionUnlocked())
+
+  // Re-lock when app goes to background (tab switch, app switch on mobile)
+  useEffect(() => {
+    const onVisChange = () => {
+      if (document.visibilityState === 'hidden' && isPinEnabled() && !isPinLocked) {
+        clearSessionUnlocked()
+        setIsPinLocked(true)
+      }
+    }
+    document.addEventListener('visibilitychange', onVisChange)
+    return () => document.removeEventListener('visibilitychange', onVisChange)
+  }, [isPinLocked])
 
   const handlePinUnlock = useCallback(() => {
     setIsPinLocked(false)

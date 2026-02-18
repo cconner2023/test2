@@ -91,6 +91,14 @@ export function setSessionUnlocked(): void {
   }
 }
 
+export function clearSessionUnlocked(): void {
+  try {
+    sessionStorage.removeItem(STORAGE_KEYS.unlocked)
+  } catch {
+    // fail silently
+  }
+}
+
 // --- Lockout ---
 
 interface LockoutState {

@@ -379,6 +379,7 @@ export interface AdminClinic {
   name: string
   uics: string[]
   location: string | null
+  additional_user_ids: string[]
 }
 
 /**
@@ -388,14 +389,92 @@ export async function listClinics(): Promise<AdminClinic[]> {
   try {
     const { data, error } = await supabase
       .from('clinics')
-      .select('id, name, uics, location')
+      .select('id, name, uics, location, additional_user_ids')
       .order('name')
 
     if (error) throw error
-    return (data || []) as AdminClinic[]
+    return (data || []).map((row) => ({
+      ...row,
+      additional_user_ids: row.additional_user_ids || [],
+    })) as AdminClinic[]
   } catch (error) {
     console.error('Failed to list clinics:', error)
     return []
+  }
+}
+
+/**
+ * Create a new clinic (dev only).
+ */
+export async function createClinic(data: {
+  name: string
+  location?: string
+  uics?: string[]
+  additional_user_ids?: string[]
+}): Promise<{ success: boolean; error?: string; id?: string }> {
+  try {
+    const { data: result, error } = await supabase
+      .from('clinics')
+      .insert({
+        name: data.name,
+        location: data.location || null,
+        uics: data.uics || [],
+        additional_user_ids: data.additional_user_ids || [],
+      })
+      .select('id')
+      .single()
+
+    if (error) return { success: false, error: error.message }
+    return { success: true, id: result.id }
+  } catch (error) {
+    console.error('Failed to create clinic:', error)
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+  }
+}
+
+/**
+ * Update an existing clinic (dev only).
+ */
+export async function updateClinic(
+  id: string,
+  updates: {
+    name?: string
+    location?: string | null
+    uics?: string[]
+    additional_user_ids?: string[]
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('clinics')
+      .update(updates)
+      .eq('id', id)
+
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to update clinic:', error)
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+  }
+}
+
+/**
+ * Delete a clinic (dev only).
+ */
+export async function deleteClinic(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { error } = await supabase
+      .from('clinics')
+      .delete()
+      .eq('id', id)
+
+    if (error) return { success: false, error: error.message }
+    return { success: true }
+  } catch (error) {
+    console.error('Failed to delete clinic:', error)
+    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
 

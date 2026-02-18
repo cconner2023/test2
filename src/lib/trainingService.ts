@@ -314,3 +314,41 @@ export async function fetchSupervisorTestHistory(supervisorId: string): Promise<
     syncStatus: 'synced',
   }))
 }
+
+/**
+ * Fetch all graded test events for a set of clinic users, excluding a specific user.
+ * Used by the supervisor History tab to show clinic-wide test history.
+ */
+export async function fetchClinicTestHistory(
+  clinicUserIds: string[],
+  excludeUserId: string
+): Promise<TrainingCompletionUI[]> {
+  const targetIds = clinicUserIds.filter(id => id !== excludeUserId)
+  if (targetIds.length === 0) return []
+
+  const { data, error } = await supabase
+    .from('training_completions')
+    .select('*')
+    .in('user_id', targetIds)
+    .eq('completion_type', 'test')
+    .order('updated_at', { ascending: false })
+
+  if (error) {
+    throw new Error(`Failed to fetch clinic test history: ${error.message}`)
+  }
+
+  return (data || []).map((row): TrainingCompletionUI => ({
+    id: row.id,
+    userId: row.user_id,
+    trainingItemId: row.training_item_id,
+    completionType: row.completion_type as CompletionType,
+    result: row.result as CompletionResult,
+    supervisorId: row.supervisor_id,
+    stepResults: row.step_results as StepResult[] | null,
+    supervisorNotes: row.supervisor_notes,
+    completedAt: row.completed_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    syncStatus: 'synced',
+  }))
+}

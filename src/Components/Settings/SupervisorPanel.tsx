@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { ChevronRight, ChevronLeft, Check, X, Ban, AlertTriangle, Info, Clock, FileText, Users } from 'lucide-react'
 import { stp68wTraining } from '../../Data/TrainingTaskList'
 import { getTaskData } from '../../Data/TrainingData'
@@ -7,7 +7,8 @@ import type { subjectAreaArray, subjectAreaArrayOptions } from '../../Types/CatT
 import type { StepResult, ClinicMedic } from '../../Types/SupervisorTestTypes'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useTrainingCompletions } from '../../Hooks/useTrainingCompletions'
-import type { TrainingCompletionUI } from '../../Hooks/useTrainingCompletions'
+import { fetchClinicTestHistory, type TrainingCompletionUI } from '../../lib/trainingService'
+import { deleteCompletion as deleteCompletionApi } from '../../lib/trainingService'
 import { supabase } from '../../lib/supabase'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -378,11 +379,61 @@ function EvaluationStep({
 
 // ─── History Tab ─────────────────────────────────────────────────────────────
 
-function HistoryTab() {
-  const { completions, deleteCompletion } = useTrainingCompletions()
-  const tests = completions.filter((c) => c.completionType === 'test')
+function HistoryTab({ clinicUsers, currentUserId }: { clinicUsers: ClinicMedic[]; currentUserId: string }) {
+  const [tests, setTests] = useState<TrainingCompletionUI[]>([])
+  const [loading, setLoading] = useState(true)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  // Build ID → display name lookup from clinic users list (include self for supervisor resolution)
+  const nameMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const u of clinicUsers) {
+      map.set(u.id, formatMedicName(u))
+    }
+    return map
+  }, [clinicUsers])
+
+  const resolveName = useCallback((id: string | null) => {
+    if (!id) return 'Unknown'
+    return nameMap.get(id) ?? id
+  }, [nameMap])
+
+  // Fetch clinic-wide test history on mount
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const clinicUserIds = clinicUsers.map(u => u.id)
+        // Include self in the user IDs list so we can see tests where we were the supervisor
+        // but fetchClinicTestHistory will exclude records where currentUser was the one tested
+        const allIds = [...clinicUserIds, currentUserId]
+        const data = await fetchClinicTestHistory(allIds, currentUserId)
+        if (!cancelled) setTests(data)
+      } catch (err) {
+        console.error('[HistoryTab] Failed to fetch clinic test history:', err)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [clinicUsers, currentUserId])
+
+  const handleDelete = useCallback(async (completionId: string) => {
+    try {
+      await deleteCompletionApi(completionId, currentUserId)
+      setTests(prev => prev.filter(t => t.id !== completionId))
+    } catch (err) {
+      console.error('[HistoryTab] Delete failed:', err)
+    }
+    setDeletingId(null)
+    setExpandedId(null)
+  }, [currentUserId])
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-12"><div className="text-tertiary/60">Loading history...</div></div>
+  }
 
   if (tests.length === 0) {
     return (
@@ -407,7 +458,7 @@ function HistoryTab() {
               className="flex items-center w-full px-4 py-3 text-left hover:bg-themewhite2/80 transition-colors"
             >
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-primary">{record.userId}</p>
+                <p className="text-sm font-medium text-primary">{resolveName(record.userId)}</p>
                 <p className="text-xs text-tertiary/60 truncate">{taskTitle}</p>
                 <p className="text-[9pt] text-tertiary/40 mt-0.5">
                   {new Date(record.updatedAt).toLocaleDateString()}
@@ -425,7 +476,7 @@ function HistoryTab() {
                 <div className="mt-3 mb-2">
                   <p className="text-[8pt] text-tertiary/50 font-mono">{record.trainingItemId}</p>
                   <p className="text-xs text-tertiary/60 mt-1">
-                    Supervisor: {record.supervisorId ?? 'Supervisor'} &middot; {new Date(record.updatedAt).toLocaleString()}
+                    Supervisor: {resolveName(record.supervisorId)} &middot; {new Date(record.updatedAt).toLocaleString()}
                   </p>
                 </div>
 
@@ -455,7 +506,7 @@ function HistoryTab() {
                 {deletingId === record.id ? (
                   <div className="mt-3 flex gap-2">
                     <button
-                      onClick={() => { deleteCompletion(record.id); setDeletingId(null); setExpandedId(null) }}
+                      onClick={() => handleDelete(record.id)}
                       className="flex-1 py-2 rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700 transition-colors"
                     >
                       Confirm Delete
@@ -491,8 +542,17 @@ type WizardStep = 'select-medic' | 'select-task' | 'evaluate'
 export function SupervisorPanel() {
   const [isSupervisor, setIsSupervisor] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [currentUserProfile, setCurrentUserProfile] = useState<ClinicMedic | null>(null)
   const [activeTab, setActiveTab] = useState<'new-test' | 'history'>('new-test')
   const { submitTestEvaluation } = useTrainingCompletions()
+  const { medics: clinicUsers } = useClinicMedics()
+
+  // All clinic users including self (for name resolution in history)
+  const allClinicUsers = useMemo(() => {
+    if (!currentUserProfile) return clinicUsers
+    return [...clinicUsers, currentUserProfile]
+  }, [clinicUsers, currentUserProfile])
 
   // Wizard state
   const [wizardStep, setWizardStep] = useState<WizardStep>('select-medic')
@@ -500,18 +560,29 @@ export function SupervisorPanel() {
   const [selectedTaskNumber, setSelectedTaskNumber] = useState<string | null>(null)
   const [selectedTaskTitle, setSelectedTaskTitle] = useState<string | null>(null)
 
-  // Check supervisor role
+  // Check supervisor role and capture current user profile
   useState(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        setCurrentUserId(user.id)
         const { data } = await supabase
           .from('profiles')
-          .select('roles')
+          .select('id, first_name, last_name, middle_initial, rank, credential, roles')
           .eq('id', user.id)
           .single()
-        const roles = data?.roles as string[] | null
-        setIsSupervisor(roles?.includes('supervisor') ?? false)
+        if (data) {
+          const roles = data.roles as string[] | null
+          setIsSupervisor(roles?.includes('supervisor') ?? false)
+          setCurrentUserProfile({
+            id: data.id,
+            firstName: data.first_name,
+            lastName: data.last_name,
+            middleInitial: data.middle_initial,
+            rank: data.rank,
+            credential: data.credential,
+          })
+        }
       }
       setLoading(false)
     })()
@@ -592,8 +663,8 @@ export function SupervisorPanel() {
           </button>
         </div>
 
-        {activeTab === 'history' ? (
-          <HistoryTab />
+        {activeTab === 'history' && currentUserId ? (
+          <HistoryTab clinicUsers={allClinicUsers} currentUserId={currentUserId} />
         ) : wizardStep === 'select-medic' ? (
           <SelectMedicStep onSelect={handleSelectMedic} />
         ) : wizardStep === 'select-task' && selectedMedic ? (
