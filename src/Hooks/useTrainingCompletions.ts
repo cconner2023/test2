@@ -48,6 +48,7 @@ import { supabase } from '../lib/supabase';
 import { useRealtimeTrainingCompletions } from './useRealtimeTrainingCompletions';
 import { usePageVisibility } from './usePageVisibility';
 import { getTaskData } from '../Data/TrainingData';
+import { createLogger } from '../Utilities/Logger';
 import type { CompletionResult } from '../Types/database.types';
 import type { StepResult } from '../Types/SupervisorTestTypes';
 import type { subjectAreaArray } from '../Types/CatTypes';
@@ -55,6 +56,8 @@ import type { subjectAreaArray } from '../Types/CatTypes';
 // Re-export TrainingCompletionUI so existing imports
 // from './useTrainingCompletions' work without reaching into trainingService.
 export type { TrainingCompletionUI } from '../lib/trainingService';
+
+const logger = createLogger('TrainingCompletions');
 
 // ── localStorage Keys for Migration ──────────────────────────
 
@@ -126,12 +129,12 @@ async function migrateTrainingProgress(
     }
 
     localStorage.removeItem(TRAINING_PROGRESS_KEY);
-    console.log(
-      `[TrainingCompletions] Migrated ${migrated} completed tasks from localStorage, ` +
+    logger.info(
+      `Migrated ${migrated} completed tasks from localStorage, ` +
         `${viewedTaskIds.size} viewed-only tasks tracked locally`
     );
   } catch (err) {
-    console.warn('[TrainingCompletions] Training progress migration failed:', err);
+    logger.warn('Training progress migration failed:', err);
   }
 
   return { viewedTaskIds, migrated };
@@ -169,9 +172,9 @@ async function migrateSupervisorTests(userId: string): Promise<number> {
     }
 
     localStorage.removeItem(SUPERVISOR_TESTS_KEY);
-    console.log(`[TrainingCompletions] Migrated ${migrated} supervisor tests from localStorage`);
+    logger.info(`Migrated ${migrated} supervisor tests from localStorage`);
   } catch (err) {
-    console.warn('[TrainingCompletions] Supervisor tests migration failed:', err);
+    logger.warn('Supervisor tests migration failed:', err);
   }
 
   return migrated;
@@ -295,7 +298,7 @@ export function useTrainingCompletions() {
             // Push any pending local changes to server
             await fullSync(userId);
           } catch (err) {
-            console.warn('[TrainingCompletions] Initial sync failed, using local data:', err);
+            logger.warn('Initial sync failed, using local data:', err);
           } finally {
             if (!cancelled) setIsSyncing(false);
           }
@@ -336,7 +339,7 @@ export function useTrainingCompletions() {
 
         initDone.current = true;
       } catch (err) {
-        console.error('[TrainingCompletions] Initialization failed:', err);
+        logger.error('Initialization failed:', err);
         initDone.current = true;
       }
     }
@@ -456,7 +459,7 @@ export function useTrainingCompletions() {
           }
         })
         .catch((err) => {
-          console.error('[TrainingCompletions] Create read completion failed:', err);
+          logger.error('Create read completion failed:', err);
           refreshCompletions(userId);
         });
     },
@@ -498,7 +501,7 @@ export function useTrainingCompletions() {
 
       // Hard-delete from IndexedDB + queue sync for Supabase deletion
       deleteCompletionApi(completionId, userId).catch((err) => {
-        console.error('[TrainingCompletions] Delete completion failed:', err);
+        logger.error('Delete completion failed:', err);
         refreshCompletions(userId);
       });
     },
@@ -565,7 +568,7 @@ export function useTrainingCompletions() {
         _last_sync_error: null,
         _last_sync_error_message: null,
       }).catch((err) => {
-        console.warn('[TrainingCompletions] Failed to persist realtime completion to IndexedDB:', err);
+        logger.warn('Failed to persist realtime completion to IndexedDB:', err);
       });
     }
   }, []);
@@ -576,8 +579,8 @@ export function useTrainingCompletions() {
     // Also remove from IndexedDB
     import('../lib/offlineDb').then(({ hardDeleteLocalTrainingCompletion }) => {
       hardDeleteLocalTrainingCompletion(completionId).catch((err) => {
-        console.warn(
-          '[TrainingCompletions] Failed to delete realtime completion from IndexedDB:',
+        logger.warn(
+          'Failed to delete realtime completion from IndexedDB:',
           err
         );
       });

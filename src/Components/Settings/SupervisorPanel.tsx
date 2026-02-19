@@ -9,6 +9,9 @@ import { useTrainingCompletions } from '../../Hooks/useTrainingCompletions'
 import { fetchClinicTestHistory, type TrainingCompletionUI } from '../../lib/trainingService'
 import { deleteCompletion as deleteCompletionApi } from '../../lib/trainingService'
 import { supabase } from '../../lib/supabase'
+import { createLogger } from '../../Utilities/Logger'
+
+const logger = createLogger('SupervisorPanel')
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -513,7 +516,7 @@ function HistoryTab({ clinicUsers, currentUserId }: { clinicUsers: ClinicMedic[]
         const data = await fetchClinicTestHistory(allIds, currentUserId)
         if (!cancelled) setTests(data)
       } catch (err) {
-        console.error('[HistoryTab] Failed to fetch clinic test history:', err)
+        logger.error('Failed to fetch clinic test history:', err)
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -527,7 +530,7 @@ function HistoryTab({ clinicUsers, currentUserId }: { clinicUsers: ClinicMedic[]
       await deleteCompletionApi(completionId, currentUserId)
       setTests(prev => prev.filter(t => t.id !== completionId))
     } catch (err) {
-      console.error('[HistoryTab] Delete failed:', err)
+      logger.error('Delete failed:', err)
     }
     setDeletingId(null)
     setExpandedId(null)

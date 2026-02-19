@@ -9,6 +9,9 @@
  */
 import { supabase } from './supabase'
 import type { User, Session, AuthError } from '@supabase/supabase-js'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('AuthService')
 
 export interface AuthResult {
   user: User | null
@@ -51,7 +54,7 @@ export async function signUp(
       .eq('id', data.user.id)
 
     if (profileError) {
-      console.error('Failed to update profile after signup:', profileError)
+      logger.error('Failed to update profile after signup:', profileError)
     }
 
     // Auto-associate clinic based on UIC

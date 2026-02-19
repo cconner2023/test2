@@ -24,6 +24,9 @@ import { useEffect, useRef, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import type { SavedNote } from '../lib/notesService'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('RealtimeClinicNotes')
 
 interface RealtimeNoteRow {
   id: string
@@ -111,7 +114,7 @@ export function useRealtimeClinicNotes({
 
   const cleanup = useCallback(() => {
     if (channelRef.current) {
-      console.log('[RealtimeClinicNotes] Unsubscribing from channel')
+      logger.debug('Unsubscribing from channel')
       supabase.removeChannel(channelRef.current)
       channelRef.current = null
     }
@@ -127,7 +130,7 @@ export function useRealtimeClinicNotes({
     // Clean up any previous subscription before creating a new one
     cleanup()
 
-    console.log(`[RealtimeClinicNotes] Subscribing to notes for clinic ${clinicId}`)
+    logger.info(`Subscribing to notes for clinic ${clinicId}`)
 
     /**
      * Handle a Realtime postgres_changes event.
@@ -170,7 +173,7 @@ export function useRealtimeClinicNotes({
         const noteId = oldRow.id
 
         if (!noteId) {
-          console.warn('[RealtimeClinicNotes] DELETE event missing row id, ignoring')
+          logger.warn('DELETE event missing row id, ignoring')
           return
         }
 
@@ -200,13 +203,13 @@ export function useRealtimeClinicNotes({
       )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
-          console.log(`[RealtimeClinicNotes] Subscribed to clinic ${clinicId}`)
+          logger.info(`Subscribed to clinic ${clinicId}`)
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('[RealtimeClinicNotes] Channel error:', err?.message ?? 'unknown')
+          logger.error('Channel error:', err?.message ?? 'unknown')
         } else if (status === 'TIMED_OUT') {
-          console.warn('[RealtimeClinicNotes] Subscription timed out, will retry')
+          logger.warn('Subscription timed out, will retry')
         } else {
-          console.log(`[RealtimeClinicNotes] Channel status: ${status}`)
+          logger.debug(`Channel status: ${status}`)
         }
       })
 

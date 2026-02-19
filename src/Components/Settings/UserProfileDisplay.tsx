@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { Edit2 } from 'lucide-react'
 import { supabase } from '../../lib/supabase'
+import { createLogger } from '../../Utilities/Logger'
+
+const logger = createLogger('UserProfile')
 
 interface ProfileData {
   firstName: string | null
@@ -73,7 +76,7 @@ export const UserProfileDisplay = ({ onRequestChange }: UserProfileDisplayProps)
           })
         }
       } catch (error) {
-        console.error('Error loading profile:', error)
+        logger.error('Error loading profile:', error)
       } finally {
         setLoading(false)
       }

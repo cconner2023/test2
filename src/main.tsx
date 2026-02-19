@@ -3,13 +3,16 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { checkSupabaseConnection } from './lib/supabase.ts'
+import { createLogger } from './Utilities/Logger.ts'
+
+const logger = createLogger('App')
 
 // Verify Supabase connection on startup (non-blocking)
 checkSupabaseConnection().then(result => {
   if (result.connected) {
-    console.log(`[App] Supabase database connection established (${result.latencyMs}ms)`)
+    logger.info(`Supabase database connection established (${result.latencyMs}ms)`)
   } else {
-    console.warn('[App] Supabase database connection failed:', result.error)
+    logger.warn('Supabase database connection failed:', result.error)
   }
 })
 

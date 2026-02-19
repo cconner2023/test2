@@ -21,6 +21,9 @@
  */
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { CompletionType, CompletionResult, Json } from '../Types/database.types'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('OfflineDb')
 
 // ---- Sync Status Type ----
 
@@ -246,7 +249,7 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
 
       await tx.done
     } catch (err) {
-      console.warn('[OfflineDb] Training completions v2→v3 migration error (non-fatal):', err)
+      logger.warn('Training completions v2→v3 migration error (non-fatal):', err)
     }
   }
 
@@ -656,7 +659,7 @@ export async function clearAllUserData(): Promise<void> {
   await tx.objectStore('syncQueue').clear()
   await tx.objectStore('trainingCompletions').clear()
   await tx.done
-  console.log('[OfflineDb] Cleared all user data from IndexedDB')
+  logger.info('Cleared all user data from IndexedDB')
 }
 
 // ============================================================

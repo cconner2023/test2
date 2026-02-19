@@ -15,6 +15,9 @@
  */
 
 import { supabase } from './supabase'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('AccountRequest')
 
 export interface AccountRequest {
   id: string
@@ -105,7 +108,7 @@ export async function submitAccountRequest(
       requestId: result?.id,
     }
   } catch (error) {
-    console.error('Failed to submit account request:', error)
+    logger.error('Failed to submit account request:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to submit request',
@@ -152,7 +155,7 @@ export async function submitProfileChangeRequest(
       requestId: result?.id,
     }
   } catch (error) {
-    console.error('Failed to submit profile change request:', error)
+    logger.error('Failed to submit profile change request:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to submit request',
@@ -219,7 +222,7 @@ export async function checkRequestStatus(
       notes: null,
     }
   } catch (error) {
-    console.error('Failed to check request status:', error)
+    logger.error('Failed to check request status:', error)
     return null
   }
 }
@@ -258,7 +261,7 @@ export async function getPendingRequests(): Promise<AccountRequest[]> {
       notes: row.notes,
     }))
   } catch (error) {
-    console.error('Failed to get pending requests:', error)
+    logger.error('Failed to get pending requests:', error)
     return []
   }
 }

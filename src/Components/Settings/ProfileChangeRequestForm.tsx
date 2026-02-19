@@ -3,6 +3,9 @@ import type { Component } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import { supabase } from '../../lib/supabase'
 import { submitProfileChangeRequest } from '../../lib/accountRequestService'
+import { createLogger } from '../../Utilities/Logger'
+
+const logger = createLogger('ProfileChangeRequest')
 
 const TextInput = ({
   label,
@@ -141,7 +144,7 @@ export const ProfileChangeRequestForm = () => {
           setUic(data.uic || '')
         }
       } catch (error) {
-        console.error('Error loading profile:', error)
+        logger.error('Error loading profile:', error)
       }
     }
 

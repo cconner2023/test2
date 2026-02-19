@@ -24,6 +24,9 @@ import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/
 import type { TrainingCompletionUI } from '../lib/trainingService'
 import type { CompletionType, CompletionResult } from '../Types/database.types'
 import type { StepResult } from '../Types/SupervisorTestTypes'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('RealtimeTraining')
 
 interface RealtimeTrainingCompletionRow {
   id: string
@@ -83,7 +86,7 @@ export function useRealtimeTrainingCompletions({
 
   const cleanup = useCallback(() => {
     if (channelRef.current) {
-      console.log('[RealtimeTrainingCompletions] Unsubscribing from channel')
+      logger.debug('Unsubscribing from channel')
       supabase.removeChannel(channelRef.current)
       channelRef.current = null
     }
@@ -98,14 +101,14 @@ export function useRealtimeTrainingCompletions({
 
     cleanup()
 
-    console.log(`[RealtimeTrainingCompletions] Subscribing to training_completions for user ${userId}`)
+    logger.info(`Subscribing to training_completions for user ${userId}`)
 
     const handlePayload = (payload: RealtimePostgresChangesPayload<RealtimeTrainingCompletionRow>) => {
       const eventType = payload.eventType
 
       if (eventType === 'INSERT' || eventType === 'UPDATE') {
         const row = payload.new
-        console.log(`[RealtimeTrainingCompletions] ${eventType}: ${row.id}`)
+        logger.debug(`${eventType}: ${row.id}`)
         onUpsertRef.current(realtimeRowToTrainingCompletionUI(row))
         return
       }
@@ -114,10 +117,10 @@ export function useRealtimeTrainingCompletions({
         const oldRow = payload.old as Partial<RealtimeTrainingCompletionRow>
         const completionId = oldRow.id
         if (!completionId) {
-          console.warn('[RealtimeTrainingCompletions] DELETE event missing row id, ignoring')
+          logger.warn('DELETE event missing row id, ignoring')
           return
         }
-        console.log(`[RealtimeTrainingCompletions] DELETE: ${completionId}`)
+        logger.debug(`DELETE: ${completionId}`)
         onDeleteRef.current(completionId)
       }
     }
@@ -136,13 +139,13 @@ export function useRealtimeTrainingCompletions({
       )
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
-          console.log(`[RealtimeTrainingCompletions] Subscribed for user ${userId}`)
+          logger.info(`Subscribed for user ${userId}`)
         } else if (status === 'CHANNEL_ERROR') {
-          console.error('[RealtimeTrainingCompletions] Channel error:', err?.message ?? 'unknown')
+          logger.error('Channel error:', err?.message ?? 'unknown')
         } else if (status === 'TIMED_OUT') {
-          console.warn('[RealtimeTrainingCompletions] Subscription timed out, will retry')
+          logger.warn('Subscription timed out, will retry')
         } else {
-          console.log(`[RealtimeTrainingCompletions] Channel status: ${status}`)
+          logger.debug(`Channel status: ${status}`)
         }
       })
 

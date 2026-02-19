@@ -3,6 +3,9 @@ import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, HelpCircle 
 import { useRef, useEffect } from "react";
 import { useSpring, useTrail, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
+import { createLogger } from "../Utilities/Logger";
+
+const logger = createLogger('NavTop');
 import { menuData } from "../Data/CatData";
 
 // Icon map for menu items
@@ -110,7 +113,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                 onSettingsClick?.();
                 break;
             default:
-                console.warn("Unknown menu action:", action);
+                logger.warn("Unknown menu action:", action);
         }
         onMenuClose?.();
     };

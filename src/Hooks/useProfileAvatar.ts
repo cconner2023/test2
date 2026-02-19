@@ -4,6 +4,9 @@ import type { ProfileAvatar } from '../Data/ProfileAvatars';
 import { supabase } from '../lib/supabase';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { usePageVisibility } from './usePageVisibility';
+import { createLogger } from '../Utilities/Logger';
+
+const logger = createLogger('ProfileAvatar');
 
 const STORAGE_KEY = 'adtmc_profile_avatar';
 const CUSTOM_IMAGE_KEY = 'adtmc_profile_custom_avatar';
@@ -43,7 +46,7 @@ function syncAvatarToSupabase(userId: string, avatarId: string) {
         .update({ avatar_id: avatarId })
         .eq('id', userId)
         .then(({ error }) => {
-            if (error) console.error('Failed to sync avatar:', error.message);
+            if (error) logger.error('Failed to sync avatar:', error.message);
         });
 }
 

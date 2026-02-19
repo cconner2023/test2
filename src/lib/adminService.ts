@@ -10,6 +10,9 @@
 
 import { supabase } from './supabase'
 import type { AccountRequest } from './accountRequestService'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('AdminService')
 
 export interface AdminUser {
   id: string
@@ -89,7 +92,7 @@ export async function getAllAccountRequests(
       notes: row.notes,
     }))
   } catch (error) {
-    console.error('Failed to get account requests:', error)
+    logger.error('Failed to get account requests:', error)
     return []
   }
 }
@@ -130,7 +133,7 @@ export async function approveAccountRequest(
       userId: result?.user_id,
     }
   } catch (error) {
-    console.error('Failed to approve request:', error)
+    logger.error('Failed to approve request:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -164,7 +167,7 @@ export async function rejectAccountRequest(
 
     return { success: true }
   } catch (error) {
-    console.error('Failed to reject request:', error)
+    logger.error('Failed to reject request:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
@@ -266,7 +269,7 @@ export async function listAllUsers(): Promise<AdminUser[]> {
     if (error) throw error
     return (data as unknown as AdminUser[]) || []
   } catch (error) {
-    console.error('Failed to list users:', error)
+    logger.error('Failed to list users:', error)
     return []
   }
 }
@@ -312,7 +315,7 @@ export async function createUser(userData: {
     const result = data as { user_id: string; email: string; message: string } | null
     return { success: true, userId: result?.user_id }
   } catch (error) {
-    console.error('Failed to create user:', error)
+    logger.error('Failed to create user:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -340,7 +343,7 @@ export async function resetUserPassword(
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch (error) {
-    console.error('Failed to reset password:', error)
+    logger.error('Failed to reset password:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -369,7 +372,7 @@ export async function deleteUser(
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch (error) {
-    console.error('Failed to delete user:', error)
+    logger.error('Failed to delete user:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -401,7 +404,7 @@ export async function listClinics(): Promise<AdminClinic[]> {
       additional_user_ids: row.additional_user_ids || [],
     })) as AdminClinic[]
   } catch (error) {
-    console.error('Failed to list clinics:', error)
+    logger.error('Failed to list clinics:', error)
     return []
   }
 }
@@ -430,7 +433,7 @@ export async function createClinic(data: {
     if (error) return { success: false, error: error.message }
     return { success: true, id: result.id }
   } catch (error) {
-    console.error('Failed to create clinic:', error)
+    logger.error('Failed to create clinic:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -456,7 +459,7 @@ export async function updateClinic(
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch (error) {
-    console.error('Failed to update clinic:', error)
+    logger.error('Failed to update clinic:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -476,7 +479,7 @@ export async function deleteClinic(
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch (error) {
-    console.error('Failed to delete clinic:', error)
+    logger.error('Failed to delete clinic:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -504,7 +507,7 @@ export async function setUserClinic(
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch (error) {
-    console.error('Failed to set user clinic:', error)
+    logger.error('Failed to set user clinic:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }
@@ -548,7 +551,7 @@ export async function updateUserProfile(
     if (error) return { success: false, error: error.message }
     return { success: true }
   } catch (error) {
-    console.error('Failed to update profile:', error)
+    logger.error('Failed to update profile:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }

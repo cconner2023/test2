@@ -1,4 +1,7 @@
 import { supabase } from './supabase'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('FeedbackService')
 
 export interface FeedbackSubmission {
   rating: number
@@ -65,7 +68,7 @@ export async function submitFeedback(
 
     return { success: true }
   } catch (error) {
-    console.error('Failed to submit feedback:', error)
+    logger.error('Failed to submit feedback:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Failed to submit feedback',
@@ -88,7 +91,7 @@ export async function getFeedbackList(): Promise<FeedbackRow[]> {
 
     return (data || []) as FeedbackRow[]
   } catch (error) {
-    console.error('Failed to get feedback:', error)
+    logger.error('Failed to get feedback:', error)
     return []
   }
 }

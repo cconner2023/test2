@@ -1,6 +1,9 @@
 // Hooks/useServiceWorker.ts
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { registerSW } from 'virtual:pwa-register';
+import { createLogger } from '../Utilities/Logger';
+
+const logger = createLogger('PWA');
 
 export function useServiceWorker() {
     const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -19,39 +22,39 @@ export function useServiceWorker() {
         const update = registerSW({
             immediate: true,
             async onNeedRefresh() {
-                console.log('[PWA] New content available, checking version...');
+                logger.info('New content available, checking version...');
                 try {
                     const res = await fetch(`${import.meta.env.BASE_URL}version.json?t=${Date.now()}`);
                     const { version: newVersion } = await res.json();
                     if (newVersion === __APP_VERSION__) {
-                        console.log('[PWA] Same version, applying update silently');
+                        logger.info('Same version, applying update silently');
                         if (updateSWRef.current) await updateSWRef.current(true);
                         return;
                     }
-                    console.log(`[PWA] New version ${newVersion} (current: ${__APP_VERSION__}), prompting user`);
+                    logger.info(`New version ${newVersion} (current: ${__APP_VERSION__}), prompting user`);
                 } catch (e) {
-                    console.warn('[PWA] Could not fetch version.json, showing update prompt', e);
+                    logger.warn('Could not fetch version.json, showing update prompt', e);
                 }
                 setUpdateAvailable(true);
             },
             onOfflineReady() {
-                console.log('[PWA] App ready to work offline');
+                logger.info('App ready to work offline');
                 setOfflineReady(true);
             },
             onRegistered(r) {
-                console.log('[PWA] Service Worker registered:', r?.scope);
+                logger.info('Service Worker registered:', r?.scope);
                 setRegistration(r);
 
                 // Check for updates periodically (every 5 minutes)
                 if (r) {
                     intervalRef.current = window.setInterval(() => {
-                        console.log('[PWA] Checking for updates...');
+                        logger.debug('Checking for updates...');
                         r.update();
                     }, 5 * 60 * 1000);
                 }
             },
             onRegisterError(error) {
-                console.error('[PWA] Service Worker registration failed:', error);
+                logger.error('Service Worker registration failed:', error);
             }
         });
 
@@ -65,7 +68,7 @@ export function useServiceWorker() {
 
     const skipWaiting = useCallback(async () => {
         if (updateSW) {
-            console.log('[PWA] Updating to new version...');
+            logger.info('Updating to new version...');
             setIsUpdating(true);
             try { localStorage.removeItem('updateDismissed'); } catch { /* storage unavailable */ }
             try { localStorage.setItem('postUpdateNav', 'release-notes'); } catch { /* storage unavailable */ }
@@ -79,7 +82,7 @@ export function useServiceWorker() {
 
     const checkForUpdate = useCallback(() => {
         if (registration) {
-            console.log('[PWA] Manual update check...');
+            logger.debug('Manual update check...');
             registration.update();
         }
     }, [registration]);

@@ -3,6 +3,9 @@
 // restoring, feedback modals, and related navigation side effects.
 
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('ActiveNote')
 import type { CardState } from './useAlgorithm'
 import type { dispositionType } from '../Types/AlgorithmTypes'
 import type { WriteNoteData } from './useNavigation'
@@ -206,7 +209,7 @@ export function useActiveNote({
   ) => {
     const result = restoreNote(note)
     if (!result.success || !result.writeNoteData || !result.symptom || !result.category) {
-      console.warn('Failed to restore note:', result.error)
+      logger.warn('Failed to restore note:', result.error)
       return
     }
 
@@ -307,7 +310,7 @@ export function useActiveNote({
     // Restore note to get algorithm state + symptom/category info
     const result = restoreNote(tempNote)
     if (!result.success || !result.writeNoteData || !result.symptom || !result.category) {
-      console.warn('Failed to restore imported note:', result.error)
+      logger.warn('Failed to restore imported note:', result.error)
       return
     }
 

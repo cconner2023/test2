@@ -13,6 +13,7 @@
  * IndexedDB tampering from writing to sensitive tables (e.g. profiles.roles).
  */
 import { supabase } from './supabase'
+import { createLogger } from '../Utilities/Logger'
 import {
   getPendingSyncItems,
   markSyncItemSynced,
@@ -30,6 +31,8 @@ import {
   type LocalNote,
   type LocalTrainingCompletion,
 } from './offlineDb'
+
+const logger = createLogger('SyncService')
 
 /** Tables that the sync queue is allowed to write to. */
 const ALLOWED_SYNC_TABLES = ['notes', 'training_completions'] as const
@@ -155,7 +158,7 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
     return { processed: 0, failed: 0, skipped: 0, aborted: false }
   }
 
-  console.log(`[SyncService] Processing ${pendingItems.length} pending items`)
+  logger.info(`Processing ${pendingItems.length} pending items`)
 
   let processed = 0
   let failed = 0
@@ -165,7 +168,7 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
   for (let i = 0; i < pendingItems.length; i += BATCH_SIZE) {
     // Check connectivity before each batch
     if (!isOnline()) {
-      console.log('[SyncService] Went offline, aborting sync')
+      logger.debug('Went offline, aborting sync')
       return { processed, failed, skipped: pendingItems.length - i, aborted: true }
     }
 
@@ -174,7 +177,7 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
     for (const item of batch) {
       // Skip items that have exceeded max retries
       if (item.retry_count >= MAX_RETRIES) {
-        console.warn(`[SyncService] Skipping item ${item.id} (exceeded ${MAX_RETRIES} retries)`)
+        logger.warn(`Skipping item ${item.id} (exceeded ${MAX_RETRIES} retries)`)
         skipped++
         continue
       }
@@ -212,7 +215,7 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
         processed++
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
-        console.error(`[SyncService] Sync failed for item ${item.id}:`, errorMessage)
+        logger.error(`Sync failed for item ${item.id}:`, errorMessage)
 
         await markSyncItemFailed(item.id, errorMessage)
 
@@ -230,7 +233,7 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
         // Apply exponential backoff before the next item if this one failed
         if (item.retry_count > 0) {
           const delay = getBackoffDelay(item.retry_count)
-          console.log(`[SyncService] Backing off ${delay}ms before next item`)
+          logger.debug(`Backing off ${delay}ms before next item`)
           await sleep(delay)
         }
       }
@@ -240,10 +243,10 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
   // 4. Clean up old synced items
   const cleaned = await cleanupSyncedItems()
   if (cleaned > 0) {
-    console.log(`[SyncService] Cleaned up ${cleaned} old synced queue items`)
+    logger.info(`Cleaned up ${cleaned} old synced queue items`)
   }
 
-  console.log(`[SyncService] Sync complete: ${processed} processed, ${failed} failed, ${skipped} skipped`)
+  logger.info(`Sync complete: ${processed} processed, ${failed} failed, ${skipped} skipped`)
   return { processed, failed, skipped, aborted: false }
 }
 
@@ -287,7 +290,7 @@ async function handleUpdate(
       if (localTime <= serverTime) {
         // Server has a more recent version -- skip this update.
         // This is not an error; the server version wins.
-        console.log(`[SyncService] Skipping update for ${recordId}: server version is newer`)
+        logger.debug(`Skipping update for ${recordId}: server version is newer`)
         return
       }
     }
@@ -334,14 +337,14 @@ async function handleDelete(
         if (serverTime > deleteTime) {
           // Server has a newer version than our delete -- skip the delete.
           // The note will reappear on next reconciliation.
-          console.log(`[SyncService] Skipping delete for ${recordId}: server version is newer (${serverUpdatedAt} > ${deletedAtTimestamp})`)
+          logger.debug(`Skipping delete for ${recordId}: server version is newer (${serverUpdatedAt} > ${deletedAtTimestamp})`)
           return
         }
       }
     } else {
       // Record doesn't exist on server -- already deleted or never created.
       // Nothing to do; treat as success.
-      console.log(`[SyncService] Record ${recordId} not found on server, skipping delete`)
+      logger.debug(`Record ${recordId} not found on server, skipping delete`)
       return
     }
   }
@@ -387,12 +390,12 @@ async function handleDelete(
  */
 export async function reconcileWithServer(userId: string): Promise<LocalNote[]> {
   if (!isOnline()) {
-    console.log('[SyncService] Offline, skipping reconciliation')
+    logger.debug('Offline, skipping reconciliation')
     // With hard deletes, all notes in IndexedDB are active.
     return getAllLocalNotesIncludingDeleted(userId)
   }
 
-  console.log('[SyncService] Starting reconciliation with server')
+  logger.info('Starting reconciliation with server')
 
   // 1. Fetch all notes from server. With hard deletes, deleted notes
   //    simply won't exist -- no soft-delete filtering needed.
@@ -403,7 +406,7 @@ export async function reconcileWithServer(userId: string): Promise<LocalNote[]> 
     .order('updated_at', { ascending: false })
 
   if (error) {
-    console.error('[SyncService] Failed to fetch server notes for reconciliation:', error.message)
+    logger.error('Failed to fetch server notes for reconciliation:', error.message)
     // Fall back to local data
     return getAllLocalNotesIncludingDeleted(userId)
   }
@@ -499,11 +502,11 @@ export async function reconcileTrainingCompletionsWithServer(
   userId: string
 ): Promise<LocalTrainingCompletion[]> {
   if (!isOnline()) {
-    console.log('[SyncService] Offline, skipping training completions reconciliation')
+    logger.debug('Offline, skipping training completions reconciliation')
     return getLocalTrainingCompletions(userId)
   }
 
-  console.log('[SyncService] Starting training completions reconciliation with server')
+  logger.info('Starting training completions reconciliation with server')
 
   // 1. Fetch all training completions from server.
   const { data: serverCompletions, error } = await supabase
@@ -513,8 +516,8 @@ export async function reconcileTrainingCompletionsWithServer(
     .order('updated_at', { ascending: false })
 
   if (error) {
-    console.error(
-      '[SyncService] Failed to fetch server training completions for reconciliation:',
+    logger.error(
+      'Failed to fetch server training completions for reconciliation:',
       error.message
     )
     // Fall back to local data
@@ -645,9 +648,9 @@ export function setupConnectivityListeners(
       // so a full fetch is needed to reconcile clinic-level discrepancies.
       callbacks?.onClinicRefresh?.()
 
-      console.log(`[SyncService] Full sync completed: ${result.processed} pushed, ${result.failed} failed`)
+      logger.info(`Full sync completed: ${result.processed} pushed, ${result.failed} failed`)
     } catch (error) {
-      console.error('[SyncService] Sync on reconnect failed:', error)
+      logger.error('Sync on reconnect failed:', error)
       callbacks?.onSyncComplete?.({ processed: 0, failed: 0, skipped: 0, aborted: true })
     } finally {
       syncInProgress = false
@@ -659,7 +662,7 @@ export function setupConnectivityListeners(
     // navigator.onLine can report true even without real internet access.
     const reachable = await canReachSupabase()
     if (!reachable) {
-      console.log('[SyncService] online event fired but Supabase is unreachable')
+      logger.debug('online event fired but Supabase is unreachable')
       return
     }
 
@@ -703,8 +706,8 @@ export function setupConnectivityListeners(
       callbacks?.onStatusChange?.(true)
     }
 
-    console.log(
-      `[SyncService] Periodic check: ${hasPending ? pendingItems.length + ' pending items' : 'reconnect detected'}, syncing`
+    logger.debug(
+      `Periodic check: ${hasPending ? pendingItems.length + ' pending items' : 'reconnect detected'}, syncing`
     )
     await performSync()
   }, PERIODIC_CHECK_MS)

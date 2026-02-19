@@ -3,6 +3,9 @@ import { useCallback, useState } from 'react';
 import PDF417 from 'pdf417-generator';
 import type { SavedNote } from './useNotesStorage';
 import { parseNoteEncoding } from '../Utilities/NoteCodec';
+import { createLogger } from '../Utilities/Logger';
+
+const logger = createLogger('NoteShare');
 
 type ShareStatus = 'idle' | 'generating' | 'sharing' | 'shared' | 'copied' | 'error';
 
@@ -342,7 +345,7 @@ export function useNoteShare() {
                 setShareStatus('idle');
                 return;
             }
-            console.error('Share failed:', err);
+            logger.error('Share failed:', err);
             setShareStatus('error');
             setTimeout(() => setShareStatus('idle'), 2500);
         }

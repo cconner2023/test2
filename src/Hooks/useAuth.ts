@@ -1,50 +1,22 @@
-import { useState, useEffect } from 'react'
-import { supabase } from '../lib/supabase'
-import type { User } from '@supabase/supabase-js'
+import { useAuthStore, selectIsAuthenticated } from '../stores/useAuthStore'
 
+/**
+ * Thin wrapper around the Zustand auth store.
+ * Preserves the identical return interface so no consumers need changes.
+ */
 export function useAuth() {
-  const [user, setUser] = useState<User | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [isGuest, setIsGuest] = useState(true) // Start as guest by default
-
-  useEffect(() => {
-    // Rely on onAuthStateChange for all auth state transitions.
-    // Modern Supabase fires INITIAL_SESSION as its first event,
-    // restoring the persisted session from localStorage.
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
-        setUser(null)
-        setIsGuest(true)
-      } else if (session?.user) {
-        setUser(session.user)
-        setIsGuest(false)
-      }
-      // Only clear loading after the initial session check completes
-      if (event === 'INITIAL_SESSION') {
-        setLoading(false)
-      }
-    })
-
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const continueAsGuest = () => {
-    setIsGuest(true)
-    setUser(null)
-  }
-
-  const signOut = async () => {
-    await supabase.auth.signOut()
-    // onAuthStateChange handler already sets user=null and isGuest=true
-  }
+  const user = useAuthStore((s) => s.user)
+  const loading = useAuthStore((s) => s.loading)
+  const isGuest = useAuthStore((s) => s.isGuest)
+  const isAuthenticated = useAuthStore(selectIsAuthenticated)
+  const continueAsGuest = useAuthStore((s) => s.continueAsGuest)
+  const signOut = useAuthStore((s) => s.signOut)
 
   return {
     user,
     loading,
     isGuest,
-    isAuthenticated: !!user,
+    isAuthenticated,
     continueAsGuest,
     signOut,
   }

@@ -1,5 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '../Types/database.types.generated'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('Supabase')
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -39,24 +42,24 @@ export async function checkSupabaseConnection(): Promise<{
     if (error) {
       // PGRST116 = no rows, PGRST205 = table not found — both mean connection is OK
       if (error.code === 'PGRST116' || error.code === 'PGRST205') {
-        console.log(`[Supabase] Connection verified (${latencyMs}ms) — table may not exist yet but API is reachable`)
+        logger.info(`Connection verified (${latencyMs}ms) — table may not exist yet but API is reachable`)
         return { connected: true, latencyMs }
       }
       // 42P01 = PostgreSQL "relation does not exist" — connection works
       if (error.code === '42P01') {
-        console.log(`[Supabase] Connection verified (${latencyMs}ms) — table not created yet but database is reachable`)
+        logger.info(`Connection verified (${latencyMs}ms) — table not created yet but database is reachable`)
         return { connected: true, latencyMs }
       }
-      console.error('[Supabase] Connection check error:', error.message, `(code: ${error.code})`)
+      logger.error('Connection check error:', error.message, `(code: ${error.code})`)
       return { connected: false, error: error.message }
     }
 
-    console.log(`[Supabase] Connection verified (${latencyMs}ms) — database responding`)
+    logger.info(`Connection verified (${latencyMs}ms) — database responding`)
     return { connected: true, latencyMs }
   } catch (err) {
     const latencyMs = Math.round(performance.now() - start)
     const message = err instanceof Error ? err.message : 'Unknown error'
-    console.error(`[Supabase] Connection failed (${latencyMs}ms):`, message)
+    logger.error(`Connection failed (${latencyMs}ms):`, message)
     return { connected: false, error: message, latencyMs }
   }
 }

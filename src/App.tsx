@@ -23,6 +23,7 @@ import { ColumnA } from './Components/ColumnA'
 import { FeedbackModal } from './Components/FeedbackModal'
 import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useAuth } from './Hooks/useAuth'
+import { useAuthStore } from './stores/useAuthStore'
 import { TrainingDrawer } from './Components/TrainingDrawer'
 import { getTaskData } from './Data/TrainingData'
 import { isPinEnabled, isSessionUnlocked, clearSessionUnlocked } from './lib/pinService'
@@ -67,6 +68,9 @@ function AppContent() {
   const handlePinUnlock = useCallback(() => {
     setIsPinLocked(false)
   }, [])
+
+  // Initialise the Zustand auth store listener (once per mount)
+  useEffect(() => useAuthStore.getState().init(), [])
 
   const navigation = useNavigation()
   const search = useSearch()

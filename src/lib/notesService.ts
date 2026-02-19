@@ -24,6 +24,9 @@ import {
   type NoteSyncStatus,
 } from './offlineDb'
 import { isOnline } from './syncService'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('NotesService')
 
 // ============================================================
 // Public Types
@@ -278,13 +281,13 @@ export async function checkApiHealth(): Promise<{ ok: boolean; noteCount?: numbe
       .eq('user_id', user.id)
 
     if (error) {
-      console.error('[NotesService] Health check error:', error)
+      logger.error('Health check error:', error)
       return { ok: false }
     }
 
     return { ok: true, noteCount: count || 0 }
   } catch (error) {
-    console.error('[NotesService] Health check failed:', error)
+    logger.error('Health check failed:', error)
     return { ok: false }
   }
 }
@@ -353,12 +356,12 @@ export async function createNote(
       if (!error) {
         await updateNoteSyncStatus(note.id, 'synced')
         note._sync_status = 'synced'
-        console.log(`[NotesService] Note ${note.id} synced immediately`)
+        logger.info(`Note ${note.id} synced immediately`)
       } else {
-        console.warn(`[NotesService] Immediate sync failed, queued for later: ${error.message}`)
+        logger.warn(`Immediate sync failed, queued for later: ${error.message}`)
       }
     } catch (err) {
-      console.warn('[NotesService] Immediate sync failed, queued for later:', err)
+      logger.warn('Immediate sync failed, queued for later:', err)
     }
   }
 
@@ -472,7 +475,7 @@ export async function deleteNote(noteId: string, userId: string): Promise<void> 
           const serverTime = new Date(serverNote.updated_at).getTime()
           const deleteTime = new Date(deletedAt).getTime()
           if (serverTime > deleteTime) {
-            console.log(`[NotesService] Skipping delete for ${noteId}: server version is newer`)
+            logger.debug(`Skipping delete for ${noteId}: server version is newer`)
             return
           }
         }
@@ -483,7 +486,7 @@ export async function deleteNote(noteId: string, userId: string): Promise<void> 
           .eq('id', noteId)
 
         if (error) {
-          console.warn(`[NotesService] Immediate delete failed, queued for later: ${error.message}`)
+          logger.warn(`Immediate delete failed, queued for later: ${error.message}`)
         }
         // Note is already hard-deleted from IndexedDB; no local status to update.
       } catch {

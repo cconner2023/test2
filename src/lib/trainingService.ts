@@ -25,6 +25,9 @@ import {
 import { isOnline } from './syncService'
 import type { CompletionType, CompletionResult, Json } from '../Types/database.types'
 import type { StepResult } from '../Types/SupervisorTestTypes'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('TrainingService')
 
 // ============================================================
 // Public Types
@@ -145,10 +148,10 @@ export async function createReadCompletion(
           await updateTrainingCompletionSyncStatus(local.id, 'synced')
           local._sync_status = 'synced'
         } else {
-          console.warn(`[TrainingService] Immediate sync failed, queued: ${error.message}`)
+          logger.warn(`Immediate sync failed, queued: ${error.message}`)
         }
       } catch (err) {
-        console.warn('[TrainingService] Immediate sync failed, queued:', err)
+        logger.warn('Immediate sync failed, queued:', err)
       }
     }
   }
@@ -217,10 +220,10 @@ export async function createTestCompletion(params: {
         await updateTrainingCompletionSyncStatus(local.id, 'synced')
         local._sync_status = 'synced'
       } else {
-        console.warn(`[TrainingService] Immediate test sync failed, queued: ${error.message}`)
+        logger.warn(`Immediate test sync failed, queued: ${error.message}`)
       }
     } catch (err) {
-      console.warn('[TrainingService] Immediate test sync failed, queued:', err)
+      logger.warn('Immediate test sync failed, queued:', err)
     }
   }
 
@@ -251,7 +254,7 @@ export async function deleteCompletion(completionId: string, userId: string): Pr
           .eq('id', completionId)
 
         if (error) {
-          console.warn(`[TrainingService] Immediate delete failed, queued: ${error.message}`)
+          logger.warn(`Immediate delete failed, queued: ${error.message}`)
         }
       } catch {
         // Will be retried by sync queue

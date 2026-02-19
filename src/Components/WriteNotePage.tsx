@@ -11,6 +11,7 @@ import { NoteBarcodeGenerator } from './Barcode';
 import { DecisionMaking } from './DecisionMaking';
 import { PhysicalExam } from './PhysicalExam';
 import { BaseDrawer } from './BaseDrawer';
+import { BrainCircuit, FileText, Stethoscope } from 'lucide-react';
 
 type DispositionType = dispositionType['type'];
 
@@ -90,7 +91,7 @@ export const WriteNotePage = ({
     const [note, setNote] = useState<string>(initialHpiText);
     const [previewNote, setPreviewNote] = useState<string>('');
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState<boolean>(true);
-    const [includeHPI, setIncludeHPI] = useState<boolean>(defaultHPI);
+    const [includeHPI, setIncludeHPI] = useState<boolean>(initialHpiText ? true : false);
     const [peNote, setPeNote] = useState<string>(initialPeText);
     const [includePhysicalExam, setIncludePhysicalExam] = useState<boolean>(defaultPE);
 
@@ -424,7 +425,10 @@ export const WriteNotePage = ({
                                     <ToggleOption
                                         checked={includeDecisionMaking}
                                         onChange={() => setIncludeDecisionMaking(!includeDecisionMaking)}
-                                        label="Include Decision Making in Note"
+                                        label="Include Decision Making in note"
+                                        onDescription="Decision making will be added to your note"
+                                        offDescription="Decision making will not be included"
+                                        icon={<BrainCircuit size={18} />}
                                         colors={colors}
                                     />
                                 </div>
@@ -450,7 +454,10 @@ export const WriteNotePage = ({
                                     <ToggleOption
                                         checked={includeHPI}
                                         onChange={() => { setIncludeHPI(true); setTimeout(() => inputRef.current?.focus(), 100); }}
-                                        label="Include HPI / Clinical Notes"
+                                        label="Include HPI in note"
+                                        onDescription="HPI will be added to your note"
+                                        offDescription="HPI will not be included"
+                                        icon={<FileText size={18} />}
                                         colors={colors}
                                     />
                                 ) : (
@@ -488,7 +495,10 @@ export const WriteNotePage = ({
                                     <ToggleOption
                                         checked={includePhysicalExam}
                                         onChange={() => setIncludePhysicalExam(!includePhysicalExam)}
-                                        label="Include Physical Exam in Note"
+                                        label="Include Physical Exam in note"
+                                        onDescription="Physical exam will be added to your note"
+                                        offDescription="Physical exam will not be included"
+                                        icon={<Stethoscope size={18} />}
                                         colors={colors}
                                     />
                                 </div>
@@ -762,12 +772,18 @@ const ToggleOption: React.FC<{
     checked: boolean;
     onChange: () => void;
     label: string;
+    onDescription: string;
+    offDescription: string;
+    icon: React.ReactNode;
     colors: ReturnType<typeof getColorClasses>;
-}> = ({ checked, onChange, label, colors }) => (
+}> = ({ checked, onChange, label, onDescription, offDescription, icon, colors }) => (
     <div
         onClick={onChange}
-        className={`text-xs p-3 rounded border cursor-pointer transition-colors duration-200
-            ${checked ? colors.symptomClass : 'border border-themewhite2/10 text-secondary bg-themewhite hover:themewhite2/80 hover:shadow-sm'}`}
+        className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all cursor-pointer
+            ${checked
+                ? colors.symptomClass
+                : 'border-tertiary/15 bg-themewhite2'
+            }`}
         role="checkbox"
         aria-checked={checked}
         tabIndex={0}
@@ -775,9 +791,15 @@ const ToggleOption: React.FC<{
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChange(); }
         }}
     >
-        <div className="font-normal flex items-center">
-            <span className={`mr-2 ${checked ? 'opacity-100' : 'opacity-40'}`}>{checked ? '✓' : ''}</span>
-            {label}
+        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${checked ? `${colors.sliderClass}/15` : 'bg-tertiary/10'}`}>
+            <span className={checked ? colors.symptomCheck : 'text-tertiary/50'}>{icon}</span>
+        </div>
+        <div className="flex-1 min-w-0">
+            <p className={`text-sm font-medium ${checked ? 'text-primary' : 'text-tertiary'}`}>{label}</p>
+            <p className="text-[11px] text-tertiary/70 mt-0.5">{checked ? onDescription : offDescription}</p>
+        </div>
+        <div className={`w-10 h-6 rounded-full relative transition-colors ${checked ? colors.sliderClass : 'bg-tertiary/25'}`}>
+            <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
         </div>
     </div>
 );

@@ -38,12 +38,15 @@ import {
 import { supabase } from '../lib/supabase';
 import { useRealtimeClinicNotes } from './useRealtimeClinicNotes';
 import { usePageVisibility } from './usePageVisibility';
+import { createLogger } from '../Utilities/Logger';
 
 // Re-export SavedNote from notesService so existing imports
 // from './useNotesStorage' continue to work.
 export type { SavedNote } from '../lib/notesService';
 import type { SavedNote } from '../lib/notesService';
 export type { NoteSyncStatus };
+
+const logger = createLogger('NotesStorage');
 
 const STORAGE_KEY = 'adtmc_saved_notes';
 
@@ -106,10 +109,10 @@ async function migrateFromLocalStorage(userId: string): Promise<number> {
 
     // Clear localStorage after successful migration
     localStorage.removeItem(STORAGE_KEY);
-    console.log(`[NotesStorage] Migrated ${migrated} notes from localStorage to IndexedDB`);
+    logger.info(`Migrated ${migrated} notes from localStorage to IndexedDB`);
     return migrated;
   } catch (err) {
-    console.warn('[NotesStorage] localStorage migration failed:', err);
+    logger.warn('localStorage migration failed:', err);
     return 0;
   }
 }
@@ -198,7 +201,7 @@ export function useNotesStorage(isNotePanelOpen = false) {
       );
       setClinicNotes(saved);
     } catch (err) {
-      console.warn('[NotesStorage] Failed to fetch clinic notes:', err);
+      logger.warn('Failed to fetch clinic notes:', err);
     }
   }, []);
 
@@ -221,7 +224,7 @@ export function useNotesStorage(isNotePanelOpen = false) {
         // 2. Migrate v1 IndexedDB notes (if any)
         const v1Migrated = await migrateV1Notes();
         if (v1Migrated > 0) {
-          console.log(`[NotesStorage] Migrated ${v1Migrated} v1 notes to v2 format`);
+          logger.info(`Migrated ${v1Migrated} v1 notes to v2 format`);
         }
 
         // 3. Migrate from localStorage (if any)
@@ -277,7 +280,7 @@ export function useNotesStorage(isNotePanelOpen = false) {
               await refreshClinicNotes(clinicId, userId);
             }
           } catch (err) {
-            console.warn('[NotesStorage] Initial sync failed, using local data:', err);
+            logger.warn('Initial sync failed, using local data:', err);
           } finally {
             if (!cancelled) setIsSyncing(false);
           }
@@ -338,7 +341,7 @@ export function useNotesStorage(isNotePanelOpen = false) {
 
         initDone.current = true;
       } catch (err) {
-        console.error('[NotesStorage] Initialization failed:', err);
+        logger.error('Initialization failed:', err);
         initDone.current = true;
       }
     }
@@ -446,7 +449,7 @@ export function useNotesStorage(isNotePanelOpen = false) {
           }
         })
         .catch((err) => {
-          console.error('[NotesStorage] Create note failed:', err);
+          logger.error('Create note failed:', err);
           // The note was still saved to IndexedDB by createNote,
           // just the immediate Supabase sync may have failed.
           // Refresh to get the actual state.
@@ -505,7 +508,7 @@ export function useNotesStorage(isNotePanelOpen = false) {
           }
         })
         .catch((err) => {
-          console.error('[NotesStorage] Update note failed:', err);
+          logger.error('Update note failed:', err);
           refreshNotes(userId);
         });
 
@@ -524,7 +527,7 @@ export function useNotesStorage(isNotePanelOpen = false) {
 
       // Hard-delete from IndexedDB + queue sync for Supabase deletion
       notesApi.deleteNote(noteId, userId).catch((err) => {
-        console.error('[NotesStorage] Delete note failed:', err);
+        logger.error('Delete note failed:', err);
         refreshNotes(userId);
       });
     },
@@ -540,7 +543,7 @@ export function useNotesStorage(isNotePanelOpen = false) {
       // RLS policy "Notes: clinic members can delete" (migration 009)
       // allows any user in the same clinic to delete.
       notesApi.deleteClinicNote(noteId).catch((err) => {
-        console.error('[NotesStorage] Delete clinic note failed:', err);
+        logger.error('Delete clinic note failed:', err);
         // Refresh to restore the note if the delete failed
         const clinicId = clinicIdRef.current;
         if (clinicId) refreshClinicNotes(clinicId, userIdRef.current ?? undefined);
@@ -558,7 +561,7 @@ export function useNotesStorage(isNotePanelOpen = false) {
 
     // Hard-delete all notes asynchronously
     notesApi.deleteAllNotes(userId).catch((err) => {
-      console.error('[NotesStorage] Clear all notes failed:', err);
+      logger.error('Clear all notes failed:', err);
       refreshNotes(userId);
     });
   }, [refreshNotes]);
@@ -661,7 +664,7 @@ export function useNotesStorage(isNotePanelOpen = false) {
         _last_sync_error: null,
         _last_sync_error_message: null,
       }).catch((err) => {
-        console.warn('[NotesStorage] Failed to persist realtime personal note to IndexedDB:', err);
+        logger.warn('Failed to persist realtime personal note to IndexedDB:', err);
       });
     }
   }, []);
@@ -670,7 +673,7 @@ export function useNotesStorage(isNotePanelOpen = false) {
     setNotes((prev) => prev.filter((n) => n.id !== noteId));
 
     idbHardDelete(noteId).catch((err) => {
-      console.warn('[NotesStorage] Failed to delete realtime personal note from IndexedDB:', err);
+      logger.warn('Failed to delete realtime personal note from IndexedDB:', err);
     });
   }, []);
 
