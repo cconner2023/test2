@@ -15,6 +15,7 @@ export interface NoteRestoreResult {
     category?: catDataTypes;
     symptom?: subCatDataTypes;
     hpiText?: string;
+    peText?: string;
     timestamp?: Date | null;
 }
 
@@ -62,6 +63,7 @@ export function useNoteRestore() {
             category: found.category,
             symptom: found.symptom,
             hpiText: parsed.hpiText || '',
+            peText: parsed.peText || '',
             timestamp: parsed.timestamp,
         };
     }, []);

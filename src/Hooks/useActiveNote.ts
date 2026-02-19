@@ -119,8 +119,8 @@ export function useActiveNote({
       // We have an existing saved note — restore HPI text from the encoded data
       const tempNote: SavedNote = { id: activeNoteId, encodedText: activeNoteEncodedText, createdAt: '', symptomIcon: '', symptomText: '', dispositionType: '', dispositionText: '', previewText: '', sync_status: 'synced', authorId: '', authorName: null }
       const result = restoreNote(tempNote)
-      if (result.success && result.hpiText) {
-        navigation.showWriteNote({ ...data, initialHpiText: result.hpiText })
+      if (result.success && (result.hpiText || result.peText)) {
+        navigation.showWriteNote({ ...data, initialHpiText: result.hpiText, initialPeText: result.peText })
         return
       }
     }
@@ -251,8 +251,9 @@ export function useActiveNote({
   // View note handler — restore and open WriteNote at the View Note panel (page 1)
   const handleViewNote = useCallback((note: SavedNote) => {
     restoreAndOpenNote(note, (result) => ({
-      initialPage: 1,
+      initialPage: 3,
       initialHpiText: result.hpiText || '',
+      initialPeText: result.peText || '',
       timestamp: result.timestamp,
     }))
   }, [restoreAndOpenNote])

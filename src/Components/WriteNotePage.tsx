@@ -9,12 +9,13 @@ import { getColorClasses } from '../Utilities/ColorUtilities';
 import { encodedContentEquals } from '../Utilities/NoteCodec';
 import { NoteBarcodeGenerator } from './Barcode';
 import { DecisionMaking } from './DecisionMaking';
+import { PhysicalExam } from './PhysicalExam';
 import { BaseDrawer } from './BaseDrawer';
 
 type DispositionType = dispositionType['type'];
 
-const PAGE_LABELS = ['Write Note', 'Review & Share'];
-const TOTAL_PAGES = 2;
+const PAGE_LABELS = ['Decision Making', 'HPI', 'Physical Exam', 'Full Note'];
+const TOTAL_PAGES = 4;
 
 export interface NoteSaveData {
     encodedText: string;
@@ -47,6 +48,7 @@ interface WriteNoteProps {
     isMobile?: boolean;
     initialPage?: number;
     initialHpiText?: string;
+    initialPeText?: string;
     noteSource?: string | null;
     onAfterSave?: () => void;
     timestamp?: Date | null;
@@ -67,6 +69,7 @@ export const WriteNotePage = ({
     isMobile = false,
     initialPage = 0,
     initialHpiText = '',
+    initialPeText = '',
     noteSource = null,
     onAfterSave,
     timestamp = null,
@@ -74,11 +77,12 @@ export const WriteNotePage = ({
     // Note content state
     const [note, setNote] = useState<string>(initialHpiText);
     const [previewNote, setPreviewNote] = useState<string>('');
-    const [includeAlgorithm, setIncludeAlgorithm] = useState<boolean>(true);
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState<boolean>(true);
     const [includeHPI, setIncludeHPI] = useState<boolean>(!!initialHpiText);
+    const [peNote, setPeNote] = useState<string>(initialPeText);
+    const [includePhysicalExam, setIncludePhysicalExam] = useState<boolean>(!!initialPeText);
 
-    // Note timestamp — only applied when the user clicks Confirm
+    // Note timestamp — set automatically when user first reaches page 3
     const [noteTimestamp, setNoteTimestamp] = useState<Date | null>(timestamp);
     const [encodedValue, setEncodedValue] = useState<string>('');
     const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null);
@@ -89,7 +93,7 @@ export const WriteNotePage = ({
     const confirmDeleteRef = useRef(false);
     const confirmDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout>>(0);
 
-    // Page navigation state (0=Write Note, 1=Review & Share)
+    // Page navigation state
     const [currentPage, setCurrentPage] = useState(initialPage);
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
 
@@ -106,17 +110,6 @@ export const WriteNotePage = ({
     const currentPageRef = useRef(currentPage);
     currentPageRef.current = currentPage;
 
-    // Decision Making collapsible state (auto-expanded so user sees it immediately)
-    const [showDecisionMaking, setShowDecisionMaking] = useState(true);
-    // Note Selection collapsible state — collapsed for saved notes, expanded for new
-    const [showNoteSelection, setShowNoteSelection] = useState(!existingNoteId);
-    // Selection confirmed — reveals Note Preview + Encoded Note
-    const [selectionConfirmed, setSelectionConfirmed] = useState(Boolean(existingNoteId));
-    // Note preview collapsible state — expanded for saved notes
-    const [showPreview, setShowPreview] = useState(Boolean(existingNoteId));
-    // Encoded note collapsible state — expanded for saved notes
-    const [showBarcode, setShowBarcode] = useState(Boolean(existingNoteId));
-
     // Hooks
     const { generateNote } = useNoteCapture(algorithmOptions, cardStates);
     const { profile } = useUserProfile();
@@ -132,17 +125,40 @@ export const WriteNotePage = ({
         }
     }, [copiedTarget]);
 
-    // --- Preview note generation (eagerly updates so content is ready before navigating to View Note) ---
+    // --- Auto-select HPI/PE when content appears ---
+    useEffect(() => {
+        if (note.trim() && !includeHPI) setIncludeHPI(true);
+    }, [note, includeHPI]);
+
+    useEffect(() => {
+        if (peNote.trim() && !includePhysicalExam) setIncludePhysicalExam(true);
+    }, [peNote, includePhysicalExam]);
+
+    // --- Set timestamp when first arriving at page 3 (Full Note) ---
+    useEffect(() => {
+        if (currentPage === 3 && !noteTimestamp) {
+            setNoteTimestamp(new Date());
+        }
+    }, [currentPage, noteTimestamp]);
+
+    // --- Auto-focus HPI textarea when navigating to page 1 (HPI) ---
+    useEffect(() => {
+        if (currentPage === 1 && includeHPI) {
+            setTimeout(() => inputRef.current?.focus(), 100);
+        }
+    }, [currentPage, includeHPI]);
+
+    // --- Preview note generation (eagerly updates so content is ready before navigating to Full Note) ---
     useEffect(() => {
         const result = generateNote(
-            { includeAlgorithm, includeDecisionMaking, customNote: includeHPI ? note : '', signature },
+            { includeAlgorithm: true, includeDecisionMaking, customNote: includeHPI ? note : '', physicalExamNote: includePhysicalExam ? peNote : '', signature },
             disposition.type,
             disposition.text,
             selectedSymptom,
             noteTimestamp,
         );
         setPreviewNote(result.fullNote);
-    }, [note, includeAlgorithm, includeDecisionMaking, includeHPI, generateNote, disposition, selectedSymptom, noteTimestamp, signature]);
+    }, [note, includeDecisionMaking, includeHPI, peNote, includePhysicalExam, generateNote, disposition, selectedSymptom, noteTimestamp, signature]);
 
     // --- Copy handler ---
     const handleCopy = useCallback((text: string, target: 'preview' | 'encoded') => {
@@ -166,10 +182,8 @@ export const WriteNotePage = ({
     }, [encodedValue, existingNoteId, noteTimestamp, selectedSymptom, disposition, previewNote, isMobile, shareNote]);
 
     // --- Determine button state based on existing note ---
-    // isAlreadySaved: note exists in storage (existingNoteId is set)
-    // hasContentChanged: only evaluated after user clicks Confirm
     const isAlreadySaved = Boolean(existingNoteId);
-    const hasContentChanged = isAlreadySaved && selectionConfirmed && encodedValue !== '' && !encodedContentEquals(encodedValue, existingEncodedText || '');
+    const hasContentChanged = isAlreadySaved && encodedValue !== '' && !encodedContentEquals(encodedValue, existingEncodedText || '');
 
     // --- Save note handler (new note) ---
     const handleSaveNote = useCallback(() => {
@@ -183,7 +197,6 @@ export const WriteNotePage = ({
             dispositionText: disposition.text,
         });
         if (result === false) {
-            // Save failed — show error state on button briefly
             setSaveFailed(true);
             setTimeout(() => setSaveFailed(false), 3000);
             return;
@@ -200,7 +213,6 @@ export const WriteNotePage = ({
     const handleDeleteNote = useCallback(() => {
         if (!existingNoteId) return;
         if (confirmDeleteRef.current) {
-            // Second tap — actually delete
             onNoteDelete?.(existingNoteId);
             setIsDeleted(true);
             confirmDeleteRef.current = false;
@@ -208,7 +220,6 @@ export const WriteNotePage = ({
             if (confirmDeleteTimeoutRef.current) clearTimeout(confirmDeleteTimeoutRef.current);
             setTimeout(() => setIsDeleted(false), 2500);
         } else {
-            // First tap — ask for confirmation
             confirmDeleteRef.current = true;
             setConfirmDelete(true);
             if (confirmDeleteTimeoutRef.current) clearTimeout(confirmDeleteTimeoutRef.current);
@@ -238,12 +249,6 @@ export const WriteNotePage = ({
             setTimeout(() => setIsSaved(false), 2500);
         }
     }, [existingNoteId, encodedValue, previewNote, selectedSymptom, disposition, onNoteUpdate, onAfterSave]);
-
-    const handleClearNoteAndHide = () => {
-        setNote('');
-        setIncludeHPI(false);
-        inputRef.current?.focus();
-    };
 
     // --- Slide animation helper (mirrors Settings pattern) ---
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
@@ -397,159 +402,119 @@ export const WriteNotePage = ({
                 onTouchCancel={isMobile ? handleSwipeEnd : undefined}
             >
                 <SlideWrapper slideDirection={slideDirection}>
-                    {/* Page 0: Write Note (includes Decision Making as collapsible section) */}
+                    {/* Page 0: Decision Making */}
                     {currentPage === 0 && (
                         <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                             <div className="space-y-4">
-                                {/* Decision Making collapsible */}
                                 <div className="mx-2 mt-2">
-                                    <button
-                                        onClick={() => setShowDecisionMaking(prev => !prev)}
-                                        className="w-full flex items-center justify-between p-3 rounded-md bg-themewhite text-xs text-secondary hover:bg-themewhite3 transition-colors"
-                                    >
-                                        <span className="font-medium">Decision Making</span>
-                                        <svg
-                                            className={`w-4 h-4 transition-transform duration-200 ${showDecisionMaking ? 'rotate-180' : ''}`}
-                                            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                        >
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                        </svg>
-                                    </button>
-                                    {showDecisionMaking && (
-                                        <div className="mt-1 rounded-md border border-themegray1/15 overflow-hidden">
-                                            <DecisionMaking
-                                                algorithmOptions={algorithmOptions}
-                                                cardStates={cardStates}
-                                                disposition={disposition}
-                                                dispositionType={disposition.type}
-                                            />
-                                        </div>
-                                    )}
+                                    <ToggleOption
+                                        checked={includeDecisionMaking}
+                                        onChange={() => setIncludeDecisionMaking(!includeDecisionMaking)}
+                                        label="Include Decision Making in Note"
+                                        colors={colors}
+                                    />
                                 </div>
-
+                                <div className="mx-2">
+                                    <div className="rounded-md border border-themegray1/15 overflow-hidden">
+                                        <DecisionMaking
+                                            algorithmOptions={algorithmOptions}
+                                            cardStates={cardStates}
+                                            disposition={disposition}
+                                            dispositionType={disposition.type}
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     )}
 
-                    {/* Page 1: Review & Share */}
+                    {/* Page 1: HPI */}
                     {currentPage === 1 && (
                         <div className={`w-full h-full overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
-                            <div className="space-y-4">
-                                {/* Collapsible Note Selection (confirm flow) */}
-                                <div>
-                                    <button
-                                        onClick={() => setShowNoteSelection(prev => !prev)}
-                                        className="w-full flex items-center justify-between p-3 rounded-md bg-themewhite text-xs text-secondary hover:bg-themewhite3 transition-colors"
-                                    >
-                                        <span className="font-medium">Note Selection</span>
-                                        <div className="flex items-center gap-2">
-                                            {selectionConfirmed && (
-                                                <svg className="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                            <div className="space-y-3">
+                                {!includeHPI ? (
+                                    <ToggleOption
+                                        checked={includeHPI}
+                                        onChange={() => { setIncludeHPI(true); setTimeout(() => inputRef.current?.focus(), 100); }}
+                                        label="Include HPI / Clinical Notes"
+                                        colors={colors}
+                                    />
+                                ) : (
+                                    <>
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-xs text-secondary">HPI / Clinical Notes</p>
+                                            <button
+                                                onClick={() => { setNote(''); setIncludeHPI(false); }}
+                                                className="text-xs text-tertiary hover:text-primary p-1 rounded transition-colors"
+                                                title="Remove HPI"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                                                 </svg>
-                                            )}
-                                            <svg
-                                                className={`w-4 h-4 transition-transform duration-200 ${showNoteSelection ? 'rotate-180' : ''}`}
-                                                fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                            >
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                            </svg>
+                                            </button>
                                         </div>
-                                    </button>
-                                    {showNoteSelection && (
-                                        <div className="mt-1 p-4 rounded-md border border-themegray1/15 bg-themewhite3">
-                                            <div className="space-y-3">
-                                                <ToggleOption checked={includeAlgorithm} onChange={() => setIncludeAlgorithm(!includeAlgorithm)} label="Algorithm" colors={colors} />
-                                                <ToggleOption checked={includeDecisionMaking} onChange={() => setIncludeDecisionMaking(!includeDecisionMaking)} label="Decision Making" colors={colors} />
+                                        <textarea
+                                            ref={inputRef}
+                                            value={note}
+                                            onChange={(e) => setNote(e.target.value)}
+                                            placeholder="History of present illness, clinical observations, assessment..."
+                                            className="w-full text-tertiary bg-themewhite outline-none text-[16px] md:text-[10pt] px-4 py-3 rounded-md border border-themegray1/20 min-w-0 resize-none min-h-[12rem] leading-6 focus:border-themeblue1/30 transition-colors"
+                                        />
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    )}
 
-                                                {!includeHPI && (
-                                                    <ToggleOption
-                                                        checked={includeHPI}
-                                                        onChange={() => { setIncludeHPI(true); setTimeout(() => inputRef.current?.focus(), 100); }}
-                                                        label="HPI or other clinical note"
-                                                        colors={colors}
-                                                    />
-                                                )}
-
-                                                {includeHPI && (
-                                                    <div>
-                                                        <div className="flex items-center justify-center bg-themewhite text-tertiary rounded-md border border-themeblue3/10 shadow-xs transition-colors duration-200 focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
-                                                            <textarea
-                                                                ref={inputRef}
-                                                                value={note}
-                                                                onChange={(e) => setNote(e.target.value)}
-                                                                className="text-tertiary bg-transparent outline-none text-[16px] md:text-[8pt] w-full px-4 py-2 rounded-l-full min-w-0 resize-none h-10 leading-5"
-                                                            />
-                                                            <div
-                                                                className="flex items-center justify-center px-2 py-2 bg-transparent stroke-themeblue3 cursor-pointer transition-colors duration-200 shrink-0"
-                                                                onClick={handleClearNoteAndHide}
-                                                                title="Remove HPI and clear notes"
-                                                                aria-label="Remove HPI and clear notes"
-                                                            >
-                                                                <svg className="h-5 w-5 stroke-themeblue1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                                                </svg>
-                                                            </div>
-                                                        </div>
-                                                        <div className="flex justify-between items-center mt-2">
-                                                            <p className="text-xs text-secondary italic">Enter your HPI or other clinical notes above</p>
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="flex justify-end mt-4">
-                                                <button
-                                                    onClick={() => {
-                                                        if (!noteTimestamp) setNoteTimestamp(new Date());
-                                                        setSelectionConfirmed(true);
-                                                        setShowNoteSelection(false);
-                                                        setShowPreview(true);
-                                                        setShowBarcode(true);
-                                                    }}
-                                                    className={`flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-full transition-all active:scale-95 ${colors.buttonClass}`}
-                                                >
-                                                    Confirm
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
+                    {/* Page 2: Physical Exam */}
+                    {currentPage === 2 && (
+                        <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
+                            <div className="space-y-3">
+                                <div className="mx-2 mt-2">
+                                    <ToggleOption
+                                        checked={includePhysicalExam}
+                                        onChange={() => setIncludePhysicalExam(!includePhysicalExam)}
+                                        label="Include Physical Exam in Note"
+                                        colors={colors}
+                                    />
                                 </div>
+                                <div className="mx-2">
+                                    <div className="rounded-md border border-themegray1/15 overflow-hidden">
+                                        <PhysicalExam
+                                            initialText={initialPeText}
+                                            onChange={setPeNote}
+                                            colors={colors}
+                                            symptomCode={selectedSymptom?.icon || 'A-1'}
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
-                                {/* Collapsible note preview */}
+                    {/* Page 3: Full Note */}
+                    {currentPage === 3 && (
+                        <div className={`w-full h-full overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
+                            <div className="space-y-4">
+                                {/* Note Preview (always visible) */}
                                 <div>
-                                    <button
-                                        onClick={() => setShowPreview(prev => !prev)}
-                                        className="w-full flex items-center justify-between p-3 rounded-md bg-themewhite text-xs text-secondary hover:bg-themewhite3 transition-colors"
-                                    >
+                                    <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
                                         <span className="font-medium">Note Preview</span>
-                                        <div className="flex items-center gap-2">
-                                            <ActionIconButton
-                                                onClick={() => handleCopy(previewNote, 'preview')}
-                                                status={copiedTarget === 'preview' ? 'done' : 'idle'}
-                                                variant="copy"
-                                                title="Copy note text"
-                                            />
-                                            <svg
-                                                className={`w-4 h-4 transition-transform duration-200 ${showPreview ? 'rotate-180' : ''}`}
-                                                fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                            >
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                            </svg>
-                                        </div>
-                                    </button>
-                                    {showPreview && (
-                                        <div className="mt-1 p-3 rounded-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto border border-themegray1/15">
-                                            {previewNote || "No content selected"}
-                                        </div>
-                                    )}
+                                        <ActionIconButton
+                                            onClick={() => handleCopy(previewNote, 'preview')}
+                                            status={copiedTarget === 'preview' ? 'done' : 'idle'}
+                                            variant="copy"
+                                            title="Copy note text"
+                                        />
+                                    </div>
+                                    <div className="p-3 rounded-b-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto border border-themegray1/15">
+                                        {previewNote || "No content selected"}
+                                    </div>
                                 </div>
 
-                                {/* Collapsible encoded note */}
+                                {/* Encoded Note / Barcode (always visible) */}
                                 <div>
-                                    <button
-                                        onClick={() => setShowBarcode(prev => !prev)}
-                                        className="w-full flex items-center justify-between p-3 rounded-md bg-themewhite text-xs text-secondary hover:bg-themewhite3 transition-colors"
-                                    >
+                                    <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
                                         <span className="font-medium">Encoded Note</span>
                                         <div className="flex items-center gap-1">
                                             <ActionIconButton
@@ -566,31 +531,24 @@ export const WriteNotePage = ({
                                                 variant="share"
                                                 title="Share note as image"
                                             />
-                                            <svg
-                                                className={`w-4 h-4 transition-transform duration-200 ${showBarcode ? 'rotate-180' : ''}`}
-                                                fill="none" stroke="currentColor" viewBox="0 0 24 24"
-                                            >
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                                            </svg>
                                         </div>
-                                    </button>
-                                    {showBarcode && (
-                                        <div className="mt-1">
-                                            <NoteBarcodeGenerator
-                                                algorithmOptions={algorithmOptions}
-                                                cardStates={cardStates}
-                                                noteOptions={{
-                                                    includeAlgorithm,
-                                                    includeDecisionMaking,
-                                                    customNote: includeHPI ? note : '',
-                                                    user: profile,
-                                                }}
-                                                symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
-                                                onEncodedValueChange={setEncodedValue}
-                                                layout={encodedValue.length > 80 ? 'col' : 'row'}
-                                            />
-                                        </div>
-                                    )}
+                                    </div>
+                                    <div className="mt-1">
+                                        <NoteBarcodeGenerator
+                                            algorithmOptions={algorithmOptions}
+                                            cardStates={cardStates}
+                                            noteOptions={{
+                                                includeAlgorithm: true,
+                                                includeDecisionMaking,
+                                                customNote: includeHPI ? note : '',
+                                                physicalExamNote: includePhysicalExam ? peNote : '',
+                                                user: profile,
+                                            }}
+                                            symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
+                                            onEncodedValueChange={setEncodedValue}
+                                            layout={encodedValue.length > 80 ? 'col' : 'row'}
+                                        />
+                                    </div>
                                 </div>
 
                             </div>
@@ -808,4 +766,3 @@ const ToggleOption: React.FC<{
         </div>
     </div>
 );
-

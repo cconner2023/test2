@@ -147,7 +147,10 @@ export function formatAlgorithmContent(
             cardLines.push(`Answer: ${state.answer.text}`);
             if (state.answer.disposition && state.answer.disposition.length > 0) {
                 const dispositionText = state.answer.disposition
-                    .map(d => `${d.type}: ${d.text}`)
+                    .map(d => {
+                        const base = `${d.type}: ${d.text}`;
+                        return d.modifier ? `${base} (${d.modifier})` : base;
+                    })
                     .join('; ');
                 cardLines.push(`Disposition: ${dispositionText}`);
             }
@@ -212,22 +215,36 @@ function formatDecisionMakingItems(items: decisionMakingType[]): string {
             itemLines.push(item.text);
         }
         if (item.ancillaryFind && item.ancillaryFind.length > 0) {
-            const ancillaryTexts = item.ancillaryFind
-                .map(anc => anc.modifier)
-                .filter(Boolean);
-            if (ancillaryTexts.length > 0) {
-                itemLines.push(`Ancillary: ${ancillaryTexts.join(', ')}`);
-            }
+            const ancillaryLabels: Record<string, string> = {
+                'lab': 'Lab',
+                'refer': 'Referral',
+                'med': 'Other Medication',
+                'rad': 'Imaging',
+                'protocol': 'Other Protocol',
+            };
+            const grouped = item.ancillaryFind.reduce((acc, anc) => {
+                const type = anc.type || 'other';
+                if (!acc[type]) acc[type] = [];
+                acc[type].push(anc);
+                return acc;
+            }, {} as Record<string, typeof item.ancillaryFind>);
+            Object.entries(grouped).forEach(([type, items]) => {
+                const label = ancillaryLabels[type] || type || 'Ancillary';
+                const texts = items.map(anc => anc.modifier).filter(Boolean);
+                if (texts.length > 0) {
+                    itemLines.push(`${label}: ${texts.join(', ')}`);
+                }
+            });
         }
         if (item.specLim && item.specLim.length > 0) {
-            itemLines.push('Limitations:');
+            itemLines.push('Limitations if clinically indicated:');
             item.specLim.forEach(lim => itemLines.push(`  • ${lim}`));
         }
         if (item.assocMcp) {
             const mcpLines: string[] = [];
             if (item.assocMcp.text) mcpLines.push(item.assocMcp.text);
             if (item.assocMcp.specLim && item.assocMcp.specLim.length > 0) {
-                mcpLines.push('Limitations:');
+                mcpLines.push('Limitations if clinically indicated:');
                 item.assocMcp.specLim.forEach(lim => mcpLines.push(`  • ${lim}`));
             }
             if (mcpLines.length > 0) {
@@ -282,6 +299,7 @@ export interface NoteAssemblyOptions {
     includeAlgorithm: boolean;
     includeDecisionMaking: boolean;
     customNote: string;
+    physicalExamNote?: string;
     signature?: string;
 }
 
@@ -289,6 +307,7 @@ export interface AssembledNote {
     sections: {
         algorithm?: string;
         decisionMaking?: string;
+        physicalExam?: string;
         customNote: string;
     };
     fullNote: string;
@@ -310,6 +329,14 @@ export function assembleNote(
     if (customNote) {
         fullNoteParts.push('HPI:');
         fullNoteParts.push(customNote);
+        fullNoteParts.push('');
+    }
+
+    // Physical Exam
+    const physicalExamNote = options.physicalExamNote?.trim();
+    if (physicalExamNote) {
+        fullNoteParts.push('PHYSICAL EXAM:');
+        fullNoteParts.push(physicalExamNote);
         fullNoteParts.push('');
     }
 
@@ -355,6 +382,7 @@ export function assembleNote(
         sections: {
             algorithm: algorithmContent,
             decisionMaking: decisionMakingContent,
+            physicalExam: physicalExamNote || undefined,
             customNote,
         },
         fullNote: fullNoteParts.join('\n').trim(),

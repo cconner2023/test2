@@ -431,6 +431,7 @@ function AppContent() {
             isMobile={navigation.isMobile}
             initialPage={navigation.writeNoteData.initialPage}
             initialHpiText={navigation.writeNoteData.initialHpiText}
+            initialPeText={navigation.writeNoteData.initialPeText}
             noteSource={activeNote.activeNoteSource}
             onAfterSave={activeNote.handleAfterSave}
             timestamp={navigation.writeNoteData.timestamp}

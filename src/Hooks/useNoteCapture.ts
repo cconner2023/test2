@@ -7,6 +7,7 @@ interface NoteCaptureOptions {
     includeAlgorithm: boolean;
     includeDecisionMaking: boolean;
     customNote: string;
+    physicalExamNote?: string;
     signature?: string;
 }
 
@@ -14,6 +15,7 @@ interface NoteCaptureResult {
     sections: {
         algorithm?: string;
         decisionMaking?: string;
+        physicalExam?: string;
         customNote: string;
     };
     fullNote: string;

@@ -15,6 +15,7 @@ export interface WriteNoteData {
     selectedSymptom: { icon: string; text: string };
     initialPage?: number;
     initialHpiText?: string;
+    initialPeText?: string;
     timestamp?: Date | null;
 }
 

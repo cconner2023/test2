@@ -28,7 +28,8 @@ export interface ParsedNote {
     screenerEntries: ScreenerEntry[];
     actionEntries: { index: number; status: 'performed' | 'deferred' }[];
     hpiText: string;
-    flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean };
+    peText: string;
+    flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean; includePhysicalExam: boolean };
     timestamp: Date | null;
     user: UserTypes | null;
 }
@@ -37,6 +38,7 @@ export interface NoteEncodeOptions {
     includeAlgorithm: boolean;
     includeDecisionMaking: boolean;
     customNote: string;
+    physicalExamNote?: string;
     user?: UserTypes;
 }
 
@@ -100,7 +102,8 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         screenerEntries: [],
         actionEntries: [],
         hpiText: '',
-        flags: { includeAlgorithm: true, includeDecisionMaking: true, includeHPI: false },
+        peText: '',
+        flags: { includeAlgorithm: true, includeDecisionMaking: true, includeHPI: false, includePhysicalExam: false },
         timestamp: null,
         user: null,
     };
@@ -131,12 +134,23 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                     result.hpiText = decodeURIComponent(value);
                 }
             }
+        } else if (prefix === 'P') {
+            try {
+                result.peText = decodeURIComponent(atob(value));
+            } catch {
+                try {
+                    result.peText = atob(value);
+                } catch {
+                    result.peText = decodeURIComponent(value);
+                }
+            }
         } else if (prefix === 'F') {
             const flagsNum = parseInt(value, 10);
             result.flags = {
                 includeAlgorithm: !!(flagsNum & 1),
                 includeDecisionMaking: !!(flagsNum & 2),
                 includeHPI: !!(flagsNum & 4),
+                includePhysicalExam: !!(flagsNum & 8),
             };
         } else if (prefix === 'T') {
             const epoch = parseInt(value, 36);
@@ -207,7 +221,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
             selections: legacySelections,
             answerIndex: -1,
         }];
-        result.flags = { includeAlgorithm: true, includeDecisionMaking: false, includeHPI: false };
+        result.flags = { includeAlgorithm: true, includeDecisionMaking: false, includeHPI: false, includePhysicalExam: false };
     }
 
     if (!result.symptomCode) return null;
@@ -299,11 +313,22 @@ export function encodeNoteState(
         }
     }
 
-    // 5. Flags: bit0=includeAlgorithm, bit1=includeDM, bit2=includeHPI
+    // 4b. Physical Exam text (base64 encoded)
+    const peNote = noteOptions.physicalExamNote?.trim();
+    if (peNote) {
+        try {
+            parts.push(`P${btoa(encodeURIComponent(peNote))}`);
+        } catch {
+            parts.push(`P${encodeURIComponent(peNote)}`);
+        }
+    }
+
+    // 5. Flags: bit0=includeAlgorithm, bit1=includeDM, bit2=includeHPI, bit3=includePE
     let flags = 0;
     if (noteOptions.includeAlgorithm) flags |= 1;
     if (noteOptions.includeDecisionMaking) flags |= 2;
     if (customNote) flags |= 4;
+    if (peNote) flags |= 8;
     parts.push(`F${flags}`);
 
     // 6. User profile (indexed enums + base64 name)
