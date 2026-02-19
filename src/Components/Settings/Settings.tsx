@@ -175,7 +175,7 @@ const MainSettingsPanel = ({
                         <div className="pb-2">
                             <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">{section.label}</p>
                         </div>
-                        <div className="grid grid-cols-3 gap-2 max-w-[85%]">
+                        <div className="grid grid-cols-4 gap-2">
                             {section.items.map((item) => (
                                 <button
                                     key={item.id}
