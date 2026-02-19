@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import { useNoteCapture } from '../Hooks/useNoteCapture';
@@ -14,8 +14,7 @@ import { BaseDrawer } from './BaseDrawer';
 
 type DispositionType = dispositionType['type'];
 
-const PAGE_LABELS = ['Decision Making', 'HPI', 'Physical Exam', 'Full Note'];
-const TOTAL_PAGES = 4;
+type PageId = 'decision' | 'hpi' | 'pe' | 'fullnote';
 
 export interface NoteSaveData {
     encodedText: string;
@@ -74,15 +73,28 @@ export const WriteNotePage = ({
     onAfterSave,
     timestamp = null,
 }: WriteNoteProps) => {
-    // Note content state
+    // Note content state — profile preferences provide defaults for new notes
+    const { profile } = useUserProfile();
+    const defaultHPI = initialHpiText ? true : (profile.noteIncludeHPI ?? true);
+    const defaultPE = initialPeText ? true : (profile.noteIncludePE ?? false);
+
+    // Build visible wizard pages — hide HPI/PE when disabled in settings
+    const visiblePages = useMemo(() => {
+        const pages: { id: PageId; label: string }[] = [{ id: 'decision', label: 'Decision Making' }];
+        if (defaultHPI) pages.push({ id: 'hpi', label: 'HPI' });
+        if (defaultPE) pages.push({ id: 'pe', label: 'Physical Exam' });
+        pages.push({ id: 'fullnote', label: 'Full Note' });
+        return pages;
+    }, [defaultHPI, defaultPE]);
+
     const [note, setNote] = useState<string>(initialHpiText);
     const [previewNote, setPreviewNote] = useState<string>('');
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState<boolean>(true);
-    const [includeHPI, setIncludeHPI] = useState<boolean>(!!initialHpiText);
+    const [includeHPI, setIncludeHPI] = useState<boolean>(defaultHPI);
     const [peNote, setPeNote] = useState<string>(initialPeText);
-    const [includePhysicalExam, setIncludePhysicalExam] = useState<boolean>(!!initialPeText);
+    const [includePhysicalExam, setIncludePhysicalExam] = useState<boolean>(defaultPE);
 
-    // Note timestamp — set automatically when user first reaches page 3
+    // Note timestamp — set automatically when user first reaches Full Note
     const [noteTimestamp, setNoteTimestamp] = useState<Date | null>(timestamp);
     const [encodedValue, setEncodedValue] = useState<string>('');
     const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null);
@@ -94,7 +106,10 @@ export const WriteNotePage = ({
     const confirmDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout>>(0);
 
     // Page navigation state
-    const [currentPage, setCurrentPage] = useState(initialPage);
+    const [currentPage, setCurrentPage] = useState(() =>
+        initialPage >= 3 ? visiblePages.length - 1 : Math.min(initialPage, visiblePages.length - 1)
+    );
+    const currentPageId = visiblePages[currentPage]?.id ?? 'decision';
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
 
     // Refs
@@ -112,7 +127,6 @@ export const WriteNotePage = ({
 
     // Hooks
     const { generateNote } = useNoteCapture(algorithmOptions, cardStates);
-    const { profile } = useUserProfile();
     const signature = formatSignature(profile);
     const { shareNote, shareStatus } = useNoteShare();
     const colors = getColorClasses(disposition.type);
@@ -134,19 +148,19 @@ export const WriteNotePage = ({
         if (peNote.trim() && !includePhysicalExam) setIncludePhysicalExam(true);
     }, [peNote, includePhysicalExam]);
 
-    // --- Set timestamp when first arriving at page 3 (Full Note) ---
+    // --- Set timestamp when first arriving at Full Note ---
     useEffect(() => {
-        if (currentPage === 3 && !noteTimestamp) {
+        if (currentPageId === 'fullnote' && !noteTimestamp) {
             setNoteTimestamp(new Date());
         }
-    }, [currentPage, noteTimestamp]);
+    }, [currentPageId, noteTimestamp]);
 
-    // --- Auto-focus HPI textarea when navigating to page 1 (HPI) ---
+    // --- Auto-focus HPI textarea when navigating to HPI page ---
     useEffect(() => {
-        if (currentPage === 1 && includeHPI) {
+        if (currentPageId === 'hpi' && includeHPI) {
             setTimeout(() => inputRef.current?.focus(), 100);
         }
-    }, [currentPage, includeHPI]);
+    }, [currentPageId, includeHPI]);
 
     // --- Preview note generation (eagerly updates so content is ready before navigating to Full Note) ---
     useEffect(() => {
@@ -259,11 +273,11 @@ export const WriteNotePage = ({
     // --- Page navigation ---
     const handleNext = useCallback(() => {
         setCurrentPage(prev => {
-            if (prev >= TOTAL_PAGES - 1) return prev;
+            if (prev >= visiblePages.length - 1) return prev;
             handleSlideAnimation('left');
             return prev + 1;
         });
-    }, [handleSlideAnimation]);
+    }, [handleSlideAnimation, visiblePages.length]);
 
     const handlePageBack = useCallback(() => {
         setCurrentPage(prev => {
@@ -311,14 +325,14 @@ export const WriteNotePage = ({
         const page = currentPageRef.current;
 
         // Swipe left (negative dx) → next page; swipe right (positive dx) → previous page
-        if (swipeDx < -40 && page < TOTAL_PAGES - 1) {
+        if (swipeDx < -40 && page < visiblePages.length - 1) {
             handleSlideAnimation('left');
             setCurrentPage(page + 1);
         } else if (swipeDx > 40 && page > 0) {
             handleSlideAnimation('right');
             setCurrentPage(page - 1);
         }
-    }, [handleSlideAnimation]);
+    }, [handleSlideAnimation, visiblePages.length]);
 
     const renderContent = (closeHandler: () => void) => (
         <>
@@ -359,7 +373,7 @@ export const WriteNotePage = ({
                             </button>
                         </div>
                         <h2 className="text-[11pt] font-normal text-primary md:text-2xl truncate">
-                            {PAGE_LABELS[currentPage]}
+                            {visiblePages[currentPage]?.label}
                         </h2>
                         <span className="text-xs text-tertiary shrink-0">
                             {noteSource?.startsWith('external')
@@ -378,7 +392,7 @@ export const WriteNotePage = ({
                     </button>
                 </div>
                 <div className="flex gap-1.5 mt-2">
-                    {PAGE_LABELS.map((_, idx) => (
+                    {visiblePages.map((_, idx) => (
                         <div
                             key={idx}
                             className={`h-1 rounded-full transition-all duration-300 ${idx === currentPage
@@ -402,8 +416,8 @@ export const WriteNotePage = ({
                 onTouchCancel={isMobile ? handleSwipeEnd : undefined}
             >
                 <SlideWrapper slideDirection={slideDirection}>
-                    {/* Page 0: Decision Making */}
-                    {currentPage === 0 && (
+                    {/* Decision Making */}
+                    {currentPageId === 'decision' && (
                         <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                             <div className="space-y-4">
                                 <div className="mx-2 mt-2">
@@ -428,8 +442,8 @@ export const WriteNotePage = ({
                         </div>
                     )}
 
-                    {/* Page 1: HPI */}
-                    {currentPage === 1 && (
+                    {/* HPI */}
+                    {currentPageId === 'hpi' && (
                         <div className={`w-full h-full overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                             <div className="space-y-3">
                                 {!includeHPI ? (
@@ -466,8 +480,8 @@ export const WriteNotePage = ({
                         </div>
                     )}
 
-                    {/* Page 2: Physical Exam */}
-                    {currentPage === 2 && (
+                    {/* Physical Exam */}
+                    {currentPageId === 'pe' && (
                         <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                             <div className="space-y-3">
                                 <div className="mx-2 mt-2">
@@ -485,6 +499,7 @@ export const WriteNotePage = ({
                                             onChange={setPeNote}
                                             colors={colors}
                                             symptomCode={selectedSymptom?.icon || 'A-1'}
+                                            depth={profile.peDepth ?? 'standard'}
                                         />
                                     </div>
                                 </div>
@@ -492,8 +507,8 @@ export const WriteNotePage = ({
                         </div>
                     )}
 
-                    {/* Page 3: Full Note */}
-                    {currentPage === 3 && (
+                    {/* Full Note */}
+                    {currentPageId === 'fullnote' && (
                         <div className={`w-full h-full overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                             <div className="space-y-4">
                                 {/* Note Preview (always visible) */}
@@ -565,7 +580,7 @@ export const WriteNotePage = ({
             >
                 <div />
                 <div className="flex items-center gap-2">
-                    {currentPage < TOTAL_PAGES - 1 ? (
+                    {currentPage < visiblePages.length - 1 ? (
                         <button
                             onClick={handleNext}
                             className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all ${colors.buttonClass}`}

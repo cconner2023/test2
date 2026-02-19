@@ -16,11 +16,14 @@ interface ItemState {
     findings: string;
 }
 
+type PEDepth = 'focused' | 'standard' | 'comprehensive';
+
 interface PhysicalExamProps {
     initialText?: string;
     onChange: (text: string) => void;
     colors: ReturnType<typeof getColorClasses>;
     symptomCode: string;
+    depth?: PEDepth;
 }
 
 // ── Old-format body systems (for backward-compat parsing) ─────
@@ -229,13 +232,23 @@ function generateText(
 
 // ── Component ─────────────────────────────────────────────────
 
-export function PhysicalExam({ initialText = '', onChange, colors, symptomCode }: PhysicalExamProps) {
+export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, depth = 'standard' }: PhysicalExamProps) {
     const categoryLetter = getCategoryFromSymptomCode(symptomCode) || 'A';
     const categoryDef = getPECategory(categoryLetter);
     const bodyPart = categoryLetter === 'B' ? getMSKBodyPart(symptomCode) : null;
 
     const [parsed] = useState(() => parseInitialText(initialText, categoryDef, bodyPart));
-    const [itemStates, setItemStates] = useState<Record<string, ItemState>>(() => parsed.items);
+    const [itemStates, setItemStates] = useState<Record<string, ItemState>>(() => {
+        // Comprehensive mode: default all items to 'normal' unless already parsed
+        if (depth === 'comprehensive' && !initialText) {
+            const states: Record<string, ItemState> = {};
+            categoryDef.items.forEach(i => {
+                states[i.key] = { status: 'normal', findings: '' };
+            });
+            return states;
+        }
+        return parsed.items;
+    });
     const [laterality, setLaterality] = useState<Laterality>(() => parsed.laterality);
     const [additional, setAdditional] = useState(() => parsed.additional);
     const [vitals, setVitals] = useState<Record<string, string>>(() => parsed.vitals);
@@ -319,6 +332,22 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode }
                 </div>
             </div>
 
+            {/* Focused mode: skip exam items, show only vitals + additional findings */}
+            {depth === 'focused' ? (
+                <>
+                    <div className="pt-2 border-t border-themegray1/15">
+                        <label className="text-xs text-secondary font-medium block mb-1">Additional Findings</label>
+                        <textarea
+                            value={additional}
+                            onChange={(e) => setAdditional(e.target.value)}
+                            placeholder="Enter additional findings..."
+                            className="w-full text-xs px-3 py-2 rounded border border-themegray1/20 bg-themewhite text-tertiary outline-none focus:border-themeblue1/30 resize-none min-h-[3rem]"
+                        />
+                    </div>
+                </>
+            ) : (
+            <>
+
             {/* MSK laterality selector */}
             {categoryLetter === 'B' && bodyPart && (
                 <div className="flex items-center gap-2 pb-2 border-b border-themegray1/15">
@@ -399,6 +428,9 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode }
                     className="w-full text-xs px-3 py-2 rounded border border-themegray1/20 bg-themewhite text-tertiary outline-none focus:border-themeblue1/30 resize-none min-h-[3rem]"
                 />
             </div>
+
+            </>
+            )}
         </div>
     );
 }

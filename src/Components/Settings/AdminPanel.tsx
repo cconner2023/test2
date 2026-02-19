@@ -717,6 +717,9 @@ const EditUserForm = ({ user, clinics, onBack, onSaved }: {
     supervisor: user.roles?.includes('supervisor') ?? false,
     dev: user.roles?.includes('dev') ?? false,
   })
+  const [noteIncludeHPI, setNoteIncludeHPI] = useState(user.note_include_hpi ?? true)
+  const [noteIncludePE, setNoteIncludePE] = useState(user.note_include_pe ?? false)
+  const [peDepth, setPeDepth] = useState(user.pe_depth ?? 'standard')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -751,6 +754,9 @@ const EditUserForm = ({ user, clinics, onBack, onSaved }: {
       component,
       rank,
       uic: uic || undefined,
+      noteIncludeHPI: noteIncludeHPI,
+      noteIncludePE: noteIncludePE,
+      peDepth,
     })
 
     if (!profileResult.success) {
@@ -860,6 +866,24 @@ const EditUserForm = ({ user, clinics, onBack, onSaved }: {
                 <span className="text-sm text-primary capitalize">{role}</span>
               </label>
             ))}
+          </div>
+        </div>
+
+        <div>
+          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Note Content Defaults</span>
+          <div className="mt-2 space-y-2">
+            <label className="flex items-center justify-between cursor-pointer px-3 py-2.5 rounded-lg bg-themewhite2 border border-tertiary/10">
+              <span className="text-sm text-primary">Include HPI</span>
+              <input type="checkbox" checked={noteIncludeHPI} onChange={() => setNoteIncludeHPI(!noteIncludeHPI)}
+                className="w-4 h-4 rounded border-tertiary/30" />
+            </label>
+            <label className="flex items-center justify-between cursor-pointer px-3 py-2.5 rounded-lg bg-themewhite2 border border-tertiary/10">
+              <span className="text-sm text-primary">Include PE</span>
+              <input type="checkbox" checked={noteIncludePE} onChange={() => setNoteIncludePE(!noteIncludePE)}
+                className="w-4 h-4 rounded border-tertiary/30" />
+            </label>
+            <SelectInput label="PE Depth" value={peDepth} onChange={setPeDepth}
+              options={['focused', 'standard', 'comprehensive'] as const} />
           </div>
         </div>
 

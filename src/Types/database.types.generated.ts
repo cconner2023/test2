@@ -192,7 +192,10 @@ export type Database = {
           id: string
           last_name: string | null
           middle_initial: string | null
+          note_include_hpi: boolean | null
+          note_include_pe: boolean | null
           notifications_enabled: boolean
+          pe_depth: string | null
           pin_hash: string | null
           pin_salt: string | null
           rank: string | null
@@ -211,7 +214,10 @@ export type Database = {
           id: string
           last_name?: string | null
           middle_initial?: string | null
+          note_include_hpi?: boolean | null
+          note_include_pe?: boolean | null
           notifications_enabled?: boolean
+          pe_depth?: string | null
           pin_hash?: string | null
           pin_salt?: string | null
           rank?: string | null
@@ -230,7 +236,10 @@ export type Database = {
           id?: string
           last_name?: string | null
           middle_initial?: string | null
+          note_include_hpi?: boolean | null
+          note_include_pe?: boolean | null
           notifications_enabled?: boolean
+          pe_depth?: string | null
           pin_hash?: string | null
           pin_salt?: string | null
           rank?: string | null
@@ -455,6 +464,9 @@ export type Database = {
           p_component?: string
           p_rank?: string
           p_uic?: string
+          p_note_include_hpi?: boolean
+          p_note_include_pe?: boolean
+          p_pe_depth?: string
         }
         Returns: Json
       }

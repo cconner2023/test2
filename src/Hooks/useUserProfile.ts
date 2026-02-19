@@ -52,11 +52,11 @@ export function useUserProfile() {
                     clinicName: clinicRow?.name ?? undefined,
                 };
 
-                // Best-effort: fetch security columns (may not exist pre-migration)
+                // Best-effort: fetch security + preference columns (may not exist pre-migration)
                 try {
                     const { data: sec } = await supabase
                         .from('profiles')
-                        .select('pin_hash, pin_salt, notifications_enabled')
+                        .select('pin_hash, pin_salt, notifications_enabled, note_include_hpi, note_include_pe, pe_depth')
                         .eq('id', userId)
                         .single();
 
@@ -65,6 +65,11 @@ export function useUserProfile() {
                             hydrateFromCloud(sec.pin_hash, sec.pin_salt);
                         }
                         next.notificationsEnabled = sec.notifications_enabled ?? false;
+                        // Note content preferences (cast to any for columns that may not exist yet)
+                        const s = sec as Record<string, unknown>;
+                        if (s.note_include_hpi != null) next.noteIncludeHPI = s.note_include_hpi as boolean;
+                        if (s.note_include_pe != null) next.noteIncludePE = s.note_include_pe as boolean;
+                        if (s.pe_depth != null) next.peDepth = s.pe_depth as UserTypes['peDepth'];
                     }
                 } catch {
                     // columns don't exist yet — ignore

@@ -24,6 +24,9 @@ export interface AdminUser {
   roles: string[]
   clinic_id: string | null
   created_at: string
+  note_include_hpi: boolean | null
+  note_include_pe: boolean | null
+  pe_depth: string | null
 }
 
 /**
@@ -519,6 +522,9 @@ export async function updateUserProfile(
     component?: string
     rank?: string
     uic?: string
+    noteIncludeHPI?: boolean
+    noteIncludePE?: boolean
+    peDepth?: string
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -534,6 +540,9 @@ export async function updateUserProfile(
       p_component: profileData.component ?? undefined,
       p_rank: profileData.rank ?? undefined,
       p_uic: profileData.uic || undefined,
+      p_note_include_hpi: profileData.noteIncludeHPI ?? undefined,
+      p_note_include_pe: profileData.noteIncludePE ?? undefined,
+      p_pe_depth: profileData.peDepth ?? undefined,
     })
 
     if (error) return { success: false, error: error.message }

@@ -15,6 +15,12 @@ export interface UserTypes {
     clinicName?: string;
     /** Whether the user wants push notifications (synced to cloud) */
     notificationsEnabled?: boolean;
+    /** Default: include HPI section when writing notes */
+    noteIncludeHPI?: boolean;
+    /** Default: include Physical Exam section when writing notes */
+    noteIncludePE?: boolean;
+    /** PE depth: 'focused' (vitals only), 'standard' (default), 'comprehensive' (all items default normal) */
+    peDepth?: 'focused' | 'standard' | 'comprehensive';
 }
 
 export const credentials: Credential[] = ['EMT-B', 'EMT-A', 'EMT-P', 'PA-C', 'NP', 'MD', 'DO'];

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, ChevronUp, ChevronRight, FileText, Check, Camera, X, BookOpen, UserCog, LogOut, ClipboardCheck, Lock, MessageSquare, Bell, HelpCircle } from 'lucide-react';
+import { Moon, Sun, Shield, ChevronUp, ChevronRight, FileText, Check, Camera, X, BookOpen, UserCog, LogOut, ClipboardCheck, Lock, MessageSquare, Bell, HelpCircle, Stethoscope } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import type { SavedNote } from '../../Hooks/useNotesStorage';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
@@ -20,6 +20,7 @@ import { PinSetupPanel } from './PinSetupPanel';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { FeedbackPanel } from './FeedbackPanel';
 import { HowToPanel } from './HowToPanel';
+import { NoteContentPanel } from './NoteContentPanel';
 import type { subjectAreaArrayOptions } from '../../Types/CatTypes';
 import { stp68wTraining } from '../../Data/TrainingTaskList';
 import { getTaskData } from '../../Data/TrainingData';
@@ -191,15 +192,15 @@ const MainSettingsPanel = ({
                                             : 'border-tertiary/15 bg-themewhite2 hover:bg-themeblue2/10 hover:border-themeblue2/25 active:scale-[0.97] group'
                                         }`}
                                 >
-                                    <div className={`${item.disabled ? 'text-tertiary/40' : item.color} ${!item.disabled ? 'group-hover:scale-110' : ''} transition-transform`}>
+                                    <div className={`relative ${item.disabled ? 'text-tertiary/40' : item.color} ${!item.disabled ? 'group-hover:scale-110' : ''} transition-transform`}>
                                         {item.icon}
+                                        {item.disabled && (
+                                            <span className="absolute -top-1.5 -right-4 text-[7px] text-tertiary/40 font-semibold uppercase tracking-wide">Soon</span>
+                                        )}
                                     </div>
                                     <span className={`text-[11px] font-medium text-center leading-tight ${item.disabled ? 'text-tertiary/40' : 'text-primary'}`}>
                                         {item.label}
                                     </span>
-                                    {item.disabled && (
-                                        <span className="text-[8px] text-tertiary/40 font-medium uppercase tracking-wide">Soon</span>
-                                    )}
                                 </button>
                             ))}
                         </div>
@@ -355,7 +356,7 @@ export const Settings = ({
     avatar,
     onNotePanelChange,
 }: SettingsDrawerProps) => {
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'how-to' | TrainingView>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'how-to' | 'note-content' | TrainingView>('main');
     const [isDevRole, setIsDevRole] = useState(false);
     const [isSupervisorRole, setIsSupervisorRole] = useState(false);
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = avatar;
@@ -551,6 +552,10 @@ export const Settings = ({
                 handleSlideAnimation('left');
                 setActivePanel('how-to');
                 break;
+            case 19:
+                handleSlideAnimation('left');
+                setActivePanel('note-content');
+                break;
             default:
                 break;
         }
@@ -631,6 +636,14 @@ export const Settings = ({
                 color: 'text-tertiary',
                 id: 17,
                 disabled: true
+            },
+            {
+                type: 'option',
+                icon: <Stethoscope size={20} />,
+                label: 'Note Content',
+                action: () => handleItemClick(19, closeDrawer),
+                color: 'text-tertiary',
+                id: 19
             },
         );
 
@@ -802,6 +815,12 @@ export const Settings = ({
                     showBack: true,
                     onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
                 };
+            case 'note-content':
+                return {
+                    title: 'Note Content',
+                    showBack: true,
+                    onBack: () => { handleSlideAnimation('right'); setActivePanel('main'); },
+                };
         }
     }, [activePanel, notes, clinicNotes, isAuthenticated, profile.clinicName, handleSlideAnimation, selectedTask, handleTrainingBack]);
 
@@ -926,6 +945,8 @@ export const Settings = ({
                         <FeedbackPanel />
                     ) : activePanel === 'how-to' ? (
                         <HowToPanel />
+                    ) : activePanel === 'note-content' ? (
+                        <NoteContentPanel />
                     ) : activePanel === 'notification-settings' ? (
                         <NotificationSettingsPanel />
                     ) : activePanel === 'pin-setup' ? (

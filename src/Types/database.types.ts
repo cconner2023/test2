@@ -103,6 +103,9 @@ export interface Database {
           pin_hash: string | null
           pin_salt: string | null
           notifications_enabled: boolean
+          note_include_hpi: boolean | null
+          note_include_pe: boolean | null
+          pe_depth: string | null
           created_at: string
           updated_at: string
         }
@@ -122,6 +125,9 @@ export interface Database {
           pin_hash?: string | null
           pin_salt?: string | null
           notifications_enabled?: boolean
+          note_include_hpi?: boolean | null
+          note_include_pe?: boolean | null
+          pe_depth?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -141,6 +147,9 @@ export interface Database {
           pin_hash?: string | null
           pin_salt?: string | null
           notifications_enabled?: boolean
+          note_include_hpi?: boolean | null
+          note_include_pe?: boolean | null
+          pe_depth?: string | null
           updated_at?: string
         }
       }
@@ -427,6 +436,9 @@ export interface Database {
           p_component?: string
           p_rank?: string
           p_uic?: string
+          p_note_include_hpi?: boolean
+          p_note_include_pe?: boolean
+          p_pe_depth?: string
         }
         Returns: Json
       }
