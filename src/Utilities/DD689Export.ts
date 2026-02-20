@@ -6,12 +6,20 @@ import { logError } from './ErrorHandler';
 // ── Layout constants (PDF points, origin = bottom-left) ──
 // Adjust these to calibrate placement on the DD689 template.
 const COORDS = {
-    // Provider comments box — barcode sits in upper-right area
-    barcode: { x: 305, y: 425, size: 90 },
-    // Disposition text — left of barcode, inside comments box
-    disposition: { x: 400, y: 495, maxWidth: 320 },
+    // encoded note in provider comments
+    barcode: { x: 306, y: 425, size: 90 },
+    // Note author — centered below barcode
+    authorLine: { x: 310, y: 390 },
+    // Disposition text — right of barcode, inside comments box
+    disposition: { x: 401, y: 495, maxWidth: 270 },
+    // Clinic name
+    clinicName: { x: 370, y: 675, maxWidth: 270 },
+    // Algorithm title (e.g. "A-1 Sore Throat") — left of date
+    algorithmTitle: { x: 50, y: 710 },
+    // Note date (YYYYMMDD)
+    noteDate: { x: 370, y: 710 },
     // Font sizes
-    fontSize: { disposition: 10 },
+    fontSize: { disposition: 10, clinicName: 10, noteDate: 10, authorLine: 10, algorithmTitle: 10 },
 } as const;
 
 export interface DD689ExportParams {
@@ -19,6 +27,9 @@ export interface DD689ExportParams {
     dispositionType: string;
     dispositionText: string;
     symptomText: string;
+    clinicName?: string;
+    noteDate?: string;  // YYYYMMDD format
+    authorLine?: string; // e.g. "Conner, Christopher, D, PA-C, CPT"
 }
 
 /**
@@ -73,6 +84,17 @@ export async function generateDD689Pdf(params: DD689ExportParams): Promise<Uint8
         }
     }
 
+    // ── Draw author line below barcode ──
+    if (params.authorLine) {
+        page.drawText(params.authorLine, {
+            x: COORDS.authorLine.x,
+            y: COORDS.authorLine.y,
+            size: COORDS.fontSize.authorLine,
+            font: fontBold,
+            color: gray,
+        });
+    }
+
     // ── Draw disposition text ──
     const dispText = params.dispositionType
         ? `${params.dispositionType}${params.dispositionText ? ' — ' + params.dispositionText : ''}`
@@ -86,6 +108,39 @@ export async function generateDD689Pdf(params: DD689ExportParams): Promise<Uint8
             font: fontBold,
             color: gray,
             maxWidth: COORDS.disposition.maxWidth,
+        });
+    }
+
+    // ── Draw clinic name ──
+    if (params.clinicName) {
+        page.drawText(params.clinicName, {
+            x: COORDS.clinicName.x,
+            y: COORDS.clinicName.y,
+            size: COORDS.fontSize.clinicName,
+            font: fontBold,
+            color: gray,
+        });
+    }
+
+    // ── Draw algorithm title (left of date) ──
+    if (params.symptomText) {
+        page.drawText(params.symptomText, {
+            x: COORDS.algorithmTitle.x,
+            y: COORDS.algorithmTitle.y,
+            size: COORDS.fontSize.algorithmTitle,
+            font: fontBold,
+            color: gray,
+        });
+    }
+
+    // ── Draw note date (YYYYMMDD) ──
+    if (params.noteDate) {
+        page.drawText(params.noteDate, {
+            x: COORDS.noteDate.x,
+            y: COORDS.noteDate.y,
+            size: COORDS.fontSize.noteDate,
+            font: fontBold,
+            color: gray,
         });
     }
 

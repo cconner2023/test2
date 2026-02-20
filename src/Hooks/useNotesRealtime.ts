@@ -58,7 +58,7 @@ export interface NotesRealtimeDeps {
   realtimeClinicId: string | null;
   realtimeUserId: string | null;
   realtimeAuthenticated: boolean;
-  realtimeUics: string[];
+  realtimeVisibleClinicIds: string[];
   isPageVisible: boolean;
   isNotePanelOpen: boolean;
 }
@@ -71,7 +71,7 @@ export function useNotesRealtime(deps: NotesRealtimeDeps): void {
     realtimeClinicId,
     realtimeUserId,
     realtimeAuthenticated,
-    realtimeUics,
+    realtimeVisibleClinicIds,
     isPageVisible,
     isNotePanelOpen,
   } = deps;
@@ -98,7 +98,8 @@ export function useNotesRealtime(deps: NotesRealtimeDeps): void {
       idbSaveNote({
         id: note.id,
         user_id: userId,
-        clinic_id: null,
+        clinic_id: note.clinicId ?? null,
+        clinic_name: note.clinicName ?? null,
         timestamp: note.createdAt,
         display_name: note.authorName || null,
         rank: null,
@@ -137,7 +138,7 @@ export function useNotesRealtime(deps: NotesRealtimeDeps): void {
     clinicId: realtimeClinicId,
     userId: realtimeUserId,
     isAuthenticated: realtimeAuthenticated,
-    uics: realtimeUics,
+    visibleClinicIds: realtimeVisibleClinicIds,
     isPageVisible,
     isNotePanelOpen,
     onClinicUpsert: handleClinicUpsert,

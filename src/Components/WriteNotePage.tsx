@@ -5,6 +5,7 @@ import { useNoteCapture } from '../Hooks/useNoteCapture';
 import { useNoteShare } from '../Hooks/useNoteShare';
 import { useDD689Export } from '../Hooks/useDD689Export';
 import { useUserProfile } from '../Hooks/useUserProfile';
+import { useAuthStore } from '../stores/useAuthStore';
 import { usePageSwipe } from '../Hooks/usePageSwipe';
 import { formatSignature } from '../Utilities/NoteFormatter';
 import { getColorClasses } from '../Utilities/ColorUtilities';
@@ -81,6 +82,8 @@ export const WriteNotePage = ({
 }: WriteNoteProps) => {
     // Note content state — profile preferences provide defaults for new notes
     const { profile } = useUserProfile();
+    const authUserId = useAuthStore(s => s.user?.id);
+    const authClinicId = useAuthStore(s => s.clinicId);
     const defaultHPI = initialHpiText ? true : (profile.noteIncludeHPI ?? true);
     const defaultPE = initialPeText ? true : (profile.noteIncludePE ?? false);
 
@@ -199,13 +202,26 @@ export const WriteNotePage = ({
     // --- DD689 PDF export handler ---
     const handleExportDD689 = useCallback(() => {
         if (!encodedValue) return;
+        const dateStr = noteTimestamp
+            ? `${noteTimestamp.getFullYear()}${String(noteTimestamp.getMonth() + 1).padStart(2, '0')}${String(noteTimestamp.getDate()).padStart(2, '0')}`
+            : '';
+        const authorParts = [
+            profile.lastName,
+            profile.firstName,
+            profile.middleInitial,
+            profile.credential,
+            profile.rank,
+        ].filter(Boolean);
         exportDD689({
             encodedValue,
             dispositionType: disposition.type,
             dispositionText: disposition.text,
             symptomText: selectedSymptom?.text || 'Note',
+            clinicName: profile.clinicName || '',
+            noteDate: dateStr,
+            authorLine: authorParts.length ? authorParts.join(', ') : undefined,
         });
-    }, [encodedValue, disposition, selectedSymptom, exportDD689]);
+    }, [encodedValue, disposition, selectedSymptom, exportDD689, noteTimestamp, profile]);
 
     // --- Determine button state based on existing note ---
     const isAlreadySaved = Boolean(existingNoteId);
@@ -555,6 +571,8 @@ export const WriteNotePage = ({
                                                 customNote: includeHPI ? note : '',
                                                 physicalExamNote: includePhysicalExam ? peNote : '',
                                                 user: profile,
+                                                userId: authUserId,
+                                                clinicId: authClinicId ?? undefined,
                                             }}
                                             symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
                                             onEncodedValueChange={setEncodedValue}
@@ -580,11 +598,11 @@ export const WriteNotePage = ({
                     {currentPage < visiblePages.length - 1 ? (
                         <button
                             onClick={handleNext}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2 ${colors.buttonClass}`}
+                            className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2 ${colors.buttonClass}`}
                             aria-label="Next"
                         >
                             <span className="hidden md:inline text-sm font-medium">Next</span>
-                            <ChevronRight className="w-5 h-5" />
+                            <ChevronRight className="w-6 h-6" />
                         </button>
                     ) : (
                         <>
@@ -593,7 +611,7 @@ export const WriteNotePage = ({
                                 <button
                                     onClick={handleSaveNote}
                                     disabled={isSaved || !encodedValue}
-                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2
+                                    className={`w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2
                                         ${saveFailed
                                             ? 'bg-themeredred/15 text-themeredred'
                                             : isSaved
@@ -603,13 +621,13 @@ export const WriteNotePage = ({
                                     title={saveFailed ? 'Storage full' : isSaved ? 'Saved' : 'Save to My Notes'}
                                 >
                                     {saveFailed ? (
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                         </svg>
                                     ) : isSaved ? (
-                                        <Check className="w-5 h-5" />
+                                        <Check className="w-6 h-6" />
                                     ) : (
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                                         </svg>
                                     )}
@@ -624,7 +642,7 @@ export const WriteNotePage = ({
                                 <button
                                     onClick={handleUpdateNote}
                                     disabled={isSaved || !encodedValue}
-                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2
+                                    className={`w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2
                                         ${isSaved
                                             ? 'bg-green-500/15 text-green-600 dark:text-green-300'
                                             : 'bg-themeblue3/10 text-themeblue3 hover:bg-themeblue3/20'
@@ -632,9 +650,9 @@ export const WriteNotePage = ({
                                     title={isSaved ? 'Changes saved' : 'Save changes'}
                                 >
                                     {isSaved ? (
-                                        <Check className="w-5 h-5" />
+                                        <Check className="w-6 h-6" />
                                     ) : (
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                                         </svg>
                                     )}
@@ -649,7 +667,7 @@ export const WriteNotePage = ({
                                 <button
                                     onClick={handleDeleteNote}
                                     disabled={isDeleted}
-                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2
+                                    className={`w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2
                                         ${isDeleted
                                             ? 'bg-themeredred/15 text-themeredred'
                                             : confirmDelete
@@ -659,9 +677,9 @@ export const WriteNotePage = ({
                                     title={confirmDelete ? 'Tap again to confirm' : 'Delete note'}
                                 >
                                     {isDeleted ? (
-                                        <Check className="w-5 h-5" />
+                                        <Check className="w-6 h-6" />
                                     ) : (
-                                        <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                         </svg>
                                     )}

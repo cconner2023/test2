@@ -1,10 +1,17 @@
 // components/NoteImport.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Camera, ScanLine } from 'lucide-react';
+import { X, Camera, ScanLine, User, Building2, Clock } from 'lucide-react';
+import bwipjs from 'bwip-js';
 import { TextButton } from './TextButton';
 import { BaseDrawer } from './BaseDrawer';
+import { ActionIconButton } from './WriteNoteHelpers';
 import { useNoteImport } from '../Hooks/useNoteImport';
+import type { ImportPreview } from '../Hooks/useNoteImport';
+import { useNoteShare } from '../Hooks/useNoteShare';
+import { useClinicName } from '../Hooks/useClinicNameResolver';
 import { useBarcodeScanner } from '../Hooks/useBarcodeScanner';
+import { getColorClasses } from '../Utilities/ColorUtilities';
+import { logError } from '../Utilities/ErrorHandler';
 import { UI_TIMING } from '../Utilities/constants';
 
 export type ViewState = 'input' | 'decoded' | 'scanning';
@@ -12,6 +19,7 @@ export type ViewState = 'input' | 'decoded' | 'scanning';
 export interface ImportSuccessData {
     encodedText: string;
     decodedText: string;
+    preview: ImportPreview;
 }
 
 interface NoteImportProps {
@@ -19,38 +27,93 @@ interface NoteImportProps {
     onClose: () => void;
     initialViewState?: ViewState;
     onImportSuccess?: (data: ImportSuccessData) => void;
+    isMobile?: boolean;
 }
 
 // Content state interface for lifting state up
 interface ContentState {
     viewState: ViewState;
     inputText: string;
-    decodedText: string;
+    preview: ImportPreview | null;
     scanError: string;
-    isCopied: boolean;
+    copiedTarget: 'preview' | 'encoded' | null;
+}
+
+/** Format a Date into military DTG format: DDHHmmMONYYYY (e.g. "122148FEB2026") */
+function formatMilitaryDTG(date: Date): string {
+    const day = date.getDate().toString().padStart(2, '0');
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+    const year = date.getFullYear();
+    return `${day}${hours}${minutes}${month}${year}`;
+}
+
+/** Renders a static Data Matrix barcode from an already-encoded string. */
+function StaticBarcode({ encodedText }: { encodedText: string }) {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        if (!canvasRef.current || !encodedText) return;
+        try {
+            bwipjs.toCanvas(canvasRef.current, {
+                bcid: 'datamatrix',
+                text: encodedText,
+                scale: 2,
+                padding: 3,
+            });
+        } catch (e) {
+            logError('NoteImport.StaticBarcode', e);
+        }
+    }, [encodedText]);
+
+    const isLong = encodedText.length > 300;
+
+    return (
+        <div className="p-2 bg-themewhite2">
+            <div className={`flex ${isLong ? 'flex-col items-center gap-3' : 'flex-row items-start gap-3'}`}>
+                <div className={`shrink-0 ${isLong ? 'flex justify-center' : ''}`}>
+                    <canvas
+                        ref={canvasRef}
+                        className="border border-gray-300 bg-white rounded-md"
+                        style={{ maxWidth: '120px', height: 'auto' }}
+                    />
+                </div>
+                <div className={`text-secondary ${isLong ? 'w-full' : 'flex-1 min-w-0'}`}>
+                    <code className="text-xs break-all bg-themewhite3 p-2 rounded block max-h-24 overflow-y-auto">
+                        {encodedText}
+                    </code>
+                </div>
+            </div>
+        </div>
+    );
 }
 
 // Shared content component - receives state from parent to persist across layout changes
 const NoteImportContent = ({
     state,
     setState,
-    onImportSuccess
+    onImportSuccess,
+    isMobile = false,
 }: {
     state: ContentState;
     setState: React.Dispatch<React.SetStateAction<ContentState>>;
     onImportSuccess?: (data: ImportSuccessData) => void;
+    isMobile?: boolean;
 }) => {
     const inputRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
 
     const { importFromBarcode } = useNoteImport();
+    const { shareNote, shareStatus } = useNoteShare();
+    const clinicName = useClinicName(state.preview?.clinicId ?? null);
     const { isScanning, error: scannerError, result: scanResult, startScanning, stopScanning, clearResult } = useBarcodeScanner();
 
     // Shared decode logic
     const decodeBarcode = useCallback((text: string) => {
         try {
-            const importedNote = importFromBarcode(text);
-            setState(prev => ({ ...prev, decodedText: importedNote, viewState: 'decoded' }));
+            const preview = importFromBarcode(text);
+            setState(prev => ({ ...prev, preview, viewState: 'decoded' }));
         } catch (error: any) {
             setState(prev => ({ ...prev, scanError: error.message || 'Failed to decode barcode' }));
         }
@@ -88,12 +151,16 @@ const NoteImportContent = ({
         setState(prev => ({ ...prev, viewState: 'input' }));
     };
 
+    // Copy feedback auto-revert
     useEffect(() => {
-        if (state.isCopied) {
-            const timeoutId = window.setTimeout(() => setState(prev => ({ ...prev, isCopied: false })), UI_TIMING.COPY_FEEDBACK);
+        if (state.copiedTarget) {
+            const timeoutId = window.setTimeout(
+                () => setState(prev => ({ ...prev, copiedTarget: null })),
+                UI_TIMING.COPY_FEEDBACK,
+            );
             return () => clearTimeout(timeoutId);
         }
-    }, [state.isCopied, setState]);
+    }, [state.copiedTarget, setState]);
 
     useEffect(() => {
         if (state.scanError && state.inputText) {
@@ -109,17 +176,35 @@ const NoteImportContent = ({
         decodeBarcode(state.inputText);
     };
 
-    const handleBack = () => {
-        setState(prev => ({ ...prev, viewState: 'input', scanError: '' }));
-    };
+    const handleCopy = useCallback((text: string, target: 'preview' | 'encoded') => {
+        navigator.clipboard.writeText(text);
+        setState(prev => ({ ...prev, copiedTarget: target }));
+    }, [setState]);
 
-    const handleCopyText = () => {
-        navigator.clipboard.writeText(state.decodedText);
-        setState(prev => ({ ...prev, isCopied: true }));
-    };
+    const handleShare = useCallback(() => {
+        if (!state.preview) return;
+        shareNote({
+            id: '',
+            encodedText: state.preview.encodedText,
+            createdAt: state.preview.timestamp?.toISOString() || new Date().toISOString(),
+            symptomIcon: state.preview.symptomIcon,
+            symptomText: state.preview.symptomText,
+            dispositionType: state.preview.dispositionType,
+            dispositionText: state.preview.dispositionText,
+            previewText: state.preview.fullNote.slice(0, 200),
+            sync_status: 'synced',
+            authorId: '',
+            authorName: null,
+        }, isMobile);
+    }, [state.preview, shareNote, isMobile]);
+
+    // Disposition badge colors
+    const preview = state.preview;
+    const colors = preview ? getColorClasses(preview.dispositionType as any) : null;
 
     return (
-        <div className="overflow-y-auto h-full">
+        <div className="flex flex-col h-full">
+            {/* ── Input view ────────────────────────────────── */}
             {state.viewState === 'input' && (
                 <div className="flex flex-col p-4 md:p-6 h-max min-h-20">
                     <div className="mb-4 relative">
@@ -169,6 +254,7 @@ const NoteImportContent = ({
                 </div>
             )}
 
+            {/* ── Scanning view ────────────────────────────── */}
             {state.viewState === 'scanning' && (
                 <div className="flex flex-col p-4 md:p-6 h-max min-h-60">
                     <div className="relative rounded-xl overflow-hidden bg-black aspect-video mb-4">
@@ -200,67 +286,123 @@ const NoteImportContent = ({
                 </div>
             )}
 
-            {state.viewState === 'decoded' && (
-                <div className="flex flex-col p-4 md:p-6 min-h-20 h-max relative">
-                    {state.isCopied && (
-                        <div className="absolute inset-x-0 top-0 flex justify-center pointer-events-none z-10">
-                            <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-themeblue2 text-white shadow-lg">
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="text-sm font-medium">Copied to Clipboard</span>
+            {/* ── Decoded review view ──────────────────────── */}
+            {state.viewState === 'decoded' && preview && (
+                <>
+                    {/* Overview header info */}
+                    <div className="px-4 md:px-6 pt-3 pb-2 border-b border-tertiary/10 bg-themewhite2">
+                        {/* Symptom + disposition badge */}
+                        <div className="flex items-center gap-2 flex-wrap mb-2">
+                            <span className="text-sm font-medium text-primary">
+                                {preview.symptomText}
+                            </span>
+                            {preview.dispositionType && colors && (
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${colors.badgeBg} ${colors.badgeText}`}>
+                                    {preview.dispositionType}
+                                    {preview.dispositionText ? ` — ${preview.dispositionText}` : ''}
+                                </span>
+                            )}
+                        </div>
+                        {/* Metadata row */}
+                        <div className="flex items-center gap-3 text-xs text-tertiary flex-wrap">
+                            {preview.timestamp && (
+                                <span className="flex items-center gap-1">
+                                    <Clock size={12} className="shrink-0" />
+                                    {formatMilitaryDTG(preview.timestamp)}
+                                </span>
+                            )}
+                            <span className="flex items-center gap-1">
+                                <User size={12} className="shrink-0" />
+                                {preview.authorLabel}
+                            </span>
+                            <span className="flex items-center gap-1">
+                                <Building2 size={12} className="shrink-0" />
+                                {clinicName || (preview.clinicId ? 'Loading...' : 'Unknown')}
+                            </span>
+                        </div>
+                    </div>
+
+                    {/* Scrollable two-box content */}
+                    <div className={`flex-1 overflow-y-auto p-4 md:p-6 bg-themewhite2 ${isMobile ? 'pb-24' : ''}`}>
+                        <div className="space-y-4">
+                            {/* Box 1: Note Preview */}
+                            <div>
+                                <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
+                                    <span className="font-medium">Note Preview</span>
+                                    <ActionIconButton
+                                        onClick={() => handleCopy(preview.fullNote, 'preview')}
+                                        status={state.copiedTarget === 'preview' ? 'done' : 'idle'}
+                                        variant="copy"
+                                        title="Copy note text"
+                                    />
+                                </div>
+                                <div className="p-3 rounded-b-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto border border-themegray1/15">
+                                    {preview.fullNote || "No content"}
+                                </div>
+                            </div>
+
+                            {/* Box 2: Encoded Note / Barcode */}
+                            <div>
+                                <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
+                                    <span className="font-medium">Encoded Note</span>
+                                    <div className="flex items-center gap-1">
+                                        <ActionIconButton
+                                            onClick={() => handleCopy(preview.encodedText, 'encoded')}
+                                            status={state.copiedTarget === 'encoded' ? 'done' : 'idle'}
+                                            variant="copy"
+                                            title="Copy encoded text"
+                                        />
+                                        <ActionIconButton
+                                            onClick={handleShare}
+                                            status={shareStatus === 'shared' || shareStatus === 'copied' ? 'done'
+                                                : shareStatus === 'generating' || shareStatus === 'sharing' ? 'busy'
+                                                    : 'idle'}
+                                            variant="share"
+                                            title="Share note as image"
+                                        />
+                                    </div>
+                                </div>
+                                <div className="mt-1">
+                                    <StaticBarcode encodedText={preview.encodedText} />
+                                </div>
                             </div>
                         </div>
-                    )}
-                    <div className="mb-4 relative">
-                        <div className="w-full h-max p-3 rounded-md border border-themegray1/20 bg-themewhite3 text-tertiary text-sm whitespace-pre-wrap wrap-break-word overflow-y-auto max-h-96">
-                            {state.decodedText || "No decoded text available"}
-                        </div>
-                        <button
-                            onClick={handleCopyText}
-                            className="absolute top-3 right-3 p-2 text-tertiary hover:text-primary transition-colors"
-                            title="Copy note to clipboard"
-                        >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                        </button>
                     </div>
-                    <div className="flex items-center justify-between gap-3 mt-4">
-                        <TextButton
-                            text="← Back"
-                            onClick={handleBack}
-                            variant='dispo-specific'
-                            className='bg-themewhite2 text-secondary rounded-full'
-                        />
-                        {onImportSuccess && (
+
+                    {/* Footer: Import Note button */}
+                    {onImportSuccess && (
+                        <div
+                            className={`shrink-0 flex justify-end px-4 md:px-6 ${isMobile ? 'pt-3 pb-4' : 'py-3'} border-t border-tertiary/10 bg-themewhite2`}
+                            style={isMobile ? { paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom, 0px) + 1rem))' } : {}}
+                        >
                             <TextButton
                                 text="Import Note"
                                 onClick={() => {
                                     onImportSuccess({
                                         encodedText: state.inputText,
-                                        decodedText: state.decodedText
+                                        decodedText: preview.fullNote,
+                                        preview,
                                     });
                                 }}
                                 variant='dispo-specific'
                                 className='bg-themeblue3 text-white rounded-full'
                             />
-                        )}
-                    </div>
-                </div>
+                        </div>
+                    )}
+                </>
             )}
         </div>
     );
 };
 
-export function NoteImport({ isVisible, onClose, initialViewState, onImportSuccess }: NoteImportProps) {
+export function NoteImport({ isVisible, onClose, initialViewState, onImportSuccess, isMobile }: NoteImportProps) {
     // Lifted content state - persists across mobile/desktop layout changes
     const [contentState, setContentState] = useState<ContentState>({
         viewState: initialViewState || 'input',
         inputText: '',
-        decodedText: '',
+        preview: null,
         scanError: '',
-        isCopied: false
+        copiedTarget: null,
     });
 
     // Reset content state when opening
@@ -269,28 +411,39 @@ export function NoteImport({ isVisible, onClose, initialViewState, onImportSucce
             setContentState({
                 viewState: initialViewState || 'input',
                 inputText: '',
-                decodedText: '',
+                preview: null,
                 scanError: '',
-                isCopied: false
+                copiedTarget: null,
             });
         }
     }, [isVisible, initialViewState]);
 
-    const title = contentState.viewState === 'decoded' ? 'Screening Note'
+    const isDecoded = contentState.viewState === 'decoded';
+
+    const title = isDecoded ? 'Screening Note'
         : contentState.viewState === 'scanning' ? 'Scan Barcode'
             : 'Import Note';
+
+    const handleBack = useCallback(() => {
+        setContentState(prev => ({ ...prev, viewState: 'input', scanError: '', preview: null }));
+    }, []);
 
     return (
         <BaseDrawer
             isVisible={isVisible}
             onClose={onClose}
             fullHeight="90dvh"
-            header={{ title }}
+            header={{
+                title,
+                showBack: isDecoded,
+                onBack: isDecoded ? handleBack : undefined,
+            }}
         >
             <NoteImportContent
                 state={contentState}
                 setState={setContentState}
                 onImportSuccess={onImportSuccess}
+                isMobile={isMobile}
             />
         </BaseDrawer>
     );

@@ -4,19 +4,34 @@
 
 import { useCallback } from 'react';
 import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../Utilities/NoteCodec';
-import { assembleNote } from '../Utilities/NoteFormatter';
+import type { ParsedNote } from '../Utilities/NoteCodec';
+import { assembleNote, formatSignature } from '../Utilities/NoteFormatter';
 
-/** Provides importFromBarcode: decodes a barcode string, reconstructs algorithm state, and returns readable note text. */
+export interface ImportPreview {
+    fullNote: string;
+    parsed: ParsedNote;
+    symptomText: string;
+    symptomIcon: string;
+    dispositionType: string;
+    dispositionText: string;
+    authorLabel: string;
+    clinicId: string | null;
+    userId: string | null;
+    timestamp: Date | null;
+    encodedText: string;
+}
+
+/** Provides importFromBarcode: decodes a barcode string, reconstructs algorithm state, and returns an ImportPreview. */
 export const useNoteImport = () => {
-    const importFromBarcode = useCallback((barcodeString: string): string => {
+    const importFromBarcode = useCallback((barcodeString: string): ImportPreview => {
         // 1. Parse barcode
         const parsed = parseNoteEncoding(barcodeString);
-        if (!parsed) return 'Error: Could not parse barcode string';
+        if (!parsed) throw new Error('Could not parse barcode string');
 
         // 2. Find algorithm options
         const algorithmOptions = findAlgorithmByCode(parsed.symptomCode);
         if (!algorithmOptions?.length) {
-            return `Error: Algorithm ${parsed.symptomCode} not found`;
+            throw new Error(`Algorithm ${parsed.symptomCode} not found`);
         }
 
         // 3. Reconstruct card states from encoded data
@@ -29,7 +44,6 @@ export const useNoteImport = () => {
             : undefined;
 
         // 5. Assemble the note using shared formatter
-        //    Uses barcode timestamp if present, otherwise falls back to current time
         const result = assembleNote(
             {
                 includeAlgorithm: parsed.flags.includeAlgorithm,
@@ -45,7 +59,24 @@ export const useNoteImport = () => {
             parsed.timestamp,
         );
 
-        return result.fullNote;
+        // 6. Build author label from parsed user
+        const authorLabel = parsed.user
+            ? formatSignature(parsed.user) || 'Unknown'
+            : 'Unknown';
+
+        return {
+            fullNote: result.fullNote,
+            parsed,
+            symptomText: selectedSymptom?.text || parsed.symptomCode,
+            symptomIcon: selectedSymptom?.icon || parsed.symptomCode,
+            dispositionType: disposition?.type ?? '',
+            dispositionText: disposition?.text ?? '',
+            authorLabel,
+            clinicId: parsed.clinicId,
+            userId: parsed.userId,
+            timestamp: parsed.timestamp,
+            encodedText: barcodeString,
+        };
     }, []);
 
     return { importFromBarcode };

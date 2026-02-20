@@ -33,10 +33,6 @@ const formatDate = (isoStr: string) => {
 /* ────────────────────────────────────────────────────────────
    Utility: group notes by date (newest first), sort by acuity within each group
    ──────────────────────────────────────────────────────────── */
-const ACUITY_ORDER: Record<string, number> = {
-    'CAT I': 0, 'CAT II': 1, 'CAT III': 2, 'CAT IV': 3, 'OTHER': 4,
-};
-
 function formatDateHeader(isoStr: string): string {
     try {
         const date = new Date(isoStr);
@@ -49,7 +45,7 @@ function formatDateHeader(isoStr: string): string {
     }
 }
 
-function groupAndSortNotes(notes: SavedNote[]): { key: string; label: string; notes: SavedNote[] }[] {
+function groupAndSortNotes(notes: SavedNote[], userClinicName?: string): { key: string; label: string; notes: SavedNote[] }[] {
     const groups = new Map<string, { label: string; notes: SavedNote[] }>();
     for (const note of notes) {
         const d = new Date(note.createdAt);
@@ -59,54 +55,26 @@ function groupAndSortNotes(notes: SavedNote[]): { key: string; label: string; no
         }
         groups.get(key)!.notes.push(note);
     }
+    // Within each date group: sort by time (newest first),
+    // then by clinic (current user's clinic first as tiebreaker)
     for (const group of groups.values()) {
-        group.notes.sort((a, b) => (ACUITY_ORDER[a.dispositionType] ?? 5) - (ACUITY_ORDER[b.dispositionType] ?? 5));
+        group.notes.sort((a, b) => {
+            const timeDiff = new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+            if (timeDiff !== 0) return timeDiff;
+            // Tiebreaker: current user's clinic sorts first
+            if (userClinicName) {
+                const aOwn = a.clinicName === userClinicName ? 0 : 1;
+                const bOwn = b.clinicName === userClinicName ? 0 : 1;
+                return aOwn - bOwn;
+            }
+            return 0;
+        });
     }
     return Array.from(groups.entries())
         .sort(([a], [b]) => b.localeCompare(a))
         .map(([key, { label, notes }]) => ({ key, label, notes }));
 }
 
-type SortMode = 'date' | 'clinic' | 'category';
-
-function groupByClinic(notes: SavedNote[]): { key: string; label: string; notes: SavedNote[] }[] {
-    const groups = new Map<string, { label: string; notes: SavedNote[] }>();
-    for (const note of notes) {
-        const key = note.clinicName || 'Unknown Clinic';
-        if (!groups.has(key)) {
-            groups.set(key, { label: key, notes: [] });
-        }
-        groups.get(key)!.notes.push(note);
-    }
-    // Sort notes within each group by date (newest first)
-    for (const group of groups.values()) {
-        group.notes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }
-    return Array.from(groups.entries())
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, { label, notes }]) => ({ key, label, notes }));
-}
-
-function groupByCategory(notes: SavedNote[]): { key: string; label: string; notes: SavedNote[] }[] {
-    const ORDER: Record<string, number> = {
-        'CAT I': 0, 'CAT II': 1, 'CAT III': 2, 'CAT IV': 3, 'OTHER': 4,
-    };
-    const groups = new Map<string, { label: string; notes: SavedNote[] }>();
-    for (const note of notes) {
-        const key = note.dispositionType || 'OTHER';
-        if (!groups.has(key)) {
-            groups.set(key, { label: key, notes: [] });
-        }
-        groups.get(key)!.notes.push(note);
-    }
-    // Sort notes within each group by date (newest first)
-    for (const group of groups.values()) {
-        group.notes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    }
-    return Array.from(groups.entries())
-        .sort(([a], [b]) => (ORDER[a] ?? 5) - (ORDER[b] ?? 5))
-        .map(([key, { label, notes }]) => ({ key, label, notes }));
-}
 
 /* ────────────────────────────────────────────────────────────
    NoteSyncBadge — Compact inline badge showing sync status and author.
@@ -159,7 +127,7 @@ const NoteItemContent = ({ note, isSelected, authorLabel, clinicName }: { note: 
     <div className="flex items-center gap-3 px-3 py-3">
         {isSelected && (
             <div className="shrink-0">
-                <CheckSquare size={18} className="text-themeblue3" />
+                <CheckSquare size={20} className="text-themeblue3" />
             </div>
         )}
         <div className="flex-1 min-w-0">
@@ -209,10 +177,10 @@ const ActionCircle = ({
         className="flex flex-col items-center justify-center gap-1 active:scale-95 transition-transform"
         aria-label={ariaLabel || label}
     >
-        <div className={`w-9 h-9 rounded-full flex items-center justify-center ${bgClass}`}>
+        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${bgClass}`}>
             {icon}
         </div>
-        <span className={`text-[9px] ${textClass ?? 'font-normal text-themeyellowlow'}`}>{label}</span>
+        <span className={`text-[10px] ${textClass ?? 'font-normal text-themeyellowlow'}`}>{label}</span>
     </button>
 );
 
@@ -223,8 +191,8 @@ const ActionCircle = ({
    Swipe left  → reveals Delete (right side).
    Tap → toggles selection.
    ──────────────────────────────────────────────────────────── */
-const SNAP_LEFT = 140;
-const SNAP_RIGHT = 70;
+const SNAP_LEFT = 148;
+const SNAP_RIGHT = 72;
 const SWIPE_THRESHOLD = 60;
 
 const SwipeableNoteItem = ({
@@ -351,7 +319,7 @@ const SwipeableNoteItem = ({
                 >
                     <animated.div style={actionStyle(leftActionSpring)}>
                         <ActionCircle
-                            icon={<Eye size={16} className="text-themeyellow" />}
+                            icon={<Eye size={18} className="text-themeyellow" />}
                             label="View"
                             bgClass="bg-themeyellow/10"
                             onClick={(e) => { e.stopPropagation(); onView(note); closeSwipe(); }}
@@ -360,7 +328,7 @@ const SwipeableNoteItem = ({
                     </animated.div>
                     <animated.div style={actionStyle(leftActionSpring)}>
                         <ActionCircle
-                            icon={<ClipboardCopy size={16} className="text-themegreen" />}
+                            icon={<ClipboardCopy size={18} className="text-themegreen" />}
                             label={copyLabel ?? 'Copy'}
                             bgClass="bg-themegreen/10"
                             textClass={copyLabel === 'Copied!' ? 'font-normal text-themegreen' : 'text-themegreen'}
@@ -370,7 +338,7 @@ const SwipeableNoteItem = ({
                     </animated.div>
                     <animated.div style={actionStyle(leftActionSpring)}>
                         <ActionCircle
-                            icon={<Share2 size={16} className="text-themeblue2" />}
+                            icon={<Share2 size={18} className="text-themeblue2" />}
                             label={shareLabel ?? 'Share'}
                             bgClass="bg-themeblue2/15"
                             textClass={shareLabel === 'Shared!' || shareLabel === 'Copied!' ? 'font-normal text-themeblue2' : 'text-themeblue2'}
@@ -389,7 +357,7 @@ const SwipeableNoteItem = ({
                 >
                     <animated.div style={actionStyle(rightActionSpring)}>
                         <ActionCircle
-                            icon={<Trash2 size={16} className="text-themeredred" />}
+                            icon={<Trash2 size={18} className="text-themeredred" />}
                             label={confirmDelete ? 'Confirm' : 'Delete'}
                             bgClass={confirmDelete ? 'bg-themeredred/40' : 'bg-themeredred/15'}
                             textClass={confirmDelete ? 'font-medium text-themeredred' : 'font-medium text-themeredred/60'}
@@ -427,7 +395,7 @@ const SwipeableNoteItem = ({
                 <div className="flex items-center gap-3 px-3 py-3">
                     {isSelected && (
                         <div className="shrink-0">
-                            <CheckSquare size={18} className="text-themeblue3" />
+                            <CheckSquare size={20} className="text-themeblue3" />
                         </div>
                     )}
                     <div className="flex-1 min-w-0">
@@ -512,6 +480,9 @@ export const MyNotesPanel = ({
     onCloseDrawer: () => void;
     initialSelectedId?: string | null;
 }) => {
+    const { profile } = useUserProfile();
+    const userClinicName = profile.clinicName;
+
     // Merge personal and clinic notes into a single deduplicated list.
     // Deduplication by note ID with last-write-wins: if the same note
     // appears in both local and clinic lists (e.g., during a sync race),
@@ -573,17 +544,9 @@ export const MyNotesPanel = ({
     // Shared state
     const [copiedStatus, setCopiedStatus] = useState(false);
     const { shareNote, shareStatus } = useNoteShare();
-    const { profile } = useUserProfile();
-    const [sortMode, setSortMode] = useState<SortMode>('date');
 
-    // Sort notes using the selected grouping strategy
-    const groupedNotes = useMemo(() => {
-        switch (sortMode) {
-            case 'clinic': return groupByClinic(displayNotes);
-            case 'category': return groupByCategory(displayNotes);
-            default: return groupAndSortNotes(displayNotes);
-        }
-    }, [displayNotes, sortMode]);
+    // Group by date, sort by time (newest first), current clinic first as tiebreaker
+    const groupedNotes = useMemo(() => groupAndSortNotes(displayNotes, userClinicName), [displayNotes, userClinicName]);
 
     // Determine which notes belong to the current user (any origination)
     const ownNoteIds = useMemo(() => {
@@ -739,26 +702,9 @@ export const MyNotesPanel = ({
                 ) : isMobile ? (
                     /* Mobile: swipe gestures + tap to select */
                     <div className="px-4 py-3 md:p-5">
-                        <div className="flex items-center justify-between mb-2">
-                            <p className="text-[10px] text-tertiary/40">
-                                Swipe for actions · Tap to select
-                            </p>
-                            <div className="flex items-center gap-0.5 bg-themewhite3 rounded-full p-0.5">
-                                {(['date', 'clinic', 'category'] as SortMode[]).map((mode) => (
-                                    <button
-                                        key={mode}
-                                        onClick={() => setSortMode(mode)}
-                                        className={`text-[9px] px-2 py-0.5 rounded-full transition-colors ${
-                                            sortMode === mode
-                                                ? 'bg-themewhite text-primary font-medium shadow-sm'
-                                                : 'text-tertiary/60 hover:text-tertiary'
-                                        }`}
-                                    >
-                                        {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                        <p className="text-[10px] text-tertiary/40 text-center mb-2">
+                            Swipe for actions · Tap to select
+                        </p>
                         {groupedNotes.map((group, idx) => (
                             <div key={group.key}>
                                 <p className={`text-[10px] font-medium text-tertiary/50 uppercase tracking-wider px-1 pb-1 ${idx === 0 ? 'pt-1' : 'pt-4'}`}>
@@ -786,26 +732,9 @@ export const MyNotesPanel = ({
                 ) : (
                     /* Desktop: checkbox selection + bottom action bar */
                     <div className="px-4 py-3 md:p-5">
-                        <div className="flex items-center justify-between mb-2">
-                            <p className="text-[10px] text-tertiary/40">
-                                Tap to select · Multi-select for bulk actions
-                            </p>
-                            <div className="flex items-center gap-0.5 bg-themewhite3 rounded-full p-0.5">
-                                {(['date', 'clinic', 'category'] as SortMode[]).map((mode) => (
-                                    <button
-                                        key={mode}
-                                        onClick={() => setSortMode(mode)}
-                                        className={`text-[9px] px-2 py-0.5 rounded-full transition-colors ${
-                                            sortMode === mode
-                                                ? 'bg-themewhite text-primary font-medium shadow-sm'
-                                                : 'text-tertiary/60 hover:text-tertiary'
-                                        }`}
-                                    >
-                                        {mode.charAt(0).toUpperCase() + mode.slice(1)}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
+                        <p className="text-[10px] text-tertiary/40 text-center mb-2">
+                            Tap to select · Multi-select for bulk actions
+                        </p>
                         {groupedNotes.map((group, idx) => (
                             <div key={group.key}>
                                 <p className={`text-[10px] font-medium text-tertiary/50 uppercase tracking-wider px-1 pb-1 ${idx === 0 ? 'pt-1' : 'pt-4'}`}>
@@ -851,14 +780,14 @@ export const MyNotesPanel = ({
                         {isSingleSelect && singleNote && (
                             <div className="flex items-center justify-center gap-4">
                                 <ActionCircle
-                                    icon={<Eye size={16} className="text-themeyellow" />}
+                                    icon={<Eye size={18} className="text-themeyellow" />}
                                     label="View"
                                     bgClass="bg-themeyellow/10"
                                     onClick={() => handleSingleView(singleNote)}
                                     ariaLabel="View note in algorithm"
                                 />
                                 <ActionCircle
-                                    icon={<ClipboardCopy size={16} className="text-themegreen" />}
+                                    icon={<ClipboardCopy size={18} className="text-themegreen" />}
                                     label={copyLabel}
                                     bgClass="bg-themegreen/10"
                                     textClass={copiedStatus ? 'font-normal text-themegreen' : 'text-themegreen'}
@@ -866,7 +795,7 @@ export const MyNotesPanel = ({
                                     ariaLabel="Copy encoded text"
                                 />
                                 <ActionCircle
-                                    icon={<Share2 size={16} className="text-themeblue2" />}
+                                    icon={<Share2 size={18} className="text-themeblue2" />}
                                     label={shareLabel}
                                     bgClass="bg-themeblue2/15"
                                     textClass={shareStatus === 'shared' || shareStatus === 'copied' ? 'font-normal text-themeblue2' : 'text-themeblue2'}
@@ -874,7 +803,7 @@ export const MyNotesPanel = ({
                                     ariaLabel="Share note as image"
                                 />
                                 <ActionCircle
-                                    icon={<Trash2 size={16} className="text-themeredred" />}
+                                    icon={<Trash2 size={18} className="text-themeredred" />}
                                     label={confirmDelete ? 'Confirm' : 'Delete'}
                                     bgClass={confirmDelete ? 'bg-themeredred/40' : 'bg-themeredred/15'}
                                     textClass={confirmDelete ? 'font-medium text-themeredred' : 'font-medium text-themeredred/60'}
@@ -887,7 +816,7 @@ export const MyNotesPanel = ({
                         {isMultiSelect && (
                             <div className="flex items-center justify-center gap-4">
                                 <ActionCircle
-                                    icon={<Trash2 size={16} className="text-white" />}
+                                    icon={<Trash2 size={18} className="text-white" />}
                                     label={confirmDelete ? `Confirm (${selectedCount})` : `Delete (${selectedCount})`}
                                     bgClass="bg-themeredred"
                                     textClass="font-medium text-themeredred"

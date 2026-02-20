@@ -15,6 +15,8 @@ interface NoteBarcodeGeneratorProps {
         customNote: string;
         physicalExamNote?: string;
         user?: UserTypes;
+        userId?: string;
+        clinicId?: string;
     };
     symptomCode?: string;
     onEncodedValueChange?: (value: string) => void;
@@ -34,7 +36,7 @@ export function NoteBarcodeGenerator({
 
     const compactString = useMemo(() =>
         encodeNoteState(algorithmOptions, cardStates, noteOptions, symptomCode),
-        [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.includeDecisionMaking, noteOptions.customNote, noteOptions.physicalExamNote, noteOptions.user, symptomCode]
+        [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.includeDecisionMaking, noteOptions.customNote, noteOptions.physicalExamNote, noteOptions.user, noteOptions.userId, noteOptions.clinicId, symptomCode]
     );
 
     // Update state and notify parent when encoded value changes

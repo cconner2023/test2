@@ -58,8 +58,8 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
     const shouldShowInfoButton = isMobile && isAlgorithmView && !isSearchExpanded;
     // Menu spring: container expansion
     const containerSpring = useSpring({
-        width: isMenuOpen ? 224 : 44,
-        height: isMenuOpen ? menuData.length * 48 + 24 : 44,
+        width: isMenuOpen ? 224 : 48,
+        height: isMenuOpen ? menuData.length * 48 + 24 : 48,
         borderRadius: isMenuOpen ? 6 : 22,
         padTop: isMenuOpen ? 12 : 2,
         padBottom: isMenuOpen ? 12 : 2,
@@ -164,7 +164,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
     // Button style constants - iOS standard tap target is 44px (w-11 h-11)
     const BUTTON_CLASSES = {
         mobileContainer: "rounded-full border border-tertiary/20 flex items-center p-0.5 bg-themewhite",
-        mobileButton: "w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200",
+        mobileButton: "w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200",
         desktop: "h-8 flex items-center justify-center px-3 lg:px-4 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
     };
 
@@ -176,8 +176,8 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                     {/* Mobile: Back + Menu button crossfade */}
                     {isMobile && (
                         <div className="relative">
-                            {/* Invisible spacer to maintain navbar layout - 44px to match button */}
-                            <div className="w-11 h-11" />
+                            {/* Invisible spacer to maintain navbar layout - 48px to match button */}
+                            <div className="w-12 h-12" />
 
                             {/* Back button - slides in from right, out to right */}
                             <animated.div
@@ -195,7 +195,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                         aria-label="Go back"
                                         title="Go back"
                                     >
-                                        <ChevronLeft className="w-5 h-5 stroke-current" />
+                                        <ChevronLeft className="w-6 h-6 stroke-current" />
                                     </button>
                                 </div>
                             </animated.div>
@@ -222,7 +222,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                 <div className="absolute inset-0 rounded-inherit pointer-events-none border border-tertiary/15" />
                                 {/* Menu button - avatar on mobile, fades in with right-to-left slide */}
                                 <animated.div
-                                    className="absolute top-0.5 left-0.5 w-10 h-10 flex items-center justify-center z-20"
+                                    className="absolute top-0.5 left-0.5 w-11 h-11 flex items-center justify-center z-20"
                                     style={{
                                         opacity: buttonSpring.opacity,
                                         transform: to([buttonSpring.x, buttonSpring.scale], (x, s) => `translateX(${x}px) scale(${s})`),
@@ -231,7 +231,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                 >
                                     <button
                                         onClick={onMenuClick}
-                                        className="w-10 h-10 rounded-full flex items-center justify-center active:scale-95 transition-transform overflow-hidden"
+                                        className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform overflow-hidden"
                                         aria-label="Open menu"
                                     >
                                         {ui.mobileAvatar ? (
@@ -247,7 +247,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                                 </div>
                                             )
                                         ) : (
-                                            <Menu className="w-5 h-5 stroke-current" />
+                                            <Menu className="w-6 h-6 stroke-current" />
                                         )}
                                     </button>
                                 </animated.div>
@@ -414,7 +414,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                             {/* Info button wrapper that animates width and opacity */}
                             <div className={`
                 transition-all duration-300 ease-out overflow-hidden
-                ${shouldShowInfoButton ? 'w-10 opacity-100' : 'w-0 opacity-0'}
+                ${shouldShowInfoButton ? 'w-11 opacity-100' : 'w-0 opacity-0'}
                 flex items-center justify-center
             `}>
                                 {shouldShowInfoButton && (
@@ -425,8 +425,8 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                         title="Info"
                                     >
                                         {/* No border on inner div since container has it */}
-                                        <div className="w-10 h-10 rounded-full flex items-center justify-center">
-                                            <Info className="w-5 h-5 stroke-current" />
+                                        <div className="w-11 h-11 rounded-full flex items-center justify-center">
+                                            <Info className="w-6 h-6 stroke-current" />
                                         </div>
                                     </button>
                                 )}
@@ -440,8 +440,8 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                 title="Search"
                             >
                                 {/* No border on inner div since container has it */}
-                                <div className="w-10 h-10 rounded-full flex items-center justify-center">
-                                    <Search className="w-5 h-5 stroke-current" />
+                                <div className="w-11 h-11 rounded-full flex items-center justify-center">
+                                    <Search className="w-6 h-6 stroke-current" />
                                 </div>
                             </button>
                         </div>

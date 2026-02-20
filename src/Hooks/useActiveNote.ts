@@ -16,7 +16,6 @@ import type { SavedNote } from './useNotesStorage'
 import type { useNavigation } from './useNavigation'
 import type { useNotesStorage } from './useNotesStorage'
 import type { NoteRestoreResult } from './useNoteRestore'
-import { parseNoteEncoding } from '../Utilities/NoteCodec'
 
 interface UseActiveNoteParams {
   navigation: ReturnType<typeof useNavigation>
@@ -266,34 +265,40 @@ export function useActiveNote({
     }))
   }, [restoreAndOpenNote])
 
-  // Import success handler — checks for duplicates, saves imported note with 'external source' tag, then opens My Notes
+  // Import success handler — checks for duplicates (personal + clinic), saves imported note with 'external source' tag, then opens My Notes
   const handleImportSuccess = useCallback((data: ImportSuccessData) => {
-    // Check for duplicate: does a note with the same encodedText already exist?
-    const existingNote = notesStorage.notes.find(n => n.encodedText === data.encodedText)
+    // Check for duplicate in personal notes
+    const existingPersonal = notesStorage.notes.find(n => n.encodedText === data.encodedText)
 
-    if (existingNote) {
-      // Duplicate detected — navigate to My Notes with the existing note pre-selected
-      // 1. Close Import drawer
+    if (existingPersonal) {
+      // Duplicate found in personal notes — navigate to My Notes with it pre-selected
       navigation.setShowNoteImport(false)
-
-      // 2. Show duplicate feedback modal
       setShowImportDuplicateModal(true)
       setTimeout(() => setShowImportDuplicateModal(false), UI_TIMING.FEEDBACK_DURATION)
-
-      // 3. Open Settings → My Notes with the duplicate note pre-selected
       setTimeout(() => {
-        setMyNotesInitialSelectedId(existingNote.id)
+        setMyNotesInitialSelectedId(existingPersonal.id)
         setSettingsInitialPanel('my-notes')
         navigation.setShowSettings(true)
       }, UI_TIMING.SLIDE_ANIMATION)
       return
     }
 
-    // Extract author from encoded barcode
-    const parsed = parseNoteEncoding(data.encodedText)
-    const author = parsed?.user
-    const externalSource = author?.lastName
-      ? `external:${author.rank ? author.rank + ' ' : ''}${author.lastName}`
+    // Check for duplicate in clinic notes
+    const existingClinic = notesStorage.clinicNotes.find(n => n.encodedText === data.encodedText)
+
+    if (existingClinic) {
+      // Duplicate found in clinic notes — show duplicate modal but don't navigate to My Notes
+      navigation.setShowNoteImport(false)
+      setShowImportDuplicateModal(true)
+      setTimeout(() => setShowImportDuplicateModal(false), UI_TIMING.FEEDBACK_DURATION)
+      return
+    }
+
+    // Use preview data from the rich review UI when available
+    const preview = data.preview
+    const authorLabel = preview?.authorLabel
+    const externalSource = authorLabel && authorLabel !== 'Unknown'
+      ? `external:${authorLabel}`
       : 'external'
 
     // Build a temporary SavedNote-like object to use restoreNote
@@ -301,10 +306,10 @@ export function useActiveNote({
       id: '',
       encodedText: data.encodedText,
       createdAt: new Date().toISOString(),
-      symptomIcon: '',
-      symptomText: '',
-      dispositionType: '',
-      dispositionText: '',
+      symptomIcon: preview?.symptomIcon || '',
+      symptomText: preview?.symptomText || '',
+      dispositionType: preview?.dispositionType || '',
+      dispositionText: preview?.dispositionText || '',
       previewText: data.decodedText.slice(0, 200),
       source: externalSource,
       sync_status: 'pending',

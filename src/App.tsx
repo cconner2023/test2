@@ -56,11 +56,24 @@ function AppContent() {
   const [isPinLocked, setIsPinLocked] = useState(() => isPinEnabled() && !isSessionUnlocked())
 
   // Re-lock when app goes to background (tab switch, app switch on mobile)
+  // When PIN is NOT enabled, show a privacy screen to hide content in iOS app switcher
   useEffect(() => {
+    const privacyEl = document.getElementById('privacy-screen')
+
     const onVisChange = () => {
-      if (document.visibilityState === 'hidden' && isPinEnabled() && !isPinLocked) {
-        clearSessionUnlocked()
-        setIsPinLocked(true)
+      if (document.visibilityState === 'hidden') {
+        if (isPinEnabled() && !isPinLocked) {
+          clearSessionUnlocked()
+          setIsPinLocked(true)
+        } else if (!isPinEnabled() && privacyEl) {
+          // Sync theme class before showing
+          const t = localStorage.getItem('theme') ??
+            (window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light')
+          privacyEl.classList.toggle('privacy-dark', t === 'dark')
+          privacyEl.classList.add('privacy-active')
+        }
+      } else if (document.visibilityState === 'visible') {
+        privacyEl?.classList.remove('privacy-active')
       }
     }
     document.addEventListener('visibilitychange', onVisChange)
@@ -386,6 +399,7 @@ function AppContent() {
           onClose={() => navigation.setShowNoteImport(false)}
           initialViewState={activeNote.importInitialView}
           onImportSuccess={activeNote.handleImportSuccess}
+          isMobile={navigation.isMobile}
         />
         </ErrorBoundary>
         <ErrorBoundary>

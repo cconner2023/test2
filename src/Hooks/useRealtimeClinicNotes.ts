@@ -28,10 +28,11 @@ import { useSupabaseSubscription } from './useSupabaseSubscription'
 
 const logger = createLogger('RealtimeClinicNotes')
 
-interface RealtimeNoteRow {
+type RealtimeNoteRow = {
   id: string
   user_id: string
   clinic_id: string | null
+  clinic_name: string | null
   timestamp: string
   display_name: string | null
   rank: string | null
@@ -64,6 +65,8 @@ function realtimeRowToSavedNote(row: RealtimeNoteRow): SavedNote {
     sync_status: 'synced',
     authorId: row.user_id,
     authorName: row.display_name || null,
+    clinicName: row.clinic_name || undefined,
+    clinicId: row.clinic_id,
   }
 }
 
@@ -71,8 +74,8 @@ interface UseRealtimeClinicNotesOptions {
   clinicId: string | null
   userId: string | null
   isAuthenticated: boolean
-  /** UICs visible to the current user's clinic (for realtime filtering). */
-  uics: string[]
+  /** Clinic IDs visible to the current user (own + children, for realtime filtering). */
+  visibleClinicIds: string[]
   isPageVisible: boolean
   /** Only subscribe when the note panel is open. */
   isNotePanelOpen: boolean
@@ -88,7 +91,7 @@ export function useRealtimeClinicNotes({
   clinicId,
   userId,
   isAuthenticated,
-  uics,
+  visibleClinicIds,
   isPageVisible,
   isNotePanelOpen,
   onClinicUpsert,
@@ -176,23 +179,23 @@ export function useRealtimeClinicNotes({
   const postgresFilter = useMemo(
     () => ({
       table: 'notes',
-      filter: uics.length > 0
-        ? `uic=in.(${uics.join(',')})`
-        : `clinic_id=eq.${clinicId}`,   // fallback when UICs not yet loaded
+      filter: visibleClinicIds.length > 0
+        ? `clinic_id=in.(${visibleClinicIds.join(',')})`
+        : `clinic_id=eq.${clinicId}`,   // fallback when hierarchy not yet loaded
     }),
-    [uics, clinicId],
+    [visibleClinicIds, clinicId],
   )
 
-  // Include UICs in channel name so Supabase re-subscribes when they change
+  // Include visible IDs in channel name so Supabase re-subscribes when they change
   const channelName = useMemo(
-    () => uics.length > 0
-      ? `clinic-notes:uic:${uics.join(',')}`
+    () => visibleClinicIds.length > 0
+      ? `clinic-notes:${visibleClinicIds.join(',')}`
       : `clinic-notes:${clinicId}`,
-    [uics, clinicId],
+    [visibleClinicIds, clinicId],
   )
 
   useSupabaseSubscription<RealtimeNoteRow>({
-    shouldSubscribe: isAuthenticated && (uics.length > 0 || !!clinicId) && !!userId && isPageVisible && isNotePanelOpen,
+    shouldSubscribe: isAuthenticated && (visibleClinicIds.length > 0 || !!clinicId) && !!userId && isPageVisible && isNotePanelOpen,
     channelName,
     postgresFilter,
     onPayload: handlePayload,

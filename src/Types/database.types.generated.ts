@@ -86,6 +86,7 @@ export type Database = {
       clinics: {
         Row: {
           additional_user_ids: string[]
+          child_clinic_ids: string[]
           created_at: string
           id: string
           location: string | null
@@ -95,6 +96,7 @@ export type Database = {
         }
         Insert: {
           additional_user_ids?: string[]
+          child_clinic_ids?: string[]
           created_at?: string
           id?: string
           location?: string | null
@@ -104,6 +106,7 @@ export type Database = {
         }
         Update: {
           additional_user_ids?: string[]
+          child_clinic_ids?: string[]
           created_at?: string
           id?: string
           location?: string | null
@@ -153,6 +156,7 @@ export type Database = {
         Row: {
           algorithm_reference: string | null
           clinic_id: string | null
+          clinic_name: string | null
           created_at: string
           deleted_at: string | null
           display_name: string | null
@@ -174,6 +178,7 @@ export type Database = {
         Insert: {
           algorithm_reference?: string | null
           clinic_id?: string | null
+          clinic_name?: string | null
           created_at?: string
           deleted_at?: string | null
           display_name?: string | null
@@ -195,6 +200,7 @@ export type Database = {
         Update: {
           algorithm_reference?: string | null
           clinic_id?: string | null
+          clinic_name?: string | null
           created_at?: string
           deleted_at?: string | null
           display_name?: string | null
@@ -503,13 +509,13 @@ export type Database = {
           uics: string[]
         }[]
       }
-      get_clinic_notes_by_uic: {
+      get_clinic_notes_by_hierarchy: {
         Args: { p_exclude_user_id?: string }
         Returns: Database["public"]["Tables"]["notes"]["Row"][]
       }
       get_my_clinic_id: { Args: never; Returns: string }
       get_my_roles: { Args: never; Returns: string[] }
-      get_visible_uics: { Args: Record<string, never>; Returns: string[] }
+      get_visible_clinic_ids: { Args: Record<string, never>; Returns: string[] }
       get_note_author_display: { Args: { p_user_id: string }; Returns: string }
       reject_account_request: {
         Args: { admin_user_id: string; reason: string; request_id: string }

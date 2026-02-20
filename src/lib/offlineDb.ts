@@ -41,6 +41,7 @@ export interface LocalNote {
   id: string                     // UUID (crypto.randomUUID)
   user_id: string
   clinic_id: string | null
+  clinic_name: string | null
   timestamp: string              // ISO 8601, when the clinical encounter occurred
   display_name: string | null
   rank: string | null

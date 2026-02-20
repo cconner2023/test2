@@ -24,6 +24,7 @@ interface AuthState {
   isGuest: boolean
   profile: UserTypes
   roles: string[]
+  clinicId: string | null
   isDevRole: boolean
   isSupervisorRole: boolean
   isPasswordRecovery: boolean
@@ -73,19 +74,21 @@ function clearProfileStorage() {
  * Fetch a full profile from Supabase for the given user ID.
  * Returns the UserTypes profile and the roles array.
  */
-async function fetchProfileFromSupabase(userId: string): Promise<{ profile: UserTypes; roles: string[] }> {
+async function fetchProfileFromSupabase(userId: string): Promise<{ profile: UserTypes; roles: string[]; clinicId: string | null }> {
   const profile: UserTypes = {}
   let roles: string[] = []
+  let clinicId: string | null = null
 
   // Fetch core profile + clinic name
   const { data } = await supabase
     .from('profiles')
-    .select('first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinics(name), pin_hash, pin_salt, notifications_enabled, notify_clinic_notes, notify_dev_alerts, note_include_hpi, note_include_pe, pe_depth')
+    .select('first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notifications_enabled, notify_clinic_notes, notify_dev_alerts, note_include_hpi, note_include_pe, pe_depth')
     .eq('id', userId)
     .single()
 
   if (data) {
     const clinicRow = data.clinics as { name: string } | null
+    clinicId = (data as Record<string, unknown>).clinic_id as string | null
 
     profile.firstName = data.first_name ?? undefined
     profile.lastName = data.last_name ?? undefined
@@ -118,7 +121,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     }
   }
 
-  return { profile, roles }
+  return { profile, roles, clinicId }
 }
 
 export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
@@ -127,6 +130,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
   isGuest: true,
   profile: loadProfileFromStorage(),
   roles: [],
+  clinicId: null,
   isDevRole: false,
   isSupervisorRole: false,
   isPasswordRecovery: false,
@@ -141,6 +145,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
           isGuest: true,
           profile: {},
           roles: [],
+          clinicId: null,
           isDevRole: false,
           isSupervisorRole: false,
         })
@@ -190,12 +195,13 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
     if (!user) return
 
     try {
-      const { profile, roles } = await fetchProfileFromSupabase(user.id)
+      const { profile, roles, clinicId } = await fetchProfileFromSupabase(user.id)
       const isDev = await isDevUser()
 
       set({
         profile,
         roles,
+        clinicId,
         isDevRole: isDev,
         isSupervisorRole: roles.includes('supervisor'),
       })

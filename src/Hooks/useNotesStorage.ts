@@ -65,7 +65,7 @@ export function useNotesStorage(isNotePanelOpen = false) {
     realtimeClinicId: sync.realtimeClinicId,
     realtimeUserId: sync.realtimeUserId,
     realtimeAuthenticated: sync.realtimeAuthenticated,
-    realtimeUics: sync.realtimeUics,
+    realtimeVisibleClinicIds: sync.realtimeVisibleClinicIds,
     isPageVisible: sync.isPageVisible,
     isNotePanelOpen,
   });

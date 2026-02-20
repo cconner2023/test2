@@ -33,6 +33,8 @@ export interface ParsedNote {
     flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean; includePhysicalExam: boolean };
     timestamp: Date | null;
     user: UserTypes | null;
+    userId: string | null;
+    clinicId: string | null;
 }
 
 export interface NoteEncodeOptions {
@@ -41,6 +43,8 @@ export interface NoteEncodeOptions {
     customNote: string;
     physicalExamNote?: string;
     user?: UserTypes;
+    userId?: string;
+    clinicId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +95,8 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         flags: { includeAlgorithm: true, includeDecisionMaking: true, includeHPI: false, includePhysicalExam: false },
         timestamp: null,
         user: null,
+        userId: null,
+        clinicId: null,
     };
 
     let legacyLastCard = -1;
@@ -152,6 +158,16 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                     component: coi >= 0 ? components[coi] : undefined,
                     uic: names[3] || undefined,
                 };
+            }
+        } else if (prefix === 'I') {
+            // User ID segment: I{hex32} — Supabase UUID with hyphens stripped
+            if (value.length === 32) {
+                result.userId = `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`;
+            }
+        } else if (prefix === 'C') {
+            // Clinic ID segment: C{hex32} — Supabase UUID with hyphens stripped
+            if (value.length === 32) {
+                result.clinicId = `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`;
             }
         } else if (prefix === 'A') {
             // Action status segment: A{cardIndex}.{P|D}
@@ -322,7 +338,17 @@ export function encodeNoteState(
         }
     }
 
-    // 7. Timestamp (epoch seconds in base36)
+    // 7. User ID (UUID with hyphens stripped)
+    if (noteOptions.userId) {
+        parts.push(`I${noteOptions.userId.replace(/-/g, '')}`);
+    }
+
+    // 8. Clinic ID (UUID with hyphens stripped)
+    if (noteOptions.clinicId) {
+        parts.push(`C${noteOptions.clinicId.replace(/-/g, '')}`);
+    }
+
+    // 9. Timestamp (epoch seconds in base36)
     parts.push(`T${Math.floor(Date.now() / 1000).toString(36)}`);
 
     return parts.join('|');
@@ -332,9 +358,9 @@ export function encodeNoteState(
 // Content comparison (ignores volatile segments like timestamp)
 // ---------------------------------------------------------------------------
 
-/** Compare two encoded note strings ignoring the timestamp segment (T...) */
+/** Compare two encoded note strings ignoring volatile segments (T=timestamp, I=userId, C=clinicId) */
 export function encodedContentEquals(a: string, b: string): boolean {
-    const strip = (s: string) => s.split('|').filter(p => !p.startsWith('T')).join('|');
+    const strip = (s: string) => s.split('|').filter(p => !p.startsWith('T') && !p.startsWith('I') && !p.startsWith('C')).join('|');
     return strip(a) === strip(b);
 }
 

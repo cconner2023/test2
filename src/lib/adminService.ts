@@ -384,6 +384,7 @@ export interface AdminClinic {
   id: string
   name: string
   uics: string[]
+  child_clinic_ids: string[]
   location: string | null
   additional_user_ids: string[]
 }
@@ -395,13 +396,14 @@ export async function listClinics(): Promise<AdminClinic[]> {
   try {
     const { data, error } = await supabase
       .from('clinics')
-      .select('id, name, uics, location, additional_user_ids')
+      .select('id, name, uics, child_clinic_ids, location, additional_user_ids')
       .order('name')
 
     if (error) throw error
     return (data || []).map((row) => ({
       ...row,
       additional_user_ids: row.additional_user_ids || [],
+      child_clinic_ids: row.child_clinic_ids || [],
     })) as AdminClinic[]
   } catch (error) {
     logger.error('Failed to list clinics:', error)
@@ -416,6 +418,7 @@ export async function createClinic(data: {
   name: string
   location?: string
   uics?: string[]
+  child_clinic_ids?: string[]
   additional_user_ids?: string[]
 }): Promise<{ success: boolean; error?: string; id?: string }> {
   try {
@@ -425,6 +428,7 @@ export async function createClinic(data: {
         name: data.name,
         location: data.location || null,
         uics: data.uics || [],
+        child_clinic_ids: data.child_clinic_ids || [],
         additional_user_ids: data.additional_user_ids || [],
       })
       .select('id')

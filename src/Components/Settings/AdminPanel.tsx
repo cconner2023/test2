@@ -1023,6 +1023,75 @@ const UserPicker = ({
   )
 }
 
+const ClinicPicker = ({
+  label, selectedIds, allClinics, excludeId, onChange,
+}: {
+  label: string; selectedIds: string[]; allClinics: AdminClinic[]; excludeId?: string; onChange: (ids: string[]) => void
+}) => {
+  const [search, setSearch] = useState('')
+  const [open, setOpen] = useState(false)
+
+  const clinicMap = new Map(allClinics.map((c) => [c.id, c]))
+
+  const filtered = allClinics.filter((c) => {
+    if (selectedIds.includes(c.id)) return false
+    if (c.id === excludeId) return false
+    if (!search) return false
+    const q = search.toLowerCase()
+    return c.name.toLowerCase().includes(q) || c.uics.some((u) => u.toLowerCase().includes(q))
+  }).slice(0, 8)
+
+  const removeClinic = (id: string) => onChange(selectedIds.filter((cid) => cid !== id))
+  const addClinic = (id: string) => {
+    onChange([...selectedIds, id])
+    setSearch('')
+    setOpen(false)
+  }
+
+  return (
+    <div>
+      <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>
+      <div className="mt-1 flex flex-wrap gap-1.5 mb-2">
+        {selectedIds.map((id) => {
+          const c = clinicMap.get(id)
+          const display = c ? c.name : id.slice(0, 8)
+          return (
+            <span key={id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-themeblue2/10 text-themeblue2 text-xs font-medium border border-themeblue2/30">
+              {display}
+              <button type="button" onClick={() => removeClinic(id)} className="hover:text-themeredred transition-colors">
+                <X size={12} />
+              </button>
+            </span>
+          )
+        })}
+      </div>
+      <div className="relative">
+        <input
+          type="text" value={search}
+          onChange={(e) => { setSearch(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          placeholder="Search clinics by name or UIC..."
+          className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-primary text-sm
+                     border border-tertiary/10 focus:border-themeblue2 focus:outline-none
+                     transition-colors placeholder:text-tertiary/30"
+        />
+        {open && filtered.length > 0 && (
+          <div className="absolute z-10 mt-1 w-full rounded-lg bg-themewhite2 border border-tertiary/10 shadow-lg max-h-48 overflow-y-auto">
+            {filtered.map((c) => (
+              <button key={c.id} type="button"
+                onClick={() => addClinic(c.id)}
+                className="w-full text-left px-3 py-2 text-sm hover:bg-themeblue2/10 transition-colors">
+                <span className="text-primary font-medium">{c.name}</span>
+                {c.uics.length > 0 && <span className="text-tertiary/50 ml-2">{c.uics.join(', ')}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Clinics Tab ─────────────────────────────────────────────────────
 
 type ClinicsView = 'list' | 'create' | 'edit'
@@ -1082,6 +1151,7 @@ const ClinicsTab = () => {
     return (
       <CreateClinicForm
         allUsers={users}
+        allClinics={clinics}
         onBack={() => setView('list')}
         onCreated={() => { setView('list'); loadData(); setFeedback({ type: 'success', message: 'Clinic created successfully' }) }}
       />
@@ -1093,6 +1163,7 @@ const ClinicsTab = () => {
       <EditClinicForm
         clinic={editingClinic}
         allUsers={users}
+        allClinics={clinics}
         onBack={() => { setView('list'); setEditingClinic(null) }}
         onSaved={() => { setView('list'); setEditingClinic(null); loadData(); setFeedback({ type: 'success', message: 'Clinic updated successfully' }) }}
       />
@@ -1166,6 +1237,19 @@ const ClinicsTab = () => {
                         {uic}
                       </span>
                     ))}
+                  </div>
+                )}
+
+                {clinic.child_clinic_ids.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {clinic.child_clinic_ids.map((cid) => {
+                      const child = clinics.find((c) => c.id === cid)
+                      return (
+                        <span key={cid} className="px-2 py-0.5 rounded text-xs font-medium bg-themeblue2/10 text-themeblue2 border border-themeblue2/30">
+                          {child ? child.name : cid.slice(0, 8)}
+                        </span>
+                      )
+                    })}
                   </div>
                 )}
 
@@ -1250,12 +1334,13 @@ const ClinicsTab = () => {
 
 // ─── Create Clinic Form ──────────────────────────────────────────────
 
-const CreateClinicForm = ({ allUsers, onBack, onCreated }: {
-  allUsers: AdminUser[]; onBack: () => void; onCreated: () => void
+const CreateClinicForm = ({ allUsers, allClinics, onBack, onCreated }: {
+  allUsers: AdminUser[]; allClinics: AdminClinic[]; onBack: () => void; onCreated: () => void
 }) => {
   const [name, setName] = useState('')
   const [location, setLocation] = useState('')
   const [uics, setUics] = useState<string[]>([])
+  const [childClinicIds, setChildClinicIds] = useState<string[]>([])
   const [additionalUserIds, setAdditionalUserIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1274,6 +1359,7 @@ const CreateClinicForm = ({ allUsers, onBack, onCreated }: {
       name: name.trim(),
       location: location.trim() || undefined,
       uics,
+      child_clinic_ids: childClinicIds,
       additional_user_ids: additionalUserIds,
     })
     setSubmitting(false)
@@ -1307,6 +1393,12 @@ const CreateClinicForm = ({ allUsers, onBack, onCreated }: {
           placeholder="Add UIC (e.g. W12345)..."
           transform={(v) => v.toUpperCase()}
         />
+        <ClinicPicker
+          label="Child Clinics"
+          selectedIds={childClinicIds}
+          allClinics={allClinics}
+          onChange={setChildClinicIds}
+        />
         <UserPicker
           label="Additional Users"
           selectedIds={additionalUserIds}
@@ -1325,12 +1417,13 @@ const CreateClinicForm = ({ allUsers, onBack, onCreated }: {
 
 // ─── Edit Clinic Form ────────────────────────────────────────────────
 
-const EditClinicForm = ({ clinic, allUsers, onBack, onSaved }: {
-  clinic: AdminClinic; allUsers: AdminUser[]; onBack: () => void; onSaved: () => void
+const EditClinicForm = ({ clinic, allUsers, allClinics, onBack, onSaved }: {
+  clinic: AdminClinic; allUsers: AdminUser[]; allClinics: AdminClinic[]; onBack: () => void; onSaved: () => void
 }) => {
   const [name, setName] = useState(clinic.name)
   const [location, setLocation] = useState(clinic.location || '')
   const [uics, setUics] = useState<string[]>(clinic.uics)
+  const [childClinicIds, setChildClinicIds] = useState<string[]>(clinic.child_clinic_ids)
   const [additionalUserIds, setAdditionalUserIds] = useState<string[]>(clinic.additional_user_ids)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1348,6 +1441,7 @@ const EditClinicForm = ({ clinic, allUsers, onBack, onSaved }: {
       name: name.trim(),
       location: location.trim() || null,
       uics,
+      child_clinic_ids: childClinicIds,
       additional_user_ids: additionalUserIds,
     })
     setSaving(false)
@@ -1380,6 +1474,13 @@ const EditClinicForm = ({ clinic, allUsers, onBack, onSaved }: {
           onChange={setUics}
           placeholder="Add UIC (e.g. W12345)..."
           transform={(v) => v.toUpperCase()}
+        />
+        <ClinicPicker
+          label="Child Clinics"
+          selectedIds={childClinicIds}
+          allClinics={allClinics}
+          excludeId={clinic.id}
+          onChange={setChildClinicIds}
         />
         <UserPicker
           label="Additional Users"

@@ -63,6 +63,7 @@ async function migrateFromLocalStorage(userId: string): Promise<number> {
         id: note.id,
         user_id: userId,
         clinic_id: null,
+        clinic_name: null,
         timestamp: note.createdAt || now,
         display_name: null,
         rank: null,
@@ -128,8 +129,8 @@ export interface NotesSyncResult {
   realtimeClinicId: string | null;
   realtimeUserId: string | null;
   realtimeAuthenticated: boolean;
-  /** UICs visible to the current user's clinic (for realtime filtering) */
-  realtimeUics: string[];
+  /** Clinic IDs visible to the current user (own + children, for realtime filtering) */
+  realtimeVisibleClinicIds: string[];
   /** Auth version counter — exposed so the main hook can depend on it if needed */
   authVersion: number;
 }
@@ -152,7 +153,7 @@ export function useNotesSync(deps: NotesSyncDeps): NotesSyncResult {
   const [realtimeClinicId, setRealtimeClinicId] = useState<string | null>(null);
   const [realtimeUserId, setRealtimeUserId] = useState<string | null>(null);
   const [realtimeAuthenticated, setRealtimeAuthenticated] = useState(false);
-  const [realtimeUics, setRealtimeUics] = useState<string[]>([]);
+  const [realtimeVisibleClinicIds, setRealtimeVisibleClinicIds] = useState<string[]>([]);
 
   // Auth version counter — incremented on SIGNED_IN / SIGNED_OUT to
   // trigger the init effect to re-run with the new user context.
@@ -175,7 +176,7 @@ export function useNotesSync(deps: NotesSyncDeps): NotesSyncResult {
         setRealtimeClinicId(null);
         setRealtimeUserId(null);
         setRealtimeAuthenticated(false);
-        setRealtimeUics([]);
+        setRealtimeVisibleClinicIds([]);
         userIdRef.current = null;
         clinicIdRef.current = null;
         initDone.current = false;
@@ -276,19 +277,20 @@ export function useNotesSync(deps: NotesSyncDeps): NotesSyncResult {
             clinicIdRef.current = clinicId;
             if (!cancelled) setRealtimeClinicId(clinicId);
 
-            // Fetch the clinic's visible UICs for realtime filtering
+            // Fetch the clinic's child_clinic_ids for realtime filtering
             if (clinicId) {
               try {
                 const { data: clinic } = await supabase
                   .from('clinics')
-                  .select('uics')
+                  .select('child_clinic_ids')
                   .eq('id', clinicId)
                   .single();
-                if (!cancelled && clinic?.uics) {
-                  setRealtimeUics(clinic.uics);
+                if (!cancelled) {
+                  setRealtimeVisibleClinicIds([clinicId, ...(clinic?.child_clinic_ids || [])]);
                 }
               } catch {
-                // Non-critical — realtime will fall back to clinic_id filter
+                // Non-critical — realtime will fall back to single clinic_id filter
+                if (!cancelled) setRealtimeVisibleClinicIds([clinicId]);
               }
             }
 
@@ -346,18 +348,18 @@ export function useNotesSync(deps: NotesSyncDeps): NotesSyncResult {
                   clinicIdRef.current = clinicId;
                   if (clinicId && !cancelled) {
                     setRealtimeClinicId(clinicId);
-                    // Also refresh UICs when clinic becomes known
+                    // Also refresh visible clinic IDs when clinic becomes known
                     try {
                       const { data: clinic } = await supabase
                         .from('clinics')
-                        .select('uics')
+                        .select('child_clinic_ids')
                         .eq('id', clinicId)
                         .single();
-                      if (!cancelled && clinic?.uics) {
-                        setRealtimeUics(clinic.uics);
+                      if (!cancelled) {
+                        setRealtimeVisibleClinicIds([clinicId, ...(clinic?.child_clinic_ids || [])]);
                       }
                     } catch {
-                      // Non-critical
+                      if (!cancelled) setRealtimeVisibleClinicIds([clinicId]);
                     }
                   }
                 } catch {
@@ -463,7 +465,7 @@ export function useNotesSync(deps: NotesSyncDeps): NotesSyncResult {
     realtimeClinicId,
     realtimeUserId,
     realtimeAuthenticated,
-    realtimeUics,
+    realtimeVisibleClinicIds,
     authVersion,
   };
 }
