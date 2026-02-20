@@ -28,6 +28,7 @@ import {
   saveLocalTrainingCompletion,
   updateTrainingCompletionSyncStatus,
   hardDeleteLocalTrainingCompletion,
+  stripLocalFields,
   type LocalNote,
   type LocalTrainingCompletion,
 } from './offlineDb'
@@ -109,20 +110,6 @@ function getBackoffDelay(attempt: number): number {
  */
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
-}
-
-/**
- * Strip local-only metadata fields from a note before sending to Supabase.
- * Fields prefixed with _ are IndexedDB-only tracking fields.
- */
-function stripLocalFields(payload: Record<string, unknown>): Record<string, unknown> {
-  const cleaned: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(payload)) {
-    if (!key.startsWith('_')) {
-      cleaned[key] = value
-    }
-  }
-  return cleaned
 }
 
 // ============================================================

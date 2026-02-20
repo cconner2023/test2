@@ -25,7 +25,6 @@ import type { subjectAreaArrayOptions } from '../../Types/CatTypes';
 import { stp68wTraining } from '../../Data/TrainingTaskList';
 import { getTaskData } from '../../Data/TrainingData';
 import { supabase } from '../../lib/supabase';
-import { isDevUser } from '../../lib/adminService';
 import { useAuth } from '../../Hooks/useAuth';
 import { clearAllUserData } from '../../lib/offlineDb';
 
@@ -357,17 +356,14 @@ export const Settings = ({
     onNotePanelChange,
 }: SettingsDrawerProps) => {
     const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'how-to' | 'note-content' | TrainingView>('main');
-    const [isDevRole, setIsDevRole] = useState(false);
-    const [isSupervisorRole, setIsSupervisorRole] = useState(false);
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = avatar;
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const [selectedTask, setSelectedTask] = useState<subjectAreaArrayOptions | null>(null);
     const prevVisibleRef = useRef(false);
     const supervisorBackRef = useRef<(() => void) | null>(null);
-    const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
-    const { signOut } = useAuth();
+    const { signOut, isAuthenticated, isDevRole, isSupervisorRole } = useAuth();
 
     // Notify parent when note panel opens/closes
     useEffect(() => {
@@ -392,51 +388,6 @@ export const Settings = ({
         };
     }, [isVisible]);
 
-    // Check authentication status, dev role, and supervisor role
-    useEffect(() => {
-        const checkAuth = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setIsAuthenticated(!!user);
-
-            if (user) {
-                const isDev = await isDevUser();
-                setIsDevRole(isDev);
-
-                const { data } = await supabase
-                    .from('profiles')
-                    .select('roles')
-                    .eq('id', user.id)
-                    .single();
-                const roles = data?.roles as string[] | null;
-                setIsSupervisorRole(roles?.includes('supervisor') ?? false);
-            }
-        };
-
-        checkAuth();
-
-        const { data: authListener } = supabase.auth.onAuthStateChange((_, session) => {
-            setIsAuthenticated(!!session?.user);
-            if (session?.user) {
-                isDevUser().then(setIsDevRole);
-                supabase
-                    .from('profiles')
-                    .select('roles')
-                    .eq('id', session.user.id)
-                    .single()
-                    .then(({ data }) => {
-                        const roles = data?.roles as string[] | null;
-                        setIsSupervisorRole(roles?.includes('supervisor') ?? false);
-                    });
-            } else {
-                setIsDevRole(false);
-                setIsSupervisorRole(false);
-            }
-        });
-
-        return () => {
-            authListener.subscription.unsubscribe();
-        };
-    }, []);
 
     // Set initial panel when drawer opens
     useEffect(() => {
@@ -632,10 +583,9 @@ export const Settings = ({
                 type: 'option',
                 icon: <Bell size={20} />,
                 label: 'Notifications',
-                action: () => { },
+                action: () => handleItemClick(17, closeDrawer),
                 color: 'text-tertiary',
-                id: 17,
-                disabled: true
+                id: 17
             },
             {
                 type: 'option',

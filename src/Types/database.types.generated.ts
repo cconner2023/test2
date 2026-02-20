@@ -16,93 +16,136 @@ export type Database = {
     Tables: {
       account_requests: {
         Row: {
-          id: string
+          component: string | null
+          created_at: string
+          credential: string | null
           email: string
           first_name: string
+          id: string
           last_name: string
           middle_initial: string | null
-          credential: string | null
+          notes: string | null
           rank: string | null
-          component: string | null
-          uic: string
-          status: "pending" | "approved" | "rejected"
-          request_type: "new_account" | "profile_change"
-          status_check_token: string
-          user_id: string | null
+          rejection_reason: string | null
+          request_type: Database["public"]["Enums"]["request_type"] | null
           requested_at: string
           reviewed_at: string | null
           reviewed_by: string | null
-          rejection_reason: string | null
-          notes: string | null
+          status: string
+          status_check_token: string
+          uic: string
+          updated_at: string
+          user_id: string | null
         }
         Insert: {
-          id?: string
+          component?: string | null
+          created_at?: string
+          credential?: string | null
           email: string
           first_name: string
+          id?: string
           last_name: string
           middle_initial?: string | null
-          credential?: string | null
+          notes?: string | null
           rank?: string | null
-          component?: string | null
-          uic: string
-          status?: "pending" | "approved" | "rejected"
-          request_type?: "new_account" | "profile_change"
-          status_check_token?: string
-          user_id?: string | null
+          rejection_reason?: string | null
+          request_type?: Database["public"]["Enums"]["request_type"] | null
           requested_at?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
-          rejection_reason?: string | null
-          notes?: string | null
+          status?: string
+          status_check_token?: string
+          uic: string
+          updated_at?: string
+          user_id?: string | null
         }
         Update: {
-          id?: string
+          component?: string | null
+          created_at?: string
+          credential?: string | null
           email?: string
           first_name?: string
+          id?: string
           last_name?: string
           middle_initial?: string | null
-          credential?: string | null
+          notes?: string | null
           rank?: string | null
-          component?: string | null
-          uic?: string
-          status?: "pending" | "approved" | "rejected"
-          request_type?: "new_account" | "profile_change"
-          status_check_token?: string
-          user_id?: string | null
+          rejection_reason?: string | null
+          request_type?: Database["public"]["Enums"]["request_type"] | null
           requested_at?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
-          rejection_reason?: string | null
-          notes?: string | null
+          status?: string
+          status_check_token?: string
+          uic?: string
+          updated_at?: string
+          user_id?: string | null
         }
         Relationships: []
       }
       clinics: {
         Row: {
+          additional_user_ids: string[]
+          created_at: string
           id: string
+          location: string | null
           name: string
           uics: string[]
-          additional_user_ids: string[]
-          location: string | null
-          created_at: string
           updated_at: string
         }
         Insert: {
+          additional_user_ids?: string[]
+          created_at?: string
           id?: string
+          location?: string | null
           name: string
           uics?: string[]
-          additional_user_ids?: string[]
-          location?: string | null
-          created_at?: string
           updated_at?: string
         }
         Update: {
+          additional_user_ids?: string[]
+          created_at?: string
           id?: string
+          location?: string | null
           name?: string
           uics?: string[]
-          additional_user_ids?: string[]
-          location?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      feedback: {
+        Row: {
+          comments: string | null
+          created_at: string
+          desired_feature: string | null
+          display_name: string | null
+          id: string
+          most_useful_feature: string | null
+          needs_improvement: string | null
+          rating: number
+          user_id: string | null
+        }
+        Insert: {
+          comments?: string | null
+          created_at?: string
+          desired_feature?: string | null
+          display_name?: string | null
+          id?: string
+          most_useful_feature?: string | null
+          needs_improvement?: string | null
+          rating: number
+          user_id?: string | null
+        }
+        Update: {
+          comments?: string | null
+          created_at?: string
+          desired_feature?: string | null
+          display_name?: string | null
+          id?: string
+          most_useful_feature?: string | null
+          needs_improvement?: string | null
+          rating?: number
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -195,11 +238,13 @@ export type Database = {
           note_include_hpi: boolean | null
           note_include_pe: boolean | null
           notifications_enabled: boolean
+          notify_clinic_notes: boolean | null
+          notify_dev_alerts: boolean | null
           pe_depth: string | null
           pin_hash: string | null
           pin_salt: string | null
           rank: string | null
-          roles: string[]
+          roles: Database["public"]["Enums"]["user_role"][] | null
           uic: string | null
           updated_at: string
         }
@@ -217,11 +262,13 @@ export type Database = {
           note_include_hpi?: boolean | null
           note_include_pe?: boolean | null
           notifications_enabled?: boolean
+          notify_clinic_notes?: boolean | null
+          notify_dev_alerts?: boolean | null
           pe_depth?: string | null
           pin_hash?: string | null
           pin_salt?: string | null
           rank?: string | null
-          roles?: string[]
+          roles?: Database["public"]["Enums"]["user_role"][] | null
           uic?: string | null
           updated_at?: string
         }
@@ -239,11 +286,13 @@ export type Database = {
           note_include_hpi?: boolean | null
           note_include_pe?: boolean | null
           notifications_enabled?: boolean
+          notify_clinic_notes?: boolean | null
+          notify_dev_alerts?: boolean | null
           pe_depth?: string | null
           pin_hash?: string | null
           pin_salt?: string | null
           rank?: string | null
-          roles?: string[]
+          roles?: Database["public"]["Enums"]["user_role"][] | null
           uic?: string | null
           updated_at?: string
         }
@@ -256,6 +305,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      push_subscriptions: {
+        Row: {
+          auth_key: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh_key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auth_key: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh_key: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auth_key?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh_key?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       sync_queue: {
         Row: {
@@ -297,10 +376,10 @@ export type Database = {
         Row: {
           completed: boolean
           completed_at: string | null
-          completion_type: "read" | "test"
+          completion_type: string
           created_at: string
           id: string
-          result: "GO" | "NO_GO"
+          result: string
           step_results: Json | null
           supervisor_id: string | null
           supervisor_notes: string | null
@@ -311,10 +390,10 @@ export type Database = {
         Insert: {
           completed?: boolean
           completed_at?: string | null
-          completion_type?: "read" | "test"
+          completion_type?: string
           created_at?: string
           id?: string
-          result?: "GO" | "NO_GO"
+          result?: string
           step_results?: Json | null
           supervisor_id?: string | null
           supervisor_notes?: string | null
@@ -325,10 +404,10 @@ export type Database = {
         Update: {
           completed?: boolean
           completed_at?: string | null
-          completion_type?: "read" | "test"
+          completion_type?: string
           created_at?: string
           id?: string
-          result?: "GO" | "NO_GO"
+          result?: string
           step_results?: Json | null
           supervisor_id?: string | null
           supervisor_notes?: string | null
@@ -343,169 +422,136 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      approve_account_request: {
+      admin_create_user: {
         Args: {
-          request_id: string
-          admin_user_id: string
-          temp_password: string
-        }
-        Returns: {
-          user_id: string
-          email: string
-          message: string
-        }
-      }
-      reject_account_request: {
-        Args: {
-          request_id: string
-          admin_user_id: string
-          reason: string
-        }
-        Returns: void
-      }
-      submit_account_request: {
-        Args: {
+          p_component?: string
+          p_credential?: string
           p_email: string
           p_first_name: string
           p_last_name: string
-          p_middle_initial?: string | null
-          p_credential?: string | null
-          p_rank?: string | null
-          p_component?: string | null
-          p_uic: string
-          p_notes?: string | null
-          p_request_type?: string
+          p_middle_initial?: string
+          p_rank?: string
+          p_roles?: Database["public"]["Enums"]["user_role"][]
+          p_temp_password: string
+          p_uic?: string
         }
-        Returns: {
-          id: string
-          status_check_token: string
-          message: string
+        Returns: Json
+      }
+      admin_delete_user: { Args: { p_target_user_id: string }; Returns: Json }
+      admin_list_users: { Args: never; Returns: Json }
+      admin_reset_password: {
+        Args: { p_new_password: string; p_target_user_id: string }
+        Returns: Json
+      }
+      admin_set_clinic: {
+        Args: { p_clinic_id: string; p_target_user_id: string }
+        Returns: Json
+      }
+      admin_update_profile:
+        | {
+            Args: {
+              p_component?: string
+              p_credential?: string
+              p_first_name?: string
+              p_last_name?: string
+              p_middle_initial?: string
+              p_rank?: string
+              p_target_user_id: string
+              p_uic?: string
+            }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_component?: string
+              p_credential?: string
+              p_first_name?: string
+              p_last_name?: string
+              p_middle_initial?: string
+              p_note_include_hpi?: boolean
+              p_note_include_pe?: boolean
+              p_pe_depth?: string
+              p_rank?: string
+              p_target_user_id: string
+              p_uic?: string
+            }
+            Returns: Json
+          }
+      approve_account_request: {
+        Args: {
+          admin_user_id: string
+          request_id: string
+          temp_password: string
         }
+        Returns: Json
+      }
+      assign_clinic_by_uic: {
+        Args: { p_uic: string; p_user_id: string }
+        Returns: undefined
       }
       check_request_status: {
-        Args: {
-          p_email: string
-          p_token: string
-        }
+        Args: { p_email: string; p_token: string }
+        Returns: Json
+      }
+      clear_own_pin: { Args: never; Returns: undefined }
+      get_clinic_by_uic: {
+        Args: { lookup_uic: string }
         Returns: {
-          found: boolean
           id: string
-          email: string
-          first_name: string
-          last_name: string
-          status: string
-          request_type: string
-          requested_at: string
-          reviewed_at: string | null
-          rejection_reason: string | null
-          message: string
-        }
+          location: string
+          name: string
+          uics: string[]
+        }[]
+      }
+      get_my_clinic_id: { Args: never; Returns: string }
+      get_my_roles: { Args: never; Returns: string[] }
+      get_note_author_display: { Args: { p_user_id: string }; Returns: string }
+      reject_account_request: {
+        Args: { admin_user_id: string; reason: string; request_id: string }
+        Returns: undefined
+      }
+      remove_push_subscription: {
+        Args: { p_endpoint: string }
+        Returns: undefined
+      }
+      save_push_subscription: {
+        Args: { p_auth_key: string; p_endpoint: string; p_p256dh_key: string }
+        Returns: undefined
       }
       set_user_roles: {
         Args: {
+          new_roles: Database["public"]["Enums"]["user_role"][]
           target_user_id: string
-          new_roles: Database["public"]["Enums"]["user_role"][]
         }
-        Returns: {
-          user_id: string
-          old_roles: Database["public"]["Enums"]["user_role"][]
-          new_roles: Database["public"]["Enums"]["user_role"][]
-          updated_by: string
-        }
+        Returns: Json
       }
-      get_clinic_by_uic: {
+      submit_account_request: {
         Args: {
-          lookup_uic: string
-        }
-        Returns: {
-          id: string
-          name: string
-          uics: string[]
-          location: string | null
-        }[]
-      }
-      admin_create_user: {
-        Args: {
+          p_component?: string
+          p_credential?: string
           p_email: string
-          p_temp_password: string
           p_first_name: string
           p_last_name: string
           p_middle_initial?: string
-          p_credential?: string
-          p_component?: string
+          p_notes?: string
           p_rank?: string
+          p_request_type?: string
           p_uic?: string
-          p_roles?: Database["public"]["Enums"]["user_role"][]
-        }
-        Returns: {
-          user_id: string
-          email: string
-          message: string
-        }
-      }
-      admin_reset_password: {
-        Args: {
-          p_target_user_id: string
-          p_new_password: string
-        }
-        Returns: {
-          success: boolean
-          user_id: string
-          message: string
-        }
-      }
-      admin_update_profile: {
-        Args: {
-          p_target_user_id: string
-          p_first_name?: string
-          p_last_name?: string
-          p_middle_initial?: string
-          p_credential?: string
-          p_component?: string
-          p_rank?: string
-          p_uic?: string
-          p_note_include_hpi?: boolean
-          p_note_include_pe?: boolean
-          p_pe_depth?: string
-        }
-        Returns: Json
-      }
-      admin_list_users: {
-        Args: Record<string, never>
-        Returns: Json
-      }
-      admin_delete_user: {
-        Args: {
-          p_target_user_id: string
-        }
-        Returns: {
-          success: boolean
-          user_id: string
-          email: string
-          message: string
-        }
-      }
-      admin_set_clinic: {
-        Args: {
-          p_target_user_id: string
-          p_clinic_id: string | null
         }
         Returns: Json
       }
       update_own_security_settings: {
         Args: {
+          p_notifications_enabled?: boolean
           p_pin_hash?: string
           p_pin_salt?: string
-          p_notifications_enabled?: boolean
         }
         Returns: undefined
       }
-      clear_own_pin: {
-        Args: Record<string, never>
-        Returns: undefined
-      }
+      validate_uics: { Args: { arr: string[] }; Returns: boolean }
     }
     Enums: {
+      request_type: "new_account" | "profile_change"
       sync_action: "create" | "update" | "delete"
       sync_status: "pending" | "synced" | "failed"
       user_role: "medic" | "supervisor" | "dev"
@@ -636,6 +682,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      request_type: ["new_account", "profile_change"],
       sync_action: ["create", "update", "delete"],
       sync_status: ["pending", "synced", "failed"],
       user_role: ["medic", "supervisor", "dev"],

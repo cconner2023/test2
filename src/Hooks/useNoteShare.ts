@@ -1,64 +1,12 @@
-// Hooks/useNoteShare.ts — Share a saved note as a PDF417 barcode image
+// Hooks/useNoteShare.ts — Share a saved note as a Data Matrix barcode image
 import { useCallback, useState } from 'react';
-import PDF417 from 'pdf417-generator';
+import bwipjs from 'bwip-js';
 import type { SavedNote } from './useNotesStorage';
-import { parseNoteEncoding } from '../Utilities/NoteCodec';
 import { createLogger } from '../Utilities/Logger';
 
 const logger = createLogger('NoteShare');
 
 type ShareStatus = 'idle' | 'generating' | 'sharing' | 'shared' | 'copied' | 'error';
-
-/**
- * Draws rounded-corner rectangles on canvas.
- */
-function roundRect(
-    ctx: CanvasRenderingContext2D,
-    x: number, y: number, w: number, h: number, r: number
-) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-}
-
-/**
- * Theme-aware color palettes for the share image.
- * Maps to the app's CSS custom properties from App.css.
- */
-const SHARE_COLORS = {
-    light: {
-        background: '#f0f2f5',      // themewhite2
-        cardBg: '#fffbfb',          // themewhite
-        cardBorder: '#e2e8f0',
-        title: '#1e1e23',           // primary
-        symptom: '#464650',         // secondary
-        date: '#848b92',            // tertiary
-        encodedBlockBg: '#f0f2f5',  // themewhite2
-        encodedText: '#464650',     // secondary
-        footer: '#c4bebe',          // themegray1
-        barcodeBg: '#ffffff',
-    },
-    dark: {
-        background: '#192d3d',      // themewhite2
-        cardBg: '#0f1923',          // themewhite
-        cardBorder: '#374b5b',      // themegray1
-        title: '#cbd1d6',           // primary
-        symptom: '#b3bac9',         // secondary
-        date: '#848b92',            // tertiary
-        encodedBlockBg: '#141e28',  // themewhite3
-        encodedText: '#b3bac9',     // secondary
-        footer: '#374b5b',          // themegray1
-        barcodeBg: '#ffffff',       // barcode always white for scannability
-    },
-} as const;
 
 /**
  * Formats a Date into military DDHHmmMONYYYY string (e.g. "122148FEB2026").
@@ -73,83 +21,56 @@ function formatMilitaryDate(date: Date): string {
 }
 
 /**
- * Generates a shareable image canvas containing the PDF417 barcode,
- * note metadata, and encoded string. Renders at 2x resolution for
- * sharp output on high-DPI screens and respects the current theme.
+ * Returns a disposition badge color based on category.
+ */
+function getDispositionColor(dispositionType: string): string {
+    const dt = dispositionType.toUpperCase();
+    if (dt.includes('I') && !dt.includes('II') && !dt.includes('III') && !dt.includes('IV')) return '#dc2626';
+    if (dt.includes('II') && !dt.includes('III') && !dt.includes('IV')) return '#f59e0b';
+    if (dt.includes('III')) return '#22c55e';
+    if (dt.includes('IV')) return '#3b82f6';
+    return '#6b7280';
+}
+
+/**
+ * Generates a clean shareable image: barcode on the left,
+ * disposition + date/time on the right. White background
+ * regardless of theme. Renders at 2x for sharp output.
  *
  * Layout:
- *   ADTMC Note  DDHHmmMONYYYY
- *   CAT — disposition text
- *   [barcode]
- *   encoded text
- *   Author: RANK LastName
+ *   [barcode]  |  Disposition (colored)
+ *              |  DDHHmmMONYYYY
  */
 function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
-    // Detect current theme from DOM
-    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-    const colors = isDark ? SHARE_COLORS.dark : SHARE_COLORS.light;
-
-    // Extract author from encoded text
-    const parsed = parseNoteEncoding(note.encodedText);
-    const author = parsed?.user;
-    const authorLabel = author?.lastName
-        ? `Author: ${[author.rank, author.lastName].filter(Boolean).join(' ')}`
-        : '';
-
-    // 2x scale for sharp output on high-DPI displays
     const scale = 2;
+    const font = '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
-    // ── 1. Generate barcode on a temporary canvas ──
+    // ── 1. Generate Data Matrix barcode ──
     const barcodeCanvas = document.createElement('canvas');
-    barcodeCanvas.width = 300;
-    barcodeCanvas.height = 120;
-    const bCtx = barcodeCanvas.getContext('2d');
-    if (bCtx) {
-        bCtx.fillStyle = colors.barcodeBg;
-        bCtx.fillRect(0, 0, 300, 120);
-    }
-
-    if (PDF417 && typeof (PDF417 as any).draw === 'function') {
-        (PDF417 as any).draw(note.encodedText, barcodeCanvas);
-    } else {
-        PDF417(barcodeCanvas, note.encodedText, {
-            bw: 2,
-            height: 4,
-            padding: 10,
+    try {
+        bwipjs.toCanvas(barcodeCanvas, {
+            bcid: 'datamatrix',
+            text: note.encodedText,
+            scale: 3,
+            padding: 4,
         });
+    } catch {
+        barcodeCanvas.width = 200;
+        barcodeCanvas.height = 200;
+        const bCtx = barcodeCanvas.getContext('2d');
+        if (bCtx) {
+            bCtx.fillStyle = '#ffffff';
+            bCtx.fillRect(0, 0, 200, 200);
+        }
     }
 
-    // ── 2. Compose the share image ──
-    const pad = 32;
-    const canvasW = 440;
-    const contentW = canvasW - pad * 2;
-
-    const lineH = 22;
-    const barcodeDisplayW = Math.min(contentW, 340);
-    const barcodeDisplayH = Math.round(
-        (barcodeDisplayW / barcodeCanvas.width) * barcodeCanvas.height
-    );
-
-    // Measure encoded text block height (word-wrap)
-    const encodedFontSize = 10;
-    const charsPerLine = Math.floor(contentW / (encodedFontSize * 0.6));
-    const encodedLines = Math.ceil(note.encodedText.length / charsPerLine);
-    const encodedBlockH = encodedLines * (encodedFontSize + 4) + 16;
-
-    const barcodePad = 8;
-    const barcodeContainerH = barcodeDisplayH + barcodePad * 2;
-
-    const canvasH =
-        pad +                // top padding
-        lineH +              // "ADTMC Note" + date
-        12 +                 // gap
-        (note.dispositionType ? lineH + 8 : 0) + // CAT line
-        16 +                 // gap before barcode
-        barcodeContainerH +  // barcode
-        12 +                 // gap
-        encodedBlockH +      // encoded string block
-        (authorLabel ? 16 + lineH : 0) + // author line
-        pad;                 // bottom padding
+    // ── 2. Sizing ──
+    const pad = 24;
+    const gap = 20;  // gap between barcode and text
+    const barcodeSize = 160;
+    const rightW = 220;
+    const canvasW = pad + barcodeSize + gap + rightW + pad;
+    const canvasH = pad + barcodeSize + pad;
 
     const canvas = document.createElement('canvas');
     canvas.width = canvasW * scale;
@@ -157,101 +78,47 @@ function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
     const ctx = canvas.getContext('2d')!;
     ctx.scale(scale, scale);
 
-    // Background
-    ctx.fillStyle = colors.background;
+    // White background
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvasW, canvasH);
 
-    // Content area with rounded card
-    const cardX = 16;
-    const cardY = 16;
-    const cardW = canvasW - 32;
-    const cardH = canvasH - 32;
-    ctx.fillStyle = colors.cardBg;
-    roundRect(ctx, cardX, cardY, cardW, cardH, 12);
-    ctx.fill();
-    ctx.strokeStyle = colors.cardBorder;
-    ctx.lineWidth = 1;
-    roundRect(ctx, cardX, cardY, cardW, cardH, 12);
-    ctx.stroke();
+    // ── 3. Draw barcode on the left ──
+    ctx.drawImage(barcodeCanvas, pad, pad, barcodeSize, barcodeSize);
 
-    let y = pad + 8;
+    // ── 4. Draw text on the right, vertically centered ──
+    const rightX = pad + barcodeSize + gap;
+    const centerY = pad + barcodeSize / 2;
 
-    // ── Title + Date on one line ──
+    // Disposition
+    const hasDisposition = !!note.dispositionType;
+    const dispText = hasDisposition
+        ? note.dispositionType + (note.dispositionText ? ` — ${note.dispositionText}` : '')
+        : '';
+
+    // Date
     let dateStr = '';
     try {
         dateStr = formatMilitaryDate(new Date(note.createdAt));
     } catch { /* ignore */ }
 
-    ctx.fillStyle = colors.title;
-    ctx.font = 'bold 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText('ADTMC Note', pad, y);
+    // Calculate vertical offsets so content is centered
+    const lineH = 22;
+    const totalTextH = (hasDisposition ? lineH : 0) + (dateStr ? lineH : 0);
+    let textY = centerY - totalTextH / 2 + 14; // +14 for baseline offset
+
+    if (hasDisposition) {
+        ctx.fillStyle = getDispositionColor(note.dispositionType);
+        ctx.font = `bold 15px ${font}`;
+        ctx.textAlign = 'left';
+        ctx.fillText(dispText, rightX, textY, rightW);
+        textY += lineH;
+    }
 
     if (dateStr) {
-        ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-        ctx.fillStyle = colors.date;
-        ctx.textAlign = 'right';
-        ctx.fillText(dateStr, canvasW - pad, y);
-    }
-    y += lineH + 8;
-
-    // ── CAT — disposition ──
-    if (note.dispositionType) {
-        let badgeColor = '#6b7280';
-        const dt = note.dispositionType.toUpperCase();
-        if (dt.includes('I') && !dt.includes('II') && !dt.includes('III') && !dt.includes('IV')) badgeColor = '#dc2626';
-        else if (dt.includes('II') && !dt.includes('III') && !dt.includes('IV')) badgeColor = '#f59e0b';
-        else if (dt.includes('III')) badgeColor = '#22c55e';
-        else if (dt.includes('IV')) badgeColor = '#3b82f6';
-
-        const dispText = note.dispositionType + (note.dispositionText ? ` — ${note.dispositionText}` : '');
-        ctx.fillStyle = badgeColor;
-        ctx.font = 'bold 12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(dispText, canvasW / 2, y);
-        y += lineH + 8;
-    }
-
-    // ── Barcode (white container with border) ──
-    const barcodeContainerW = barcodeDisplayW + barcodePad * 2;
-    const barcodeContainerX = (canvasW - barcodeContainerW) / 2;
-
-    ctx.fillStyle = colors.barcodeBg;
-    roundRect(ctx, barcodeContainerX, y, barcodeContainerW, barcodeContainerH, 6);
-    ctx.fill();
-    ctx.strokeStyle = isDark ? '#4b5563' : '#d1d5db';
-    ctx.lineWidth = 1;
-    roundRect(ctx, barcodeContainerX, y, barcodeContainerW, barcodeContainerH, 6);
-    ctx.stroke();
-
-    const barcodeX = barcodeContainerX + barcodePad;
-    ctx.drawImage(barcodeCanvas, barcodeX, y + barcodePad, barcodeDisplayW, barcodeDisplayH);
-    y += barcodeContainerH + 12;
-
-    // ── Encoded string block ──
-    ctx.fillStyle = colors.encodedBlockBg;
-    roundRect(ctx, pad, y, contentW, encodedBlockH, 6);
-    ctx.fill();
-
-    ctx.fillStyle = colors.encodedText;
-    ctx.font = `${encodedFontSize}px "Courier New", monospace`;
-    ctx.textAlign = 'left';
-    const encodedText = note.encodedText;
-    let textY = y + 12;
-    for (let i = 0; i < encodedText.length; i += charsPerLine) {
-        const line = encodedText.slice(i, i + charsPerLine);
-        ctx.fillText(line, pad + 8, textY);
-        textY += encodedFontSize + 4;
-    }
-    y += encodedBlockH;
-
-    // ── Author ──
-    if (authorLabel) {
-        y += 16;
-        ctx.textAlign = 'right';
-        ctx.fillStyle = colors.date;
-        ctx.font = '11px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-        ctx.fillText(authorLabel, canvasW - pad, y);
+        ctx.fillStyle = '#6b7280';
+        ctx.font = `13px ${font}`;
+        ctx.textAlign = 'left';
+        ctx.fillText(dateStr, rightX, textY);
     }
 
     return canvas;
@@ -274,7 +141,7 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
 }
 
 /**
- * Hook: share or copy a saved note as a PDF417 barcode image.
+ * Hook: share or copy a saved note as a Data Matrix barcode image.
  */
 export function useNoteShare() {
     const [shareStatus, setShareStatus] = useState<ShareStatus>('idle');

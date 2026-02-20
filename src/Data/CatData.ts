@@ -237,7 +237,7 @@ export const catData: catDataTypes[] = [
                 gen: [{}],
                 medcom: [medcomTrainingData[11]],
                 stp: [
-                    stpTask("081-68W-3036"),
+                    stpTask("081-000-1001"),
                     stpTask("081-68W-0254"),
                     stpTask("081-000-1008")
                 ],

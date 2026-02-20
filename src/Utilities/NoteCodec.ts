@@ -3,13 +3,71 @@
 // Centralises the pipe-delimited barcode format so every consumer
 // (useNoteRestore, useNoteImport, useNoteCapture, Barcode.tsx) uses one source.
 
+import { deflateRaw, inflateRaw } from 'pako';
 import { Algorithm } from '../Data/Algorithms';
 import { catData } from '../Data/CatData';
+import {
+    getCategoryFromSymptomCode,
+    getPECategory,
+    getGeneralFindings,
+    getMSKBodyPart,
+    VITAL_SIGNS,
+} from '../Data/PhysicalExamData';
+import type { CategoryLetter, AbnormalOption } from '../Data/PhysicalExamData';
 import { ranks, credentials, components } from '../Data/User';
 import type { UserTypes } from '../Data/User';
 import type { AlgorithmOptions, dispositionType } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import type { catDataTypes, subCatDataTypes } from '../Types/CatTypes';
+
+// ---------------------------------------------------------------------------
+// Text compression (zlib deflateRaw + base64)
+// ---------------------------------------------------------------------------
+// Replaces the old btoa(encodeURIComponent(text)) pipeline which expanded
+// text ~1.78x. DeflateRaw + base64 compresses to ~0.78x of raw.
+// Compressed values are prefixed with "!" to distinguish from legacy base64.
+// Base64 never contains "!" so detection is unambiguous.
+
+function uint8ToBase64(bytes: Uint8Array): string {
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+}
+
+function base64ToUint8(b64: string): Uint8Array {
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+}
+
+/** Compress text for barcode encoding. Uses deflateRaw when it saves space. */
+function compressText(text: string): string {
+    try {
+        const deflated = deflateRaw(new TextEncoder().encode(text));
+        const compressed = '!' + uint8ToBase64(deflated);
+        const legacy = btoa(encodeURIComponent(text));
+        return compressed.length < legacy.length ? compressed : legacy;
+    } catch {
+        return btoa(encodeURIComponent(text));
+    }
+}
+
+/** Decompress text — handles both !{compressed} and legacy base64 formats. */
+function decompressText(encoded: string): string {
+    if (encoded.startsWith('!')) {
+        try {
+            const inflated = inflateRaw(base64ToUint8(encoded.substring(1)));
+            return new TextDecoder().decode(inflated);
+        } catch { /* fall through to legacy */ }
+    }
+    try {
+        return decodeURIComponent(atob(encoded));
+    } catch {
+        try { return atob(encoded); }
+        catch { return decodeURIComponent(encoded); }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -125,24 +183,14 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
             const bitmask = parseInt(value || '0', 36);
             result.rfSelections = bitmaskToIndices(bitmask);
         } else if (prefix === 'H') {
-            try {
-                result.hpiText = decodeURIComponent(atob(value));
-            } catch {
-                try {
-                    result.hpiText = atob(value);
-                } catch {
-                    result.hpiText = decodeURIComponent(value);
-                }
-            }
+            result.hpiText = decompressText(value);
         } else if (prefix === 'P') {
-            try {
-                result.peText = decodeURIComponent(atob(value));
-            } catch {
-                try {
-                    result.peText = atob(value);
-                } catch {
-                    result.peText = decodeURIComponent(value);
-                }
+            if (value.startsWith('2:')) {
+                // Compact PE format v2 — reconstruct text from structural encoding
+                result.peText = decodePECompact(value, result.symptomCode);
+            } else {
+                // Compressed or legacy base64 text format
+                result.peText = decompressText(value);
             }
         } else if (prefix === 'F') {
             const flagsNum = parseInt(value, 10);
@@ -229,6 +277,293 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
 }
 
 // ---------------------------------------------------------------------------
+// Compact PE encoding (structured state → short string for barcode)
+// ---------------------------------------------------------------------------
+// Format: 2:{cat},{lat},{hr},{rr},{sys},{dia},{temp},{ht},{wt}~{gsBits36}~{isBits36}~{abnDetails}~{add64}
+// Status bits: 2 bits per item — 0=not-examined, 1=normal, 2=abnormal
+// Abnormal details: comma-separated "g{idx}.{chipBitmask36}[.{freetext64}]" or "i{idx}.{...}"
+// Backward compat: legacy P segments don't start with "2:" (base64 never contains ":")
+
+const PE_NOT_EXAMINED = 0;
+const PE_NORMAL = 1;
+const PE_ABNORMAL = 2;
+
+function matchAbnormalChips(text: string, options?: AbnormalOption[]): { chipBitmask: number; freeText: string } {
+    if (!text || text === '(no details)' || !options?.length) {
+        return { chipBitmask: 0, freeText: text === '(no details)' ? '' : text };
+    }
+    const segments = text.split(';').map(s => s.trim()).filter(Boolean);
+    let chipBitmask = 0;
+    const freeTextParts: string[] = [];
+    for (const seg of segments) {
+        const idx = options.findIndex(o => o.label === seg);
+        if (idx >= 0) {
+            chipBitmask |= (1 << idx);
+        } else {
+            freeTextParts.push(seg);
+        }
+    }
+    return { chipBitmask, freeText: freeTextParts.join('; ') };
+}
+
+function rebuildAbnormalText(chipBitmask: number, freeText: string, options?: AbnormalOption[]): string {
+    const parts: string[] = [];
+    if (options) {
+        for (let i = 0; i < options.length; i++) {
+            if ((chipBitmask >> i) & 1) {
+                parts.push(options[i].label);
+            }
+        }
+    }
+    if (freeText) parts.push(freeText);
+    return parts.join('; ') || '(no details)';
+}
+
+function encodePECompact(peText: string, symptomCode: string): string {
+    const dashCode = symptomCode.includes('-') ? symptomCode : symptomCode.replace(/([A-M])(\d+)/, '$1-$2');
+    const categoryLetter = getCategoryFromSymptomCode(dashCode);
+    if (!categoryLetter) return compressText(peText);
+
+    const categoryDef = getPECategory(categoryLetter);
+    const generalDefs = getGeneralFindings(categoryLetter);
+
+    const vitalValues: Record<string, string> = {};
+    const generalStatuses: number[] = new Array(generalDefs.length).fill(PE_NOT_EXAMINED);
+    const generalAbn: { idx: number; chipBitmask: number; freeText: string }[] = [];
+    const itemStatuses: number[] = new Array(categoryDef.items.length).fill(PE_NOT_EXAMINED);
+    const itemAbn: { idx: number; chipBitmask: number; freeText: string }[] = [];
+    let laterality = 'R';
+    let additional = '';
+
+    const lines = peText.split('\n');
+    let section: 'none' | 'vitals' | 'general' | 'category' | 'additional' = 'none';
+
+    for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) continue;
+
+        if (trimmed === 'Vital Signs:' || trimmed === 'Vital Signs') { section = 'vitals'; continue; }
+        if (trimmed === 'General:') { section = 'general'; continue; }
+        if (trimmed.startsWith('Additional Findings:')) {
+            section = 'additional';
+            additional = trimmed.replace('Additional Findings:', '').trim();
+            continue;
+        }
+        if (trimmed.startsWith(`${categoryDef.label}:`) || trimmed.startsWith('MSK -')) {
+            section = 'category';
+            const latMatch = trimmed.match(/\((Left|Right|Bilateral)\)/i);
+            if (latMatch) laterality = latMatch[1][0].toUpperCase();
+            continue;
+        }
+
+        if (section === 'additional') { additional += '\n' + trimmed; continue; }
+
+        if (section === 'vitals') {
+            const bpMatch = trimmed.match(/^BP:\s*(.+?)\/(.+?)\s*mmHg/);
+            if (bpMatch) {
+                if (bpMatch[1].trim() !== '--') vitalValues['bpSys'] = bpMatch[1].trim();
+                if (bpMatch[2].trim() !== '--') vitalValues['bpDia'] = bpMatch[2].trim();
+                continue;
+            }
+            const vm = trimmed.match(/^(\w+):\s*(.+)/);
+            if (vm) {
+                const vDef = VITAL_SIGNS.find(v => v.shortLabel === vm[1]);
+                if (vDef) {
+                    let val = vm[2].trim();
+                    if (val.endsWith(vDef.unit)) val = val.slice(0, -vDef.unit.length).trim();
+                    vitalValues[vDef.key] = val;
+                }
+            }
+            continue;
+        }
+
+        if (section === 'general') {
+            for (let gi = 0; gi < generalDefs.length; gi++) {
+                const g = generalDefs[gi];
+                if (trimmed.startsWith(`${g.label}:`)) {
+                    const rest = trimmed.slice(g.label.length + 1).trim();
+                    if (rest.startsWith('Normal')) {
+                        generalStatuses[gi] = PE_NORMAL;
+                    } else if (rest.startsWith('Abnormal')) {
+                        generalStatuses[gi] = PE_ABNORMAL;
+                        const abnText = rest.replace(/^Abnormal\s*-?\s*/, '').trim();
+                        const { chipBitmask, freeText } = matchAbnormalChips(abnText, g.abnormalOptions);
+                        generalAbn.push({ idx: gi, chipBitmask, freeText });
+                    }
+                    break;
+                }
+            }
+            continue;
+        }
+
+        if (section === 'category') {
+            for (let ii = 0; ii < categoryDef.items.length; ii++) {
+                const item = categoryDef.items[ii];
+                if (trimmed.startsWith(`${item.label}:`)) {
+                    const rest = trimmed.slice(item.label.length + 1).trim();
+                    if (rest.startsWith('Normal')) {
+                        itemStatuses[ii] = PE_NORMAL;
+                    } else if (rest.startsWith('Abnormal')) {
+                        itemStatuses[ii] = PE_ABNORMAL;
+                        const abnText = rest.replace(/^Abnormal\s*-?\s*/, '').trim();
+                        const { chipBitmask, freeText } = matchAbnormalChips(abnText, item.abnormalOptions);
+                        itemAbn.push({ idx: ii, chipBitmask, freeText });
+                    }
+                    break;
+                }
+            }
+            continue;
+        }
+    }
+
+    // Build compact string
+    const vitalsCsv = VITAL_SIGNS.map(v => vitalValues[v.key] || '').join(',');
+
+    let gsBits = 0;
+    for (let i = 0; i < generalStatuses.length; i++) gsBits |= (generalStatuses[i] << (i * 2));
+
+    let isBits = 0;
+    for (let i = 0; i < itemStatuses.length; i++) isBits |= (itemStatuses[i] << (i * 2));
+
+    const abnParts: string[] = [];
+    for (const a of generalAbn) {
+        let e = `g${a.idx}.${a.chipBitmask.toString(36)}`;
+        if (a.freeText) e += `.${compressText(a.freeText)}`;
+        abnParts.push(e);
+    }
+    for (const a of itemAbn) {
+        let e = `i${a.idx}.${a.chipBitmask.toString(36)}`;
+        if (a.freeText) e += `.${compressText(a.freeText)}`;
+        abnParts.push(e);
+    }
+
+    const add64 = additional.trim() ? compressText(additional.trim()) : '';
+
+    return `2:${categoryLetter},${laterality},${vitalsCsv}~${gsBits.toString(36)}~${isBits.toString(36)}~${abnParts.join(',')}~${add64}`;
+}
+
+function decodePECompact(encoded: string, symptomCode: string): string {
+    const data = encoded.startsWith('2:') ? encoded.substring(2) : encoded;
+    const sections = data.split('~');
+    if (sections.length < 5) return '';
+
+    const headerParts = sections[0].split(',');
+    const categoryLetter = headerParts[0] as CategoryLetter;
+    const laterality = headerParts[1] || 'R';
+    const vitalCsvValues = headerParts.slice(2);
+
+    const categoryDef = getPECategory(categoryLetter);
+    const generalDefs = getGeneralFindings(categoryLetter);
+    const dashCode = symptomCode.includes('-') ? symptomCode : symptomCode.replace(/([A-M])(\d+)/, '$1-$2');
+    const bodyPart = categoryLetter === 'B' ? getMSKBodyPart(dashCode) : null;
+
+    // Reconstruct vitals
+    const vitals: Record<string, string> = {};
+    VITAL_SIGNS.forEach((v, i) => { vitals[v.key] = vitalCsvValues[i] || ''; });
+
+    // Decode status bits
+    const gsBits = parseInt(sections[1] || '0', 36);
+    const isBits = parseInt(sections[2] || '0', 36);
+
+    // Decode abnormal details
+    const abnMap: Record<string, { chipBitmask: number; freeText: string }> = {};
+    if (sections[3]) {
+        for (const entry of sections[3].split(',').filter(Boolean)) {
+            const dotParts = entry.split('.');
+            const key = dotParts[0];
+            const chipBitmask = parseInt(dotParts[1] || '0', 36);
+            let freeText = '';
+            if (dotParts.length > 2) {
+                freeText = decompressText(dotParts.slice(2).join('.'));
+            }
+            abnMap[key] = { chipBitmask, freeText };
+        }
+    }
+
+    // Decode additional findings
+    let additional = '';
+    if (sections[4]) {
+        additional = decompressText(sections[4]);
+    }
+
+    // ── Reconstruct full PE text ──
+    const textParts: string[] = [];
+
+    // Vitals
+    const hasVitals = VITAL_SIGNS.some(v => vitals[v.key]?.trim());
+    if (hasVitals) {
+        textParts.push('Vital Signs:');
+        for (const v of VITAL_SIGNS) {
+            if (v.key === 'bpSys') {
+                const sys = vitals['bpSys']?.trim();
+                const dia = vitals['bpDia']?.trim();
+                if (sys || dia) textParts.push(`  BP: ${sys || '--'}/${dia || '--'} mmHg`);
+                continue;
+            }
+            if (v.key === 'bpDia') continue;
+            const val = vitals[v.key]?.trim();
+            if (val) textParts.push(`  ${v.shortLabel}: ${val} ${v.unit}`);
+        }
+    }
+
+    // General findings
+    let hasGenerals = false;
+    for (let gi = 0; gi < generalDefs.length; gi++) {
+        if (((gsBits >> (gi * 2)) & 3) !== PE_NOT_EXAMINED) { hasGenerals = true; break; }
+    }
+    if (hasGenerals) {
+        if (textParts.length > 0) textParts.push('');
+        textParts.push('General:');
+        for (let gi = 0; gi < generalDefs.length; gi++) {
+            const status = (gsBits >> (gi * 2)) & 3;
+            const g = generalDefs[gi];
+            if (status === PE_NOT_EXAMINED) continue;
+            if (status === PE_NORMAL) {
+                textParts.push(`${g.label}: Normal - ${g.normalText}`);
+            } else if (status === PE_ABNORMAL) {
+                const abn = abnMap[`g${gi}`];
+                const abnText = rebuildAbnormalText(abn?.chipBitmask || 0, abn?.freeText || '', g.abnormalOptions);
+                textParts.push(`${g.label}: Abnormal - ${abnText}`);
+            }
+        }
+    }
+
+    // Category items
+    let hasItems = false;
+    for (let ii = 0; ii < categoryDef.items.length; ii++) {
+        if (((isBits >> (ii * 2)) & 3) !== PE_NOT_EXAMINED) { hasItems = true; break; }
+    }
+    if (hasItems) {
+        if (textParts.length > 0) textParts.push('');
+        if (categoryDef.category === 'B' && bodyPart) {
+            const latLabel = laterality === 'B' ? 'Bilateral' : laterality === 'L' ? 'Left' : 'Right';
+            textParts.push(`MSK - ${bodyPart.label} (${latLabel}):`);
+        } else {
+            textParts.push(`${categoryDef.label}:`);
+        }
+        for (let ii = 0; ii < categoryDef.items.length; ii++) {
+            const status = (isBits >> (ii * 2)) & 3;
+            const item = categoryDef.items[ii];
+            if (status === PE_NOT_EXAMINED) continue;
+            if (status === PE_NORMAL) {
+                textParts.push(item.normalText ? `${item.label}: Normal - ${item.normalText}` : `${item.label}: Normal`);
+            } else if (status === PE_ABNORMAL) {
+                const abn = abnMap[`i${ii}`];
+                const abnText = rebuildAbnormalText(abn?.chipBitmask || 0, abn?.freeText || '', item.abnormalOptions);
+                textParts.push(`${item.label}: Abnormal - ${abnText}`);
+            }
+        }
+    }
+
+    if (additional.trim()) {
+        if (textParts.length > 0) textParts.push('');
+        textParts.push(`Additional Findings: ${additional.trim()}`);
+    }
+
+    return textParts.join('\n');
+}
+
+// ---------------------------------------------------------------------------
 // Encoding (live state → barcode string)
 // ---------------------------------------------------------------------------
 
@@ -303,23 +638,20 @@ export function encodeNoteState(
         parts.push(`A${i}.${state.actionStatus === 'deferred' ? 'D' : 'P'}`);
     }
 
-    // 4. HPI text (base64 encoded)
+    // 4. HPI text (compressed)
     const customNote = noteOptions.customNote?.trim();
     if (customNote) {
-        try {
-            parts.push(`H${btoa(encodeURIComponent(customNote))}`);
-        } catch {
-            parts.push(`H${encodeURIComponent(customNote)}`);
-        }
+        parts.push(`H${compressText(customNote)}`);
     }
 
-    // 4b. Physical Exam text (base64 encoded)
+    // 4b. Physical Exam (compact structured encoding)
     const peNote = noteOptions.physicalExamNote?.trim();
     if (peNote) {
         try {
-            parts.push(`P${btoa(encodeURIComponent(peNote))}`);
+            parts.push(`P${encodePECompact(peNote, symptomCode)}`);
         } catch {
-            parts.push(`P${encodeURIComponent(peNote)}`);
+            // Fallback to compressed text if compact encoding fails
+            parts.push(`P${compressText(peNote)}`);
         }
     }
 

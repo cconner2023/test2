@@ -1,6 +1,6 @@
 // hooks/useBarcodeScanner.ts
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { BrowserPDF417Reader, BrowserMultiFormatReader } from '@zxing/library';
+import { BrowserMultiFormatReader } from '@zxing/library';
 
 interface ScannerState {
     isScanning: boolean;
@@ -17,7 +17,7 @@ export const useBarcodeScanner = () => {
 
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
-    const readerRef = useRef<BrowserPDF417Reader | BrowserMultiFormatReader | null>(null);
+    const readerRef = useRef<BrowserMultiFormatReader | null>(null);
     const scanningRef = useRef(false);
 
     // Cleanup camera stream
@@ -58,7 +58,7 @@ export const useBarcodeScanner = () => {
             video.srcObject = stream;
             await video.play();
 
-            // Use multi-format reader for broader barcode support including PDF417
+            // Use multi-format reader for barcode support including Data Matrix
             const reader = new BrowserMultiFormatReader();
             readerRef.current = reader;
 

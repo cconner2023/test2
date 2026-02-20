@@ -236,31 +236,10 @@ export function useNotesStorage(isNotePanelOpen = false) {
         if (userId !== 'guest' && checkOnline()) {
           try {
             setIsSyncing(true);
-            const reconciledNotes = await notesApi.fetchNotesFromServer(userId);
 
-            if (cancelled) return;
-
-            // Merge server notes into IndexedDB
-            const existingLocal = await getAllLocalNotesIncludingDeleted(userId);
-            const localMap = new Map(existingLocal.map((n) => [n.id, n]));
-
-            for (const serverNote of reconciledNotes) {
-              const local = localMap.get(serverNote.id);
-              if (!local) {
-                // Server-only note -- pull into IndexedDB
-                await idbSaveNote(serverNote);
-              } else if (local._sync_status !== 'pending') {
-                // Both exist, local is not pending -- update from server
-                const serverTime = new Date(serverNote.updated_at).getTime();
-                const localTime = new Date(local.updated_at).getTime();
-                if (serverTime >= localTime) {
-                  await idbSaveNote(serverNote);
-                }
-              }
-              // If local is pending, keep it -- it will be pushed to server
-            }
-
-            // Push any pending local changes to server
+            // fullSync() handles reconciliation (pull) + push in one call.
+            // reconcileWithServer() inside fullSync does the same last-write-wins
+            // merge that was previously duplicated here.
             await fullSync(userId);
 
             if (cancelled) return;

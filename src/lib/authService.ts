@@ -3,9 +3,7 @@
  *
  * Provides:
  * - User registration with profile creation
- * - Login/logout
- * - Session management
- * - Auth state change listeners
+ * - Login
  */
 import { supabase } from './supabase'
 import type { User, Session, AuthError } from '@supabase/supabase-js'
@@ -99,39 +97,6 @@ export async function signIn(
 }
 
 /**
- * Log out the current user.
- */
-export async function signOut(): Promise<{ error: AuthError | null }> {
-  const { error } = await supabase.auth.signOut()
-  return { error }
-}
-
-/**
- * Get the current session (returns null if not authenticated).
- */
-export async function getSession(): Promise<Session | null> {
-  const { data } = await supabase.auth.getSession()
-  return data.session
-}
-
-/**
- * Get the current user.
- */
-export async function getUser(): Promise<User | null> {
-  const { data } = await supabase.auth.getUser()
-  return data.user
-}
-
-/**
- * Subscribe to auth state changes.
- */
-export function onAuthStateChange(
-  callback: (event: string, session: Session | null) => void
-) {
-  return supabase.auth.onAuthStateChange(callback)
-}
-
-/**
  * Associate a user with a clinic based on their UIC.
  * Searches the clinics.uics array for a match, then falls back
  * to checking additional_user_ids.
@@ -171,39 +136,4 @@ async function associateClinic(userId: string, uic: string): Promise<void> {
       .update({ clinic_id: attachedClinic.id })
       .eq('id', userId)
   }
-}
-
-/**
- * Get the user's profile from Supabase.
- */
-export async function getProfile(userId: string) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .single()
-
-  return { data, error }
-}
-
-/**
- * Update the user's profile.
- */
-export async function updateProfile(
-  userId: string,
-  updates: Partial<ProfileData>
-) {
-  const { data, error } = await supabase
-    .from('profiles')
-    .update(updates)
-    .eq('id', userId)
-    .select()
-    .single()
-
-  // Re-associate clinic if UIC changed
-  if (!error && updates.uic) {
-    await associateClinic(userId, updates.uic)
-  }
-
-  return { data, error }
 }

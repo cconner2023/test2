@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Check, X, UserPlus, Clock, Ban, Search, ChevronLeft, KeyRound, Pencil, Trash2, AlertTriangle, Bell, BellOff, Plus, MapPin, Building2 } from 'lucide-react'
+import { Check, X, UserPlus, Clock, Ban, Search, ChevronLeft, KeyRound, Pencil, Trash2, AlertTriangle, Plus, MapPin, Building2 } from 'lucide-react'
 import type { Component } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import {
@@ -23,7 +23,6 @@ import {
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
 import { supabase } from '../../lib/supabase'
-import { usePushNotifications } from '../../Hooks/usePushNotifications'
 
 // ─── Shared input components ──────────────────────────────────────────
 
@@ -1404,8 +1403,6 @@ export const AdminPanel = () => {
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'requests' | 'users' | 'clinics'>('requests')
-  const push = usePushNotifications()
-
   useEffect(() => {
     const check = async () => {
       const isDev = await isDevUser()
@@ -1449,26 +1446,7 @@ export const AdminPanel = () => {
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
-
-          {push.isSupported && (
-            <button
-              onClick={() => push.isSubscribed ? push.unsubscribe() : push.subscribe()}
-              disabled={push.loading}
-              className={`ml-auto p-2 rounded-lg transition-colors disabled:opacity-50
-                ${push.isSubscribed
-                  ? 'bg-themeblue2 text-white hover:bg-themeblue2/90'
-                  : 'bg-themewhite2 text-tertiary/70 hover:bg-themewhite2/80'}`}
-              title={push.isSubscribed ? 'Disable push notifications' : 'Enable push notifications'}
-            >
-              {push.isSubscribed ? <Bell size={18} /> : <BellOff size={18} />}
-            </button>
-          )}
         </div>
-        {push.error && (
-          <div className="mb-4 p-3 rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred text-sm">
-            {push.error}
-          </div>
-        )}
 
         {activeTab === 'requests' && <RequestsTab />}
         {activeTab === 'users' && <UsersTab />}

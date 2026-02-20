@@ -1,5 +1,8 @@
 import { useState, useCallback } from 'react'
 import { X, GitBranch, FileText, Import, Settings, BookOpen, Pill } from 'lucide-react'
+import { useNavigationStore } from '../../stores/useNavigationStore'
+
+type Platform = 'desktop' | 'mobile'
 
 interface HowToClip {
     id: string
@@ -7,6 +10,8 @@ interface HowToClip {
     icon: React.ReactNode
     /** Path relative to public/, e.g. "howTo/algorithm.mp4" */
     src: string | null
+    mobileSrc: string | null
+    tags: Platform[]
 }
 
 const HOW_TO_CLIPS: HowToClip[] = [
@@ -14,48 +19,63 @@ const HOW_TO_CLIPS: HowToClip[] = [
         id: 'note-actions',
         title: 'Note Actions',
         icon: <FileText size={20} />,
-        src: 'howTo/Note Actions.mp4',
+        src: 'howTo/desktopNoteActions.mp4',
+        mobileSrc: 'howTo/mobile/Note Actions.mp4',
+        tags: ['desktop', 'mobile'],
     },
     {
         id: 'note-import',
         title: 'Importing Notes',
         icon: <Import size={20} />,
         src: 'howTo/Note Import.mp4',
+        mobileSrc: 'howTo/mobile/Note Import.mp4',
+        tags: ['desktop', 'mobile'],
     },
     {
         id: 'settings',
         title: 'Settings Overview',
         icon: <Settings size={20} />,
         src: 'howTo/settings.mp4',
+        mobileSrc: 'howTo/mobile/settings.mp4',
+        tags: ['desktop', 'mobile'],
     },
     {
         id: 'training',
         title: 'Training',
         icon: <BookOpen size={20} />,
         src: 'howTo/training.mp4',
+        mobileSrc: 'howTo/mobile/training.mp4',
+        tags: ['desktop', 'mobile'],
     },
     {
         id: 'medications',
         title: 'Medications',
         icon: <Pill size={20} />,
         src: null,
+        mobileSrc: null,
+        tags: ['desktop', 'mobile'],
     },
     {
         id: 'algorithm',
         title: 'Using the Algorithm',
         icon: <GitBranch size={20} />,
-        src: null,
+        src: 'howTo/desktopAlgorithm.mp4',
+        mobileSrc: 'howTo/mobile/mobileAlgorithm.mp4',
+        tags: ['desktop', 'mobile'],
     },
-
 ]
 
 export const HowToPanel = () => {
     const [activeClip, setActiveClip] = useState<string | null>(null)
+    const isMobile = useNavigationStore(s => s.isMobile)
+    const platform: Platform = isMobile ? 'mobile' : 'desktop'
+    const visibleClips = HOW_TO_CLIPS.filter(clip => clip.tags.includes(platform))
 
     const handleTileClick = useCallback((clip: HowToClip) => {
-        if (!clip.src) return
+        const src = isMobile ? clip.mobileSrc : clip.src
+        if (!src) return
         setActiveClip(prev => prev === clip.id ? null : clip.id)
-    }, [])
+    }, [isMobile])
 
     return (
         <div className="h-full overflow-y-auto">
@@ -65,9 +85,10 @@ export const HowToPanel = () => {
                 </p>
 
                     <div className="grid grid-cols-3 gap-2">
-                        {HOW_TO_CLIPS.map((clip) => {
+                        {visibleClips.map((clip) => {
+                            const videoSrc = isMobile ? clip.mobileSrc : clip.src
                             const isActive = activeClip === clip.id
-                            const isDisabled = !clip.src
+                            const isDisabled = !videoSrc
 
                             return (
                                 <div
@@ -109,15 +130,15 @@ export const HowToPanel = () => {
 
                                         {/* Video — CSS animated expand/collapse */}
                                         <div className={`grid transition-[grid-template-rows,opacity] duration-200 ease-out ${
-                                            isActive && clip.src ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                                            isActive && videoSrc ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
                                         }`}>
                                             <div className="overflow-hidden">
                                                 <div className="p-2" onClick={e => e.stopPropagation()}>
                                                     <div className="w-full aspect-video rounded-lg bg-black/5">
-                                                        {isActive && clip.src && (
+                                                        {isActive && videoSrc && (
                                                             <video
-                                                                key={clip.id}
-                                                                src={`${import.meta.env.BASE_URL}${clip.src}`}
+                                                                key={`${clip.id}-${platform}`}
+                                                                src={`${import.meta.env.BASE_URL}${videoSrc}`}
                                                                 controls
                                                                 playsInline
                                                                 className="w-full h-full rounded-lg"

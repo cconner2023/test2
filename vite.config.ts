@@ -116,6 +116,7 @@ export default defineConfig({
       },
       injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2,mp3}'],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024, // 4 MiB
       },
       devOptions: {
         enabled: false // PWA disabled in dev; test with 'npm run preview' after build

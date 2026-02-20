@@ -11,6 +11,11 @@ export function useAuth() {
   const isAuthenticated = useAuthStore(selectIsAuthenticated)
   const continueAsGuest = useAuthStore((s) => s.continueAsGuest)
   const signOut = useAuthStore((s) => s.signOut)
+  const profile = useAuthStore((s) => s.profile)
+  const roles = useAuthStore((s) => s.roles)
+  const isDevRole = useAuthStore((s) => s.isDevRole)
+  const isSupervisorRole = useAuthStore((s) => s.isSupervisorRole)
+  const refreshProfile = useAuthStore((s) => s.refreshProfile)
 
   return {
     user,
@@ -19,5 +24,10 @@ export function useAuth() {
     isAuthenticated,
     continueAsGuest,
     signOut,
+    profile,
+    roles,
+    isDevRole,
+    isSupervisorRole,
+    refreshProfile,
   }
 }

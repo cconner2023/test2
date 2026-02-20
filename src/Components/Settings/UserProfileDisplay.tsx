@@ -1,27 +1,12 @@
-import { useState, useEffect } from 'react'
 import { Edit2 } from 'lucide-react'
-import { supabase } from '../../lib/supabase'
-import { createLogger } from '../../Utilities/Logger'
-
-const logger = createLogger('UserProfile')
-
-interface ProfileData {
-  firstName: string | null
-  lastName: string | null
-  middleInitial: string | null
-  credential: string | null
-  component: string | null
-  rank: string | null
-  uic: string | null
-  displayName: string | null
-}
+import { useAuth } from '../../Hooks/useAuth'
 
 const DisplayField = ({
   label,
   value,
 }: {
   label: string
-  value: string | null
+  value: string | null | undefined
 }) => (
   <div className="block">
     <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>
@@ -36,64 +21,7 @@ interface UserProfileDisplayProps {
 }
 
 export const UserProfileDisplay = ({ onRequestChange }: UserProfileDisplayProps) => {
-  const [profile, setProfile] = useState<ProfileData>({
-    firstName: null,
-    lastName: null,
-    middleInitial: null,
-    credential: null,
-    component: null,
-    rank: null,
-    uic: null,
-    displayName: null,
-  })
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const loadProfile = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user) {
-          setLoading(false)
-          return
-        }
-
-        const { data } = await supabase
-          .from('profiles')
-          .select('first_name, last_name, middle_initial, credential, component, rank, uic, display_name')
-          .eq('id', user.id)
-          .single()
-
-        if (data) {
-          setProfile({
-            firstName: data.first_name,
-            lastName: data.last_name,
-            middleInitial: data.middle_initial,
-            credential: data.credential,
-            component: data.component,
-            rank: data.rank,
-            uic: data.uic,
-            displayName: data.display_name,
-          })
-        }
-      } catch (error) {
-        logger.error('Error loading profile:', error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadProfile()
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="h-full overflow-y-auto">
-        <div className="px-4 py-3 md:p-5">
-          <p className="text-sm text-tertiary/60">Loading profile...</p>
-        </div>
-      </div>
-    )
-  }
+  const { profile } = useAuth()
 
   return (
     <div className="h-full overflow-y-auto">

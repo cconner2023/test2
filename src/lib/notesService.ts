@@ -20,6 +20,7 @@ import {
   hardDeleteLocalNote,
   addToSyncQueue,
   updateNoteSyncStatus,
+  stripLocalFields,
   type LocalNote,
   type NoteSyncStatus,
 } from './offlineDb'
@@ -206,19 +207,6 @@ function buildLocalNote(
   }
 }
 
-/**
- * Build the Supabase payload from a LocalNote.
- * Strips all local-only fields (prefixed with _).
- */
-function localNoteToSupabasePayload(note: LocalNote): Record<string, unknown> {
-  const payload: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(note)) {
-    if (!key.startsWith('_')) {
-      payload[key] = value
-    }
-  }
-  return payload
-}
 
 // ============================================================
 // User Context
@@ -260,35 +248,6 @@ async function getUserContext(): Promise<{
     }
   } catch {
     return { userId: null, clinicId: null, displayName: null, rank: null }
-  }
-}
-
-// ============================================================
-// Health Check
-// ============================================================
-
-/**
- * Check if Supabase is available and the user can access the notes table.
- */
-export async function checkApiHealth(): Promise<{ ok: boolean; noteCount?: number }> {
-  try {
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { ok: true, noteCount: 0 }
-
-    const { count, error } = await supabase
-      .from('notes')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-
-    if (error) {
-      logger.error('Health check error:', error)
-      return { ok: false }
-    }
-
-    return { ok: true, noteCount: count || 0 }
-  } catch (error) {
-    logger.error('Health check failed:', error)
-    return { ok: false }
   }
 }
 
@@ -342,13 +301,13 @@ export async function createNote(
     action: 'create',
     table_name: 'notes',
     record_id: note.id,
-    payload: localNoteToSupabasePayload(note),
+    payload: stripLocalFields(note as unknown as Record<string, unknown>),
   })
 
   // Attempt immediate sync if online
   if (isOnline()) {
     try {
-      const payload = localNoteToSupabasePayload(note)
+      const payload = stripLocalFields(note as unknown as Record<string, unknown>)
       const { error } = await supabase
         .from('notes')
         .upsert(payload as never, { onConflict: 'id' })
@@ -357,6 +316,18 @@ export async function createNote(
         await updateNoteSyncStatus(note.id, 'synced')
         note._sync_status = 'synced'
         logger.info(`Note ${note.id} synced immediately`)
+
+        // Fire-and-forget: notify clinic members
+        if (clinicId) {
+          supabase.functions.invoke('send-push-notification', {
+            body: {
+              type: 'new_clinic_note',
+              name: displayName,
+              clinic_id: clinicId,
+              author_id: userId,
+            },
+          }).catch(() => {})
+        }
       } else {
         logger.warn(`Immediate sync failed, queued for later: ${error.message}`)
       }
@@ -410,13 +381,13 @@ export async function updateNote(
       action: 'update',
       table_name: 'notes',
       record_id: noteId,
-      payload: localNoteToSupabasePayload(updatedNote),
+      payload: stripLocalFields(updatedNote as unknown as Record<string, unknown>),
     })
 
     // Attempt immediate sync if online
     if (isOnline()) {
       try {
-        const payload = localNoteToSupabasePayload(updatedNote)
+        const payload = stripLocalFields(updatedNote as unknown as Record<string, unknown>)
         const { error } = await supabase
           .from('notes')
           .update(payload as never)

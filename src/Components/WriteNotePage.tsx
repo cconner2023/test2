@@ -3,6 +3,7 @@ import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes'
 import type { CardState } from '../Hooks/useAlgorithm';
 import { useNoteCapture } from '../Hooks/useNoteCapture';
 import { useNoteShare } from '../Hooks/useNoteShare';
+import { useDD689Export } from '../Hooks/useDD689Export';
 import { useUserProfile } from '../Hooks/useUserProfile';
 import { formatSignature } from '../Utilities/NoteFormatter';
 import { getColorClasses } from '../Utilities/ColorUtilities';
@@ -130,6 +131,7 @@ export const WriteNotePage = ({
     const { generateNote } = useNoteCapture(algorithmOptions, cardStates);
     const signature = formatSignature(profile);
     const { shareNote, shareStatus } = useNoteShare();
+    const { exportDD689, exportStatus } = useDD689Export();
     const colors = getColorClasses(disposition.type);
 
     // --- Copied state auto-revert ---
@@ -195,6 +197,17 @@ export const WriteNotePage = ({
             previewText: previewNote.slice(0, 200),
         }, isMobile);
     }, [encodedValue, existingNoteId, noteTimestamp, selectedSymptom, disposition, previewNote, isMobile, shareNote]);
+
+    // --- DD689 PDF export handler ---
+    const handleExportDD689 = useCallback(() => {
+        if (!encodedValue) return;
+        exportDD689({
+            encodedValue,
+            dispositionType: disposition.type,
+            dispositionText: disposition.text,
+            symptomText: selectedSymptom?.text || 'Note',
+        });
+    }, [encodedValue, disposition, selectedSymptom, exportDD689]);
 
     // --- Determine button state based on existing note ---
     const isAlreadySaved = Boolean(existingNoteId);
@@ -556,6 +569,14 @@ export const WriteNotePage = ({
                                                 variant="share"
                                                 title="Share note as image"
                                             />
+                                            <ActionIconButton
+                                                onClick={handleExportDD689}
+                                                status={exportStatus === 'done' ? 'done'
+                                                    : exportStatus === 'generating' ? 'busy'
+                                                        : 'idle'}
+                                                variant="pdf"
+                                                title="Export DD689 PDF"
+                                            />
                                         </div>
                                     </div>
                                     <div className="mt-1">
@@ -710,7 +731,7 @@ const ActionIconButton = ({
 }: {
     onClick: () => void;
     status: 'idle' | 'busy' | 'done';
-    variant: 'copy' | 'share';
+    variant: 'copy' | 'share' | 'pdf';
     title: string;
 }) => {
     const colorClass = status === 'done' ? 'text-green-600'
@@ -739,9 +760,15 @@ const ActionIconButton = ({
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
-            ) : (
+            ) : variant === 'share' ? (
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+            ) : (
+                /* PDF icon: document with download arrow */
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11v6m0 0l-2-2m2 2l2-2" />
                 </svg>
             )}
         </span>

@@ -19,6 +19,7 @@ import {
   hardDeleteLocalTrainingCompletion,
   addToSyncQueue,
   updateTrainingCompletionSyncStatus,
+  stripLocalFields,
   type LocalTrainingCompletion,
   type TrainingCompletionSyncStatus,
 } from './offlineDb'
@@ -71,16 +72,6 @@ export function localToUI(local: LocalTrainingCompletion): TrainingCompletionUI 
   }
 }
 
-/** Strip local-only fields (prefixed with _) for Supabase payload. */
-function localToSupabasePayload(local: LocalTrainingCompletion): Record<string, unknown> {
-  const payload: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(local)) {
-    if (!key.startsWith('_')) {
-      payload[key] = value
-    }
-  }
-  return payload
-}
 
 // ============================================================
 // CRUD Operations (Offline-First)
@@ -125,7 +116,7 @@ export async function createReadCompletion(
   await saveLocalTrainingCompletion(local)
 
   if (userId !== 'guest') {
-    const payload = localToSupabasePayload(local)
+    const payload = stripLocalFields(local as unknown as Record<string, unknown>)
 
     await addToSyncQueue({
       user_id: userId,
@@ -195,7 +186,7 @@ export async function createTestCompletion(params: {
 
   await saveLocalTrainingCompletion(local)
 
-  const payload = localToSupabasePayload(local)
+  const payload = stripLocalFields(local as unknown as Record<string, unknown>)
 
   // Queue for sync — user_id in queue = supervisor (the authenticated user),
   // payload.user_id = medic (the subject of the evaluation)

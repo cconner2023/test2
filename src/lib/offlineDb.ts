@@ -284,14 +284,6 @@ export async function getAllLocalNotesIncludingDeleted(userId: string): Promise<
 }
 
 /**
- * Get a single note by ID, or null if not found.
- */
-export async function getLocalNote(noteId: string): Promise<LocalNote | undefined> {
-  const db = await getDb()
-  return db.get('notes', noteId)
-}
-
-/**
  * Save or update a note in IndexedDB.
  * This is a put (upsert) operation -- if a note with the same ID
  * exists, it will be overwritten.
@@ -299,26 +291,6 @@ export async function getLocalNote(noteId: string): Promise<LocalNote | undefine
 export async function saveLocalNote(note: LocalNote): Promise<void> {
   const db = await getDb()
   await db.put('notes', note)
-}
-
-/**
- * Soft-delete a local note. Sets deleted_at and marks as pending sync.
- * Returns the updated note, or null if not found.
- */
-export async function softDeleteLocalNote(noteId: string): Promise<LocalNote | null> {
-  const db = await getDb()
-  const note = await db.get('notes', noteId)
-  if (!note) return null
-
-  const now = new Date().toISOString()
-  note.deleted_at = now
-  note.updated_at = now
-  note._sync_status = 'pending'
-  note._sync_retry_count = 0
-  note._last_sync_error = null
-  note._last_sync_error_message = null
-  await db.put('notes', note)
-  return note
 }
 
 /**
@@ -355,48 +327,6 @@ export async function updateNoteSyncStatus(
   }
 
   await db.put('notes', note)
-}
-
-/**
- * Mark multiple notes as synced in a batch.
- */
-export async function markNotesSynced(noteIds: string[]): Promise<void> {
-  const db = await getDb()
-  const tx = db.transaction('notes', 'readwrite')
-  const store = tx.objectStore('notes')
-
-  for (const id of noteIds) {
-    const note = await store.get(id)
-    if (note) {
-      note._sync_status = 'synced'
-      note._sync_retry_count = 0
-      note._last_sync_error = null
-      note._last_sync_error_message = null
-      await store.put(note)
-    }
-  }
-
-  await tx.done
-}
-
-/**
- * Get all notes with a specific sync status for a user.
- */
-export async function getNotesBySyncStatus(
-  userId: string,
-  status: NoteSyncStatus
-): Promise<LocalNote[]> {
-  const db = await getDb()
-  return db.getAllFromIndex('notes', 'by-user-sync', [userId, status])
-}
-
-/**
- * Get the count of pending (unsynced) notes for a user.
- */
-export async function getPendingNoteCount(userId: string): Promise<number> {
-  const db = await getDb()
-  const pending = await db.getAllFromIndex('notes', 'by-user-sync', [userId, 'pending'])
-  return pending.length
 }
 
 // ============================================================
@@ -579,17 +509,6 @@ export async function getLocalTrainingCompletions(userId: string): Promise<Local
 }
 
 /**
- * Get local training completions for a user filtered by type ('read' or 'test').
- */
-export async function getLocalTrainingCompletionsByType(
-  userId: string,
-  completionType: CompletionType
-): Promise<LocalTrainingCompletion[]> {
-  const db = await getDb()
-  return db.getAllFromIndex('trainingCompletions', 'by-user-type', [userId, completionType])
-}
-
-/**
  * Save or update a training completion in IndexedDB (upsert).
  */
 export async function saveLocalTrainingCompletion(
@@ -631,17 +550,6 @@ export async function updateTrainingCompletionSyncStatus(
   }
 
   await db.put('trainingCompletions', completion)
-}
-
-/**
- * Get all training completions with a specific sync status for a user.
- */
-export async function getTrainingCompletionsBySyncStatus(
-  userId: string,
-  status: TrainingCompletionSyncStatus
-): Promise<LocalTrainingCompletion[]> {
-  const db = await getDb()
-  return db.getAllFromIndex('trainingCompletions', 'by-user-sync', [userId, status])
 }
 
 // ============================================================
@@ -701,4 +609,22 @@ export async function migrateV1Notes(): Promise<number> {
 
   await tx.done
   return migrated
+}
+
+// ============================================================
+// Shared Utilities
+// ============================================================
+
+/**
+ * Strip local-only metadata fields from a record before sending to Supabase.
+ * Fields prefixed with _ are IndexedDB-only tracking fields.
+ */
+export function stripLocalFields(record: Record<string, unknown>): Record<string, unknown> {
+  const cleaned: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(record)) {
+    if (!key.startsWith('_')) {
+      cleaned[key] = value
+    }
+  }
+  return cleaned
 }

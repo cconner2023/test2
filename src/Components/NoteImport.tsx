@@ -184,7 +184,7 @@ const NoteImportContent = ({
                         </div>
                         {isScanning && (
                             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
-                                Looking for PDF417 barcode...
+                                Looking for Data Matrix code...
                             </div>
                         )}
                     </div>

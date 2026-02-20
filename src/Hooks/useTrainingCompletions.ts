@@ -32,11 +32,9 @@ import {
   createReadCompletion,
   createTestCompletion,
   deleteCompletion as deleteCompletionApi,
-  fetchCompletionsFromServer,
   type TrainingCompletionUI,
 } from '../lib/trainingService';
 import {
-  getLocalTrainingCompletions,
   saveLocalTrainingCompletion,
 } from '../lib/offlineDb';
 import {
@@ -271,31 +269,10 @@ export function useTrainingCompletions() {
         if (userId !== 'guest' && checkOnline()) {
           try {
             setIsSyncing(true);
-            const serverCompletions = await fetchCompletionsFromServer(userId);
 
-            if (cancelled) return;
-
-            // Merge server completions into IndexedDB
-            const existingLocal = await getLocalTrainingCompletions(userId);
-            const localMap = new Map(existingLocal.map((c) => [c.id, c]));
-
-            for (const serverCompletion of serverCompletions) {
-              const local = localMap.get(serverCompletion.id);
-              if (!local) {
-                // Server-only completion -- pull into IndexedDB
-                await saveLocalTrainingCompletion(serverCompletion);
-              } else if (local._sync_status !== 'pending') {
-                // Both exist, local is not pending -- update from server
-                const serverTime = new Date(serverCompletion.updated_at).getTime();
-                const localTime = new Date(local.updated_at).getTime();
-                if (serverTime >= localTime) {
-                  await saveLocalTrainingCompletion(serverCompletion);
-                }
-              }
-              // If local is pending, keep it -- it will be pushed to server
-            }
-
-            // Push any pending local changes to server
+            // fullSync() handles reconciliation (pull) + push in one call.
+            // reconcileTrainingCompletionsWithServer() inside fullSync does the
+            // same last-write-wins merge that was previously duplicated here.
             await fullSync(userId);
           } catch (err) {
             logger.warn('Initial sync failed, using local data:', err);
