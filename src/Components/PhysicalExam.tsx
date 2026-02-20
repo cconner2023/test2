@@ -416,23 +416,9 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
 
     const [parsed] = useState(() => parseInitialText(initialText, categoryDef, bodyPart, generalDefs));
 
-    const [itemStates, setItemStates] = useState<Record<string, ItemState>>(() => {
-        if (depth === 'expanded' && !initialText) {
-            const states: Record<string, ItemState> = {};
-            categoryDef.items.forEach(i => { states[i.key] = normalItemState(); });
-            return states;
-        }
-        return parsed.items;
-    });
+    const [itemStates, setItemStates] = useState<Record<string, ItemState>>(() => parsed.items);
 
-    const [generalStates, setGeneralStates] = useState<Record<string, ItemState>>(() => {
-        if (depth === 'expanded' && !initialText) {
-            const states: Record<string, ItemState> = {};
-            generalDefs.forEach(g => { states[g.key] = normalItemState(); });
-            return states;
-        }
-        return parsed.generals;
-    });
+    const [generalStates, setGeneralStates] = useState<Record<string, ItemState>>(() => parsed.generals);
 
     const [laterality, setLaterality] = useState<Laterality>(() => parsed.laterality);
     const [additional, setAdditional] = useState(() => parsed.additional);

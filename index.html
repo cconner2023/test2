@@ -38,7 +38,7 @@
 </head>
 
 <body>
-  <!-- Loading screen — fixed overlay, removed by main.tsx after 4s -->
+  <!-- Loading screen — fixed overlay, removed by main.tsx after 1.5s -->
   <style>
     html,body{margin:0;padding:0}
     .splash{position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(240,242,245,1);overflow:hidden;transition:opacity 0.3s ease-out}
@@ -46,7 +46,7 @@
     .splash-sol{width:64px;height:64px;animation:solSpin 2s linear infinite}
     .splash-title{margin-top:16px;font-family:'Segoe UI',Tahoma,Geneva,Verdana,sans-serif;font-size:18px;font-weight:600;letter-spacing:2px;color:rgba(0,66,92,1)}
     .splash-bar-track{margin-top:14px;width:140px;height:3px;border-radius:2px;background:rgba(0,66,92,0.1);overflow:hidden}
-    .splash-bar-fill{height:100%;width:0;background:rgba(21,142,172,1);border-radius:2px;animation:splashFill 3s ease-out forwards}
+    .splash-bar-fill{height:100%;width:0;background:rgba(21,142,172,1);border-radius:2px;animation:splashFill 1.5s ease-out forwards}
     @keyframes splashFill{to{width:100%}}
     @keyframes solSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
     .splash.splash-dark{background:rgba(25,35,45,1)}
