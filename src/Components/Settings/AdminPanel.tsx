@@ -92,7 +92,6 @@ const RequestsTab = () => {
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
   const [approvingId, setApprovingId] = useState<string | null>(null)
-  const [tempPassword, setTempPassword] = useState('')
 
   const loadRequests = useCallback(async () => {
     setLoading(true)
@@ -104,15 +103,21 @@ const RequestsTab = () => {
   useEffect(() => { loadRequests() }, [loadRequests])
 
   const handleApprove = async (requestId: string) => {
-    if (!tempPassword || tempPassword.length < 12) {
-      alert('Please set a temporary password (at least 12 characters)')
-      return
-    }
     setProcessingId(requestId)
-    const result = await approveAccountRequest(requestId, tempPassword)
+    // Auto-generate a random 16-char password (user will set their own via email)
+    const array = crypto.getRandomValues(new Uint8Array(12))
+    const autoPassword = btoa(String.fromCharCode(...array)).slice(0, 16)
+
+    const result = await approveAccountRequest(requestId, autoPassword)
     if (result.success) {
+      // Send password-setup email via Supabase's built-in reset flow
+      const request = requests.find((r) => r.id === requestId)
+      if (request) {
+        await supabase.auth.resetPasswordForEmail(request.email, {
+          redirectTo: window.location.origin + '/test2/',
+        })
+      }
       setApprovingId(null)
-      setTempPassword('')
       await loadRequests()
     } else {
       alert(`Failed to approve: ${result.error}`)
@@ -225,22 +230,16 @@ const RequestsTab = () => {
                 <div className="flex flex-col gap-2">
                   {approvingId === request.id ? (
                     <div className="p-3 bg-themegreen/10 rounded-lg">
-                      <p className="text-sm text-themegreen font-medium mb-2">Set a temporary password for this user:</p>
+                      <p className="text-sm text-themegreen font-medium mb-2">Create account and send setup email to {request.email}?</p>
                       <div className="flex gap-2">
-                        <input type="text" value={tempPassword} onChange={(e) => setTempPassword(e.target.value)}
-                          placeholder="Temp password (min 12 chars)..."
-                          className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 border border-themegreen/30 text-sm" />
                         <button onClick={() => handleApprove(request.id)}
-                          disabled={processingId === request.id || tempPassword.length < 12}
-                          className="px-3 py-2 rounded-lg bg-themegreen text-white text-sm font-medium hover:bg-themegreen/90 disabled:opacity-50">
-                          {processingId === request.id ? 'Creating...' : 'Create Account'}
+                          disabled={processingId === request.id}
+                          className="flex-1 px-3 py-2 rounded-lg bg-themegreen text-white text-sm font-medium hover:bg-themegreen/90 disabled:opacity-50">
+                          {processingId === request.id ? 'Creating...' : 'Confirm & Send Email'}
                         </button>
-                        <button onClick={() => { setApprovingId(null); setTempPassword('') }}
+                        <button onClick={() => setApprovingId(null)}
                           className="px-3 py-2 rounded-lg bg-tertiary/10 text-primary text-sm">Cancel</button>
                       </div>
-                      {tempPassword.length > 0 && tempPassword.length < 12 && (
-                        <p className="text-xs text-themeredred mt-1">Password must be at least 12 characters</p>
-                      )}
                     </div>
                   ) : rejectingId === request.id ? (
                     <div className="flex gap-2">
@@ -272,9 +271,9 @@ const RequestsTab = () => {
               {request.status === 'approved' && (
                 <div className="p-3 bg-themegreen/10 rounded-lg text-sm">
                   <div className="flex items-center gap-2 text-themegreen">
-                    <UserPlus size={16} /><span className="font-medium">Account created</span>
+                    <UserPlus size={16} /><span className="font-medium">Account created — setup email sent</span>
                   </div>
-                  <p className="text-themegreen text-xs mt-1">User can log in with their temporary password.</p>
+                  <p className="text-themegreen text-xs mt-1">User will receive an email to set their password.</p>
                 </div>
               )}
 

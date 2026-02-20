@@ -25,6 +25,7 @@ interface AuthState {
   roles: string[]
   isDevRole: boolean
   isSupervisorRole: boolean
+  isPasswordRecovery: boolean
 }
 
 interface AuthActions {
@@ -36,6 +37,8 @@ interface AuthActions {
   patchProfile: (fields: Partial<UserTypes>) => void
   /** Re-fetch profile from Supabase and update store. */
   refreshProfile: () => Promise<void>
+  /** Clear the password recovery flag (after user sets their password). */
+  setPasswordRecovery: (value: boolean) => void
 }
 
 function migratePeDepth(profile: UserTypes): UserTypes {
@@ -125,6 +128,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
   roles: [],
   isDevRole: false,
   isSupervisorRole: false,
+  isPasswordRecovery: false,
 
   init: () => {
     const {
@@ -142,6 +146,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         clearProfileStorage()
       } else if (session?.user) {
         set({ user: session.user, isGuest: false })
+        // Detect password recovery flow (user clicked reset-password email link)
+        if (event === 'PASSWORD_RECOVERY') {
+          set({ isPasswordRecovery: true })
+        }
         // Fetch profile in the background on sign-in
         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
           get().refreshProfile()
@@ -160,7 +168,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
   },
 
   signOut: async () => {
-    await supabase.auth.signOut()
+    await supabase.auth.signOut({ scope: 'local' })
     // onAuthStateChange handler already clears state
   },
 
@@ -168,6 +176,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
     const next = { ...get().profile, ...fields }
     set({ profile: next })
     saveProfileToStorage(next)
+  },
+
+  setPasswordRecovery: (value) => {
+    set({ isPasswordRecovery: value })
   },
 
   refreshProfile: async () => {

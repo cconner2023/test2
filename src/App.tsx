@@ -28,6 +28,7 @@ import { TrainingDrawer } from './Components/TrainingDrawer'
 import { getTaskData } from './Data/TrainingData'
 import { isPinEnabled, isSessionUnlocked, clearSessionUnlocked } from './lib/pinService'
 import { PinLockScreen } from './Components/PinLockScreen'
+import { SetPasswordScreen } from './Components/SetPasswordScreen'
 import { ErrorBoundary } from './Components/ErrorBoundary'
 
 // PWA App Shortcut: capture ?view= URL parameter once at module load time
@@ -472,6 +473,7 @@ function AppContent() {
         <FeedbackModal visible={activeNote.showImportDuplicateModal} variant="warning" title="Note Already Saved" subtitle="This note already exists in your saved notes" />
       </div>
       {isPinLocked && <PinLockScreen onUnlock={handlePinUnlock} />}
+      {useAuthStore((s) => s.isPasswordRecovery) && <SetPasswordScreen />}
     </div>
   )
 }
