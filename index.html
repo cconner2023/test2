@@ -35,8 +35,8 @@
   <meta name="msapplication-starturl" content="/test2/">
   <meta name="msapplication-config" content="/test2/browserconfig.xml">
 
-  <script type="module" crossorigin src="/test2/assets/index-ImyN-ISf.js"></script>
-  <link rel="stylesheet" crossorigin href="/test2/assets/index-Dii23MvF.css">
+  <script type="module" crossorigin src="/test2/assets/index-51dUcQHK.js"></script>
+  <link rel="stylesheet" crossorigin href="/test2/assets/index-kjV91ZxL.css">
 <link rel="manifest" href="/test2/manifest.webmanifest"></head>
 
 <body>
@@ -54,6 +54,11 @@
     .splash.splash-dark{background:rgba(25,35,45,1)}
     .splash.splash-dark .splash-title{color:rgba(129,161,181,1)}
     .splash.splash-dark .splash-bar-track{background:rgba(0,66,92,0.25)}
+    /* Privacy screen — always in DOM, hidden until app backgrounds */
+    .privacy-screen{position:fixed;inset:0;z-index:9998;display:flex;flex-direction:column;align-items:center;justify-content:center;background:rgba(240,242,245,1);visibility:hidden;opacity:0}
+    .privacy-screen.privacy-active{visibility:visible;opacity:1}
+    .privacy-screen.privacy-dark{background:rgba(25,35,45,1)}
+    .privacy-screen.privacy-dark .splash-title{color:rgba(129,161,181,1)}
   </style>
   <div id="splash" class="splash">
   <script>
@@ -71,6 +76,23 @@
     </svg>
     <div class="splash-title">ADTMC</div>
     <div class="splash-bar-track"><div class="splash-bar-fill"></div></div>
+  </div>
+  <!-- Privacy screen — shown when app backgrounds (no PIN) to hide content in app switcher -->
+  <div id="privacy-screen" class="privacy-screen">
+    <script>
+      (function(){var t;try{t=localStorage.getItem('theme')}catch(e){}
+      if(t!=='light'&&t!=='dark')t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';
+      if(t==='dark')document.getElementById('privacy-screen').classList.add('privacy-dark');
+      })();
+    </script>
+    <svg class="splash-sol" style="animation:none" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <g transform="translate(20,20)">
+        <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="rgba(0,66,92,1)"/>
+        <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="rgba(0,66,92,1)" transform="rotate(60)"/>
+        <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="rgba(0,66,92,1)" transform="rotate(120)"/>
+      </g>
+    </svg>
+    <div class="splash-title">ADTMC</div>
   </div>
   <div id="root"></div>
 </body>
