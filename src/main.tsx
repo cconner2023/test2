@@ -35,3 +35,15 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>,
 )
+
+// Dismiss splash screen when bar fill animation completes
+const splashBar = document.querySelector('.splash-bar-fill')
+if (splashBar) {
+  splashBar.addEventListener('animationend', () => {
+    const splash = document.getElementById('splash')
+    if (splash) {
+      splash.classList.add('splash-out')
+      setTimeout(() => splash.remove(), 300)
+    }
+  }, { once: true })
+}
