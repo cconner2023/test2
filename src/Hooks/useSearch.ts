@@ -5,6 +5,10 @@ import { medList } from '../Data/MedData'
 import { stp68wTraining } from '../Data/TrainingTaskList'
 import type { SearchResultType } from '../Types/CatTypes'
 
+/**
+ * Provides debounced search across categories, symptoms, medications, training tasks, and guidelines.
+ * Builds a search index on first render and filters with type-priority sorting.
+ */
 export function useSearch() {
     const [searchInput, setSearchInput] = useState('')
     const [searchResults, setSearchResults] = useState<SearchResultType[]>([])

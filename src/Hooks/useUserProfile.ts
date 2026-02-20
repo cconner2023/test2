@@ -3,6 +3,7 @@ import type { UserTypes } from '../Data/User';
 import { useAuthStore } from '../stores/useAuthStore';
 import { supabase } from '../lib/supabase';
 
+/** Provides the user profile from the auth store with helpers to update locally and sync fields to Supabase. */
 export function useUserProfile() {
     const profile = useAuthStore((s) => s.profile);
     const patchProfile = useAuthStore((s) => s.patchProfile);

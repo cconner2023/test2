@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef, type MutableRefObject } from 'react'
-import { ChevronRight, Check, X, Ban, AlertTriangle, Info, Clock, FileText, Users, Wind, Droplets, ShieldPlus, Stethoscope, Pill, Bone, Ambulance, BookOpen, Search, Lock } from 'lucide-react'
+import { ChevronRight, Check, X, Ban, AlertTriangle, Info, Clock, FileText, Users, BookOpen, Search, Lock } from 'lucide-react'
 import { stp68wTraining } from '../../Data/TrainingTaskList'
 import { getTaskData, isTaskTestable } from '../../Data/TrainingData'
 import type { PerformanceStep } from '../../Data/TrainingData'
@@ -10,6 +10,7 @@ import { fetchClinicTestHistory, type TrainingCompletionUI } from '../../lib/tra
 import { deleteCompletion as deleteCompletionApi } from '../../lib/trainingService'
 import { supabase } from '../../lib/supabase'
 import { createLogger } from '../../Utilities/Logger'
+import { subjectAreaIcons, skillLevelLabels, categoryOrder } from '../../Data/TrainingConstants'
 
 const logger = createLogger('SupervisorPanel')
 
@@ -26,33 +27,6 @@ function formatMedicName(medic: ClinicMedic): string {
   }
   return parts.join(' ') || 'Unknown'
 }
-
-const subjectAreaIcons: Record<string, React.ReactNode> = {
-  'Airway Management': <Wind size={14} />,
-  'Fluid Management': <Droplets size={14} />,
-  'Force Health Protection': <ShieldPlus size={14} />,
-  'Medical Management': <Stethoscope size={14} />,
-  'Medication Management': <Pill size={14} />,
-  'Trauma Management': <Bone size={14} />,
-  'Triage and Evacuation': <Ambulance size={14} />,
-}
-
-const skillLevelLabels: Record<string, string> = {
-  'Readiness Requirements': 'RR',
-  'Skill Level 1': 'SL1',
-  'Skill Level 2': 'SL2',
-  'Skill Level 3': 'SL3',
-}
-
-const categoryOrder = [
-  'Airway Management',
-  'Fluid Management',
-  'Force Health Protection',
-  'Medical Management',
-  'Medication Management',
-  'Trauma Management',
-  'Triage and Evacuation',
-]
 
 interface FlatTask {
   taskId: string

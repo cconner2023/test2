@@ -4,7 +4,13 @@ import { registerSW } from 'virtual:pwa-register';
 import { createLogger } from '../Utilities/Logger';
 
 const logger = createLogger('PWA');
+const UPDATE_CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const UPDATE_DISMISS_TIMEOUT_MS = 60 * 60 * 1000;
 
+/**
+ * Manages the PWA service worker lifecycle: registration, periodic update checks,
+ * version-aware update prompting, skip-waiting, and dismissal with auto-expiry.
+ */
 export function useServiceWorker() {
     const [updateAvailable, setUpdateAvailable] = useState(false);
     const [offlineReady, setOfflineReady] = useState(false);
@@ -50,7 +56,7 @@ export function useServiceWorker() {
                     intervalRef.current = window.setInterval(() => {
                         logger.debug('Checking for updates...');
                         r.update();
-                    }, 5 * 60 * 1000);
+                    }, UPDATE_CHECK_INTERVAL_MS);
                 }
             },
             onRegisterError(error) {
@@ -98,7 +104,7 @@ export function useServiceWorker() {
         dismissTimeoutRef.current = window.setTimeout(() => {
             try { localStorage.removeItem('updateDismissed'); } catch { /* storage unavailable */ }
             dismissTimeoutRef.current = 0;
-        }, 60 * 60 * 1000);
+        }, UPDATE_DISMISS_TIMEOUT_MS);
     }, []);
 
     return {

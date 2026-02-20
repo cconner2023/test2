@@ -1,5 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Lock, ShieldCheck, ShieldX, Delete, KeyRound, Trash2, ScanFace } from 'lucide-react'
+import { Lock, Delete, KeyRound, Trash2, ScanFace, ShieldX } from 'lucide-react'
+import { StatusBanner } from './StatusBanner'
+import { UI_TIMING } from '../../Utilities/constants'
 import {
   isPinEnabled,
   savePin,
@@ -84,16 +86,16 @@ export const PinSetupPanel = () => {
         removeBiometric()
         setBioEnrolled(false)
         setSuccess('Face ID / Touch ID disabled')
-        setTimeout(() => setSuccess(''), 2000)
+        setTimeout(() => setSuccess(''), UI_TIMING.COPY_FEEDBACK)
       } else {
         const enrolled = await enrollBiometric()
         if (enrolled) {
           setBioEnrolled(true)
           setSuccess('Face ID / Touch ID enabled')
-          setTimeout(() => setSuccess(''), 2000)
+          setTimeout(() => setSuccess(''), UI_TIMING.COPY_FEEDBACK)
         } else {
           setError('Biometric setup was cancelled or failed')
-          setTimeout(() => setError(''), 3000)
+          setTimeout(() => setError(''), UI_TIMING.SAVE_ERROR_DURATION)
         }
       }
     } finally {
@@ -234,17 +236,11 @@ export const PinSetupPanel = () => {
           </p>
 
           {success && (
-            <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-themegreen/10">
-              <ShieldCheck size={16} className="text-themegreen" />
-              <span className="text-sm text-themegreen font-medium">{success}</span>
-            </div>
+            <StatusBanner type="success" message={success} className="mb-4" />
           )}
 
           {error && (
-            <div className="flex items-center gap-2 mb-4 px-3 py-2 rounded-lg bg-themeredred/10">
-              <ShieldX size={16} className="text-themeredred" />
-              <span className="text-sm text-themeredred font-medium">{error}</span>
-            </div>
+            <StatusBanner type="error" message={error} className="mb-4" />
           )}
 
           {!pinEnabled ? (

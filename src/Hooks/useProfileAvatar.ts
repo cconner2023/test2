@@ -79,6 +79,10 @@ export function resizeImage(file: File, maxSize = 160): Promise<string> {
     });
 }
 
+/**
+ * Manages profile avatar selection, custom image upload, localStorage persistence,
+ * and cross-device sync via Supabase realtime.
+ */
 export function useProfileAvatar(userId?: string) {
     const [avatarId, setAvatarId] = useState<string>(loadAvatarId);
     const [customImage, setCustomImageState] = useState<string | null>(loadCustomImage);

@@ -20,11 +20,11 @@
  * the primary key is available.
  */
 
-import { useEffect, useRef, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
-import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
+import { useEffect, useRef, useCallback, useMemo } from 'react'
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import type { SavedNote } from '../lib/notesService'
 import { createLogger } from '../Utilities/Logger'
+import { useSupabaseSubscription } from './useSupabaseSubscription'
 
 const logger = createLogger('RealtimeClinicNotes')
 
@@ -93,8 +93,6 @@ export function useRealtimeClinicNotes({
   onPersonalUpsert,
   onPersonalDelete,
 }: UseRealtimeClinicNotesOptions): void {
-  const channelRef = useRef<RealtimeChannel | null>(null)
-
   // Use refs for callbacks to avoid resubscribing on every render
   const onClinicUpsertRef = useRef(onClinicUpsert)
   const onClinicDeleteRef = useRef(onClinicDelete)
@@ -112,35 +110,16 @@ export function useRealtimeClinicNotes({
     userIdRef.current = userId
   }, [userId])
 
-  const cleanup = useCallback(() => {
-    if (channelRef.current) {
-      logger.debug('Unsubscribing from channel')
-      supabase.removeChannel(channelRef.current)
-      channelRef.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    // Pause when backgrounded, not authenticated, missing IDs, or note panel is closed
-    if (!isAuthenticated || !clinicId || !userId || !isPageVisible || !isNotePanelOpen) {
-      cleanup()
-      return
-    }
-
-    // Clean up any previous subscription before creating a new one
-    cleanup()
-
-    logger.info(`Subscribing to notes for clinic ${clinicId}`)
-
-    /**
-     * Handle a Realtime postgres_changes event.
-     *
-     * Routes events to either personal or clinic callbacks based on
-     * whether the event's user_id matches the current user. This
-     * replaces the old two-channel setup (clinic + personal) with a
-     * single channel, halving WebSocket connections for notes.
-     */
-    const handlePayload = (payload: RealtimePostgresChangesPayload<RealtimeNoteRow>) => {
+  /**
+   * Handle a Realtime postgres_changes event.
+   *
+   * Routes events to either personal or clinic callbacks based on
+   * whether the event's user_id matches the current user. This
+   * replaces the old two-channel setup (clinic + personal) with a
+   * single channel, halving WebSocket connections for notes.
+   */
+  const handlePayload = useCallback(
+    (payload: RealtimePostgresChangesPayload<RealtimeNoteRow>) => {
       const eventType = payload.eventType
       const currentUserId = userIdRef.current
 
@@ -187,34 +166,23 @@ export function useRealtimeClinicNotes({
           onClinicDeleteRef.current(noteId)
         }
       }
-    }
+    },
+    [],
+  )
 
-    const channel = supabase
-      .channel(`clinic-notes:${clinicId}`)
-      .on<RealtimeNoteRow>(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'notes',
-          filter: `clinic_id=eq.${clinicId}`,
-        },
-        handlePayload,
-      )
-      .subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-          logger.info(`Subscribed to clinic ${clinicId}`)
-        } else if (status === 'CHANNEL_ERROR') {
-          logger.error('Channel error:', err?.message ?? 'unknown')
-        } else if (status === 'TIMED_OUT') {
-          logger.warn('Subscription timed out, will retry')
-        } else {
-          logger.debug(`Channel status: ${status}`)
-        }
-      })
+  const postgresFilter = useMemo(
+    () => ({
+      table: 'notes',
+      filter: `clinic_id=eq.${clinicId}`,
+    }),
+    [clinicId],
+  )
 
-    channelRef.current = channel
-
-    return cleanup
-  }, [isAuthenticated, clinicId, userId, isPageVisible, isNotePanelOpen, cleanup])
+  useSupabaseSubscription<RealtimeNoteRow>({
+    shouldSubscribe: isAuthenticated && !!clinicId && !!userId && isPageVisible && isNotePanelOpen,
+    channelName: `clinic-notes:${clinicId}`,
+    postgresFilter,
+    onPayload: handlePayload,
+    logger,
+  })
 }

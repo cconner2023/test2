@@ -4,6 +4,7 @@ import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import { getScreenerMaxScore, getScreenerScore, isScreenerGateOpen } from '../Data/SpecTesting';
 import { Check, ClipboardList, X } from 'lucide-react';
+import { ConnectorDots } from './ConnectorDots';
 
 interface QuestionCardProps {
     algorithmOptions: AlgorithmOptions[];
@@ -109,12 +110,7 @@ export const QuestionCard = ({
                             </div>
 
                             {hasNext && (
-                                <div className="flex flex-col items-center py-1">
-                                    <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '0ms' }} />
-                                    <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '100ms' }} />
-                                    <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '200ms' }} />
-                                    <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '290ms' }} />
-                                </div>
+                                <ConnectorDots colorClass={cardColors.badgeBg} />
                             )}
                         </div>
                     );
@@ -197,12 +193,7 @@ export const QuestionCard = ({
                             </div>
 
                             {hasNext && (
-                                <div className="flex flex-col items-center py-1">
-                                    <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '0ms' }} />
-                                    <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '100ms' }} />
-                                    <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '200ms' }} />
-                                    <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '290ms' }} />
-                                </div>
+                                <ConnectorDots colorClass={cardColors.badgeBg} />
                             )}
                         </div>
                     );
@@ -316,12 +307,7 @@ export const QuestionCard = ({
 
                         {/* Dot-dot-arrow connector — sequential stagger */}
                         {hasNext && !isRF && (
-                            <div className="flex flex-col items-center py-1">
-                                <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '0ms' }} />
-                                <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '100ms' }} />
-                                <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '200ms' }} />
-                                <div className={`connector-dot ${cardColors.badgeBg}`} style={{ animationDelay: '290ms' }} />
-                            </div>
+                            <ConnectorDots colorClass={cardColors.badgeBg} />
                         )}
                     </div>
                 );

@@ -28,6 +28,10 @@ interface UseColumnCarouselOptions {
   onSwipeForward?: () => void
 }
 
+/**
+ * Manages a spring-animated horizontal panel carousel with drag/swipe gesture support.
+ * Syncs panel position on external index changes, breakpoint crossings, and visibility transitions.
+ */
 export function useColumnCarousel({
   enabled,
   panelIndex,

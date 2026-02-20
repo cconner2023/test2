@@ -1,12 +1,19 @@
 import { useRef, useCallback } from 'react';
-
-const SWIPE_THRESHOLD = 60;
-const EDGE_ZONE = 40; // px from left edge of container — prevents conflict with in-content swipes
+import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils';
 
 /**
- * Detects a right-swipe gesture starting from the left edge and fires the onBack callback.
- * Only activates when the touch begins within EDGE_ZONE px of the container's left edge,
- * matching native iOS back-gesture behavior and avoiding conflict with in-content swipe gestures.
+ * Lightweight left-edge swipe-back detector using vanilla touch events.
+ *
+ * Intentionally separate from useSwipeNavigation, which uses @use-gesture
+ * for velocity-based column-level navigation. This hook:
+ *   - Uses zero-dependency touch events (no @use-gesture)
+ *   - Only activates from the left edge of the container
+ *   - Returns React touch handlers (onTouchStart/Move/End)
+ *
+ * useSwipeNavigation by contrast:
+ *   - Uses @use-gesture/react for velocity + threshold detection
+ *   - Operates on the full container width (not edge-only)
+ *   - Returns bind() props from useDrag
  */
 export function useSwipeBack(onBack: (() => void) | undefined, enabled = true) {
     const dragRef = useRef<{
@@ -23,7 +30,7 @@ export function useSwipeBack(onBack: (() => void) | undefined, enabled = true) {
         const touch = e.touches[0];
         // Only activate from the left edge of the container
         const containerLeft = e.currentTarget.getBoundingClientRect().left;
-        if (touch.clientX - containerLeft > EDGE_ZONE) return;
+        if (touch.clientX - containerLeft > GESTURE_THRESHOLDS.EDGE_ZONE) return;
         dragRef.current = { startX: touch.clientX, startY: touch.clientY, lastX: touch.clientX, locked: null };
     }, [enabled, onBack]);
 
@@ -34,7 +41,7 @@ export function useSwipeBack(onBack: (() => void) | undefined, enabled = true) {
         const dx = touch.clientX - d.startX;
         const dy = touch.clientY - d.startY;
         if (d.locked === null) {
-            if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+            if (Math.abs(dx) < GESTURE_THRESHOLDS.DIRECTION_LOCK && Math.abs(dy) < GESTURE_THRESHOLDS.DIRECTION_LOCK) return;
             d.locked = Math.abs(dx) > Math.abs(dy);
             if (!d.locked) { dragRef.current = null; return; }
         }
@@ -46,7 +53,7 @@ export function useSwipeBack(onBack: (() => void) | undefined, enabled = true) {
         const d = dragRef.current;
         dragRef.current = null;
         if (!d || d.locked !== true) return;
-        if (d.lastX - d.startX > SWIPE_THRESHOLD) {
+        if (d.lastX - d.startX > GESTURE_THRESHOLDS.SWIPE_BACK_THRESHOLD) {
             onBack?.();
         }
     }, [onBack]);

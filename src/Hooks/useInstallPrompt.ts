@@ -7,6 +7,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const DISMISSED_KEY = 'installPromptDismissed';
+const DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
 // ─── Module-level capture ────────────────────────────────────
 // beforeinstallprompt can fire before React mounts (especially on
@@ -23,6 +24,10 @@ if (typeof window !== 'undefined') {
     });
 }
 
+/**
+ * Manages the PWA install prompt lifecycle: captures the beforeinstallprompt event,
+ * handles iOS detection, dismissal with 7-day cooldown, and the install flow.
+ */
 export function useInstallPrompt() {
     const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
     const [showPrompt, setShowPrompt] = useState(false);
@@ -46,7 +51,7 @@ export function useInstallPrompt() {
             if (dismissed) {
                 const dismissedAt = parseInt(dismissed, 10);
                 // Re-show after 7 days
-                if (Date.now() - dismissedAt < 7 * 24 * 60 * 60 * 1000) return;
+                if (Date.now() - dismissedAt < DISMISS_COOLDOWN_MS) return;
                 localStorage.removeItem(DISMISSED_KEY);
             }
         } catch { /* storage unavailable */ }

@@ -6,6 +6,7 @@ import {
   unsubscribeFromPush,
 } from '../lib/pushNotificationService'
 
+/** Manages push notification subscription state: checking support, subscribing, and unsubscribing. */
 export function usePushNotifications() {
   const [isSupported, setIsSupported] = useState(false)
   const [isSubscribed, setIsSubscribed] = useState(false)

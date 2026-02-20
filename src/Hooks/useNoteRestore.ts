@@ -19,6 +19,7 @@ export interface NoteRestoreResult {
     timestamp?: Date | null;
 }
 
+/** Provides restoreNote: decodes a saved note's barcode, reconstructs card states and disposition, and returns navigation data. */
 export function useNoteRestore() {
     const restoreNote = useCallback((note: SavedNote): NoteRestoreResult => {
         // 1. Parse the encoded text

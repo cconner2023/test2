@@ -897,9 +897,84 @@ export const GENERAL_FINDINGS_MAP: Record<CategoryLetter, string[]> = {
     M: ['generalAppearance', 'neuroBaseline'],
 };
 
-export function getGeneralFindings(letter: CategoryLetter): GeneralFinding[] {
+// Legacy: returns old variable general findings per category (for v2 compact decoding)
+export function getLegacyGeneralFindings(letter: CategoryLetter): GeneralFinding[] {
     const keys = GENERAL_FINDINGS_MAP[letter] || [];
     return keys.map(k => GENERAL_FINDINGS[k]).filter(Boolean);
+}
+
+// ── Standard Wrapper Items (surround category-specific items) ──
+// These 5 items are the same for every category.
+// Order: GEN, HEAD, [category items], DERM, NEURO, PSYCH
+
+export const STANDARD_WRAPPERS: GeneralFinding[] = [
+    {
+        key: 'sw_gen',
+        label: 'GEN',
+        normalText: 'Alert, oriented, no acute distress. Well-developed, well-nourished.',
+        abnormalOptions: [
+            { key: 'ill', label: 'Appears ill' },
+            { key: 'distress', label: 'Acute distress' },
+            { key: 'diaphoretic', label: 'Diaphoretic' },
+            { key: 'pallor', label: 'Pallor' },
+            { key: 'lethargic', label: 'Lethargic' },
+        ],
+    },
+    {
+        key: 'sw_head',
+        label: 'HEAD',
+        normalText: 'Normocephalic, atraumatic.',
+        abnormalOptions: [
+            { key: 'trauma', label: 'Trauma/laceration' },
+            { key: 'tenderness', label: 'Scalp tenderness' },
+            { key: 'deformity', label: 'Deformity' },
+            { key: 'swelling', label: 'Swelling' },
+        ],
+    },
+    {
+        key: 'sw_derm',
+        label: 'DERM',
+        normalText: 'Warm, dry, intact. No rashes, lesions, or petechiae.',
+        abnormalOptions: [
+            { key: 'rash', label: 'Rash (specify)' },
+            { key: 'lesion', label: 'Lesion' },
+            { key: 'pallor', label: 'Pallor' },
+            { key: 'cyanosis', label: 'Cyanosis' },
+            { key: 'jaundice', label: 'Jaundice' },
+            { key: 'diaphoretic', label: 'Diaphoretic' },
+        ],
+    },
+    {
+        key: 'sw_neuro',
+        label: 'NEURO',
+        normalText: 'Alert and oriented x4. GCS 15. No focal deficits.',
+        abnormalOptions: [
+            { key: 'disoriented', label: 'Disoriented (specify)' },
+            { key: 'confused', label: 'Confused' },
+            { key: 'lethargic', label: 'Lethargic' },
+            { key: 'gcsLow', label: 'GCS < 15 (specify)' },
+            { key: 'focalDeficit', label: 'Focal deficit (specify)' },
+        ],
+    },
+    {
+        key: 'sw_psych',
+        label: 'PSYCH',
+        normalText: 'Appropriate mood and affect. No SI/HI.',
+        abnormalOptions: [
+            { key: 'depressed', label: 'Depressed mood' },
+            { key: 'anxious', label: 'Anxious' },
+            { key: 'flatAffect', label: 'Flat affect' },
+            { key: 'agitated', label: 'Agitated' },
+            { key: 'siHi', label: 'SI/HI (specify)' },
+        ],
+    },
+];
+
+// First WRAPPER_BEFORE_COUNT items go before category items, rest go after
+export const WRAPPER_BEFORE_COUNT = 2;
+
+export function getGeneralFindings(_letter: CategoryLetter): GeneralFinding[] {
+    return STANDARD_WRAPPERS;
 }
 
 // ── MSK body part mapping (B-1 through B-11) ──────────────────

@@ -7,9 +7,10 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
-    { version: '2.6.2', type: 'added', text: 'tutorials' },
-    { version: '2.6.2', type: 'changed', text: 'training list and testing' },
-    { version: '2.6.2', type: 'bug', text: 'server listener on minimize so we don\'t drain all the batteries' },
+    { version: '2.6.3', type: 'added', text: 'DD FORM 689 export' },
+    { version: '2.6.3', type: 'added', text: 'physical exam section and HPI can be toggled on in settings' },
+    { version: '2.6.3', type: 'changed', text: 'tutorials and how-to. Found in settings' },
+    { version: '2.6.2', type: 'started', text: 'training list and evaluation through the supervisor role' },
     { version: '2.6.1', type: 'added', text: 'biometric/pin for timeout (optional)' },
     { version: '2.6.1', type: 'added', text: 'User login and UIC assignment - see all the notes from your clinic wherever you log in' },
     { version: '2.6.0', type: 'started', text: 'training documentation pushed to server.' },

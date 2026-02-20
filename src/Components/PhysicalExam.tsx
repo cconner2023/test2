@@ -6,6 +6,7 @@ import {
     getPECategory,
     getGeneralFindings,
     VITAL_SIGNS,
+    WRAPPER_BEFORE_COUNT,
 } from '../Data/PhysicalExamData';
 import type { CategoryLetter, Laterality, PECategoryDef, PEItem, AbnormalOption, GeneralFinding } from '../Data/PhysicalExamData';
 
@@ -57,6 +58,44 @@ function buildAbnormalText(state: ItemState, options?: AbnormalOption[]): string
 
 // ── Parse initial text ────────────────────────────────────────
 
+// Mapping from old general finding labels to new wrapper keys (for backward compat)
+const OLD_GENERAL_TO_WRAPPER: Record<string, string> = {
+    'General Appearance': 'sw_gen',
+    'Skin': 'sw_derm',
+    'Neuro': 'sw_neuro',
+    'Psych': 'sw_psych',
+};
+
+function parseItemLine(
+    line: string,
+    label: string,
+    abnormalOptions?: AbnormalOption[],
+    normalText?: string,
+): ItemState | null {
+    // Case-insensitive match (handles both old mixed-case and new uppercase labels)
+    if (!line.toUpperCase().startsWith(`${label.toUpperCase()}:`)) return null;
+    const rest = line.slice(label.length + 1).trim();
+    // Legacy format: "Abnormal - ..." / "Normal - ..."
+    if (rest.startsWith('Abnormal')) {
+        const abnormalText = rest.replace(/^Abnormal\s*-?\s*/, '').trim();
+        const parsed = parseAbnormalText(abnormalText, abnormalOptions);
+        return { status: 'abnormal', findings: parsed.freeText, selectedAbnormals: parsed.selectedKeys };
+    }
+    if (rest.startsWith('Normal')) {
+        return normalItemState();
+    }
+    // New format: normalText directly means normal
+    if (normalText && rest === normalText) {
+        return normalItemState();
+    }
+    // Otherwise treat as abnormal findings
+    if (rest) {
+        const parsed = parseAbnormalText(rest, abnormalOptions);
+        return { status: 'abnormal', findings: parsed.freeText, selectedAbnormals: parsed.selectedKeys };
+    }
+    return null;
+}
+
 function parseInitialText(
     text: string,
     categoryDef: PECategoryDef,
@@ -83,23 +122,16 @@ function parseInitialText(
     const lines = text.split('\n');
     let inAdditional = false;
     let inVitals = false;
-    let inGeneral = false;
     const unmatchedLines: string[] = [];
 
-    // Build lookup for vital sign labels
     const vitalLabelToKey: Record<string, string> = {};
     VITAL_SIGNS.forEach(v => { vitalLabelToKey[v.shortLabel] = v.key; });
-
-    // Build lookup for general findings by label
-    const generalByLabel: Record<string, GeneralFinding> = {};
-    generalDefs.forEach(g => { generalByLabel[g.label] = g; });
 
     for (const line of lines) {
         // Additional Findings section
         if (line.startsWith('Additional Findings:')) {
             inAdditional = true;
             inVitals = false;
-            inGeneral = false;
             additional = line.replace('Additional Findings:', '').trim();
             continue;
         }
@@ -111,11 +143,9 @@ function parseInitialText(
         // Vital Signs section header
         if (line.startsWith('Vital Signs:') || line === 'Vital Signs') {
             inVitals = true;
-            inGeneral = false;
             continue;
         }
         if (inVitals) {
-            // Parse combined "BP: 120/80 mmHg" line
             const bpMatch = line.match(/^\s*BP:\s*(.+?)\/(.+?)\s*mmHg/);
             if (bpMatch) {
                 const sys = bpMatch[1].trim();
@@ -124,7 +154,6 @@ function parseInitialText(
                 if (dia && dia !== '--') vitals['bpDia'] = dia;
                 continue;
             }
-            // Parse "  HR: 80 bpm" style lines
             const vitalMatch = line.match(/^\s*(\w+):\s*(.+)/);
             if (vitalMatch) {
                 const key = vitalLabelToKey[vitalMatch[1]];
@@ -142,82 +171,71 @@ function parseInitialText(
             else continue;
         }
 
-        // General section header
-        if (line.trim() === 'General:') {
-            inGeneral = true;
-            inVitals = false;
-            continue;
-        }
-
-        // Skip blank lines and category headers
+        // Skip blank lines
         if (!line.trim()) continue;
-        if (line.match(/^(HEENT|MSK|Gastrointestinal|Cardiorespiratory|Genitourinary|Neuropsychiatric|Constitutional|Eye|Gynecological|Dermatological|Environmental|Miscellaneous|Misc Return|Musculoskeletal)/)) {
-            inGeneral = false;
+
+        // Skip old section headers (backward compat)
+        if (line.trim() === 'General:') continue;
+        if (line.startsWith('Vitals:')) continue;
+        if (line.match(/^(HEENT|Gastrointestinal|Cardiorespiratory|Genitourinary|Neuropsychiatric|Constitutional|Eye|Gynecological|Dermatological|Environmental|Miscellaneous|Misc Return|Musculoskeletal)(\s*[-:]|$)/)) {
+            continue;
+        }
+        // MSK body part line (extract laterality)
+        if (line.startsWith('MSK')) {
             const latMatch = line.match(/\((Left|Right|Bilateral)\)/i);
-            if (latMatch) {
-                laterality = latMatch[1].toLowerCase() as Laterality;
-            }
+            if (latMatch) laterality = latMatch[1].toLowerCase() as Laterality;
             continue;
         }
 
-        // Skip old vitals lines
-        if (line.startsWith('Vitals:')) continue;
-
-        // Try to match general findings if we're in the general section
-        if (inGeneral) {
-            let matchedGeneral = false;
-            for (const g of generalDefs) {
-                if (line.startsWith(`${g.label}:`)) {
-                    const rest = line.slice(g.label.length + 1).trim();
-                    if (rest.startsWith('Abnormal')) {
-                        const abnormalText = rest.replace(/^Abnormal\s*-?\s*/, '').trim();
-                        const parsed = parseAbnormalText(abnormalText, g.abnormalOptions);
-                        generals[g.key] = { status: 'abnormal', findings: parsed.freeText, selectedAbnormals: parsed.selectedKeys };
-                    } else if (rest.startsWith('Normal')) {
-                        generals[g.key] = normalItemState();
-                    }
-                    matchedGeneral = true;
-                    break;
-                }
-            }
-            if (matchedGeneral) continue;
-        }
-
-        // Try to match "Label: Normal - normalText" or "Label: Abnormal - findings"
+        // Try matching against wrapper (general) items by label
         let matched = false;
+        for (const g of generalDefs) {
+            const state = parseItemLine(line, g.label, g.abnormalOptions, g.normalText);
+            if (state) {
+                generals[g.key] = state;
+                matched = true;
+                break;
+            }
+        }
+        if (matched) continue;
+
+        // Try matching against category items
         for (const item of categoryDef.items) {
-            if (line.startsWith(`${item.label}:`)) {
-                const rest = line.slice(item.label.length + 1).trim();
+            const state = parseItemLine(line, item.label, item.abnormalOptions, item.normalText);
+            if (state) {
+                items[item.key] = state;
+                matched = true;
+                break;
+            }
+        }
+        if (matched) continue;
+
+        // Backward compat: old general finding labels → new wrapper keys
+        for (const [oldLabel, newKey] of Object.entries(OLD_GENERAL_TO_WRAPPER)) {
+            if (line.toUpperCase().startsWith(`${oldLabel.toUpperCase()}:`)) {
+                const rest = line.slice(oldLabel.length + 1).trim();
                 if (rest.startsWith('Abnormal')) {
-                    const abnormalText = rest.replace(/^Abnormal\s*-?\s*/, '').trim();
-                    const parsed = parseAbnormalText(abnormalText, item.abnormalOptions);
-                    items[item.key] = { status: 'abnormal', findings: parsed.freeText, selectedAbnormals: parsed.selectedKeys };
+                    const abnText = rest.replace(/^Abnormal\s*-?\s*/, '').trim();
+                    generals[newKey] = { status: 'abnormal', findings: abnText, selectedAbnormals: [] };
                 } else if (rest.startsWith('Normal')) {
-                    items[item.key] = normalItemState();
+                    generals[newKey] = normalItemState();
                 }
                 matched = true;
                 break;
             }
         }
+        if (matched) continue;
 
-        // Backward compat: try matching old generic body system names
-        if (!matched) {
-            let oldMatch = false;
-            for (const sys of OLD_BODY_SYSTEMS) {
-                if (line.startsWith(`${sys}:`)) {
-                    oldMatch = true;
-                    break;
-                }
-            }
-            if (oldMatch || !matched) {
-                if (line.trim() && !line.match(/^(Vitals:|PE:)/)) {
-                    unmatchedLines.push(line);
-                }
-            }
+        // Backward compat: old body system names
+        let oldMatch = false;
+        for (const sys of OLD_BODY_SYSTEMS) {
+            if (line.startsWith(`${sys}:`)) { oldMatch = true; break; }
+        }
+        if (!oldMatch && line.trim() && !line.match(/^(Vitals:|PE:)/)) {
+            unmatchedLines.push(line);
         }
     }
 
-    // Put unmatched old-format content into Additional Findings
     if (unmatchedLines.length > 0) {
         const extraContent = unmatchedLines.join('\n');
         additional = additional ? `${additional}\n${extraContent}` : extraContent;
@@ -248,6 +266,15 @@ function parseAbnormalText(text: string, options?: AbnormalOption[]): { selected
 
 // ── Generate text output ──────────────────────────────────────
 
+function formatExamLine(label: string, state: ItemState, normalText?: string, abnormalOptions?: AbnormalOption[]): string {
+    const uLabel = label.toUpperCase();
+    if (state.status === 'normal') {
+        return normalText ? `${uLabel}: ${normalText}` : `${uLabel}: Normal`;
+    }
+    const abnormalText = buildAbnormalText(state, abnormalOptions);
+    return `${uLabel}: ${abnormalText}`;
+}
+
 function generateText(
     categoryDef: PECategoryDef,
     itemStates: Record<string, ItemState>,
@@ -260,7 +287,7 @@ function generateText(
 ): string {
     const parts: string[] = [];
 
-    // Vital Signs section
+    // Vital Signs section (unchanged)
     const hasVitals = VITAL_SIGNS.some(v => vitals[v.key]?.trim());
     if (hasVitals) {
         parts.push('Vital Signs:');
@@ -281,48 +308,44 @@ function generateText(
         }
     }
 
-    // General Findings section
-    const hasGenerals = generalDefs.some(g => generalStates[g.key]?.status !== 'not-examined');
-    if (hasGenerals) {
-        if (parts.length > 0) parts.push('');
-        parts.push('General:');
-        for (const g of generalDefs) {
-            const state = generalStates[g.key];
-            if (!state || state.status === 'not-examined') continue;
-            if (state.status === 'normal') {
-                parts.push(`${g.label}: Normal - ${g.normalText}`);
-            } else if (state.status === 'abnormal') {
-                const abnormalText = buildAbnormalText(state, g.abnormalOptions);
-                parts.push(`${g.label}: Abnormal - ${abnormalText}`);
-            }
+    // Flat exam items: before wrappers → category items → after wrappers
+    const beforeWrappers = generalDefs.slice(0, WRAPPER_BEFORE_COUNT);
+    const afterWrappers = generalDefs.slice(WRAPPER_BEFORE_COUNT);
+    const examLines: string[] = [];
+
+    // Before wrappers (GEN, HEAD)
+    for (const g of beforeWrappers) {
+        const state = generalStates[g.key];
+        if (!state || state.status === 'not-examined') continue;
+        examLines.push(formatExamLine(g.label, state, g.normalText, g.abnormalOptions));
+    }
+
+    // MSK body part context
+    if (categoryDef.category === 'B' && bodyPart) {
+        const hasExamined = categoryDef.items.some(i => itemStates[i.key]?.status !== 'not-examined');
+        if (hasExamined) {
+            const latLabel = laterality === 'bilateral' ? 'Bilateral' : laterality === 'left' ? 'Left' : 'Right';
+            examLines.push(`MSK - ${bodyPart.label} (${latLabel})`);
         }
     }
 
     // Category-specific items
-    const hasExaminedItems = categoryDef.items.some(i => itemStates[i.key]?.status !== 'not-examined');
-    if (hasExaminedItems) {
-        if (parts.length > 0) parts.push('');
-        if (categoryDef.category === 'B' && bodyPart) {
-            const latLabel = laterality === 'bilateral' ? 'Bilateral' : laterality === 'left' ? 'Left' : 'Right';
-            parts.push(`MSK - ${bodyPart.label} (${latLabel}):`);
-        } else {
-            parts.push(`${categoryDef.label}:`);
-        }
+    for (const item of categoryDef.items) {
+        const state = itemStates[item.key];
+        if (!state || state.status === 'not-examined') continue;
+        examLines.push(formatExamLine(item.label, state, item.normalText, item.abnormalOptions));
+    }
 
-        for (const item of categoryDef.items) {
-            const state = itemStates[item.key];
-            if (!state || state.status === 'not-examined') continue;
-            if (state.status === 'normal') {
-                if (item.normalText) {
-                    parts.push(`${item.label}: Normal - ${item.normalText}`);
-                } else {
-                    parts.push(`${item.label}: Normal`);
-                }
-            } else if (state.status === 'abnormal') {
-                const abnormalText = buildAbnormalText(state, item.abnormalOptions);
-                parts.push(`${item.label}: Abnormal - ${abnormalText}`);
-            }
-        }
+    // After wrappers (DERM, NEURO, PSYCH)
+    for (const g of afterWrappers) {
+        const state = generalStates[g.key];
+        if (!state || state.status === 'not-examined') continue;
+        examLines.push(formatExamLine(g.label, state, g.normalText, g.abnormalOptions));
+    }
+
+    if (examLines.length > 0) {
+        if (parts.length > 0) parts.push('');
+        parts.push(...examLines);
     }
 
     if (additional.trim()) {
@@ -335,8 +358,7 @@ function generateText(
 
 // ── Shared item row renderer ─────────────────────────────────
 
-function ExamItemRow({ itemKey, label, normalText, abnormalOptions, state, onCycleStatus, onToggleAbnormal, onSetFindings, colors }: {
-    itemKey: string;
+function ExamItemRow({ label, normalText, abnormalOptions, state, onCycleStatus, onToggleAbnormal, onSetFindings }: {
     label: string;
     normalText?: string;
     abnormalOptions?: AbnormalOption[];
@@ -344,30 +366,27 @@ function ExamItemRow({ itemKey, label, normalText, abnormalOptions, state, onCyc
     onCycleStatus: () => void;
     onToggleAbnormal: (optKey: string) => void;
     onSetFindings: (findings: string) => void;
-    colors: ReturnType<typeof getColorClasses>;
 }) {
     return (
         <div>
-            <div
-                className={`flex items-center justify-between p-2.5 rounded-md cursor-pointer transition-colors text-xs
-                    ${state.status === 'normal'
-                        ? colors.symptomClass
-                        : state.status === 'abnormal'
-                            ? 'border border-themeredred/40 bg-themeredred/10 text-primary'
-                            : 'border border-themegray1/20 bg-themewhite text-secondary hover:bg-themewhite3'
-                    }`}
+            <button
+                type="button"
+                className="flex items-center justify-between w-full text-left p-2.5 rounded-md transition-colors text-xs border border-themegray1/20 bg-themewhite text-secondary hover:bg-themewhite3"
                 onClick={onCycleStatus}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onCycleStatus(); } }}
             >
-                <span className="font-medium">{label}</span>
-                <span className="text-[10px] uppercase tracking-wide opacity-70">
+                <span className="font-medium">{label.toUpperCase()}</span>
+                <span className={`text-[10px] uppercase tracking-wide font-semibold ${
+                    state.status === 'normal'
+                        ? 'text-emerald-600'
+                        : state.status === 'abnormal'
+                            ? 'text-themeredred'
+                            : 'text-secondary/40'
+                }`}>
                     {state.status === 'not-examined' ? 'Not Examined'
                         : state.status === 'normal' ? 'Normal'
                         : 'Abnormal'}
                 </span>
-            </div>
+            </button>
             {state.status === 'normal' && normalText && (
                 <div className="text-[10px] text-secondary/60 mt-0.5 ml-2 italic">
                     {normalText}
@@ -491,16 +510,16 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
     };
 
     return (
-        <div className="p-3 space-y-2">
+        <div className="p-3 space-y-4">
             {/* Vital Signs */}
-            <div className="pb-2 border-b border-themegray1/15">
+            <div>
                 <span className="text-xs text-secondary font-medium block mb-2">Vital Signs</span>
                 <div className="grid grid-cols-3 gap-2">
                     {VITAL_SIGNS.map(v => {
                         if (v.key === 'bpDia') return null;
                         if (v.key === 'bpSys') return (
                             <div key="bp" className="flex flex-col">
-                                <label className="text-[10px] text-secondary mb-0.5">BP (mmHg)</label>
+                                <label className="text-xs text-secondary mb-0.5">BP (mmHg)</label>
                                 <div className="flex items-center gap-1">
                                     <input
                                         type="text"
@@ -522,7 +541,7 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
                         );
                         return (
                             <div key={v.key} className="flex flex-col">
-                                <label className="text-[10px] text-secondary mb-0.5">{v.shortLabel} ({v.unit})</label>
+                                <label className="text-xs text-secondary mb-0.5">{v.shortLabel} ({v.unit})</label>
                                 <input
                                     type="text"
                                     value={vitals[v.key] || ''}
@@ -538,33 +557,29 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
 
             {/* Minimal mode: skip exam items, show only vitals + additional findings */}
             {depth === 'minimal' ? (
-                <>
-                    <div className="pt-2 border-t border-themegray1/15">
-                        <label className="text-xs text-secondary font-medium block mb-1">Additional Findings</label>
-                        <textarea
-                            value={additional}
-                            onChange={(e) => setAdditional(e.target.value)}
-                            placeholder="Enter additional findings..."
-                            className="w-full text-xs px-3 py-2 rounded border border-themegray1/20 bg-themewhite text-tertiary outline-none focus:border-themeblue1/30 resize-none min-h-[3rem]"
-                        />
-                    </div>
-                </>
+                <div>
+                    <label className="text-xs text-secondary font-medium block mb-1">Additional Findings</label>
+                    <textarea
+                        value={additional}
+                        onChange={(e) => setAdditional(e.target.value)}
+                        placeholder="Enter additional findings..."
+                        className="w-full text-xs px-3 py-2 rounded border border-themegray1/20 bg-themewhite text-tertiary outline-none focus:border-themeblue1/30 resize-none min-h-[3rem]"
+                    />
+                </div>
             ) : (
             <>
 
             {/* All Normal button */}
-            <div className="pb-2 border-b border-themegray1/15">
-                <button
-                    onClick={markAllNormal}
-                    className="w-full py-2 text-xs font-medium rounded-md border border-themeblue1/30 text-themeblue1 bg-themeblue1/5 hover:bg-themeblue1/10 transition-colors"
-                >
-                    All Normal
-                </button>
-            </div>
+            <button
+                onClick={markAllNormal}
+                className="w-full py-2 text-xs font-medium rounded-md border border-themeblue1/30 text-themeblue1 bg-themeblue1/5 hover:bg-themeblue1/10 transition-colors"
+            >
+                All Normal
+            </button>
 
             {/* MSK laterality selector */}
             {categoryLetter === 'B' && bodyPart && (
-                <div className="flex items-center gap-2 pb-2 border-b border-themegray1/15">
+                <div className="flex items-center gap-2">
                     <span className="text-xs text-secondary font-medium">{bodyPart.label}</span>
                     <div className="flex gap-1 ml-auto">
                         {(['left', 'right', 'bilateral'] as Laterality[]).map(lat => (
@@ -584,58 +599,57 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
                 </div>
             )}
 
-            {/* General Findings section */}
-            {generalDefs.length > 0 && (
-                <div className="border-l-2 border-themeblue1/30 pl-2 space-y-2">
-                    <span className="text-[10px] text-secondary/70 font-semibold uppercase tracking-wider">General</span>
-                    {generalDefs.map(g => {
-                        const state = generalStates[g.key] || defaultItemState();
-                        return (
-                            <ExamItemRow
-                                key={g.key}
-                                itemKey={g.key}
-                                label={g.label}
-                                normalText={g.normalText}
-                                abnormalOptions={g.abnormalOptions}
-                                state={state}
-                                onCycleStatus={() => cycleStatus(g.key, setGeneralStates)}
-                                onToggleAbnormal={(optKey) => toggleAbnormal(g.key, optKey, setGeneralStates)}
-                                onSetFindings={(findings) => setFindings(g.key, findings, setGeneralStates)}
-                                colors={colors}
-                            />
-                        );
-                    })}
-                </div>
-            )}
-
-            {/* Category-specific header */}
-            <div className="pt-1">
-                <span className="text-[10px] text-secondary/70 font-semibold uppercase tracking-wider">
-                    {categoryLetter === 'B' && bodyPart ? `MSK - ${bodyPart.label}` : categoryDef.label}
-                </span>
+            {/* All exam items: GEN, HEAD, [category], DERM, NEURO, PSYCH */}
+            <div className="space-y-2">
+                {generalDefs.slice(0, WRAPPER_BEFORE_COUNT).map(g => {
+                    const state = generalStates[g.key] || defaultItemState();
+                    return (
+                        <ExamItemRow
+                            key={g.key}
+                            label={g.label}
+                            normalText={g.normalText}
+                            abnormalOptions={g.abnormalOptions}
+                            state={state}
+                            onCycleStatus={() => cycleStatus(g.key, setGeneralStates)}
+                            onToggleAbnormal={(optKey) => toggleAbnormal(g.key, optKey, setGeneralStates)}
+                            onSetFindings={(findings) => setFindings(g.key, findings, setGeneralStates)}
+                        />
+                    );
+                })}
+                {categoryDef.items.map(item => {
+                    const state = itemStates[item.key] || defaultItemState();
+                    return (
+                        <ExamItemRow
+                            key={item.key}
+                            label={item.label}
+                            normalText={item.normalText}
+                            abnormalOptions={item.abnormalOptions}
+                            state={state}
+                            onCycleStatus={() => cycleStatus(item.key, setItemStates)}
+                            onToggleAbnormal={(optKey) => toggleAbnormal(item.key, optKey, setItemStates)}
+                            onSetFindings={(findings) => setFindings(item.key, findings, setItemStates)}
+                        />
+                    );
+                })}
+                {generalDefs.slice(WRAPPER_BEFORE_COUNT).map(g => {
+                    const state = generalStates[g.key] || defaultItemState();
+                    return (
+                        <ExamItemRow
+                            key={g.key}
+                            label={g.label}
+                            normalText={g.normalText}
+                            abnormalOptions={g.abnormalOptions}
+                            state={state}
+                            onCycleStatus={() => cycleStatus(g.key, setGeneralStates)}
+                            onToggleAbnormal={(optKey) => toggleAbnormal(g.key, optKey, setGeneralStates)}
+                            onSetFindings={(findings) => setFindings(g.key, findings, setGeneralStates)}
+                        />
+                    );
+                })}
             </div>
 
-            {/* Category exam items */}
-            {categoryDef.items.map(item => {
-                const state = itemStates[item.key] || defaultItemState();
-                return (
-                    <ExamItemRow
-                        key={item.key}
-                        itemKey={item.key}
-                        label={item.label}
-                        normalText={item.normalText}
-                        abnormalOptions={item.abnormalOptions}
-                        state={state}
-                        onCycleStatus={() => cycleStatus(item.key, setItemStates)}
-                        onToggleAbnormal={(optKey) => toggleAbnormal(item.key, optKey, setItemStates)}
-                        onSetFindings={(findings) => setFindings(item.key, findings, setItemStates)}
-                        colors={colors}
-                    />
-                );
-            })}
-
             {/* Additional Findings */}
-            <div className="pt-2 border-t border-themegray1/15">
+            <div>
                 <label className="text-xs text-secondary font-medium block mb-1">Additional Findings</label>
                 <textarea
                     value={additional}

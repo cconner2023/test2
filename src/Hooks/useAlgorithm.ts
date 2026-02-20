@@ -63,6 +63,13 @@ const revealWithPause = (
     return [];
 };
 
+/**
+ * Core algorithm state machine. Manages card visibility, option selections, answer progression,
+ * disposition tracking, action/screener pausing, and undo (go-back) logic.
+ * @param algorithmOptions - The algorithm definition (card sequence)
+ * @param initialCardStates - Optional pre-filled card states for restoring a saved note
+ * @param initialDisposition - Optional initial disposition when restoring a saved note
+ */
 export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardStates?: CardState[], initialDisposition?: dispositionType | null) => {
     // Memoised card-type indices — recomputed only when the algorithm changes
     const initialCardIndex = useMemo(

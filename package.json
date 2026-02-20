@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "deploy": "npm run build && gh-pages -d dist",
     "db:setup": "node scripts/setup-database.mjs",
-    "generate-vapid-keys": "node scripts/generate-vapid-keys.mjs"
+    "generate-vapid-keys": "node scripts/generate-vapid-keys.mjs",
+    "test": "vitest run"
   },
   "dependencies": {
     "@formkit/auto-animate": "^0.9.0",
@@ -50,6 +51,7 @@
     "typescript-eslint": "^8.46.4",
     "vite": "^7.2.4",
     "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^4.0.18",
     "web-push": "^3.6.7"
   }
 }

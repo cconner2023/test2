@@ -28,6 +28,7 @@ import { TrainingDrawer } from './Components/TrainingDrawer'
 import { getTaskData } from './Data/TrainingData'
 import { isPinEnabled, isSessionUnlocked, clearSessionUnlocked } from './lib/pinService'
 import { PinLockScreen } from './Components/PinLockScreen'
+import { ErrorBoundary } from './Components/ErrorBoundary'
 
 // PWA App Shortcut: capture ?view= URL parameter once at module load time
 const _initialViewParam = (() => {
@@ -333,6 +334,7 @@ function AppContent() {
                   </div>
                 ) : navigation.selectedSymptom && navigation.showQuestionCard ? (
                   <div className="h-full overflow-hidden">
+                    <ErrorBoundary>
                     <AlgorithmPage
                       key={`algo-${navigation.selectedSymptom.icon}-${activeNote.algorithmKeySuffix}`}
                       selectedSymptom={navigation.selectedSymptom}
@@ -342,6 +344,7 @@ function AppContent() {
                       initialDisposition={activeNote.restoredAlgorithmState?.disposition}
                       noteSource={activeNote.activeNoteSource}
                     />
+                    </ErrorBoundary>
                   </div>
                 ) : (
                   <div className="h-full flex items-center justify-center text-secondary text-sm">
@@ -376,12 +379,15 @@ function AppContent() {
             onClick={navigation.closeMenu}
           />
         )}
+        <ErrorBoundary>
         <NoteImport
           isVisible={navigation.showNoteImport}
           onClose={() => navigation.setShowNoteImport(false)}
           initialViewState={activeNote.importInitialView}
           onImportSuccess={activeNote.handleImportSuccess}
         />
+        </ErrorBoundary>
+        <ErrorBoundary>
         <Settings
           isVisible={navigation.showSettings}
           onClose={() => { navigation.setShowSettings(false); activeNote.resetSettingsPanel() }}
@@ -399,13 +405,24 @@ function AppContent() {
           onViewNote={activeNote.handleViewNote}
           avatar={avatarState}
           onNotePanelChange={setIsNotePanelOpen}
+          syncStatus={{
+            isOnline: notesStorage.isOnline,
+            isSyncing: notesStorage.isSyncing,
+            pendingCount: notesStorage.pendingCount,
+            errorCount: notesStorage.errorCount,
+            lastSyncTime: notesStorage.lastSyncTime,
+          }}
         />
+        </ErrorBoundary>
+        <ErrorBoundary>
         <MedicationsDrawer
           isVisible={navigation.showMedications}
           onClose={() => navigation.setShowMedications(false)}
           selectedMedication={navigation.selectedMedication}
           onMedicationSelect={navigation.handleMedicationSelect}
         />
+        </ErrorBoundary>
+        <ErrorBoundary>
         <SymptomInfoDrawer
           isVisible={navigation.showSymptomInfo}
           onClose={() => navigation.setShowSymptomInfo(false)}
@@ -413,13 +430,17 @@ function AppContent() {
           selectedCategory={navigation.selectedCategory}
           onNavigate={handleNavigationClick}
         />
+        </ErrorBoundary>
+        <ErrorBoundary>
         <TrainingDrawer
           isVisible={navigation.showTrainingDrawer}
           onClose={() => navigation.setShowTrainingDrawer(null)}
           taskId={navigation.trainingDrawerTaskId}
         />
+        </ErrorBoundary>
         {/* WriteNotePage — BaseDrawer handles mobile/desktop positioning */}
         {navigation.writeNoteData && (
+          <ErrorBoundary>
           <WriteNotePage
             isVisible={navigation.isWriteNoteVisible}
             disposition={navigation.writeNoteData.disposition}
@@ -440,6 +461,7 @@ function AppContent() {
             onAfterSave={activeNote.handleAfterSave}
             timestamp={navigation.writeNoteData.timestamp}
           />
+          </ErrorBoundary>
         )}
         <UpdateNotification />
         <InstallPrompt />

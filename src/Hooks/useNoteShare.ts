@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import bwipjs from 'bwip-js';
 import type { SavedNote } from './useNotesStorage';
 import { createLogger } from '../Utilities/Logger';
+import { UI_TIMING } from '../Utilities/constants';
 
 const logger = createLogger('NoteShare');
 
@@ -205,7 +206,7 @@ export function useNoteShare() {
             }
 
             // Reset status after delay
-            setTimeout(() => setShareStatus('idle'), 2500);
+            setTimeout(() => setShareStatus('idle'), UI_TIMING.FEEDBACK_DURATION);
         } catch (err: unknown) {
             // User cancelled share dialog — not an error
             if (err instanceof Error && err.name === 'AbortError') {
@@ -214,7 +215,7 @@ export function useNoteShare() {
             }
             logger.error('Share failed:', err);
             setShareStatus('error');
-            setTimeout(() => setShareStatus('idle'), 2500);
+            setTimeout(() => setShareStatus('idle'), UI_TIMING.FEEDBACK_DURATION);
         }
     }, []);
 

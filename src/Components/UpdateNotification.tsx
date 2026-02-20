@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Download, Wifi, RefreshCw } from 'lucide-react';
 import { useServiceWorker } from '../Hooks/useServiceWorker';
+import { UI_TIMING } from '../Utilities/constants';
 
 const UpdateNotification: React.FC = () => {
     const {
@@ -48,7 +49,7 @@ const UpdateNotification: React.FC = () => {
         // Show offline ready toast briefly
         if (offlineReady) {
             setShowOfflineToast(true);
-            const timer = setTimeout(() => setShowOfflineToast(false), 3000);
+            const timer = setTimeout(() => setShowOfflineToast(false), UI_TIMING.OFFLINE_TOAST_DURATION);
             return () => clearTimeout(timer);
         }
     }, [offlineReady]);

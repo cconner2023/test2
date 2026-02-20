@@ -1,6 +1,7 @@
 // Components/StorageErrorToast.tsx
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle } from 'lucide-react';
+import { UI_TIMING } from '../Utilities/constants';
 
 interface StorageErrorToastProps {
     message: string | null;
@@ -21,7 +22,7 @@ const StorageErrorToast: React.FC<StorageErrorToastProps> = ({ message, onDismis
             requestAnimationFrame(() => setVisible(true));
             const timer = setTimeout(() => {
                 setVisible(false);
-                setTimeout(onDismiss, 300); // Wait for exit animation
+                setTimeout(onDismiss, UI_TIMING.SLIDE_ANIMATION); // Wait for exit animation
             }, 5000);
             return () => clearTimeout(timer);
         } else {
@@ -41,7 +42,7 @@ const StorageErrorToast: React.FC<StorageErrorToastProps> = ({ message, onDismis
                 className="bg-themewhite rounded-2xl shadow-2xl border border-themeredred/20 px-6 py-4 flex items-center gap-3 pointer-events-auto backdrop-blur-xl cursor-pointer max-w-sm"
                 onClick={() => {
                     setVisible(false);
-                    setTimeout(onDismiss, 300);
+                    setTimeout(onDismiss, UI_TIMING.SLIDE_ANIMATION);
                 }}
                 role="alert"
             >

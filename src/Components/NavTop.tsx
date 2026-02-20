@@ -1,9 +1,10 @@
 // NavTop.tsx - Simplified version with grouped props
-import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, HelpCircle } from "lucide-react";
+import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, HelpCircle, Check, Download, PenSquare } from "lucide-react";
 import { useRef, useEffect } from "react";
 import { useSpring, useTrail, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { createLogger } from "../Utilities/Logger";
+import { formatNoteSource } from '../Utilities/NoteSourceUtils';
 
 const logger = createLogger('NavTop');
 import { menuData } from "../Data/CatData";
@@ -330,19 +331,15 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                     {/* Note source marker - shown under title when in algorithm view */}
                     {isAlgorithmView && noteSource !== undefined && (
                         <div className="flex items-center justify-center gap-1 mt-0.5">
-                            <svg className="w-2.5 h-2.5 shrink-0 text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                {noteSource && !noteSource?.startsWith('external') ? (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                ) : noteSource?.startsWith('external') ? (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                                ) : (
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                )}
-                            </svg>
+                            {noteSource && !noteSource?.startsWith('external') ? (
+                                <Check className="w-2.5 h-2.5 shrink-0 text-tertiary" />
+                            ) : noteSource?.startsWith('external') ? (
+                                <Download className="w-2.5 h-2.5 shrink-0 text-tertiary" />
+                            ) : (
+                                <PenSquare className="w-2.5 h-2.5 shrink-0 text-tertiary" />
+                            )}
                             <span className="text-[8pt] text-tertiary font-medium">
-                                {noteSource?.startsWith('external')
-                                    ? `External${noteSource.includes(':') ? ': ' + noteSource.split(':')[1] : ''}`
-                                    : noteSource ? 'Saved' : 'New Note'}
+                                {formatNoteSource(noteSource, 'short')}
                             </span>
                         </div>
                     )}
@@ -395,16 +392,18 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                             className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
                         />
 
-                        <div
-                            className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
+                        <button
+                            type="button"
+                            className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full transition-all duration-300 hover:bg-themewhite shrink-0"
                             onClick={hasSearchInput ? () => handleClearSearch(false) : undefined}
+                            aria-label={hasSearchInput ? "Clear search" : "Search"}
                         >
                             {hasSearchInput ? (
                                 <X className="w-5 h-5 stroke-themeblue1" />
                             ) : (
                                 <Search className="w-5 h-5 stroke-themeblue1 opacity-50" />
                             )}
-                        </div>
+                        </button>
                     </div>
                 )}
 

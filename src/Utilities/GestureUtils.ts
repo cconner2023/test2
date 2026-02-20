@@ -26,6 +26,10 @@ export const GESTURE_THRESHOLDS = {
   MIN_DRAG_FOR_VELOCITY: 50,
   /** Page navigation threshold as fraction of container width */
   PAGE_NAV_FRACTION: 0.2,
+  /** Left-edge zone width (px) for swipe-back gesture activation */
+  EDGE_ZONE: 40,
+  /** Minimum horizontal drag (px) to trigger page-swipe navigation */
+  PAGE_SWIPE_THRESHOLD: 40,
 } as const
 
 /**

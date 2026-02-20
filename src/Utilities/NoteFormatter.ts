@@ -11,6 +11,7 @@ import { screenerRegistry, getScreenerMaxScore, getScreenerScore, isQuestionScor
 // Timestamp
 // ---------------------------------------------------------------------------
 
+/** Format a Date into the standard ADTMC screening timestamp string. */
 export function formatTimestamp(date: Date): string {
     const day = date.getDate().toString().padStart(2, '0');
     const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
@@ -28,6 +29,7 @@ export function formatTimestamp(date: Date): string {
 // Algorithm content
 // ---------------------------------------------------------------------------
 
+/** Generate a human-readable text summary of the algorithm card answers, including red flags and screener results. */
 export function formatAlgorithmContent(
     algorithmOptions: AlgorithmOptions[],
     cardStates: CardState[],
@@ -261,6 +263,7 @@ function formatDecisionMakingItems(items: decisionMakingType[]): string {
     return sections.join('\n\n');
 }
 
+/** Format the decision-making section (DDx, ancillary findings, spec limits) for a given disposition. */
 export function formatDecisionMakingContent(
     algorithmOptions: AlgorithmOptions[],
     cardStates: CardState[],
@@ -276,6 +279,7 @@ export function formatDecisionMakingContent(
 // Signature
 // ---------------------------------------------------------------------------
 
+/** Format a user profile into a "Signed: Last First MI Credential, Rank, Component" string. */
 export function formatSignature(profile: UserTypes): string {
     if (!profile.lastName) return '';
     const parts = [
@@ -313,6 +317,10 @@ export interface AssembledNote {
     fullNote: string;
 }
 
+/**
+ * Assemble all note sections (HPI, PE, timestamp, algorithm, decision making, signature)
+ * into a structured result with both individual sections and a combined full-text note.
+ */
 export function assembleNote(
     options: NoteAssemblyOptions,
     algorithmOptions: AlgorithmOptions[],

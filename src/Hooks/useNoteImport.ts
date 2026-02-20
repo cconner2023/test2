@@ -6,6 +6,7 @@ import { useCallback } from 'react';
 import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../Utilities/NoteCodec';
 import { assembleNote } from '../Utilities/NoteFormatter';
 
+/** Provides importFromBarcode: decodes a barcode string, reconstructs algorithm state, and returns readable note text. */
 export const useNoteImport = () => {
     const importFromBarcode = useCallback((barcodeString: string): string => {
         // 1. Parse barcode

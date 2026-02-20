@@ -5,14 +5,18 @@ import { useNoteCapture } from '../Hooks/useNoteCapture';
 import { useNoteShare } from '../Hooks/useNoteShare';
 import { useDD689Export } from '../Hooks/useDD689Export';
 import { useUserProfile } from '../Hooks/useUserProfile';
+import { usePageSwipe } from '../Hooks/usePageSwipe';
 import { formatSignature } from '../Utilities/NoteFormatter';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { encodedContentEquals } from '../Utilities/NoteCodec';
+import { UI_TIMING } from '../Utilities/constants';
+import { formatNoteSource } from '../Utilities/NoteSourceUtils';
 import { NoteBarcodeGenerator } from './Barcode';
 import { DecisionMaking } from './DecisionMaking';
 import { PhysicalExam } from './PhysicalExam';
 import { BaseDrawer } from './BaseDrawer';
-import { BrainCircuit, FileText, Stethoscope } from 'lucide-react';
+import { ActionIconButton, SlideWrapper, ToggleOption } from './WriteNoteHelpers';
+import { BrainCircuit, FileText, Stethoscope, ChevronLeft, ChevronRight, X, Check } from 'lucide-react';
 
 type DispositionType = dispositionType['type'];
 
@@ -117,13 +121,7 @@ export const WriteNotePage = ({
     // Refs
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
-    // Ref-based drag state for mobile swipe — no React re-renders during gesture
-    const dragRef = useRef<{
-        startX: number;
-        startY: number;
-        lastX: number;
-        locked: boolean | null; // null = undecided, true = horizontal, false = vertical
-    } | null>(null);
+    // Ref to track current page for swipe callbacks (avoids stale closures)
     const currentPageRef = useRef(currentPage);
     currentPageRef.current = currentPage;
 
@@ -137,7 +135,7 @@ export const WriteNotePage = ({
     // --- Copied state auto-revert ---
     useEffect(() => {
         if (copiedTarget) {
-            const id = window.setTimeout(() => setCopiedTarget(null), 2000);
+            const id = window.setTimeout(() => setCopiedTarget(null), UI_TIMING.COPY_FEEDBACK);
             return () => clearTimeout(id);
         }
     }, [copiedTarget]);
@@ -161,7 +159,7 @@ export const WriteNotePage = ({
     // --- Auto-focus HPI textarea when navigating to HPI page ---
     useEffect(() => {
         if (currentPageId === 'hpi' && includeHPI) {
-            setTimeout(() => inputRef.current?.focus(), 100);
+            setTimeout(() => inputRef.current?.focus(), UI_TIMING.AUTOFOCUS_DELAY);
         }
     }, [currentPageId, includeHPI]);
 
@@ -226,14 +224,14 @@ export const WriteNotePage = ({
         });
         if (result === false) {
             setSaveFailed(true);
-            setTimeout(() => setSaveFailed(false), 3000);
+            setTimeout(() => setSaveFailed(false), UI_TIMING.SAVE_ERROR_DURATION);
             return;
         }
         setIsSaved(true);
         if (onAfterSave) {
-            setTimeout(() => onAfterSave(), 800);
+            setTimeout(() => onAfterSave(), UI_TIMING.AFTER_SAVE_DELAY);
         } else {
-            setTimeout(() => setIsSaved(false), 2500);
+            setTimeout(() => setIsSaved(false), UI_TIMING.FEEDBACK_DURATION);
         }
     }, [encodedValue, previewNote, selectedSymptom, disposition, onNoteSave, onAfterSave]);
 
@@ -246,7 +244,7 @@ export const WriteNotePage = ({
             confirmDeleteRef.current = false;
             setConfirmDelete(false);
             if (confirmDeleteTimeoutRef.current) clearTimeout(confirmDeleteTimeoutRef.current);
-            setTimeout(() => setIsDeleted(false), 2500);
+            setTimeout(() => setIsDeleted(false), UI_TIMING.FEEDBACK_DURATION);
         } else {
             confirmDeleteRef.current = true;
             setConfirmDelete(true);
@@ -254,7 +252,7 @@ export const WriteNotePage = ({
             confirmDeleteTimeoutRef.current = setTimeout(() => {
                 confirmDeleteRef.current = false;
                 setConfirmDelete(false);
-            }, 5000);
+            }, UI_TIMING.DELETE_CONFIRM_TIMEOUT);
         }
     }, [existingNoteId, onNoteDelete]);
 
@@ -272,16 +270,16 @@ export const WriteNotePage = ({
         if (result === false) return;
         setIsSaved(true);
         if (onAfterSave) {
-            setTimeout(() => onAfterSave(), 800);
+            setTimeout(() => onAfterSave(), UI_TIMING.AFTER_SAVE_DELAY);
         } else {
-            setTimeout(() => setIsSaved(false), 2500);
+            setTimeout(() => setIsSaved(false), UI_TIMING.FEEDBACK_DURATION);
         }
     }, [existingNoteId, encodedValue, previewNote, selectedSymptom, disposition, onNoteUpdate, onAfterSave]);
 
     // --- Slide animation helper (mirrors Settings pattern) ---
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
         setSlideDirection(direction);
-        setTimeout(() => setSlideDirection(''), 300);
+        setTimeout(() => setSlideDirection(''), UI_TIMING.SLIDE_ANIMATION);
     }, []);
 
     // --- Page navigation ---
@@ -302,51 +300,27 @@ export const WriteNotePage = ({
     }, [handleSlideAnimation]);
 
     // ========== PAGE SWIPE (horizontal, mobile only) — detect direction, trigger slide ==========
-    const handleSwipeStart = useCallback((e: React.TouchEvent) => {
-        if (!isMobile) return;
-        const t = e.target as HTMLElement;
-        if (t.closest('button, textarea, input, select, [role="checkbox"], [role="button"], [role="slider"]')) return;
-        const touch = e.touches[0];
-        dragRef.current = { startX: touch.clientX, startY: touch.clientY, lastX: touch.clientX, locked: null };
-    }, [isMobile]);
-
-    const handleSwipeMove = useCallback((e: React.TouchEvent) => {
-        const d = dragRef.current;
-        if (!d) return;
-
-        const touch = e.touches[0];
-        const dx = touch.clientX - d.startX;
-        const dy = touch.clientY - d.startY;
-
-        // Direction lock: 10px dead zone
-        if (d.locked === null) {
-            if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
-            d.locked = Math.abs(dx) > Math.abs(dy);
-            if (!d.locked) { dragRef.current = null; return; }
-        }
-        if (!d.locked) return;
-
-        d.lastX = touch.clientX;
-        e.preventDefault();
-    }, []);
-
-    const handleSwipeEnd = useCallback(() => {
-        const d = dragRef.current;
-        dragRef.current = null;
-        if (!d || d.locked !== true) return;
-
-        const swipeDx = d.lastX - d.startX;
+    const handleSwipeLeft = useCallback(() => {
         const page = currentPageRef.current;
-
-        // Swipe left (negative dx) → next page; swipe right (positive dx) → previous page
-        if (swipeDx < -40 && page < visiblePages.length - 1) {
+        if (page < visiblePages.length - 1) {
             handleSlideAnimation('left');
             setCurrentPage(page + 1);
-        } else if (swipeDx > 40 && page > 0) {
+        }
+    }, [handleSlideAnimation, visiblePages.length]);
+
+    const handleSwipeRight = useCallback(() => {
+        const page = currentPageRef.current;
+        if (page > 0) {
             handleSlideAnimation('right');
             setCurrentPage(page - 1);
         }
-    }, [handleSlideAnimation, visiblePages.length]);
+    }, [handleSlideAnimation]);
+
+    const { onTouchStart: handleSwipeStart, onTouchMove: handleSwipeMove, onTouchEnd: handleSwipeEnd } = usePageSwipe(
+        handleSwipeLeft,
+        handleSwipeRight,
+        isMobile,
+    );
 
     const renderContent = (closeHandler: () => void) => (
         <>
@@ -381,18 +355,14 @@ export const WriteNotePage = ({
                                 className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
                                 aria-label="Go back"
                             >
-                                <svg className="w-6 h-6 text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-                                </svg>
+                                <ChevronLeft className="w-6 h-6 text-tertiary" />
                             </button>
                         </div>
                         <h2 className="text-[11pt] font-normal text-primary md:text-2xl truncate">
                             {visiblePages[currentPage]?.label}
                         </h2>
                         <span className="text-xs text-tertiary shrink-0">
-                            {noteSource?.startsWith('external')
-                                ? `External${noteSource.includes(':') ? ': ' + noteSource.split(':')[1] : ''}`
-                                : noteSource ? 'Saved: My Note' : 'New Note'}
+                            {formatNoteSource(noteSource)}
                         </span>
                     </div>
                     <button
@@ -400,9 +370,7 @@ export const WriteNotePage = ({
                         className="p-2 rounded-full hover:bg-themewhite2 md:hover:bg-themewhite active:scale-95 transition-all shrink-0"
                         aria-label="Close"
                     >
-                        <svg className="w-6 h-6 text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+                        <X className="w-6 h-6 text-tertiary" />
                     </button>
                 </div>
                 <div className="flex gap-1.5 mt-2">
@@ -466,7 +434,7 @@ export const WriteNotePage = ({
                                 {!includeHPI ? (
                                     <ToggleOption
                                         checked={includeHPI}
-                                        onChange={() => { setIncludeHPI(true); setTimeout(() => inputRef.current?.focus(), 100); }}
+                                        onChange={() => { setIncludeHPI(true); setTimeout(() => inputRef.current?.focus(), UI_TIMING.AUTOFOCUS_DELAY); }}
                                         label="Include HPI in note"
                                         onDescription="HPI will be added to your note"
                                         offDescription="HPI will not be included"
@@ -482,9 +450,7 @@ export const WriteNotePage = ({
                                                 className="text-xs text-tertiary hover:text-primary p-1 rounded transition-colors"
                                                 title="Remove HPI"
                                             >
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
+                                                <X className="w-4 h-4" />
                                             </button>
                                         </div>
                                         <textarea
@@ -592,7 +558,7 @@ export const WriteNotePage = ({
                                             }}
                                             symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
                                             onEncodedValueChange={setEncodedValue}
-                                            layout={encodedValue.length > 80 ? 'col' : 'row'}
+                                            layout={encodedValue.length > 300 ? 'col' : 'row'}
                                         />
                                     </div>
                                 </div>
@@ -610,25 +576,24 @@ export const WriteNotePage = ({
                 style={isMobile ? { paddingBottom: 'max(2rem, calc(env(safe-area-inset-bottom, 0px) + 2rem))' } : {}}
             >
                 <div />
-                <div className="flex items-center gap-2">
+                <div key={currentPage} className={`flex items-center gap-2 ${slideDirection === 'left' ? 'animate-footer-btn-left' : slideDirection === 'right' ? 'animate-footer-btn-right' : ''}`}>
                     {currentPage < visiblePages.length - 1 ? (
                         <button
                             onClick={handleNext}
-                            className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all ${colors.buttonClass}`}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2 ${colors.buttonClass}`}
                             aria-label="Next"
                         >
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7" />
-                            </svg>
+                            <span className="hidden md:inline text-sm font-medium">Next</span>
+                            <ChevronRight className="w-5 h-5" />
                         </button>
                     ) : (
                         <>
-                            {/* Save (new note) — circle icon */}
+                            {/* Save (new note) */}
                             {onNoteSave && !isAlreadySaved && (
                                 <button
                                     onClick={handleSaveNote}
                                     disabled={isSaved || !encodedValue}
-                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2
                                         ${saveFailed
                                             ? 'bg-themeredred/15 text-themeredred'
                                             : isSaved
@@ -642,23 +607,24 @@ export const WriteNotePage = ({
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                                         </svg>
                                     ) : isSaved ? (
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                        </svg>
+                                        <Check className="w-5 h-5" />
                                     ) : (
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
                                         </svg>
                                     )}
+                                    <span className="hidden md:inline text-sm font-medium">
+                                        {saveFailed ? 'Storage Full' : isSaved ? 'Saved' : 'Save Note'}
+                                    </span>
                                 </button>
                             )}
 
-                            {/* Save Changes (existing note, content changed) — circle icon */}
+                            {/* Save Changes (existing note, content changed) */}
                             {isAlreadySaved && hasContentChanged && onNoteUpdate && (
                                 <button
                                     onClick={handleUpdateNote}
                                     disabled={isSaved || !encodedValue}
-                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2
                                         ${isSaved
                                             ? 'bg-green-500/15 text-green-600 dark:text-green-300'
                                             : 'bg-themeblue3/10 text-themeblue3 hover:bg-themeblue3/20'
@@ -666,23 +632,24 @@ export const WriteNotePage = ({
                                     title={isSaved ? 'Changes saved' : 'Save changes'}
                                 >
                                     {isSaved ? (
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                        </svg>
+                                        <Check className="w-5 h-5" />
                                     ) : (
                                         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                                         </svg>
                                     )}
+                                    <span className="hidden md:inline text-sm font-medium">
+                                        {isSaved ? 'Saved' : 'Save Changes'}
+                                    </span>
                                 </button>
                             )}
 
-                            {/* Delete (existing note, no content change) — circle icon */}
+                            {/* Delete (existing note, no content change) */}
                             {isAlreadySaved && !hasContentChanged && onNoteDelete && (
                                 <button
                                     onClick={handleDeleteNote}
                                     disabled={isDeleted}
-                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40
+                                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2
                                         ${isDeleted
                                             ? 'bg-themeredred/15 text-themeredred'
                                             : confirmDelete
@@ -692,14 +659,15 @@ export const WriteNotePage = ({
                                     title={confirmDelete ? 'Tap again to confirm' : 'Delete note'}
                                 >
                                     {isDeleted ? (
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                                        </svg>
+                                        <Check className="w-5 h-5" />
                                     ) : (
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                         </svg>
                                     )}
+                                    <span className="hidden md:inline text-sm font-medium">
+                                        {isDeleted ? 'Deleted' : confirmDelete ? 'Confirm?' : 'Delete'}
+                                    </span>
                                 </button>
                             )}
                         </>
@@ -720,113 +688,3 @@ export const WriteNotePage = ({
         </BaseDrawer>
     );
 };
-
-// ========== HELPER COMPONENTS ==========
-
-const ActionIconButton = ({
-    onClick,
-    status,
-    variant,
-    title,
-}: {
-    onClick: () => void;
-    status: 'idle' | 'busy' | 'done';
-    variant: 'copy' | 'share' | 'pdf';
-    title: string;
-}) => {
-    const colorClass = status === 'done' ? 'text-green-600'
-        : status === 'busy' ? 'text-purple-600'
-            : 'text-tertiary hover:text-primary hover:bg-themewhite3';
-
-    return (
-        <span
-            onClick={(e) => { e.stopPropagation(); onClick(); }}
-            className={`p-1.5 transition-colors rounded-full ${colorClass}`}
-            title={title}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onClick(); } }}
-        >
-            {status === 'busy' ? (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                </svg>
-            ) : status === 'done' ? (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                </svg>
-            ) : variant === 'copy' ? (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                </svg>
-            ) : variant === 'share' ? (
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                </svg>
-            ) : (
-                /* PDF icon: document with download arrow */
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11v6m0 0l-2-2m2 2l2-2" />
-                </svg>
-            )}
-        </span>
-    );
-};
-
-const SlideWrapper = ({
-    children,
-    slideDirection
-}: {
-    children: React.ReactNode;
-    slideDirection: 'left' | 'right' | '';
-}) => {
-    const slideClasses = {
-        '': '',
-        'left': 'animate-slide-in-left',
-        'right': 'animate-slide-in-right'
-    };
-
-    return (
-        <div className={`h-full w-full ${slideClasses[slideDirection]}`}>
-            {children}
-        </div>
-    );
-};
-
-const ToggleOption: React.FC<{
-    checked: boolean;
-    onChange: () => void;
-    label: string;
-    onDescription: string;
-    offDescription: string;
-    icon: React.ReactNode;
-    colors: ReturnType<typeof getColorClasses>;
-}> = ({ checked, onChange, label, onDescription, offDescription, icon, colors }) => (
-    <div
-        onClick={onChange}
-        className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all cursor-pointer
-            ${checked
-                ? colors.symptomClass
-                : 'border-tertiary/15 bg-themewhite2'
-            }`}
-        role="checkbox"
-        aria-checked={checked}
-        tabIndex={0}
-        onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onChange(); }
-        }}
-    >
-        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${checked ? `${colors.sliderClass}/15` : 'bg-tertiary/10'}`}>
-            <span className={checked ? colors.symptomCheck : 'text-tertiary/50'}>{icon}</span>
-        </div>
-        <div className="flex-1 min-w-0">
-            <p className={`text-sm font-medium ${checked ? 'text-primary' : 'text-tertiary'}`}>{label}</p>
-            <p className="text-[11px] text-tertiary/70 mt-0.5">{checked ? onDescription : offDescription}</p>
-        </div>
-        <div className={`w-10 h-6 rounded-full relative transition-colors ${checked ? colors.sliderClass : 'bg-tertiary/25'}`}>
-            <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${checked ? 'translate-x-4' : 'translate-x-0.5'}`} />
-        </div>
-    </div>
-);

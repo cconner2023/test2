@@ -180,6 +180,10 @@ async function migrateSupervisorTests(userId: string): Promise<number> {
 
 // ── Hook ─────────────────────────────────────────────────────
 
+/**
+ * Primary hook for training completion CRUD, offline-first IndexedDB persistence, and Supabase sync.
+ * Provides read/test completion queries, progress tracking, and realtime cross-device updates.
+ */
 export function useTrainingCompletions() {
   const [completions, setCompletions] = useState<TrainingCompletionUI[]>([]);
   const [viewedTasks, setViewedTasks] = useState<Set<string>>(new Set());

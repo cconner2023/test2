@@ -23,6 +23,7 @@ import {
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
 import { supabase } from '../../lib/supabase'
+import { UI_TIMING } from '../../Utilities/constants'
 
 // ─── Shared input components ──────────────────────────────────────────
 
@@ -360,7 +361,7 @@ const UsersTab = () => {
       setResetPwUserId(null)
       setResetPwValue('')
       setResetPwSuccess(userId)
-      setTimeout(() => setResetPwSuccess(null), 3000)
+      setTimeout(() => setResetPwSuccess(null), UI_TIMING.SAVE_ERROR_DURATION)
     } else {
       setFeedback({ type: 'error', message: result.error || 'Failed to reset password' })
     }

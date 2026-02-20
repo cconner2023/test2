@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import { checkSupabaseConnection } from './lib/supabase.ts'
 import { createLogger } from './Utilities/Logger.ts'
+import { UI_TIMING } from './Utilities/constants.ts'
 
 const logger = createLogger('App')
 
@@ -43,7 +44,7 @@ if (splashBar) {
     const splash = document.getElementById('splash')
     if (splash) {
       splash.classList.add('splash-out')
-      setTimeout(() => splash.remove(), 300)
+      setTimeout(() => splash.remove(), UI_TIMING.SLIDE_ANIMATION)
     }
   }, { once: true })
 }

@@ -4,6 +4,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { createLogger } from '../Utilities/Logger'
+import { UI_TIMING } from '../Utilities/constants'
 
 const logger = createLogger('ActiveNote')
 import type { CardState } from './useAlgorithm'
@@ -25,6 +26,10 @@ interface UseActiveNoteParams {
   postUpdateNav: string | null
 }
 
+/**
+ * Orchestrates active note tracking, CRUD operations, import/restore flows,
+ * feedback modals, and navigation side effects for note management.
+ */
 export function useActiveNote({
   navigation,
   notesStorage,
@@ -190,7 +195,7 @@ export function useActiveNote({
     navigation.closeWriteNote()
 
     setShowNoteSavedModal(true)
-    setTimeout(() => setShowNoteSavedModal(false), 2500)
+    setTimeout(() => setShowNoteSavedModal(false), UI_TIMING.FEEDBACK_DURATION)
 
     // Reset navigation behind Settings overlay so columns return to main when Settings closes
     setTimeout(() => {
@@ -198,7 +203,7 @@ export function useActiveNote({
       setMyNotesInitialSelectedId(noteId)
       setSettingsInitialPanel('my-notes')
       navigation.setShowSettings(true)
-    }, 300)
+    }, UI_TIMING.SLIDE_ANIMATION)
   }, [navigation])
 
   // Shared helper: restore a saved note → navigate to its algorithm → open WriteNote
@@ -273,14 +278,14 @@ export function useActiveNote({
 
       // 2. Show duplicate feedback modal
       setShowImportDuplicateModal(true)
-      setTimeout(() => setShowImportDuplicateModal(false), 2500)
+      setTimeout(() => setShowImportDuplicateModal(false), UI_TIMING.FEEDBACK_DURATION)
 
       // 3. Open Settings → My Notes with the duplicate note pre-selected
       setTimeout(() => {
         setMyNotesInitialSelectedId(existingNote.id)
         setSettingsInitialPanel('my-notes')
         navigation.setShowSettings(true)
-      }, 300)
+      }, UI_TIMING.SLIDE_ANIMATION)
       return
     }
 
@@ -338,14 +343,14 @@ export function useActiveNote({
 
     // 3. Show success feedback modal
     setShowImportSuccessModal(true)
-    setTimeout(() => setShowImportSuccessModal(false), 2500)
+    setTimeout(() => setShowImportSuccessModal(false), UI_TIMING.FEEDBACK_DURATION)
 
     // 4. Open Settings → My Notes so the user can decide what to do with the imported note
     setTimeout(() => {
       setMyNotesInitialSelectedId(null)
       setSettingsInitialPanel('my-notes')
       navigation.setShowSettings(true)
-    }, 300)
+    }, UI_TIMING.SLIDE_ANIMATION)
   }, [restoreNote, notesStorage, navigation])
 
   // Open Settings -> Training -> specific task (desktop only)

@@ -8,6 +8,7 @@ interface ScannerState {
     result: string | null;
 }
 
+/** Manages camera access and continuous barcode scanning using ZXing, with auto-cleanup on unmount. */
 export const useBarcodeScanner = () => {
     const [state, setState] = useState<ScannerState>({
         isScanning: false,

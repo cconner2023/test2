@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { FileText, Stethoscope } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import type { UserTypes } from '../../Data/User';
+import { ToggleSwitch } from './ToggleSwitch';
 
 type PEDepth = 'minimal' | 'expanded';
 
@@ -56,9 +57,7 @@ export const NoteContentPanel = () => {
                         <p className={`text-sm font-medium ${includeHPI ? 'text-primary' : 'text-tertiary'}`}>HPI</p>
                         <p className="text-[11px] text-tertiary/70 mt-0.5">History of Present Illness</p>
                     </div>
-                    <div className={`w-10 h-6 rounded-full relative transition-colors ${includeHPI ? 'bg-themeblue2' : 'bg-tertiary/25'}`}>
-                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${includeHPI ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                    </div>
+                    <ToggleSwitch checked={includeHPI} />
                 </div>
 
                 {/* PE Toggle */}
@@ -80,9 +79,7 @@ export const NoteContentPanel = () => {
                         <p className={`text-sm font-medium ${includePE ? 'text-primary' : 'text-tertiary'}`}>Physical Exam</p>
                         <p className="text-[11px] text-tertiary/70 mt-0.5">Category-specific physical exam</p>
                     </div>
-                    <div className={`w-10 h-6 rounded-full relative transition-colors ${includePE ? 'bg-themeblue2' : 'bg-tertiary/25'}`}>
-                        <div className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform ${includePE ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                    </div>
+                    <ToggleSwitch checked={includePE} />
                 </div>
 
                 {/* PE Depth Selector — only shown when PE is enabled */}

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react'
 import { useDrag } from '@use-gesture/react';
 import { X, ChevronLeft } from 'lucide-react';
 import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils';
+import { DRAWER_TIMING } from '../Utilities/constants';
 
 /** Render prop type: children can receive handleClose for animated close */
 type DrawerRenderProp = (handleClose: () => void) => ReactNode;
@@ -126,13 +127,13 @@ export function BaseDrawer({
             // Animate mobile drawer in (desktop ignores drawerPosition)
             setTimeout(() => {
                 setDrawerPosition(100);
-            }, 10);
+            }, DRAWER_TIMING.OPEN_DELAY);
 
             // Desktop: delay open state so the closed frame renders first,
             // allowing the CSS transition to animate.
             desktopOpenRef.current = window.setTimeout(() => {
                 setDesktopOpen(true);
-            }, 10);
+            }, DRAWER_TIMING.OPEN_DELAY);
         } else {
             // Start closing animation
             setDrawerPosition(0);
@@ -141,7 +142,7 @@ export function BaseDrawer({
             timeoutRef.current = setTimeout(() => {
                 setIsMounted(false);
                 document.body.style.overflow = '';
-            }, 300); // Match animation duration
+            }, DRAWER_TIMING.TRANSITION); // Match animation duration
         }
 
         return () => {
@@ -161,7 +162,7 @@ export function BaseDrawer({
 
         const startPosition = drawerPosition;
         const startTime = performance.now();
-        const duration = 300;
+        const duration = DRAWER_TIMING.TRANSITION;
 
         const animate = (timestamp: number) => {
             const elapsed = timestamp - startTime;
@@ -181,7 +182,7 @@ export function BaseDrawer({
                         onClose();
                         setIsMounted(false);
                         closeDelayRef.current = 0;
-                    }, 50);
+                    }, DRAWER_TIMING.CLOSE_UNMOUNT_DELAY);
                 }
             }
         };

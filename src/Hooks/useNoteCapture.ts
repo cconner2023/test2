@@ -21,6 +21,7 @@ interface NoteCaptureResult {
     fullNote: string;
 }
 
+/** Wraps assembleNote to generate a structured note from the current algorithm state and user options. */
 export const useNoteCapture = (
     algorithmOptions: AlgorithmOptions[],
     cardStates: CardState[]

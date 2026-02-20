@@ -7,7 +7,7 @@
  * console.*.bind() to preserve DevTools call-site line numbers.
  */
 
-interface Logger {
+export interface Logger {
   debug: (...args: unknown[]) => void
   info: (...args: unknown[]) => void
   warn: (...args: unknown[]) => void
@@ -16,6 +16,7 @@ interface Logger {
 
 const noop = () => { }
 
+/** Create a namespaced logger. Debug/info are suppressed in production. */
 export function createLogger(module: string): Logger {
   const prefix = `[${module}]`
 

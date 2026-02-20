@@ -1,5 +1,6 @@
 // utilities/ThemeContext.tsx
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { logError } from './ErrorHandler';
 
 type Theme = 'light' | 'dark';
 
@@ -11,6 +12,7 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
+/** Provides light/dark theme context with localStorage persistence and system preference detection. */
 export function ThemeProvider({ children }: { children: ReactNode }) {
     // Initialize with null, then detect on mount
     const [theme, setThemeState] = useState<Theme | null>(null);
@@ -21,8 +23,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
             let saved: string | null = null;
             try {
                 saved = localStorage.getItem('theme') as Theme;
-            } catch {
-                // localStorage unavailable — fall through to system preference
+            } catch (e) {
+                logError('ThemeContext.getItem', e);
             }
             const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
 
@@ -38,8 +40,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
                 let currentSaved: string | null = null;
                 try {
                     currentSaved = localStorage.getItem('theme') as Theme;
-                } catch {
-                    // localStorage unavailable
+                } catch (e) {
+                    logError('ThemeContext.getItemListener', e);
                 }
                 // Only update if user hasn't set a manual preference
                 if (currentSaved !== 'light' && currentSaved !== 'dark') {
@@ -58,8 +60,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
             document.documentElement.setAttribute('data-theme', theme);
             try {
                 localStorage.setItem('theme', theme);
-            } catch {
-                // localStorage full or unavailable — theme still works in-memory for this session
+            } catch (e) {
+                logError('ThemeContext.setItem', e);
             }
 
             // Update iOS/Safari theme-color meta tag to match current theme
@@ -96,6 +98,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     );
 }
 
+/** Access the current theme and toggle/set functions. Must be used within a ThemeProvider. */
 export function useTheme() {
     const context = useContext(ThemeContext);
     if (context === undefined) {

@@ -5,6 +5,7 @@ import { TextButton } from './TextButton';
 import { BaseDrawer } from './BaseDrawer';
 import { useNoteImport } from '../Hooks/useNoteImport';
 import { useBarcodeScanner } from '../Hooks/useBarcodeScanner';
+import { UI_TIMING } from '../Utilities/constants';
 
 export type ViewState = 'input' | 'decoded' | 'scanning';
 
@@ -89,7 +90,7 @@ const NoteImportContent = ({
 
     useEffect(() => {
         if (state.isCopied) {
-            const timeoutId = window.setTimeout(() => setState(prev => ({ ...prev, isCopied: false })), 2000);
+            const timeoutId = window.setTimeout(() => setState(prev => ({ ...prev, isCopied: false })), UI_TIMING.COPY_FEEDBACK);
             return () => clearTimeout(timeoutId);
         }
     }, [state.isCopied, setState]);

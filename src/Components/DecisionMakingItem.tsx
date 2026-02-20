@@ -1,5 +1,5 @@
 // components/DecisionMakingItem.tsx - FIXED VERSION
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo, memo } from 'react'
 import type { decisionMakingType } from '../Types/AlgorithmTypes'
 import type { getColorClasses } from '../Utilities/ColorUtilities'
 import type { medListTypes } from '../Data/MedData'
@@ -142,14 +142,17 @@ function ContentSection({
     };
 
     // Group ancillary findings by type
-    const groupedAncillaryFind = item.ancillaryFind?.reduce((acc, anc) => {
-        const type = anc.type || 'other';
-        if (!acc[type]) {
-            acc[type] = [];
-        }
-        acc[type].push(anc);
-        return acc;
-    }, {} as Record<string, typeof item.ancillaryFind>) || {};
+    const groupedAncillaryFind = useMemo(() =>
+        item.ancillaryFind?.reduce((acc, anc) => {
+            const type = anc.type || 'other';
+            if (!acc[type]) {
+                acc[type] = [];
+            }
+            acc[type].push(anc);
+            return acc;
+        }, {} as Record<string, typeof item.ancillaryFind>) || {},
+        [item.ancillaryFind],
+    );
 
     return (
         <>
@@ -214,7 +217,7 @@ function ContentSection({
 }
 
 // Main component - each master item has its own differential and single background
-export function DecisionMakingItem({
+export const DecisionMakingItem = memo(function DecisionMakingItem({
     item,
     onMedicationClick,
     onDdxClick,
@@ -251,4 +254,4 @@ export function DecisionMakingItem({
             </div>
         </div>
     );
-}
+});

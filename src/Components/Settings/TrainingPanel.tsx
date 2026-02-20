@@ -1,39 +1,12 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Check, ChevronRight, AlertTriangle, Info, Lock, Wind, Droplets, ShieldPlus, Stethoscope, Pill, Bone, Ambulance, BookOpen, Search, X } from 'lucide-react'
+import { Check, ChevronRight, AlertTriangle, Info, Lock, BookOpen, Search, X } from 'lucide-react'
 import { stp68wTraining } from '../../Data/TrainingTaskList'
 import { getTaskData } from '../../Data/TrainingData'
 import type { TaskTrainingData, PerformanceStep } from '../../Data/TrainingData'
 import type { subjectAreaArrayOptions } from '../../Types/CatTypes'
 import { useTrainingCompletions } from '../../Hooks/useTrainingCompletions'
 import { AudioAidPlayer } from '../AudioAidPlayer'
-const subjectAreaIcons: Record<string, React.ReactNode> = {
-    'Airway Management': <Wind size={14} />,
-    'Fluid Management': <Droplets size={14} />,
-    'Force Health Protection': <ShieldPlus size={14} />,
-    'Medical Management': <Stethoscope size={14} />,
-    'Medication Management': <Pill size={14} />,
-    'Trauma Management': <Bone size={14} />,
-    'Triage and Evacuation': <Ambulance size={14} />,
-}
-
-// Short badge labels for each skill level
-const skillLevelLabels: Record<string, string> = {
-    'Readiness Requirements': 'RR',
-    'Skill Level 1': 'SL1',
-    'Skill Level 2': 'SL2',
-    'Skill Level 3': 'SL3',
-}
-
-// Canonical category ordering
-const categoryOrder = [
-    'Airway Management',
-    'Fluid Management',
-    'Force Health Protection',
-    'Medical Management',
-    'Medication Management',
-    'Trauma Management',
-    'Triage and Evacuation',
-]
+import { subjectAreaIcons, skillLevelLabels, categoryOrder } from '../../Data/TrainingConstants'
 
 interface FlatTask {
     taskId: string

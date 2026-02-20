@@ -4,6 +4,7 @@ import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import type { UserTypes } from '../Data/User';
 import { encodeNoteState } from '../Utilities/NoteCodec';
+import { logError } from '../Utilities/ErrorHandler';
 
 interface NoteBarcodeGeneratorProps {
     algorithmOptions: AlgorithmOptions[];
@@ -50,11 +51,11 @@ export function NoteBarcodeGenerator({
             bwipjs.toCanvas(canvasRef.current, {
                 bcid: 'datamatrix',
                 text: encodedValue,
-                scale: 3,
-                padding: 4,
+                scale: 2,
+                padding: 3,
             });
         } catch (e) {
-            console.error('Data Matrix render failed:', e);
+            logError('Barcode.render', e);
         }
     }, [encodedValue]);
 
@@ -68,7 +69,7 @@ export function NoteBarcodeGenerator({
                     <canvas
                         ref={canvasRef}
                         className="border border-gray-300 bg-white rounded-md"
-                        style={{ maxWidth: '200px', height: 'auto' }}
+                        style={{ maxWidth: '120px', height: 'auto' }}
                     />
                 </div>
 

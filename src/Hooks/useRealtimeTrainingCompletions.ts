@@ -18,13 +18,13 @@
  * publication.
  */
 
-import { useEffect, useRef, useCallback } from 'react'
-import { supabase } from '../lib/supabase'
-import type { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
+import { useEffect, useRef, useCallback, useMemo } from 'react'
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import type { TrainingCompletionUI } from '../lib/trainingService'
 import type { CompletionType, CompletionResult } from '../Types/database.types'
 import type { StepResult } from '../Types/SupervisorTestTypes'
 import { createLogger } from '../Utilities/Logger'
+import { useSupabaseSubscription } from './useSupabaseSubscription'
 
 const logger = createLogger('RealtimeTraining')
 
@@ -75,8 +75,6 @@ export function useRealtimeTrainingCompletions({
   onUpsert,
   onDelete,
 }: UseRealtimeTrainingCompletionsOptions): void {
-  const channelRef = useRef<RealtimeChannel | null>(null)
-
   const onUpsertRef = useRef(onUpsert)
   const onDeleteRef = useRef(onDelete)
   useEffect(() => {
@@ -84,26 +82,8 @@ export function useRealtimeTrainingCompletions({
     onDeleteRef.current = onDelete
   }, [onUpsert, onDelete])
 
-  const cleanup = useCallback(() => {
-    if (channelRef.current) {
-      logger.debug('Unsubscribing from channel')
-      supabase.removeChannel(channelRef.current)
-      channelRef.current = null
-    }
-  }, [])
-
-  useEffect(() => {
-    // Pause when backgrounded, not authenticated, or missing userId
-    if (!isAuthenticated || !userId || !isPageVisible) {
-      cleanup()
-      return
-    }
-
-    cleanup()
-
-    logger.info(`Subscribing to training_completions for user ${userId}`)
-
-    const handlePayload = (payload: RealtimePostgresChangesPayload<RealtimeTrainingCompletionRow>) => {
+  const handlePayload = useCallback(
+    (payload: RealtimePostgresChangesPayload<RealtimeTrainingCompletionRow>) => {
       const eventType = payload.eventType
 
       if (eventType === 'INSERT' || eventType === 'UPDATE') {
@@ -123,34 +103,23 @@ export function useRealtimeTrainingCompletions({
         logger.debug(`DELETE: ${completionId}`)
         onDeleteRef.current(completionId)
       }
-    }
+    },
+    [],
+  )
 
-    const channel = supabase
-      .channel(`personal-training:${userId}`)
-      .on<RealtimeTrainingCompletionRow>(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'training_completions',
-          filter: `user_id=eq.${userId}`,
-        },
-        handlePayload,
-      )
-      .subscribe((status, err) => {
-        if (status === 'SUBSCRIBED') {
-          logger.info(`Subscribed for user ${userId}`)
-        } else if (status === 'CHANNEL_ERROR') {
-          logger.error('Channel error:', err?.message ?? 'unknown')
-        } else if (status === 'TIMED_OUT') {
-          logger.warn('Subscription timed out, will retry')
-        } else {
-          logger.debug(`Channel status: ${status}`)
-        }
-      })
+  const postgresFilter = useMemo(
+    () => ({
+      table: 'training_completions',
+      filter: `user_id=eq.${userId}`,
+    }),
+    [userId],
+  )
 
-    channelRef.current = channel
-
-    return cleanup
-  }, [isAuthenticated, userId, isPageVisible, cleanup])
+  useSupabaseSubscription<RealtimeTrainingCompletionRow>({
+    shouldSubscribe: isAuthenticated && !!userId && isPageVisible,
+    channelName: `personal-training:${userId}`,
+    postgresFilter,
+    onPayload: handlePayload,
+    logger,
+  })
 }

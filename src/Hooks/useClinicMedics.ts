@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 
+/** Fetches the list of medics in the current user's clinic (excluding the current user). */
 export function useClinicMedics() {
   const [medics, setMedics] = useState<ClinicMedic[]>([])
   const [loading, setLoading] = useState(true)

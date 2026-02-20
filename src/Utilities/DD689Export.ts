@@ -1,6 +1,7 @@
 // Utilities/DD689Export.ts — Generate a filled DD Form 689 PDF with Data Matrix barcode
 
 import bwipjs from 'bwip-js';
+import { logError } from './ErrorHandler';
 
 // ── Layout constants (PDF points, origin = bottom-left) ──
 // Adjust these to calibrate placement on the DD689 template.
@@ -67,8 +68,8 @@ export async function generateDD689Pdf(params: DD689ExportParams): Promise<Uint8
                 width: COORDS.barcode.size,
                 height: COORDS.barcode.size,
             });
-        } catch {
-            // If barcode generation fails, skip it silently
+        } catch (e) {
+            logError('DD689Export.barcode', e);
         }
     }
 

@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
 import { useDrag } from '@use-gesture/react';
+import { useSpring, animated } from '@react-spring/web';
 import { FileText, Trash2, Share2, CheckSquare, Eye, ClipboardCopy, CloudOff, CloudCheck } from 'lucide-react';
 import type { SavedNote, NoteSyncStatus } from '../../Hooks/useNotesStorage';
 import { useNoteShare } from '../../Hooks/useNoteShare';
@@ -7,6 +8,7 @@ import { getColorClasses } from '../../Utilities/ColorUtilities';
 import type { dispositionType } from '../../Types/AlgorithmTypes';
 import { parseNoteEncoding } from '../../Utilities/NoteCodec';
 import { useUserProfile } from '../../Hooks/useUserProfile';
+import { UI_TIMING } from '../../Utilities/constants';
 
 /* ────────────────────────────────────────────────────────────
    Utility: format date (shared by note items)
@@ -171,7 +173,7 @@ const ActionCircle = ({
    Swipe left  → reveals Delete (right side).
    Tap → toggles selection.
    ──────────────────────────────────────────────────────────── */
-const SNAP_LEFT = 160;
+const SNAP_LEFT = 140;
 const SNAP_RIGHT = 70;
 const SWIPE_THRESHOLD = 60;
 
@@ -216,6 +218,27 @@ const SwipeableNoteItem = ({
         setIsRevealed(null);
         setConfirmDelete(false);
     }, []);
+
+    // Visual-only: fade-in + scale for swipe action buttons
+    const leftProgress = Math.min(Math.max(offsetX / SNAP_LEFT, 0), 1);
+    const rightProgress = Math.min(Math.max(-offsetX / SNAP_RIGHT, 0), 1);
+
+    const leftActionSpring = useSpring({
+        opacity: leftProgress,
+        scale: 0.5 + leftProgress * 0.5,
+        immediate: isDragging,
+        config: { tension: 300, friction: 22 },
+    });
+    const rightActionSpring = useSpring({
+        opacity: rightProgress,
+        scale: 0.5 + rightProgress * 0.5,
+        immediate: isDragging,
+        config: { tension: 300, friction: 22 },
+    });
+    const actionStyle = (spring: typeof leftActionSpring) => ({
+        opacity: spring.opacity,
+        transform: spring.scale.to((s: number) => `scale(${s})`),
+    });
 
     const bind = useDrag(
         ({ active, first, movement: [mx], tap, memo }) => {
@@ -274,29 +297,35 @@ const SwipeableNoteItem = ({
                     className="absolute inset-y-0 left-0 flex items-center gap-1 pl-2 pr-1"
                     style={{ width: SNAP_LEFT }}
                 >
-                    <ActionCircle
-                        icon={<Eye size={16} className="text-themeyellow" />}
-                        label="View"
-                        bgClass="bg-themeyellow/10"
-                        onClick={(e) => { e.stopPropagation(); onView(note); closeSwipe(); }}
-                        ariaLabel="View note"
-                    />
-                    <ActionCircle
-                        icon={<ClipboardCopy size={16} className="text-themegreen" />}
-                        label={copyLabel ?? 'Copy'}
-                        bgClass="bg-themegreen/10"
-                        textClass={copyLabel === 'Copied!' ? 'font-normal text-themegreen' : 'text-themegreen'}
-                        onClick={(e) => { e.stopPropagation(); onCopy(note); }}
-                        ariaLabel="Copy note"
-                    />
-                    <ActionCircle
-                        icon={<Share2 size={16} className="text-themeblue2" />}
-                        label={shareLabel ?? 'Share'}
-                        bgClass="bg-themeblue2/15"
-                        textClass={shareLabel === 'Shared!' || shareLabel === 'Copied!' ? 'font-normal text-themeblue2' : 'text-themeblue2'}
-                        onClick={(e) => { e.stopPropagation(); onShare(note); }}
-                        ariaLabel="Share note"
-                    />
+                    <animated.div style={actionStyle(leftActionSpring)}>
+                        <ActionCircle
+                            icon={<Eye size={16} className="text-themeyellow" />}
+                            label="View"
+                            bgClass="bg-themeyellow/10"
+                            onClick={(e) => { e.stopPropagation(); onView(note); closeSwipe(); }}
+                            ariaLabel="View note"
+                        />
+                    </animated.div>
+                    <animated.div style={actionStyle(leftActionSpring)}>
+                        <ActionCircle
+                            icon={<ClipboardCopy size={16} className="text-themegreen" />}
+                            label={copyLabel ?? 'Copy'}
+                            bgClass="bg-themegreen/10"
+                            textClass={copyLabel === 'Copied!' ? 'font-normal text-themegreen' : 'text-themegreen'}
+                            onClick={(e) => { e.stopPropagation(); onCopy(note); }}
+                            ariaLabel="Copy note"
+                        />
+                    </animated.div>
+                    <animated.div style={actionStyle(leftActionSpring)}>
+                        <ActionCircle
+                            icon={<Share2 size={16} className="text-themeblue2" />}
+                            label={shareLabel ?? 'Share'}
+                            bgClass="bg-themeblue2/15"
+                            textClass={shareLabel === 'Shared!' || shareLabel === 'Copied!' ? 'font-normal text-themeblue2' : 'text-themeblue2'}
+                            onClick={(e) => { e.stopPropagation(); onShare(note); }}
+                            ariaLabel="Share note"
+                        />
+                    </animated.div>
                 </div>
             )}
 
@@ -306,24 +335,26 @@ const SwipeableNoteItem = ({
                     className="absolute inset-y-0 right-0 flex items-center justify-center pr-2 pl-1"
                     style={{ width: SNAP_RIGHT }}
                 >
-                    <ActionCircle
-                        icon={<Trash2 size={16} className="text-themeredred" />}
-                        label={confirmDelete ? 'Confirm' : 'Delete'}
-                        bgClass={confirmDelete ? 'bg-themeredred/40' : 'bg-themeredred/15'}
-                        textClass={confirmDelete ? 'font-medium text-themeredred' : 'font-medium text-themeredred/60'}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            if (confirmDelete) {
-                                onDelete(note.id);
-                                closeSwipe();
-                            } else {
-                                setConfirmDelete(true);
-                                if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
-                                confirmTimeoutRef.current = setTimeout(() => setConfirmDelete(false), 5000);
-                            }
-                        }}
-                        ariaLabel={confirmDelete ? 'Confirm delete' : 'Delete note'}
-                    />
+                    <animated.div style={actionStyle(rightActionSpring)}>
+                        <ActionCircle
+                            icon={<Trash2 size={16} className="text-themeredred" />}
+                            label={confirmDelete ? 'Confirm' : 'Delete'}
+                            bgClass={confirmDelete ? 'bg-themeredred/40' : 'bg-themeredred/15'}
+                            textClass={confirmDelete ? 'font-medium text-themeredred' : 'font-medium text-themeredred/60'}
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirmDelete) {
+                                    onDelete(note.id);
+                                    closeSwipe();
+                                } else {
+                                    setConfirmDelete(true);
+                                    if (confirmTimeoutRef.current) clearTimeout(confirmTimeoutRef.current);
+                                    confirmTimeoutRef.current = setTimeout(() => setConfirmDelete(false), UI_TIMING.DELETE_CONFIRM_TIMEOUT);
+                                }
+                            }}
+                            ariaLabel={confirmDelete ? 'Confirm delete' : 'Delete note'}
+                        />
+                    </animated.div>
                 </div>
             )}
 
@@ -574,10 +605,10 @@ export const MyNotesPanel = ({
         if (note.encodedText) {
             navigator.clipboard.writeText(note.encodedText).then(() => {
                 setCopiedStatus(true);
-                setTimeout(() => setCopiedStatus(false), 2000);
+                setTimeout(() => setCopiedStatus(false), UI_TIMING.COPY_FEEDBACK);
             }).catch(() => {
                 setCopiedStatus(true);
-                setTimeout(() => setCopiedStatus(false), 2000);
+                setTimeout(() => setCopiedStatus(false), UI_TIMING.COPY_FEEDBACK);
             });
         }
     }, []);
@@ -600,7 +631,7 @@ export const MyNotesPanel = ({
             confirmTimeoutRef.current = setTimeout(() => {
                 confirmDeleteRef.current = false;
                 setConfirmDelete(false);
-            }, 5000);
+            }, UI_TIMING.DELETE_CONFIRM_TIMEOUT);
         }
     }, [selectedIds, routeDelete]);
 
