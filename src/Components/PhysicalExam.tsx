@@ -17,7 +17,7 @@ interface ItemState {
     selectedAbnormals: string[];
 }
 
-type PEDepth = 'focused' | 'standard' | 'comprehensive';
+type PEDepth = 'minimal' | 'expanded';
 
 interface PhysicalExamProps {
     initialText?: string;
@@ -408,7 +408,7 @@ function ExamItemRow({ itemKey, label, normalText, abnormalOptions, state, onCyc
 
 // ── Component ─────────────────────────────────────────────────
 
-export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, depth = 'standard' }: PhysicalExamProps) {
+export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, depth = 'minimal' }: PhysicalExamProps) {
     const categoryLetter = getCategoryFromSymptomCode(symptomCode) || 'A';
     const categoryDef = getPECategory(categoryLetter);
     const bodyPart = categoryLetter === 'B' ? getMSKBodyPart(symptomCode) : null;
@@ -417,7 +417,7 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
     const [parsed] = useState(() => parseInitialText(initialText, categoryDef, bodyPart, generalDefs));
 
     const [itemStates, setItemStates] = useState<Record<string, ItemState>>(() => {
-        if (depth === 'comprehensive' && !initialText) {
+        if (depth === 'expanded' && !initialText) {
             const states: Record<string, ItemState> = {};
             categoryDef.items.forEach(i => { states[i.key] = normalItemState(); });
             return states;
@@ -426,7 +426,7 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
     });
 
     const [generalStates, setGeneralStates] = useState<Record<string, ItemState>>(() => {
-        if (depth === 'comprehensive' && !initialText) {
+        if (depth === 'expanded' && !initialText) {
             const states: Record<string, ItemState> = {};
             generalDefs.forEach(g => { states[g.key] = normalItemState(); });
             return states;
@@ -550,8 +550,8 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
                 </div>
             </div>
 
-            {/* Focused mode: skip exam items, show only vitals + additional findings */}
-            {depth === 'focused' ? (
+            {/* Minimal mode: skip exam items, show only vitals + additional findings */}
+            {depth === 'minimal' ? (
                 <>
                     <div className="pt-2 border-t border-themegray1/15">
                         <label className="text-xs text-secondary font-medium block mb-1">Additional Findings</label>

@@ -1,38 +1,33 @@
 import { useCallback } from 'react';
 import { FileText, Stethoscope } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
-import { supabase } from '../../lib/supabase';
 import type { UserTypes } from '../../Data/User';
 
-type PEDepth = 'focused' | 'standard' | 'comprehensive';
+type PEDepth = 'minimal' | 'expanded';
 
 const PE_DEPTH_OPTIONS: { value: PEDepth; label: string; description: string }[] = [
-    { value: 'focused', label: 'Focused', description: 'Vitals + free-text findings only' },
-    { value: 'standard', label: 'Standard', description: 'Vitals + category exam items' },
-    { value: 'comprehensive', label: 'Comprehensive', description: 'All items default to normal' },
+    { value: 'minimal', label: 'Minimal', description: 'Vitals + free-text findings only' },
+    { value: 'expanded', label: 'Expanded', description: 'Expanded vitals + category-specific items, all normal' },
 ];
 
 export const NoteContentPanel = () => {
-    const { profile, updateProfile } = useUserProfile();
+    const { profile, updateProfile, syncProfileField } = useUserProfile();
 
     const includeHPI = profile.noteIncludeHPI ?? true;
     const includePE = profile.noteIncludePE ?? false;
-    const peDepth = profile.peDepth ?? 'standard';
+    const peDepth = profile.peDepth ?? 'minimal';
 
-    /** Update locally and push to Supabase for authenticated users */
-    const handleUpdate = useCallback(async (fields: Partial<UserTypes>) => {
+    /** Update locally (instant) and push to Supabase in the background */
+    const handleUpdate = useCallback((fields: Partial<UserTypes>) => {
         updateProfile(fields);
-
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
 
         const dbFields: Record<string, unknown> = {};
         if (fields.noteIncludeHPI !== undefined) dbFields.note_include_hpi = fields.noteIncludeHPI;
         if (fields.noteIncludePE !== undefined) dbFields.note_include_pe = fields.noteIncludePE;
         if (fields.peDepth !== undefined) dbFields.pe_depth = fields.peDepth;
 
-        await supabase.from('profiles').update(dbFields).eq('id', user.id);
-    }, [updateProfile]);
+        syncProfileField(dbFields);
+    }, [updateProfile, syncProfileField]);
 
     return (
         <div className="h-full overflow-y-auto">

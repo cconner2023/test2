@@ -147,9 +147,9 @@ export const WriteNotePage = ({
         if (note.trim() && !includeHPI) setIncludeHPI(true);
     }, [note, includeHPI]);
 
-    useEffect(() => {
-        if (peNote.trim() && !includePhysicalExam) setIncludePhysicalExam(true);
-    }, [peNote, includePhysicalExam]);
+    // Note: no auto-enable for PE — the PhysicalExam component may generate
+    // text automatically (e.g. in expanded mode), so we let the user control
+    // the toggle freely without it snapping back on.
 
     // --- Set timestamp when first arriving at Full Note ---
     useEffect(() => {
@@ -518,11 +518,11 @@ export const WriteNotePage = ({
                                 <div className="mx-2">
                                     <div className="rounded-md border border-themegray1/15 overflow-hidden">
                                         <PhysicalExam
-                                            initialText={initialPeText}
+                                            initialText={peNote}
                                             onChange={setPeNote}
                                             colors={colors}
                                             symptomCode={selectedSymptom?.icon || 'A-1'}
-                                            depth={profile.peDepth ?? 'standard'}
+                                            depth={profile.peDepth ?? 'minimal'}
                                         />
                                     </div>
                                 </div>

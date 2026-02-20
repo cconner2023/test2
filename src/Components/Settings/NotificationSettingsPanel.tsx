@@ -3,13 +3,11 @@ import { Bell, Users, Code, Info, ShieldCheck, ShieldX } from 'lucide-react'
 import { usePushNotifications } from '../../Hooks/usePushNotifications'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import { isDevUser } from '../../lib/adminService'
-import { supabase } from '../../lib/supabase'
 
 export const NotificationSettingsPanel = () => {
   const { isSupported, isSubscribed, loading, error: pushError, subscribe, unsubscribe } = usePushNotifications()
-  const { profile, updateProfile } = useUserProfile()
+  const { profile, updateProfile, syncProfileField } = useUserProfile()
   const [isDev, setIsDev] = useState(false)
-  const [syncing, setSyncing] = useState(false)
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
 
@@ -30,46 +28,37 @@ export const NotificationSettingsPanel = () => {
     setTimeout(() => setError(''), 3000)
   }, [])
 
-  /** Persist a notification preference to Supabase and local state */
+  /** Persist a notification preference optimistically */
   const handleToggle = useCallback(async (
     field: 'notifyClinicNotes' | 'notifyDevAlerts',
     dbColumn: string,
     newValue: boolean,
     otherActive: boolean,
   ) => {
-    setSyncing(true)
     setError('')
 
-    if (newValue) {
-      // Ensure push subscription exists
-      if (!isSubscribed) {
-        const ok = await subscribe()
-        if (!ok) {
-          setSyncing(false)
-          showError(pushError || 'Could not enable notifications')
-          return
-        }
+    // If enabling, ensure push subscription exists (device permission — must await)
+    if (newValue && !isSubscribed) {
+      const ok = await subscribe()
+      if (!ok) {
+        showError(pushError || 'Could not enable notifications')
+        return
       }
     }
 
-    // Persist to Supabase
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      await supabase.from('profiles').update({ [dbColumn]: newValue }).eq('id', user.id)
-    }
-
+    // Immediate local update
     updateProfile({ [field]: newValue })
 
-    // If turning off and no other toggles remain active, unsubscribe from push
+    // Fire-and-forget Supabase sync
+    syncProfileField({ [dbColumn]: newValue })
+
+    // If turning off and no other toggles remain active, unsubscribe (fire-and-forget)
     if (!newValue && !otherActive) {
-      await unsubscribe()
+      unsubscribe()
     }
 
-    setSyncing(false)
     showSuccess(newValue ? 'Notifications enabled' : 'Notifications updated')
-  }, [isSubscribed, subscribe, unsubscribe, pushError, updateProfile, showSuccess, showError])
-
-  const busy = loading || syncing
+  }, [isSubscribed, subscribe, unsubscribe, pushError, updateProfile, syncProfileField, showSuccess, showError])
 
   return (
     <div className="h-full overflow-y-auto">
@@ -114,7 +103,7 @@ export const NotificationSettingsPanel = () => {
                 ${clinicNotes
                   ? 'border-themeblue2/25 bg-themeblue2/10'
                   : 'border-tertiary/15 bg-themewhite2'
-                } ${busy ? 'opacity-50 pointer-events-none' : ''}`}
+                } ${loading ? 'opacity-50 pointer-events-none' : ''}`}
               onClick={() => handleToggle('notifyClinicNotes', 'notify_clinic_notes', !clinicNotes, devAlerts)}
               role="button"
               tabIndex={0}
@@ -139,7 +128,7 @@ export const NotificationSettingsPanel = () => {
                   ${devAlerts
                     ? 'border-themeblue2/25 bg-themeblue2/10'
                     : 'border-tertiary/15 bg-themewhite2'
-                  } ${busy ? 'opacity-50 pointer-events-none' : ''}`}
+                  } ${loading ? 'opacity-50 pointer-events-none' : ''}`}
                 onClick={() => handleToggle('notifyDevAlerts', 'notify_dev_alerts', !devAlerts, clinicNotes)}
                 role="button"
                 tabIndex={0}

@@ -32,14 +32,23 @@ interface AuthActions {
   init: () => () => void
   continueAsGuest: () => void
   signOut: () => Promise<void>
+  /** Merge fields into the in-memory profile and persist to localStorage. No network. */
+  patchProfile: (fields: Partial<UserTypes>) => void
   /** Re-fetch profile from Supabase and update store. */
   refreshProfile: () => Promise<void>
+}
+
+function migratePeDepth(profile: UserTypes): UserTypes {
+  const d = profile.peDepth as string | undefined
+  if (d === 'focused') profile.peDepth = 'minimal'
+  else if (d === 'standard' || d === 'comprehensive') profile.peDepth = 'expanded'
+  return profile
 }
 
 function loadProfileFromStorage(): UserTypes {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) return JSON.parse(saved) as UserTypes
+    if (saved) return migratePeDepth(JSON.parse(saved) as UserTypes)
   } catch { /* ignore */ }
   return {}
 }
@@ -96,7 +105,13 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     if (sec.notify_dev_alerts != null) profile.notifyDevAlerts = sec.notify_dev_alerts as boolean
     if (sec.note_include_hpi != null) profile.noteIncludeHPI = sec.note_include_hpi as boolean
     if (sec.note_include_pe != null) profile.noteIncludePE = sec.note_include_pe as boolean
-    if (sec.pe_depth != null) profile.peDepth = sec.pe_depth as UserTypes['peDepth']
+    if (sec.pe_depth != null) {
+      const raw = sec.pe_depth as string
+      // Migrate old depth values to new minimal/expanded scheme
+      if (raw === 'focused' || raw === 'minimal') profile.peDepth = 'minimal'
+      else if (raw === 'standard' || raw === 'comprehensive' || raw === 'expanded') profile.peDepth = 'expanded'
+      else profile.peDepth = raw as UserTypes['peDepth']
+    }
   }
 
   return { profile, roles }
@@ -147,6 +162,12 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
   signOut: async () => {
     await supabase.auth.signOut()
     // onAuthStateChange handler already clears state
+  },
+
+  patchProfile: (fields) => {
+    const next = { ...get().profile, ...fields }
+    set({ profile: next })
+    saveProfileToStorage(next)
   },
 
   refreshProfile: async () => {

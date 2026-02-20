@@ -23,8 +23,8 @@ export interface UserTypes {
     noteIncludeHPI?: boolean;
     /** Default: include Physical Exam section when writing notes */
     noteIncludePE?: boolean;
-    /** PE depth: 'focused' (vitals only), 'standard' (default), 'comprehensive' (all items default normal) */
-    peDepth?: 'focused' | 'standard' | 'comprehensive';
+    /** PE depth: 'minimal' (vitals + free-text), 'expanded' (vitals + category items, all default normal) */
+    peDepth?: 'minimal' | 'expanded';
 }
 
 export const credentials: Credential[] = ['EMT-B', 'EMT-A', 'EMT-P', 'PA-C', 'NP', 'MD', 'DO'];

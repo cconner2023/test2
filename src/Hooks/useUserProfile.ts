@@ -1,34 +1,26 @@
 import { useCallback } from 'react';
 import type { UserTypes } from '../Data/User';
 import { useAuthStore } from '../stores/useAuthStore';
-
-const STORAGE_KEY = 'adtmc_user_profile';
+import { supabase } from '../lib/supabase';
 
 export function useUserProfile() {
     const profile = useAuthStore((s) => s.profile);
-    const refreshProfile = useAuthStore((s) => s.refreshProfile);
+    const patchProfile = useAuthStore((s) => s.patchProfile);
+    const user = useAuthStore((s) => s.user);
 
+    /** Merge fields into in-memory profile + localStorage. Synchronous, no network. */
     const updateProfile = useCallback((fields: Partial<UserTypes>) => {
-        // Update localStorage and trigger store refresh
-        try {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            const current = saved ? JSON.parse(saved) : {};
-            const next = { ...current, ...fields };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-        } catch {
-            // localStorage unavailable
-        }
-        refreshProfile();
-    }, [refreshProfile]);
+        patchProfile(fields);
+    }, [patchProfile]);
 
-    const clearProfile = useCallback(() => {
-        try {
-            localStorage.removeItem(STORAGE_KEY);
-        } catch {
-            // localStorage unavailable
-        }
-        refreshProfile();
-    }, [refreshProfile]);
+    /** Fire-and-forget push of profile fields to Supabase (for authenticated users only) */
+    const syncProfileField = useCallback((fields: Record<string, unknown>) => {
+        if (!user) return;
+        supabase.from('profiles').update(fields).eq('id', user.id)
+            .then(({ error }) => {
+                if (error) console.error('syncProfileField failed:', error);
+            });
+    }, [user]);
 
-    return { profile, updateProfile, clearProfile };
+    return { profile, updateProfile, syncProfileField };
 }
