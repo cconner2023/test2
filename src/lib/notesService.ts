@@ -59,6 +59,11 @@ export interface SavedNote {
    * frontend can use useUserProfile to display the current user's name.
    */
   authorName: string | null
+  /**
+   * Name of the originating clinic. Present on clinic notes fetched
+   * via the UIC-based RPC. Used for badge display and clinic-based sorting.
+   */
+  clinicName?: string
 }
 
 /**
@@ -149,7 +154,8 @@ function formatAuthorName(profile: NoteWithProfile['profiles']): string | null {
  */
 export function localNoteToSavedNote(
   note: LocalNote,
-  authorName?: string | null
+  authorName?: string | null,
+  clinicName?: string
 ): SavedNote {
   return {
     id: note.id,
@@ -164,6 +170,7 @@ export function localNoteToSavedNote(
     sync_status: note._sync_status,
     authorId: note.user_id,
     authorName: authorName ?? note.display_name ?? null,
+    clinicName,
   }
 }
 
@@ -177,6 +184,7 @@ function buildLocalNote(
   clinicId: string | null,
   displayName: string | null = null,
   rank: string | null = null,
+  uic: string | null = null,
   noteId?: string
 ): LocalNote {
   const now = new Date().toISOString()
@@ -187,7 +195,7 @@ function buildLocalNote(
     timestamp: now,
     display_name: displayName,
     rank: rank,
-    uic: null,
+    uic: uic,
     algorithm_reference: null,
     hpi_encoded: input.encodedText,
     symptom_icon: input.symptomIcon,
@@ -222,14 +230,15 @@ async function getUserContext(): Promise<{
   clinicId: string | null
   displayName: string | null
   rank: string | null
+  uic: string | null
 }> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { userId: null, clinicId: null, displayName: null, rank: null }
+    if (!user) return { userId: null, clinicId: null, displayName: null, rank: null, uic: null }
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('clinic_id, first_name, last_name, rank')
+      .select('clinic_id, first_name, last_name, rank, uic')
       .eq('id', user.id)
       .single()
 
@@ -245,9 +254,10 @@ async function getUserContext(): Promise<{
       clinicId: profile?.clinic_id ?? null,
       displayName,
       rank,
+      uic: profile?.uic ?? null,
     }
   } catch {
-    return { userId: null, clinicId: null, displayName: null, rank: null }
+    return { userId: null, clinicId: null, displayName: null, rank: null, uic: null }
   }
 }
 
@@ -276,12 +286,12 @@ export async function createNote(
   input: Omit<SavedNote, 'id' | 'createdAt' | 'sync_status' | 'authorId' | 'authorName'>,
   noteId?: string
 ): Promise<SavedNote> {
-  const { userId, clinicId, displayName, rank } = await getUserContext()
+  const { userId, clinicId, displayName, rank, uic } = await getUserContext()
 
   if (!userId) {
     // Guest mode: create a local-only note that can never sync.
     const guestNote: LocalNote = {
-      ...buildLocalNote(input, 'guest', null, null, null, noteId),
+      ...buildLocalNote(input, 'guest', null, null, null, null, noteId),
       _sync_status: 'synced', // Mark as "synced" since there's nothing to sync
     }
     await saveLocalNote(guestNote)
@@ -292,7 +302,7 @@ export async function createNote(
   // Stamp the note with the user's display_name and rank so
   // other clinic members can see who wrote it (the display_name
   // column on the notes table acts as a denormalized snapshot).
-  const note = buildLocalNote(input, userId, clinicId, displayName, rank, noteId)
+  const note = buildLocalNote(input, userId, clinicId, displayName, rank, uic, noteId)
   await saveLocalNote(note)
 
   // Queue for sync
@@ -317,7 +327,7 @@ export async function createNote(
         note._sync_status = 'synced'
         logger.info(`Note ${note.id} synced immediately`)
 
-        // Fire-and-forget: notify clinic members
+        // Fire-and-forget: notify clinic members (parent clinics via UIC superset)
         if (clinicId) {
           supabase.functions.invoke('send-push-notification', {
             body: {
@@ -325,6 +335,7 @@ export async function createNote(
               name: displayName,
               clinic_id: clinicId,
               author_id: userId,
+              uic,
             },
           }).catch(() => {})
         }
@@ -527,26 +538,12 @@ export async function fetchClinicNotesFromServer(
   clinicId: string,
   excludeUserId?: string
 ): Promise<SavedNote[]> {
-  // Join notes with profiles via the user_id -> profiles.id relationship.
-  // Supabase PostgREST resolves the join using the foreign key.
-  // The notes table has a user_id column that references auth.users(id),
-  // and profiles has id referencing auth.users(id). Since there is no
-  // direct FK from notes.user_id to profiles.id, we use a two-step
-  // approach: first fetch notes, then batch-fetch profiles.
-  let query = supabase
-    .from('notes')
-    .select('*')
-    .eq('clinic_id', clinicId)
-    .order('timestamp', { ascending: false })
-
-  // Exclude the current user's notes -- they are already in IndexedDB
-  // and shown via the local `notes` array. Including them here would
-  // produce duplicates when the UI merges notes + clinicNotes.
-  if (excludeUserId) {
-    query = query.neq('user_id', excludeUserId)
-  }
-
-  const { data, error } = await query
+  // Use the UIC-based RPC to fetch notes visible to the current user's
+  // clinic hierarchy. The RPC filters by UIC match internally.
+  // The clinicId parameter is kept for API compatibility.
+  const { data, error } = await supabase.rpc('get_clinic_notes_by_uic', {
+    p_exclude_user_id: excludeUserId ?? undefined,
+  })
 
   if (error) {
     throw new Error(`Failed to fetch clinic notes from server: ${error.message}`)
@@ -556,11 +553,11 @@ export async function fetchClinicNotesFromServer(
   if (rows.length === 0) return []
 
   // Collect unique user_ids from the notes to batch-fetch their profiles.
-  const userIds = [...new Set(rows.map((r) => r.user_id))]
+  const userIds = [...new Set(rows.map((r: { user_id: string }) => r.user_id))]
 
   // Fetch profiles for all note authors in a single query.
-  // The RLS policy "Profiles: clinic members can select" (migration 010)
-  // allows reading profiles of users in the same clinic.
+  // The RLS policy "Profiles: visible by uic" allows reading profiles
+  // of users whose UIC is in the current user's visible UICs.
   const { data: profiles } = await supabase
     .from('profiles')
     .select('id, first_name, last_name, middle_initial, rank, credential, display_name')
@@ -573,7 +570,24 @@ export async function fetchClinicNotesFromServer(
     authorMap.set(p.id, name)
   }
 
-  return rows.map((row): SavedNote => {
+  // Batch-fetch clinic names for badge display.
+  // Collect unique clinic_id values, query clinics table, build lookup.
+  const clinicIds = [...new Set(rows
+    .map((r: { clinic_id: string | null }) => r.clinic_id)
+    .filter((id: string | null): id is string => id != null)
+  )]
+  const clinicNameMap = new Map<string, string>()
+  if (clinicIds.length > 0) {
+    const { data: clinics } = await supabase
+      .from('clinics')
+      .select('id, name')
+      .in('id', clinicIds)
+    for (const c of (clinics || [])) {
+      clinicNameMap.set(c.id, c.name)
+    }
+  }
+
+  return rows.map((row: typeof rows[number]): SavedNote => {
     const authorName = authorMap.get(row.user_id) ?? row.display_name ?? null
     return {
       id: row.id,
@@ -588,6 +602,7 @@ export async function fetchClinicNotesFromServer(
       sync_status: 'synced',
       authorId: row.user_id,
       authorName,
+      clinicName: row.clinic_id ? clinicNameMap.get(row.clinic_id) : undefined,
     }
   })
 }

@@ -128,6 +128,8 @@ export interface NotesSyncResult {
   realtimeClinicId: string | null;
   realtimeUserId: string | null;
   realtimeAuthenticated: boolean;
+  /** UICs visible to the current user's clinic (for realtime filtering) */
+  realtimeUics: string[];
   /** Auth version counter — exposed so the main hook can depend on it if needed */
   authVersion: number;
 }
@@ -150,6 +152,7 @@ export function useNotesSync(deps: NotesSyncDeps): NotesSyncResult {
   const [realtimeClinicId, setRealtimeClinicId] = useState<string | null>(null);
   const [realtimeUserId, setRealtimeUserId] = useState<string | null>(null);
   const [realtimeAuthenticated, setRealtimeAuthenticated] = useState(false);
+  const [realtimeUics, setRealtimeUics] = useState<string[]>([]);
 
   // Auth version counter — incremented on SIGNED_IN / SIGNED_OUT to
   // trigger the init effect to re-run with the new user context.
@@ -172,6 +175,7 @@ export function useNotesSync(deps: NotesSyncDeps): NotesSyncResult {
         setRealtimeClinicId(null);
         setRealtimeUserId(null);
         setRealtimeAuthenticated(false);
+        setRealtimeUics([]);
         userIdRef.current = null;
         clinicIdRef.current = null;
         initDone.current = false;
@@ -272,6 +276,22 @@ export function useNotesSync(deps: NotesSyncDeps): NotesSyncResult {
             clinicIdRef.current = clinicId;
             if (!cancelled) setRealtimeClinicId(clinicId);
 
+            // Fetch the clinic's visible UICs for realtime filtering
+            if (clinicId) {
+              try {
+                const { data: clinic } = await supabase
+                  .from('clinics')
+                  .select('uics')
+                  .eq('id', clinicId)
+                  .single();
+                if (!cancelled && clinic?.uics) {
+                  setRealtimeUics(clinic.uics);
+                }
+              } catch {
+                // Non-critical — realtime will fall back to clinic_id filter
+              }
+            }
+
             if (clinicId) {
               await refreshClinicNotes(clinicId, userId);
             }
@@ -324,7 +344,22 @@ export function useNotesSync(deps: NotesSyncDeps): NotesSyncResult {
                     .single();
                   clinicId = profile?.clinic_id ?? null;
                   clinicIdRef.current = clinicId;
-                  if (clinicId && !cancelled) setRealtimeClinicId(clinicId);
+                  if (clinicId && !cancelled) {
+                    setRealtimeClinicId(clinicId);
+                    // Also refresh UICs when clinic becomes known
+                    try {
+                      const { data: clinic } = await supabase
+                        .from('clinics')
+                        .select('uics')
+                        .eq('id', clinicId)
+                        .single();
+                      if (!cancelled && clinic?.uics) {
+                        setRealtimeUics(clinic.uics);
+                      }
+                    } catch {
+                      // Non-critical
+                    }
+                  }
                 } catch {
                   // Will retry on next sync cycle
                 }
@@ -428,6 +463,7 @@ export function useNotesSync(deps: NotesSyncDeps): NotesSyncResult {
     realtimeClinicId,
     realtimeUserId,
     realtimeAuthenticated,
+    realtimeUics,
     authVersion,
   };
 }

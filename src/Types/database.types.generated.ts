@@ -503,8 +503,13 @@ export type Database = {
           uics: string[]
         }[]
       }
+      get_clinic_notes_by_uic: {
+        Args: { p_exclude_user_id?: string }
+        Returns: Database["public"]["Tables"]["notes"]["Row"][]
+      }
       get_my_clinic_id: { Args: never; Returns: string }
       get_my_roles: { Args: never; Returns: string[] }
+      get_visible_uics: { Args: Record<string, never>; Returns: string[] }
       get_note_author_display: { Args: { p_user_id: string }; Returns: string }
       reject_account_request: {
         Args: { admin_user_id: string; reason: string; request_id: string }

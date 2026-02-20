@@ -71,6 +71,8 @@ interface UseRealtimeClinicNotesOptions {
   clinicId: string | null
   userId: string | null
   isAuthenticated: boolean
+  /** UICs visible to the current user's clinic (for realtime filtering). */
+  uics: string[]
   isPageVisible: boolean
   /** Only subscribe when the note panel is open. */
   isNotePanelOpen: boolean
@@ -86,6 +88,7 @@ export function useRealtimeClinicNotes({
   clinicId,
   userId,
   isAuthenticated,
+  uics,
   isPageVisible,
   isNotePanelOpen,
   onClinicUpsert,
@@ -173,14 +176,24 @@ export function useRealtimeClinicNotes({
   const postgresFilter = useMemo(
     () => ({
       table: 'notes',
-      filter: `clinic_id=eq.${clinicId}`,
+      filter: uics.length > 0
+        ? `uic=in.(${uics.join(',')})`
+        : `clinic_id=eq.${clinicId}`,   // fallback when UICs not yet loaded
     }),
-    [clinicId],
+    [uics, clinicId],
+  )
+
+  // Include UICs in channel name so Supabase re-subscribes when they change
+  const channelName = useMemo(
+    () => uics.length > 0
+      ? `clinic-notes:uic:${uics.join(',')}`
+      : `clinic-notes:${clinicId}`,
+    [uics, clinicId],
   )
 
   useSupabaseSubscription<RealtimeNoteRow>({
-    shouldSubscribe: isAuthenticated && !!clinicId && !!userId && isPageVisible && isNotePanelOpen,
-    channelName: `clinic-notes:${clinicId}`,
+    shouldSubscribe: isAuthenticated && (uics.length > 0 || !!clinicId) && !!userId && isPageVisible && isNotePanelOpen,
+    channelName,
     postgresFilter,
     onPayload: handlePayload,
     logger,

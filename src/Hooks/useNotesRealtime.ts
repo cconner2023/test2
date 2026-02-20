@@ -58,6 +58,7 @@ export interface NotesRealtimeDeps {
   realtimeClinicId: string | null;
   realtimeUserId: string | null;
   realtimeAuthenticated: boolean;
+  realtimeUics: string[];
   isPageVisible: boolean;
   isNotePanelOpen: boolean;
 }
@@ -70,6 +71,7 @@ export function useNotesRealtime(deps: NotesRealtimeDeps): void {
     realtimeClinicId,
     realtimeUserId,
     realtimeAuthenticated,
+    realtimeUics,
     isPageVisible,
     isNotePanelOpen,
   } = deps;
@@ -135,6 +137,7 @@ export function useNotesRealtime(deps: NotesRealtimeDeps): void {
     clinicId: realtimeClinicId,
     userId: realtimeUserId,
     isAuthenticated: realtimeAuthenticated,
+    uics: realtimeUics,
     isPageVisible,
     isNotePanelOpen,
     onClinicUpsert: handleClinicUpsert,

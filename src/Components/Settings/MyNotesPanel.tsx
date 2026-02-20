@@ -67,6 +67,47 @@ function groupAndSortNotes(notes: SavedNote[]): { key: string; label: string; no
         .map(([key, { label, notes }]) => ({ key, label, notes }));
 }
 
+type SortMode = 'date' | 'clinic' | 'category';
+
+function groupByClinic(notes: SavedNote[]): { key: string; label: string; notes: SavedNote[] }[] {
+    const groups = new Map<string, { label: string; notes: SavedNote[] }>();
+    for (const note of notes) {
+        const key = note.clinicName || 'Unknown Clinic';
+        if (!groups.has(key)) {
+            groups.set(key, { label: key, notes: [] });
+        }
+        groups.get(key)!.notes.push(note);
+    }
+    // Sort notes within each group by date (newest first)
+    for (const group of groups.values()) {
+        group.notes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+    return Array.from(groups.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, { label, notes }]) => ({ key, label, notes }));
+}
+
+function groupByCategory(notes: SavedNote[]): { key: string; label: string; notes: SavedNote[] }[] {
+    const ORDER: Record<string, number> = {
+        'CAT I': 0, 'CAT II': 1, 'CAT III': 2, 'CAT IV': 3, 'OTHER': 4,
+    };
+    const groups = new Map<string, { label: string; notes: SavedNote[] }>();
+    for (const note of notes) {
+        const key = note.dispositionType || 'OTHER';
+        if (!groups.has(key)) {
+            groups.set(key, { label: key, notes: [] });
+        }
+        groups.get(key)!.notes.push(note);
+    }
+    // Sort notes within each group by date (newest first)
+    for (const group of groups.values()) {
+        group.notes.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    }
+    return Array.from(groups.entries())
+        .sort(([a], [b]) => (ORDER[a] ?? 5) - (ORDER[b] ?? 5))
+        .map(([key, { label, notes }]) => ({ key, label, notes }));
+}
+
 /* ────────────────────────────────────────────────────────────
    NoteSyncBadge — Compact inline badge showing sync status and author.
    "pending · Author" (amber) or "saved · Author" (green).
@@ -74,9 +115,11 @@ function groupAndSortNotes(notes: SavedNote[]): { key: string; label: string; no
 const NoteSyncBadge = ({
     syncStatus,
     authorName,
+    clinicName,
 }: {
     syncStatus: NoteSyncStatus;
     authorName: string;
+    clinicName?: string;
 }) => {
     const isPending = syncStatus === 'pending';
     const isError = syncStatus === 'error';
@@ -92,12 +135,18 @@ const NoteSyncBadge = ({
     return (
         <span
             className={`inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full shrink-0 ${colorClasses}`}
-            aria-label={`${label}, authored by ${authorName}`}
+            aria-label={`${label}, authored by ${authorName}${clinicName ? `, from ${clinicName}` : ''}`}
         >
             <Icon size={9} className="shrink-0" />
             <span>{label}</span>
             <span className="opacity-50">&middot;</span>
             <span className="truncate max-w-20">{authorName}</span>
+            {clinicName && (
+                <>
+                    <span className="opacity-50">&middot;</span>
+                    <span className="truncate max-w-24 opacity-70">{clinicName}</span>
+                </>
+            )}
         </span>
     );
 };
@@ -106,7 +155,7 @@ const NoteSyncBadge = ({
    NoteItemContent — Shared note display (icon, text, badge, date).
    Used by both SwipeableNoteItem (mobile) and NoteItemSettings (desktop).
    ──────────────────────────────────────────────────────────── */
-const NoteItemContent = ({ note, isSelected, authorLabel }: { note: SavedNote; isSelected: boolean; authorLabel: string }) => (
+const NoteItemContent = ({ note, isSelected, authorLabel, clinicName }: { note: SavedNote; isSelected: boolean; authorLabel: string; clinicName?: string }) => (
     <div className="flex items-center gap-3 px-3 py-3">
         {isSelected && (
             <div className="shrink-0">
@@ -124,6 +173,7 @@ const NoteItemContent = ({ note, isSelected, authorLabel }: { note: SavedNote; i
                 <NoteSyncBadge
                     syncStatus={note.sync_status}
                     authorName={authorLabel}
+                    clinicName={clinicName}
                 />
             </div>
         </div>
@@ -186,6 +236,7 @@ const SwipeableNoteItem = ({
     isSelected,
     onToggleSelect,
     authorLabel,
+    clinicName,
     copyLabel,
     shareLabel,
     readOnly,
@@ -198,6 +249,7 @@ const SwipeableNoteItem = ({
     isSelected: boolean;
     onToggleSelect: (noteId: string) => void;
     authorLabel: string;
+    clinicName?: string;
     copyLabel?: string;
     shareLabel?: string;
     /** When true, disables swipe-left delete action. */
@@ -389,6 +441,7 @@ const SwipeableNoteItem = ({
                             <NoteSyncBadge
                                 syncStatus={note.sync_status}
                                 authorName={authorLabel}
+                                clinicName={clinicName}
                             />
                         </div>
                     </div>
@@ -413,11 +466,13 @@ const NoteItemSettings = ({
     isSelected,
     onToggleSelect,
     authorLabel,
+    clinicName,
 }: {
     note: SavedNote;
     isSelected: boolean;
     onToggleSelect: (noteId: string) => void;
     authorLabel: string;
+    clinicName?: string;
 }) => (
     <div
         className={`relative rounded-lg mb-2 cursor-pointer transition-all duration-150 ${isSelected
@@ -426,7 +481,7 @@ const NoteItemSettings = ({
             }`}
         onClick={() => onToggleSelect(note.id)}
     >
-        <NoteItemContent note={note} isSelected={isSelected} authorLabel={authorLabel} />
+        <NoteItemContent note={note} isSelected={isSelected} authorLabel={authorLabel} clinicName={clinicName} />
     </div>
 );
 
@@ -519,9 +574,16 @@ export const MyNotesPanel = ({
     const [copiedStatus, setCopiedStatus] = useState(false);
     const { shareNote, shareStatus } = useNoteShare();
     const { profile } = useUserProfile();
+    const [sortMode, setSortMode] = useState<SortMode>('date');
 
-    // Sort notes: grouped by date (newest first) then by acuity within each group
-    const groupedNotes = useMemo(() => groupAndSortNotes(displayNotes), [displayNotes]);
+    // Sort notes using the selected grouping strategy
+    const groupedNotes = useMemo(() => {
+        switch (sortMode) {
+            case 'clinic': return groupByClinic(displayNotes);
+            case 'category': return groupByCategory(displayNotes);
+            default: return groupAndSortNotes(displayNotes);
+        }
+    }, [displayNotes, sortMode]);
 
     // Determine which notes belong to the current user (any origination)
     const ownNoteIds = useMemo(() => {
@@ -538,6 +600,14 @@ export const MyNotesPanel = ({
         }
         return ids;
     }, [displayNotes, profile.lastName, profile.firstName, profile.uic]);
+
+    /**
+     * Resolve the clinic name badge label for a note.
+     * Only shown when the note originates from a different clinic.
+     */
+    const getClinicLabel = useCallback((note: SavedNote): string | undefined => {
+        return note.clinicName;
+    }, []);
 
     /**
      * Resolve the author label for a note.
@@ -669,9 +739,26 @@ export const MyNotesPanel = ({
                 ) : isMobile ? (
                     /* Mobile: swipe gestures + tap to select */
                     <div className="px-4 py-3 md:p-5">
-                        <p className="text-[10px] text-tertiary/40 text-center mb-2">
-                            Swipe for actions · Tap to select
-                        </p>
+                        <div className="flex items-center justify-between mb-2">
+                            <p className="text-[10px] text-tertiary/40">
+                                Swipe for actions · Tap to select
+                            </p>
+                            <div className="flex items-center gap-0.5 bg-themewhite3 rounded-full p-0.5">
+                                {(['date', 'clinic', 'category'] as SortMode[]).map((mode) => (
+                                    <button
+                                        key={mode}
+                                        onClick={() => setSortMode(mode)}
+                                        className={`text-[9px] px-2 py-0.5 rounded-full transition-colors ${
+                                            sortMode === mode
+                                                ? 'bg-themewhite text-primary font-medium shadow-sm'
+                                                : 'text-tertiary/60 hover:text-tertiary'
+                                        }`}
+                                    >
+                                        {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                         {groupedNotes.map((group, idx) => (
                             <div key={group.key}>
                                 <p className={`text-[10px] font-medium text-tertiary/50 uppercase tracking-wider px-1 pb-1 ${idx === 0 ? 'pt-1' : 'pt-4'}`}>
@@ -688,6 +775,7 @@ export const MyNotesPanel = ({
                                         isSelected={selectedIds.has(note.id)}
                                         onToggleSelect={handleToggleSelect}
                                         authorLabel={getAuthorLabel(note)}
+                                        clinicName={getClinicLabel(note)}
                                         copyLabel={copyLabel}
                                         shareLabel={shareLabel}
                                     />
@@ -698,9 +786,26 @@ export const MyNotesPanel = ({
                 ) : (
                     /* Desktop: checkbox selection + bottom action bar */
                     <div className="px-4 py-3 md:p-5">
-                        <p className="text-[10px] text-tertiary/40 text-center mb-2">
-                            Tap to select · Multi-select for bulk actions
-                        </p>
+                        <div className="flex items-center justify-between mb-2">
+                            <p className="text-[10px] text-tertiary/40">
+                                Tap to select · Multi-select for bulk actions
+                            </p>
+                            <div className="flex items-center gap-0.5 bg-themewhite3 rounded-full p-0.5">
+                                {(['date', 'clinic', 'category'] as SortMode[]).map((mode) => (
+                                    <button
+                                        key={mode}
+                                        onClick={() => setSortMode(mode)}
+                                        className={`text-[9px] px-2 py-0.5 rounded-full transition-colors ${
+                                            sortMode === mode
+                                                ? 'bg-themewhite text-primary font-medium shadow-sm'
+                                                : 'text-tertiary/60 hover:text-tertiary'
+                                        }`}
+                                    >
+                                        {mode.charAt(0).toUpperCase() + mode.slice(1)}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                         {groupedNotes.map((group, idx) => (
                             <div key={group.key}>
                                 <p className={`text-[10px] font-medium text-tertiary/50 uppercase tracking-wider px-1 pb-1 ${idx === 0 ? 'pt-1' : 'pt-4'}`}>
@@ -713,6 +818,7 @@ export const MyNotesPanel = ({
                                         isSelected={selectedIds.has(note.id)}
                                         onToggleSelect={handleToggleSelect}
                                         authorLabel={getAuthorLabel(note)}
+                                        clinicName={getClinicLabel(note)}
                                     />
                                 ))}
                             </div>

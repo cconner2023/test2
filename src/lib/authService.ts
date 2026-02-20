@@ -85,6 +85,7 @@ export async function signIn(
         type: 'user_login',
         name: null,
         email,
+        author_id: data.user.id,
       },
     }).catch(() => { /* push notification delivery is best-effort */ })
   }

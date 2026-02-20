@@ -10,7 +10,8 @@
 
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
-import { isPinEnabled, hydrateFromCloud } from '../lib/pinService'
+import { isPinEnabled, hydrateFromCloud, removePin } from '../lib/pinService'
+import { removeBiometric } from '../lib/biometricService'
 import { isDevUser } from '../lib/adminService'
 import type { User } from '@supabase/supabase-js'
 import type { UserTypes } from '../Data/User'
@@ -144,6 +145,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
           isSupervisorRole: false,
         })
         clearProfileStorage()
+        removePin()
+        removeBiometric()
       } else if (session?.user) {
         set({ user: session.user, isGuest: false })
         // Detect password recovery flow (user clicked reset-password email link)
