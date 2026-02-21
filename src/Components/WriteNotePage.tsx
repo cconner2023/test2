@@ -127,12 +127,13 @@ export const WriteNotePage = ({
     const [cursorPosition, setCursorPosition] = useState(0);
     const textExpanders = profile.textExpanders ?? [];
     const textExpanderEnabled = profile.textExpanderEnabled ?? true;
-    const { suggestion, accept: acceptExpander, dismiss: dismissExpander } = useTextExpander({
+    const { suggestions: expanderSuggestions, selectedIndex: expanderIndex, accept: acceptExpander, dismiss: dismissExpander, selectNext: expanderNext, selectPrev: expanderPrev } = useTextExpander({
         text: note,
         cursorPosition,
         expanders: textExpanders,
         enabled: textExpanderEnabled && currentPageId === 'hpi',
     });
+    const hasExpanderSuggestion = expanderSuggestions.length > 0;
 
     // Refs
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -479,12 +480,18 @@ export const WriteNotePage = ({
                                             onChange={(e) => { setNote(e.target.value); setCursorPosition(e.target.selectionStart); }}
                                             onSelect={(e) => setCursorPosition((e.target as HTMLTextAreaElement).selectionStart)}
                                             onKeyDown={(e) => {
-                                                if (e.key === 'Escape' && suggestion) {
+                                                if (e.key === 'Escape' && hasExpanderSuggestion) {
                                                     e.preventDefault();
                                                     dismissExpander();
                                                     return;
                                                 }
-                                                if (e.key === 'Enter' && suggestion && !e.shiftKey) {
+                                                if (hasExpanderSuggestion && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+                                                    e.preventDefault();
+                                                    if (e.key === 'ArrowDown') expanderNext();
+                                                    else expanderPrev();
+                                                    return;
+                                                }
+                                                if (e.key === 'Enter' && hasExpanderSuggestion && !e.shiftKey) {
                                                     e.preventDefault();
                                                     const result = acceptExpander();
                                                     if (result) {
@@ -504,9 +511,10 @@ export const WriteNotePage = ({
                                             placeholder="History of present illness, clinical observations, assessment..."
                                             className="w-full text-tertiary bg-themewhite outline-none text-[16px] md:text-[10pt] px-4 py-3 rounded-md border border-themegray1/20 min-w-0 resize-none min-h-[12rem] leading-6 focus:border-themeblue1/30 transition-colors"
                                         />
-                                        {suggestion && (
+                                        {hasExpanderSuggestion && (
                                             <TextExpanderSuggestion
-                                                suggestion={suggestion}
+                                                suggestions={expanderSuggestions}
+                                                selectedIndex={expanderIndex}
                                                 onDismiss={dismissExpander}
                                             />
                                         )}

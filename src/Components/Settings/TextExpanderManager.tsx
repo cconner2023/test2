@@ -87,7 +87,7 @@ export const TextExpanderManager = ({ expanders, onChange }: TextExpanderManager
                                 {e.abbr}
                             </code>
                             <span className="text-tertiary/40 text-xs shrink-0">&rarr;</span>
-                            <span className="text-xs text-tertiary truncate flex-1 min-w-0">{e.expansion}</span>
+                            <span className="text-xs text-tertiary truncate flex-1 min-w-0">{e.expansion.split('\n')[0]}{e.expansion.includes('\n') ? ' ...' : ''}</span>
                             <button
                                 onClick={() => startEdit(i)}
                                 className="shrink-0 p-1 rounded hover:bg-tertiary/10 transition-colors"
@@ -110,22 +110,21 @@ export const TextExpanderManager = ({ expanders, onChange }: TextExpanderManager
             {/* Inline add/edit form */}
             {isFormOpen && (
                 <div className="space-y-2 px-3 py-3 rounded-lg border border-themeblue2/20 bg-themeblue2/5">
-                    <div className="flex gap-2">
+                    <div className="space-y-2">
                         <input
                             type="text"
                             value={abbr}
                             onChange={(e) => { setAbbr(e.target.value); setError(''); }}
-                            placeholder="Abbr"
-                            className="w-20 shrink-0 text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
+                            placeholder="Abbreviation"
+                            className="w-full text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
                             autoFocus
                         />
-                        <input
-                            type="text"
+                        <textarea
                             value={expansion}
                             onChange={(e) => { setExpansion(e.target.value); setError(''); }}
-                            placeholder="Expansion text"
-                            className="flex-1 min-w-0 text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
-                            onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') cancel(); }}
+                            placeholder="Expansion text (multi-line supported)"
+                            className="w-full min-h-[4rem] text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary resize-none leading-5"
+                            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); if (e.key === 'Escape') cancel(); }}
                         />
                     </div>
                     {error && <p className="text-[10px] text-themeredred">{error}</p>}

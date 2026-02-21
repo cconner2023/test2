@@ -43,13 +43,19 @@ export const useNoteImport = () => {
             ? { icon: found.symptom.icon || '', text: found.symptom.text || '' }
             : undefined;
 
-        // 5. Assemble the note using shared formatter
+        // 5. Build author label from parsed user
+        const authorLabel = parsed.user
+            ? formatSignature(parsed.user) || 'Unknown'
+            : 'Unknown';
+
+        // 6. Assemble the note using shared formatter
         const result = assembleNote(
             {
                 includeAlgorithm: parsed.flags.includeAlgorithm,
                 includeDecisionMaking: parsed.flags.includeDecisionMaking,
                 customNote: parsed.flags.includeHPI ? parsed.hpiText : '',
                 physicalExamNote: parsed.flags.includePhysicalExam ? parsed.peText : '',
+                signature: parsed.user ? formatSignature(parsed.user) : undefined,
             },
             algorithmOptions,
             cardStates,
@@ -58,11 +64,6 @@ export const useNoteImport = () => {
             selectedSymptom,
             parsed.timestamp,
         );
-
-        // 6. Build author label from parsed user
-        const authorLabel = parsed.user
-            ? formatSignature(parsed.user) || 'Unknown'
-            : 'Unknown';
 
         return {
             fullNote: result.fullNote,
