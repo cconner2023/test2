@@ -88,6 +88,7 @@ export type Database = {
           additional_user_ids: string[]
           child_clinic_ids: string[]
           created_at: string
+          encryption_key: string | null
           id: string
           location: string | null
           name: string
@@ -98,6 +99,7 @@ export type Database = {
           additional_user_ids?: string[]
           child_clinic_ids?: string[]
           created_at?: string
+          encryption_key?: string | null
           id?: string
           location?: string | null
           name: string
@@ -108,6 +110,7 @@ export type Database = {
           additional_user_ids?: string[]
           child_clinic_ids?: string[]
           created_at?: string
+          encryption_key?: string | null
           id?: string
           location?: string | null
           name?: string

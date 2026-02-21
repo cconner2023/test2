@@ -11,6 +11,12 @@
 import { supabase } from './supabase'
 import type { AccountRequest } from './accountRequestService'
 import { createLogger } from '../Utilities/Logger'
+import {
+  generateClinicKeyBase64,
+  encryptWithRawKey,
+  decryptWithRawKey,
+  encryptClinicField,
+} from './cryptoService'
 
 const logger = createLogger('AdminService')
 
@@ -396,15 +402,26 @@ export async function listClinics(): Promise<AdminClinic[]> {
   try {
     const { data, error } = await supabase
       .from('clinics')
-      .select('id, name, uics, child_clinic_ids, location, additional_user_ids')
+      .select('id, name, uics, child_clinic_ids, location, additional_user_ids, encryption_key')
       .order('name')
 
     if (error) throw error
-    return (data || []).map((row) => ({
-      ...row,
-      additional_user_ids: row.additional_user_ids || [],
-      child_clinic_ids: row.child_clinic_ids || [],
-    })) as AdminClinic[]
+
+    // Decrypt location fields using each clinic's own encryption key
+    const clinics = await Promise.all(
+      (data || []).map(async (row) => ({
+        id: row.id,
+        name: row.name,
+        uics: row.uics || [],
+        child_clinic_ids: row.child_clinic_ids || [],
+        additional_user_ids: row.additional_user_ids || [],
+        location: row.encryption_key
+          ? await decryptWithRawKey(row.encryption_key, row.location)
+          : row.location,
+      }))
+    )
+
+    return clinics
   } catch (error) {
     logger.error('Failed to list clinics:', error)
     return []
@@ -422,14 +439,20 @@ export async function createClinic(data: {
   additional_user_ids?: string[]
 }): Promise<{ success: boolean; error?: string; id?: string }> {
   try {
+    const rawKey = generateClinicKeyBase64()
+    const encryptedLocation = data.location
+      ? await encryptWithRawKey(rawKey, data.location)
+      : null
+
     const { data: result, error } = await supabase
       .from('clinics')
       .insert({
         name: data.name,
-        location: data.location || null,
+        location: encryptedLocation,
         uics: data.uics || [],
         child_clinic_ids: data.child_clinic_ids || [],
         additional_user_ids: data.additional_user_ids || [],
+        encryption_key: rawKey,
       })
       .select('id')
       .single()
@@ -455,9 +478,15 @@ export async function updateClinic(
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Encrypt location if it's being updated
+    const payload: Record<string, unknown> = { ...updates }
+    if (updates.location !== undefined && updates.location !== null) {
+      payload.location = await encryptClinicField(id, updates.location)
+    }
+
     const { error } = await supabase
       .from('clinics')
-      .update(updates)
+      .update(payload)
       .eq('id', id)
 
     if (error) return { success: false, error: error.message }

@@ -23,6 +23,7 @@
 import { useEffect, useRef, useCallback, useMemo } from 'react'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import type { SavedNote } from '../lib/notesService'
+import { decryptServerNoteRow } from '../lib/cryptoService'
 import { createLogger } from '../Utilities/Logger'
 import { useSupabaseSubscription } from './useSupabaseSubscription'
 
@@ -127,6 +128,9 @@ export function useRealtimeClinicNotes({
    * whether the event's user_id matches the current user. This
    * replaces the old two-channel setup (clinic + personal) with a
    * single channel, halving WebSocket connections for notes.
+   *
+   * Async: decrypts encrypted fields (Supabase stores ciphertext)
+   * before converting to SavedNote for the UI.
    */
   const handlePayload = useCallback(
     (payload: RealtimePostgresChangesPayload<RealtimeNoteRow>) => {
@@ -135,7 +139,6 @@ export function useRealtimeClinicNotes({
 
       if (eventType === 'INSERT' || eventType === 'UPDATE') {
         const row = payload.new
-        const note = realtimeRowToSavedNote(row)
 
         // Soft-deleted notes should be treated as deletes
         if (row.deleted_at) {
@@ -147,11 +150,27 @@ export function useRealtimeClinicNotes({
           return
         }
 
-        if (row.user_id === currentUserId) {
-          onPersonalUpsertRef.current(note)
-        } else {
-          onClinicUpsertRef.current(note)
-        }
+        // Decrypt encrypted fields, then route to the appropriate handler.
+        // Fire-and-forget: the Realtime callback doesn't await promises.
+        decryptServerNoteRow(row as unknown as Record<string, unknown>)
+          .then((decrypted) => {
+            const note = realtimeRowToSavedNote(decrypted as unknown as RealtimeNoteRow)
+            if (row.user_id === currentUserId) {
+              onPersonalUpsertRef.current(note)
+            } else {
+              onClinicUpsertRef.current(note)
+            }
+          })
+          .catch((err) => {
+            // Fallback: use the row as-is (may show ciphertext, but won't crash)
+            logger.warn('Failed to decrypt realtime note, using raw:', err)
+            const note = realtimeRowToSavedNote(row)
+            if (row.user_id === currentUserId) {
+              onPersonalUpsertRef.current(note)
+            } else {
+              onClinicUpsertRef.current(note)
+            }
+          })
         return
       }
 

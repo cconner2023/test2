@@ -1,14 +1,12 @@
 /**
  * Notes service that bridges between the UI (SavedNote), IndexedDB (LocalNote),
- * and Supabase (notes table row).
- *
- * This service is the single source of truth for note CRUD operations.
+ * and db
+ * service is the single source of truth for note CRUD operations.
  * It follows an offline-first pattern:
  *   1. All writes go to IndexedDB first (immediate, always available)
  *   2. Writes are queued for Supabase sync via the sync queue
  *   3. When online, the sync service pushes queued changes to Supabase
  *   4. On reconnect, the sync service reconciles local vs. server state
- *
  * The UI layer (useNotesStorage hook) calls these functions and never
  * talks to Supabase directly.
  */
@@ -25,6 +23,7 @@ import {
   type NoteSyncStatus,
 } from './offlineDb'
 import { isOnline } from './syncService'
+import { decryptServerNoteRow } from './cryptoService'
 import { createLogger } from '../Utilities/Logger'
 
 const logger = createLogger('NotesService')
@@ -324,31 +323,31 @@ export async function createNote(
   // For regular notes: behavior unchanged — stamp user's profile on the note.
   const note = isImported
     ? buildLocalNote(
-        input, userId,
-        null,   // clinic_id = null (don't assign to importer's clinic)
-        null,   // display_name = null (don't stamp importer's profile)
-        null,   // rank = null
-        noteId,
-        null,   // clinic_name = null
-        input.originating_clinic_id ?? null,
-        clinicId ? [clinicId] : []  // visible_clinic_ids = importer's clinic
-      )
+      input, userId,
+      null,   // clinic_id = null (don't assign to importer's clinic)
+      null,   // display_name = null (don't stamp importer's profile)
+      null,   // rank = null
+      noteId,
+      null,   // clinic_name = null
+      input.originating_clinic_id ?? null,
+      clinicId ? [clinicId] : []  // visible_clinic_ids = importer's clinic
+    )
     : buildLocalNote(input, userId, clinicId, displayName, rank, noteId, clinicName)
-  await saveLocalNote(note)
+  const encrypted = await saveLocalNote(note)
 
-  // Queue for sync
+  // Queue for sync (encrypted payload — Supabase stores ciphertext)
   await addToSyncQueue({
     user_id: userId,
     action: 'create',
     table_name: 'notes',
     record_id: note.id,
-    payload: stripLocalFields(note as unknown as Record<string, unknown>),
+    payload: stripLocalFields(encrypted as unknown as Record<string, unknown>),
   })
 
   // Attempt immediate sync if online
   if (isOnline()) {
     try {
-      const payload = stripLocalFields(note as unknown as Record<string, unknown>)
+      const payload = stripLocalFields(encrypted as unknown as Record<string, unknown>)
       const { error } = await supabase
         .from('notes')
         .upsert(payload as never, { onConflict: 'id' })
@@ -368,7 +367,7 @@ export async function createNote(
               clinic_id: clinicId,
               author_id: userId,
             },
-          }).catch(() => {})
+          }).catch(() => { })
         }
       } else {
         logger.warn(`Immediate sync failed, queued for later: ${error.message}`)
@@ -414,7 +413,7 @@ export async function updateNote(
   if (updates.previewText !== undefined) updatedNote.preview_text = updates.previewText
   if (updates.source !== undefined) updatedNote.source_device = updates.source || null
 
-  await saveLocalNote(updatedNote)
+  const encrypted = await saveLocalNote(updatedNote)
 
   // Queue for sync (only for authenticated users)
   if (userId !== 'guest') {
@@ -423,13 +422,13 @@ export async function updateNote(
       action: 'update',
       table_name: 'notes',
       record_id: noteId,
-      payload: stripLocalFields(updatedNote as unknown as Record<string, unknown>),
+      payload: stripLocalFields(encrypted as unknown as Record<string, unknown>),
     })
 
     // Attempt immediate sync if online
     if (isOnline()) {
       try {
-        const payload = stripLocalFields(updatedNote as unknown as Record<string, unknown>)
+        const payload = stripLocalFields(encrypted as unknown as Record<string, unknown>)
         const { error } = await supabase
           .from('notes')
           .update(payload as never)
@@ -618,7 +617,13 @@ export async function fetchClinicNotesFromServer(
     }
   }
 
-  return rows.map((row: typeof rows[number]): SavedNote => {
+  // Decrypt encrypted fields before converting to SavedNote.
+  // Server stores ciphertext; clinic members share the same key.
+  const decryptedRows = await Promise.all(
+    rows.map((row: typeof rows[number]) => decryptServerNoteRow(row))
+  )
+
+  return decryptedRows.map((row): SavedNote => {
     const authorName = authorMap.get(row.user_id) ?? row.display_name ?? null
     return {
       id: row.id,

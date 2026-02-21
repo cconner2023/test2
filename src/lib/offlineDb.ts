@@ -22,6 +22,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { CompletionType, CompletionResult, Json } from '../Types/database.types'
 import { createLogger } from '../Utilities/Logger'
+import { encryptNote, decryptNotes, clearKeyStore } from './cryptoService'
 
 const logger = createLogger('OfflineDb')
 
@@ -273,7 +274,8 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
 export async function getLocalNotes(userId: string): Promise<LocalNote[]> {
   const db = await getDb()
   const allNotes = await db.getAllFromIndex('notes', 'by-user', userId)
-  return allNotes.filter((n) => n.deleted_at === null)
+  const activeNotes = allNotes.filter((n) => n.deleted_at === null)
+  return decryptNotes(activeNotes)
 }
 
 /**
@@ -283,7 +285,8 @@ export async function getLocalNotes(userId: string): Promise<LocalNote[]> {
  */
 export async function getAllLocalNotesIncludingDeleted(userId: string): Promise<LocalNote[]> {
   const db = await getDb()
-  return db.getAllFromIndex('notes', 'by-user', userId)
+  const allNotes = await db.getAllFromIndex('notes', 'by-user', userId)
+  return decryptNotes(allNotes)
 }
 
 /**
@@ -291,9 +294,11 @@ export async function getAllLocalNotesIncludingDeleted(userId: string): Promise<
  * This is a put (upsert) operation -- if a note with the same ID
  * exists, it will be overwritten.
  */
-export async function saveLocalNote(note: LocalNote): Promise<void> {
+export async function saveLocalNote(note: LocalNote): Promise<LocalNote> {
   const db = await getDb()
-  await db.put('notes', note)
+  const encrypted = await encryptNote(note)
+  await db.put('notes', encrypted)
+  return encrypted
 }
 
 /**
@@ -570,7 +575,8 @@ export async function clearAllUserData(): Promise<void> {
   await tx.objectStore('syncQueue').clear()
   await tx.objectStore('trainingCompletions').clear()
   await tx.done
-  logger.info('Cleared all user data from IndexedDB')
+  await clearKeyStore()
+  logger.info('Cleared all user data from IndexedDB (including crypto keys)')
 }
 
 // ============================================================

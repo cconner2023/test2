@@ -20,6 +20,7 @@ import {
   setupConnectivityListeners,
   fullSync,
 } from '../lib/syncService';
+import { prefetchClinicKeys } from '../lib/cryptoService';
 import { supabase } from '../lib/supabase';
 import { usePageVisibility } from './usePageVisibility';
 import { createLogger } from '../Utilities/Logger';
@@ -287,12 +288,20 @@ export function useNotesSync(deps: NotesSyncDeps): NotesSyncResult {
                   .select('child_clinic_ids')
                   .eq('id', clinicId)
                   .single();
+                const visibleIds = [clinicId, ...(clinic?.child_clinic_ids || [])];
                 if (!cancelled) {
-                  setRealtimeVisibleClinicIds([clinicId, ...(clinic?.child_clinic_ids || [])]);
+                  setRealtimeVisibleClinicIds(visibleIds);
                 }
+                // Prefetch encryption keys for all visible clinics (own + children)
+                // so notes can be encrypted/decrypted offline.
+                prefetchClinicKeys(visibleIds).catch((err) => {
+                  logger.warn('Failed to prefetch clinic encryption keys:', err);
+                });
               } catch {
                 // Non-critical — realtime will fall back to single clinic_id filter
                 if (!cancelled) setRealtimeVisibleClinicIds([clinicId]);
+                // Still try to prefetch at least the user's own clinic key
+                prefetchClinicKeys([clinicId]).catch(() => {});
               }
             }
 
