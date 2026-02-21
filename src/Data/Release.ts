@@ -7,6 +7,7 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
+    { version: '2.6.3', type: 'added', text: 'text expander for HPI and physical exams. Make your own templates' },
     { version: '2.6.3', type: 'added', text: 'DD FORM 689 export' },
     { version: '2.6.3', type: 'added', text: 'physical exam section and HPI can be toggled on in settings' },
     { version: '2.6.3', type: 'changed', text: 'tutorials and how-to. Found in settings' },

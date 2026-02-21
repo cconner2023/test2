@@ -7,6 +7,8 @@ import { useDD689Export } from '../Hooks/useDD689Export';
 import { useUserProfile } from '../Hooks/useUserProfile';
 import { useAuthStore } from '../stores/useAuthStore';
 import { usePageSwipe } from '../Hooks/usePageSwipe';
+import { useTextExpander } from '../Hooks/useTextExpander';
+import { TextExpanderSuggestion } from './TextExpanderSuggestion';
 import { formatSignature } from '../Utilities/NoteFormatter';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { encodedContentEquals } from '../Utilities/NoteCodec';
@@ -120,6 +122,17 @@ export const WriteNotePage = ({
     );
     const currentPageId = visiblePages[currentPage]?.id ?? 'decision';
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
+
+    // Text expander
+    const [cursorPosition, setCursorPosition] = useState(0);
+    const textExpanders = profile.textExpanders ?? [];
+    const textExpanderEnabled = profile.textExpanderEnabled ?? true;
+    const { suggestion, accept: acceptExpander, dismiss: dismissExpander } = useTextExpander({
+        text: note,
+        cursorPosition,
+        expanders: textExpanders,
+        enabled: textExpanderEnabled && currentPageId === 'hpi',
+    });
 
     // Refs
     const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -445,38 +458,59 @@ export const WriteNotePage = ({
 
                     {/* HPI */}
                     {currentPageId === 'hpi' && (
-                        <div className={`w-full h-full overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
+                        <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
                             <div className="space-y-3">
-                                {!includeHPI ? (
+                                <div className="mx-2 mt-2">
                                     <ToggleOption
                                         checked={includeHPI}
-                                        onChange={() => { setIncludeHPI(true); setTimeout(() => inputRef.current?.focus(), UI_TIMING.AUTOFOCUS_DELAY); }}
+                                        onChange={() => { const next = !includeHPI; setIncludeHPI(next); if (next) setTimeout(() => inputRef.current?.focus(), UI_TIMING.AUTOFOCUS_DELAY); }}
                                         label="Include HPI in note"
                                         onDescription="HPI will be added to your note"
                                         offDescription="HPI will not be included"
                                         icon={<FileText size={18} />}
                                         colors={colors}
                                     />
-                                ) : (
-                                    <>
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-xs text-secondary">HPI / Clinical Notes</p>
-                                            <button
-                                                onClick={() => { setNote(''); setIncludeHPI(false); }}
-                                                className="text-xs text-tertiary hover:text-primary p-1 rounded transition-colors"
-                                                title="Remove HPI"
-                                            >
-                                                <X className="w-4 h-4" />
-                                            </button>
-                                        </div>
+                                </div>
+                                {includeHPI && (
+                                    <div className="mx-2 relative">
                                         <textarea
                                             ref={inputRef}
                                             value={note}
-                                            onChange={(e) => setNote(e.target.value)}
+                                            onChange={(e) => { setNote(e.target.value); setCursorPosition(e.target.selectionStart); }}
+                                            onSelect={(e) => setCursorPosition((e.target as HTMLTextAreaElement).selectionStart)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Escape' && suggestion) {
+                                                    e.preventDefault();
+                                                    dismissExpander();
+                                                    return;
+                                                }
+                                                if (e.key === 'Enter' && suggestion && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    const result = acceptExpander();
+                                                    if (result) {
+                                                        setNote(result.newText);
+                                                        setCursorPosition(result.newCursorPosition);
+                                                        requestAnimationFrame(() => {
+                                                            const ta = inputRef.current;
+                                                            if (ta) {
+                                                                ta.selectionStart = result.newCursorPosition;
+                                                                ta.selectionEnd = result.newCursorPosition;
+                                                            }
+                                                        });
+                                                    }
+                                                    return;
+                                                }
+                                            }}
                                             placeholder="History of present illness, clinical observations, assessment..."
                                             className="w-full text-tertiary bg-themewhite outline-none text-[16px] md:text-[10pt] px-4 py-3 rounded-md border border-themegray1/20 min-w-0 resize-none min-h-[12rem] leading-6 focus:border-themeblue1/30 transition-colors"
                                         />
-                                    </>
+                                        {suggestion && (
+                                            <TextExpanderSuggestion
+                                                suggestion={suggestion}
+                                                onDismiss={dismissExpander}
+                                            />
+                                        )}
+                                    </div>
                                 )}
                             </div>
                         </div>
@@ -497,17 +531,19 @@ export const WriteNotePage = ({
                                         colors={colors}
                                     />
                                 </div>
-                                <div className="mx-2">
-                                    <div className="rounded-md border border-themegray1/15 overflow-hidden">
-                                        <PhysicalExam
-                                            initialText={peNote}
-                                            onChange={setPeNote}
-                                            colors={colors}
-                                            symptomCode={selectedSymptom?.icon || 'A-1'}
-                                            depth={profile.peDepth ?? 'minimal'}
-                                        />
+                                {includePhysicalExam && (
+                                    <div className="mx-2">
+                                        <div className="rounded-md border border-themegray1/15 overflow-hidden">
+                                            <PhysicalExam
+                                                initialText={peNote}
+                                                onChange={setPeNote}
+                                                colors={colors}
+                                                symptomCode={selectedSymptom?.icon || 'A-1'}
+                                                depth={profile.peDepth ?? 'minimal'}
+                                            />
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
                         </div>
                     )}

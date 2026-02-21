@@ -2,6 +2,11 @@ export type Credential = 'EMT-B' | 'EMT-A' | 'EMT-P' | 'PA-C' | 'NP' | 'MD' | 'D
 export type Component = 'USA' | 'USN' | 'USMC' | 'USAF';
 export type Rank = string;
 
+export interface TextExpander {
+    abbr: string;
+    expansion: string;
+}
+
 export interface UserTypes {
     firstName?: string;
     lastName?: string;
@@ -25,6 +30,10 @@ export interface UserTypes {
     noteIncludePE?: boolean;
     /** PE depth: 'minimal' (vitals + free-text), 'expanded' (vitals + category items, all default normal) */
     peDepth?: 'minimal' | 'expanded';
+    /** User-defined text expander abbreviations */
+    textExpanders?: TextExpander[];
+    /** Whether text expander is active in the HPI field */
+    textExpanderEnabled?: boolean;
 }
 
 export const credentials: Credential[] = ['EMT-B', 'EMT-A', 'EMT-P', 'PA-C', 'NP', 'MD', 'DO'];

@@ -14,7 +14,7 @@ import { isPinEnabled, hydrateFromCloud, removePin } from '../lib/pinService'
 import { removeBiometric } from '../lib/biometricService'
 import { isDevUser } from '../lib/adminService'
 import type { User } from '@supabase/supabase-js'
-import type { UserTypes } from '../Data/User'
+import type { UserTypes, TextExpander } from '../Data/User'
 
 const STORAGE_KEY = 'adtmc_user_profile'
 
@@ -82,7 +82,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   // Fetch core profile + clinic name
   const { data } = await supabase
     .from('profiles')
-    .select('first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notifications_enabled, notify_clinic_notes, notify_dev_alerts, note_include_hpi, note_include_pe, pe_depth')
+    .select('first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notifications_enabled, notify_clinic_notes, notify_dev_alerts, note_include_hpi, note_include_pe, pe_depth, text_expanders, text_expander_enabled')
     .eq('id', userId)
     .single()
 
@@ -119,6 +119,8 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
       else if (raw === 'standard' || raw === 'comprehensive' || raw === 'expanded') profile.peDepth = 'expanded'
       else profile.peDepth = raw as UserTypes['peDepth']
     }
+    if (sec.text_expanders != null) profile.textExpanders = sec.text_expanders as TextExpander[]
+    if (sec.text_expander_enabled != null) profile.textExpanderEnabled = sec.text_expander_enabled as boolean
   }
 
   return { profile, roles, clinicId }
