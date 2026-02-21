@@ -54,6 +54,8 @@ export interface LocalNote {
   disposition_text: string | null
   preview_text: string | null
   is_imported: boolean
+  originating_clinic_id: string | null
+  visible_clinic_ids: string[]
   source_device: string | null
   created_at: string
   updated_at: string

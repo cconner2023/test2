@@ -325,7 +325,9 @@ export function useActiveNote({
     }
 
     // 1. Save the note to storage with external source tag
+    //    Pass originating_clinic_id from the barcode's C segment
     const disposition = result.writeNoteData.disposition
+    const originatingClinicId = preview?.clinicId ?? null
     const saveResult = notesStorage.saveNote({
       encodedText: data.encodedText,
       previewText: data.decodedText.slice(0, 200),
@@ -334,7 +336,7 @@ export function useActiveNote({
       dispositionType: disposition.type,
       dispositionText: disposition.text,
       source: externalSource,
-    })
+    }, { originating_clinic_id: originatingClinicId })
 
     if (!saveResult.success) {
       // Show error toast instead of success modal

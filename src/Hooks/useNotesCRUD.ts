@@ -30,7 +30,8 @@ export interface NotesCRUDDeps {
 
 export interface NotesCRUDResult {
   saveNote: (
-    note: Omit<SavedNote, 'id' | 'createdAt' | 'sync_status' | 'authorId' | 'authorName'>
+    note: Omit<SavedNote, 'id' | 'createdAt' | 'sync_status' | 'authorId' | 'authorName'>,
+    options?: { originating_clinic_id?: string | null }
   ) => { success: boolean; error?: string; noteId?: string };
   updateNote: (
     noteId: string,
@@ -55,7 +56,8 @@ export function useNotesCRUD(deps: NotesCRUDDeps): NotesCRUDResult {
 
   const saveNote = useCallback(
     (
-      note: Omit<SavedNote, 'id' | 'createdAt' | 'sync_status' | 'authorId' | 'authorName'>
+      note: Omit<SavedNote, 'id' | 'createdAt' | 'sync_status' | 'authorId' | 'authorName'>,
+      options?: { originating_clinic_id?: string | null }
     ): { success: boolean; error?: string; noteId?: string } => {
       const userId = userIdRef.current;
       if (!userId) {
@@ -93,8 +95,12 @@ export function useNotesCRUD(deps: NotesCRUDDeps): NotesCRUDResult {
       // This prevents race conditions where refreshNotes (reading from
       // IndexedDB) runs before the .then() callback -- both now reference
       // the same note ID, so the status update is never lost.
+      // For imported notes, pass originating_clinic_id via the note input.
+      const noteInput = options?.originating_clinic_id != null
+        ? { ...note, originating_clinic_id: options.originating_clinic_id }
+        : note
       notesApi
-        .createNote(note, noteId)
+        .createNote(noteInput, noteId)
         .then((savedNote) => {
           // Replace the optimistic note with the persisted version.
           // Both share the same ID (noteId), so this works reliably
@@ -197,16 +203,31 @@ export function useNotesCRUD(deps: NotesCRUDDeps): NotesCRUDResult {
 
   const deleteClinicNote = useCallback(
     (noteId: string) => {
-      // Optimistically remove from clinic notes UI
-      setClinicNotes((prev) => prev.filter((n) => n.id !== noteId));
+      const clinicId = clinicIdRef.current;
+
+      // Find the note before removing from UI to check import status
+      let targetNote: SavedNote | undefined;
+      setClinicNotes((prev) => {
+        targetNote = prev.find((n) => n.id === noteId);
+        return prev.filter((n) => n.id !== noteId);
+      });
+
+      // For imported notes where the deleter's clinic is in visible_clinic_ids
+      // but NOT the originating clinic: remove clinic from visibility instead of hard delete.
+      // This way the note remains visible to other clinics that imported it.
+      if (targetNote?.originating_clinic_id && clinicId && targetNote.originating_clinic_id !== clinicId) {
+        notesApi.removeClinicVisibility(noteId, clinicId).catch((err) => {
+          logger.error('Remove clinic visibility failed:', err);
+          if (clinicId) refreshClinicNotes(clinicId, userIdRef.current ?? undefined);
+        });
+        return;
+      }
 
       // Hard-delete on Supabase (clinic notes are server-only).
-      // RLS policy "Notes: clinic members can delete" (migration 009)
-      // allows any user in the same clinic to delete.
+      // RLS policy "Notes: delete by clinic hierarchy" allows users in
+      // the same clinic hierarchy to delete.
       notesApi.deleteClinicNote(noteId).catch((err) => {
         logger.error('Delete clinic note failed:', err);
-        // Refresh to restore the note if the delete failed
-        const clinicId = clinicIdRef.current;
         if (clinicId) refreshClinicNotes(clinicId, userIdRef.current ?? undefined);
       });
     },

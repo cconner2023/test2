@@ -66,6 +66,10 @@ export interface SavedNote {
   clinicName?: string
   /** The clinic_id of the note, propagated to IndexedDB for realtime writes. */
   clinicId?: string | null
+  /** The clinic_id from the barcode (the note's original home). */
+  originating_clinic_id?: string | null
+  /** Additional clinics that can see this note (for imports). */
+  visible_clinic_ids?: string[]
 }
 
 /**
@@ -174,6 +178,8 @@ export function localNoteToSavedNote(
     authorName: authorName ?? note.display_name ?? null,
     clinicName: clinicName ?? note.clinic_name ?? undefined,
     clinicId: note.clinic_id,
+    originating_clinic_id: note.originating_clinic_id ?? null,
+    visible_clinic_ids: note.visible_clinic_ids ?? [],
   }
 }
 
@@ -188,7 +194,9 @@ function buildLocalNote(
   displayName: string | null = null,
   rank: string | null = null,
   noteId?: string,
-  clinicName: string | null = null
+  clinicName: string | null = null,
+  originatingClinicId: string | null = null,
+  visibleClinicIds: string[] = []
 ): LocalNote {
   const now = new Date().toISOString()
   return {
@@ -207,7 +215,9 @@ function buildLocalNote(
     disposition_type: input.dispositionType,
     disposition_text: input.dispositionText,
     preview_text: input.previewText,
-    is_imported: input.source === 'external source',
+    is_imported: input.source?.startsWith('external') ?? false,
+    originating_clinic_id: originatingClinicId,
+    visible_clinic_ids: visibleClinicIds,
     source_device: input.source || null,
     created_at: now,
     updated_at: now,
@@ -295,11 +305,12 @@ export async function createNote(
   noteId?: string
 ): Promise<SavedNote> {
   const { userId, clinicId, clinicName, displayName, rank } = await getUserContext()
+  const isImported = input.source?.startsWith('external') ?? false
 
   if (!userId) {
     // Guest mode: create a local-only note that can never sync.
     const guestNote: LocalNote = {
-      ...buildLocalNote(input, 'guest', null, null, null, noteId),
+      ...buildLocalNote(input, 'guest', null, null, null, noteId, null, input.originating_clinic_id ?? null),
       _sync_status: 'synced', // Mark as "synced" since there's nothing to sync
     }
     await saveLocalNote(guestNote)
@@ -307,10 +318,22 @@ export async function createNote(
   }
 
   // Authenticated user: write to IndexedDB + queue for sync.
-  // Stamp the note with the user's display_name and rank so
-  // other clinic members can see who wrote it (the display_name
-  // column on the notes table acts as a denormalized snapshot).
-  const note = buildLocalNote(input, userId, clinicId, displayName, rank, noteId, clinicName)
+  // For imported notes: don't stamp importer's clinic_id, display_name, or rank.
+  // Instead, set originating_clinic_id from the barcode and add the importer's
+  // clinic to visible_clinic_ids so the note appears via RLS overlap.
+  // For regular notes: behavior unchanged — stamp user's profile on the note.
+  const note = isImported
+    ? buildLocalNote(
+        input, userId,
+        null,   // clinic_id = null (don't assign to importer's clinic)
+        null,   // display_name = null (don't stamp importer's profile)
+        null,   // rank = null
+        noteId,
+        null,   // clinic_name = null
+        input.originating_clinic_id ?? null,
+        clinicId ? [clinicId] : []  // visible_clinic_ids = importer's clinic
+      )
+    : buildLocalNote(input, userId, clinicId, displayName, rank, noteId, clinicName)
   await saveLocalNote(note)
 
   // Queue for sync
@@ -336,7 +359,8 @@ export async function createNote(
         logger.info(`Note ${note.id} synced immediately`)
 
         // Fire-and-forget: notify clinic members (parent clinics via hierarchy)
-        if (clinicId) {
+        // Skip push notification for imported notes — they're not new clinic notes
+        if (clinicId && !isImported) {
           supabase.functions.invoke('send-push-notification', {
             body: {
               type: 'new_clinic_note',
@@ -578,11 +602,11 @@ export async function fetchClinicNotesFromServer(
   }
 
   // Batch-fetch clinic names for badge display.
-  // Collect unique clinic_id values, query clinics table, build lookup.
-  const clinicIds = [...new Set(rows
-    .map((r: { clinic_id: string | null }) => r.clinic_id)
-    .filter((id: string | null): id is string => id != null)
-  )]
+  // Collect unique clinic_id and originating_clinic_id values, query clinics table, build lookup.
+  const clinicIds = [...new Set([
+    ...rows.map((r: { clinic_id: string | null }) => r.clinic_id).filter((id: string | null): id is string => id != null),
+    ...rows.map((r: { originating_clinic_id: string | null }) => r.originating_clinic_id).filter((id: string | null): id is string => id != null),
+  ])]
   const clinicNameMap = new Map<string, string>()
   if (clinicIds.length > 0) {
     const { data: clinics } = await supabase
@@ -610,6 +634,9 @@ export async function fetchClinicNotesFromServer(
       authorId: row.user_id,
       authorName,
       clinicName: row.clinic_id ? clinicNameMap.get(row.clinic_id) : undefined,
+      clinicId: row.clinic_id,
+      originating_clinic_id: row.originating_clinic_id ?? null,
+      visible_clinic_ids: row.visible_clinic_ids ?? [],
     }
   })
 }
@@ -632,5 +659,35 @@ export async function deleteClinicNote(noteId: string): Promise<void> {
 
   if (error) {
     throw new Error(`Failed to delete clinic note: ${error.message}`)
+  }
+}
+
+/**
+ * Remove a clinic from a note's visible_clinic_ids.
+ * Used when a non-originating clinic "deletes" an imported note — the note
+ * isn't hard-deleted, just made invisible to that clinic.
+ */
+export async function removeClinicVisibility(noteId: string, clinicId: string): Promise<void> {
+  // Fetch the current visible_clinic_ids
+  const { data, error: fetchErr } = await supabase
+    .from('notes')
+    .select('visible_clinic_ids')
+    .eq('id', noteId)
+    .single()
+
+  if (fetchErr || !data) {
+    throw new Error(`Failed to fetch note for visibility update: ${fetchErr?.message}`)
+  }
+
+  const currentIds: string[] = data.visible_clinic_ids || []
+  const updatedIds = currentIds.filter(id => id !== clinicId)
+
+  const { error: updateErr } = await supabase
+    .from('notes')
+    .update({ visible_clinic_ids: updatedIds } as never)
+    .eq('id', noteId)
+
+  if (updateErr) {
+    throw new Error(`Failed to update note visibility: ${updateErr.message}`)
   }
 }
