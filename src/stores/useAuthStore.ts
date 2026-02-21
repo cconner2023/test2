@@ -10,8 +10,10 @@
 
 import { create } from 'zustand'
 import { supabase } from '../lib/supabase'
-import { isPinEnabled, hydrateFromCloud, removePin } from '../lib/pinService'
+import { isPinEnabled, hydrateFromCloud, removePin, initPinService } from '../lib/pinService'
 import { removeBiometric } from '../lib/biometricService'
+import { clearServiceWorkerCaches } from '../lib/cacheService'
+import { clearPasswordVerification } from '../lib/authService'
 import { isDevUser } from '../lib/adminService'
 import type { User } from '@supabase/supabase-js'
 import type { UserTypes, TextExpander } from '../Data/User'
@@ -103,8 +105,9 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
 
     // PIN hydration
     const sec = data as Record<string, unknown>
+    await initPinService()
     if (sec.pin_hash && sec.pin_salt && !isPinEnabled()) {
-      hydrateFromCloud(sec.pin_hash as string, sec.pin_salt as string)
+      await hydrateFromCloud(sec.pin_hash as string, sec.pin_salt as string)
     }
 
     profile.notificationsEnabled = (sec.notifications_enabled as boolean) ?? false
@@ -154,6 +157,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         clearProfileStorage()
         removePin()
         removeBiometric()
+        clearPasswordVerification().catch(() => {})
+        clearServiceWorkerCaches().catch(() => {})
       } else if (session?.user) {
         set({ user: session.user, isGuest: false })
         // Detect password recovery flow (user clicked reset-password email link)

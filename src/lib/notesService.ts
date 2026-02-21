@@ -22,9 +22,10 @@ import {
   type LocalNote,
   type NoteSyncStatus,
 } from './offlineDb'
-import { isOnline } from './syncService'
 import { decryptServerNoteRow } from './cryptoService'
 import { createLogger } from '../Utilities/Logger'
+import { fireNotification } from './notifyDispatcher'
+import { immediateSync } from './syncEngine'
 
 const logger = createLogger('NotesService')
 
@@ -195,7 +196,8 @@ function buildLocalNote(
   noteId?: string,
   clinicName: string | null = null,
   originatingClinicId: string | null = null,
-  visibleClinicIds: string[] = []
+  visibleClinicIds: string[] = [],
+  overrideTimestamp?: string,
 ): LocalNote {
   const now = new Date().toISOString()
   return {
@@ -203,7 +205,7 @@ function buildLocalNote(
     user_id: userId,
     clinic_id: clinicId,
     clinic_name: clinicName,
-    timestamp: now,
+    timestamp: overrideTimestamp ?? now,
     display_name: displayName,
     rank: rank,
     uic: null,
@@ -301,7 +303,8 @@ export async function getNotes(userId: string): Promise<SavedNote[]> {
  */
 export async function createNote(
   input: Omit<SavedNote, 'id' | 'createdAt' | 'sync_status' | 'authorId' | 'authorName'>,
-  noteId?: string
+  noteId?: string,
+  overrideTimestamp?: string,
 ): Promise<SavedNote> {
   const { userId, clinicId, clinicName, displayName, rank } = await getUserContext()
   const isImported = input.source?.startsWith('external') ?? false
@@ -309,7 +312,7 @@ export async function createNote(
   if (!userId) {
     // Guest mode: create a local-only note that can never sync.
     const guestNote: LocalNote = {
-      ...buildLocalNote(input, 'guest', null, null, null, noteId, null, input.originating_clinic_id ?? null),
+      ...buildLocalNote(input, 'guest', null, null, null, noteId, null, input.originating_clinic_id ?? null, [], overrideTimestamp),
       _sync_status: 'synced', // Mark as "synced" since there's nothing to sync
     }
     await saveLocalNote(guestNote)
@@ -330,7 +333,8 @@ export async function createNote(
       noteId,
       null,   // clinic_name = null
       input.originating_clinic_id ?? null,
-      clinicId ? [clinicId] : []  // visible_clinic_ids = importer's clinic
+      clinicId ? [clinicId] : [],  // visible_clinic_ids = importer's clinic
+      overrideTimestamp,           // preserve original barcode timestamp
     )
     : buildLocalNote(input, userId, clinicId, displayName, rank, noteId, clinicName)
   const encrypted = await saveLocalNote(note)
@@ -344,36 +348,32 @@ export async function createNote(
     payload: stripLocalFields(encrypted as unknown as Record<string, unknown>),
   })
 
-  // Attempt immediate sync if online
-  if (isOnline()) {
-    try {
-      const payload = stripLocalFields(encrypted as unknown as Record<string, unknown>)
-      const { error } = await supabase
-        .from('notes')
-        .upsert(payload as never, { onConflict: 'id' })
+  const createPayload = stripLocalFields(encrypted as unknown as Record<string, unknown>)
+  const synced = await immediateSync(
+    { id: note.id, payload: createPayload },
+    {
+      tableName: 'notes',
+      upsertFn: async (rec) => {
+        const { error } = await supabase
+          .from('notes')
+          .upsert(rec.payload as never, { onConflict: 'id' })
+        if (error) throw error
+      },
+      updateSyncStatus: updateNoteSyncStatus,
+    },
+    'create'
+  )
+  if (synced) {
+    note._sync_status = 'synced'
+    logger.info(`Note ${note.id} synced immediately`)
 
-      if (!error) {
-        await updateNoteSyncStatus(note.id, 'synced')
-        note._sync_status = 'synced'
-        logger.info(`Note ${note.id} synced immediately`)
-
-        // Fire-and-forget: notify clinic members (parent clinics via hierarchy)
-        // Skip push notification for imported notes — they're not new clinic notes
-        if (clinicId && !isImported) {
-          supabase.functions.invoke('send-push-notification', {
-            body: {
-              type: 'new_clinic_note',
-              name: displayName,
-              clinic_id: clinicId,
-              author_id: userId,
-            },
-          }).catch(() => { })
-        }
-      } else {
-        logger.warn(`Immediate sync failed, queued for later: ${error.message}`)
-      }
-    } catch (err) {
-      logger.warn('Immediate sync failed, queued for later:', err)
+    if (clinicId && !isImported) {
+      fireNotification({
+        type: 'new_clinic_note',
+        name: displayName,
+        clinic_id: clinicId,
+        author_id: userId,
+      })
     }
   }
 
@@ -425,22 +425,24 @@ export async function updateNote(
       payload: stripLocalFields(encrypted as unknown as Record<string, unknown>),
     })
 
-    // Attempt immediate sync if online
-    if (isOnline()) {
-      try {
-        const payload = stripLocalFields(encrypted as unknown as Record<string, unknown>)
-        const { error } = await supabase
-          .from('notes')
-          .update(payload as never)
-          .eq('id', noteId)
-
-        if (!error) {
-          await updateNoteSyncStatus(noteId, 'synced')
-          updatedNote._sync_status = 'synced'
-        }
-      } catch {
-        // Will be retried by sync queue
-      }
+    const updatePayload = stripLocalFields(encrypted as unknown as Record<string, unknown>)
+    const synced = await immediateSync(
+      { id: noteId, payload: updatePayload },
+      {
+        tableName: 'notes',
+        upsertFn: async (rec) => {
+          const { error } = await supabase
+            .from('notes')
+            .update(rec.payload as never)
+            .eq('id', noteId)
+          if (error) throw error
+        },
+        updateSyncStatus: updateNoteSyncStatus,
+      },
+      'update'
+    )
+    if (synced) {
+      updatedNote._sync_status = 'synced'
     }
   }
 
@@ -472,39 +474,36 @@ export async function deleteNote(noteId: string, userId: string): Promise<void> 
       payload: { _deleted_at_timestamp: deletedAt },
     })
 
-    // Attempt immediate sync if online
-    if (isOnline()) {
-      try {
-        // Check if the server has a newer version before deleting.
-        // If server updated_at > our deletion timestamp, skip the delete.
-        const { data: serverNote } = await supabase
-          .from('notes')
-          .select('updated_at')
-          .eq('id', noteId)
-          .maybeSingle()
+    await immediateSync(
+      { id: noteId },
+      {
+        tableName: 'notes',
+        upsertFn: async () => {
+          const { data: serverNote } = await supabase
+            .from('notes')
+            .select('updated_at')
+            .eq('id', noteId)
+            .maybeSingle()
 
-        if (serverNote) {
-          const serverTime = new Date(serverNote.updated_at).getTime()
-          const deleteTime = new Date(deletedAt).getTime()
-          if (serverTime > deleteTime) {
-            logger.debug(`Skipping delete for ${noteId}: server version is newer`)
-            return
+          if (serverNote) {
+            const serverTime = new Date(serverNote.updated_at).getTime()
+            const deleteTime = new Date(deletedAt).getTime()
+            if (serverTime > deleteTime) {
+              logger.debug(`Skipping delete for ${noteId}: server version is newer`)
+              return
+            }
           }
-        }
 
-        const { error } = await supabase
-          .from('notes')
-          .delete()
-          .eq('id', noteId)
-
-        if (error) {
-          logger.warn(`Immediate delete failed, queued for later: ${error.message}`)
-        }
-        // Note is already hard-deleted from IndexedDB; no local status to update.
-      } catch {
-        // Will be retried by sync queue
-      }
-    }
+          const { error } = await supabase
+            .from('notes')
+            .delete()
+            .eq('id', noteId)
+          if (error) throw error
+        },
+        updateSyncStatus: updateNoteSyncStatus,
+      },
+      'delete'
+    )
   }
 }
 

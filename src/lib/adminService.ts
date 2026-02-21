@@ -17,6 +17,9 @@ import {
   decryptWithRawKey,
   encryptClinicField,
 } from './cryptoService'
+import { SECURITY } from './constants'
+import { classifySupabaseError, ErrorCode } from './errorCodes'
+import { validateRpcResult } from './validators'
 
 const logger = createLogger('AdminService')
 
@@ -119,8 +122,8 @@ export async function approveAccountRequest(
       return { success: false, error: 'Not authenticated' }
     }
 
-    if (tempPassword.length < 12) {
-      return { success: false, error: 'Temporary password must be at least 12 characters' }
+    if (tempPassword.length < SECURITY.MIN_PASSWORD_LENGTH) {
+      return { success: false, error: `Temporary password must be at least ${SECURITY.MIN_PASSWORD_LENGTH} characters` }
     }
 
     const { data, error: approveError } = await supabase.rpc('approve_account_request', {
@@ -130,13 +133,19 @@ export async function approveAccountRequest(
     })
 
     if (approveError) {
+      const code = classifySupabaseError(approveError)
+      if (code === ErrorCode.RATE_LIMITED) {
+        return { success: false, error: 'Rate limited. Please try again later.' }
+      }
       return { success: false, error: approveError.message }
     }
 
-    const result = data as { user_id: string; email: string; message: string } | null
+    const validated = validateRpcResult<{ user_id: string; email: string; message: string }>(
+      data, ['user_id'], 'approveAccountRequest'
+    )
     return {
       success: true,
-      userId: result?.user_id,
+      userId: validated.ok ? validated.data.user_id : undefined,
     }
   } catch (error) {
     logger.error('Failed to approve request:', error)
@@ -273,7 +282,8 @@ export async function listAllUsers(): Promise<AdminUser[]> {
   try {
     const { data, error } = await supabase.rpc('admin_list_users')
     if (error) throw error
-    return (data as unknown as AdminUser[]) || []
+    if (!Array.isArray(data)) return []
+    return data as unknown as AdminUser[]
   } catch (error) {
     logger.error('Failed to list users:', error)
     return []
@@ -299,8 +309,8 @@ export async function createUser(userData: {
     const { data: { user: currentUser } } = await supabase.auth.getUser()
     if (!currentUser) return { success: false, error: 'Not authenticated' }
 
-    if (userData.tempPassword.length < 12) {
-      return { success: false, error: 'Password must be at least 12 characters' }
+    if (userData.tempPassword.length < SECURITY.MIN_PASSWORD_LENGTH) {
+      return { success: false, error: `Password must be at least ${SECURITY.MIN_PASSWORD_LENGTH} characters` }
     }
 
     const { data, error } = await supabase.rpc('admin_create_user', {
@@ -318,8 +328,10 @@ export async function createUser(userData: {
 
     if (error) return { success: false, error: error.message }
 
-    const result = data as { user_id: string; email: string; message: string } | null
-    return { success: true, userId: result?.user_id }
+    const validated = validateRpcResult<{ user_id: string; email: string; message: string }>(
+      data, ['user_id'], 'createUser'
+    )
+    return { success: true, userId: validated.ok ? validated.data.user_id : undefined }
   } catch (error) {
     logger.error('Failed to create user:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
@@ -337,8 +349,8 @@ export async function resetUserPassword(
     const { data: { user: currentUser } } = await supabase.auth.getUser()
     if (!currentUser) return { success: false, error: 'Not authenticated' }
 
-    if (newPassword.length < 12) {
-      return { success: false, error: 'Password must be at least 12 characters' }
+    if (newPassword.length < SECURITY.MIN_PASSWORD_LENGTH) {
+      return { success: false, error: `Password must be at least ${SECURITY.MIN_PASSWORD_LENGTH} characters` }
     }
 
     const { error } = await supabase.rpc('admin_reset_password', {

@@ -112,7 +112,7 @@ async function importKey(rawKeyBase64: string): Promise<CryptoKey> {
   const keyBytes = base64ToUint8(rawKeyBase64)
   return crypto.subtle.importKey(
     'raw',
-    keyBytes,
+    keyBytes.buffer as ArrayBuffer,
     { name: 'AES-GCM', length: 256 },
     false, // non-extractable — key material stays in browser crypto subsystem
     ['encrypt', 'decrypt']
@@ -489,4 +489,50 @@ export async function clearKeyStore(): Promise<void> {
   } catch (err) {
     logger.warn('Failed to clear crypto key store:', err)
   }
+}
+
+// ---- Key Rotation Scaffolding ----
+
+export async function rotateClinicKey(
+  clinicId: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const oldRawKey = await fetchClinicKeyFromServer(clinicId)
+    if (!oldRawKey) {
+      return { success: false, error: 'Could not fetch current clinic key' }
+    }
+
+    const newRawKeyBase64 = generateClinicKeyBase64()
+
+    const { error: updateError } = await supabase
+      .from('clinics')
+      .update({ encryption_key: newRawKeyBase64 })
+      .eq('id', clinicId)
+
+    if (updateError) {
+      return { success: false, error: updateError.message }
+    }
+
+    const newCryptoKey = await importKey(newRawKeyBase64)
+    keyCache.set(clinicId, newCryptoKey)
+    await saveKeyToStore(clinicId, newCryptoKey)
+
+    logger.info(`Rotated encryption key for clinic ${clinicId}`)
+    return { success: true }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    logger.error('Key rotation failed:', message)
+    return { success: false, error: message }
+  }
+}
+
+export async function reencryptNote(
+  note: { hpi_encoded: string },
+  oldKeyBase64: string,
+  newKeyBase64: string
+): Promise<string> {
+  const oldKey = await importKey(oldKeyBase64)
+  const plaintext = await decryptField(oldKey, note.hpi_encoded)
+  const newKey = await importKey(newKeyBase64)
+  return encryptField(newKey, plaintext)
 }

@@ -1,9 +1,6 @@
-// PIN Lock Service — device-level security gate
-// Uses Web Crypto API for SHA-256 hashing (no external deps)
-// Stores hash+salt in localStorage, unlock flag in sessionStorage
-// Cloud sync via Supabase RPCs for cross-device persistence
-
 import { supabase } from './supabase'
+import { hashWithSalt, verifyHash } from './cryptoUtils'
+import { secureSet, secureGet, secureRemove } from './secureStorage'
 
 const STORAGE_KEYS = {
   hash: 'adtmc_pin_hash',
@@ -11,69 +8,93 @@ const STORAGE_KEYS = {
   unlocked: 'adtmc_pin_unlocked',
   failures: 'adtmc_pin_failures',
   lockoutUntil: 'adtmc_pin_lockout_until',
+  permanentLock: 'adtmc_pin_permanent_lock',
+  inactivityTimeout: 'adtmc_inactivity_timeout_ms',
 } as const
+
+let _pinHash: string | null = null
+let _pinSalt: string | null = null
+let _pinHydrated = false
+
+async function hydratePinCache(): Promise<void> {
+  if (_pinHydrated) return
+  _pinHash = await secureGet(STORAGE_KEYS.hash)
+  _pinSalt = await secureGet(STORAGE_KEYS.salt)
+  _pinHydrated = true
+}
+
+// --- Inactivity timeout config ---
+
+const DEFAULT_INACTIVITY_MS = 0
+
+export function getInactivityTimeoutMs(): number {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEYS.inactivityTimeout)
+    if (stored === null) return DEFAULT_INACTIVITY_MS
+    const ms = parseInt(stored, 10)
+    return isNaN(ms) ? DEFAULT_INACTIVITY_MS : ms
+  } catch {
+    return DEFAULT_INACTIVITY_MS
+  }
+}
+
+export function setInactivityTimeoutMs(ms: number): void {
+  try {
+    localStorage.setItem(STORAGE_KEYS.inactivityTimeout, String(ms))
+  } catch {
+    // fail silently
+  }
+}
 
 // --- Hashing ---
 
-export async function hashPin(pin: string, salt: Uint8Array): Promise<string> {
-  const encoder = new TextEncoder()
-  const data = new Uint8Array([...salt, ...encoder.encode(pin)])
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-  return Array.from(new Uint8Array(hashBuffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('')
+export async function hashPin(pin: string): Promise<{ hash: string; salt: string }> {
+  return hashWithSalt(pin)
 }
 
 export async function verifyPin(pin: string): Promise<boolean> {
-  const stored = getStoredPin()
-  if (!stored) return false
-  const saltArray = new Uint8Array(stored.salt.match(/.{2}/g)!.map(b => parseInt(b, 16)))
-  const hash = await hashPin(pin, saltArray)
-  return hash === stored.hash
+  await hydratePinCache()
+  if (!_pinHash || !_pinSalt) return false
+  return verifyHash(pin, _pinHash, _pinSalt)
 }
 
 // --- Storage ---
 
 export async function savePin(pin: string): Promise<void> {
-  const salt = crypto.getRandomValues(new Uint8Array(16))
-  const saltHex = Array.from(salt).map(b => b.toString(16).padStart(2, '0')).join('')
-  const hash = await hashPin(pin, salt)
   try {
-    localStorage.setItem(STORAGE_KEYS.hash, hash)
-    localStorage.setItem(STORAGE_KEYS.salt, saltHex)
+    const { hash, salt } = await hashWithSalt(pin)
+    await secureSet(STORAGE_KEYS.hash, hash)
+    await secureSet(STORAGE_KEYS.salt, salt)
+    _pinHash = hash
+    _pinSalt = salt
+    _pinHydrated = true
   } catch {
-    // Storage full or unavailable — fail silently matching existing patterns
+    // Storage full or unavailable
   }
 }
 
 export function isPinEnabled(): boolean {
-  try {
-    return !!localStorage.getItem(STORAGE_KEYS.hash) && !!localStorage.getItem(STORAGE_KEYS.salt)
-  } catch {
-    return false
-  }
+  return !!_pinHash && !!_pinSalt
 }
 
 export function removePin(): void {
   try {
-    localStorage.removeItem(STORAGE_KEYS.hash)
-    localStorage.removeItem(STORAGE_KEYS.salt)
+    secureRemove(STORAGE_KEYS.hash).catch(() => {})
+    secureRemove(STORAGE_KEYS.salt).catch(() => {})
+    _pinHash = null
+    _pinSalt = null
+    _pinHydrated = true
     sessionStorage.removeItem(STORAGE_KEYS.unlocked)
     resetLockout()
+    clearPinPermanentLock()
   } catch {
     // fail silently
   }
 }
 
 export function getStoredPin(): { hash: string; salt: string } | null {
-  try {
-    const hash = localStorage.getItem(STORAGE_KEYS.hash)
-    const salt = localStorage.getItem(STORAGE_KEYS.salt)
-    if (hash && salt) return { hash, salt }
-    return null
-  } catch {
-    return null
-  }
+  if (_pinHash && _pinSalt) return { hash: _pinHash, salt: _pinSalt }
+  return null
 }
 
 // --- Session unlock ---
@@ -102,15 +123,39 @@ export function clearSessionUnlocked(): void {
   }
 }
 
+// --- Permanent lock (3 failed attempts across reloads) ---
+
+export function isPinPermanentlyLocked(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_KEYS.permanentLock) === 'true'
+  } catch {
+    return false
+  }
+}
+
+export function clearPinPermanentLock(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEYS.permanentLock)
+    localStorage.removeItem(STORAGE_KEYS.failures)
+    sessionStorage.removeItem(STORAGE_KEYS.lockoutUntil)
+  } catch {
+    // fail silently
+  }
+}
+
 // --- Lockout ---
 
 interface LockoutState {
   isLockedOut: boolean
   remainingSeconds: number
+  isPermanentlyLocked?: boolean
 }
 
 export function checkLockout(): LockoutState {
   try {
+    if (isPinPermanentlyLocked()) {
+      return { isLockedOut: true, remainingSeconds: 0, isPermanentlyLocked: true }
+    }
     const until = sessionStorage.getItem(STORAGE_KEYS.lockoutUntil)
     if (!until) return { isLockedOut: false, remainingSeconds: 0 }
     const remaining = Math.ceil((parseInt(until, 10) - Date.now()) / 1000)
@@ -124,20 +169,23 @@ export function checkLockout(): LockoutState {
   }
 }
 
+const LOCKOUT_TIERS = [30, 60, 120, 240, 300]
+
 export function recordFailedAttempt(): LockoutState {
   try {
-    const failures = parseInt(sessionStorage.getItem(STORAGE_KEYS.failures) || '0', 10) + 1
-    sessionStorage.setItem(STORAGE_KEYS.failures, String(failures))
+    const failures = parseInt(localStorage.getItem(STORAGE_KEYS.failures) || '0', 10) + 1
+    localStorage.setItem(STORAGE_KEYS.failures, String(failures))
 
-    if (failures >= 5) {
-      // Escalating cooldown: 30s at 5 failures, doubles each 5, caps at 300s
-      const tier = Math.floor((failures - 5) / 5)
-      const cooldown = Math.min(30 * Math.pow(2, tier), 300)
-      const until = Date.now() + cooldown * 1000
-      sessionStorage.setItem(STORAGE_KEYS.lockoutUntil, String(until))
-      return { isLockedOut: true, remainingSeconds: cooldown }
+    if (failures >= 3) {
+      localStorage.setItem(STORAGE_KEYS.permanentLock, 'true')
+      return { isLockedOut: true, remainingSeconds: 0, isPermanentlyLocked: true }
     }
-    return { isLockedOut: false, remainingSeconds: 0 }
+
+    const tierIndex = Math.min(failures - 1, LOCKOUT_TIERS.length - 1)
+    const cooldown = LOCKOUT_TIERS[tierIndex]
+    const until = Date.now() + cooldown * 1000
+    sessionStorage.setItem(STORAGE_KEYS.lockoutUntil, String(until))
+    return { isLockedOut: true, remainingSeconds: cooldown }
   } catch {
     return { isLockedOut: false, remainingSeconds: 0 }
   }
@@ -145,7 +193,7 @@ export function recordFailedAttempt(): LockoutState {
 
 export function resetLockout(): void {
   try {
-    sessionStorage.removeItem(STORAGE_KEYS.failures)
+    localStorage.removeItem(STORAGE_KEYS.failures)
     sessionStorage.removeItem(STORAGE_KEYS.lockoutUntil)
   } catch {
     // fail silently
@@ -161,7 +209,7 @@ export async function syncPinToCloud(hash: string, salt: string): Promise<void> 
       p_pin_salt: salt,
     })
   } catch {
-    // best-effort — local PIN already saved
+    // best-effort
   }
 }
 
@@ -173,11 +221,18 @@ export async function clearPinFromCloud(): Promise<void> {
   }
 }
 
-export function hydrateFromCloud(hash: string, salt: string): void {
+export async function hydrateFromCloud(hash: string, salt: string): Promise<void> {
   try {
-    localStorage.setItem(STORAGE_KEYS.hash, hash)
-    localStorage.setItem(STORAGE_KEYS.salt, salt)
+    await secureSet(STORAGE_KEYS.hash, hash)
+    await secureSet(STORAGE_KEYS.salt, salt)
+    _pinHash = hash
+    _pinSalt = salt
+    _pinHydrated = true
   } catch {
-    // localStorage unavailable
+    // secure storage unavailable
   }
+}
+
+export async function initPinService(): Promise<void> {
+  await hydratePinCache()
 }

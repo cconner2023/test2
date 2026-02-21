@@ -26,9 +26,7 @@ import { useAuth } from './Hooks/useAuth'
 import { useAuthStore } from './stores/useAuthStore'
 import { TrainingDrawer } from './Components/TrainingDrawer'
 import { getTaskData } from './Data/TrainingData'
-import { isPinEnabled, isSessionUnlocked, clearSessionUnlocked } from './lib/pinService'
-import { PinLockScreen } from './Components/PinLockScreen'
-import { SetPasswordScreen } from './Components/SetPasswordScreen'
+import { LockGate } from './Components/LockGate'
 import { ErrorBoundary } from './Components/ErrorBoundary'
 
 // PWA App Shortcut: capture ?view= URL parameter once at module load time
@@ -53,23 +51,6 @@ const _postUpdateNav = (() => {
 function AppContent() {
   const searchInputRef = useRef<HTMLInputElement>(null!)
   const { theme, toggleTheme } = useTheme()
-  const [isPinLocked, setIsPinLocked] = useState(() => isPinEnabled() && !isSessionUnlocked())
-
-  // Re-lock when app goes to background (tab switch, app switch on mobile)
-  useEffect(() => {
-    const onVisChange = () => {
-      if (document.visibilityState === 'hidden' && isPinEnabled() && !isPinLocked) {
-        clearSessionUnlocked()
-        setIsPinLocked(true)
-      }
-    }
-    document.addEventListener('visibilitychange', onVisChange)
-    return () => document.removeEventListener('visibilitychange', onVisChange)
-  }, [isPinLocked])
-
-  const handlePinUnlock = useCallback(() => {
-    setIsPinLocked(false)
-  }, [])
 
   // Initialise the Zustand auth store listener (once per mount)
   useEffect(() => useAuthStore.getState().init(), [])
@@ -111,86 +92,46 @@ function AppContent() {
     // Intercept training items — split by guidelineType
     if (result.type === 'training' && result.data?.guidelineType) {
 
-      // STP training tasks — navigate to algorithm if symptom context exists, otherwise open training drawer
+      const openTrainingPanel = (taskId: string) => {
+        if (navigation.isMobile) {
+          navigation.setShowTrainingDrawer(taskId)
+        } else {
+          activeNote.openTrainingTask(taskId)
+          navigation.setShowSettings(true)
+        }
+      }
+
+      const openTrainingForTask = (taskId: string) => {
+        if (result.data?.categoryRef && result.data?.symptomRef) {
+          navigation.handleNavigation({
+            type: 'CC',
+            id: result.data.symptomId!,
+            icon: result.data.symptomRef.icon,
+            text: result.data.symptomRef.text,
+            data: {
+              categoryId: result.data.categoryId,
+              symptomId: result.data.symptomId,
+              categoryRef: result.data.categoryRef,
+              symptomRef: result.data.symptomRef
+            }
+          })
+          // Deferred so it doesn't get clobbered by CLOSE_ALL_DRAWERS in handleNavigation
+          requestAnimationFrame(() => openTrainingPanel(taskId))
+        } else {
+          openTrainingPanel(taskId)
+        }
+      }
+
       if (result.data.guidelineType === 'stp-task') {
         const taskId = result.data.taskId
-        if (taskId) {
-          if (result.data?.categoryRef && result.data?.symptomRef) {
-            // Symptom context exists — navigate to algorithm and open training drawer
-            navigation.handleNavigation({
-              type: 'CC',
-              id: result.data.symptomId!,
-              icon: result.data.symptomRef.icon,
-              text: result.data.symptomRef.text,
-              data: {
-                categoryId: result.data.categoryId,
-                symptomId: result.data.symptomId,
-                categoryRef: result.data.categoryRef,
-                symptomRef: result.data.symptomRef
-              }
-            })
-            // Deferred so it doesn't get clobbered by CLOSE_ALL_DRAWERS in handleNavigation
-            requestAnimationFrame(() => {
-              if (navigation.isMobile) {
-                navigation.setShowTrainingDrawer(taskId)
-              } else {
-                activeNote.openTrainingTask(taskId)
-                navigation.setShowSettings(true)
-              }
-            })
-          } else {
-            // No symptom context — open training drawer/panel only
-            if (navigation.isMobile) {
-              navigation.setShowTrainingDrawer(taskId)
-            } else {
-              activeNote.openTrainingTask(taskId)
-              navigation.setShowSettings(true)
-            }
-          }
-        }
+        if (taskId) openTrainingForTask(taskId)
         search.clearSearch()
         return
       }
 
-      // STP/MEDCOM items from CategoryList/SymptomInfoDrawer — taskId is on result.icon
       if (result.data.guidelineType === 'stp' || result.data.guidelineType === 'medcom') {
         const taskId = result.icon
-        if (taskId && getTaskData(taskId)) {
-          if (result.data?.categoryRef && result.data?.symptomRef) {
-            // Symptom context exists — navigate to algorithm and open training drawer
-            navigation.handleNavigation({
-              type: 'CC',
-              id: result.data.symptomId!,
-              icon: result.data.symptomRef.icon,
-              text: result.data.symptomRef.text,
-              data: {
-                categoryId: result.data.categoryId,
-                symptomId: result.data.symptomId,
-                categoryRef: result.data.categoryRef,
-                symptomRef: result.data.symptomRef
-              }
-            })
-            // Deferred so it doesn't get clobbered by CLOSE_ALL_DRAWERS in handleNavigation
-            requestAnimationFrame(() => {
-              if (navigation.isMobile) {
-                navigation.setShowTrainingDrawer(taskId)
-              } else {
-                activeNote.openTrainingTask(taskId)
-                navigation.setShowSettings(true)
-              }
-            })
-          } else {
-            // No symptom context — open training drawer/panel only
-            if (navigation.isMobile) {
-              navigation.setShowTrainingDrawer(taskId)
-            } else {
-              activeNote.openTrainingTask(taskId)
-              navigation.setShowSettings(true)
-            }
-          }
-          search.clearSearch()
-          return
-        }
+        if (taskId && getTaskData(taskId)) openTrainingForTask(taskId)
         search.clearSearch()
         return
       }
@@ -218,25 +159,12 @@ function AppContent() {
     navigation.handleBackClick()
   }
 
-  const handleImportClick = () => {
-    navigation.setShowNoteImport(true)
-  }
-
   const handleSearchChange = (value: string) => {
     if (value.trim() !== "") {
       navigation.setShowNoteImport(false)
       navigation.expandSearchOnMobile()
     }
     search.handleSearchChange(value)
-  }
-
-  const handleSearchFocus = () => {
-    navigation.expandSearchOnMobile()
-  }
-
-  // Settings click handler
-  const handleSettingsClick = () => {
-    navigation.setShowSettings(true)
   }
 
   // Title: empty when searching (hides dynamic title), otherwise from navigation
@@ -265,7 +193,7 @@ function AppContent() {
             search={{
               searchInput: search.searchInput,
               onSearchChange: handleSearchChange,
-              onSearchFocus: handleSearchFocus,
+              onSearchFocus: navigation.expandSearchOnMobile,
               onSearchClear: () => search.clearSearch(),
               onSearchCollapse: () => navigation.setSearchExpanded(false),
               searchInputRef: searchInputRef,
@@ -276,9 +204,9 @@ function AppContent() {
               onBackClick: handleBackClick,
               onMenuClick: navigation.toggleMenu,
               onMenuClose: navigation.closeMenu,
-              onImportClick: handleImportClick,
+              onImportClick: () => navigation.setShowNoteImport(true),
               onMedicationClick: navigation.handleShowMedications,
-              onSettingsClick: handleSettingsClick,
+              onSettingsClick: () => navigation.setShowSettings(true),
               onInfoClick: navigation.toggleSymptomInfo,
             }}
             ui={{
@@ -473,8 +401,6 @@ function AppContent() {
         <FeedbackModal visible={activeNote.showNoteSavedModal} variant="success" title="Note Saved" subtitle="Saved to My Notes" />
         <FeedbackModal visible={activeNote.showImportDuplicateModal} variant="warning" title="Note Already Saved" subtitle="This note already exists in your saved notes" />
       </div>
-      {isPinLocked && <PinLockScreen onUnlock={handlePinUnlock} />}
-      {useAuthStore((s) => s.isPasswordRecovery) && <SetPasswordScreen />}
     </div>
   )
 }
@@ -482,7 +408,9 @@ function AppContent() {
 function App() {
   return (
     <ThemeProvider>
-      <AppContent />
+      <LockGate>
+        <AppContent />
+      </LockGate>
     </ThemeProvider>
   )
 }

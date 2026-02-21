@@ -6,7 +6,9 @@ import {
   checkLockout,
   recordFailedAttempt,
   resetLockout,
+  clearPinPermanentLock,
 } from '../lib/pinService'
+import { verifyPasswordLocally } from '../lib/authService'
 import {
   isBiometricAvailable,
   isBiometricEnrolled,
@@ -25,6 +27,8 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
   const lockoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const [biometricReady, setBiometricReady] = useState(false)
   const biometricAttempted = useRef(false)
+  const [passwordInput, setPasswordInput] = useState('')
+  const [passwordError, setPasswordError] = useState(false)
 
   // Check biometric availability on mount
   useEffect(() => {
@@ -47,9 +51,9 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [biometricReady])
 
-  // Countdown timer for lockout
+  // Countdown timer for lockout (skip for permanent lock — no countdown)
   useEffect(() => {
-    if (!lockout.isLockedOut) {
+    if (!lockout.isLockedOut || lockout.isPermanentlyLocked) {
       if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current)
       return
     }
@@ -66,7 +70,21 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
     return () => {
       if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current)
     }
-  }, [lockout.isLockedOut])
+  }, [lockout.isLockedOut, lockout.isPermanentlyLocked])
+
+  const handlePasswordUnlock = useCallback(async () => {
+    if (!passwordInput) return
+    const valid = await verifyPasswordLocally(passwordInput)
+    if (valid) {
+      clearPinPermanentLock()
+      resetLockout()
+      setSessionUnlocked()
+      onUnlock()
+    } else {
+      setPasswordError(true)
+      setPasswordInput('')
+    }
+  }, [passwordInput, onUnlock])
 
   const handleBiometric = useCallback(async () => {
     try {
@@ -149,11 +167,13 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
         </div>
         <h1 className="text-xl font-bold text-primary tracking-wide">ADTMC</h1>
         <p className="text-sm text-tertiary mt-1">
-          {lockout.isLockedOut
-            ? `Too many attempts. Try again in ${lockout.remainingSeconds}s`
-            : error
-              ? 'Incorrect PIN'
-              : 'Enter your PIN'}
+          {lockout.isPermanentlyLocked
+            ? 'PIN locked. Enter password to unlock.'
+            : lockout.isLockedOut
+              ? `Too many attempts. Try again in ${lockout.remainingSeconds}s`
+              : error
+                ? 'Incorrect PIN'
+                : 'Enter your PIN'}
         </p>
       </div>
 
@@ -171,8 +191,33 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
         ))}
       </div>
 
+      {/* Password unlock for permanent lock */}
+      {lockout.isPermanentlyLocked && (
+        <div className="flex flex-col items-center gap-3 mb-6 w-[270px]">
+          <input
+            type="password"
+            value={passwordInput}
+            onChange={e => { setPasswordInput(e.target.value); setPasswordError(false) }}
+            onKeyDown={e => e.key === 'Enter' && handlePasswordUnlock()}
+            placeholder="Account password"
+            autoFocus
+            className="w-full px-4 py-3 rounded-lg bg-themewhite2 text-primary text-center text-sm border border-themegray1/30 focus:outline-none focus:border-themeblue2"
+          />
+          {passwordError && (
+            <p className="text-xs text-themeredred">Incorrect password</p>
+          )}
+          <button
+            onClick={handlePasswordUnlock}
+            disabled={!passwordInput}
+            className="w-full py-3 rounded-lg bg-themeblue2 text-white text-sm font-medium disabled:opacity-40"
+          >
+            Unlock
+          </button>
+        </div>
+      )}
+
       {/* Numeric keypad */}
-      <div className="grid grid-cols-3 gap-x-6 gap-y-3 w-[270px]">
+      <div className={`grid grid-cols-3 gap-x-6 gap-y-3 w-[270px] ${lockout.isPermanentlyLocked ? 'opacity-30 pointer-events-none' : ''}`}>
         {keypadButtons.flat().map((key, idx) => {
           if (key === '') {
             return <div key={idx} />

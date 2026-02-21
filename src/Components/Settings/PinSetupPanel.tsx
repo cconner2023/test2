@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Lock, Delete, KeyRound, Trash2, ScanFace, ShieldX } from 'lucide-react'
+import { Lock, Delete, KeyRound, Trash2, ScanFace, ShieldX, Timer } from 'lucide-react'
 import { StatusBanner } from './StatusBanner'
 import { UI_TIMING } from '../../Utilities/constants'
 import {
@@ -13,7 +13,10 @@ import {
   getStoredPin,
   syncPinToCloud,
   clearPinFromCloud,
+  getInactivityTimeoutMs,
+  setInactivityTimeoutMs,
 } from '../../lib/pinService'
+import { useAuth } from '../../Hooks/useAuth'
 import {
   isBiometricAvailable,
   isBiometricEnrolled,
@@ -23,9 +26,16 @@ import {
 
 type PinView = 'status' | 'set-new' | 'confirm-new' | 'verify-current' | 'change-new' | 'change-confirm'
 
+const TIMEOUT_OPTIONS = [
+  { label: '20 minutes', value: 20 * 60 * 1000 },
+  { label: 'Never', value: 0 },
+]
+
 export const PinSetupPanel = () => {
   const [view, setView] = useState<PinView>('status')
   const [pinEnabled, setPinEnabled] = useState(isPinEnabled())
+  const [timeoutMs, setTimeoutMs] = useState(getInactivityTimeoutMs)
+  const { isAuthenticated } = useAuth()
   const [digits, setDigits] = useState('')
   const [firstPin, setFirstPin] = useState('')
   const [error, setError] = useState('')
@@ -293,6 +303,42 @@ export const PinSetupPanel = () => {
                 <span className="text-sm font-medium text-themeredred">Remove PIN</span>
               </button>
             </div>
+          )}
+
+          {/* Inactivity timeout picker — visible to all authenticated users */}
+          {isAuthenticated && (
+            <>
+              <div className="border-t border-tertiary/10 mt-5 pt-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 rounded-full bg-themeblue2/10 flex items-center justify-center">
+                    <Timer size={16} className="text-themeblue2" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-primary">Inactivity Timeout</p>
+                    <p className="text-[11px] text-tertiary/70">
+                      {pinEnabled
+                        ? 'Locks to PIN screen after inactivity'
+                        : 'Requires password re-entry after inactivity'}
+                    </p>
+                  </div>
+                </div>
+                <select
+                  value={timeoutMs}
+                  onChange={(e) => {
+                    const ms = Number(e.target.value)
+                    setTimeoutMs(ms)
+                    setInactivityTimeoutMs(ms)
+                  }}
+                  className="w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-sm
+                             border border-tertiary/10 focus:border-themeblue2 focus:outline-none
+                             transition-colors appearance-none cursor-pointer"
+                >
+                  {TIMEOUT_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            </>
           )}
         </div>
       </div>

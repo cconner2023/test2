@@ -27,6 +27,7 @@ import { getTaskData } from '../../Data/TrainingData';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../Hooks/useAuth';
 import { clearAllUserData } from '../../lib/offlineDb';
+import { clearServiceWorkerCaches } from '../../lib/cacheService';
 import { PANEL, PANEL_TARGET, type PanelId, type SettingsItem } from './SettingsTypes';
 import { UI_TIMING } from '../../Utilities/constants';
 import { MainSettingsPanel } from './MainSettingsPanel';
@@ -349,7 +350,7 @@ export const Settings = ({
                                     handleItemClick(PANEL.USER_PROFILE, handleClose);
                                 }
                             }}
-                            onSignOut={async () => { await clearAllUserData(); await signOut(); handleClose(); }}
+                            onSignOut={async () => { await clearAllUserData(); await clearServiceWorkerCaches(); await signOut(); handleClose(); }}
                             isAuthenticated={!!isAuthenticated}
                             isConnected={isSupabaseConnected}
                             syncStatus={syncStatus}

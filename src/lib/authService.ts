@@ -8,8 +8,64 @@
 import { supabase } from './supabase'
 import type { User, Session, AuthError } from '@supabase/supabase-js'
 import { createLogger } from '../Utilities/Logger'
+import { hashWithSalt, verifyHash } from './cryptoUtils'
+import { secureSet, secureGet, secureRemove } from './secureStorage'
+import { fireNotification } from './notifyDispatcher'
 
 const logger = createLogger('AuthService')
+
+// --- Offline password verification (mirrors PIN hash pattern) ---
+
+const PW_KEYS = {
+  hash: 'adtmc_pw_verify_hash',
+  salt: 'adtmc_pw_verify_salt',
+} as const
+
+let _pwHash: string | null = null
+let _pwSalt: string | null = null
+let _pwHydrated = false
+
+async function hydratePwCache(): Promise<void> {
+  if (_pwHydrated) return
+  _pwHash = await secureGet(PW_KEYS.hash)
+  _pwSalt = await secureGet(PW_KEYS.salt)
+  _pwHydrated = true
+}
+
+export async function storePasswordHash(password: string): Promise<void> {
+  try {
+    const { hash, salt } = await hashWithSalt(password)
+    await secureSet(PW_KEYS.hash, hash)
+    await secureSet(PW_KEYS.salt, salt)
+    _pwHash = hash
+    _pwSalt = salt
+    _pwHydrated = true
+  } catch {
+    // Storage full or unavailable
+  }
+}
+
+export async function verifyPasswordLocally(password: string): Promise<boolean> {
+  try {
+    await hydratePwCache()
+    if (!_pwHash || !_pwSalt) return false
+    return verifyHash(password, _pwHash, _pwSalt)
+  } catch {
+    return false
+  }
+}
+
+export async function clearPasswordVerification(): Promise<void> {
+  try {
+    await secureRemove(PW_KEYS.hash)
+    await secureRemove(PW_KEYS.salt)
+    _pwHash = null
+    _pwSalt = null
+    _pwHydrated = false
+  } catch {
+    // fail silently
+  }
+}
 
 export interface AuthResult {
   user: User | null
@@ -80,14 +136,15 @@ export async function signIn(
 
   // Fire-and-forget: notify dev users of login
   if (!error && data.user) {
-    supabase.functions.invoke('send-push-notification', {
-      body: {
-        type: 'user_login',
-        name: null,
-        email,
-        author_id: data.user.id,
-      },
-    }).catch(() => { /* push notification delivery is best-effort */ })
+    // Store password hash for offline lock-screen verification
+    storePasswordHash(password).catch(() => {})
+
+    fireNotification({
+      type: 'user_login',
+      name: null,
+      email,
+      author_id: data.user.id,
+    })
   }
 
   return {

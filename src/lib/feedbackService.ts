@@ -1,5 +1,7 @@
 import { supabase } from './supabase'
 import { createLogger } from '../Utilities/Logger'
+import { fireNotification } from './notifyDispatcher'
+import { fromSupabase } from './result'
 
 const logger = createLogger('FeedbackService')
 
@@ -37,15 +39,17 @@ export async function submitFeedback(
     const { data: { user } } = await supabase.auth.getUser()
     if (user) {
       user_id = user.id
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('display_name')
-        .eq('id', user.id)
-        .single()
-      display_name = profile?.display_name ?? null
+      const profileResult = fromSupabase<{ display_name: string | null }>(
+        await supabase
+          .from('profiles')
+          .select('display_name')
+          .eq('id', user.id)
+          .single()
+      )
+      display_name = profileResult.ok ? profileResult.data.display_name : null
     }
 
-    const { error } = await supabase.from('feedback').insert({
+    const { error: insertError } = await supabase.from('feedback').insert({
       user_id,
       display_name,
       rating: data.rating,
@@ -55,16 +59,15 @@ export async function submitFeedback(
       needs_improvement: data.needs_improvement?.trim() || null,
     })
 
-    if (error) throw error
+    if (insertError) {
+      return { success: false, error: insertError.message }
+    }
 
-    // Fire-and-forget: notify dev users of new feedback
-    supabase.functions.invoke('send-push-notification', {
-      body: {
-        type: 'new_feedback',
-        name: display_name,
-        email: null,
-      },
-    }).catch(() => { /* push notification delivery is best-effort */ })
+    fireNotification({
+      type: 'new_feedback',
+      name: display_name,
+      email: null,
+    })
 
     return { success: true }
   } catch (error) {
@@ -82,14 +85,19 @@ export async function submitFeedback(
  */
 export async function getFeedbackList(): Promise<FeedbackRow[]> {
   try {
-    const { data, error } = await supabase
-      .from('feedback')
-      .select('*')
-      .order('created_at', { ascending: false })
+    const result = fromSupabase<FeedbackRow[]>(
+      await supabase
+        .from('feedback')
+        .select('*')
+        .order('created_at', { ascending: false })
+    )
 
-    if (error) throw error
+    if (!result.ok) {
+      logger.error('Failed to get feedback:', result.error)
+      return []
+    }
 
-    return (data || []) as FeedbackRow[]
+    return result.data
   } catch (error) {
     logger.error('Failed to get feedback:', error)
     return []

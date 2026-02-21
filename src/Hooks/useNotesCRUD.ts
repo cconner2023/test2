@@ -31,7 +31,7 @@ export interface NotesCRUDDeps {
 export interface NotesCRUDResult {
   saveNote: (
     note: Omit<SavedNote, 'id' | 'createdAt' | 'sync_status' | 'authorId' | 'authorName'>,
-    options?: { originating_clinic_id?: string | null }
+    options?: { originating_clinic_id?: string | null; timestamp?: string }
   ) => { success: boolean; error?: string; noteId?: string };
   updateNote: (
     noteId: string,
@@ -57,7 +57,7 @@ export function useNotesCRUD(deps: NotesCRUDDeps): NotesCRUDResult {
   const saveNote = useCallback(
     (
       note: Omit<SavedNote, 'id' | 'createdAt' | 'sync_status' | 'authorId' | 'authorName'>,
-      options?: { originating_clinic_id?: string | null }
+      options?: { originating_clinic_id?: string | null; timestamp?: string }
     ): { success: boolean; error?: string; noteId?: string } => {
       const userId = userIdRef.current;
       if (!userId) {
@@ -72,7 +72,7 @@ export function useNotesCRUD(deps: NotesCRUDDeps): NotesCRUDResult {
       const optimisticNote: SavedNote = {
         id: noteId,
         encodedText: note.encodedText,
-        createdAt: new Date().toISOString(),
+        createdAt: options?.timestamp ?? new Date().toISOString(),
         symptomIcon: note.symptomIcon,
         symptomText: note.symptomText,
         dispositionType: note.dispositionType,
@@ -100,7 +100,7 @@ export function useNotesCRUD(deps: NotesCRUDDeps): NotesCRUDResult {
         ? { ...note, originating_clinic_id: options.originating_clinic_id }
         : note
       notesApi
-        .createNote(noteInput, noteId)
+        .createNote(noteInput, noteId, options?.timestamp)
         .then((savedNote) => {
           // Replace the optimistic note with the persisted version.
           // Both share the same ID (noteId), so this works reliably

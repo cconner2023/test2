@@ -4,6 +4,7 @@
 
 import { useState, useCallback, useRef, useEffect } from 'react'
 import { createLogger } from '../Utilities/Logger'
+import { encodedContentEquals } from '../Utilities/NoteCodec'
 import { UI_TIMING } from '../Utilities/constants'
 
 const logger = createLogger('ActiveNote')
@@ -267,8 +268,8 @@ export function useActiveNote({
 
   // Import success handler — checks for duplicates (personal + clinic), saves imported note with 'external source' tag, then opens My Notes
   const handleImportSuccess = useCallback((data: ImportSuccessData) => {
-    // Check for duplicate in personal notes
-    const existingPersonal = notesStorage.notes.find(n => n.encodedText === data.encodedText)
+    // Check for duplicate in personal notes (ignore volatile segments like timestamp, userId, clinicId)
+    const existingPersonal = notesStorage.notes.find(n => encodedContentEquals(n.encodedText, data.encodedText))
 
     if (existingPersonal) {
       // Duplicate found in personal notes — navigate to My Notes with it pre-selected
@@ -283,8 +284,8 @@ export function useActiveNote({
       return
     }
 
-    // Check for duplicate in clinic notes
-    const existingClinic = notesStorage.clinicNotes.find(n => n.encodedText === data.encodedText)
+    // Check for duplicate in clinic notes (ignore volatile segments like timestamp, userId, clinicId)
+    const existingClinic = notesStorage.clinicNotes.find(n => encodedContentEquals(n.encodedText, data.encodedText))
 
     if (existingClinic) {
       // Duplicate found in clinic notes — show duplicate modal but don't navigate to My Notes
@@ -336,7 +337,10 @@ export function useActiveNote({
       dispositionType: disposition.type,
       dispositionText: disposition.text,
       source: externalSource,
-    }, { originating_clinic_id: originatingClinicId })
+    }, {
+      originating_clinic_id: originatingClinicId,
+      timestamp: preview?.timestamp?.toISOString(),
+    })
 
     if (!saveResult.success) {
       // Show error toast instead of success modal

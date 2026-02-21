@@ -16,6 +16,9 @@
 
 import { supabase } from './supabase'
 import { createLogger } from '../Utilities/Logger'
+import { classifySupabaseError, ErrorCode } from './errorCodes'
+import { validateRpcResult } from './validators'
+import { fireNotification } from './notifyDispatcher'
 
 const logger = createLogger('AccountRequest')
 
@@ -81,8 +84,8 @@ export async function submitAccountRequest(
     })
 
     if (error) {
-      // Rate limiting error from the RPC
-      if (error.message.includes('Too many pending requests')) {
+      const code = classifySupabaseError(error)
+      if (code === ErrorCode.RATE_LIMITED) {
         return {
           success: false,
           error: 'You have too many pending requests. Please wait for existing requests to be reviewed.',
@@ -91,16 +94,16 @@ export async function submitAccountRequest(
       throw error
     }
 
-    const result = data as { id: string; status_check_token: string; message: string } | null
+    const validated = validateRpcResult<{ id: string; status_check_token: string; message: string }>(
+      data, ['id', 'status_check_token'], 'submitAccountRequest'
+    )
+    const result = validated.ok ? validated.data : null
 
-    // Fire-and-forget: notify dev users via push notification
-    supabase.functions.invoke('send-push-notification', {
-      body: {
-        type: 'new_account',
-        name: `${request.firstName} ${request.lastName}`.trim(),
-        email: request.email,
-      },
-    }).catch(() => { /* push notification delivery is best-effort */ })
+    fireNotification({
+      type: 'new_account',
+      name: `${request.firstName} ${request.lastName}`.trim(),
+      email: request.email,
+    })
 
     return {
       success: true,
@@ -147,7 +150,10 @@ export async function submitProfileChangeRequest(
 
     if (error) throw error
 
-    const result = data as { id: string; status_check_token: string; message: string } | null
+    const validated = validateRpcResult<{ id: string; status_check_token: string; message: string }>(
+      data, ['id', 'status_check_token'], 'submitProfileChangeRequest'
+    )
+    const result = validated.ok ? validated.data : null
 
     return {
       success: true,
@@ -185,7 +191,7 @@ export async function checkRequestStatus(
 
     if (error) throw error
 
-    const result = data as {
+    const validated = validateRpcResult<{
       found: boolean
       id?: string
       email?: string
@@ -197,7 +203,9 @@ export async function checkRequestStatus(
       reviewed_at?: string | null
       rejection_reason?: string | null
       message?: string
-    } | null
+    }>(data, ['found'], 'checkRequestStatus')
+
+    const result = validated.ok ? validated.data : null
 
     if (!result || !result.found) return null
 

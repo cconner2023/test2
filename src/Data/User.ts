@@ -7,6 +7,13 @@ export interface TextExpander {
     expansion: string;
 }
 
+export interface CustomPEBlock {
+    id: string;
+    name: string;
+    normalText: string;
+    abnormalTags: string[];
+}
+
 export interface UserTypes {
     firstName?: string;
     lastName?: string;
@@ -28,8 +35,10 @@ export interface UserTypes {
     noteIncludeHPI?: boolean;
     /** Default: include Physical Exam section when writing notes */
     noteIncludePE?: boolean;
-    /** PE depth: 'minimal' (vitals + free-text), 'expanded' (vitals + category items, all default normal) */
-    peDepth?: 'minimal' | 'expanded';
+    /** PE depth: 'minimal', 'expanded', or 'custom' */
+    peDepth?: 'minimal' | 'expanded' | 'custom';
+    /** User-defined custom PE blocks */
+    customPEBlocks?: CustomPEBlock[];
     /** User-defined text expander abbreviations */
     textExpanders?: TextExpander[];
     /** Whether text expander is active in the HPI field */

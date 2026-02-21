@@ -5,10 +5,12 @@ import {
     getMSKBodyPart,
     getPECategory,
     getGeneralFindings,
+    isBackPainCode,
     VITAL_SIGNS,
     WRAPPER_BEFORE_COUNT,
 } from '../Data/PhysicalExamData';
-import type { CategoryLetter, Laterality, PECategoryDef, PEItem, AbnormalOption, GeneralFinding } from '../Data/PhysicalExamData';
+import type { CategoryLetter, Laterality, SpineRegion, PECategoryDef, PEItem, AbnormalOption, GeneralFinding } from '../Data/PhysicalExamData';
+import type { CustomPEBlock } from '../Data/User';
 
 type SystemStatus = 'not-examined' | 'normal' | 'abnormal';
 
@@ -18,7 +20,7 @@ interface ItemState {
     selectedAbnormals: string[];
 }
 
-type PEDepth = 'minimal' | 'expanded';
+type PEDepth = 'minimal' | 'expanded' | 'custom';
 
 interface PhysicalExamProps {
     initialText?: string;
@@ -26,6 +28,7 @@ interface PhysicalExamProps {
     colors: ReturnType<typeof getColorClasses>;
     symptomCode: string;
     depth?: PEDepth;
+    customBlocks?: CustomPEBlock[];
 }
 
 // ── Old-format body systems (for backward-compat parsing) ─────
@@ -55,6 +58,7 @@ function buildAbnormalText(state: ItemState, options?: AbnormalOption[]): string
     if (state.findings.trim()) parts.push(state.findings.trim());
     return parts.join('; ') || '(no details)';
 }
+
 
 // ── Parse initial text ────────────────────────────────────────
 
@@ -105,6 +109,7 @@ function parseInitialText(
     items: Record<string, ItemState>;
     generals: Record<string, ItemState>;
     laterality: Laterality;
+    spineRegion: SpineRegion;
     additional: string;
     vitals: Record<string, string>;
 } {
@@ -113,11 +118,12 @@ function parseInitialText(
     const generals: Record<string, ItemState> = {};
     generalDefs.forEach(g => { generals[g.key] = defaultItemState(); });
     let laterality: Laterality = 'right';
+    let spineRegion: SpineRegion = 'lumbar';
     let additional = '';
     const vitals: Record<string, string> = {};
     VITAL_SIGNS.forEach(v => { vitals[v.key] = ''; });
 
-    if (!text) return { items, generals, laterality, additional, vitals };
+    if (!text) return { items, generals, laterality, spineRegion, additional, vitals };
 
     const lines = text.split('\n');
     let inAdditional = false;
@@ -180,10 +186,15 @@ function parseInitialText(
         if (line.match(/^(HEENT|Gastrointestinal|Cardiorespiratory|Genitourinary|Neuropsychiatric|Constitutional|Eye|Gynecological|Dermatological|Environmental|Miscellaneous|Misc Return|Musculoskeletal)(\s*[-:]|$)/)) {
             continue;
         }
-        // MSK body part line (extract laterality)
+        // MSK body part line (extract laterality or spine region)
         if (line.startsWith('MSK')) {
-            const latMatch = line.match(/\((Left|Right|Bilateral)\)/i);
-            if (latMatch) laterality = latMatch[1].toLowerCase() as Laterality;
+            const spineMatch = line.match(/\((Cervical|Thoracic|Lumbar|Sacral)\)/i);
+            if (spineMatch) {
+                spineRegion = spineMatch[1].toLowerCase() as SpineRegion;
+            } else {
+                const latMatch = line.match(/\((Left|Right|Bilateral)\)/i);
+                if (latMatch) laterality = latMatch[1].toLowerCase() as Laterality;
+            }
             continue;
         }
 
@@ -241,7 +252,7 @@ function parseInitialText(
         additional = additional ? `${additional}\n${extraContent}` : extraContent;
     }
 
-    return { items, generals, laterality, additional, vitals };
+    return { items, generals, laterality, spineRegion, additional, vitals };
 }
 
 // Parse abnormal text back into selected chip keys + free text remainder
@@ -275,6 +286,29 @@ function formatExamLine(label: string, state: ItemState, normalText?: string, ab
     return `${uLabel}: ${abnormalText}`;
 }
 
+function formatVitals(vitals: Record<string, string>): string[] {
+    const lines: string[] = [];
+    const hasVitals = VITAL_SIGNS.some(v => vitals[v.key]?.trim());
+    if (!hasVitals) return lines;
+    lines.push('Vital Signs:');
+    for (const v of VITAL_SIGNS) {
+        if (v.key === 'bpSys') {
+            const sys = vitals['bpSys']?.trim();
+            const dia = vitals['bpDia']?.trim();
+            if (sys || dia) {
+                lines.push(`  BP: ${sys || '--'}/${dia || '--'} mmHg`);
+            }
+            continue;
+        }
+        if (v.key === 'bpDia') continue;
+        const val = vitals[v.key]?.trim();
+        if (val) {
+            lines.push(`  ${v.shortLabel}: ${val} ${v.unit}`);
+        }
+    }
+    return lines;
+}
+
 function generateText(
     categoryDef: PECategoryDef,
     itemStates: Record<string, ItemState>,
@@ -284,29 +318,9 @@ function generateText(
     laterality: Laterality,
     additional: string,
     vitals: Record<string, string>,
+    spineRegion?: SpineRegion,
 ): string {
-    const parts: string[] = [];
-
-    // Vital Signs section (unchanged)
-    const hasVitals = VITAL_SIGNS.some(v => vitals[v.key]?.trim());
-    if (hasVitals) {
-        parts.push('Vital Signs:');
-        for (const v of VITAL_SIGNS) {
-            if (v.key === 'bpSys') {
-                const sys = vitals['bpSys']?.trim();
-                const dia = vitals['bpDia']?.trim();
-                if (sys || dia) {
-                    parts.push(`  BP: ${sys || '--'}/${dia || '--'} mmHg`);
-                }
-                continue;
-            }
-            if (v.key === 'bpDia') continue;
-            const val = vitals[v.key]?.trim();
-            if (val) {
-                parts.push(`  ${v.shortLabel}: ${val} ${v.unit}`);
-            }
-        }
-    }
+    const parts: string[] = [...formatVitals(vitals)];
 
     // Flat exam items: before wrappers → category items → after wrappers
     const beforeWrappers = generalDefs.slice(0, WRAPPER_BEFORE_COUNT);
@@ -324,8 +338,13 @@ function generateText(
     if (categoryDef.category === 'B' && bodyPart) {
         const hasExamined = categoryDef.items.some(i => itemStates[i.key]?.status !== 'not-examined');
         if (hasExamined) {
-            const latLabel = laterality === 'bilateral' ? 'Bilateral' : laterality === 'left' ? 'Left' : 'Right';
-            examLines.push(`MSK - ${bodyPart.label} (${latLabel})`);
+            if (isBackPainCode(bodyPart.code) && spineRegion) {
+                const regionLabel = spineRegion.charAt(0).toUpperCase() + spineRegion.slice(1);
+                examLines.push(`MSK - ${bodyPart.label} (${regionLabel})`);
+            } else {
+                const latLabel = laterality === 'bilateral' ? 'Bilateral' : laterality === 'left' ? 'Left' : 'Right';
+                examLines.push(`MSK - ${bodyPart.label} (${latLabel})`);
+            }
         }
     }
 
@@ -337,6 +356,54 @@ function generateText(
     }
 
     // After wrappers (DERM, NEURO, PSYCH)
+    for (const g of afterWrappers) {
+        const state = generalStates[g.key];
+        if (!state || state.status === 'not-examined') continue;
+        examLines.push(formatExamLine(g.label, state, g.normalText, g.abnormalOptions));
+    }
+
+    if (examLines.length > 0) {
+        if (parts.length > 0) parts.push('');
+        parts.push(...examLines);
+    }
+
+    if (additional.trim()) {
+        if (parts.length > 0) parts.push('');
+        parts.push(`Additional Findings: ${additional.trim()}`);
+    }
+
+    return parts.join('\n');
+}
+
+// ── Generate text for custom blocks mode ─────────────────────
+
+function generateCustomText(
+    customBlocks: CustomPEBlock[],
+    customStates: Record<string, ItemState>,
+    generalDefs: GeneralFinding[],
+    generalStates: Record<string, ItemState>,
+    additional: string,
+    vitals: Record<string, string>,
+): string {
+    const parts: string[] = [...formatVitals(vitals)];
+
+    const examLines: string[] = [];
+    const beforeWrappers = generalDefs.slice(0, WRAPPER_BEFORE_COUNT);
+    const afterWrappers = generalDefs.slice(WRAPPER_BEFORE_COUNT);
+
+    for (const g of beforeWrappers) {
+        const state = generalStates[g.key];
+        if (!state || state.status === 'not-examined') continue;
+        examLines.push(formatExamLine(g.label, state, g.normalText, g.abnormalOptions));
+    }
+
+    for (const block of customBlocks) {
+        const state = customStates[block.id];
+        if (!state || state.status === 'not-examined') continue;
+        const tagOptions: AbnormalOption[] = block.abnormalTags.map(t => ({ key: t, label: t }));
+        examLines.push(formatExamLine(block.name, state, block.normalText, tagOptions));
+    }
+
     for (const g of afterWrappers) {
         const state = generalStates[g.key];
         if (!state || state.status === 'not-examined') continue;
@@ -427,7 +494,7 @@ function ExamItemRow({ label, normalText, abnormalOptions, state, onCycleStatus,
 
 // ── Component ─────────────────────────────────────────────────
 
-export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, depth = 'minimal' }: PhysicalExamProps) {
+export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, depth = 'minimal', customBlocks = [] }: PhysicalExamProps) {
     const categoryLetter = getCategoryFromSymptomCode(symptomCode) || 'A';
     const categoryDef = getPECategory(categoryLetter);
     const bodyPart = categoryLetter === 'B' ? getMSKBodyPart(symptomCode) : null;
@@ -439,9 +506,34 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
 
     const [generalStates, setGeneralStates] = useState<Record<string, ItemState>>(() => parsed.generals);
 
+    // Custom block states (keyed by block id)
+    const [customStates, setCustomStates] = useState<Record<string, ItemState>>(() => {
+        const states: Record<string, ItemState> = {};
+        for (const block of customBlocks) {
+            states[block.id] = defaultItemState();
+        }
+        return states;
+    });
+
     const [laterality, setLaterality] = useState<Laterality>(() => parsed.laterality);
+    const [spineRegion, setSpineRegion] = useState<SpineRegion>(() => parsed.spineRegion);
     const [additional, setAdditional] = useState(() => parsed.additional);
     const [vitals, setVitals] = useState<Record<string, string>>(() => parsed.vitals);
+
+    const isBack = isBackPainCode(symptomCode);
+    const isCustom = depth === 'custom' && customBlocks.length > 0;
+
+    // Ensure custom states are in sync when blocks change
+    useEffect(() => {
+        if (!isCustom) return;
+        setCustomStates(prev => {
+            const next: Record<string, ItemState> = {};
+            for (const block of customBlocks) {
+                next[block.id] = prev[block.id] || defaultItemState();
+            }
+            return next;
+        });
+    }, [customBlocks, isCustom]);
 
     const emitChange = useCallback((
         states: Record<string, ItemState>,
@@ -449,13 +541,27 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
         lat: Laterality,
         add: string,
         vit: Record<string, string>,
+        spine?: SpineRegion,
     ) => {
-        onChange(generateText(categoryDef, states, generalDefs, genStates, bodyPart, lat, add, vit));
+        onChange(generateText(categoryDef, states, generalDefs, genStates, bodyPart, lat, add, vit, spine));
     }, [onChange, categoryDef, generalDefs, bodyPart]);
 
+    const emitCustomChange = useCallback((
+        custStates: Record<string, ItemState>,
+        genStates: Record<string, ItemState>,
+        add: string,
+        vit: Record<string, string>,
+    ) => {
+        onChange(generateCustomText(customBlocks, custStates, generalDefs, genStates, add, vit));
+    }, [onChange, customBlocks, generalDefs]);
+
     useEffect(() => {
-        emitChange(itemStates, generalStates, laterality, additional, vitals);
-    }, [itemStates, generalStates, laterality, additional, vitals, emitChange]);
+        if (isCustom) {
+            emitCustomChange(customStates, generalStates, additional, vitals);
+        } else {
+            emitChange(itemStates, generalStates, laterality, additional, vitals, spineRegion);
+        }
+    }, [isCustom, itemStates, customStates, generalStates, laterality, spineRegion, additional, vitals, emitChange, emitCustomChange]);
 
     const setVitalValue = (key: string, value: string) => {
         setVitals(prev => ({ ...prev, [key]: value }));
@@ -493,13 +599,23 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
     };
 
     const markAllNormal = () => {
-        setItemStates(prev => {
-            const next = { ...prev };
-            for (const key of Object.keys(next)) {
-                next[key] = normalItemState();
-            }
-            return next;
-        });
+        if (isCustom) {
+            setCustomStates(prev => {
+                const next = { ...prev };
+                for (const key of Object.keys(next)) {
+                    next[key] = normalItemState();
+                }
+                return next;
+            });
+        } else {
+            setItemStates(prev => {
+                const next = { ...prev };
+                for (const key of Object.keys(next)) {
+                    next[key] = normalItemState();
+                }
+                return next;
+            });
+        }
         setGeneralStates(prev => {
             const next = { ...prev };
             for (const key of Object.keys(next)) {
@@ -556,7 +672,7 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
             </div>
 
             {/* Minimal mode: skip exam items, show only vitals + additional findings */}
-            {depth === 'minimal' ? (
+            {depth === 'minimal' && !isCustom ? (
                 <div>
                     <label className="text-xs text-secondary font-medium block mb-1">Additional Findings</label>
                     <textarea
@@ -577,29 +693,45 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
                 All Normal
             </button>
 
-            {/* MSK laterality selector */}
-            {categoryLetter === 'B' && bodyPart && (
+            {/* MSK laterality / spine region selector */}
+            {!isCustom && categoryLetter === 'B' && bodyPart && (
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-secondary font-medium">{bodyPart.label}</span>
                     <div className="flex gap-1 ml-auto">
-                        {(['left', 'right', 'bilateral'] as Laterality[]).map(lat => (
-                            <button
-                                key={lat}
-                                onClick={() => setLaterality(lat)}
-                                className={`px-2.5 py-1 text-[10px] rounded-full transition-colors ${
-                                    laterality === lat
-                                        ? colors.symptomClass
-                                        : 'bg-themewhite3 text-secondary hover:bg-themewhite'
-                                }`}
-                            >
-                                {lat === 'bilateral' ? 'BL' : lat === 'left' ? 'L' : 'R'}
-                            </button>
-                        ))}
+                        {isBack ? (
+                            (['cervical', 'thoracic', 'lumbar', 'sacral'] as SpineRegion[]).map(region => (
+                                <button
+                                    key={region}
+                                    onClick={() => setSpineRegion(region)}
+                                    className={`px-2.5 py-1 text-[10px] rounded-full transition-colors ${
+                                        spineRegion === region
+                                            ? colors.symptomClass
+                                            : 'bg-themewhite3 text-secondary hover:bg-themewhite'
+                                    }`}
+                                >
+                                    {region.charAt(0).toUpperCase() + region.slice(1)}
+                                </button>
+                            ))
+                        ) : (
+                            (['left', 'right', 'bilateral'] as Laterality[]).map(lat => (
+                                <button
+                                    key={lat}
+                                    onClick={() => setLaterality(lat)}
+                                    className={`px-2.5 py-1 text-[10px] rounded-full transition-colors ${
+                                        laterality === lat
+                                            ? colors.symptomClass
+                                            : 'bg-themewhite3 text-secondary hover:bg-themewhite'
+                                    }`}
+                                >
+                                    {lat === 'bilateral' ? 'BL' : lat === 'left' ? 'L' : 'R'}
+                                </button>
+                            ))
+                        )}
                     </div>
                 </div>
             )}
 
-            {/* All exam items: GEN, HEAD, [category], DERM, NEURO, PSYCH */}
+            {/* All exam items: GEN, HEAD, [category or custom blocks], DERM, NEURO, PSYCH */}
             <div className="space-y-2">
                 {generalDefs.slice(0, WRAPPER_BEFORE_COUNT).map(g => {
                     const state = generalStates[g.key] || defaultItemState();
@@ -616,21 +748,40 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
                         />
                     );
                 })}
-                {categoryDef.items.map(item => {
-                    const state = itemStates[item.key] || defaultItemState();
-                    return (
-                        <ExamItemRow
-                            key={item.key}
-                            label={item.label}
-                            normalText={item.normalText}
-                            abnormalOptions={item.abnormalOptions}
-                            state={state}
-                            onCycleStatus={() => cycleStatus(item.key, setItemStates)}
-                            onToggleAbnormal={(optKey) => toggleAbnormal(item.key, optKey, setItemStates)}
-                            onSetFindings={(findings) => setFindings(item.key, findings, setItemStates)}
-                        />
-                    );
-                })}
+                {isCustom ? (
+                    customBlocks.map(block => {
+                        const state = customStates[block.id] || defaultItemState();
+                        const abnormalOptions: AbnormalOption[] = block.abnormalTags.map(tag => ({ key: tag, label: tag }));
+                        return (
+                            <ExamItemRow
+                                key={block.id}
+                                label={block.name}
+                                normalText={block.normalText}
+                                abnormalOptions={abnormalOptions}
+                                state={state}
+                                onCycleStatus={() => cycleStatus(block.id, setCustomStates)}
+                                onToggleAbnormal={(optKey) => toggleAbnormal(block.id, optKey, setCustomStates)}
+                                onSetFindings={(findings) => setFindings(block.id, findings, setCustomStates)}
+                            />
+                        );
+                    })
+                ) : (
+                    categoryDef.items.map(item => {
+                        const state = itemStates[item.key] || defaultItemState();
+                        return (
+                            <ExamItemRow
+                                key={item.key}
+                                label={item.label}
+                                normalText={item.normalText}
+                                abnormalOptions={item.abnormalOptions}
+                                state={state}
+                                onCycleStatus={() => cycleStatus(item.key, setItemStates)}
+                                onToggleAbnormal={(optKey) => toggleAbnormal(item.key, optKey, setItemStates)}
+                                onSetFindings={(findings) => setFindings(item.key, findings, setItemStates)}
+                            />
+                        );
+                    })
+                )}
                 {generalDefs.slice(WRAPPER_BEFORE_COUNT).map(g => {
                     const state = generalStates[g.key] || defaultItemState();
                     return (

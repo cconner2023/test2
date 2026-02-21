@@ -548,6 +548,7 @@ export const WriteNotePage = ({
                                                 colors={colors}
                                                 symptomCode={selectedSymptom?.icon || 'A-1'}
                                                 depth={profile.peDepth ?? 'minimal'}
+                                                customBlocks={profile.peDepth === 'custom' ? profile.customPEBlocks : undefined}
                                             />
                                         </div>
                                     </div>

@@ -23,10 +23,10 @@ import {
   type LocalTrainingCompletion,
   type TrainingCompletionSyncStatus,
 } from './offlineDb'
-import { isOnline } from './syncService'
 import type { CompletionType, CompletionResult, Json } from '../Types/database.types'
 import type { StepResult } from '../Types/SupervisorTestTypes'
 import { createLogger } from '../Utilities/Logger'
+import { immediateSync } from './syncEngine'
 
 const logger = createLogger('TrainingService')
 
@@ -126,24 +126,24 @@ export async function createReadCompletion(
       payload,
     })
 
-    // Attempt immediate sync if online
-    if (isOnline()) {
-      try {
-        const { error } = await supabase
-          .from('training_completions')
-          .upsert(payload as never, {
-            onConflict: 'user_id,training_item_id,completion_type',
-          })
-
-        if (!error) {
-          await updateTrainingCompletionSyncStatus(local.id, 'synced')
-          local._sync_status = 'synced'
-        } else {
-          logger.warn(`Immediate sync failed, queued: ${error.message}`)
-        }
-      } catch (err) {
-        logger.warn('Immediate sync failed, queued:', err)
-      }
+    const synced = await immediateSync(
+      { id: local.id, payload },
+      {
+        tableName: 'training_completions',
+        upsertFn: async (rec) => {
+          const { error } = await supabase
+            .from('training_completions')
+            .upsert(rec.payload as never, {
+              onConflict: 'user_id,training_item_id,completion_type',
+            })
+          if (error) throw error
+        },
+        updateSyncStatus: updateTrainingCompletionSyncStatus,
+      },
+      'create'
+    )
+    if (synced) {
+      local._sync_status = 'synced'
     }
   }
 
@@ -198,24 +198,24 @@ export async function createTestCompletion(params: {
     payload,
   })
 
-  // Attempt immediate sync
-  if (isOnline()) {
-    try {
-      const { error } = await supabase
-        .from('training_completions')
-        .upsert(payload as never, {
-          onConflict: 'user_id,training_item_id,completion_type',
-        })
-
-      if (!error) {
-        await updateTrainingCompletionSyncStatus(local.id, 'synced')
-        local._sync_status = 'synced'
-      } else {
-        logger.warn(`Immediate test sync failed, queued: ${error.message}`)
-      }
-    } catch (err) {
-      logger.warn('Immediate test sync failed, queued:', err)
-    }
+  const synced = await immediateSync(
+    { id: local.id, payload },
+    {
+      tableName: 'training_completions',
+      upsertFn: async (rec) => {
+        const { error } = await supabase
+          .from('training_completions')
+          .upsert(rec.payload as never, {
+            onConflict: 'user_id,training_item_id,completion_type',
+          })
+        if (error) throw error
+      },
+      updateSyncStatus: updateTrainingCompletionSyncStatus,
+    },
+    'create'
+  )
+  if (synced) {
+    local._sync_status = 'synced'
   }
 
   return localToUI(local)
@@ -237,20 +237,21 @@ export async function deleteCompletion(completionId: string, userId: string): Pr
       payload: { _deleted_at_timestamp: deletedAt },
     })
 
-    if (isOnline()) {
-      try {
-        const { error } = await supabase
-          .from('training_completions')
-          .delete()
-          .eq('id', completionId)
-
-        if (error) {
-          logger.warn(`Immediate delete failed, queued: ${error.message}`)
-        }
-      } catch {
-        // Will be retried by sync queue
-      }
-    }
+    await immediateSync(
+      { id: completionId },
+      {
+        tableName: 'training_completions',
+        upsertFn: async () => {
+          const { error } = await supabase
+            .from('training_completions')
+            .delete()
+            .eq('id', completionId)
+          if (error) throw error
+        },
+        updateSyncStatus: updateTrainingCompletionSyncStatus,
+      },
+      'delete'
+    )
   }
 }
 

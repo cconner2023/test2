@@ -169,8 +169,8 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
         const notesStore = transaction.objectStore('notes')
 
         // Remove old index, add new ones
-        if (notesStore.indexNames.contains('by-synced')) {
-          notesStore.deleteIndex('by-synced')
+        if ((notesStore.indexNames as DOMStringList).contains('by-synced')) {
+          notesStore.deleteIndex('by-synced' as never)
         }
         if (!notesStore.indexNames.contains('by-sync-status')) {
           notesStore.createIndex('by-sync-status', '_sync_status')
@@ -225,7 +225,7 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
       const allItems = await store.getAll()
 
       for (const item of allItems) {
-        const raw = item as Record<string, unknown>
+        const raw = item as unknown as Record<string, unknown>
         // Migrate rows that still have the old _synced boolean
         if ('_synced' in raw && !('_sync_status' in raw && raw._sync_status)) {
           const wasSynced = raw._synced as boolean
@@ -596,7 +596,7 @@ export async function migrateV1Notes(): Promise<number> {
   let migrated = 0
 
   for (const note of allNotes) {
-    const raw = note as Record<string, unknown>
+    const raw = note as unknown as Record<string, unknown>
     // Check if this note has the old _synced field but no _sync_status
     if ('_synced' in raw && !('_sync_status' in raw && raw._sync_status)) {
       const wasSync = raw._synced as boolean

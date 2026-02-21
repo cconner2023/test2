@@ -351,140 +351,118 @@ async function handleDelete(
 }
 
 // ============================================================
+// Generic Reconciliation
+// ============================================================
+
+interface ReconcileConfig<TLocal, TServer> {
+  tableName: string
+  fetchLocal: (userId: string) => Promise<TLocal[]>
+  fetchServer: (userId: string) => Promise<TServer[]>
+  getId: (record: TLocal | TServer) => string
+  getTimestamp: (record: TLocal | TServer) => string
+  saveLocal: (record: TServer) => Promise<void>
+  deleteLocal: (id: string) => Promise<void>
+  upsertServer: (record: TLocal) => Promise<void>
+}
+
+async function reconcile<TLocal extends { _sync_status: string }, TServer>(
+  userId: string,
+  config: ReconcileConfig<TLocal, TServer>
+): Promise<{ uploaded: number; downloaded: number; deleted: number }> {
+  let downloaded = 0
+  let deleted = 0
+
+  const serverRecords = await config.fetchServer(userId)
+  const localRecords = await config.fetchLocal(userId)
+
+  const localMap = new Map(localRecords.map((r) => [config.getId(r), r]))
+  const serverMap = new Map(serverRecords.map((r) => [config.getId(r), r]))
+
+  for (const serverRecord of serverRecords) {
+    const localRecord = localMap.get(config.getId(serverRecord))
+
+    if (!localRecord) {
+      await config.saveLocal(serverRecord)
+      downloaded++
+      continue
+    }
+
+    const serverTime = new Date(config.getTimestamp(serverRecord)).getTime()
+    const localTime = new Date(config.getTimestamp(localRecord)).getTime()
+
+    if (localRecord._sync_status === 'pending') {
+      if (serverTime > localTime) {
+        await config.saveLocal(serverRecord)
+        downloaded++
+      }
+    } else {
+      if (serverTime >= localTime) {
+        await config.saveLocal(serverRecord)
+        downloaded++
+      }
+    }
+  }
+
+  for (const localRecord of localRecords) {
+    if (!serverMap.has(config.getId(localRecord))) {
+      if (localRecord._sync_status === 'pending') {
+        continue
+      }
+      await config.deleteLocal(config.getId(localRecord))
+      deleted++
+    }
+  }
+
+  return { uploaded: 0, downloaded, deleted }
+}
+
+// ============================================================
 // Reconciliation: Pull Server State into IndexedDB
 // ============================================================
 
-/**
- * Reconcile local IndexedDB notes with the Supabase server.
- *
- * This is a "pull" operation that:
- * 1. Fetches ALL notes for the user from Supabase (hard-deleted notes
- *    simply won't exist on the server)
- * 2. Compares each server note against the local IndexedDB version
- * 3. Applies last-write-wins: if server is newer, overwrite local;
- *    if local is newer AND pending sync, keep local (it will be pushed)
- * 4. Detects notes that exist on server but not locally (e.g., created
- *    on another device) and pulls them in
- * 5. Detects notes that were hard-deleted on server (by owner or a
- *    clinic member) but still exist locally -- removes them from IndexedDB
- *
- * This function does NOT push local changes to the server. That is
- * handled by processSyncQueue(). Call both in sequence for full sync:
- *   await reconcileWithServer(userId)
- *   await processSyncQueue(userId)
- *
- * Returns the final list of active local notes.
- */
 export async function reconcileWithServer(userId: string): Promise<LocalNote[]> {
   if (!isOnline()) {
     logger.debug('Offline, skipping reconciliation')
-    // With hard deletes, all notes in IndexedDB are active.
     return getAllLocalNotesIncludingDeleted(userId)
   }
 
   logger.info('Starting reconciliation with server')
 
-  // 1. Fetch all notes from server. With hard deletes, deleted notes
-  //    simply won't exist -- no soft-delete filtering needed.
-  const { data: serverNotes, error } = await supabase
-    .from('notes')
-    .select('*')
-    .eq('user_id', userId)
-    .order('updated_at', { ascending: false })
-
-  if (error) {
-    logger.error('Failed to fetch server notes for reconciliation:', error.message)
-    // Fall back to local data
+  try {
+    await reconcile<LocalNote, Record<string, unknown>>(userId, {
+      tableName: 'notes',
+      fetchLocal: getAllLocalNotesIncludingDeleted,
+      fetchServer: async (uid) => {
+        const { data, error } = await supabase
+          .from('notes')
+          .select('*')
+          .eq('user_id', uid)
+          .order('updated_at', { ascending: false })
+        if (error) throw error
+        return data || []
+      },
+      getId: (r) => (r as Record<string, unknown>).id as string,
+      getTimestamp: (r) => (r as Record<string, unknown>).updated_at as string,
+      saveLocal: async (serverRecord) => {
+        await saveLocalNote({
+          ...serverRecord as unknown as LocalNote,
+          _sync_status: 'synced',
+          _sync_retry_count: 0,
+          _last_sync_error: null,
+          _last_sync_error_message: null,
+        })
+      },
+      deleteLocal: hardDeleteLocalNote,
+      upsertServer: async () => {},
+    })
+  } catch (err) {
+    logger.error('Failed to reconcile notes:', err)
     return getAllLocalNotesIncludingDeleted(userId)
   }
 
-  // 2. Build lookup maps
-  const localNotes = await getAllLocalNotesIncludingDeleted(userId)
-  const localMap = new Map(localNotes.map((n) => [n.id, n]))
-  const serverMap = new Map((serverNotes || []).map((n) => [n.id, n]))
-
-  // 3. Process server notes: update or insert into local
-  for (const serverNote of (serverNotes || [])) {
-    const localNote = localMap.get(serverNote.id)
-
-    if (!localNote) {
-      // Note exists on server but not locally -- pull it in.
-      await saveLocalNote({
-        ...serverNote,
-        _sync_status: 'synced',
-        _sync_retry_count: 0,
-        _last_sync_error: null,
-        _last_sync_error_message: null,
-      })
-      continue
-    }
-
-    // Note exists both locally and on server -- apply last-write-wins.
-    const serverTime = new Date(serverNote.updated_at).getTime()
-    const localTime = new Date(localNote.updated_at).getTime()
-
-    if (localNote._sync_status === 'pending') {
-      // Local note has unsynced changes. Keep local version -- it will
-      // be pushed to the server by processSyncQueue().
-      // Exception: if server is newer (e.g., edited on another device
-      // AFTER our pending change), the server wins. This is a genuine
-      // conflict, and last-write-wins means server takes precedence
-      // because it has the later timestamp.
-      if (serverTime > localTime) {
-        await saveLocalNote({
-          ...serverNote,
-          _sync_status: 'synced',
-          _sync_retry_count: 0,
-          _last_sync_error: null,
-          _last_sync_error_message: null,
-        })
-      }
-      // Otherwise keep local pending version (do nothing)
-    } else {
-      // Local note is synced or errored -- update from server if newer.
-      if (serverTime >= localTime) {
-        await saveLocalNote({
-          ...serverNote,
-          _sync_status: 'synced',
-          _sync_retry_count: 0,
-          _last_sync_error: null,
-          _last_sync_error_message: null,
-        })
-      }
-    }
-  }
-
-  // 4. Handle notes that exist locally but not on server.
-  // These are either:
-  //   a) Created locally while offline (pending sync) -- keep them
-  //   b) Deleted on server (hard-deleted or by admin) -- remove locally
-  for (const localNote of localNotes) {
-    if (!serverMap.has(localNote.id)) {
-      if (localNote._sync_status === 'pending') {
-        // Created offline, not yet on server -- keep it for sync queue
-        continue
-      }
-      // Was on server before but now gone -- remove local copy
-      await hardDeleteLocalNote(localNote.id)
-    }
-  }
-
-  // 5. Return final active notes.
-  // With hard deletes, all notes in IndexedDB are active.
   return getAllLocalNotesIncludingDeleted(userId)
 }
 
-/**
- * Reconcile local IndexedDB training completions with the Supabase server.
- *
- * Follows the same pattern as reconcileWithServer() but for the
- * training_completions table. Key differences:
- * - No soft-delete logic (training completions use hard deletes only)
- * - Fetches from training_completions table
- * - Uses LocalTrainingCompletion type and related IndexedDB helpers
- *
- * Returns the final list of local training completions.
- */
 export async function reconcileTrainingCompletionsWithServer(
   userId: string
 ): Promise<LocalTrainingCompletion[]> {
@@ -495,91 +473,38 @@ export async function reconcileTrainingCompletionsWithServer(
 
   logger.info('Starting training completions reconciliation with server')
 
-  // 1. Fetch all training completions from server.
-  const { data: serverCompletions, error } = await supabase
-    .from('training_completions')
-    .select('*')
-    .eq('user_id', userId)
-    .order('updated_at', { ascending: false })
-
-  if (error) {
-    logger.error(
-      'Failed to fetch server training completions for reconciliation:',
-      error.message
-    )
-    // Fall back to local data
+  try {
+    await reconcile<LocalTrainingCompletion, Record<string, unknown>>(userId, {
+      tableName: 'training_completions',
+      fetchLocal: getLocalTrainingCompletions,
+      fetchServer: async (uid) => {
+        const { data, error } = await supabase
+          .from('training_completions')
+          .select('*')
+          .eq('user_id', uid)
+          .order('updated_at', { ascending: false })
+        if (error) throw error
+        return data || []
+      },
+      getId: (r) => (r as Record<string, unknown>).id as string,
+      getTimestamp: (r) => (r as Record<string, unknown>).updated_at as string,
+      saveLocal: async (serverRecord) => {
+        await saveLocalTrainingCompletion({
+          ...serverRecord as unknown as LocalTrainingCompletion,
+          _sync_status: 'synced',
+          _sync_retry_count: 0,
+          _last_sync_error: null,
+          _last_sync_error_message: null,
+        })
+      },
+      deleteLocal: hardDeleteLocalTrainingCompletion,
+      upsertServer: async () => {},
+    })
+  } catch (err) {
+    logger.error('Failed to reconcile training completions:', err)
     return getLocalTrainingCompletions(userId)
   }
 
-  // 2. Build lookup maps
-  const localCompletions = await getLocalTrainingCompletions(userId)
-  const localMap = new Map(localCompletions.map((c) => [c.id, c]))
-  const serverMap = new Map((serverCompletions || []).map((c) => [c.id, c]))
-
-  // 3. Process server completions: update or insert into local
-  for (const serverCompletion of (serverCompletions || [])) {
-    const localCompletion = localMap.get(serverCompletion.id)
-
-    if (!localCompletion) {
-      // Completion exists on server but not locally -- pull it in.
-      await saveLocalTrainingCompletion({
-        ...serverCompletion,
-        _sync_status: 'synced',
-        _sync_retry_count: 0,
-        _last_sync_error: null,
-        _last_sync_error_message: null,
-      })
-      continue
-    }
-
-    // Completion exists both locally and on server -- apply last-write-wins.
-    const serverTime = new Date(serverCompletion.updated_at).getTime()
-    const localTime = new Date(localCompletion.updated_at).getTime()
-
-    if (localCompletion._sync_status === 'pending') {
-      // Local completion has unsynced changes. Keep local version -- it will
-      // be pushed to the server by processSyncQueue().
-      // Exception: if server is newer, the server wins (last-write-wins).
-      if (serverTime > localTime) {
-        await saveLocalTrainingCompletion({
-          ...serverCompletion,
-          _sync_status: 'synced',
-          _sync_retry_count: 0,
-          _last_sync_error: null,
-          _last_sync_error_message: null,
-        })
-      }
-      // Otherwise keep local pending version (do nothing)
-    } else {
-      // Local completion is synced or errored -- update from server if newer.
-      if (serverTime >= localTime) {
-        await saveLocalTrainingCompletion({
-          ...serverCompletion,
-          _sync_status: 'synced',
-          _sync_retry_count: 0,
-          _last_sync_error: null,
-          _last_sync_error_message: null,
-        })
-      }
-    }
-  }
-
-  // 4. Handle completions that exist locally but not on server.
-  // These are either:
-  //   a) Created locally while offline (pending sync) -- keep them
-  //   b) Deleted on server (hard-deleted) -- remove locally
-  for (const localCompletion of localCompletions) {
-    if (!serverMap.has(localCompletion.id)) {
-      if (localCompletion._sync_status === 'pending') {
-        // Created offline, not yet on server -- keep it for sync queue
-        continue
-      }
-      // Was on server before but now gone -- remove local copy
-      await hardDeleteLocalTrainingCompletion(localCompletion.id)
-    }
-  }
-
-  // 5. Return final local completions.
   return getLocalTrainingCompletions(userId)
 }
 

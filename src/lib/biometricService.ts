@@ -2,6 +2,8 @@
 // provides biometric as an alternative to 4-digit PIN
 // Uses platform authenticator (secure enclave) for local-only verification
 
+import { bytesToBase64url, base64urlToBytes } from './base64Utils'
+
 const STORAGE_KEY = 'adtmc_webauthn_credential'
 const BIOMETRIC_ENABLED_KEY = 'adtmc_biometric_enabled'
 
@@ -62,7 +64,7 @@ export async function enrollBiometric(): Promise<boolean> {
     const pk = response.getPublicKey?.()
 
     const stored: StoredCredential = {
-      credentialId: bufferToBase64url(credential.rawId),
+      credentialId: bytesToBase64url(new Uint8Array(credential.rawId)),
       publicKeySpki: pk ? btoa(String.fromCharCode(...new Uint8Array(pk))) : '',
       createdAt: Date.now(),
     }
@@ -88,7 +90,7 @@ export async function verifyBiometric(): Promise<boolean> {
         challenge: crypto.getRandomValues(new Uint8Array(32)),
         allowCredentials: [{
           type: 'public-key',
-          id: base64urlToBuffer(stored.credentialId),
+          id: base64urlToBytes(stored.credentialId).buffer as ArrayBuffer,
           transports: ['internal'],
         }],
         userVerification: 'required',
@@ -117,20 +119,3 @@ export function removeBiometric(): void {
   } catch { /* fail silently */ }
 }
 
-// --- Encoding helpers ---
-
-function bufferToBase64url(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf)
-  let s = ''
-  for (const b of bytes) s += String.fromCharCode(b)
-  return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-function base64urlToBuffer(b64url: string): ArrayBuffer {
-  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/')
-  const padded = b64 + '='.repeat((4 - b64url.length % 4) % 4)
-  const bin = atob(padded)
-  const arr = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i)
-  return arr.buffer
-}

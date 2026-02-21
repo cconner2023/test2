@@ -41,6 +41,12 @@ export const VITAL_SIGNS: VitalSignDef[] = [
 
 export type Laterality = 'left' | 'right' | 'bilateral';
 
+export type SpineRegion = 'cervical' | 'thoracic' | 'lumbar' | 'sacral';
+
+export function isBackPainCode(code: string): boolean {
+    return code === 'B-1';
+}
+
 // ── Category PE definitions ────────────────────────────────────
 
 const PE_CATEGORIES: Record<CategoryLetter, PECategoryDef> = {
@@ -103,6 +109,30 @@ const PE_CATEGORIES: Record<CategoryLetter, PECategoryDef> = {
                     { key: 'meningismus', label: 'Meningismus' },
                     { key: 'jvd', label: 'JVD' },
                     { key: 'trachealDeviation', label: 'Tracheal deviation' },
+                ],
+            },
+            {
+                key: 'cv', label: 'CV',
+                normalText: 'RRR. No murmurs, gallops, or rubs. Peripheral pulses 2+ bilaterally.',
+                abnormalOptions: [
+                    { key: 'murmur', label: 'Murmur' },
+                    { key: 'gallop', label: 'Gallop (S3/S4)' },
+                    { key: 'irregularRhythm', label: 'Irregular rhythm' },
+                    { key: 'tachycardia', label: 'Tachycardia' },
+                    { key: 'bradycardia', label: 'Bradycardia' },
+                    { key: 'diminishedPulses', label: 'Diminished pulses' },
+                ],
+            },
+            {
+                key: 'pulm', label: 'PULM',
+                normalText: 'Clear to auscultation bilaterally. No wheezes, rales, or rhonchi. Unlabored respirations.',
+                abnormalOptions: [
+                    { key: 'wheezing', label: 'Wheezing' },
+                    { key: 'ralesCrackles', label: 'Rales/crackles' },
+                    { key: 'rhonchi', label: 'Rhonchi' },
+                    { key: 'diminishedBS', label: 'Diminished breath sounds' },
+                    { key: 'stridor', label: 'Stridor' },
+                    { key: 'tachypnea', label: 'Tachypnea' },
                 ],
             },
         ],
