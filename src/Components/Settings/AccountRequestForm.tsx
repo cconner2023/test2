@@ -335,10 +335,16 @@ export const AccountRequestForm = () => {
   return (
     <div className="h-full overflow-y-auto">
       <div className="px-4 py-3 md:p-5">
-        <h2 className="text-lg font-semibold text-primary mb-2">Request an Account</h2>
-        <p className="text-sm text-tertiary/60 mb-5 md:text-base">
-          Fill out the form below to request access. An administrator will review your request.
-        </p>
+        <h2 className="text-lg font-semibold text-primary mb-2">Account Requests</h2>
+
+        <div className="mb-6 p-4 rounded-lg bg-yellow-50 border border-yellow-200">
+          <p className="text-sm font-medium text-yellow-800 mb-1">
+            New account creation currently disabled for beta testing
+          </p>
+          <p className="text-xs text-yellow-700">
+            We are not accepting new account requests at this time. Existing users are unaffected.
+          </p>
+        </div>
 
         {error && (
           <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
@@ -346,100 +352,7 @@ export const AccountRequestForm = () => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <TextInput
-            label="Email"
-            value={email}
-            onChange={setEmail}
-            placeholder="your.email@mail.mil"
-            type="email"
-            required
-          />
-
-          <div className="grid grid-cols-2 gap-3">
-            <TextInput
-              label="First Name"
-              value={firstName}
-              onChange={setFirstName}
-              placeholder="Christopher"
-              required
-            />
-            <TextInput
-              label="Last Name"
-              value={lastName}
-              onChange={setLastName}
-              placeholder="Conner"
-              required
-            />
-          </div>
-
-          <TextInput
-            label="Middle Initial"
-            value={middleInitial}
-            onChange={(val) => setMiddleInitial(val.toUpperCase().slice(0, 1))}
-            placeholder="D"
-            maxLength={1}
-          />
-
-          <SelectInput
-            label="Credential"
-            value={credential}
-            onChange={setCredential}
-            options={credentials}
-          />
-
-          <SelectInput
-            label="Component"
-            value={component}
-            onChange={handleComponentChange}
-            options={components}
-          />
-
-          {component && (
-            <SelectInput
-              label="Rank"
-              value={rank}
-              onChange={setRank}
-              options={componentRanks}
-            />
-          )}
-
-          <TextInput
-            label="UIC"
-            value={uic}
-            onChange={(val) => setUic(val.toUpperCase())}
-            placeholder="W12ABC"
-            maxLength={6}
-            required
-          />
-
-          <label className="block">
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-              Additional Notes
-            </span>
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Any additional information for the administrator..."
-              rows={3}
-              className="mt-1 w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-base
-                       border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                       transition-colors placeholder:text-tertiary/30 resize-none"
-            />
-          </label>
-
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full px-4 py-3 rounded-lg bg-themeblue2 text-white font-medium
-                     hover:bg-themeblue2/90 transition-colors disabled:opacity-50
-                     disabled:cursor-not-allowed"
-          >
-            {submitting ? 'Submitting...' : 'Submit Request'}
-          </button>
-        </form>
-
-        <div className="mt-6 pt-6 border-t border-tertiary/10">
+        <div className="pt-2 border-t border-tertiary/10">
           <p className="text-sm text-tertiary/60 mb-3">Already submitted a request?</p>
           <div className="space-y-2">
             <input

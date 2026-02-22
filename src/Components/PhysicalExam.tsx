@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import type { getColorClasses } from '../Utilities/ColorUtilities';
+import { PIIWarningBanner } from './PIIWarningBanner';
+import { detectPII } from '../lib/piiDetector';
 import {
     getCategoryFromSymptomCode,
     getMSKBodyPart,
@@ -434,6 +436,8 @@ function ExamItemRow({ label, normalText, abnormalOptions, state, onCycleStatus,
     onToggleAbnormal: (optKey: string) => void;
     onSetFindings: (findings: string) => void;
 }) {
+    const findingsWarnings = useMemo(() => detectPII(state.findings), [state.findings]);
+
     return (
         <div>
             <button
@@ -486,6 +490,7 @@ function ExamItemRow({ label, normalText, abnormalOptions, state, onCycleStatus,
                         className="w-full text-xs px-3 py-1.5 rounded border border-themeredred/20 bg-themewhite text-tertiary outline-none focus:border-themeredred/40"
                         onClick={(e) => e.stopPropagation()}
                     />
+                    <PIIWarningBanner warnings={findingsWarnings} />
                 </div>
             )}
         </div>
@@ -522,6 +527,13 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
 
     const isBack = isBackPainCode(symptomCode);
     const isCustom = depth === 'custom' && customBlocks.length > 0;
+
+    // PII detection on additional findings (debounced)
+    const [additionalPiiWarnings, setAdditionalPiiWarnings] = useState<string[]>([]);
+    useEffect(() => {
+        const id = window.setTimeout(() => setAdditionalPiiWarnings(detectPII(additional)), 400);
+        return () => clearTimeout(id);
+    }, [additional]);
 
     // Ensure custom states are in sync when blocks change
     useEffect(() => {
@@ -681,6 +693,7 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
                         placeholder="Enter additional findings..."
                         className="w-full text-xs px-3 py-2 rounded border border-themegray1/20 bg-themewhite text-tertiary outline-none focus:border-themeblue1/30 resize-none min-h-[3rem]"
                     />
+                    <PIIWarningBanner warnings={additionalPiiWarnings} />
                 </div>
             ) : (
             <>
@@ -808,6 +821,7 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
                     placeholder="Enter additional findings..."
                     className="w-full text-xs px-3 py-2 rounded border border-themegray1/20 bg-themewhite text-tertiary outline-none focus:border-themeblue1/30 resize-none min-h-[3rem]"
                 />
+                <PIIWarningBanner warnings={additionalPiiWarnings} />
             </div>
 
             </>

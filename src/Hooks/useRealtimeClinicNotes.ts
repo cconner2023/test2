@@ -24,6 +24,7 @@ import { useEffect, useRef, useCallback, useMemo } from 'react'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import type { SavedNote } from '../lib/notesService'
 import { decryptServerNoteRow } from '../lib/cryptoService'
+import { deriveNoteMetadata, deriveAuthorFromEncoded } from '../Utilities/noteMetadata'
 import { createLogger } from '../Utilities/Logger'
 import { useSupabaseSubscription } from './useSupabaseSubscription'
 
@@ -33,42 +34,31 @@ type RealtimeNoteRow = {
   id: string
   user_id: string
   clinic_id: string | null
-  clinic_name: string | null
-  timestamp: string
-  display_name: string | null
-  rank: string | null
-  uic: string | null
-  algorithm_reference: string | null
   hpi_encoded: string | null
-  symptom_icon: string | null
-  symptom_text: string | null
-  disposition_type: string | null
-  disposition_text: string | null
-  preview_text: string | null
+  timestamp: string
   is_imported: boolean
   originating_clinic_id: string | null
   visible_clinic_ids: string[]
   source_device: string | null
   created_at: string
   updated_at: string
-  deleted_at: string | null
 }
 
 function realtimeRowToSavedNote(row: RealtimeNoteRow): SavedNote {
+  const meta = deriveNoteMetadata(row.hpi_encoded)
   return {
     id: row.id,
     encodedText: row.hpi_encoded || '',
     createdAt: row.timestamp,
-    symptomIcon: row.symptom_icon || '',
-    symptomText: row.symptom_text || '',
-    dispositionType: row.disposition_type || '',
-    dispositionText: row.disposition_text || '',
-    previewText: row.preview_text || '',
+    symptomIcon: meta.symptomIcon,
+    symptomText: meta.symptomText,
+    dispositionType: meta.dispositionType,
+    dispositionText: meta.dispositionText,
+    previewText: '',
     source: row.source_device || undefined,
     sync_status: 'synced',
     authorId: row.user_id,
-    authorName: row.display_name || null,
-    clinicName: row.clinic_name || undefined,
+    authorName: deriveAuthorFromEncoded(row.hpi_encoded),
     clinicId: row.clinic_id,
     originating_clinic_id: row.originating_clinic_id ?? null,
     visible_clinic_ids: row.visible_clinic_ids ?? [],
@@ -139,16 +129,6 @@ export function useRealtimeClinicNotes({
 
       if (eventType === 'INSERT' || eventType === 'UPDATE') {
         const row = payload.new
-
-        // Soft-deleted notes should be treated as deletes
-        if (row.deleted_at) {
-          if (row.user_id === currentUserId) {
-            onPersonalDeleteRef.current(row.id)
-          } else {
-            onClinicDeleteRef.current(row.id)
-          }
-          return
-        }
 
         // Decrypt encrypted fields, then route to the appropriate handler.
         // Fire-and-forget: the Realtime callback doesn't await promises.

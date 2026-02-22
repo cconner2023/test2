@@ -192,10 +192,10 @@ export const LoginPanel = ({
               <button
                 onClick={onRequestAccount}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                         bg-green-50 text-green-700 font-medium hover:bg-green-100
-                         border border-green-200 transition-colors text-sm"
+                         bg-yellow-50 text-yellow-700 font-medium
+                         border border-yellow-200 transition-colors text-sm"
               >
-                Don't have an account? Request Access
+                New account creation currently disabled for beta testing
               </button>
             </div>
 
@@ -207,14 +207,9 @@ export const LoginPanel = ({
           </>
         ) : (
           <div className="mt-6 pt-6 border-t border-tertiary/10">
-            <p className="text-sm text-tertiary/60 mb-3 text-center">Don't have an account?</p>
-            <button
-              onClick={onRequestAccount}
-              className="w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
-                       hover:bg-themeblue2 transition-all duration-300"
-            >
-              Request an Account
-            </button>
+            <p className="text-xs text-tertiary/50 text-center">
+              New account creation currently disabled for beta testing
+            </p>
           </div>
         )}
       </div>

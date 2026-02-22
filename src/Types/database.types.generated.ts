@@ -157,73 +157,40 @@ export type Database = {
       }
       notes: {
         Row: {
-          algorithm_reference: string | null
           clinic_id: string | null
-          clinic_name: string | null
           created_at: string
-          deleted_at: string | null
-          display_name: string | null
-          disposition_text: string | null
-          disposition_type: string | null
           hpi_encoded: string | null
           id: string
           is_imported: boolean
           originating_clinic_id: string | null
-          preview_text: string | null
-          rank: string | null
           source_device: string | null
-          symptom_icon: string | null
-          symptom_text: string | null
           timestamp: string
-          uic: string | null
           updated_at: string
           user_id: string
           visible_clinic_ids: string[]
         }
         Insert: {
-          algorithm_reference?: string | null
           clinic_id?: string | null
-          clinic_name?: string | null
           created_at?: string
-          deleted_at?: string | null
-          display_name?: string | null
-          disposition_text?: string | null
-          disposition_type?: string | null
           hpi_encoded?: string | null
           id?: string
           is_imported?: boolean
           originating_clinic_id?: string | null
-          preview_text?: string | null
-          rank?: string | null
           source_device?: string | null
-          symptom_icon?: string | null
-          symptom_text?: string | null
           timestamp?: string
-          uic?: string | null
           updated_at?: string
           user_id: string
           visible_clinic_ids?: string[]
         }
         Update: {
-          algorithm_reference?: string | null
           clinic_id?: string | null
-          clinic_name?: string | null
           created_at?: string
-          deleted_at?: string | null
-          display_name?: string | null
-          disposition_text?: string | null
-          disposition_type?: string | null
           hpi_encoded?: string | null
           id?: string
           is_imported?: boolean
           originating_clinic_id?: string | null
-          preview_text?: string | null
-          rank?: string | null
           source_device?: string | null
-          symptom_icon?: string | null
-          symptom_text?: string | null
           timestamp?: string
-          uic?: string | null
           updated_at?: string
           user_id?: string
           visible_clinic_ids?: string[]

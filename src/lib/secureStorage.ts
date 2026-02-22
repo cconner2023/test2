@@ -5,6 +5,8 @@ const STORE_NAME = 'kv'
 let dbInstance: IDBDatabase | null = null
 let encKey: CryptoKey | null = null
 let useLocalStorageFallback = false
+/** True when Web Crypto is missing — we cannot encrypt at all. */
+let cryptoUnavailable = false
 
 async function getFingerprint(): Promise<ArrayBuffer> {
   const raw = [
@@ -85,19 +87,75 @@ function idbClear(db: IDBDatabase): Promise<void> {
   })
 }
 
+// Prefix used to identify encrypted localStorage entries
+const LS_ENC_PREFIX = 'enc:'
+
 function checkFallback(): boolean {
   if (useLocalStorageFallback) return true
-  if (typeof indexedDB === 'undefined' || typeof crypto?.subtle === 'undefined') {
+  if (typeof crypto?.subtle === 'undefined') {
+    cryptoUnavailable = true
     useLocalStorageFallback = true
-    console.warn('secureStorage: IndexedDB or Web Crypto unavailable, falling back to localStorage')
+    console.warn('secureStorage: Web Crypto unavailable — writes will be rejected to prevent plaintext storage')
+    return true
+  }
+  if (typeof indexedDB === 'undefined') {
+    useLocalStorageFallback = true
+    console.warn('secureStorage: IndexedDB unavailable, falling back to encrypted localStorage')
     return true
   }
   return false
 }
 
+/** Encrypt value and store as base64 in localStorage. */
+async function lsEncryptedSet(key: string, value: string): Promise<void> {
+  if (cryptoUnavailable) {
+    console.error('secureStorage: cannot store data — encryption unavailable')
+    return
+  }
+  const ek = await getEncryptionKey()
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const encoded = new TextEncoder().encode(value)
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, ek, encoded)
+  const combined = new Uint8Array(iv.length + ciphertext.byteLength)
+  combined.set(iv)
+  combined.set(new Uint8Array(ciphertext), iv.length)
+  // Store as base64 with prefix so we can identify encrypted entries
+  const b64 = btoa(String.fromCharCode(...combined))
+  localStorage.setItem(key, LS_ENC_PREFIX + b64)
+}
+
+/** Read and decrypt a base64-encrypted localStorage entry. */
+async function lsEncryptedGet(key: string): Promise<string | null> {
+  const raw = localStorage.getItem(key)
+  if (raw === null) return null
+  // Handle legacy unencrypted entries (migrate on read)
+  if (!raw.startsWith(LS_ENC_PREFIX)) {
+    // Legacy plaintext entry — if we can encrypt, migrate it now
+    if (!cryptoUnavailable) {
+      try {
+        await lsEncryptedSet(key, raw)
+      } catch { /* best effort migration */ }
+    }
+    return raw
+  }
+  if (cryptoUnavailable) {
+    console.error('secureStorage: cannot decrypt — Web Crypto unavailable')
+    return null
+  }
+  const b64 = raw.slice(LS_ENC_PREFIX.length)
+  const binary = atob(b64)
+  const combined = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) combined[i] = binary.charCodeAt(i)
+  const iv = combined.slice(0, 12)
+  const ciphertext = combined.slice(12)
+  const ek = await getEncryptionKey()
+  const plainBuffer = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, ek, ciphertext)
+  return new TextDecoder().decode(plainBuffer)
+}
+
 export async function secureSet(key: string, value: string): Promise<void> {
   if (checkFallback()) {
-    localStorage.setItem(key, value)
+    await lsEncryptedSet(key, value)
     return
   }
   try {
@@ -112,19 +170,22 @@ export async function secureSet(key: string, value: string): Promise<void> {
     await idbPut(db, key, combined.buffer as ArrayBuffer)
   } catch {
     useLocalStorageFallback = true
-    console.warn('secureStorage: encryption failed, falling back to localStorage')
-    localStorage.setItem(key, value)
+    console.warn('secureStorage: IndexedDB write failed, falling back to encrypted localStorage')
+    await lsEncryptedSet(key, value)
   }
 }
 
 export async function secureGet(key: string): Promise<string | null> {
   if (checkFallback()) {
-    return localStorage.getItem(key)
+    return lsEncryptedGet(key)
   }
   try {
     const db = await getDb()
     const raw = await idbGet(db, key)
-    if (!raw) return null
+    if (!raw) {
+      // Check localStorage for migrated/fallback entries
+      return lsEncryptedGet(key)
+    }
     const combined = new Uint8Array(raw)
     const iv = combined.slice(0, 12)
     const ciphertext = combined.slice(12)
@@ -132,7 +193,7 @@ export async function secureGet(key: string): Promise<string | null> {
     const plainBuffer = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, ek, ciphertext)
     return new TextDecoder().decode(plainBuffer)
   } catch {
-    return localStorage.getItem(key)
+    return lsEncryptedGet(key)
   }
 }
 

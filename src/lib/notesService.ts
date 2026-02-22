@@ -23,6 +23,7 @@ import {
   type NoteSyncStatus,
 } from './offlineDb'
 import { decryptServerNoteRow } from './cryptoService'
+import { deriveNoteMetadata, deriveAuthorFromEncoded } from '../Utilities/noteMetadata'
 import { createLogger } from '../Utilities/Logger'
 import { fireNotification } from './notifyDispatcher'
 import { immediateSync } from './syncEngine'
@@ -82,21 +83,13 @@ interface NoteWithProfile {
   user_id: string
   clinic_id: string | null
   timestamp: string
-  display_name: string | null
-  rank: string | null
-  uic: string | null
-  algorithm_reference: string | null
   hpi_encoded: string | null
-  symptom_icon: string | null
-  symptom_text: string | null
-  disposition_type: string | null
-  disposition_text: string | null
-  preview_text: string | null
   is_imported: boolean
+  originating_clinic_id: string | null
+  visible_clinic_ids: string[]
   source_device: string | null
   created_at: string
   updated_at: string
-  deleted_at: string | null
   /** Joined profile data for the note author. May be null if the
    *  profile is inaccessible (RLS) or the user was deleted. */
   profiles: {
@@ -155,28 +148,30 @@ function formatAuthorName(profile: NoteWithProfile['profiles']): string | null {
 
 /**
  * Convert a LocalNote (IndexedDB format) to a SavedNote (UI format).
- * The optional authorName parameter allows callers to inject a
- * pre-formatted author name (e.g., from a profiles join).
+ * Derives display metadata (symptom, disposition) from hpi_encoded.
+ * The optional authorName/clinicName parameters allow callers to inject
+ * pre-formatted values (e.g., from a profiles join or clinic lookup).
  */
 export function localNoteToSavedNote(
   note: LocalNote,
   authorName?: string | null,
   clinicName?: string
 ): SavedNote {
+  const meta = deriveNoteMetadata(note.hpi_encoded)
   return {
     id: note.id,
     encodedText: note.hpi_encoded || '',
     createdAt: note.timestamp,
-    symptomIcon: note.symptom_icon || '',
-    symptomText: note.symptom_text || '',
-    dispositionType: note.disposition_type || '',
-    dispositionText: note.disposition_text || '',
-    previewText: note.preview_text || '',
+    symptomIcon: meta.symptomIcon,
+    symptomText: meta.symptomText,
+    dispositionType: meta.dispositionType,
+    dispositionText: meta.dispositionText,
+    previewText: '',
     source: note.source_device || undefined,
     sync_status: note._sync_status,
     authorId: note.user_id,
-    authorName: authorName ?? note.display_name ?? null,
-    clinicName: clinicName ?? note.clinic_name ?? undefined,
+    authorName: authorName ?? deriveAuthorFromEncoded(note.hpi_encoded),
+    clinicName: clinicName ?? undefined,
     clinicId: note.clinic_id,
     originating_clinic_id: note.originating_clinic_id ?? null,
     visible_clinic_ids: note.visible_clinic_ids ?? [],
@@ -185,16 +180,14 @@ export function localNoteToSavedNote(
 
 /**
  * Build a LocalNote from SavedNote input data + user context.
- * Used when creating a new note.
+ * Used when creating a new note. Only stores essential fields;
+ * display metadata is derived from hpi_encoded at read time.
  */
 function buildLocalNote(
   input: Omit<SavedNote, 'id' | 'createdAt' | 'sync_status' | 'authorId' | 'authorName'>,
   userId: string,
   clinicId: string | null,
-  displayName: string | null = null,
-  rank: string | null = null,
   noteId?: string,
-  clinicName: string | null = null,
   originatingClinicId: string | null = null,
   visibleClinicIds: string[] = [],
   overrideTimestamp?: string,
@@ -204,25 +197,14 @@ function buildLocalNote(
     id: noteId ?? crypto.randomUUID(),
     user_id: userId,
     clinic_id: clinicId,
-    clinic_name: clinicName,
-    timestamp: overrideTimestamp ?? now,
-    display_name: displayName,
-    rank: rank,
-    uic: null,
-    algorithm_reference: null,
     hpi_encoded: input.encodedText,
-    symptom_icon: input.symptomIcon,
-    symptom_text: input.symptomText,
-    disposition_type: input.dispositionType,
-    disposition_text: input.dispositionText,
-    preview_text: input.previewText,
+    timestamp: overrideTimestamp ?? now,
     is_imported: input.source?.startsWith('external') ?? false,
     originating_clinic_id: originatingClinicId,
     visible_clinic_ids: visibleClinicIds,
     source_device: input.source || null,
     created_at: now,
     updated_at: now,
-    deleted_at: null, // Legacy field; hard deletes are now used
     _sync_status: 'pending',
     _sync_retry_count: 0,
     _last_sync_error: null,
@@ -237,46 +219,28 @@ function buildLocalNote(
 
 /**
  * Get the current authenticated user's ID and clinic_id.
- * Also returns display_name and rank for stamping on new notes.
  * Returns null values if not authenticated (guest mode).
  */
 async function getUserContext(): Promise<{
   userId: string | null
   clinicId: string | null
-  clinicName: string | null
-  displayName: string | null
-  rank: string | null
 }> {
   try {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { userId: null, clinicId: null, clinicName: null, displayName: null, rank: null }
+    if (!user) return { userId: null, clinicId: null }
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('clinic_id, first_name, last_name, rank, clinics(name)')
+      .select('clinic_id')
       .eq('id', user.id)
       .single()
-
-    // Build a short display name: "Rank LastName" or just "LastName"
-    const lastName = profile?.last_name ?? null
-    const rank = profile?.rank ?? null
-    const displayName = lastName
-      ? (rank ? `${rank} ${lastName}` : lastName)
-      : null
-
-    // Extract clinic name from the joined clinics relation
-    const clinicData = profile?.clinics as { name: string } | null
-    const clinicName = clinicData?.name ?? null
 
     return {
       userId: user.id,
       clinicId: profile?.clinic_id ?? null,
-      clinicName,
-      displayName,
-      rank,
     }
   } catch {
-    return { userId: null, clinicId: null, clinicName: null, displayName: null, rank: null }
+    return { userId: null, clinicId: null }
   }
 }
 
@@ -306,13 +270,13 @@ export async function createNote(
   noteId?: string,
   overrideTimestamp?: string,
 ): Promise<SavedNote> {
-  const { userId, clinicId, clinicName, displayName, rank } = await getUserContext()
+  const { userId, clinicId } = await getUserContext()
   const isImported = input.source?.startsWith('external') ?? false
 
   if (!userId) {
     // Guest mode: create a local-only note that can never sync.
     const guestNote: LocalNote = {
-      ...buildLocalNote(input, 'guest', null, null, null, noteId, null, input.originating_clinic_id ?? null, [], overrideTimestamp),
+      ...buildLocalNote(input, 'guest', null, noteId, input.originating_clinic_id ?? null, [], overrideTimestamp),
       _sync_status: 'synced', // Mark as "synced" since there's nothing to sync
     }
     await saveLocalNote(guestNote)
@@ -320,23 +284,19 @@ export async function createNote(
   }
 
   // Authenticated user: write to IndexedDB + queue for sync.
-  // For imported notes: don't stamp importer's clinic_id, display_name, or rank.
+  // For imported notes: don't assign to importer's clinic_id.
   // Instead, set originating_clinic_id from the barcode and add the importer's
   // clinic to visible_clinic_ids so the note appears via RLS overlap.
-  // For regular notes: behavior unchanged — stamp user's profile on the note.
   const note = isImported
     ? buildLocalNote(
       input, userId,
       null,   // clinic_id = null (don't assign to importer's clinic)
-      null,   // display_name = null (don't stamp importer's profile)
-      null,   // rank = null
       noteId,
-      null,   // clinic_name = null
       input.originating_clinic_id ?? null,
       clinicId ? [clinicId] : [],  // visible_clinic_ids = importer's clinic
       overrideTimestamp,           // preserve original barcode timestamp
     )
-    : buildLocalNote(input, userId, clinicId, displayName, rank, noteId, clinicName)
+    : buildLocalNote(input, userId, clinicId, noteId)
   const encrypted = await saveLocalNote(note)
 
   // Queue for sync (encrypted payload — Supabase stores ciphertext)
@@ -370,7 +330,7 @@ export async function createNote(
     if (clinicId && !isImported) {
       fireNotification({
         type: 'new_clinic_note',
-        name: displayName,
+        name: deriveAuthorFromEncoded(note.hpi_encoded),
         clinic_id: clinicId,
         author_id: userId,
       })
@@ -403,14 +363,9 @@ export async function updateNote(
     _last_sync_error_message: null,
   }
 
-  // Apply field updates
+  // Apply field updates (only fields that exist on LocalNote)
   if (updates.encodedText !== undefined) updatedNote.hpi_encoded = updates.encodedText
   if (updates.createdAt !== undefined) updatedNote.timestamp = updates.createdAt
-  if (updates.symptomIcon !== undefined) updatedNote.symptom_icon = updates.symptomIcon
-  if (updates.symptomText !== undefined) updatedNote.symptom_text = updates.symptomText
-  if (updates.dispositionType !== undefined) updatedNote.disposition_type = updates.dispositionType
-  if (updates.dispositionText !== undefined) updatedNote.disposition_text = updates.dispositionText
-  if (updates.previewText !== undefined) updatedNote.preview_text = updates.previewText
   if (updates.source !== undefined) updatedNote.source_device = updates.source || null
 
   const encrypted = await saveLocalNote(updatedNote)
@@ -623,16 +578,17 @@ export async function fetchClinicNotesFromServer(
   )
 
   return decryptedRows.map((row): SavedNote => {
-    const authorName = authorMap.get(row.user_id) ?? row.display_name ?? null
+    const authorName = authorMap.get(row.user_id) ?? deriveAuthorFromEncoded(row.hpi_encoded) ?? null
+    const meta = deriveNoteMetadata(row.hpi_encoded)
     return {
       id: row.id,
       encodedText: row.hpi_encoded || '',
       createdAt: row.timestamp,
-      symptomIcon: row.symptom_icon || '',
-      symptomText: row.symptom_text || '',
-      dispositionType: row.disposition_type || '',
-      dispositionText: row.disposition_text || '',
-      previewText: row.preview_text || '',
+      symptomIcon: meta.symptomIcon,
+      symptomText: meta.symptomText,
+      dispositionType: meta.dispositionType,
+      dispositionText: meta.dispositionText,
+      previewText: '',
       source: row.source_device || undefined,
       sync_status: 'synced',
       authorId: row.user_id,

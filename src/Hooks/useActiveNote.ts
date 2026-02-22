@@ -139,11 +139,6 @@ export function useActiveNote({
   const handleNoteSave = useCallback((data: NoteSaveData): boolean => {
     const result = notesStorage.saveNote({
       encodedText: data.encodedText,
-      previewText: data.previewText,
-      symptomIcon: data.symptomIcon,
-      symptomText: data.symptomText,
-      dispositionType: data.dispositionType,
-      dispositionText: data.dispositionText,
     })
     // After saving, track the new note so the button changes to "Delete Note"
     // and the note status badge appears on the algorithm page
@@ -171,11 +166,6 @@ export function useActiveNote({
   const handleNoteUpdate = useCallback((noteId: string, data: NoteSaveData): boolean => {
     const result = notesStorage.updateNote(noteId, {
       encodedText: data.encodedText,
-      previewText: data.previewText,
-      symptomIcon: data.symptomIcon,
-      symptomText: data.symptomText,
-      dispositionType: data.dispositionType,
-      dispositionText: data.dispositionText,
       source: undefined, // Clear external source tag — edited notes become normal saved notes
     }, true) // refreshTimestamp = true
     if (result.success) {
@@ -331,11 +321,6 @@ export function useActiveNote({
     const originatingClinicId = preview?.clinicId ?? null
     const saveResult = notesStorage.saveNote({
       encodedText: data.encodedText,
-      previewText: data.decodedText.slice(0, 200),
-      symptomIcon: result.symptom.icon || '',
-      symptomText: result.symptom.text || 'Imported Note',
-      dispositionType: disposition.type,
-      dispositionText: disposition.text,
       source: externalSource,
     }, {
       originating_clinic_id: originatingClinicId,

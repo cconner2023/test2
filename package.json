@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "deploy": "npm run build && gh-pages -d dist",
     "db:setup": "node scripts/setup-database.mjs",
+    "db:encrypt-notes": "node scripts/encrypt-note-fields.mjs",
     "generate-vapid-keys": "node scripts/generate-vapid-keys.mjs",
     "test": "vitest run"
   },

@@ -34,15 +34,11 @@ const logger = createLogger('CryptoService')
 const ENCRYPTED_PREFIX = 'enc.v1:'
 
 /** Fields containing PHI/PII that get encrypted for authenticated users.
- *  Non-identifying fields (id, user_id, timestamps, disposition_type,
- *  symptom_icon, _sync_status, etc.) stay plaintext for indexing. */
+ *  Only hpi_encoded remains — all other sensitive fields (display_name,
+ *  rank, symptom_text, etc.) have been dropped from the notes table.
+ *  Their metadata is derived from hpi_encoded at read time. */
 const SENSITIVE_FIELDS: ReadonlyArray<keyof LocalNote> = [
-  'display_name',   // PII — identifies the provider
-  'rank',           // PII — military rank
-  'uic',            // PII — Unit Identification Code
-  'hpi_encoded',    // PHI — clinical narrative
-  'preview_text',   // PHI — contains HPI excerpt
-  'clinic_name',    // Could identify unit/location
+  'hpi_encoded',         // PHI — clinical narrative (single source of truth)
 ] as const
 
 // ---- Key Store (separate IDB database) ----

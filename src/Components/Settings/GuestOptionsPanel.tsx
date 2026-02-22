@@ -30,11 +30,11 @@ export const GuestOptionsPanel = ({
           <button
             onClick={onRequestAccount}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                     bg-themegreen text-white font-normal hover:bg-themegreen
-                     transition-colors"
+                     bg-yellow-50 text-yellow-700 font-normal border border-yellow-200
+                     transition-colors text-sm"
           >
             <UserPlus size={18} />
-            Request an Account
+            Account creation disabled for beta
           </button>
         </div>
 

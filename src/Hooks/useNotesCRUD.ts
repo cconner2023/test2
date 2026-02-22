@@ -12,6 +12,7 @@
 import { useCallback } from 'react';
 import * as notesApi from '../lib/notesService';
 import type { NoteSyncStatus } from '../lib/offlineDb';
+import { deriveNoteMetadata } from '../Utilities/noteMetadata';
 import { createLogger } from '../Utilities/Logger';
 import type { SavedNote } from '../lib/notesService';
 
@@ -69,15 +70,17 @@ export function useNotesCRUD(deps: NotesCRUDDeps): NotesCRUDResult {
       const noteId = crypto.randomUUID();
 
       // Create optimistic SavedNote for immediate UI update
+      // Derive display metadata from the encoded text (single source of truth)
+      const meta = deriveNoteMetadata(note.encodedText);
       const optimisticNote: SavedNote = {
         id: noteId,
         encodedText: note.encodedText,
         createdAt: options?.timestamp ?? new Date().toISOString(),
-        symptomIcon: note.symptomIcon,
-        symptomText: note.symptomText,
-        dispositionType: note.dispositionType,
-        dispositionText: note.dispositionText,
-        previewText: note.previewText,
+        symptomIcon: meta.symptomIcon,
+        symptomText: meta.symptomText,
+        dispositionType: meta.dispositionType,
+        dispositionText: meta.dispositionText,
+        previewText: '',
         source: note.source,
         sync_status: userId === 'guest' ? 'synced' : 'pending',
         authorId: userId,
@@ -140,8 +143,13 @@ export function useNotesCRUD(deps: NotesCRUDDeps): NotesCRUDResult {
       }
 
       // Apply the updates and refreshTimestamp flag
+      // When encodedText changes, re-derive display metadata
+      const derivedMeta = updates.encodedText
+        ? deriveNoteMetadata(updates.encodedText)
+        : {};
       const appliedUpdates = {
         ...updates,
+        ...derivedMeta,
         ...(refreshTimestamp ? { createdAt: new Date().toISOString() } : {}),
       };
 

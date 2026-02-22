@@ -9,6 +9,8 @@ import { useAuthStore } from '../stores/useAuthStore';
 import { usePageSwipe } from '../Hooks/usePageSwipe';
 import { useTextExpander } from '../Hooks/useTextExpander';
 import { TextExpanderSuggestion } from './TextExpanderSuggestion';
+import { PIIWarningBanner } from './PIIWarningBanner';
+import { detectPII } from '../lib/piiDetector';
 import { formatSignature } from '../Utilities/NoteFormatter';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { encodedContentEquals } from '../Utilities/NoteCodec';
@@ -27,11 +29,6 @@ type PageId = 'decision' | 'hpi' | 'pe' | 'fullnote';
 
 export interface NoteSaveData {
     encodedText: string;
-    previewText: string;
-    symptomIcon: string;
-    symptomText: string;
-    dispositionType: string;
-    dispositionText: string;
 }
 
 interface WriteNoteProps {
@@ -135,6 +132,19 @@ export const WriteNotePage = ({
     });
     const hasExpanderSuggestion = expanderSuggestions.length > 0;
 
+    // PII detection (debounced) — checks both HPI and PE text
+    const [piiWarnings, setPiiWarnings] = useState<string[]>([]);
+    const [pePiiWarnings, setPePiiWarnings] = useState<string[]>([]);
+    useEffect(() => {
+        const id = window.setTimeout(() => setPiiWarnings(detectPII(note)), 400);
+        return () => clearTimeout(id);
+    }, [note]);
+    useEffect(() => {
+        const id = window.setTimeout(() => setPePiiWarnings(detectPII(peNote)), 400);
+        return () => clearTimeout(id);
+    }, [peNote]);
+    const hasPII = piiWarnings.length > 0 || pePiiWarnings.length > 0;
+
     // Refs
     const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -237,11 +247,6 @@ export const WriteNotePage = ({
         if (!encodedValue) return;
         const result = onNoteSave?.({
             encodedText: encodedValue,
-            previewText: previewNote.slice(0, 200),
-            symptomIcon: selectedSymptom?.icon || '',
-            symptomText: selectedSymptom?.text || 'Note',
-            dispositionType: disposition.type,
-            dispositionText: disposition.text,
         });
         if (result === false) {
             setSaveFailed(true);
@@ -254,7 +259,7 @@ export const WriteNotePage = ({
         } else {
             setTimeout(() => setIsSaved(false), UI_TIMING.FEEDBACK_DURATION);
         }
-    }, [encodedValue, previewNote, selectedSymptom, disposition, onNoteSave, onAfterSave]);
+    }, [encodedValue, onNoteSave, onAfterSave]);
 
     // --- Delete note handler (two-tap confirmation) ---
     const handleDeleteNote = useCallback(() => {
@@ -282,11 +287,6 @@ export const WriteNotePage = ({
         if (!existingNoteId || !encodedValue) return;
         const result = onNoteUpdate?.(existingNoteId, {
             encodedText: encodedValue,
-            previewText: previewNote.slice(0, 200),
-            symptomIcon: selectedSymptom?.icon || '',
-            symptomText: selectedSymptom?.text || 'Note',
-            dispositionType: disposition.type,
-            dispositionText: disposition.text,
         });
         if (result === false) return;
         setIsSaved(true);
@@ -295,7 +295,7 @@ export const WriteNotePage = ({
         } else {
             setTimeout(() => setIsSaved(false), UI_TIMING.FEEDBACK_DURATION);
         }
-    }, [existingNoteId, encodedValue, previewNote, selectedSymptom, disposition, onNoteUpdate, onAfterSave]);
+    }, [existingNoteId, encodedValue, onNoteUpdate, onAfterSave]);
 
     // --- Slide animation helper (mirrors Settings pattern) ---
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
@@ -507,6 +507,7 @@ export const WriteNotePage = ({
                                                 onDismiss={dismissExpander}
                                             />
                                         )}
+                                        <PIIWarningBanner warnings={piiWarnings} />
                                     </div>
                                 )}
                             </div>
@@ -549,6 +550,9 @@ export const WriteNotePage = ({
                     {/* Full Note */}
                         <div className={`w-full h-full overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'fullnote' ? 'hidden' : ''}`}>
                             <div className="space-y-4">
+                                {hasPII && (
+                                    <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings])]} />
+                                )}
                                 {/* Note Preview (always visible) */}
                                 <div>
                                     <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
@@ -630,8 +634,10 @@ export const WriteNotePage = ({
                     {currentPage < visiblePages.length - 1 ? (
                         <button
                             onClick={handleNext}
-                            className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2 ${colors.buttonClass}`}
+                            disabled={hasPII}
+                            className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2 disabled:opacity-40 ${colors.buttonClass}`}
                             aria-label="Next"
+                            title={hasPII ? 'Remove PII/PHI before continuing' : undefined}
                         >
                             <span className="hidden md:inline text-sm font-medium">Next</span>
                             <ChevronRight className="w-6 h-6" />
@@ -642,7 +648,7 @@ export const WriteNotePage = ({
                             {onNoteSave && !isAlreadySaved && (
                                 <button
                                     onClick={handleSaveNote}
-                                    disabled={isSaved || !encodedValue}
+                                    disabled={isSaved || !encodedValue || hasPII}
                                     className={`w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2
                                         ${saveFailed
                                             ? 'bg-themeredred/15 text-themeredred'
@@ -673,7 +679,7 @@ export const WriteNotePage = ({
                             {isAlreadySaved && hasContentChanged && onNoteUpdate && (
                                 <button
                                     onClick={handleUpdateNote}
-                                    disabled={isSaved || !encodedValue}
+                                    disabled={isSaved || !encodedValue || hasPII}
                                     className={`w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2
                                         ${isSaved
                                             ? 'bg-green-500/15 text-green-600 dark:text-green-300'

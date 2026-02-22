@@ -37,30 +37,23 @@ export type TrainingCompletionSyncStatus = 'pending' | 'synced' | 'error'
 // ---- Database Schema ----
 
 /** Shape of a note stored in IndexedDB. Mirrors the Supabase notes row
- *  plus local-only metadata fields prefixed with underscore. */
+ *  plus local-only metadata fields prefixed with underscore.
+ *
+ *  All display metadata (symptom, disposition, author name, clinic name,
+ *  preview text) is derived from hpi_encoded at read time via
+ *  deriveNoteMetadata(). Only the essential storage fields are persisted. */
 export interface LocalNote {
   id: string                     // UUID (crypto.randomUUID)
   user_id: string
   clinic_id: string | null
-  clinic_name: string | null
+  hpi_encoded: string | null     // Encrypted clinical narrative (single source of truth)
   timestamp: string              // ISO 8601, when the clinical encounter occurred
-  display_name: string | null
-  rank: string | null
-  uic: string | null
-  algorithm_reference: string | null
-  hpi_encoded: string | null
-  symptom_icon: string | null
-  symptom_text: string | null
-  disposition_type: string | null
-  disposition_text: string | null
-  preview_text: string | null
   is_imported: boolean
   originating_clinic_id: string | null
   visible_clinic_ids: string[]
   source_device: string | null
   created_at: string
   updated_at: string
-  deleted_at: string | null
 
   // ---- Local-only metadata (not sent to Supabase) ----
   /** Tracks whether this note has been synced to the server. */
@@ -267,15 +260,12 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
 /**
  * Get all local notes for a user.
  * With hard deletes, all notes in IndexedDB are active (deleted notes
- * are removed entirely). The deleted_at filter is kept as a safety net
- * for any legacy soft-deleted notes that may still exist from before
- * the hard-delete migration.
+ * are removed entirely).
  */
 export async function getLocalNotes(userId: string): Promise<LocalNote[]> {
   const db = await getDb()
   const allNotes = await db.getAllFromIndex('notes', 'by-user', userId)
-  const activeNotes = allNotes.filter((n) => n.deleted_at === null)
-  return decryptNotes(activeNotes)
+  return decryptNotes(allNotes)
 }
 
 /**
@@ -605,12 +595,6 @@ export async function migrateV1Notes(): Promise<number> {
       migrationNote._sync_retry_count = 0
       migrationNote._last_sync_error = null
       migrationNote._last_sync_error_message = null
-      // Add missing fields with defaults
-      if (!migrationNote.symptom_icon) migrationNote.symptom_icon = null
-      if (!migrationNote.symptom_text) migrationNote.symptom_text = null
-      if (!migrationNote.disposition_type) migrationNote.disposition_type = null
-      if (!migrationNote.disposition_text) migrationNote.disposition_text = null
-      if (!migrationNote.preview_text) migrationNote.preview_text = null
       await store.put(migrationNote)
       migrated++
     }
