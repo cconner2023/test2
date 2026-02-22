@@ -7,26 +7,21 @@ import { ThemeProvider, useTheme } from './Utilities/ThemeContext'
 import { AlgorithmPage } from './Components/AlgorithmPage'
 import { WriteNotePage } from './Components/WriteNotePage'
 import type { SearchResultType } from './Types/CatTypes'
+import type { WriteNoteData } from './Hooks/useNavigation'
 import { useSearch } from './Hooks/useSearch'
 import { useNavigation } from './Hooks/useNavigation'
-import { useNotesStorage } from './Hooks/useNotesStorage'
-import { useNoteRestore } from './Hooks/useNoteRestore'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
-import { useActiveNote } from './Hooks/useActiveNote'
 import UpdateNotification from './Components/UpdateNotification'
 import InstallPrompt from './Components/InstallPrompt'
-import StorageErrorToast from './Components/StorageErrorToast'
 import { Settings } from './Components/Settings'
 import { SymptomInfoDrawer } from './Components/SymptomInfoDrawer'
 import { MedicationsDrawer } from './Components/MedicationsDrawer'
 import { ColumnA } from './Components/ColumnA'
-import { FeedbackModal } from './Components/FeedbackModal'
 import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useAuth } from './Hooks/useAuth'
 import { useAuthStore } from './stores/useAuthStore'
 import { TrainingDrawer } from './Components/TrainingDrawer'
 import { getTaskData } from './Data/TrainingData'
-import { NOTES_ENABLED } from './lib/featureFlags'
 import { LockGate } from './Components/LockGate'
 import { ErrorBoundary } from './Components/ErrorBoundary'
 
@@ -58,20 +53,54 @@ function AppContent() {
 
   const navigation = useNavigation()
   const search = useSearch()
-  const [isNotePanelOpen, setIsNotePanelOpen] = useState(false)
-  const notesStorage = useNotesStorage(isNotePanelOpen)
-  const { restoreNote } = useNoteRestore()
   const { user } = useAuth()
   const avatarState = useProfileAvatar(user?.id)
   const { currentAvatar, customImage, isCustom } = avatarState
 
-  const activeNote = useActiveNote({
-    navigation,
-    notesStorage,
-    restoreNote,
-    initialViewParam: _initialViewParam,
-    postUpdateNav: _postUpdateNav,
-  })
+  // ── Settings/training targeting state (lightweight replacement for useActiveNote) ──
+  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'training'>('main')
+  const [initialTrainingTaskId, setInitialTrainingTaskId] = useState<string | null>(null)
+  const [importInitialView, setImportInitialView] = useState<'input' | 'scanning' | undefined>(
+    _initialViewParam === 'import' ? 'scanning' : undefined
+  )
+  const importWasOpenedRef = useRef(false)
+
+  // PWA App Shortcut / Post-update: open the appropriate view on mount
+  useEffect(() => {
+    if (_postUpdateNav === 'release-notes') {
+      setSettingsInitialPanel('release-notes')
+      navigation.setShowSettings(true)
+    } else if (_initialViewParam === 'import') {
+      navigation.setShowNoteImport(true)
+    } else if (_initialViewParam === 'training') {
+      setSettingsInitialPanel('training')
+      navigation.setShowSettings(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Clear the import initial view state when the import drawer is closed
+  useEffect(() => {
+    if (navigation.showNoteImport) {
+      importWasOpenedRef.current = true
+    } else if (importWasOpenedRef.current && importInitialView) {
+      setImportInitialView(undefined)
+    }
+  }, [navigation.showNoteImport, importInitialView])
+
+  const handleExpandNote = useCallback((data: WriteNoteData) => {
+    navigation.showWriteNote(data)
+  }, [navigation])
+
+  const openTrainingTask = useCallback((taskId: string) => {
+    setSettingsInitialPanel('training')
+    setInitialTrainingTaskId(taskId)
+  }, [])
+
+  const resetSettingsPanel = useCallback(() => {
+    setSettingsInitialPanel('main')
+    setInitialTrainingTaskId(null)
+  }, [])
 
   // Cross-column swipe: swipe back from Column B (algorithm) to Column A
   const swipe = useSwipeNavigation({
@@ -97,7 +126,7 @@ function AppContent() {
         if (navigation.isMobile) {
           navigation.setShowTrainingDrawer(taskId)
         } else {
-          activeNote.openTrainingTask(taskId)
+          openTrainingTask(taskId)
           navigation.setShowSettings(true)
         }
       }
@@ -141,7 +170,7 @@ function AppContent() {
     // Navigation state change drives the grid column transition and Column A carousel
     navigation.handleNavigation(result)
     search.clearSearch()
-  }, [navigation.handleNavigation, search.clearSearch, navigation.setShowTrainingDrawer, navigation.isMobile, navigation.setShowSettings, activeNote.openTrainingTask])
+  }, [navigation.handleNavigation, search.clearSearch, navigation.setShowTrainingDrawer, navigation.isMobile, navigation.setShowSettings, openTrainingTask])
 
   const clearSearchAndCollapse = useCallback(() => {
     search.clearSearch()
@@ -177,9 +206,9 @@ function AppContent() {
   const desktopContentKey = useMemo(() => {
     if (!navigation.isMobile && search.searchInput) return 'search'
     if (navigation.selectedSymptom && navigation.showQuestionCard)
-      return `algo-${navigation.selectedSymptom.icon}-${activeNote.algorithmKeySuffix}`
+      return `algo-${navigation.selectedSymptom.icon}`
     return 'empty'
-  }, [navigation.isMobile, search.searchInput, navigation.selectedSymptom, navigation.showQuestionCard, activeNote.algorithmKeySuffix])
+  }, [navigation.isMobile, search.searchInput, navigation.selectedSymptom, navigation.showQuestionCard])
 
   return (
     <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
@@ -218,7 +247,6 @@ function AppContent() {
               isMobile: navigation.isMobile,
               isAlgorithmView: navigation.showQuestionCard,
               isMenuOpen: navigation.isMenuOpen,
-              noteSource: navigation.showQuestionCard ? activeNote.activeNoteSource : null,
               mobileAvatar: {
                 avatarSvg: currentAvatar.svg,
                 customImage,
@@ -266,13 +294,10 @@ function AppContent() {
                   <div className="h-full overflow-hidden">
                     <ErrorBoundary>
                     <AlgorithmPage
-                      key={`algo-${navigation.selectedSymptom.icon}-${activeNote.algorithmKeySuffix}`}
+                      key={`algo-${navigation.selectedSymptom.icon}`}
                       selectedSymptom={navigation.selectedSymptom}
-                      onExpandNote={activeNote.handleExpandNote}
+                      onExpandNote={handleExpandNote}
                       isMobile={navigation.isMobile}
-                      initialCardStates={activeNote.restoredAlgorithmState?.cardStates}
-                      initialDisposition={activeNote.restoredAlgorithmState?.disposition}
-                      noteSource={activeNote.activeNoteSource}
                     />
                     </ErrorBoundary>
                   </div>
@@ -313,36 +338,20 @@ function AppContent() {
         <NoteImport
           isVisible={navigation.showNoteImport}
           onClose={() => navigation.setShowNoteImport(false)}
-          initialViewState={activeNote.importInitialView}
-          onImportSuccess={NOTES_ENABLED ? activeNote.handleImportSuccess : undefined}
+          initialViewState={importInitialView}
           isMobile={navigation.isMobile}
         />
         </ErrorBoundary>
         <ErrorBoundary>
         <Settings
           isVisible={navigation.showSettings}
-          onClose={() => { navigation.setShowSettings(false); activeNote.resetSettingsPanel() }}
+          onClose={() => { navigation.setShowSettings(false); resetSettingsPanel() }}
           isDarkMode={theme === 'dark'}
           onToggleTheme={toggleTheme}
           isMobile={navigation.isMobile}
-          initialPanel={activeNote.settingsInitialPanel}
-          initialSelectedId={activeNote.myNotesInitialSelectedId}
-          initialTrainingTaskId={activeNote.initialTrainingTaskId}
-          notes={notesStorage.notes}
-          clinicNotes={notesStorage.clinicNotes}
-          onDeleteNote={notesStorage.deleteNote}
-          onDeleteClinicNote={notesStorage.deleteClinicNote}
-          onEditNote={notesStorage.updateNote}
-          onViewNote={activeNote.handleViewNote}
+          initialPanel={settingsInitialPanel}
+          initialTrainingTaskId={initialTrainingTaskId}
           avatar={avatarState}
-          onNotePanelChange={setIsNotePanelOpen}
-          syncStatus={{
-            isOnline: notesStorage.isOnline,
-            isSyncing: notesStorage.isSyncing,
-            pendingCount: notesStorage.pendingCount,
-            errorCount: notesStorage.errorCount,
-            lastSyncTime: notesStorage.lastSyncTime,
-          }}
         />
         </ErrorBoundary>
         <ErrorBoundary>
@@ -378,29 +387,14 @@ function AppContent() {
             algorithmOptions={navigation.writeNoteData.algorithmOptions}
             cardStates={navigation.writeNoteData.cardStates}
             onExpansionChange={navigation.closeWriteNote}
-            onNoteSave={NOTES_ENABLED ? activeNote.handleNoteSave : undefined}
-            onNoteDelete={NOTES_ENABLED ? activeNote.handleNoteDelete : undefined}
-            onNoteUpdate={NOTES_ENABLED ? activeNote.handleNoteUpdate : undefined}
-            existingNoteId={activeNote.activeNoteId}
-            existingEncodedText={activeNote.activeNoteEncodedText}
             selectedSymptom={navigation.writeNoteData.selectedSymptom}
             isMobile={navigation.isMobile}
             initialPage={navigation.writeNoteData.initialPage}
-            initialHpiText={navigation.writeNoteData.initialHpiText}
-            initialPeText={navigation.writeNoteData.initialPeText}
-            noteSource={activeNote.activeNoteSource}
-            onAfterSave={NOTES_ENABLED ? activeNote.handleAfterSave : undefined}
-            timestamp={navigation.writeNoteData.timestamp}
           />
           </ErrorBoundary>
         )}
         <UpdateNotification />
         <InstallPrompt />
-        <StorageErrorToast message={activeNote.storageError} onDismiss={activeNote.clearStorageError} />
-        {/* Feedback Modals */}
-        <FeedbackModal visible={activeNote.showImportSuccessModal} variant="success" title="Note Imported Successfully" subtitle="Saved with external source tag" />
-        <FeedbackModal visible={activeNote.showNoteSavedModal} variant="success" title="Note Saved" subtitle="Saved to My Notes" />
-        <FeedbackModal visible={activeNote.showImportDuplicateModal} variant="warning" title="Note Already Saved" subtitle="This note already exists in your saved notes" />
       </div>
     </div>
   )

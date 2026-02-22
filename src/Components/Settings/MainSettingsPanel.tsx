@@ -1,66 +1,6 @@
 import { ChevronUp, ChevronRight, LogOut } from 'lucide-react';
 import type { PanelId, SettingsItem } from './SettingsTypes';
 
-/** Format a Date as a relative time string ("just now", "2 min ago", etc.) */
-function formatRelativeTime(date: Date): string {
-    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
-    if (seconds < 60) return 'just now';
-    const minutes = Math.floor(seconds / 60);
-    if (minutes < 60) return `${minutes} min ago`;
-    const hours = Math.floor(minutes / 60);
-    if (hours < 24) return `${hours} hr ago`;
-    const days = Math.floor(hours / 24);
-    return `${days}d ago`;
-}
-
-/** Sync status indicator shown in the Settings footer. */
-const SyncStatusFooter = ({ isConnected, syncStatus }: {
-    isConnected?: boolean;
-    syncStatus?: {
-        isOnline: boolean;
-        isSyncing: boolean;
-        pendingCount: number;
-        errorCount: number;
-        lastSyncTime: Date | null;
-    };
-}) => {
-    // Determine state with priority: offline > syncing > error > pending > synced
-    // isConnected comes from Supabase realtime WebSocket — accurate server reachability
-    let dotClass: string;
-    let textClass: string;
-    let label: string;
-
-    if (!isConnected) {
-        dotClass = 'bg-tertiary/40';
-        textClass = 'text-tertiary/60';
-        label = 'Offline';
-    } else if (syncStatus.isSyncing) {
-        dotClass = 'bg-themeblue2 animate-pulse';
-        textClass = 'text-themeblue2';
-        label = 'Syncing\u2026';
-    } else if (syncStatus.errorCount > 0) {
-        dotClass = 'bg-themeredred';
-        textClass = 'text-themeredred';
-        label = `Sync Error \u00b7 ${syncStatus.errorCount}`;
-    } else if (syncStatus.pendingCount > 0) {
-        dotClass = 'bg-yellow-500';
-        textClass = 'text-yellow-600';
-        label = `${syncStatus.pendingCount} pending`;
-    } else {
-        dotClass = 'bg-themegreen';
-        textClass = 'text-themegreen';
-        const timeStr = syncStatus.lastSyncTime ? ` \u00b7 ${formatRelativeTime(syncStatus.lastSyncTime)}` : '';
-        label = `Synced${timeStr}`;
-    }
-
-    return (
-        <div className="flex items-center justify-center gap-1.5 mt-2">
-            <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
-            <span className={`text-[11px] font-medium ${textClass}`}>{label}</span>
-        </div>
-    );
-};
-
 export interface MainSettingsPanelProps {
     settingsOptions: SettingsItem[];
     onItemClick: (id: PanelId) => void;
@@ -75,13 +15,6 @@ export interface MainSettingsPanelProps {
     onSignOut?: () => void;
     isAuthenticated?: boolean;
     isConnected?: boolean;
-    syncStatus?: {
-        isOnline: boolean;
-        isSyncing: boolean;
-        pendingCount: number;
-        errorCount: number;
-        lastSyncTime: Date | null;
-    };
 }
 
 export const MainSettingsPanel = ({
@@ -98,7 +31,6 @@ export const MainSettingsPanel = ({
     onSignOut,
     isAuthenticated,
     isConnected,
-    syncStatus,
 }: MainSettingsPanelProps) => {
     // Separate top row items (no header before them) from grid sections
     const topItems: Extract<SettingsItem, { type: 'option' }>[] = [];
@@ -155,7 +87,7 @@ export const MainSettingsPanel = ({
                     </div>
                 </div>
 
-                {/* Top row items — My Notes & My Training (unchanged) */}
+                {/* Top row items */}
                 <div className="space-y-1 md:space-y-3">
                     {topItems.map((item) => (
                         <button
@@ -221,7 +153,12 @@ export const MainSettingsPanel = ({
                     <div className="text-center">
                         <p className="text-sm text-tertiary/60 font-medium md:text-base">ADTMC MEDCOM PAM 40-7-21</p>
                         <p className="text-xs text-tertiary/40 mt-1 md:text-sm">Version {__APP_VERSION__}</p>
-                        <SyncStatusFooter isConnected={isConnected} syncStatus={syncStatus} />
+                        <div className="flex items-center justify-center gap-1.5 mt-2">
+                            <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-themegreen' : 'bg-tertiary/40'}`} />
+                            <span className={`text-[11px] font-medium ${isConnected ? 'text-themegreen' : 'text-tertiary/60'}`}>
+                                {isConnected ? 'Connected' : 'Offline'}
+                            </span>
+                        </div>
                     </div>
                 </div>
             </div>

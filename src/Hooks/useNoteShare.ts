@@ -1,9 +1,17 @@
-// Hooks/useNoteShare.ts — Share a saved note as a Data Matrix barcode image
+// Hooks/useNoteShare.ts — Share a note as a Data Matrix barcode image
 import { useCallback, useState } from 'react';
 import bwipjs from 'bwip-js';
-import type { SavedNote } from './useNotesStorage';
 import { createLogger } from '../Utilities/Logger';
 import { UI_TIMING } from '../Utilities/constants';
+
+/** Minimal note shape needed for sharing. */
+export interface ShareableNote {
+    encodedText: string;
+    symptomText?: string;
+    dispositionType?: string;
+    dispositionText?: string;
+    createdAt: string;
+}
 
 const logger = createLogger('NoteShare');
 
@@ -27,7 +35,7 @@ function formatMilitaryDate(date: Date): string {
  * be reliably decoded by ZXing when re-imported via paste or upload.
  * Metadata (disposition, date) is sent as plain text alongside the image.
  */
-function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
+function generateShareCanvas(note: ShareableNote): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
     try {
         bwipjs.toCanvas(canvas, {
@@ -50,7 +58,7 @@ function generateShareCanvas(note: SavedNote): HTMLCanvasElement {
 }
 
 /** Build the plain-text description that accompanies the barcode image. */
-function buildShareText(note: SavedNote): string {
+function buildShareText(note: ShareableNote): string {
     const parts: string[] = [];
     if (note.symptomText) parts.push(note.symptomText);
     if (note.dispositionType) {
@@ -84,7 +92,7 @@ function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob> {
 export function useNoteShare() {
     const [shareStatus, setShareStatus] = useState<ShareStatus>('idle');
 
-    const shareNote = useCallback(async (note: SavedNote, isMobile: boolean) => {
+    const shareNote = useCallback(async (note: ShareableNote, isMobile: boolean) => {
         try {
             setShareStatus('generating');
 

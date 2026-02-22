@@ -12,7 +12,6 @@
  * Security: Only whitelisted tables can be synced to prevent
  * IndexedDB tampering from writing to sensitive tables (e.g. profiles.roles).
  */
-import { NOTES_ENABLED } from './featureFlags'
 import { supabase } from './supabase'
 import { createLogger } from '../Utilities/Logger'
 import {
@@ -21,23 +20,18 @@ import {
   markSyncItemFailed,
   resetFailedItemsForRetry,
   cleanupSyncedItems,
-  getAllLocalNotesIncludingDeleted,
-  saveLocalNote,
-  updateNoteSyncStatus,
-  hardDeleteLocalNote,
   getLocalTrainingCompletions,
   saveLocalTrainingCompletion,
   updateTrainingCompletionSyncStatus,
   hardDeleteLocalTrainingCompletion,
   stripLocalFields,
-  type LocalNote,
   type LocalTrainingCompletion,
 } from './offlineDb'
 
 const logger = createLogger('SyncService')
 
 /** Tables that the sync queue is allowed to write to. */
-const ALLOWED_SYNC_TABLES = ['notes', 'training_completions'] as const
+const ALLOWED_SYNC_TABLES = ['training_completions'] as const
 type SyncableTable = typeof ALLOWED_SYNC_TABLES[number]
 
 /** Maximum number of retries before giving up on a sync item. */
@@ -80,7 +74,7 @@ export function isOnline(): boolean {
 async function canReachSupabase(): Promise<boolean> {
   try {
     const { error } = await supabase
-      .from('notes')
+      .from('training_completions')
       .select('id')
       .limit(1)
     return !error
@@ -171,12 +165,6 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
       }
 
       try {
-        // Skip notes sync items when notes are disabled
-        if (!NOTES_ENABLED && item.table_name === 'notes') {
-          skipped++
-          continue
-        }
-
         const table = validateTableName(item.table_name)
         const cleanPayload = stripLocalFields(item.payload)
 
@@ -200,9 +188,7 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
         // Mark the corresponding record as synced in IndexedDB.
         // For deletes, the record is already hard-deleted from IndexedDB,
         // so the update will silently no-op (record not found).
-        if (table === 'notes') {
-          await updateNoteSyncStatus(item.record_id, 'synced')
-        } else if (table === 'training_completions') {
+        if (table === 'training_completions') {
           await updateTrainingCompletionSyncStatus(item.record_id, 'synced')
         }
 
@@ -216,9 +202,7 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
         // Mark the corresponding record as error in IndexedDB.
         // For deletes, the record is already hard-deleted from IndexedDB,
         // so the update will silently no-op (record not found).
-        if (item.table_name === 'notes') {
-          await updateNoteSyncStatus(item.record_id, 'error', errorMessage)
-        } else if (item.table_name === 'training_completions') {
+        if (item.table_name === 'training_completions') {
           await updateTrainingCompletionSyncStatus(item.record_id, 'error', errorMessage)
         }
 
@@ -427,52 +411,6 @@ async function reconcile<TLocal extends { _sync_status: string }, TServer>(
 // Reconciliation: Pull Server State into IndexedDB
 // ============================================================
 
-export async function reconcileWithServer(userId: string): Promise<LocalNote[]> {
-  if (!NOTES_ENABLED) {
-    return []
-  }
-  if (!isOnline()) {
-    logger.debug('Offline, skipping reconciliation')
-    return getAllLocalNotesIncludingDeleted(userId)
-  }
-
-  logger.info('Starting reconciliation with server')
-
-  try {
-    await reconcile<LocalNote, Record<string, unknown>>(userId, {
-      tableName: 'notes',
-      fetchLocal: getAllLocalNotesIncludingDeleted,
-      fetchServer: async (uid) => {
-        const { data, error } = await supabase
-          .from('notes')
-          .select('*')
-          .eq('user_id', uid)
-          .order('updated_at', { ascending: false })
-        if (error) throw error
-        return data || []
-      },
-      getId: (r) => (r as Record<string, unknown>).id as string,
-      getTimestamp: (r) => (r as Record<string, unknown>).updated_at as string,
-      saveLocal: async (serverRecord) => {
-        await saveLocalNote({
-          ...serverRecord as unknown as LocalNote,
-          _sync_status: 'synced',
-          _sync_retry_count: 0,
-          _last_sync_error: null,
-          _last_sync_error_message: null,
-        })
-      },
-      deleteLocal: hardDeleteLocalNote,
-      upsertServer: async () => {},
-    })
-  } catch (err) {
-    logger.error('Failed to reconcile notes:', err)
-    return getAllLocalNotesIncludingDeleted(userId)
-  }
-
-  return getAllLocalNotesIncludingDeleted(userId)
-}
-
 export async function reconcileTrainingCompletionsWithServer(
   userId: string
 ): Promise<LocalTrainingCompletion[]> {
@@ -538,10 +476,7 @@ export function setupConnectivityListeners(
     onStatusChange?: (online: boolean) => void
     onSyncStart?: () => void
     onSyncComplete?: (result: SyncResult) => void
-    onReconcileComplete?: (notes: LocalNote[]) => void
     onTrainingReconcileComplete?: (completions: LocalTrainingCompletion[]) => void
-    /** Called after sync completes so the UI can refresh clinic notes. */
-    onClinicRefresh?: () => void
   }
 ): () => void {
   let syncInProgress = false
@@ -555,20 +490,12 @@ export function setupConnectivityListeners(
       callbacks?.onSyncStart?.()
 
       // 1. Reconcile (pull server changes)
-      const reconciledNotes = await reconcileWithServer(userId)
-      callbacks?.onReconcileComplete?.(reconciledNotes)
-
       const reconciledCompletions = await reconcileTrainingCompletionsWithServer(userId)
       callbacks?.onTrainingReconcileComplete?.(reconciledCompletions)
 
       // 2. Push local changes
       const result = await processSyncQueue(userId)
       callbacks?.onSyncComplete?.(result)
-
-      // 3. Refresh clinic notes to catch changes missed while offline.
-      // Supabase Realtime doesn't replay events missed during disconnection,
-      // so a full fetch is needed to reconcile clinic-level discrepancies.
-      callbacks?.onClinicRefresh?.()
 
       logger.info(`Full sync completed: ${result.processed} pushed, ${result.failed} failed`)
     } catch (error) {
@@ -650,7 +577,6 @@ export function setupConnectivityListeners(
  */
 export async function fullSync(
   userId: string,
-  onReconcileComplete?: (notes: LocalNote[]) => void,
   onTrainingReconcileComplete?: (completions: LocalTrainingCompletion[]) => void
 ): Promise<SyncResult> {
   if (!isOnline()) {
@@ -658,9 +584,6 @@ export async function fullSync(
   }
 
   // 1. Pull
-  const reconciledNotes = await reconcileWithServer(userId)
-  onReconcileComplete?.(reconciledNotes)
-
   const reconciledCompletions = await reconcileTrainingCompletionsWithServer(userId)
   onTrainingReconcileComplete?.(reconciledCompletions)
 

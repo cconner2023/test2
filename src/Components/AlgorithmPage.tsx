@@ -7,23 +7,18 @@ import { Algorithm as AlgorithmData } from '../Data/Algorithms';
 import { QuestionCard } from './QuestionCard';
 import { ScreenerDrawer } from './ScreenerDrawer';
 import { getColorClasses } from '../Utilities/ColorUtilities';
-import { formatNoteSource } from '../Utilities/NoteSourceUtils';
 import { ConnectorDots } from './ConnectorDots';
 import { ALGORITHM_TIMING } from '../Utilities/constants';
 import type { WriteNoteData } from '../Hooks/useNavigation';
-import { Check, Download, PenSquare, ChevronRight } from 'lucide-react';
+import { ChevronRight } from 'lucide-react';
 
 interface AlgorithmProps {
     selectedSymptom: subCatDataTypes | null;
     onExpandNote?: (data: WriteNoteData) => void;
     isMobile?: boolean;
-    initialCardStates?: import('../Hooks/useAlgorithm').CardState[];
-    initialDisposition?: dispositionType | null;
-    /** Note source string: null = new note, 'external:user' = imported, anything else = saved */
-    noteSource?: string | null;
 }
 
-export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false, initialCardStates, initialDisposition, noteSource = null }: AlgorithmProps) {
+export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false }: AlgorithmProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const markerRef = useRef<HTMLDivElement>(null);
     const prevDispositionRef = useRef<dispositionType | null>(null);
@@ -43,7 +38,7 @@ export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false,
         getVisibleCards,
         setScreenerResults,
         setActionStatus,
-    } = useAlgorithm(algorithmOptions, initialCardStates, initialDisposition);
+    } = useAlgorithm(algorithmOptions);
 
     // Screener drawer state
     const [openScreenerCardIndex, setOpenScreenerCardIndex] = useState<number | null>(null);
@@ -204,21 +199,6 @@ export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false,
     return (
         <div className="w-full h-full relative overflow-hidden">
             <div key="algorithm-view" className="h-full flex flex-col">
-                {/* Note status header — on desktop only (mobile shows it in NavTop) */}
-                {!isMobile && (
-                    <div className="shrink-0">
-                        <div className="flex items-center gap-1.5 py-2 px-3 rounded-md bg-themewhite2 border border-tertiary/10 shadow-sm text-[11px] font-medium text-primary mb-3">
-                            {noteSource && !noteSource.startsWith('external') ? (
-                                <Check className="w-3 h-3 shrink-0" />
-                            ) : noteSource?.startsWith('external') ? (
-                                <Download className="w-3 h-3 shrink-0" />
-                            ) : (
-                                <PenSquare className="w-3 h-3 shrink-0" />
-                            )}
-                            {formatNoteSource(noteSource)}
-                        </div>
-                    </div>
-                )}
                 <div
                     ref={containerRef}
                     className={`flex-1 overflow-y-auto ${isMobile ? 'bg-themewhite' : ''} ${isTransitioning ? 'transition-none' : ''}`}

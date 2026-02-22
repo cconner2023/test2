@@ -1,12 +1,10 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, FileText, BookOpen, UserCog, Lock, MessageSquare, Bell, HelpCircle, Stethoscope, ClipboardCheck } from 'lucide-react';
+import { Moon, Sun, Shield, BookOpen, UserCog, Lock, MessageSquare, Bell, Stethoscope, ClipboardCheck, FileWarning } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
-import type { SavedNote } from '../../Hooks/useNotesStorage';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import type { ProfileAvatar } from '../../Data/ProfileAvatars';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useSwipeBack } from '../../Hooks/useSwipeBack';
-import { MyNotesPanel } from './MyNotesPanel';
 import { ReleaseNotesPanel } from './ReleaseNotesPanel';
 import { UserProfileDisplay } from './UserProfileDisplay';
 import { ProfileChangeRequestForm } from './ProfileChangeRequestForm';
@@ -19,7 +17,7 @@ import { TrainingPanel, type TrainingView } from './TrainingPanel';
 import { PinSetupPanel } from './PinSetupPanel';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { FeedbackPanel } from './FeedbackPanel';
-import { HowToPanel } from './HowToPanel';
+import { DisclaimersPanel } from './DisclaimersPanel';
 import { NoteContentPanel } from './NoteContentPanel';
 import type { subjectAreaArrayOptions } from '../../Types/CatTypes';
 import { stp68wTraining } from '../../Data/TrainingTaskList';
@@ -40,16 +38,9 @@ interface SettingsDrawerProps {
     isDarkMode: boolean;
     onToggleTheme: () => void;
     isMobile?: boolean;
-    initialPanel?: 'main' | 'my-notes' | 'release-notes' | 'training';
-    initialSelectedId?: string | null;
+    initialPanel?: 'main' | 'release-notes' | 'training';
     /** When set alongside initialPanel='training', deep-links to a specific training task */
     initialTrainingTaskId?: string | null;
-    notes?: SavedNote[];
-    clinicNotes?: SavedNote[];
-    onDeleteNote?: (noteId: string) => void;
-    onDeleteClinicNote?: (noteId: string) => void;
-    onEditNote?: (noteId: string, updates: Partial<Omit<SavedNote, 'id' | 'createdAt'>>) => void;
-    onViewNote?: (note: SavedNote) => void;
     avatar: {
         currentAvatar: ProfileAvatar;
         setAvatar: (id: string) => void;
@@ -58,14 +49,6 @@ interface SettingsDrawerProps {
         isCustom: boolean;
         setCustomImage: (dataUrl: string) => void;
         clearCustomImage: () => void;
-    };
-    onNotePanelChange?: (isOpen: boolean) => void;
-    syncStatus?: {
-        isOnline: boolean;
-        isSyncing: boolean;
-        pendingCount: number;
-        errorCount: number;
-        lastSyncTime: Date | null;
     };
 }
 
@@ -76,19 +59,10 @@ export const Settings = ({
     onToggleTheme,
     isMobile: externalIsMobile,
     initialPanel,
-    initialSelectedId,
     initialTrainingTaskId,
-    notes = [],
-    clinicNotes,
-    onDeleteNote,
-    onDeleteClinicNote,
-    onEditNote,
-    onViewNote,
     avatar,
-    onNotePanelChange,
-    syncStatus,
 }: SettingsDrawerProps) => {
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'my-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'how-to' | 'note-content' | TrainingView>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'disclaimers' | TrainingView>('main');
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = avatar;
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
@@ -97,11 +71,6 @@ export const Settings = ({
     const supervisorBackRef = useRef<(() => void) | null>(null);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
     const { signOut, isAuthenticated, isDevRole, isSupervisorRole } = useAuth();
-
-    // Notify parent when note panel opens/closes
-    useEffect(() => {
-        onNotePanelChange?.(isVisible && activePanel === 'my-notes');
-    }, [isVisible, activePanel, onNotePanelChange]);
 
     // Supabase realtime WebSocket for device status — active only while settings is open
     useEffect(() => {
@@ -200,7 +169,6 @@ export const Settings = ({
 
         const items: SettingsItem[] = [
             // Top section (no header)
-            opt(PANEL.MY_NOTES, <FileText size={20} />, isAuthenticated ? 'My Clinic' : 'My Notes'),
             opt(PANEL.TRAINING, <BookOpen size={20} />, 'My Training'),
         ];
 
@@ -216,8 +184,8 @@ export const Settings = ({
             { type: 'header', label: 'Preferences' },
             opt(PANEL.TOGGLE_THEME, isDarkMode ? <Sun size={20} /> : <Moon size={20} />, 'Toggle Theme', { action: onToggleTheme }),
             opt(PANEL.PIN_SETUP, <Lock size={20} />, 'Security'),
-            opt(PANEL.NOTIFICATION_SETTINGS, <Bell size={20} />, 'Notifications'),
             opt(PANEL.NOTE_CONTENT, <Stethoscope size={20} />, 'Note Content'),
+            opt(PANEL.NOTIFICATION_SETTINGS, <Bell size={20} />, 'Notifications', { disabled: true }),
         );
 
         // ABOUT section
@@ -225,7 +193,7 @@ export const Settings = ({
             { type: 'header', label: 'About' },
             opt(PANEL.RELEASE_NOTES, <Shield size={20} />, 'Release Notes'),
             opt(PANEL.FEEDBACK, <MessageSquare size={20} />, 'Feedback'),
-            opt(PANEL.HOW_TO, <HelpCircle size={20} />, 'Help & Tutorials'),
+            opt(PANEL.DISCLAIMERS, <FileWarning size={20} />, 'Disclaimers'),
         );
 
         return items;
@@ -271,14 +239,6 @@ export const Settings = ({
         switch (activePanel) {
             case 'main':
                 return { title: 'Settings' };
-            case 'my-notes': {
-                const title = isAuthenticated ? (profile.clinicName || 'My Clinic') : 'My Notes';
-                const totalCount = new Set([
-                    ...notes.map(n => n.id),
-                    ...(clinicNotes || []).map(n => n.id),
-                ]).size;
-                return { title, ...backTo(), badge: totalCount > 0 ? String(totalCount) : undefined };
-            }
             case 'training-detail':
                 return { title: selectedTask?.text || 'Task', showBack: true, onBack: handleTrainingBack };
             case 'supervisor':
@@ -297,10 +257,10 @@ export const Settings = ({
             case 'pin-setup':           return { title: 'App Lock', ...backTo() };
             case 'notification-settings': return { title: 'Notifications', ...backTo() };
             case 'feedback':            return { title: 'Feedback', ...backTo() };
-            case 'how-to':              return { title: 'Help & Tutorials', ...backTo() };
+            case 'disclaimers':         return { title: 'Disclaimers', ...backTo() };
             case 'note-content':        return { title: 'Note Content', ...backTo() };
         }
-    }, [activePanel, notes, clinicNotes, isAuthenticated, profile.clinicName, backTo, selectedTask, handleTrainingBack]);
+    }, [activePanel, backTo, selectedTask, handleTrainingBack]);
 
     return (
         <BaseDrawer
@@ -353,7 +313,6 @@ export const Settings = ({
                             onSignOut={async () => { await clearAllUserData(); await clearServiceWorkerCaches(); await signOut(); handleClose(); }}
                             isAuthenticated={!!isAuthenticated}
                             isConnected={isSupabaseConnected}
-                            syncStatus={syncStatus}
                         />
                     ) : activePanel === 'user-profile' ? (
                         isAuthenticated === false ? (
@@ -422,33 +381,21 @@ export const Settings = ({
                         />
                     ) : activePanel === 'feedback' ? (
                         <FeedbackPanel />
-                    ) : activePanel === 'how-to' ? (
-                        <HowToPanel />
+                    ) : activePanel === 'disclaimers' ? (
+                        <DisclaimersPanel />
                     ) : activePanel === 'note-content' ? (
                         <NoteContentPanel />
                     ) : activePanel === 'notification-settings' ? (
                         <NotificationSettingsPanel />
                     ) : activePanel === 'pin-setup' ? (
                         <PinSetupPanel />
-                    ) : activePanel === 'training' || activePanel === 'training-detail' ? (
+                    ) : (activePanel === 'training' || activePanel === 'training-detail') ? (
                         <TrainingPanel
                             view={activePanel}
                             selectedTask={selectedTask}
                             onSelectTask={handleTrainingSelectTask}
                         />
-                    ) : (
-                        <MyNotesPanel
-                            isMobile={externalIsMobile ?? false}
-                            notes={notes}
-                            clinicNotes={clinicNotes}
-                            onDeleteNote={onDeleteNote || (() => { })}
-                            onDeleteClinicNote={onDeleteClinicNote}
-                            onEditNote={onEditNote}
-                            onViewNote={onViewNote}
-                            onCloseDrawer={handleClose}
-                            initialSelectedId={initialSelectedId}
-                        />
-                    )}
+                    ) : null}
                 </ContentWrapper>
             )}
         </BaseDrawer>

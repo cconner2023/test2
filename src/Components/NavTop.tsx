@@ -1,10 +1,9 @@
 // NavTop.tsx - Simplified version with grouped props
-import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, HelpCircle, Check, Download, PenSquare } from "lucide-react";
+import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, HelpCircle } from "lucide-react";
 import { useRef, useEffect, useMemo } from "react";
 import { useSpring, useTrail, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { createLogger } from "../Utilities/Logger";
-import { formatNoteSource } from '../Utilities/NoteSourceUtils';
 
 const logger = createLogger('NavTop');
 import { menuData as allMenuData } from "../Data/CatData";
@@ -46,7 +45,6 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         isMobile,
         isAlgorithmView = false,
         isMenuOpen = false,
-        noteSource,
     } = ui
 
     const menuData = useMemo(() => allMenuData, []);
@@ -330,21 +328,6 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                             {dynamicTitle || `ADTMC ${__APP_VERSION__}`}
                         </span>
                     </div>
-                    {/* Note source marker - shown under title when in algorithm view */}
-                    {isAlgorithmView && noteSource !== undefined && (
-                        <div className="flex items-center justify-center gap-1 mt-0.5">
-                            {noteSource && !noteSource?.startsWith('external') ? (
-                                <Check className="w-2.5 h-2.5 shrink-0 text-tertiary" />
-                            ) : noteSource?.startsWith('external') ? (
-                                <Download className="w-2.5 h-2.5 shrink-0 text-tertiary" />
-                            ) : (
-                                <PenSquare className="w-2.5 h-2.5 shrink-0 text-tertiary" />
-                            )}
-                            <span className="text-[8pt] text-tertiary font-medium">
-                                {formatNoteSource(noteSource, 'short')}
-                            </span>
-                        </div>
-                    )}
                 </div>
             )}
 

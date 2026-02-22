@@ -74,32 +74,6 @@ export default defineConfig({
         ],
         shortcuts: [
           {
-            name: 'My Notes',
-            short_name: 'My Notes',
-            description: 'View notes notes saved to this device',
-            url: '/test2/?view=mynotes',
-            icons: [
-              {
-                src: '/test2/icon-192.png',
-                sizes: '192x192',
-                type: 'image/png'
-              }
-            ]
-          },
-          {
-            name: 'Import Note',
-            short_name: 'Import',
-            description: 'Import a note via barcode',
-            url: '/test2/?view=import',
-            icons: [
-              {
-                src: '/test2/icon-192.png',
-                sizes: '192x192',
-                type: 'image/png'
-              }
-            ]
-          },
-          {
             name: 'My Training',
             short_name: 'Training',
             description: 'View your training progress',

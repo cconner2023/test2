@@ -8,7 +8,6 @@ export const PANEL = {
     CLOSE: -1,
     BACK_TO_MAIN: -2,
     TOGGLE_THEME: 0,
-    MY_NOTES: 1,
     RELEASE_NOTES: 4,
     AVATAR_PICKER: 5,
     USER_PROFILE: 6,
@@ -21,15 +20,14 @@ export const PANEL = {
     PIN_SETUP: 15,
     FEEDBACK: 16,
     NOTIFICATION_SETTINGS: 17,
-    HOW_TO: 18,
     NOTE_CONTENT: 19,
+    DISCLAIMERS: 20,
 } as const;
 
 export type PanelId = (typeof PANEL)[keyof typeof PANEL];
 
 /** Maps a numeric panel ID to the activePanel string it should navigate to. */
 export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
-    [PANEL.MY_NOTES]: 'my-notes',
     [PANEL.RELEASE_NOTES]: 'release-notes',
     [PANEL.AVATAR_PICKER]: 'avatar-picker',
     [PANEL.USER_PROFILE]: 'user-profile',
@@ -42,8 +40,8 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.PIN_SETUP]: 'pin-setup',
     [PANEL.FEEDBACK]: 'feedback',
     [PANEL.NOTIFICATION_SETTINGS]: 'notification-settings',
-    [PANEL.HOW_TO]: 'how-to',
     [PANEL.NOTE_CONTENT]: 'note-content',
+    [PANEL.DISCLAIMERS]: 'disclaimers',
 };
 
 export type SettingsItem =

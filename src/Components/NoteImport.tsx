@@ -20,17 +20,10 @@ import { UI_TIMING } from '../Utilities/constants';
 
 export type ViewState = 'input' | 'decoded' | 'scanning';
 
-export interface ImportSuccessData {
-    encodedText: string;
-    decodedText: string;
-    preview: ImportPreview;
-}
-
 interface NoteImportProps {
     isVisible: boolean;
     onClose: () => void;
     initialViewState?: ViewState;
-    onImportSuccess?: (data: ImportSuccessData) => void;
     isMobile?: boolean;
 }
 
@@ -97,12 +90,10 @@ function StaticBarcode({ encodedText }: { encodedText: string }) {
 const NoteImportContent = ({
     state,
     setState,
-    onImportSuccess,
     isMobile = false,
 }: {
     state: ContentState;
     setState: React.Dispatch<React.SetStateAction<ContentState>>;
-    onImportSuccess?: (data: ImportSuccessData) => void;
     isMobile?: boolean;
 }) => {
     const inputRef = useRef<HTMLInputElement>(null);
@@ -268,17 +259,11 @@ const NoteImportContent = ({
     const handleShare = useCallback(() => {
         if (!state.preview) return;
         shareNote({
-            id: '',
             encodedText: state.preview.encodedText,
             createdAt: state.preview.timestamp?.toISOString() || new Date().toISOString(),
-            symptomIcon: state.preview.symptomIcon,
             symptomText: state.preview.symptomText,
             dispositionType: state.preview.dispositionType,
             dispositionText: state.preview.dispositionText,
-            previewText: state.preview.fullNote.slice(0, 200),
-            sync_status: 'synced',
-            authorId: '',
-            authorName: null,
         }, isMobile);
     }, [state.preview, shareNote, isMobile]);
 
@@ -470,33 +455,13 @@ const NoteImportContent = ({
                         </div>
                     </div>
 
-                    {/* Footer: Import Note button */}
-                    {onImportSuccess && (
-                        <div
-                            className={`shrink-0 flex justify-end px-4 md:px-6 ${isMobile ? 'pt-3 pb-4' : 'py-3'} border-t border-tertiary/10 bg-themewhite2`}
-                            style={isMobile ? { paddingBottom: 'max(1rem, calc(env(safe-area-inset-bottom, 0px) + 1rem))' } : {}}
-                        >
-                            <TextButton
-                                text="Import Note"
-                                onClick={() => {
-                                    onImportSuccess({
-                                        encodedText: state.inputText,
-                                        decodedText: preview.fullNote,
-                                        preview,
-                                    });
-                                }}
-                                variant='dispo-specific'
-                                className='bg-themeblue3 text-white rounded-full'
-                            />
-                        </div>
-                    )}
                 </>
             )}
         </div>
     );
 };
 
-export function NoteImport({ isVisible, onClose, initialViewState, onImportSuccess, isMobile }: NoteImportProps) {
+export function NoteImport({ isVisible, onClose, initialViewState, isMobile }: NoteImportProps) {
     // Lifted content state - persists across mobile/desktop layout changes
     const [contentState, setContentState] = useState<ContentState>({
         viewState: initialViewState || 'input',
@@ -543,7 +508,6 @@ export function NoteImport({ isVisible, onClose, initialViewState, onImportSucce
             <NoteImportContent
                 state={contentState}
                 setState={setContentState}
-                onImportSuccess={onImportSuccess}
                 isMobile={isMobile}
             />
         </BaseDrawer>

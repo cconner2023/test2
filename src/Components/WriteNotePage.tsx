@@ -13,23 +13,17 @@ import { PIIWarningBanner } from './PIIWarningBanner';
 import { detectPII } from '../lib/piiDetector';
 import { formatSignature } from '../Utilities/NoteFormatter';
 import { getColorClasses } from '../Utilities/ColorUtilities';
-import { encodedContentEquals } from '../Utilities/NoteCodec';
 import { UI_TIMING } from '../Utilities/constants';
-import { formatNoteSource } from '../Utilities/NoteSourceUtils';
 import { NoteBarcodeGenerator } from './Barcode';
 import { DecisionMaking } from './DecisionMaking';
 import { PhysicalExam } from './PhysicalExam';
 import { BaseDrawer } from './BaseDrawer';
 import { ActionIconButton, SlideWrapper, ToggleOption } from './WriteNoteHelpers';
-import { BrainCircuit, FileText, Stethoscope, ChevronLeft, ChevronRight, X, Check } from 'lucide-react';
+import { BrainCircuit, FileText, Stethoscope, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 type DispositionType = dispositionType['type'];
 
 type PageId = 'decision' | 'hpi' | 'pe' | 'fullnote';
-
-export interface NoteSaveData {
-    encodedText: string;
-}
 
 interface WriteNoteProps {
     isVisible: boolean;
@@ -41,22 +35,12 @@ interface WriteNoteProps {
     algorithmOptions?: AlgorithmOptions[];
     cardStates?: CardState[];
     onExpansionChange: (expanded: boolean) => void;
-    onNoteSave?: (data: NoteSaveData) => boolean | void;
-    onNoteDelete?: (noteId: string) => void;
-    onNoteUpdate?: (noteId: string, data: NoteSaveData) => boolean | void;
-    existingNoteId?: string | null;
-    existingEncodedText?: string | null;
     selectedSymptom?: {
         icon: string;
         text: string;
     };
     isMobile?: boolean;
     initialPage?: number;
-    initialHpiText?: string;
-    initialPeText?: string;
-    noteSource?: string | null;
-    onAfterSave?: () => void;
-    timestamp?: Date | null;
 }
 
 export const WriteNotePage = ({
@@ -65,26 +49,15 @@ export const WriteNotePage = ({
     algorithmOptions = [],
     cardStates = [],
     onExpansionChange,
-    onNoteSave,
-    onNoteDelete,
-    onNoteUpdate,
-    existingNoteId = null,
-    existingEncodedText = null,
     selectedSymptom = { icon: '', text: '' },
     isMobile = false,
     initialPage = 0,
-    initialHpiText = '',
-    initialPeText = '',
-    noteSource = null,
-    onAfterSave,
-    timestamp = null,
 }: WriteNoteProps) => {
     // Note content state — profile preferences provide defaults for new notes
     const { profile } = useUserProfile();
     const authUserId = useAuthStore(s => s.user?.id);
-    const authClinicId = useAuthStore(s => s.clinicId);
-    const defaultHPI = initialHpiText ? true : (profile.noteIncludeHPI ?? true);
-    const defaultPE = initialPeText ? true : (profile.noteIncludePE ?? false);
+    const defaultHPI = profile.noteIncludeHPI ?? true;
+    const defaultPE = profile.noteIncludePE ?? false;
 
     // Build visible wizard pages — hide HPI/PE when disabled in settings
     const visiblePages = useMemo(() => {
@@ -95,23 +68,17 @@ export const WriteNotePage = ({
         return pages;
     }, [defaultHPI, defaultPE]);
 
-    const [note, setNote] = useState<string>(initialHpiText);
+    const [note, setNote] = useState<string>('');
     const [previewNote, setPreviewNote] = useState<string>('');
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState<boolean>(true);
     const [includeHPI, setIncludeHPI] = useState<boolean>(defaultHPI);
-    const [peNote, setPeNote] = useState<string>(initialPeText);
+    const [peNote, setPeNote] = useState<string>('');
     const [includePhysicalExam, setIncludePhysicalExam] = useState<boolean>(defaultPE);
 
     // Note timestamp — set automatically when user first reaches Full Note
-    const [noteTimestamp, setNoteTimestamp] = useState<Date | null>(timestamp);
+    const [noteTimestamp, setNoteTimestamp] = useState<Date | null>(null);
     const [encodedValue, setEncodedValue] = useState<string>('');
     const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null);
-    const [isSaved, setIsSaved] = useState(false);
-    const [saveFailed, setSaveFailed] = useState(false);
-    const [isDeleted, setIsDeleted] = useState(false);
-    const [confirmDelete, setConfirmDelete] = useState(false);
-    const confirmDeleteRef = useRef(false);
-    const confirmDeleteTimeoutRef = useRef<ReturnType<typeof setTimeout>>(0);
 
     // Page navigation state
     const [currentPage, setCurrentPage] = useState(() =>
@@ -203,16 +170,13 @@ export const WriteNotePage = ({
     const handleShare = useCallback(() => {
         if (!encodedValue) return;
         shareNote({
-            id: existingNoteId || '',
             encodedText: encodedValue,
             createdAt: noteTimestamp?.toISOString() || new Date().toISOString(),
-            symptomIcon: selectedSymptom?.icon || '',
             symptomText: selectedSymptom?.text || 'Note',
             dispositionType: disposition.type,
             dispositionText: disposition.text,
-            previewText: previewNote.slice(0, 200),
         }, isMobile);
-    }, [encodedValue, existingNoteId, noteTimestamp, selectedSymptom, disposition, previewNote, isMobile, shareNote]);
+    }, [encodedValue, noteTimestamp, selectedSymptom, disposition, isMobile, shareNote]);
 
     // --- DD689 PDF export handler ---
     const handleExportDD689 = useCallback(() => {
@@ -237,65 +201,6 @@ export const WriteNotePage = ({
             authorLine: authorParts.length ? authorParts.join(', ') : undefined,
         });
     }, [encodedValue, disposition, selectedSymptom, exportDD689, noteTimestamp, profile]);
-
-    // --- Determine button state based on existing note ---
-    const isAlreadySaved = Boolean(existingNoteId);
-    const hasContentChanged = isAlreadySaved && encodedValue !== '' && !encodedContentEquals(encodedValue, existingEncodedText || '');
-
-    // --- Save note handler (new note) ---
-    const handleSaveNote = useCallback(() => {
-        if (!encodedValue) return;
-        const result = onNoteSave?.({
-            encodedText: encodedValue,
-        });
-        if (result === false) {
-            setSaveFailed(true);
-            setTimeout(() => setSaveFailed(false), UI_TIMING.SAVE_ERROR_DURATION);
-            return;
-        }
-        setIsSaved(true);
-        if (onAfterSave) {
-            setTimeout(() => onAfterSave(), UI_TIMING.AFTER_SAVE_DELAY);
-        } else {
-            setTimeout(() => setIsSaved(false), UI_TIMING.FEEDBACK_DURATION);
-        }
-    }, [encodedValue, onNoteSave, onAfterSave]);
-
-    // --- Delete note handler (two-tap confirmation) ---
-    const handleDeleteNote = useCallback(() => {
-        if (!existingNoteId) return;
-        if (confirmDeleteRef.current) {
-            onNoteDelete?.(existingNoteId);
-            setIsDeleted(true);
-            confirmDeleteRef.current = false;
-            setConfirmDelete(false);
-            if (confirmDeleteTimeoutRef.current) clearTimeout(confirmDeleteTimeoutRef.current);
-            setTimeout(() => setIsDeleted(false), UI_TIMING.FEEDBACK_DURATION);
-        } else {
-            confirmDeleteRef.current = true;
-            setConfirmDelete(true);
-            if (confirmDeleteTimeoutRef.current) clearTimeout(confirmDeleteTimeoutRef.current);
-            confirmDeleteTimeoutRef.current = setTimeout(() => {
-                confirmDeleteRef.current = false;
-                setConfirmDelete(false);
-            }, UI_TIMING.DELETE_CONFIRM_TIMEOUT);
-        }
-    }, [existingNoteId, onNoteDelete]);
-
-    // --- Update note handler (save changes to existing note) ---
-    const handleUpdateNote = useCallback(() => {
-        if (!existingNoteId || !encodedValue) return;
-        const result = onNoteUpdate?.(existingNoteId, {
-            encodedText: encodedValue,
-        });
-        if (result === false) return;
-        setIsSaved(true);
-        if (onAfterSave) {
-            setTimeout(() => onAfterSave(), UI_TIMING.AFTER_SAVE_DELAY);
-        } else {
-            setTimeout(() => setIsSaved(false), UI_TIMING.FEEDBACK_DURATION);
-        }
-    }, [existingNoteId, encodedValue, onNoteUpdate, onAfterSave]);
 
     // --- Slide animation helper (mirrors Settings pattern) ---
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
@@ -382,9 +287,6 @@ export const WriteNotePage = ({
                         <h2 className="text-[11pt] font-normal text-primary md:text-2xl truncate">
                             {visiblePages[currentPage]?.label}
                         </h2>
-                        <span className="text-xs text-tertiary shrink-0">
-                            {formatNoteSource(noteSource)}
-                        </span>
                     </div>
                     <button
                         onClick={closeHandler}
@@ -609,7 +511,6 @@ export const WriteNotePage = ({
                                                 physicalExamNote: includePhysicalExam ? peNote : '',
                                                 user: profile,
                                                 userId: authUserId,
-                                                clinicId: authClinicId ?? undefined,
                                             }}
                                             symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
                                             onEncodedValueChange={setEncodedValue}
@@ -631,7 +532,7 @@ export const WriteNotePage = ({
             >
                 <div />
                 <div key={currentPage} className={`flex items-center gap-2 ${slideDirection === 'left' ? 'animate-footer-btn-left' : slideDirection === 'right' ? 'animate-footer-btn-right' : ''}`}>
-                    {currentPage < visiblePages.length - 1 ? (
+                    {currentPage < visiblePages.length - 1 && (
                         <button
                             onClick={handleNext}
                             disabled={hasPII}
@@ -642,91 +543,6 @@ export const WriteNotePage = ({
                             <span className="hidden md:inline text-sm font-medium">Next</span>
                             <ChevronRight className="w-6 h-6" />
                         </button>
-                    ) : (
-                        <>
-                            {/* Save (new note) */}
-                            {onNoteSave && !isAlreadySaved && (
-                                <button
-                                    onClick={handleSaveNote}
-                                    disabled={isSaved || !encodedValue || hasPII}
-                                    className={`w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2
-                                        ${saveFailed
-                                            ? 'bg-themeredred/15 text-themeredred'
-                                            : isSaved
-                                                ? 'bg-green-500/15 text-green-600 dark:text-green-300'
-                                                : colors.buttonClass
-                                        }`}
-                                    title={saveFailed ? 'Storage full' : isSaved ? 'Saved' : 'Save to My Notes'}
-                                >
-                                    {saveFailed ? (
-                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                        </svg>
-                                    ) : isSaved ? (
-                                        <Check className="w-6 h-6" />
-                                    ) : (
-                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                                        </svg>
-                                    )}
-                                    <span className="hidden md:inline text-sm font-medium">
-                                        {saveFailed ? 'Storage Full' : isSaved ? 'Saved' : 'Save Note'}
-                                    </span>
-                                </button>
-                            )}
-
-                            {/* Save Changes (existing note, content changed) */}
-                            {isAlreadySaved && hasContentChanged && onNoteUpdate && (
-                                <button
-                                    onClick={handleUpdateNote}
-                                    disabled={isSaved || !encodedValue || hasPII}
-                                    className={`w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2
-                                        ${isSaved
-                                            ? 'bg-green-500/15 text-green-600 dark:text-green-300'
-                                            : 'bg-themeblue3/10 text-themeblue3 hover:bg-themeblue3/20'
-                                        }`}
-                                    title={isSaved ? 'Changes saved' : 'Save changes'}
-                                >
-                                    {isSaved ? (
-                                        <Check className="w-6 h-6" />
-                                    ) : (
-                                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                        </svg>
-                                    )}
-                                    <span className="hidden md:inline text-sm font-medium">
-                                        {isSaved ? 'Saved' : 'Save Changes'}
-                                    </span>
-                                </button>
-                            )}
-
-                            {/* Delete (existing note, no content change) */}
-                            {isAlreadySaved && !hasContentChanged && onNoteDelete && (
-                                <button
-                                    onClick={handleDeleteNote}
-                                    disabled={isDeleted}
-                                    className={`w-11 h-11 rounded-full flex items-center justify-center transition-all active:scale-95 disabled:opacity-40 md:w-auto md:h-auto md:px-5 md:py-2.5 md:rounded-xl md:gap-2
-                                        ${isDeleted
-                                            ? 'bg-themeredred/15 text-themeredred'
-                                            : confirmDelete
-                                                ? 'bg-red-500 text-white'
-                                                : 'bg-themewhite3 text-themeredred hover:bg-themeredred/10'
-                                        }`}
-                                    title={confirmDelete ? 'Tap again to confirm' : 'Delete note'}
-                                >
-                                    {isDeleted ? (
-                                        <Check className="w-6 h-6" />
-                                    ) : (
-                                        <svg className="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                    )}
-                                    <span className="hidden md:inline text-sm font-medium">
-                                        {isDeleted ? 'Deleted' : confirmDelete ? 'Confirm?' : 'Delete'}
-                                    </span>
-                                </button>
-                            )}
-                        </>
                     )}
                 </div>
             </div>

@@ -113,6 +113,20 @@ export function BaseDrawer({
     const [isMounted, setIsMounted] = useState(false);
     const [desktopOpen, setDesktopOpen] = useState(false);
 
+    // Detect mobile viewport — single source of truth for layout mode
+    const [isMobile, setIsMobile] = useState(() =>
+        typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
+    );
+
+    useEffect(() => {
+        const mql = window.matchMedia('(max-width: 767px)');
+        const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+        mql.addEventListener('change', handler);
+        return () => mql.removeEventListener('change', handler);
+    }, []);
+
+    const useMobileLayout = mobileOnly || isMobile;
+
     const dragStartPosition = useRef(0);
     const animationFrameId = useRef<number>(0);
     const timeoutRef = useRef<number | null>(null);
@@ -224,6 +238,7 @@ export function BaseDrawer({
         }
     );
 
+    // Mobile: animated slide-down close; Desktop: immediate close
     const mobileHandleClose = useCallback(() => {
         animateToPosition(0);
     }, [animateToPosition]);
@@ -232,124 +247,90 @@ export function BaseDrawer({
         onClose();
     }, [onClose]);
 
-    const mobileStyles = {
-        translateY: 100 - drawerPosition,
-        opacity: Math.min(1, drawerPosition / 60 + 0.2),
-        height: fullHeight,
-        borderRadius: '1.25rem 1.25rem 0 0',
-        boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
-    };
+    // Stable close handler that always dispatches to the current layout's handler
+    const closeHandlerRef = useRef(mobileHandleClose);
+    closeHandlerRef.current = useMobileLayout ? mobileHandleClose : desktopHandleClose;
+    const handleClose = useCallback(() => { closeHandlerRef.current(); }, []);
 
     // Desktop column overlay — position and width based on target column
     const desktopAlignClass = desktopPosition === 'left' ? 'left-0' : 'right-0';
     const desktopWidthClass = desktopPosition === 'left' ? 'w-[45%]' : 'w-[55%]';
 
-    // Resolve children separately for mobile (animated close) and desktop (immediate close)
-    const mobileChildren = typeof children === 'function'
-        ? (children as DrawerRenderProp)(mobileHandleClose)
-        : children;
-    const desktopChildren = typeof children === 'function'
-        ? (children as DrawerRenderProp)(desktopHandleClose)
+    // Resolve children ONCE — single React tree, no duplicate component instances
+    const resolvedChildren = typeof children === 'function'
+        ? (children as DrawerRenderProp)(handleClose)
         : children;
 
     if (!isMounted && !isVisible) return null;
 
     return (
         <>
-            {/* Mobile Drawer */}
-            <div className={mobileOnly ? '' : 'md:hidden'}>
-                {/* Backdrop */}
-                <div
-                    className={`fixed inset-0 ${zIndex} bg-black ${isDragging ? '' : 'transition-opacity duration-300 ease-out'}`}
-                    style={{
-                        opacity: (drawerPosition / 100) * backdropOpacity,
-                        pointerEvents: drawerPosition > 0 ? 'auto' : 'none',
-                    }}
-                    onClick={mobileHandleClose}
-                />
+            {/* Backdrop */}
+            <div
+                className={`fixed inset-0 ${zIndex} bg-black ${
+                    useMobileLayout
+                        ? (isDragging ? '' : 'transition-opacity duration-300 ease-out')
+                        : 'transition-opacity duration-250 ease-out'
+                }`}
+                style={{
+                    opacity: useMobileLayout
+                        ? (drawerPosition / 100) * backdropOpacity
+                        : desktopOpen ? 0.2 : 0,
+                    pointerEvents: useMobileLayout
+                        ? (drawerPosition > 0 ? 'auto' : 'none')
+                        : (desktopOpen ? 'auto' : 'none'),
+                }}
+                onClick={handleClose}
+            />
 
-                {/* Drawer Container */}
-                <div
-                    className={`fixed left-0 right-0 ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`}
-                    style={{
-                        height: mobileStyles.height,
-                        maxHeight: mobileStyles.height,
-                        width: '100%',
-                        bottom: 0,
-                        transform: `translateY(${mobileStyles.translateY}%)`,
-                        opacity: mobileStyles.opacity,
-                        borderRadius: mobileStyles.borderRadius,
-                        willChange: isDragging ? 'transform' : 'auto',
-                        boxShadow: mobileStyles.boxShadow,
-                        overflow: 'hidden',
-                        visibility: isMounted ? 'visible' : 'hidden',
-                    }}
-                    {...(header ? {} : bindDrawerDrag())}
-                >
-                    {header ? (
-                        <>
-                            {/* Drag bound to header only — keeps content gestures clean */}
-                            <div {...bindDrawerDrag()}>
-                                <DrawerHeader
-                                    title={header.title}
-                                    showBack={header.showBack}
-                                    onBack={header.onBack}
-                                    badge={header.badge}
-                                    onClose={mobileHandleClose}
-                                    isMobile={true}
-                                />
-                            </div>
-                            <div className="flex-1 min-h-0 overflow-hidden">
-                                {mobileChildren}
-                            </div>
-                        </>
-                    ) : mobileChildren}
-                </div>
-            </div>
-
-            {/* Desktop Column Overlay */}
-            {!mobileOnly && (
-                <div className="hidden md:block">
-                    {/* Backdrop — fixed to escape overflow-hidden */}
-                    <div
-                        className={`fixed inset-0 ${zIndex} bg-black transition-opacity duration-250 ease-out ${desktopOpen ? 'opacity-20 pointer-events-auto' : 'opacity-0 pointer-events-none'
-                            }`}
-                        onClick={desktopHandleClose}
-                    />
-
-                    {/* Panel — absolute within parent container (requires parent position: relative) */}
-                    <div
-                        className={`absolute ${desktopAlignClass} top-0 bottom-0 ${desktopWidthClass} ${zIndex}
-                            flex flex-col rounded-md border border-tertiary/20
-                            shadow-lg shadow-black/8 backdrop-blur-xl bg-themewhite3/95
-                            transform-gpu overflow-hidden text-primary/80 text-sm`}
-                        style={{
-                            transition: 'opacity 250ms cubic-bezier(0.25, 0.1, 0.25, 1), transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
-                            opacity: desktopOpen ? 1 : 0,
-                            transform: desktopOpen ? 'scale(1)' : 'scale(0.95)',
-                            transformOrigin: desktopPosition === 'left' ? 'top left' : 'top right',
-                            pointerEvents: desktopOpen ? 'auto' : 'none',
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {header && (
+            {/* Drawer / Panel — single container that adapts to viewport */}
+            <div
+                className={useMobileLayout
+                    ? `fixed left-0 right-0 bottom-0 ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
+                    : `absolute ${desktopAlignClass} top-0 bottom-0 ${desktopWidthClass} ${zIndex}
+                        flex flex-col rounded-md border border-tertiary/20
+                        shadow-lg shadow-black/8 backdrop-blur-xl bg-themewhite3/95
+                        transform-gpu overflow-hidden text-primary/80 text-sm`
+                }
+                style={useMobileLayout ? {
+                    height: fullHeight,
+                    maxHeight: fullHeight,
+                    width: '100%',
+                    transform: `translateY(${100 - drawerPosition}%)`,
+                    opacity: Math.min(1, drawerPosition / 60 + 0.2),
+                    borderRadius: '1.25rem 1.25rem 0 0',
+                    willChange: isDragging ? 'transform' : 'auto',
+                    boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
+                    overflow: 'hidden',
+                    visibility: isMounted ? 'visible' : 'hidden',
+                } : {
+                    transition: 'opacity 250ms cubic-bezier(0.25, 0.1, 0.25, 1), transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
+                    opacity: desktopOpen ? 1 : 0,
+                    transform: desktopOpen ? 'scale(1)' : 'scale(0.95)',
+                    transformOrigin: desktopPosition === 'left' ? 'top left' : 'top right',
+                    pointerEvents: desktopOpen ? 'auto' : 'none',
+                }}
+                {...(useMobileLayout && !header ? bindDrawerDrag() : {})}
+                onClick={useMobileLayout ? undefined : (e) => e.stopPropagation()}
+            >
+                {header ? (
+                    <>
+                        <div {...(useMobileLayout ? bindDrawerDrag() : {})}>
                             <DrawerHeader
                                 title={header.title}
                                 showBack={header.showBack}
                                 onBack={header.onBack}
                                 badge={header.badge}
-                                onClose={desktopHandleClose}
-                                isMobile={false}
+                                onClose={handleClose}
+                                isMobile={useMobileLayout}
                             />
-                        )}
-                        {header ? (
-                            <div className="flex-1 min-h-0 overflow-hidden">
-                                {desktopChildren}
-                            </div>
-                        ) : desktopChildren}
-                    </div>
-                </div>
-            )}
+                        </div>
+                        <div className="flex-1 min-h-0 overflow-hidden">
+                            {resolvedChildren}
+                        </div>
+                    </>
+                ) : resolvedChildren}
+            </div>
         </>
     );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Bell, Users, Code, Info } from 'lucide-react'
+import { Bell, Code, Info } from 'lucide-react'
 import { usePushNotifications } from '../../Hooks/usePushNotifications'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import { isDevUser } from '../../lib/adminService'
@@ -14,7 +14,6 @@ export const NotificationSettingsPanel = () => {
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
 
-  const clinicNotes = profile.notifyClinicNotes ?? false
   const devAlerts = profile.notifyDevAlerts ?? false
 
   useEffect(() => {
@@ -33,10 +32,9 @@ export const NotificationSettingsPanel = () => {
 
   /** Persist a notification preference optimistically */
   const handleToggle = useCallback(async (
-    field: 'notifyClinicNotes' | 'notifyDevAlerts',
+    field: 'notifyDevAlerts',
     dbColumn: string,
     newValue: boolean,
-    otherActive: boolean,
   ) => {
     setError('')
 
@@ -55,8 +53,8 @@ export const NotificationSettingsPanel = () => {
     // Fire-and-forget Supabase sync
     syncProfileField({ [dbColumn]: newValue })
 
-    // If turning off and no other toggles remain active, unsubscribe (fire-and-forget)
-    if (!newValue && !otherActive) {
+    // If turning off, unsubscribe (fire-and-forget)
+    if (!newValue) {
       unsubscribe()
     }
 
@@ -92,54 +90,27 @@ export const NotificationSettingsPanel = () => {
           </div>
         )}
 
-        {isSupported && (
-          <>
-            {/* Clinic Notes Toggle */}
-            <div
-              className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all cursor-pointer
-                ${clinicNotes
-                  ? 'border-themeblue2/25 bg-themeblue2/10'
-                  : 'border-tertiary/15 bg-themewhite2'
-                } ${loading ? 'opacity-50 pointer-events-none' : ''}`}
-              onClick={() => handleToggle('notifyClinicNotes', 'notify_clinic_notes', !clinicNotes, devAlerts)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggle('notifyClinicNotes', 'notify_clinic_notes', !clinicNotes, devAlerts); } }}
-            >
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${clinicNotes ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                <Users size={18} className={clinicNotes ? 'text-themeblue2' : 'text-tertiary/50'} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${clinicNotes ? 'text-primary' : 'text-tertiary'}`}>Clinic Notes</p>
-                <p className="text-[11px] text-tertiary/70 mt-0.5">Get notified when someone contributes a note in your clinic</p>
-              </div>
-              <ToggleSwitch checked={clinicNotes} />
+        {isSupported && isDev && (
+          <div
+            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all cursor-pointer
+              ${devAlerts
+                ? 'border-themeblue2/25 bg-themeblue2/10'
+                : 'border-tertiary/15 bg-themewhite2'
+              } ${loading ? 'opacity-50 pointer-events-none' : ''}`}
+            onClick={() => handleToggle('notifyDevAlerts', 'notify_dev_alerts', !devAlerts)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggle('notifyDevAlerts', 'notify_dev_alerts', !devAlerts); } }}
+          >
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${devAlerts ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+              <Code size={18} className={devAlerts ? 'text-themeblue2' : 'text-tertiary/50'} />
             </div>
-
-            {/* Dev Alerts Toggle — only for dev role */}
-            {isDev && (
-              <div
-                className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all cursor-pointer
-                  ${devAlerts
-                    ? 'border-themeblue2/25 bg-themeblue2/10'
-                    : 'border-tertiary/15 bg-themewhite2'
-                  } ${loading ? 'opacity-50 pointer-events-none' : ''}`}
-                onClick={() => handleToggle('notifyDevAlerts', 'notify_dev_alerts', !devAlerts, clinicNotes)}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggle('notifyDevAlerts', 'notify_dev_alerts', !devAlerts, clinicNotes); } }}
-              >
-                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${devAlerts ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                  <Code size={18} className={devAlerts ? 'text-themeblue2' : 'text-tertiary/50'} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium ${devAlerts ? 'text-primary' : 'text-tertiary'}`}>Dev Alerts</p>
-                  <p className="text-[11px] text-tertiary/70 mt-0.5">Login alerts, account requests, and feedback</p>
-                </div>
-                <ToggleSwitch checked={devAlerts} />
-              </div>
-            )}
-          </>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium ${devAlerts ? 'text-primary' : 'text-tertiary'}`}>Dev Alerts</p>
+              <p className="text-[11px] text-tertiary/70 mt-0.5">Login alerts, account requests, and feedback</p>
+            </div>
+            <ToggleSwitch checked={devAlerts} />
+          </div>
         )}
       </div>
     </div>

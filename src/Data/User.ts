@@ -27,8 +27,6 @@ export interface UserTypes {
     clinicName?: string;
     /** Whether the user wants push notifications (synced to cloud) */
     notificationsEnabled?: boolean;
-    /** Notify when a clinic member contributes a note */
-    notifyClinicNotes?: boolean;
     /** Dev-only: login alerts, account requests, feedback */
     notifyDevAlerts?: boolean;
     /** Default: include HPI section when writing notes */

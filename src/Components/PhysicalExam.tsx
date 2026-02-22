@@ -499,10 +499,15 @@ function ExamItemRow({ label, normalText, abnormalOptions, state, onCycleStatus,
 
 // ── Component ─────────────────────────────────────────────────
 
-export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, depth = 'minimal', customBlocks = [] }: PhysicalExamProps) {
+const EMPTY_CUSTOM_BLOCKS: CustomPEBlock[] = [];
+
+export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, depth = 'minimal', customBlocks = EMPTY_CUSTOM_BLOCKS }: PhysicalExamProps) {
     const categoryLetter = getCategoryFromSymptomCode(symptomCode) || 'A';
     const categoryDef = getPECategory(categoryLetter);
-    const bodyPart = categoryLetter === 'B' ? getMSKBodyPart(symptomCode) : null;
+    const bodyPart = useMemo(
+        () => categoryLetter === 'B' ? getMSKBodyPart(symptomCode) : null,
+        [categoryLetter, symptomCode],
+    );
     const generalDefs = getGeneralFindings(categoryLetter);
 
     const [parsed] = useState(() => parseInitialText(initialText, categoryDef, bodyPart, generalDefs));

@@ -22,49 +22,15 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { CompletionType, CompletionResult, Json } from '../Types/database.types'
 import { createLogger } from '../Utilities/Logger'
-import { encryptNote, decryptNotes, clearKeyStore } from './cryptoService'
 
 const logger = createLogger('OfflineDb')
 
 // ---- Sync Status Type ----
 
-/** Sync status for local notes. Exposed to the UI for badge display. */
-export type NoteSyncStatus = 'pending' | 'synced' | 'error'
-
 /** Sync status for local training completions. */
 export type TrainingCompletionSyncStatus = 'pending' | 'synced' | 'error'
 
 // ---- Database Schema ----
-
-/** Shape of a note stored in IndexedDB. Mirrors the Supabase notes row
- *  plus local-only metadata fields prefixed with underscore.
- *
- *  All display metadata (symptom, disposition, author name, clinic name,
- *  preview text) is derived from hpi_encoded at read time via
- *  deriveNoteMetadata(). Only the essential storage fields are persisted. */
-export interface LocalNote {
-  id: string                     // UUID (crypto.randomUUID)
-  user_id: string
-  clinic_id: string | null
-  hpi_encoded: string | null     // Encrypted clinical narrative (single source of truth)
-  timestamp: string              // ISO 8601, when the clinical encounter occurred
-  is_imported: boolean
-  originating_clinic_id: string | null
-  visible_clinic_ids: string[]
-  source_device: string | null
-  created_at: string
-  updated_at: string
-
-  // ---- Local-only metadata (not sent to Supabase) ----
-  /** Tracks whether this note has been synced to the server. */
-  _sync_status: NoteSyncStatus
-  /** Number of consecutive failed sync attempts for this note. */
-  _sync_retry_count: number
-  /** ISO timestamp of the last sync error, if any. */
-  _last_sync_error: string | null
-  /** Human-readable error message from the last failed sync. */
-  _last_sync_error_message: string | null
-}
 
 export interface SyncQueueItem {
   id: string                     // UUID for the queue entry itself
@@ -106,15 +72,6 @@ export interface LocalTrainingCompletion {
 }
 
 interface PackageBackEndDB extends DBSchema {
-  notes: {
-    key: string
-    value: LocalNote
-    indexes: {
-      'by-user': string
-      'by-sync-status': string
-      'by-user-sync': [string, string]
-    }
-  }
   syncQueue: {
     key: string
     value: SyncQueueItem
@@ -150,20 +107,16 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
 
   dbInstance = await openDB<PackageBackEndDB>(DB_NAME, DB_VERSION, {
     upgrade(db, oldVersion, _newVersion, transaction) {
-      // ---- Notes store ----
+      // ---- Legacy notes store (no longer used, kept for schema compat) ----
       if (oldVersion < 1) {
-        // Fresh install: create from scratch
-        const notesStore = db.createObjectStore('notes', { keyPath: 'id' })
+        const notesStore = (db as any).createObjectStore('notes', { keyPath: 'id' })
         notesStore.createIndex('by-user', 'user_id')
         notesStore.createIndex('by-sync-status', '_sync_status')
         notesStore.createIndex('by-user-sync', ['user_id', '_sync_status'])
       } else if (oldVersion < 2) {
-        // Upgrading from v1: add new indexes, migrate _synced -> _sync_status
-        const notesStore = transaction.objectStore('notes')
-
-        // Remove old index, add new ones
-        if ((notesStore.indexNames as DOMStringList).contains('by-synced')) {
-          notesStore.deleteIndex('by-synced' as never)
+        const notesStore = (transaction as any).objectStore('notes')
+        if (notesStore.indexNames.contains('by-synced')) {
+          notesStore.deleteIndex('by-synced')
         }
         if (!notesStore.indexNames.contains('by-sync-status')) {
           notesStore.createIndex('by-sync-status', '_sync_status')
@@ -251,80 +204,6 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
   }
 
   return dbInstance
-}
-
-// ============================================================
-// Notes Operations
-// ============================================================
-
-/**
- * Get all local notes for a user.
- * With hard deletes, all notes in IndexedDB are active (deleted notes
- * are removed entirely).
- */
-export async function getLocalNotes(userId: string): Promise<LocalNote[]> {
-  const db = await getDb()
-  const allNotes = await db.getAllFromIndex('notes', 'by-user', userId)
-  return decryptNotes(allNotes)
-}
-
-/**
- * Get ALL local notes for a user including soft-deleted ones.
- * Used by the sync reconciliation process to compare full state
- * against the server.
- */
-export async function getAllLocalNotesIncludingDeleted(userId: string): Promise<LocalNote[]> {
-  const db = await getDb()
-  const allNotes = await db.getAllFromIndex('notes', 'by-user', userId)
-  return decryptNotes(allNotes)
-}
-
-/**
- * Save or update a note in IndexedDB.
- * This is a put (upsert) operation -- if a note with the same ID
- * exists, it will be overwritten.
- */
-export async function saveLocalNote(note: LocalNote): Promise<LocalNote> {
-  const db = await getDb()
-  const encrypted = await encryptNote(note)
-  await db.put('notes', encrypted)
-  return encrypted
-}
-
-/**
- * Hard-delete a local note from IndexedDB entirely.
- * Only use this after confirming the server-side delete succeeded
- * or for cleanup of synced+deleted notes.
- */
-export async function hardDeleteLocalNote(noteId: string): Promise<void> {
-  const db = await getDb()
-  await db.delete('notes', noteId)
-}
-
-/**
- * Update the sync status of a local note.
- */
-export async function updateNoteSyncStatus(
-  noteId: string,
-  status: NoteSyncStatus,
-  errorMessage?: string
-): Promise<void> {
-  const db = await getDb()
-  const note = await db.get('notes', noteId)
-  if (!note) return
-
-  note._sync_status = status
-  if (status === 'error') {
-    note._sync_retry_count = (note._sync_retry_count || 0) + 1
-    note._last_sync_error = new Date().toISOString()
-    note._last_sync_error_message = errorMessage || 'Unknown error'
-  } else if (status === 'synced') {
-    note._sync_retry_count = 0
-    note._last_sync_error = null
-    note._last_sync_error_message = null
-  }
-
-  await db.put('notes', note)
 }
 
 // ============================================================
@@ -560,48 +439,11 @@ export async function updateTrainingCompletionSyncStatus(
  */
 export async function clearAllUserData(): Promise<void> {
   const db = await getDb()
-  const tx = db.transaction(['notes', 'syncQueue', 'trainingCompletions'], 'readwrite')
-  await tx.objectStore('notes').clear()
+  const tx = db.transaction(['syncQueue', 'trainingCompletions'], 'readwrite')
   await tx.objectStore('syncQueue').clear()
   await tx.objectStore('trainingCompletions').clear()
   await tx.done
-  await clearKeyStore()
-  logger.info('Cleared all user data from IndexedDB (including crypto keys)')
-}
-
-// ============================================================
-// Migration Helpers
-// ============================================================
-
-/**
- * Migrate v1 notes (with _synced boolean) to v2 format (with _sync_status).
- * Called automatically during the upgrade, but can also be called manually
- * for any notes that slipped through.
- */
-export async function migrateV1Notes(): Promise<number> {
-  const db = await getDb()
-  const tx = db.transaction('notes', 'readwrite')
-  const store = tx.objectStore('notes')
-  const allNotes = await store.getAll()
-  let migrated = 0
-
-  for (const note of allNotes) {
-    const raw = note as unknown as Record<string, unknown>
-    // Check if this note has the old _synced field but no _sync_status
-    if ('_synced' in raw && !('_sync_status' in raw && raw._sync_status)) {
-      const wasSync = raw._synced as boolean
-      const migrationNote = note as LocalNote
-      migrationNote._sync_status = wasSync ? 'synced' : 'pending'
-      migrationNote._sync_retry_count = 0
-      migrationNote._last_sync_error = null
-      migrationNote._last_sync_error_message = null
-      await store.put(migrationNote)
-      migrated++
-    }
-  }
-
-  await tx.done
-  return migrated
+  logger.info('Cleared all user data from IndexedDB')
 }
 
 // ============================================================

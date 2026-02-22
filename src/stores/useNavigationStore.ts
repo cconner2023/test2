@@ -18,9 +18,6 @@ export interface WriteNoteData {
     cardStates: CardState[];
     selectedSymptom: { icon: string; text: string };
     initialPage?: number;
-    initialHpiText?: string;
-    initialPeText?: string;
-    timestamp?: Date | null;
 }
 
 /** Shared partial for closing all drawers. */

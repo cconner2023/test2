@@ -1,8 +1,10 @@
 /**
  * Feature flags for gating functionalities.
- *
- * NOTES_ENABLED: When false, all note persistence (IndexedDB, sync,
- * realtime subscriptions) is disabled. Users can still compose, preview, copy,
- * share, and export PDF — just not save/sync notes.
  */
-export const NOTES_ENABLED = false;
+
+/**
+ * AID_BAG_ENABLED: When true, the Aid Bag inventory module is available
+ * via the module selector tabs in Column A. This feature stores zero PHI
+ * (supply/equipment data only) and requires no BAA.
+ */
+export const AID_BAG_ENABLED = true;

@@ -29,6 +29,7 @@ import { useSupabaseSubscription } from './useSupabaseSubscription'
 const logger = createLogger('RealtimeTraining')
 
 interface RealtimeTrainingCompletionRow {
+  [key: string]: unknown
   id: string
   user_id: string
   training_item_id: string

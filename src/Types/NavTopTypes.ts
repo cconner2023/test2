@@ -48,8 +48,6 @@ interface UIState {
   isAlgorithmView?: boolean
   isMenuOpen?: boolean
   mobileAvatar?: MobileAvatarData
-  /** Note source for the marker displayed under the title on mobile: null = new note, 'external:user' = imported, anything else = saved */
-  noteSource?: string | null
 }
 
 /**
