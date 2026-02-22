@@ -100,6 +100,13 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
                     )}
                 </div>
 
+                {/* Warning (task-level) */}
+                {taskData.warning && (
+                    <div className="mb-4">
+                        <StepCallout type="warning" text={taskData.warning} />
+                    </div>
+                )}
+
                 {/* Caution (task-level) */}
                 {taskData.caution && (
                     <div className="mb-4">
