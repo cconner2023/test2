@@ -1,13 +1,13 @@
 // NavTop.tsx - Simplified version with grouped props
 import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, HelpCircle, Check, Download, PenSquare } from "lucide-react";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useMemo } from "react";
 import { useSpring, useTrail, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { createLogger } from "../Utilities/Logger";
 import { formatNoteSource } from '../Utilities/NoteSourceUtils';
 
 const logger = createLogger('NavTop');
-import { menuData } from "../Data/CatData";
+import { menuData as allMenuData } from "../Data/CatData";
 
 // Icon map for menu items
 const iconMap: Record<string, React.ReactNode> = {
@@ -48,6 +48,8 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         isMenuOpen = false,
         noteSource,
     } = ui
+
+    const menuData = useMemo(() => allMenuData, []);
 
     // Refs and computed values
     const internalInputRef = useRef<HTMLInputElement>(null);

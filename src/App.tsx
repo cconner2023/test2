@@ -26,6 +26,7 @@ import { useAuth } from './Hooks/useAuth'
 import { useAuthStore } from './stores/useAuthStore'
 import { TrainingDrawer } from './Components/TrainingDrawer'
 import { getTaskData } from './Data/TrainingData'
+import { NOTES_ENABLED } from './lib/featureFlags'
 import { LockGate } from './Components/LockGate'
 import { ErrorBoundary } from './Components/ErrorBoundary'
 
@@ -313,7 +314,7 @@ function AppContent() {
           isVisible={navigation.showNoteImport}
           onClose={() => navigation.setShowNoteImport(false)}
           initialViewState={activeNote.importInitialView}
-          onImportSuccess={activeNote.handleImportSuccess}
+          onImportSuccess={NOTES_ENABLED ? activeNote.handleImportSuccess : undefined}
           isMobile={navigation.isMobile}
         />
         </ErrorBoundary>
@@ -377,9 +378,9 @@ function AppContent() {
             algorithmOptions={navigation.writeNoteData.algorithmOptions}
             cardStates={navigation.writeNoteData.cardStates}
             onExpansionChange={navigation.closeWriteNote}
-            onNoteSave={activeNote.handleNoteSave}
-            onNoteDelete={activeNote.handleNoteDelete}
-            onNoteUpdate={activeNote.handleNoteUpdate}
+            onNoteSave={NOTES_ENABLED ? activeNote.handleNoteSave : undefined}
+            onNoteDelete={NOTES_ENABLED ? activeNote.handleNoteDelete : undefined}
+            onNoteUpdate={NOTES_ENABLED ? activeNote.handleNoteUpdate : undefined}
             existingNoteId={activeNote.activeNoteId}
             existingEncodedText={activeNote.activeNoteEncodedText}
             selectedSymptom={navigation.writeNoteData.selectedSymptom}
@@ -388,7 +389,7 @@ function AppContent() {
             initialHpiText={navigation.writeNoteData.initialHpiText}
             initialPeText={navigation.writeNoteData.initialPeText}
             noteSource={activeNote.activeNoteSource}
-            onAfterSave={activeNote.handleAfterSave}
+            onAfterSave={NOTES_ENABLED ? activeNote.handleAfterSave : undefined}
             timestamp={navigation.writeNoteData.timestamp}
           />
           </ErrorBoundary>

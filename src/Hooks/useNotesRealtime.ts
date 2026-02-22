@@ -11,6 +11,7 @@
  */
 
 import { useCallback } from 'react';
+import { NOTES_ENABLED } from '../lib/featureFlags';
 import {
   saveLocalNote as idbSaveNote,
   hardDeleteLocalNote as idbHardDelete,
@@ -128,7 +129,7 @@ export function useNotesRealtime(deps: NotesRealtimeDeps): void {
   useRealtimeClinicNotes({
     clinicId: realtimeClinicId,
     userId: realtimeUserId,
-    isAuthenticated: realtimeAuthenticated,
+    isAuthenticated: NOTES_ENABLED && realtimeAuthenticated,
     visibleClinicIds: realtimeVisibleClinicIds,
     isPageVisible,
     isNotePanelOpen,

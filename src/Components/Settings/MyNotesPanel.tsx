@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo, type ReactNode } from 'react';
+import { NOTES_ENABLED } from '../../lib/featureFlags';
 import { useDrag } from '@use-gesture/react';
 import { useSpring, animated } from '@react-spring/web';
 import { FileText, Trash2, Share2, CheckSquare, Eye, ClipboardCopy, CloudOff, CloudCheck } from 'lucide-react';
@@ -689,7 +690,17 @@ export const MyNotesPanel = ({
     return (
         <div className="h-full flex flex-col">
             <div className="flex-1 overflow-y-auto">
-                {displayNotes.length === 0 ? (
+                {!NOTES_ENABLED ? (
+                    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+                        <div className="w-16 h-16 rounded-full bg-tertiary/5 flex items-center justify-center mb-4">
+                            <CloudOff size={28} className="text-tertiary/30" />
+                        </div>
+                        <p className="text-sm font-medium text-primary/70 mb-1">Notes saving is currently disabled</p>
+                        <p className="text-xs text-tertiary/50 max-w-60">
+                            You can still compose, preview, copy, share, and export notes — saving and syncing will be enabled in a future update.
+                        </p>
+                    </div>
+                ) : displayNotes.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
                         <div className="w-16 h-16 rounded-full bg-tertiary/5 flex items-center justify-center mb-4">
                             <FileText size={28} className="text-tertiary/30" />

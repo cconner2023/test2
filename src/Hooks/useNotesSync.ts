@@ -8,6 +8,7 @@
  */
 
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { NOTES_ENABLED } from '../lib/featureFlags';
 import * as notesApi from '../lib/notesService';
 import {
   getLocalNotes,
@@ -381,6 +382,10 @@ export function useNotesSync(deps: NotesSyncDeps): NotesSyncResult {
       }
     }
 
+    // Skip all note-related initialization when notes are disabled.
+    // Auth listener (above) still runs for clean state on logout.
+    if (!NOTES_ENABLED) return;
+
     init();
 
     return () => {
@@ -412,6 +417,7 @@ export function useNotesSync(deps: NotesSyncDeps): NotesSyncResult {
   const prevVisibleRef = useRef(true);
   useEffect(() => {
     // Only trigger on transition from hidden → visible
+    if (!NOTES_ENABLED) { prevVisibleRef.current = isPageVisible; return; }
     if (isPageVisible && !prevVisibleRef.current && initDone.current) {
       const userId = userIdRef.current;
       if (userId && userId !== 'guest' && checkOnline()) {

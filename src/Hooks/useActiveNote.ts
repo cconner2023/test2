@@ -3,6 +3,7 @@
 // restoring, feedback modals, and related navigation side effects.
 
 import { useState, useCallback, useRef, useEffect } from 'react'
+import { NOTES_ENABLED } from '../lib/featureFlags'
 import { createLogger } from '../Utilities/Logger'
 import { encodedContentEquals } from '../Utilities/NoteCodec'
 import { UI_TIMING } from '../Utilities/constants'
@@ -137,6 +138,8 @@ export function useActiveNote({
 
   // Note save handler (new note)
   const handleNoteSave = useCallback((data: NoteSaveData): boolean => {
+    if (!NOTES_ENABLED) return false
+
     const result = notesStorage.saveNote({
       encodedText: data.encodedText,
     })
@@ -258,6 +261,7 @@ export function useActiveNote({
 
   // Import success handler — checks for duplicates (personal + clinic), saves imported note with 'external source' tag, then opens My Notes
   const handleImportSuccess = useCallback((data: ImportSuccessData) => {
+    if (!NOTES_ENABLED) return
     // Check for duplicate in personal notes (ignore volatile segments like timestamp, userId, clinicId)
     const existingPersonal = notesStorage.notes.find(n => encodedContentEquals(n.encodedText, data.encodedText))
 

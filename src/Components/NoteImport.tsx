@@ -1,7 +1,11 @@
 // components/NoteImport.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Camera, ScanLine, User, Building2, Clock } from 'lucide-react';
+import { X, Camera, ScanLine, User, Building2, Clock, ImagePlus } from 'lucide-react';
 import bwipjs from 'bwip-js';
+import {
+    MultiFormatReader, BinaryBitmap, HybridBinarizer,
+    HTMLCanvasElementLuminanceSource, DecodeHintType, BarcodeFormat,
+} from '@zxing/library';
 import { TextButton } from './TextButton';
 import { BaseDrawer } from './BaseDrawer';
 import { ActionIconButton } from './WriteNoteHelpers';
@@ -103,6 +107,8 @@ const NoteImportContent = ({
 }) => {
     const inputRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isDecodingImage, setIsDecodingImage] = useState(false);
 
     const { importFromBarcode } = useNoteImport();
     const { shareNote, shareStatus } = useNoteShare();
@@ -150,6 +156,84 @@ const NoteImportContent = ({
         stopScanning();
         setState(prev => ({ ...prev, viewState: 'input' }));
     };
+
+    // Decode Data Matrix barcode from an uploaded or pasted image.
+    // Uses the raw ZXing pipeline (canvas → luminance → binarizer → reader)
+    // instead of BrowserCodeReader.decodeFromImage which has DOM quirks.
+    const handleImageDecode = useCallback(async (file: File) => {
+        setIsDecodingImage(true);
+        setState(prev => ({ ...prev, scanError: '' }));
+
+        const objectUrl = URL.createObjectURL(file);
+        try {
+            const img = document.createElement('img');
+            img.src = objectUrl;
+            await new Promise<void>((resolve, reject) => {
+                img.onload = () => resolve();
+                img.onerror = () => reject(new Error('Failed to load image'));
+            });
+
+            // Draw onto a canvas so we can extract pixel data
+            const canvas = document.createElement('canvas');
+            canvas.width = img.naturalWidth;
+            canvas.height = img.naturalHeight;
+            const ctx = canvas.getContext('2d')!;
+            ctx.drawImage(img, 0, 0);
+
+            // ZXing raw decode: canvas → luminance source → binary bitmap → reader
+            const luminanceSource = new HTMLCanvasElementLuminanceSource(canvas);
+            const bitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource));
+
+            const hints = new Map<DecodeHintType, any>();
+            hints.set(DecodeHintType.POSSIBLE_FORMATS, [BarcodeFormat.DATA_MATRIX]);
+            hints.set(DecodeHintType.TRY_HARDER, true);
+
+            const reader = new MultiFormatReader();
+            reader.setHints(hints);
+
+            const result = reader.decode(bitmap);
+            const text = result.getText();
+            setState(prev => ({ ...prev, inputText: text }));
+            decodeBarcode(text);
+        } catch {
+            setState(prev => ({
+                ...prev,
+                scanError: 'No barcode found in image. Try a clearer photo or paste the string directly.',
+            }));
+        } finally {
+            URL.revokeObjectURL(objectUrl);
+            setIsDecodingImage(false);
+        }
+    }, [decodeBarcode, setState]);
+
+    // Intercept clipboard paste for images (text pastes flow through to the input normally)
+    useEffect(() => {
+        if (state.viewState !== 'input') return;
+
+        const handlePaste = (e: ClipboardEvent) => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+
+            for (const item of Array.from(items)) {
+                if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    if (file) handleImageDecode(file);
+                    return;
+                }
+            }
+        };
+
+        document.addEventListener('paste', handlePaste);
+        return () => document.removeEventListener('paste', handlePaste);
+    }, [state.viewState, handleImageDecode]);
+
+    // File input change handler
+    const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) handleImageDecode(file);
+        e.target.value = '';
+    }, [handleImageDecode]);
 
     // Copy feedback auto-revert
     useEffect(() => {
@@ -237,13 +321,23 @@ const NoteImportContent = ({
                         )}
                     </div>
                     <div className="flex gap-3 justify-between">
-                        <button
-                            onClick={handleStartScan}
-                            className="flex items-center gap-2 px-4 py-2 bg-themewhite2 text-secondary rounded-full text-sm font-medium hover:bg-themewhite transition-colors"
-                        >
-                            <Camera size={16} />
-                            Scan
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={handleStartScan}
+                                className="flex items-center gap-2 px-4 py-2 bg-themewhite2 text-secondary rounded-full text-sm font-medium hover:bg-themewhite transition-colors"
+                            >
+                                <Camera size={16} />
+                                Scan
+                            </button>
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isDecodingImage}
+                                className="flex items-center gap-2 px-4 py-2 bg-themewhite2 text-secondary rounded-full text-sm font-medium hover:bg-themewhite transition-colors disabled:opacity-50"
+                            >
+                                <ImagePlus size={16} />
+                                {isDecodingImage ? 'Reading...' : 'Image'}
+                            </button>
+                        </div>
                         <TextButton
                             text="Decode"
                             onClick={handleSubmit}
@@ -251,6 +345,13 @@ const NoteImportContent = ({
                             className='bg-themeblue3 text-white rounded-full'
                         />
                     </div>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                    />
                 </div>
             )}
 

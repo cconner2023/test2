@@ -12,6 +12,7 @@
  * Security: Only whitelisted tables can be synced to prevent
  * IndexedDB tampering from writing to sensitive tables (e.g. profiles.roles).
  */
+import { NOTES_ENABLED } from './featureFlags'
 import { supabase } from './supabase'
 import { createLogger } from '../Utilities/Logger'
 import {
@@ -170,6 +171,12 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
       }
 
       try {
+        // Skip notes sync items when notes are disabled
+        if (!NOTES_ENABLED && item.table_name === 'notes') {
+          skipped++
+          continue
+        }
+
         const table = validateTableName(item.table_name)
         const cleanPayload = stripLocalFields(item.payload)
 
@@ -421,6 +428,9 @@ async function reconcile<TLocal extends { _sync_status: string }, TServer>(
 // ============================================================
 
 export async function reconcileWithServer(userId: string): Promise<LocalNote[]> {
+  if (!NOTES_ENABLED) {
+    return []
+  }
   if (!isOnline()) {
     logger.debug('Offline, skipping reconciliation')
     return getAllLocalNotesIncludingDeleted(userId)

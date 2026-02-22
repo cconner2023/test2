@@ -22,6 +22,7 @@
  */
 
 import { useState } from 'react';
+import { NOTES_ENABLED } from '../lib/featureFlags';
 import { useNotesSync } from './useNotesSync';
 import { useNotesCRUD } from './useNotesCRUD';
 import { useNotesRealtime } from './useNotesRealtime';
@@ -69,6 +70,28 @@ export function useNotesStorage(isNotePanelOpen = false) {
     isPageVisible: sync.isPageVisible,
     isNotePanelOpen,
   });
+
+  // When notes are disabled, return an inert object — all CRUD functions
+  // become no-ops and arrays are always empty. Hooks above still run
+  // (React rules) but their side effects are individually guarded.
+  if (!NOTES_ENABLED) {
+    const noop = () => ({ success: false as const, error: 'Notes are disabled' });
+    return {
+      notes: [] as SavedNote[],
+      clinicNotes: [] as SavedNote[],
+      saveNote: noop as unknown as typeof crud.saveNote,
+      updateNote: noop as unknown as typeof crud.updateNote,
+      deleteNote: (() => {}) as typeof crud.deleteNote,
+      deleteClinicNote: (async () => {}) as typeof crud.deleteClinicNote,
+      clearAllNotes: (async () => {}) as typeof crud.clearAllNotes,
+      isOnline: sync.online,
+      isSyncing: false,
+      pendingCount: 0,
+      errorCount: 0,
+      lastSyncTime: null,
+      triggerSync: async () => {},
+    };
+  }
 
   return {
     notes,
