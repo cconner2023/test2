@@ -184,6 +184,9 @@ function formatVitalsText(vitals: Record<string, string>): string[] {
  * @param abnKey - Key into `abnMap` for retrieving abnormal chip/free-text data
  * @param abnMap - Map of abnormal detail entries parsed from the compact string
  * @param abnormalOptions - Available chip options for reconstructing abnormal text
+ * @param usePrefix - When true (default, V2), emit "Normal - " / "Abnormal - " prefixes.
+ *                    When false (V3), emit normalText directly and abnormal text without prefix,
+ *                    matching the format produced by PhysicalExam's formatExamLine.
  * @returns Formatted line string, or `null` if the item was not examined
  */
 function emitLine(
@@ -193,13 +196,17 @@ function emitLine(
     abnKey: string,
     abnMap: Record<string, { chipBitmask: number; freeText: string }>,
     abnormalOptions?: AbnormalOption[],
+    usePrefix = true,
 ): string | null {
+    const uLabel = label.toUpperCase();
     if (status === PE_NORMAL) {
-        return normalText ? `${label}: Normal - ${normalText}` : `${label}: Normal`;
+        if (!usePrefix && normalText) return `${uLabel}: ${normalText}`;
+        return normalText ? `${uLabel}: Normal - ${normalText}` : `${uLabel}: Normal`;
     } else if (status === PE_ABNORMAL) {
         const abn = abnMap[abnKey];
         const abnText = rebuildAbnormalText(abn?.chipBitmask || 0, abn?.freeText || '', abnormalOptions);
-        return `${label}: Abnormal - ${abnText}`;
+        if (!usePrefix) return `${uLabel}: ${abnText}`;
+        return `${uLabel}: Abnormal - ${abnText}`;
     }
     return null;
 }
@@ -230,6 +237,7 @@ export function encodePECompact(peText: string, symptomCode: string): string {
     const lines = peText.split('\n');
     let inVitals = false;
     let inAdditional = false;
+    let hasUnmatchedContent = false;
 
     for (const line of lines) {
         const trimmed = line.trim();
@@ -292,6 +300,14 @@ export function encodePECompact(peText: string, symptomCode: string): string {
                     const abnText = rest.replace(/^Abnormal\s*-?\s*/, '').trim();
                     const { chipBitmask, freeText } = matchAbnormalChips(abnText, g.abnormalOptions);
                     generalAbn.push({ idx: gi, chipBitmask, freeText });
+                } else if (g.normalText && rest === g.normalText) {
+                    // New format: normalText directly (no "Normal - " prefix)
+                    generalStatuses[gi] = PE_NORMAL;
+                } else if (rest) {
+                    // New format: abnormal text without "Abnormal - " prefix
+                    generalStatuses[gi] = PE_ABNORMAL;
+                    const { chipBitmask, freeText } = matchAbnormalChips(rest, g.abnormalOptions);
+                    generalAbn.push({ idx: gi, chipBitmask, freeText });
                 }
                 matched = true;
                 break;
@@ -311,11 +327,27 @@ export function encodePECompact(peText: string, symptomCode: string): string {
                     const abnText = rest.replace(/^Abnormal\s*-?\s*/, '').trim();
                     const { chipBitmask, freeText } = matchAbnormalChips(abnText, item.abnormalOptions);
                     itemAbn.push({ idx: ii, chipBitmask, freeText });
+                } else if (item.normalText && rest === item.normalText) {
+                    // New format: normalText directly (no "Normal - " prefix)
+                    itemStatuses[ii] = PE_NORMAL;
+                } else if (rest) {
+                    // New format: abnormal text without "Abnormal - " prefix
+                    itemStatuses[ii] = PE_ABNORMAL;
+                    const { chipBitmask, freeText } = matchAbnormalChips(rest, item.abnormalOptions);
+                    itemAbn.push({ idx: ii, chipBitmask, freeText });
                 }
+                matched = true;
                 break;
             }
         }
+
+        // Line wasn't matched by any known wrapper or category item (e.g. custom PE blocks)
+        if (!matched) hasUnmatchedContent = true;
     }
+
+    // If any exam lines couldn't be matched (custom PE blocks, unknown labels),
+    // fall back to compressed text to preserve the full PE content.
+    if (hasUnmatchedContent) return compressText(peText);
 
     // Build compact string (v3 format)
     const vitalsCsv = VITAL_SIGNS.map(v => vitalValues[v.key] || '').join(',');
@@ -415,12 +447,12 @@ function decodePECompactV3(data: string, symptomCode: string): string {
 
     const examLines: string[] = [];
 
-    // Before wrappers (GEN, HEAD)
+    // Before wrappers (GEN, HEAD) — V3 uses new format (no "Normal -" / "Abnormal -" prefixes)
     for (let gi = 0; gi < WRAPPER_BEFORE_COUNT; gi++) {
         const status = getItemStatus(gsBits, gi);
         if (status === PE_NOT_EXAMINED) continue;
         const g = wrapperDefs[gi];
-        const line = emitLine(g.label, g.normalText, status, `g${gi}`, abnMap, g.abnormalOptions);
+        const line = emitLine(g.label, g.normalText, status, `g${gi}`, abnMap, g.abnormalOptions, false);
         if (line) examLines.push(line);
     }
 
@@ -437,7 +469,7 @@ function decodePECompactV3(data: string, symptomCode: string): string {
         const status = getItemStatus(isBits, ii);
         if (status === PE_NOT_EXAMINED) continue;
         const item = categoryDef.items[ii];
-        const line = emitLine(item.label, item.normalText || '', status, `i${ii}`, abnMap, item.abnormalOptions);
+        const line = emitLine(item.label, item.normalText || '', status, `i${ii}`, abnMap, item.abnormalOptions, false);
         if (line) examLines.push(line);
     }
 
@@ -446,7 +478,7 @@ function decodePECompactV3(data: string, symptomCode: string): string {
         const status = getItemStatus(gsBits, gi);
         if (status === PE_NOT_EXAMINED) continue;
         const g = wrapperDefs[gi];
-        const line = emitLine(g.label, g.normalText, status, `g${gi}`, abnMap, g.abnormalOptions);
+        const line = emitLine(g.label, g.normalText, status, `g${gi}`, abnMap, g.abnormalOptions, false);
         if (line) examLines.push(line);
     }
 

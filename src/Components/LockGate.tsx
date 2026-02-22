@@ -14,21 +14,25 @@ export function LockGate({ children }: { children: ReactNode }) {
   const [isPinLocked, setIsPinLocked] = useState(() => isPinEnabled() && !isSessionUnlocked())
   const [isInactivityLocked, setIsInactivityLocked] = useState(false)
   const [isInitialPasswordLocked, setIsInitialPasswordLocked] = useState(false)
+  const [pinServiceReady, setPinServiceReady] = useState(false)
 
   useEffect(() => {
     initPinService().then(() => {
       if (isPinEnabled() && !isSessionUnlocked()) {
         setIsPinLocked(true)
       }
+      setPinServiceReady(true)
     })
   }, [])
 
   // Initial open: require password for authenticated (non-guest) users without PIN
-  useEffect(() => {
-    if (user && !isGuest && !isPinEnabled() && sessionStorage.getItem(INITIAL_PW_UNLOCKED_KEY) !== 'true') {
-      setIsInitialPasswordLocked(true)
-    }
-  }, [user, isGuest])
+  // Must wait for pinServiceReady so isPinEnabled() reflects the actual stored state
+  // Disabled for now — kept wired for future use
+  // useEffect(() => {
+  //   if (pinServiceReady && user && !isGuest && !isPinEnabled() && sessionStorage.getItem(INITIAL_PW_UNLOCKED_KEY) !== 'true') {
+  //     setIsInitialPasswordLocked(true)
+  //   }
+  // }, [user, isGuest, pinServiceReady])
 
   // Re-lock when app goes to background (tab switch, app switch on mobile)
   useEffect(() => {

@@ -101,7 +101,7 @@ export const WriteNotePage = ({
     const [note, setNote] = useState<string>(initialHpiText);
     const [previewNote, setPreviewNote] = useState<string>('');
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState<boolean>(true);
-    const [includeHPI, setIncludeHPI] = useState<boolean>(initialHpiText ? true : false);
+    const [includeHPI, setIncludeHPI] = useState<boolean>(defaultHPI);
     const [peNote, setPeNote] = useState<string>(initialPeText);
     const [includePhysicalExam, setIncludePhysicalExam] = useState<boolean>(defaultPE);
 
@@ -156,15 +156,6 @@ export const WriteNotePage = ({
             return () => clearTimeout(id);
         }
     }, [copiedTarget]);
-
-    // --- Auto-select HPI/PE when content appears ---
-    useEffect(() => {
-        if (note.trim() && !includeHPI) setIncludeHPI(true);
-    }, [note, includeHPI]);
-
-    // Note: no auto-enable for PE — the PhysicalExam component may generate
-    // text automatically (e.g. in expanded mode), so we let the user control
-    // the toggle freely without it snapping back on.
 
     // --- Set timestamp when first arriving at Full Note ---
     useEffect(() => {
@@ -429,8 +420,7 @@ export const WriteNotePage = ({
             >
                 <SlideWrapper slideDirection={slideDirection}>
                     {/* Decision Making */}
-                    {currentPageId === 'decision' && (
-                        <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
+                        <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'decision' ? 'hidden' : ''}`}>
                             <div className="space-y-4">
                                 <div className="mx-2 mt-2">
                                     <ToggleOption
@@ -455,11 +445,10 @@ export const WriteNotePage = ({
                                 </div>
                             </div>
                         </div>
-                    )}
 
                     {/* HPI */}
-                    {currentPageId === 'hpi' && (
-                        <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
+                    {defaultHPI && (
+                        <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'hpi' ? 'hidden' : ''}`}>
                             <div className="space-y-3">
                                 <div className="mx-2 mt-2">
                                     <ToggleOption
@@ -525,8 +514,8 @@ export const WriteNotePage = ({
                     )}
 
                     {/* Physical Exam */}
-                    {currentPageId === 'pe' && (
-                        <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
+                    {defaultPE && (
+                        <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'pe' ? 'hidden' : ''}`}>
                             <div className="space-y-3">
                                 <div className="mx-2 mt-2">
                                     <ToggleOption
@@ -558,8 +547,7 @@ export const WriteNotePage = ({
                     )}
 
                     {/* Full Note */}
-                    {currentPageId === 'fullnote' && (
-                        <div className={`w-full h-full overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''}`}>
+                        <div className={`w-full h-full overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'fullnote' ? 'hidden' : ''}`}>
                             <div className="space-y-4">
                                 {/* Note Preview (always visible) */}
                                 <div>
@@ -628,7 +616,6 @@ export const WriteNotePage = ({
 
                             </div>
                         </div>
-                    )}
                 </SlideWrapper>
 
             </div>
