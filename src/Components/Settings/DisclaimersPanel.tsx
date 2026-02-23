@@ -22,7 +22,7 @@ export const DisclaimersPanel = () => (
           <span className="text-sm font-semibold text-primary">No PHI / PII</span>
         </div>
         <p className="text-xs text-tertiary/70 leading-relaxed">
-          This application does <strong className="text-primary">not</strong> collect, store, or transmit Protected Health Information (PHI) or Personally Identifiable Information (PII). No patient data is recorded or sent to any server.
+          This application does <strong className="text-primary">not</strong> collect, store, or transmit Protected Health Information (PHI) or patients' Personally Identifiable Information (PII). No patient data is recorded or sent to our server.
         </p>
       </div>
 
@@ -50,7 +50,7 @@ export const DisclaimersPanel = () => (
           <li>Notification and security preferences</li>
           <li>Training completion progress</li>
         </ul>
-        <p>Local data can be permanently deleted from your device at any time by signing out.</p>
+        <p>Local data can be permanently deleted from your device at any time by signing out. You can contact administrators to delete your profile at any time. </p>
       </Section>
     </div>
   </div>
