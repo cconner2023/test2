@@ -22,7 +22,7 @@ export const DisclaimersPanel = () => (
           <span className="text-sm font-semibold text-primary">No PHI / PII</span>
         </div>
         <p className="text-xs text-tertiary/70 leading-relaxed">
-          This application does <strong className="text-primary">not</strong> collect, store, or transmit Protected Health Information (PHI) or Personally Identifiable Information (PII). No patient data is ever recorded or sent to any server.
+          This application does <strong className="text-primary">not</strong> collect, store, or transmit Protected Health Information (PHI) or Personally Identifiable Information (PII). No patient data is recorded or sent to any server.
         </p>
       </div>
 
@@ -30,7 +30,7 @@ export const DisclaimersPanel = () => (
         <p>When you create an account, the following profile information is stored to support application functionality:</p>
         <ul className="list-disc list-outside ml-4 space-y-0.5">
           <li>Name, rank, and component (service branch)</li>
-          <li>Medical credential (e.g. EMT-B, PA-C)</li>
+          <li>Medical credential (e.g. EMT-B, PA-C) name</li>
           <li>Unit Identification Code (UIC) and clinic association</li>
           <li>App preferences (theme, note content settings, text expanders)</li>
           <li>Training completion progress</li>
@@ -43,12 +43,15 @@ export const DisclaimersPanel = () => (
       </Section>
 
       <Section icon={<Server size={16} className="text-themeblue2" />} title="Local Data">
-        <p>Some data is cached locally on your device for offline functionality. This includes your profile preferences and training progress. Local data can be cleared at any time by signing out.</p>
+        <p>To support offline first and push to server on connectivity, the following data is encrypted and cached locally on <strong className='text-primary'>your device</strong>:</p>
+        <ul className="list-disc list-outside ml-4 space-y-0.5">
+          <li>Profile information (Name, rank, component, medical credential, UIC, clinic association)</li>
+          <li>App preferences (theme, note content settings, text expanders)</li>
+          <li>Notification and security preferences</li>
+          <li>Training completion progress</li>
+        </ul>
+        <p>Local data can be permanently deleted from your device at any time by signing out.</p>
       </Section>
-
-      <p className="text-[11px] text-tertiary/40 text-center pt-2">
-        ADTMC MEDCOM PAM 40-7-21
-      </p>
     </div>
   </div>
 )
