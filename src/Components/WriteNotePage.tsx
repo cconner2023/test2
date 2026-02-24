@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, type RefObject } from 'react';
 import type { dispositionType, AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import { useNoteCapture } from '../Hooks/useNoteCapture';
@@ -8,7 +8,9 @@ import { useUserProfile } from '../Hooks/useUserProfile';
 import { useAuthStore } from '../stores/useAuthStore';
 import { usePageSwipe } from '../Hooks/usePageSwipe';
 import { useTextExpander } from '../Hooks/useTextExpander';
+import { useTemplateSession } from '../Hooks/useTemplateSession';
 import { TextExpanderSuggestion } from './TextExpanderSuggestion';
+import { TemplateOverlay } from './TemplateOverlay';
 import { PIIWarningBanner } from './PIIWarningBanner';
 import { detectPII } from '../lib/piiDetector';
 import { formatSignature } from '../Utilities/NoteFormatter';
@@ -24,6 +26,27 @@ import { BrainCircuit, FileText, Stethoscope, ChevronLeft, ChevronRight, X } fro
 type DispositionType = dispositionType['type'];
 
 type PageId = 'decision' | 'hpi' | 'pe' | 'fullnote';
+
+/** Apply a text + cursor result to the textarea, batching state updates with a rAF cursor sync. */
+function applyToTextarea(
+    ref: RefObject<HTMLTextAreaElement | null>,
+    setNote: (v: string) => void,
+    setCursorPosition: (v: number) => void,
+    text: string,
+    cursor: number,
+    focus = false,
+) {
+    setNote(text);
+    setCursorPosition(cursor);
+    requestAnimationFrame(() => {
+        const ta = ref.current;
+        if (ta) {
+            ta.selectionStart = cursor;
+            ta.selectionEnd = cursor;
+            if (focus) ta.focus();
+        }
+    });
+}
 
 interface WriteNoteProps {
     isVisible: boolean;
@@ -91,13 +114,20 @@ export const WriteNotePage = ({
     const [cursorPosition, setCursorPosition] = useState(0);
     const textExpanders = profile.textExpanders ?? [];
     const textExpanderEnabled = profile.textExpanderEnabled ?? true;
+    const { session: templateSession, stepStartRef, startSession, fillCurrentAndAdvance, dismissDropdown, selectNextChoice, selectPrevChoice, endSession } = useTemplateSession();
     const { suggestions: expanderSuggestions, selectedIndex: expanderIndex, accept: acceptExpander, dismiss: dismissExpander, selectNext: expanderNext, selectPrev: expanderPrev } = useTextExpander({
         text: note,
         cursorPosition,
         expanders: textExpanders,
-        enabled: textExpanderEnabled && currentPageId === 'hpi',
+        enabled: textExpanderEnabled && currentPageId === 'hpi' && !templateSession.isActive,
     });
     const hasExpanderSuggestion = expanderSuggestions.length > 0;
+
+    // End template session on page change
+    useEffect(() => {
+        if (templateSession.isActive) endSession();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [currentPageId]);
 
     // PII detection (debounced) — checks both HPI and PE text
     const [piiWarnings, setPiiWarnings] = useState<string[]>([]);
@@ -370,7 +400,62 @@ export const WriteNotePage = ({
                                             value={note}
                                             onChange={(e) => { setNote(e.target.value); setCursorPosition(e.target.selectionStart); }}
                                             onSelect={(e) => setCursorPosition((e.target as HTMLTextAreaElement).selectionStart)}
+                                            onBlur={() => { if (templateSession.isActive) endSession(); }}
                                             onKeyDown={(e) => {
+                                                const apply = (text: string, cursor: number, focus = false) =>
+                                                    applyToTextarea(inputRef, setNote, setCursorPosition, text, cursor, focus);
+
+                                                // --- Template session keyboard handlers ---
+                                                if (templateSession.isActive && templateSession.activeNode) {
+                                                    const { activeNode } = templateSession;
+
+                                                    if (e.key === 'Escape') {
+                                                        e.preventDefault();
+                                                        if (activeNode.type === 'choice' && templateSession.showDropdown) {
+                                                            dismissDropdown();
+                                                        } else {
+                                                            endSession();
+                                                        }
+                                                        return;
+                                                    }
+                                                    if (templateSession.showDropdown && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+                                                        e.preventDefault();
+                                                        if (e.key === 'ArrowRight') selectNextChoice();
+                                                        else selectPrevChoice();
+                                                        return;
+                                                    }
+                                                    if (e.key === 'Enter' && !e.shiftKey) {
+                                                        e.preventDefault();
+                                                        // Dropdown showing with a focused option — select it
+                                                        if (templateSession.showDropdown && templateSession.selectedChoiceIndex >= 0 && activeNode.options) {
+                                                            const opts = activeNode.options.filter((o) => o.trim() !== '');
+                                                            if (templateSession.selectedChoiceIndex < opts.length) {
+                                                                const result = fillCurrentAndAdvance(note, opts[templateSession.selectedChoiceIndex]);
+                                                                if (result) apply(result.newText, result.cursorPosition);
+                                                            } else if (activeNode.type === 'choice') {
+                                                                // "Other" only exists on choice nodes
+                                                                dismissDropdown();
+                                                            }
+                                                            return;
+                                                        }
+                                                        // Inline branch with no selection — must pick an option, ignore Enter
+                                                        if (activeNode.type === 'branch') return;
+                                                        // Step mode or dismissed choice dropdown — use typed text
+                                                        const typedValue = note.slice(stepStartRef.current, cursorPosition);
+                                                        const result = fillCurrentAndAdvance(note, typedValue);
+                                                        if (result) apply(result.newText, result.cursorPosition);
+                                                        return;
+                                                    }
+                                                    // Inline branch — block all other keystrokes (must use arrow+enter or tap)
+                                                    if (activeNode.type === 'branch') {
+                                                        if (!e.shiftKey) e.preventDefault();
+                                                        return;
+                                                    }
+                                                    // Shift+Enter passes through for newline (step/choice only)
+                                                    return;
+                                                }
+
+                                                // --- Text expander keyboard handlers ---
                                                 if (e.key === 'Escape' && hasExpanderSuggestion) {
                                                     e.preventDefault();
                                                     dismissExpander();
@@ -386,15 +471,15 @@ export const WriteNotePage = ({
                                                     e.preventDefault();
                                                     const result = acceptExpander();
                                                     if (result) {
-                                                        setNote(result.newText);
-                                                        setCursorPosition(result.newCursorPosition);
-                                                        requestAnimationFrame(() => {
-                                                            const ta = inputRef.current;
-                                                            if (ta) {
-                                                                ta.selectionStart = result.newCursorPosition;
-                                                                ta.selectionEnd = result.newCursorPosition;
-                                                            }
-                                                        });
+                                                        const accepted = expanderSuggestions[expanderIndex];
+                                                        if (accepted?.template && accepted.template.length > 0) {
+                                                            const abbrStart = result.newCursorPosition - accepted.expansion.length;
+                                                            const cleaned = result.newText.slice(0, abbrStart) + result.newText.slice(result.newCursorPosition);
+                                                            const tmpl = startSession(cleaned, abbrStart, accepted.template);
+                                                            apply(tmpl.newText, tmpl.cursorPosition);
+                                                        } else {
+                                                            apply(result.newText, result.newCursorPosition);
+                                                        }
                                                     }
                                                     return;
                                                 }
@@ -402,11 +487,24 @@ export const WriteNotePage = ({
                                             placeholder="History of present illness, clinical observations, assessment..."
                                             className="w-full text-tertiary bg-themewhite outline-none text-[16px] md:text-[10pt] px-4 py-3 rounded-md border border-themegray1/20 min-w-0 resize-none min-h-[12rem] leading-6 focus:border-themeblue1/30 transition-colors"
                                         />
-                                        {hasExpanderSuggestion && (
+                                        {hasExpanderSuggestion && !templateSession.isActive && (
                                             <TextExpanderSuggestion
                                                 suggestions={expanderSuggestions}
                                                 selectedIndex={expanderIndex}
                                                 onDismiss={dismissExpander}
+                                            />
+                                        )}
+                                        {templateSession.isActive && templateSession.activeNode && (
+                                            <TemplateOverlay
+                                                activeNode={templateSession.activeNode}
+                                                showDropdown={templateSession.showDropdown}
+                                                selectedChoiceIndex={templateSession.selectedChoiceIndex}
+                                                onSelectOption={(value) => {
+                                                    const result = fillCurrentAndAdvance(note, value);
+                                                    if (result) applyToTextarea(inputRef, setNote, setCursorPosition, result.newText, result.cursorPosition, true);
+                                                }}
+                                                onDismissDropdown={dismissDropdown}
+                                                onEndSession={endSession}
                                             />
                                         )}
                                         <PIIWarningBanner warnings={piiWarnings} />

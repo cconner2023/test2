@@ -1,3 +1,5 @@
+import type { TemplateNode } from './TemplateTypes';
+
 export type Credential = 'EMT-B' | 'EMT-A' | 'EMT-P' | 'PA-C' | 'NP' | 'MD' | 'DO';
 export type Component = 'USA' | 'USN' | 'USMC' | 'USAF';
 export type Rank = string;
@@ -5,6 +7,7 @@ export type Rank = string;
 export interface TextExpander {
     abbr: string;
     expansion: string;
+    template?: TemplateNode[];
 }
 
 export interface CustomPEBlock {

@@ -1,23 +1,30 @@
 import { useState } from 'react';
-import { Pencil, Trash2, Plus } from 'lucide-react';
+import { Pencil, Trash2, Plus, Layers } from 'lucide-react';
 import type { TextExpander } from '../../Data/User';
+import type { TemplateNode } from '../../Data/TemplateTypes';
+import { TemplateBuilder } from './TemplateBuilder';
 
 interface TextExpanderManagerProps {
     expanders: TextExpander[];
     onChange: (expanders: TextExpander[]) => void;
 }
 
+type EditorMode = 'simple' | 'template';
+
 export const TextExpanderManager = ({ expanders, onChange }: TextExpanderManagerProps) => {
     const [editingIndex, setEditingIndex] = useState<number | null>(null);
     const [isAdding, setIsAdding] = useState(false);
     const [abbr, setAbbr] = useState('');
     const [expansion, setExpansion] = useState('');
+    const [templateNodes, setTemplateNodes] = useState<TemplateNode[]>([]);
+    const [editorMode, setEditorMode] = useState<EditorMode>('simple');
     const [error, setError] = useState('');
 
-    const validate = (a: string, exp: string, skipIndex?: number): string => {
+    const validate = (a: string, exp: string, mode: EditorMode, nodes: TemplateNode[], skipIndex?: number): string => {
         if (!a.trim()) return 'Abbreviation is required';
         if (/\s/.test(a)) return 'Abbreviation cannot contain spaces';
-        if (!exp.trim()) return 'Expansion text is required';
+        if (mode === 'simple' && !exp.trim()) return 'Expansion text is required';
+        if (mode === 'template' && nodes.length === 0) return 'Template must have at least one node';
         const duplicate = expanders.some(
             (e, i) => i !== skipIndex && e.abbr.toLowerCase() === a.trim().toLowerCase(),
         );
@@ -29,6 +36,8 @@ export const TextExpanderManager = ({ expanders, onChange }: TextExpanderManager
         setEditingIndex(null);
         setAbbr('');
         setExpansion('');
+        setTemplateNodes([]);
+        setEditorMode('simple');
         setError('');
         setIsAdding(true);
     };
@@ -39,6 +48,8 @@ export const TextExpanderManager = ({ expanders, onChange }: TextExpanderManager
         setEditingIndex(index);
         setAbbr(e.abbr);
         setExpansion(e.expansion);
+        setTemplateNodes(e.template ?? []);
+        setEditorMode(e.template && e.template.length > 0 ? 'template' : 'simple');
         setError('');
     };
 
@@ -47,15 +58,20 @@ export const TextExpanderManager = ({ expanders, onChange }: TextExpanderManager
         setEditingIndex(null);
         setAbbr('');
         setExpansion('');
+        setTemplateNodes([]);
+        setEditorMode('simple');
         setError('');
     };
 
     const save = () => {
         const skipIndex = editingIndex ?? undefined;
-        const err = validate(abbr, expansion, skipIndex);
+        const err = validate(abbr, expansion, editorMode, templateNodes, skipIndex);
         if (err) { setError(err); return; }
 
-        const entry: TextExpander = { abbr: abbr.trim(), expansion: expansion.trim() };
+        const entry: TextExpander = editorMode === 'template'
+            ? { abbr: abbr.trim(), expansion: '', template: templateNodes }
+            : { abbr: abbr.trim(), expansion: expansion.trim() };
+
         if (editingIndex !== null) {
             const next = [...expanders];
             next[editingIndex] = entry;
@@ -86,8 +102,18 @@ export const TextExpanderManager = ({ expanders, onChange }: TextExpanderManager
                             <code className="shrink-0 text-[11px] font-mono font-semibold bg-themeblue2/10 text-themeblue2 px-1.5 py-0.5 rounded">
                                 {e.abbr}
                             </code>
+                            {e.template && e.template.length > 0 && (
+                                <span className="shrink-0 text-[9px] font-medium text-themepurple bg-themepurple/10 px-1.5 py-0.5 rounded">
+                                    <Layers size={9} className="inline mr-0.5 -mt-px" />template
+                                </span>
+                            )}
                             <span className="text-tertiary/40 text-xs shrink-0">&rarr;</span>
-                            <span className="text-xs text-tertiary truncate flex-1 min-w-0">{e.expansion.split('\n')[0]}{e.expansion.includes('\n') ? ' ...' : ''}</span>
+                            <span className="text-xs text-tertiary truncate flex-1 min-w-0">
+                                {e.template && e.template.length > 0
+                                    ? `${e.template.length} block${e.template.length !== 1 ? 's' : ''}`
+                                    : <>{ e.expansion.split('\n')[0]}{e.expansion.includes('\n') ? ' ...' : ''}</>
+                                }
+                            </span>
                             <button
                                 onClick={() => startEdit(i)}
                                 className="shrink-0 p-1 rounded hover:bg-tertiary/10 transition-colors"
@@ -119,13 +145,34 @@ export const TextExpanderManager = ({ expanders, onChange }: TextExpanderManager
                             className="w-full text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
                             autoFocus
                         />
-                        <textarea
-                            value={expansion}
-                            onChange={(e) => { setExpansion(e.target.value); setError(''); }}
-                            placeholder="Expansion text (multi-line supported)"
-                            className="w-full min-h-[4rem] text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary resize-none leading-5"
-                            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); if (e.key === 'Escape') cancel(); }}
-                        />
+
+                        {/* Simple / Template toggle */}
+                        <div className="flex rounded-md overflow-hidden border border-tertiary/20">
+                            <button
+                                onClick={() => { setEditorMode('simple'); setError(''); }}
+                                className={`flex-1 text-[10px] py-1.5 font-medium transition-colors ${editorMode === 'simple' ? 'bg-themeblue2 text-white' : 'bg-themewhite text-tertiary hover:bg-tertiary/5'}`}
+                            >
+                                Simple
+                            </button>
+                            <button
+                                onClick={() => { setEditorMode('template'); setError(''); }}
+                                className={`flex-1 text-[10px] py-1.5 font-medium transition-colors ${editorMode === 'template' ? 'bg-themeblue2 text-white' : 'bg-themewhite text-tertiary hover:bg-tertiary/5'}`}
+                            >
+                                Template
+                            </button>
+                        </div>
+
+                        {editorMode === 'simple' ? (
+                            <textarea
+                                value={expansion}
+                                onChange={(e) => { setExpansion(e.target.value); setError(''); }}
+                                placeholder="Expansion text (multi-line supported)"
+                                className="w-full min-h-[4rem] text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary resize-none leading-5"
+                                onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); if (e.key === 'Escape') cancel(); }}
+                            />
+                        ) : (
+                            <TemplateBuilder nodes={templateNodes} onChange={(nodes) => { setTemplateNodes(nodes); setError(''); }} />
+                        )}
                     </div>
                     {error && <p className="text-[10px] text-themeredred">{error}</p>}
                     <div className="flex gap-2 justify-end">

@@ -1,4 +1,4 @@
-import { X } from 'lucide-react';
+import { X, Layers } from 'lucide-react';
 import type { TextExpander } from '../Data/User';
 
 interface TextExpanderSuggestionProps {
@@ -12,11 +12,14 @@ export const TextExpanderSuggestion = ({ suggestions, selectedIndex, onDismiss }
         <div className="absolute left-2 right-2 bottom-1 z-10 rounded-lg bg-themewhite border border-themeblue2/25 shadow-lg animate-in fade-in slide-in-from-bottom-1 duration-150 overflow-hidden">
             {suggestions.map((s, i) => {
                 const isSelected = i === selectedIndex;
+                const hasTemplate = s.template && s.template.length > 0;
                 const firstLine = s.expansion.split('\n')[0];
                 const isMultiLine = s.expansion.includes('\n');
-                const preview = firstLine.length > 80
-                    ? firstLine.slice(0, 77) + '...'
-                    : firstLine + (isMultiLine ? ' ...' : '');
+                const preview = hasTemplate
+                    ? `${s.template!.length} step template`
+                    : firstLine.length > 80
+                        ? firstLine.slice(0, 77) + '...'
+                        : firstLine + (isMultiLine ? ' ...' : '');
 
                 return (
                     <div
@@ -26,6 +29,11 @@ export const TextExpanderSuggestion = ({ suggestions, selectedIndex, onDismiss }
                         <code className="shrink-0 text-[11px] font-mono font-semibold bg-themeblue2/10 text-themeblue2 px-1.5 py-0.5 rounded self-start mt-0.5">
                             {s.abbr}
                         </code>
+                        {hasTemplate && (
+                            <span className="shrink-0 self-start mt-0.5">
+                                <Layers size={11} className="text-themepurple/70" />
+                            </span>
+                        )}
                         <span className="text-tertiary/50 text-xs shrink-0 self-start mt-0.5">&rarr;</span>
                         <span className="text-sm text-tertiary truncate flex-1 min-w-0">{preview}</span>
                         {isSelected && (
