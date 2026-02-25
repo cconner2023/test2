@@ -96,15 +96,14 @@ export const LoginPanel = ({
     <div className={variant === 'panel' ? 'h-full overflow-y-auto' : ''}>
       <div className={variant === 'panel' ? 'px-4 py-3 md:p-5' : 'p-6'}>
         <p className="text-sm text-tertiary/60 mb-5">
-          Sign in to sync your notes across devices and access your profile.
+          Sign in to sync your training and preferences across devices.
         </p>
 
         {error && (
-          <div className={`mb-4 p-3 text-sm ${
-            variant === 'modal'
-              ? 'rounded-lg bg-red-50 border border-red-200 text-red-700'
-              : 'text-themeredred'
-          }`}>
+          <div className={`mb-4 p-3 text-sm ${variant === 'modal'
+            ? 'rounded-lg bg-red-50 border border-red-200 text-red-700'
+            : 'text-themeredred'
+            }`}>
             {error}
           </div>
         )}
@@ -192,24 +191,27 @@ export const LoginPanel = ({
               <button
                 onClick={onRequestAccount}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                         bg-yellow-50 text-yellow-700 font-medium
-                         border border-yellow-200 transition-colors text-sm"
+                         bg-themewhite2 text-primary font-medium
+                         border border-tertiary/20 hover:bg-tertiary/10 transition-colors text-sm"
               >
-                New account creation currently disabled for beta testing
+                Request an Account
               </button>
             </div>
 
             <p className="mt-4 text-xs text-center text-tertiary/60">
-              Guest mode: Your notes stay on this device only.
+              Guest mode: Your training and preferences will stay local on this device.
               <br />
               Sign in to sync across devices.
             </p>
           </>
         ) : (
           <div className="mt-6 pt-6 border-t border-tertiary/10">
-            <p className="text-xs text-tertiary/50 text-center">
-              New account creation currently disabled for beta testing
-            </p>
+            <button
+              onClick={onRequestAccount}
+              className="w-full text-xs text-themeblue2 font-medium hover:underline transition-colors"
+            >
+              Don't have an account? Request one
+            </button>
           </div>
         )}
       </div>

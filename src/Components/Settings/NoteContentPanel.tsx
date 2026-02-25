@@ -190,14 +190,14 @@ const CustomPEBlockManager = ({ blocks, onChange }: CustomPEBlockManagerProps) =
                             value={name}
                             onChange={(e) => { setName(e.target.value); setError(''); }}
                             placeholder="Block name (e.g. VS, CARDIO)"
-                            className="w-full text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
+                            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
                             autoFocus
                         />
                         <textarea
                             value={normalText}
                             onChange={(e) => setNormalText(e.target.value)}
                             placeholder="Normal text (e.g. VS: Reviewed, BP: Reviewed...)"
-                            className="w-full min-h-[3rem] text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary resize-none leading-5"
+                            className="w-full min-h-[3rem] text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary resize-none leading-5"
                         />
                         <div>
                             <p className="text-[10px] text-tertiary/50 mb-1">Abnormal Tags</p>
@@ -227,7 +227,7 @@ const CustomPEBlockManager = ({ blocks, onChange }: CustomPEBlockManagerProps) =
                                     onChange={(e) => setTagInput(e.target.value)}
                                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
                                     placeholder="Type tag and press Enter"
-                                    className="flex-1 text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
+                                    className="flex-1 text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
                                 />
                                 <button
                                     onClick={addTag}

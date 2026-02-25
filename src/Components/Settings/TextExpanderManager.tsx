@@ -142,7 +142,7 @@ export const TextExpanderManager = ({ expanders, onChange }: TextExpanderManager
                             value={abbr}
                             onChange={(e) => { setAbbr(e.target.value); setError(''); }}
                             placeholder="Abbreviation"
-                            className="w-full text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
+                            className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
                             autoFocus
                         />
 
@@ -167,7 +167,7 @@ export const TextExpanderManager = ({ expanders, onChange }: TextExpanderManager
                                 value={expansion}
                                 onChange={(e) => { setExpansion(e.target.value); setError(''); }}
                                 placeholder="Expansion text (multi-line supported)"
-                                className="w-full min-h-[4rem] text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary resize-none leading-5"
+                                className="w-full min-h-[4rem] text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary resize-none leading-5"
                                 onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) save(); if (e.key === 'Escape') cancel(); }}
                             />
                         ) : (

@@ -45,7 +45,7 @@ const NodeEditor = ({ node, onSave, onCancel }: NodeEditorProps) => {
                     value={editNode.content}
                     onChange={(e) => setEditNode({ ...editNode, content: e.target.value })}
                     placeholder="Static text to insert..."
-                    className="w-full min-h-[3rem] text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary resize-none leading-5"
+                    className="w-full min-h-[3rem] text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary resize-none leading-5"
                     autoFocus
                 />
             )}
@@ -55,7 +55,7 @@ const NodeEditor = ({ node, onSave, onCancel }: NodeEditorProps) => {
                     value={editNode.label}
                     onChange={(e) => setEditNode({ ...editNode, label: e.target.value })}
                     placeholder="Field label (e.g. chief complaint)"
-                    className="w-full text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
+                    className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
                     autoFocus
                 />
             )}
@@ -66,7 +66,7 @@ const NodeEditor = ({ node, onSave, onCancel }: NodeEditorProps) => {
                         value={editNode.label}
                         onChange={(e) => setEditNode({ ...editNode, label: e.target.value })}
                         placeholder="Field label (e.g. severity)"
-                        className="w-full text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
+                        className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
                         autoFocus
                     />
                     <div className="space-y-1">
@@ -75,7 +75,7 @@ const NodeEditor = ({ node, onSave, onCancel }: NodeEditorProps) => {
                             value={editNode.options.join('\n')}
                             onChange={(e) => setEditNode({ ...editNode, options: e.target.value.split('\n') })}
                             placeholder={"mild\nmoderate\nsevere"}
-                            className="w-full min-h-[3rem] text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary resize-none leading-5 font-mono"
+                            className="w-full min-h-[3rem] text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary resize-none leading-5 font-mono"
                         />
                     </div>
                     {editNode.options.length <= 1 && (
@@ -170,7 +170,7 @@ const BranchEditor = ({ node, allNodes, onSave, onCancel }: BranchEditorProps) =
                     <select
                         value={triggerField}
                         onChange={(e) => setTriggerField(e.target.value)}
-                        className="w-full mt-1 text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
+                        className="w-full mt-1 text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
                         autoFocus
                     >
                         <option value="">Select a Choice field...</option>
@@ -186,7 +186,7 @@ const BranchEditor = ({ node, allNodes, onSave, onCancel }: BranchEditorProps) =
                         value={label}
                         onChange={(e) => setLabel(e.target.value)}
                         placeholder="Prompt label (e.g. treatment path)"
-                        className="w-full text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
+                        className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
                         autoFocus
                     />
                     <div className="space-y-1">
@@ -195,7 +195,7 @@ const BranchEditor = ({ node, allNodes, onSave, onCancel }: BranchEditorProps) =
                             value={options.join('\n')}
                             onChange={(e) => setOptions(e.target.value.split('\n'))}
                             placeholder={"conservative\naggressive"}
-                            className="w-full min-h-[3rem] text-xs px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary resize-none leading-5 font-mono"
+                            className="w-full min-h-[3rem] text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary resize-none leading-5 font-mono"
                         />
                     </div>
                 </>

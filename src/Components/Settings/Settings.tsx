@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, BookOpen, UserCog, Lock, MessageSquare, Bell, Stethoscope, ClipboardCheck, FileWarning } from 'lucide-react';
+import { Moon, Sun, Shield, BookOpen, UserCog, Lock, MessageSquare, Bell, Stethoscope, ClipboardCheck, Scale } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import type { ProfileAvatar } from '../../Data/ProfileAvatars';
@@ -17,7 +17,7 @@ import { TrainingPanel, type TrainingView } from './TrainingPanel';
 import { PinSetupPanel } from './PinSetupPanel';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { FeedbackPanel } from './FeedbackPanel';
-import { DisclaimersPanel } from './DisclaimersPanel';
+import { PrivacyPolicyPanel } from './PrivacyPolicyPanel';
 import { NoteContentPanel } from './NoteContentPanel';
 import type { subjectAreaArrayOptions } from '../../Types/CatTypes';
 import { stp68wTraining } from '../../Data/TrainingTaskList';
@@ -62,7 +62,7 @@ export const Settings = ({
     initialTrainingTaskId,
     avatar,
 }: SettingsDrawerProps) => {
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'disclaimers' | TrainingView>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | TrainingView>('main');
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = avatar;
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
@@ -193,7 +193,7 @@ export const Settings = ({
             { type: 'header', label: 'About' },
             opt(PANEL.RELEASE_NOTES, <Shield size={20} />, 'Release Notes'),
             opt(PANEL.FEEDBACK, <MessageSquare size={20} />, 'Feedback'),
-            opt(PANEL.DISCLAIMERS, <FileWarning size={20} />, 'Disclaimers'),
+            opt(PANEL.PRIVACY_POLICY, <Scale size={20} />, 'Privacy'),
         );
 
         return items;
@@ -257,7 +257,7 @@ export const Settings = ({
             case 'pin-setup':           return { title: 'App Lock', ...backTo() };
             case 'notification-settings': return { title: 'Notifications', ...backTo() };
             case 'feedback':            return { title: 'Feedback', ...backTo() };
-            case 'disclaimers':         return { title: 'Disclaimers', ...backTo() };
+            case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
             case 'note-content':        return { title: 'Note Content', ...backTo() };
         }
     }, [activePanel, backTo, selectedTask, handleTrainingBack]);
@@ -381,8 +381,8 @@ export const Settings = ({
                         />
                     ) : activePanel === 'feedback' ? (
                         <FeedbackPanel />
-                    ) : activePanel === 'disclaimers' ? (
-                        <DisclaimersPanel />
+                    ) : activePanel === 'privacy-policy' ? (
+                        <PrivacyPolicyPanel />
                     ) : activePanel === 'note-content' ? (
                         <NoteContentPanel />
                     ) : activePanel === 'notification-settings' ? (

@@ -335,16 +335,10 @@ export const AccountRequestForm = () => {
   return (
     <div className="h-full overflow-y-auto">
       <div className="px-4 py-3 md:p-5">
-        <h2 className="text-lg font-semibold text-primary mb-2">Account Requests</h2>
-
-        <div className="mb-6 p-4 rounded-lg bg-yellow-50 border border-yellow-200">
-          <p className="text-sm font-medium text-yellow-800 mb-1">
-            New account creation currently disabled for beta testing
-          </p>
-          <p className="text-xs text-yellow-700">
-            We are not accepting new account requests at this time. Existing users are unaffected.
-          </p>
-        </div>
+        <h2 className="text-lg font-semibold text-primary mb-2">Request an Account</h2>
+        <p className="text-xs text-tertiary/60 mb-4">
+          An account lets you log training completion and store your preferences. No patient data is collected.
+        </p>
 
         {error && (
           <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
@@ -352,7 +346,39 @@ export const AccountRequestForm = () => {
           </div>
         )}
 
-        <div className="pt-2 border-t border-tertiary/10">
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <TextInput label="Email" value={email} onChange={setEmail} placeholder="your.email@mail.mil" type="email" required />
+
+          <div className="grid grid-cols-2 gap-3">
+            <TextInput label="First Name" value={firstName} onChange={setFirstName} required />
+            <TextInput label="Last Name" value={lastName} onChange={setLastName} required />
+          </div>
+
+          <TextInput label="Middle Initial" value={middleInitial} onChange={setMiddleInitial} maxLength={1} />
+
+          <SelectInput label="Medical Credential" value={credential} onChange={setCredential} options={credentials} placeholder="Select credential" required />
+
+          <SelectInput label="Component" value={component} onChange={handleComponentChange} options={components} placeholder="Select component" required />
+
+          {component && (
+            <SelectInput label="Rank" value={rank} onChange={setRank} options={componentRanks} placeholder="Select rank" required />
+          )}
+
+          <TextInput label="UIC" value={uic} onChange={setUic} placeholder="Unit Identification Code" required />
+
+          <TextInput label="Notes (optional)" value={notes} onChange={setNotes} placeholder="Anything else we should know?" />
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
+                     hover:bg-themeblue2/90 transition-colors disabled:opacity-50"
+          >
+            {submitting ? 'Submitting...' : 'Submit Request'}
+          </button>
+        </form>
+
+        <div className="mt-6 pt-6 border-t border-tertiary/10">
           <p className="text-sm text-tertiary/60 mb-3">Already submitted a request?</p>
           <div className="space-y-2">
             <input
@@ -360,7 +386,7 @@ export const AccountRequestForm = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="your.email@mail.mil"
-              className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-primary text-sm
+              className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-primary text-base
                        border border-tertiary/10 focus:border-themeblue2 focus:outline-none"
             />
             <input
@@ -368,10 +394,11 @@ export const AccountRequestForm = () => {
               value={statusCheckToken}
               onChange={(e) => setStatusCheckToken(e.target.value)}
               placeholder="Status check token (from submission)"
-              className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-primary text-sm font-mono
+              className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-primary text-base font-mono
                        border border-tertiary/10 focus:border-themeblue2 focus:outline-none"
             />
             <button
+              type="button"
               onClick={handleCheckStatus}
               className="w-full px-4 py-2 rounded-lg bg-tertiary/10 text-primary font-medium
                        hover:bg-tertiary/20 transition-colors text-sm"

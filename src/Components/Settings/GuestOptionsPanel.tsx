@@ -30,11 +30,11 @@ export const GuestOptionsPanel = ({
           <button
             onClick={onRequestAccount}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                     bg-yellow-50 text-yellow-700 font-normal border border-yellow-200
-                     transition-colors text-sm"
+                     bg-themewhite2 text-primary font-medium border border-tertiary/20
+                     hover:bg-tertiary/10 transition-colors text-sm"
           >
             <UserPlus size={18} />
-            Account creation disabled for beta
+            Request Account
           </button>
         </div>
 
@@ -51,9 +51,9 @@ export const GuestOptionsPanel = ({
         <div className="mt-6 pt-6 border-t border-tertiary/10">
           <h3 className="text-sm font-semibold text-primary mb-2">With an Account</h3>
           <ul className="text-xs text-tertiary space-y-1">
-            <li>✓ Sync notes across all devices</li>
-            <li>✓ Secure cloud backup</li>
-            <li>✓ Access from anywhere</li>
+            <li>✓ Log and track training completion</li>
+            <li>✓ Store preferences across devices</li>
+            <li>✓ Supervisor training validation</li>
           </ul>
         </div>
       </div>
