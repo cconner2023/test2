@@ -185,7 +185,7 @@ export const Settings = ({
             opt(PANEL.TOGGLE_THEME, isDarkMode ? <Sun size={20} /> : <Moon size={20} />, 'Toggle Theme', { action: onToggleTheme }),
             opt(PANEL.PIN_SETUP, <Lock size={20} />, 'Security'),
             opt(PANEL.NOTE_CONTENT, <Stethoscope size={20} />, 'Note Content'),
-            opt(PANEL.NOTIFICATION_SETTINGS, <Bell size={20} />, 'Notifications', { disabled: true }),
+            opt(PANEL.NOTIFICATION_SETTINGS, <Bell size={20} />, 'Notifications', { disabled: !isDevRole }),
         );
 
         // ABOUT section
