@@ -21,17 +21,17 @@ export const PrivacyPolicyPanel = () => (
           <span className="text-sm font-semibold text-primary">Privacy Policy</span>
         </div>
         <p className="text-xs text-tertiary/70 leading-relaxed">
-          ADTMC is committed to protecting your privacy. This policy explains what information we collect, how we use it, and your rights regarding your data.
+          We are committed to protecting your privacy. This policy explains what information we collect, how we use it, and your rights regarding your data.
         </p>
         <p className="text-[10px] text-tertiary/50 mt-1">Last updated: February 2026</p>
       </div>
 
       <Section icon={<EyeOff size={16} className="text-themeblue2" />} title="No Patient Data Collected">
-        <p>This application does <strong className="text-primary">not</strong> collect, store, or transmit Protected Health Information (PHI) or patients' Personally Identifiable Information (PII). No patient data is recorded on or sent to our servers. Clinical notes are created and stored locally on your device only.</p>
+        <p>This application does <strong className="text-primary">not</strong> collect, store, or transmit Protected Health Information (PHI) or patients' Personally Identifiable Information (PII). No patient data is recorded on or sent to our servers. No patient information is saved locally to cache.</p>
       </Section>
 
       <Section icon={<Database size={16} className="text-themeblue2" />} title="Information We Collect">
-        <p>If you create an account, we collect and store the following to support training logging and preference storage:</p>
+        <p>If you create an account, we collect and store the following to support training logging and preferences:</p>
         <ul className="list-disc list-outside ml-4 space-y-0.5">
           <li><strong className="text-primary">Profile:</strong> Name, rank, component (service branch), medical credential</li>
           <li><strong className="text-primary">Unit info:</strong> Unit Identification Code (UIC) and clinic association</li>
@@ -50,11 +50,11 @@ export const PrivacyPolicyPanel = () => (
           <li>Authenticating your identity when you sign in</li>
           <li>Associating you with your unit for training administration</li>
         </ul>
-        <p className="mt-1">We do <strong className="text-primary">not</strong> sell, share, or distribute your information to third parties. Your data is not used for analytics, advertising, or any purpose beyond the features listed above.</p>
+        <p className="mt-1">We do <strong className="text-primary">not</strong> sell, share, or distribute your information to third parties. Training completion data may be used for analytics. Your data is not used for advertising, or any purpose beyond the features listed above.</p>
       </Section>
 
       <Section icon={<Server size={16} className="text-themeblue2" />} title="Data Storage & Security">
-        <p>Server-side data is hosted on Supabase with encrypted connections and row-level security policies. Authentication credentials are encrypted. App lock PINs are hashed and salted before storage.</p>
+        <p>Server-side data is encrypted with row-level security policies. Authentication credentials are encrypted. App lock PINs are hashed and salted before storage.</p>
         <p className="mt-1">To support offline functionality, the following is encrypted (AES-256-GCM) and cached locally on your device:</p>
         <ul className="list-disc list-outside ml-4 space-y-0.5">
           <li>Profile information</li>
@@ -67,7 +67,7 @@ export const PrivacyPolicyPanel = () => (
         <p>Your profile data is accessible only to:</p>
         <ul className="list-disc list-outside ml-4 space-y-0.5">
           <li><strong className="text-primary">You</strong> — full access to your own data</li>
-          <li><strong className="text-primary">Supervisors</strong> — training completion status for personnel in their unit</li>
+          <li><strong className="text-primary">Supervisors</strong> — training completion status only for personnel in their unit</li>
           <li><strong className="text-primary">Administrators</strong> — account management and support</li>
         </ul>
       </Section>
