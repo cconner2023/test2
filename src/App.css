@@ -101,9 +101,17 @@ display: none;
 * {
   -webkit-tap-highlight-color: transparent !important;
   -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
   touch-action: pan-y;
   /* Hint the browser to optimize for touch transforms */
   -webkit-overflow-scrolling: touch;
+}
+
+/* Restore text selection in fields where users need to type/select */
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text !important;
+  user-select: text !important;
 }
 
 /* Gesture-active surfaces: promote to compositor layer during active touch */
