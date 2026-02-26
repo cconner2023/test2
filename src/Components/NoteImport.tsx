@@ -1,6 +1,8 @@
 // components/NoteImport.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { X, Camera, ScanLine, User, ImagePlus } from 'lucide-react';
+import { profileAvatars } from '../Data/ProfileAvatars';
+import { supabase } from '../lib/supabase';
 import {
     MultiFormatReader, BinaryBitmap, HybridBinarizer,
     HTMLCanvasElementLuminanceSource, DecodeHintType, BarcodeFormat,
@@ -50,8 +52,26 @@ const NoteImportContent = ({
     const videoRef = useRef<HTMLVideoElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDecodingImage, setIsDecodingImage] = useState(false);
+    const [authorAvatarSvg, setAuthorAvatarSvg] = useState<React.ReactNode>(null);
 
     const { importFromBarcode } = useNoteImport();
+
+    // Fetch the author's avatar from Supabase when a preview with a userId is available
+    useEffect(() => {
+        const userId = state.preview?.userId;
+        if (!userId) { setAuthorAvatarSvg(null); return; }
+
+        supabase
+            .from('profiles')
+            .select('avatar_id')
+            .eq('id', userId)
+            .single()
+            .then(({ data }) => {
+                const avatarId = data?.avatar_id;
+                const match = avatarId ? profileAvatars.find(a => a.id === avatarId) : null;
+                setAuthorAvatarSvg(match?.svg ?? null);
+            });
+    }, [state.preview?.userId]);
     const { shareNote, shareStatus } = useNoteShare();
     const { isScanning, error: scannerError, result: scanResult, startScanning, stopScanning, clearResult } = useBarcodeScanner();
 
@@ -354,8 +374,11 @@ const NoteImportContent = ({
                         </div>
                         {/* Metadata row */}
                         <div className="flex items-center gap-3 text-xs text-tertiary flex-wrap">
-                            <span className="flex items-center gap-1">
-                                <User size={12} className="shrink-0" />
+                            <span className="flex items-center gap-1.5">
+                                {authorAvatarSvg
+                                    ? <span className="w-4 h-4 rounded-full overflow-hidden shrink-0">{authorAvatarSvg}</span>
+                                    : <User size={12} className="shrink-0" />
+                                }
                                 {preview.authorLabel}
                             </span>
                         </div>
