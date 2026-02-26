@@ -10,6 +10,21 @@ export interface TextExpander {
     template?: TemplateNode[];
 }
 
+export interface Certification {
+    id: string;
+    user_id: string;
+    title: string;
+    cert_number: string | null;
+    issue_date: string | null;
+    exp_date: string | null;
+    is_primary: boolean;
+    verified: boolean;
+    verified_by: string | null;
+    verified_at: string | null;
+    created_at: string;
+    updated_at: string;
+}
+
 export interface CustomPEBlock {
     id: string;
     name: string;

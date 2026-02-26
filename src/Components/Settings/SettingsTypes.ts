@@ -22,6 +22,8 @@ export const PANEL = {
     NOTIFICATION_SETTINGS: 17,
     NOTE_CONTENT: 19,
     PRIVACY_POLICY: 21,
+    CHANGE_PASSWORD: 22,
+    CERTIFICATIONS: 23,
 } as const;
 
 export type PanelId = (typeof PANEL)[keyof typeof PANEL];
@@ -42,6 +44,8 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.NOTIFICATION_SETTINGS]: 'notification-settings',
     [PANEL.NOTE_CONTENT]: 'note-content',
     [PANEL.PRIVACY_POLICY]: 'privacy-policy',
+    [PANEL.CHANGE_PASSWORD]: 'change-password',
+    [PANEL.CERTIFICATIONS]: 'certifications',
 };
 
 export type SettingsItem =

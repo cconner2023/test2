@@ -1,13 +1,12 @@
 import { useState } from 'react'
-import { KeyRound, Eye, EyeOff } from 'lucide-react'
+import { KeyRound } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/useAuthStore'
+import { PasswordInput } from './FormInputs'
 
 export const SetPasswordScreen = () => {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirm, setShowConfirm] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -55,59 +54,27 @@ export const SetPasswordScreen = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* New password */}
-          <label className="block">
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">New Password</span>
-            <div className="relative mt-1">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Min 12 characters"
-                autoComplete="new-password"
-                className="w-full px-3 py-2.5 pr-10 rounded-lg bg-themewhite2 text-primary text-base
-                           border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                           transition-colors placeholder:text-tertiary/30"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary/40 hover:text-tertiary/70 transition-colors"
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-            {password.length > 0 && password.length < 12 && (
+          <PasswordInput
+            label="New Password"
+            value={password}
+            onChange={setPassword}
+            placeholder="Min 12 characters"
+            autoComplete="new-password"
+            hint={password.length > 0 && password.length < 12 && (
               <p className="text-xs text-themeredred mt-1">Password must be at least 12 characters</p>
             )}
-          </label>
+          />
 
-          {/* Confirm password */}
-          <label className="block">
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Confirm Password</span>
-            <div className="relative mt-1">
-              <input
-                type={showConfirm ? 'text' : 'password'}
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder="Re-enter password"
-                autoComplete="new-password"
-                className="w-full px-3 py-2.5 pr-10 rounded-lg bg-themewhite2 text-primary text-base
-                           border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                           transition-colors placeholder:text-tertiary/30"
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirm(!showConfirm)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary/40 hover:text-tertiary/70 transition-colors"
-              >
-                {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-            {confirm.length > 0 && password !== confirm && (
+          <PasswordInput
+            label="Confirm Password"
+            value={confirm}
+            onChange={setConfirm}
+            placeholder="Re-enter password"
+            autoComplete="new-password"
+            hint={confirm.length > 0 && password !== confirm && (
               <p className="text-xs text-themeredred mt-1">Passwords do not match</p>
             )}
-          </label>
+          />
 
           <button
             type="submit"

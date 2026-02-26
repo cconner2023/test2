@@ -4,7 +4,6 @@ import { PinKeypad } from './PinKeypad'
 import {
   verifyPin,
   setSessionUnlocked,
-  checkLockout,
   recordFailedAttempt,
   resetLockout,
   clearPinPermanentLock,
@@ -15,15 +14,14 @@ import {
   isBiometricEnrolled,
   verifyBiometric,
 } from '../lib/biometricService'
+import { usePinLockoutTimer } from '../Hooks/usePinLockoutTimer'
 
 interface PinLockScreenProps {
   onUnlock: () => void
 }
 
 export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
-  const [error, setError] = useState('')
-  const [lockout, setLockout] = useState(checkLockout())
-  const lockoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const { lockout, setLockout, error, setError } = usePinLockoutTimer()
   const [biometricReady, setBiometricReady] = useState(false)
   const biometricAttempted = useRef(false)
   const [passwordInput, setPasswordInput] = useState('')
@@ -48,27 +46,6 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
     handleBiometric()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [biometricReady])
-
-  // Countdown timer for lockout (skip for permanent lock — no countdown)
-  useEffect(() => {
-    if (!lockout.isLockedOut || lockout.isPermanentlyLocked) {
-      if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current)
-      return
-    }
-
-    lockoutTimerRef.current = setInterval(() => {
-      const state = checkLockout()
-      setLockout(state)
-      if (!state.isLockedOut) {
-        setError('')
-        if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current)
-      }
-    }, 1000)
-
-    return () => {
-      if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current)
-    }
-  }, [lockout.isLockedOut, lockout.isPermanentlyLocked])
 
   const handlePasswordUnlock = useCallback(async () => {
     if (!passwordInput) return
@@ -109,7 +86,7 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
       setLockout(state)
       setError('Incorrect PIN')
     }
-  }, [onUnlock])
+  }, [onUnlock, setError, setLockout])
 
   const lockoutMessage = lockout.isPermanentlyLocked
     ? 'PIN locked. Enter password to unlock.'

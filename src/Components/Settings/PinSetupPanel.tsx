@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Lock, KeyRound, Trash2, ScanFace, Timer } from 'lucide-react'
 import { StatusBanner } from './StatusBanner'
 import { PinKeypad } from '../PinKeypad'
@@ -8,7 +8,6 @@ import {
   savePin,
   removePin,
   verifyPin,
-  checkLockout,
   recordFailedAttempt,
   resetLockout,
   getStoredPin,
@@ -24,6 +23,7 @@ import {
   enrollBiometric,
   removeBiometric,
 } from '../../lib/biometricService'
+import { usePinLockoutTimer } from '../../Hooks/usePinLockoutTimer'
 
 type PinView = 'status' | 'set-new' | 'confirm-new' | 'verify-current' | 'change-new' | 'change-confirm'
 
@@ -38,11 +38,9 @@ export const PinSetupPanel = () => {
   const [timeoutMs, setTimeoutMs] = useState(getInactivityTimeoutMs)
   const { isAuthenticated } = useAuth()
   const [firstPin, setFirstPin] = useState('')
-  const [error, setError] = useState('')
+  const { lockout, setLockout, error, setError } = usePinLockoutTimer()
   const [success, setSuccess] = useState('')
-  const [lockout, setLockout] = useState(checkLockout())
   const [pendingAction, setPendingAction] = useState<'change' | 'remove' | null>(null)
-  const lockoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Biometric state
   const [bioAvailable, setBioAvailable] = useState(false)
@@ -60,29 +58,12 @@ export const PinSetupPanel = () => {
     return () => { cancelled = true }
   }, [])
 
-  // Lockout countdown
-  useEffect(() => {
-    if (!lockout.isLockedOut) {
-      if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current)
-      return
-    }
-    lockoutTimerRef.current = setInterval(() => {
-      const state = checkLockout()
-      setLockout(state)
-      if (!state.isLockedOut) {
-        setError('')
-        if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current)
-      }
-    }, 1000)
-    return () => { if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current) }
-  }, [lockout.isLockedOut])
-
   const resetState = useCallback(() => {
     setFirstPin('')
     setError('')
     setSuccess('')
     setPendingAction(null)
-  }, [])
+  }, [setError])
 
   // Escape key to cancel PIN entry
   useEffect(() => {
@@ -116,7 +97,7 @@ export const PinSetupPanel = () => {
     } finally {
       setBioLoading(false)
     }
-  }, [bioEnrolled])
+  }, [bioEnrolled, setError])
 
   const handleSubmit = useCallback(async (pin: string) => {
     setError('')
@@ -183,7 +164,7 @@ export const PinSetupPanel = () => {
         }
         break
     }
-  }, [view, firstPin, pendingAction, resetState])
+  }, [view, firstPin, pendingAction, resetState, setError, setLockout])
 
   const viewLabels: Record<string, string> = {
     'set-new': 'Create a 4-digit PIN',

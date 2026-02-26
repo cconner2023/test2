@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef, type MutableRefObject } from 'react'
-import { ChevronRight, Check, X, Ban, AlertTriangle, Info, Clock, FileText, Users, BookOpen, Search, Lock } from 'lucide-react'
+import { ChevronRight, Check, X, Ban, AlertTriangle, Info, Clock, Users, BookOpen, Search, Lock, Award, CheckCircle, Star } from 'lucide-react'
 import { stp68wTraining } from '../../Data/TrainingTaskList'
 import { getTaskData, isTaskTestable } from '../../Data/TrainingData'
 import type { PerformanceStep } from '../../Data/TrainingData'
@@ -11,6 +11,8 @@ import { deleteCompletion as deleteCompletionApi } from '../../lib/trainingServi
 import { supabase } from '../../lib/supabase'
 import { createLogger } from '../../Utilities/Logger'
 import { subjectAreaIcons, skillLevelLabels, categoryOrder } from '../../Data/TrainingConstants'
+import { fetchClinicCertifications, verifyCertification, unverifyCertification } from '../../lib/certificationService'
+import type { Certification } from '../../Data/User'
 
 const logger = createLogger('SupervisorPanel')
 
@@ -109,7 +111,7 @@ function SelectMedicStep({
   if (error) {
     return (
       <div className="text-center py-12">
-        <Users size={48} className="mx-auto mb-4 text-tertiary/40" />
+        <Users size={28} className="mx-auto mb-3 text-tertiary/30" />
         <p className="text-sm text-tertiary/60">{error}</p>
       </div>
     )
@@ -118,7 +120,7 @@ function SelectMedicStep({
   if (medics.length === 0) {
     return (
       <div className="text-center py-12">
-        <Users size={48} className="mx-auto mb-4 text-tertiary/40" />
+        <Users size={28} className="mx-auto mb-3 text-tertiary/30" />
         <p className="text-sm text-tertiary/60">No medics found in your clinic</p>
       </div>
     )
@@ -131,7 +133,7 @@ function SelectMedicStep({
         <button
           key={medic.id}
           onClick={() => onSelect(medic)}
-          className="flex items-center w-full px-4 py-3 rounded-xl text-left
+          className="flex items-center w-full px-4 py-3 rounded-lg text-left
                      hover:bg-themewhite2 active:scale-[0.98] transition-all"
         >
           <div className="flex-1 min-w-0">
@@ -246,7 +248,7 @@ function SelectTaskStep({
                     key={task.taskId}
                     onClick={() => testable && onSelectTask(task.taskId, task.title)}
                     disabled={!testable}
-                    className={`flex items-center w-full px-6 py-3 rounded-xl text-left transition-all
+                    className={`flex items-center w-full px-6 py-3 rounded-lg text-left transition-all
                       ${testable
                         ? 'hover:bg-themewhite2 active:scale-[0.98] cursor-pointer'
                         : 'opacity-40 cursor-not-allowed'
@@ -445,7 +447,7 @@ function EvaluationStep({
         <button
           onClick={handleSubmit}
           disabled={!allEvaluated}
-          className="w-full py-3 rounded-xl bg-themeblue2 text-white text-sm font-semibold
+          className="w-full py-3 rounded-lg bg-themeblue2 text-white text-sm font-semibold
                      hover:bg-themeblue2/90 active:scale-[0.98] transition-all
                      disabled:opacity-40 disabled:cursor-not-allowed"
         >
@@ -517,7 +519,7 @@ function HistoryTab({ clinicUsers, currentUserId }: { clinicUsers: ClinicMedic[]
   if (tests.length === 0) {
     return (
       <div className="text-center py-12">
-        <Clock size={48} className="mx-auto mb-4 text-tertiary/40" />
+        <Clock size={28} className="mx-auto mb-3 text-tertiary/30" />
         <p className="text-sm text-tertiary/60">No test records yet</p>
       </div>
     )
@@ -621,6 +623,166 @@ function HistoryTab({ clinicUsers, currentUserId }: { clinicUsers: ClinicMedic[]
   )
 }
 
+// ─── Certs Tab ───────────────────────────────────────────────────────────────
+
+function getExpirationStatus(expDate: string | null): 'valid' | 'expiring' | 'expired' | 'none' {
+  if (!expDate) return 'none'
+  const now = new Date()
+  const exp = new Date(expDate)
+  const diffDays = (exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+  if (diffDays < 0) return 'expired'
+  if (diffDays <= 90) return 'expiring'
+  return 'valid'
+}
+
+const certBadgeColors = {
+  valid:    'bg-themegreen/10 text-themegreen border-themegreen/30',
+  expiring: 'bg-themeyellow/10 text-themeyellow border-themeyellow/30',
+  expired:  'bg-themeredred/10 text-themeredred border-themeredred/30',
+  none:     'bg-tertiary/5 text-tertiary/50 border-tertiary/20',
+} as const
+
+function CertsTab({ clinicUsers, currentUserId }: { clinicUsers: ClinicMedic[]; currentUserId: string }) {
+  const [certs, setCerts] = useState<Certification[]>([])
+  const [loading, setLoading] = useState(true)
+  const [expandedCertId, setExpandedCertId] = useState<string | null>(null)
+
+  const nameMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const u of clinicUsers) {
+      map.set(u.id, formatMedicName(u))
+    }
+    return map
+  }, [clinicUsers])
+
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        const allIds = clinicUsers.map(u => u.id)
+        const data = await fetchClinicCertifications(allIds)
+        if (!cancelled) setCerts(data)
+      } catch (err) {
+        logger.error('Failed to fetch clinic certifications:', err)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    load()
+    return () => { cancelled = true }
+  }, [clinicUsers])
+
+  const handleVerify = useCallback(async (certId: string) => {
+    const result = await verifyCertification(certId, currentUserId)
+    if (result.success) {
+      setCerts(prev => prev.map(c =>
+        c.id === certId
+          ? { ...c, verified: true, verified_by: currentUserId, verified_at: new Date().toISOString() }
+          : c
+      ))
+    }
+  }, [currentUserId])
+
+  const handleUnverify = useCallback(async (certId: string) => {
+    const result = await unverifyCertification(certId)
+    if (result.success) {
+      setCerts(prev => prev.map(c =>
+        c.id === certId
+          ? { ...c, verified: false, verified_by: null, verified_at: null }
+          : c
+      ))
+    }
+  }, [])
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-12"><div className="text-tertiary/60">Loading certifications...</div></div>
+  }
+
+  // Group certs by user_id
+  const grouped = new Map<string, Certification[]>()
+  for (const cert of certs) {
+    const existing = grouped.get(cert.user_id) || []
+    existing.push(cert)
+    grouped.set(cert.user_id, existing)
+  }
+
+  if (grouped.size === 0) {
+    return (
+      <div className="text-center py-12">
+        <Award size={28} className="mx-auto mb-3 text-tertiary/30" />
+        <p className="text-sm text-tertiary/60">No certifications found for clinic members</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {Array.from(grouped).map(([userId, userCerts]) => (
+        <div key={userId} className="rounded-lg border border-tertiary/10 bg-themewhite2 px-4 py-3">
+          <p className="text-sm font-semibold text-primary mb-2">{nameMap.get(userId) ?? 'Unknown'}</p>
+
+          {/* Badge row */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {userCerts.map((cert) => {
+              const status = getExpirationStatus(cert.exp_date)
+              const color = certBadgeColors[status]
+              return (
+                <button key={cert.id} onClick={() => setExpandedCertId(expandedCertId === cert.id ? null : cert.id)}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium border transition-colors ${color} ${expandedCertId === cert.id ? 'ring-1 ring-themeblue2/40' : ''}`}>
+                  {cert.title}
+                  {cert.is_primary && <Star size={9} className="fill-current" />}
+                  {cert.verified && <CheckCircle size={9} />}
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Expanded detail panel */}
+          {expandedCertId && (() => {
+            const cert = userCerts.find(c => c.id === expandedCertId)
+            if (!cert) return null
+            const verifierName = cert.verified_by ? (nameMap.get(cert.verified_by) ?? cert.verified_by) : null
+            return (
+              <div className="mt-2 rounded-lg border border-tertiary/10 bg-themewhite px-3 py-2.5 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium text-primary">{cert.title}</p>
+                  <button onClick={() => setExpandedCertId(null)} className="text-tertiary/40 hover:text-primary"><X size={14} /></button>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-tertiary/60">
+                  {cert.cert_number && <div>Cert #: <span className="text-primary">{cert.cert_number}</span></div>}
+                  {cert.issue_date && <div>Issued: <span className="text-primary">{new Date(cert.issue_date + 'T00:00:00').toLocaleDateString()}</span></div>}
+                  {cert.exp_date && <div>Expires: <span className="text-primary">{new Date(cert.exp_date + 'T00:00:00').toLocaleDateString()}</span></div>}
+                </div>
+                <div className="flex items-center gap-2 pt-1 border-t border-tertiary/5">
+                  {cert.verified ? (
+                    <>
+                      <span className="flex items-center gap-1 text-xs text-themegreen font-medium"><CheckCircle size={11} /> Verified</span>
+                      {verifierName && <span className="text-[8pt] text-tertiary/40">by {verifierName}</span>}
+                      {cert.verified_at && <span className="text-[8pt] text-tertiary/40">{new Date(cert.verified_at).toLocaleDateString()}</span>}
+                      <button onClick={() => handleUnverify(cert.id)}
+                        className="text-[9pt] text-tertiary/40 hover:text-themeredred transition-colors ml-auto">
+                        Unverify
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <span className="text-xs text-tertiary/50">Unverified</span>
+                      <button onClick={() => handleVerify(cert.id)}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-themeblue2 text-white hover:bg-themeblue2/90 transition-colors ml-auto">
+                        <CheckCircle size={11} /> Verify
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )
+          })()}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ─── Main SupervisorPanel ────────────────────────────────────────────────────
 
 type WizardStep = 'select-medic' | 'select-task' | 'evaluate'
@@ -636,7 +798,7 @@ export function SupervisorPanel({
   const [loading, setLoading] = useState(true)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const [currentUserProfile, setCurrentUserProfile] = useState<ClinicMedic | null>(null)
-  const [activeTab, setActiveTab] = useState<'new-test' | 'history'>('new-test')
+  const [activeTab, setActiveTab] = useState<'new-test' | 'history' | 'certs'>('new-test')
   const { submitTestEvaluation } = useTrainingCompletions()
   const { medics: clinicUsers } = useClinicMedics()
 
@@ -690,7 +852,7 @@ export function SupervisorPanel({
   // Keep backRef in sync so the drawer header back button navigates wizard steps
   useEffect(() => {
     if (!backRef) return
-    if (activeTab === 'history' || wizardStep === 'select-medic') {
+    if (activeTab === 'history' || activeTab === 'certs' || wizardStep === 'select-medic') {
       backRef.current = onBackToMain ?? null
     } else if (wizardStep === 'select-task') {
       backRef.current = () => setWizardStep('select-medic')
@@ -738,8 +900,8 @@ export function SupervisorPanel({
     return (
       <div className="h-full flex items-center justify-center px-4">
         <div className="text-center">
-          <Ban size={48} className="mx-auto mb-4 text-tertiary/40" />
-          <h3 className="text-lg font-semibold text-primary mb-2">Access Denied</h3>
+          <Ban size={28} className="mx-auto mb-3 text-tertiary/30" />
+          <h3 className="text-base font-semibold text-primary mb-1">Access Denied</h3>
           <p className="text-sm text-tertiary/60">You need the supervisor role to access this panel.</p>
         </div>
       </div>
@@ -750,24 +912,26 @@ export function SupervisorPanel({
     <div className="h-full overflow-y-auto">
       <div className="px-4 py-3 md:p-5">
         {/* Tab bar */}
-        <div className="flex gap-2 mb-5">
-          <button
-            onClick={() => { setActiveTab('new-test'); resetWizard() }}
-            className={`flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold transition-colors
-              ${activeTab === 'new-test' ? 'bg-themeblue2 text-white' : 'bg-themewhite2 text-tertiary/70 hover:bg-themewhite2/80'}`}
-          >
-            <FileText size={14} /> New Test
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`flex items-center gap-1.5 px-5 py-2 rounded-lg text-sm font-semibold transition-colors
-              ${activeTab === 'history' ? 'bg-themeblue2 text-white' : 'bg-themewhite2 text-tertiary/70 hover:bg-themewhite2/80'}`}
-          >
-            <Clock size={14} /> History
-          </button>
+        <div className="flex gap-1 mb-5 p-0.5 bg-themewhite2 rounded-lg">
+          {([
+            { key: 'new-test' as const, label: 'New Test', onClick: () => { setActiveTab('new-test'); resetWizard() } },
+            { key: 'history' as const, label: 'History', onClick: () => setActiveTab('history') },
+            { key: 'certs' as const, label: 'Certs', onClick: () => setActiveTab('certs') },
+          ]).map((tab) => (
+            <button
+              key={tab.key}
+              onClick={tab.onClick}
+              className={`flex-1 px-4 py-1.5 rounded-md text-sm font-medium transition-colors
+                ${activeTab === tab.key ? 'bg-themeblue2 text-white shadow-sm' : 'text-tertiary/70 hover:text-primary'}`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {activeTab === 'history' && currentUserId ? (
+        {activeTab === 'certs' && currentUserId ? (
+          <CertsTab clinicUsers={allClinicUsers} currentUserId={currentUserId} />
+        ) : activeTab === 'history' && currentUserId ? (
           <HistoryTab clinicUsers={allClinicUsers} currentUserId={currentUserId} />
         ) : wizardStep === 'select-medic' ? (
           <SelectMedicStep onSelect={handleSelectMedic} />

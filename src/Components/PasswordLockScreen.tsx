@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Lock, Eye, EyeOff, Lightbulb } from 'lucide-react'
+import { Lock, Lightbulb } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { verifyPasswordLocally, storePasswordHash } from '../lib/authService'
+import { PasswordInput } from './FormInputs'
 
 interface PasswordLockScreenProps {
   onUnlock: () => void
@@ -11,7 +12,6 @@ interface PasswordLockScreenProps {
 
 export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: PasswordLockScreenProps) => {
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [resetSent, setResetSent] = useState(false)
@@ -190,30 +190,15 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
 
         {/* Password form */}
         <form onSubmit={handleSubmit} className="space-y-4">
-          <label className="block">
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Password</span>
-            <div className="relative mt-1">
-              <input
-                ref={inputRef}
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                autoComplete="current-password"
-                disabled={isLockedOut}
-                className="w-full px-3 py-2.5 pr-10 rounded-lg bg-themewhite2 text-primary text-base
-                           border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                           transition-colors placeholder:text-tertiary/30 disabled:opacity-50"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary/40 hover:text-tertiary/70 transition-colors"
-              >
-                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-              </button>
-            </div>
-          </label>
+          <PasswordInput
+            label="Password"
+            value={password}
+            onChange={setPassword}
+            placeholder="Enter your password"
+            autoComplete="current-password"
+            disabled={isLockedOut}
+            inputRef={inputRef}
+          />
 
           <button
             type="submit"

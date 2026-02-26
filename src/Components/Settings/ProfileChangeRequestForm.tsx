@@ -4,84 +4,9 @@ import { credentials, components, ranksByComponent } from '../../Data/User'
 import { supabase } from '../../lib/supabase'
 import { submitProfileChangeRequest } from '../../lib/accountRequestService'
 import { createLogger } from '../../Utilities/Logger'
+import { TextInput, SelectInput } from '../FormInputs'
 
 const logger = createLogger('ProfileChangeRequest')
-
-const TextInput = ({
-  label,
-  value,
-  onChange,
-  placeholder,
-  maxLength,
-  currentValue,
-  type = 'text',
-}: {
-  label: string
-  value: string
-  onChange: (val: string) => void
-  placeholder?: string
-  maxLength?: number
-  currentValue?: string | null
-  type?: string
-}) => (
-  <label className="block">
-    <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>
-    {currentValue && (
-      <div className="text-xs text-tertiary/50 mb-1">
-        Current: <span className="font-medium">{currentValue}</span>
-      </div>
-    )}
-    <input
-      type={type}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      placeholder={placeholder}
-      maxLength={maxLength}
-      className="mt-1 w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-base
-                 border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                 transition-colors placeholder:text-tertiary/30"
-    />
-  </label>
-)
-
-const SelectInput = ({
-  label,
-  value,
-  onChange,
-  options,
-  placeholder,
-  currentValue,
-}: {
-  label: string
-  value: string
-  onChange: (val: string) => void
-  options: readonly string[]
-  placeholder?: string
-  currentValue?: string | null
-}) => (
-  <label className="block">
-    <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>
-    {currentValue && (
-      <div className="text-xs text-tertiary/50 mb-1">
-        Current: <span className="font-medium">{currentValue}</span>
-      </div>
-    )}
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="mt-1 w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-base
-                 border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                 transition-colors appearance-none"
-    >
-      <option value="">{placeholder ?? 'Select...'}</option>
-      {options.map((opt) => (
-        <option key={opt} value={opt}>
-          {opt}
-        </option>
-      ))}
-    </select>
-  </label>
-)
 
 export const ProfileChangeRequestForm = () => {
   const [currentProfile, setCurrentProfile] = useState({

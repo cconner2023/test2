@@ -1,4 +1,4 @@
-import { ChevronUp, ChevronRight, LogOut } from 'lucide-react';
+import { ChevronUp, ChevronRight } from 'lucide-react';
 import type { PanelId, SettingsItem } from './SettingsTypes';
 
 export interface MainSettingsPanelProps {
@@ -12,8 +12,6 @@ export interface MainSettingsPanelProps {
     displayClinic?: string;
     onAvatarClick: () => void;
     onProfileClick: () => void;
-    onSignOut?: () => void;
-    isAuthenticated?: boolean;
     isConnected?: boolean;
 }
 
@@ -28,8 +26,6 @@ export const MainSettingsPanel = ({
     displayClinic,
     onAvatarClick,
     onProfileClick,
-    onSignOut,
-    isAuthenticated,
     isConnected,
 }: MainSettingsPanelProps) => {
     // Separate top row items (no header before them) from grid sections
@@ -73,17 +69,7 @@ export const MainSettingsPanel = ({
                                 <p className="text-xs text-tertiary md:text-sm mt-0.5">{displayClinic}</p>
                             )}
                         </button>
-                        {isAuthenticated ? (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onSignOut?.(); }}
-                                className="shrink-0 ml-2 p-1.5 rounded-full hover:bg-tertiary/10 active:scale-90 transition-all"
-                                aria-label="Sign out"
-                            >
-                                <LogOut size={18} className="text-themeredred" />
-                            </button>
-                        ) : (
-                            <ChevronRight size={20} className="text-tertiary/40 shrink-0 ml-2" />
-                        )}
+                        <ChevronRight size={20} className="text-tertiary/40 shrink-0 ml-2" />
                     </div>
                 </div>
 

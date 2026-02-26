@@ -19,6 +19,9 @@ import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { FeedbackPanel } from './FeedbackPanel';
 import { PrivacyPolicyPanel } from './PrivacyPolicyPanel';
 import { NoteContentPanel } from './NoteContentPanel';
+import { ProfilePage } from './ProfilePage';
+import { ChangePasswordPanel } from './ChangePasswordPanel';
+import { CertificationsPanel } from './CertificationsPanel';
 import type { subjectAreaArrayOptions } from '../../Types/CatTypes';
 import { stp68wTraining } from '../../Data/TrainingTaskList';
 import { getTaskData } from '../../Data/TrainingData';
@@ -62,7 +65,7 @@ export const Settings = ({
     initialTrainingTaskId,
     avatar,
 }: SettingsDrawerProps) => {
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | TrainingView>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | TrainingView>('main');
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = avatar;
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
@@ -224,6 +227,13 @@ export const Settings = ({
             if (activePanel === 'training-detail' || activePanel === 'training') {
                 return handleTrainingBack;
             }
+            // Sub-panels of the profile hub go back to user-profile
+            if (activePanel === 'user-profile-details' || activePanel === 'change-password' || activePanel === 'certifications') {
+                return () => { handleSlideAnimation('right'); setActivePanel('user-profile'); };
+            }
+            if (activePanel === 'profile-change-request') {
+                return () => { handleSlideAnimation('right'); setActivePanel('user-profile-details'); };
+            }
             return () => { handleSlideAnimation('right'); setActivePanel('main'); };
         }, [activePanel, handleSlideAnimation, handleTrainingBack]),
         activePanel !== 'main',
@@ -244,9 +254,13 @@ export const Settings = ({
             case 'supervisor':
                 return { title: 'Supervisor', showBack: true, onBack: () => { supervisorBackRef.current?.(); } };
             case 'profile-change-request':
-                return { title: 'Request Changes', ...backTo('user-profile') };
+                return { title: 'Request Changes', ...backTo('user-profile-details') };
             case 'login':
                 return { title: 'Sign In', ...backTo('guest-options') };
+            // Sub-panels of the profile hub go back to user-profile
+            case 'user-profile-details': return { title: 'User Information', ...backTo('user-profile') };
+            case 'change-password':     return { title: 'Change Password', ...backTo('user-profile') };
+            case 'certifications':      return { title: 'Certifications', ...backTo('user-profile') };
             // All panels below slide right back to main
             case 'release-notes':       return { title: 'Release Notes', ...backTo() };
             case 'avatar-picker':       return { title: 'Choose Avatar', ...backTo() };
@@ -310,18 +324,32 @@ export const Settings = ({
                                     handleItemClick(PANEL.USER_PROFILE, handleClose);
                                 }
                             }}
-                            onSignOut={async () => { await clearAllUserData(); await clearServiceWorkerCaches(); await signOut(); handleClose(); }}
-                            isAuthenticated={!!isAuthenticated}
                             isConnected={isSupabaseConnected}
                         />
                     ) : activePanel === 'user-profile' ? (
                         isAuthenticated === false ? (
                             <AccountRequestForm />
                         ) : (
-                            <UserProfileDisplay
-                                onRequestChange={() => handleItemClick(PANEL.PROFILE_CHANGE_REQUEST, handleClose)}
+                            <ProfilePage
+                                avatarSvg={currentAvatar.svg}
+                                customImage={customImage}
+                                isCustom={isCustom}
+                                onAvatarClick={() => handleItemClick(PANEL.AVATAR_PICKER, handleClose)}
+                                onNavigate={(panel) => {
+                                    handleSlideAnimation('left');
+                                    setActivePanel(panel);
+                                }}
+                                onSignOut={async () => { await clearAllUserData(); await clearServiceWorkerCaches(); await signOut(); handleClose(); }}
                             />
                         )
+                    ) : activePanel === 'user-profile-details' ? (
+                        <UserProfileDisplay
+                            onRequestChange={() => handleItemClick(PANEL.PROFILE_CHANGE_REQUEST, handleClose)}
+                        />
+                    ) : activePanel === 'change-password' ? (
+                        <ChangePasswordPanel />
+                    ) : activePanel === 'certifications' ? (
+                        <CertificationsPanel />
                     ) : activePanel === 'profile-change-request' ? (
                         <ProfileChangeRequestForm />
                     ) : activePanel === 'avatar-picker' ? (

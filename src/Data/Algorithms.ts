@@ -4296,7 +4296,6 @@ export const Algorithm: AlgorithmType[] = [
             }
         ]
     },
-    // No current algorithm exists for headache F-2. Decision making points exist. This algorithm was made by working backwards from decision making points. 2009 version of ADTMC does not adequately address red flags.
     {
         id: "F-2",
         options: [
@@ -4310,6 +4309,22 @@ export const Algorithm: AlgorithmType[] = [
                     { text: "Severe Hypertension" },
                     { text: "Fever" },
                     { text: "Vision Change/Loss" }
+                ],
+                answerOptions: []
+            },
+            {
+                text: "Perform the following exam:",
+                type: "action",
+                questionOptions: [
+                    { text: "pupil exam" },
+                ],
+                answerOptions: []
+            },
+            {
+                text: "Draw the following if applicable:",
+                type: "action",
+                questionOptions: [
+                    { text: " \u2640 Pregnancy Screen/Test" },
                 ],
                 answerOptions: []
             },
@@ -4331,6 +4346,7 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
+                                modifier: 'Hypertension - dark quiet room'
                             }
                         ],
                         decisionMaking: [
@@ -4351,7 +4367,7 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "No",
                         disposition: [],
-                        next: 2,
+                        next: 4,
                         selectAll: false
                     }
                 ]
