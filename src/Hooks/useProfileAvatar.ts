@@ -2,8 +2,8 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { profileAvatars } from '../Data/ProfileAvatars';
 import type { ProfileAvatar } from '../Data/ProfileAvatars';
 import { supabase } from '../lib/supabase';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 import { usePageVisibility } from './usePageVisibility';
+import { useSupabaseSubscription } from './useSupabaseSubscription';
 import { createLogger } from '../Utilities/Logger';
 
 const logger = createLogger('ProfileAvatar');
@@ -122,42 +122,29 @@ export function useProfileAvatar(userId?: string) {
     // Realtime: subscribe to avatar_id changes on the user's own profile row
     // so that changing avatar on one device updates all other logged-in devices.
     // Pauses when the page is backgrounded to reduce battery drain.
-    useEffect(() => {
-        if (!userId || !isPageVisible) return;
+    useSupabaseSubscription<{ avatar_id: string | null }>({
+        shouldSubscribe: !!userId && isPageVisible,
+        channelName: `profile-avatar:${userId ?? ''}`,
+        postgresFilter: { table: 'profiles', filter: `id=eq.${userId}` },
+        onPayload: (payload) => {
+            if (payload.eventType !== 'UPDATE') return;
+            const remoteId = (payload.new as { avatar_id: string | null }).avatar_id;
+            if (!remoteId) return;
 
-        const channel: RealtimeChannel = supabase
-            .channel(`profile-avatar:${userId}`)
-            .on<{ avatar_id: string | null }>(
-                'postgres_changes',
-                {
-                    event: 'UPDATE',
-                    schema: 'public',
-                    table: 'profiles',
-                    filter: `id=eq.${userId}`,
-                },
-                (payload) => {
-                    const remoteId = payload.new.avatar_id;
-                    if (!remoteId) return;
-
-                    // Only apply if it differs from the current local state
-                    setAvatarId(prev => {
-                        if (prev === remoteId) return prev;
-                        try { localStorage.setItem(STORAGE_KEY, remoteId); } catch { /* */ }
-                        // If switching away from custom, clear the custom image locally
-                        if (remoteId !== 'custom') {
-                            try { localStorage.removeItem(CUSTOM_IMAGE_KEY); } catch { /* */ }
-                            setCustomImageState(null);
-                        }
-                        return remoteId;
-                    });
-                },
-            )
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(channel);
-        };
-    }, [userId, isPageVisible]);
+            // Only apply if it differs from the current local state
+            setAvatarId(prev => {
+                if (prev === remoteId) return prev;
+                try { localStorage.setItem(STORAGE_KEY, remoteId); } catch { /* */ }
+                // If switching away from custom, clear the custom image locally
+                if (remoteId !== 'custom') {
+                    try { localStorage.removeItem(CUSTOM_IMAGE_KEY); } catch { /* */ }
+                    setCustomImageState(null);
+                }
+                return remoteId;
+            });
+        },
+        logger,
+    });
 
     const setAvatar = useCallback((id: string) => {
         setAvatarId(id);

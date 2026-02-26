@@ -1,10 +1,11 @@
 import { useRef, useCallback } from 'react';
-import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils';
+import { GESTURE_THRESHOLDS, isInteractiveTarget, applyDirectionLock } from '../Utilities/GestureUtils';
+import type { DragState } from '../Utilities/GestureUtils';
 
 /**
  * Horizontal page-swipe hook for mobile wizard/carousel navigation.
  *
- * Shares the same direction-lock + touch-tracking pattern as useSwipeBack,
+ * Shares direction-lock + interactive-target helpers with useSwipeBack,
  * but triggers page navigation (left/right) instead of a back action.
  *
  * @param onSwipeLeft  Called when the user swipes left (next page)
@@ -16,17 +17,11 @@ export function usePageSwipe(
     onSwipeRight: () => void,
     enabled = true,
 ) {
-    const dragRef = useRef<{
-        startX: number;
-        startY: number;
-        lastX: number;
-        locked: boolean | null; // null = undecided, true = horizontal, false = vertical
-    } | null>(null);
+    const dragRef = useRef<DragState | null>(null);
 
     const onTouchStart = useCallback((e: React.TouchEvent) => {
         if (!enabled) return;
-        const t = e.target as HTMLElement;
-        if (t.closest('button, textarea, input, select, [role="checkbox"], [role="button"], [role="slider"]')) return;
+        if (isInteractiveTarget(e.target as HTMLElement)) return;
         const touch = e.touches[0];
         dragRef.current = { startX: touch.clientX, startY: touch.clientY, lastX: touch.clientX, locked: null };
     }, [enabled]);
@@ -34,19 +29,11 @@ export function usePageSwipe(
     const onTouchMove = useCallback((e: React.TouchEvent) => {
         const d = dragRef.current;
         if (!d) return;
-
         const touch = e.touches[0];
-        const dx = touch.clientX - d.startX;
-        const dy = touch.clientY - d.startY;
-
-        // Direction lock dead zone
-        if (d.locked === null) {
-            if (Math.abs(dx) < GESTURE_THRESHOLDS.DIRECTION_LOCK && Math.abs(dy) < GESTURE_THRESHOLDS.DIRECTION_LOCK) return;
-            d.locked = Math.abs(dx) > Math.abs(dy);
-            if (!d.locked) { dragRef.current = null; return; }
+        if (!applyDirectionLock(d, touch.clientX - d.startX, touch.clientY - d.startY)) {
+            if (d.locked === false) dragRef.current = null;
+            return;
         }
-        if (!d.locked) return;
-
         d.lastX = touch.clientX;
         e.preventDefault();
     }, []);

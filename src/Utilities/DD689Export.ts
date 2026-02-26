@@ -1,6 +1,6 @@
 // Utilities/DD689Export.ts — Generate a filled DD Form 689 PDF with Data Matrix barcode
 
-import bwipjs from 'bwip-js';
+import { renderBarcodeToCanvas } from './NoteCodec';
 import { logError } from './ErrorHandler';
 
 // ── Layout constants (PDF points, origin = bottom-left) ──
@@ -14,12 +14,10 @@ const COORDS = {
     disposition: { x: 401, y: 495, maxWidth: 270 },
     // Clinic name
     clinicName: { x: 370, y: 675, maxWidth: 270 },
-    // Algorithm title (e.g. "A-1 Sore Throat") — left of date
+    // Algorithm title (e.g. "A-1 Sore Throat")
     algorithmTitle: { x: 50, y: 710 },
-    // Note date (YYYYMMDD)
-    noteDate: { x: 370, y: 710 },
     // Font sizes
-    fontSize: { disposition: 10, clinicName: 10, noteDate: 10, authorLine: 10, algorithmTitle: 10 },
+    fontSize: { disposition: 10, clinicName: 10, authorLine: 10, algorithmTitle: 10 },
 } as const;
 
 export interface DD689ExportParams {
@@ -28,7 +26,6 @@ export interface DD689ExportParams {
     dispositionText: string;
     symptomText: string;
     clinicName?: string;
-    noteDate?: string;  // YYYYMMDD format
     authorLine?: string; // e.g. "Conner, Christopher, D, PA-C, CPT"
 }
 
@@ -37,12 +34,7 @@ export interface DD689ExportParams {
  */
 function generateBarcodePng(text: string): Uint8Array {
     const canvas = document.createElement('canvas');
-    bwipjs.toCanvas(canvas, {
-        bcid: 'datamatrix',
-        text,
-        scale: 4,
-        padding: 2,
-    });
+    renderBarcodeToCanvas(canvas, text, { scale: 4, padding: 2 });
 
     const dataUrl = canvas.toDataURL('image/png');
     const base64 = dataUrl.split(',')[1];
@@ -128,17 +120,6 @@ export async function generateDD689Pdf(params: DD689ExportParams): Promise<Uint8
             x: COORDS.algorithmTitle.x,
             y: COORDS.algorithmTitle.y,
             size: COORDS.fontSize.algorithmTitle,
-            font: fontBold,
-            color: gray,
-        });
-    }
-
-    // ── Draw note date (YYYYMMDD) ──
-    if (params.noteDate) {
-        page.drawText(params.noteDate, {
-            x: COORDS.noteDate.x,
-            y: COORDS.noteDate.y,
-            size: COORDS.fontSize.noteDate,
             font: fontBold,
             color: gray,
         });

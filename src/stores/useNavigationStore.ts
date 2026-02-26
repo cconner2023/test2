@@ -3,14 +3,13 @@
  */
 
 import { create } from 'zustand'
-import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes'
+import type { catDataTypes, subCatDataTypes, SearchResultType, GuidelineType } from '../Types/CatTypes'
 import { catData } from '../Data/CatData'
 import type { medListTypes } from '../Data/MedData'
 import type { AlgorithmOptions, dispositionType } from '../Types/AlgorithmTypes'
 import type { CardState } from '../Hooks/useAlgorithm'
 
 type ViewState = 'main' | 'subcategory' | 'questions'
-type GuidelineType = 'gen' | 'medcom' | 'stp' | 'DDX'
 
 export interface WriteNoteData {
     disposition: dispositionType;
@@ -19,6 +18,18 @@ export interface WriteNoteData {
     selectedSymptom: { icon: string; text: string };
     initialPage?: number;
 }
+
+/** Fields preserved across all drawer toggles (not in CLOSE_ALL_DRAWERS). */
+const PRESERVED_FIELDS = (s: NavigationState) => ({
+    viewState: s.viewState,
+    selectedCategory: s.selectedCategory,
+    selectedSymptom: s.selectedSymptom,
+    selectedMedication: s.selectedMedication,
+    selectedGuideline: s.selectedGuideline,
+    isSearchExpanded: s.isSearchExpanded,
+    isWriteNoteVisible: s.isWriteNoteVisible,
+    writeNoteData: s.writeNoteData,
+});
 
 /** Shared partial for closing all drawers. */
 const CLOSE_ALL_DRAWERS = {
@@ -234,29 +245,14 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
 
     setShowNoteImport: (show) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
+        ...PRESERVED_FIELDS(s),
         showNoteImport: show,
-        // Preserve other state not in CLOSE_ALL_DRAWERS
-        viewState: s.viewState,
-        selectedCategory: s.selectedCategory,
-        selectedSymptom: s.selectedSymptom,
-        selectedMedication: s.selectedMedication,
-        selectedGuideline: s.selectedGuideline,
-        isSearchExpanded: s.isSearchExpanded,
-        isWriteNoteVisible: s.isWriteNoteVisible,
-        writeNoteData: s.writeNoteData,
     })),
 
     setShowSettings: (show) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
+        ...PRESERVED_FIELDS(s),
         showSettings: show,
-        viewState: s.viewState,
-        selectedCategory: s.selectedCategory,
-        selectedSymptom: s.selectedSymptom,
-        selectedMedication: s.selectedMedication,
-        selectedGuideline: s.selectedGuideline,
-        isSearchExpanded: s.isSearchExpanded,
-        isWriteNoteVisible: s.isWriteNoteVisible,
-        writeNoteData: s.writeNoteData,
     })),
 
     toggleSearchExpanded: () => set((s) => ({ isSearchExpanded: !s.isSearchExpanded })),
@@ -272,44 +268,22 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
 
     setShowSymptomInfo: (show) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
+        ...PRESERVED_FIELDS(s),
         showSymptomInfo: show,
-        viewState: s.viewState,
-        selectedCategory: s.selectedCategory,
-        selectedSymptom: s.selectedSymptom,
-        selectedMedication: s.selectedMedication,
-        selectedGuideline: s.selectedGuideline,
-        isSearchExpanded: s.isSearchExpanded,
-        isWriteNoteVisible: s.isWriteNoteVisible,
-        writeNoteData: s.writeNoteData,
     })),
 
-    setShowMedications: (show) => {
-        set((s) => ({
-            ...(show ? { ...CLOSE_ALL_DRAWERS, selectedMedication: null } : {}),
-            ...(!show ? { selectedMedication: null } : {}),
-            showMedications: show,
-            viewState: s.viewState,
-            selectedCategory: s.selectedCategory,
-            selectedSymptom: s.selectedSymptom,
-            selectedGuideline: s.selectedGuideline,
-            isSearchExpanded: s.isSearchExpanded,
-            isWriteNoteVisible: s.isWriteNoteVisible,
-            writeNoteData: s.writeNoteData,
-        }))
-    },
+    setShowMedications: (show) => set((s) => ({
+        ...(show ? { ...CLOSE_ALL_DRAWERS, selectedMedication: null } : {}),
+        ...(!show ? { selectedMedication: null } : {}),
+        ...PRESERVED_FIELDS(s),
+        showMedications: show,
+    })),
 
     setShowTrainingDrawer: (taskId) => set((s) => ({
         ...(taskId ? CLOSE_ALL_DRAWERS : {}),
+        ...PRESERVED_FIELDS(s),
         showTrainingDrawer: !!taskId,
         trainingDrawerTaskId: taskId,
-        viewState: s.viewState,
-        selectedCategory: s.selectedCategory,
-        selectedSymptom: s.selectedSymptom,
-        selectedMedication: s.selectedMedication,
-        selectedGuideline: s.selectedGuideline,
-        isSearchExpanded: s.isSearchExpanded,
-        isWriteNoteVisible: s.isWriteNoteVisible,
-        writeNoteData: s.writeNoteData,
     })),
 
     openWriteNote: (data) => set({ isWriteNoteVisible: true, writeNoteData: data }),

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { Lock, Delete, KeyRound, Trash2, ScanFace, ShieldX, Timer } from 'lucide-react'
+import { Lock, KeyRound, Trash2, ScanFace, Timer } from 'lucide-react'
 import { StatusBanner } from './StatusBanner'
+import { PinKeypad } from '../PinKeypad'
 import { UI_TIMING } from '../../Utilities/constants'
 import {
   isPinEnabled,
@@ -36,11 +37,9 @@ export const PinSetupPanel = () => {
   const [pinEnabled, setPinEnabled] = useState(isPinEnabled())
   const [timeoutMs, setTimeoutMs] = useState(getInactivityTimeoutMs)
   const { isAuthenticated } = useAuth()
-  const [digits, setDigits] = useState('')
   const [firstPin, setFirstPin] = useState('')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [shaking, setShaking] = useState(false)
   const [lockout, setLockout] = useState(checkLockout())
   const [pendingAction, setPendingAction] = useState<'change' | 'remove' | null>(null)
   const lockoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -70,24 +69,30 @@ export const PinSetupPanel = () => {
     lockoutTimerRef.current = setInterval(() => {
       const state = checkLockout()
       setLockout(state)
-      if (!state.isLockedOut && lockoutTimerRef.current) clearInterval(lockoutTimerRef.current)
+      if (!state.isLockedOut) {
+        setError('')
+        if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current)
+      }
     }, 1000)
     return () => { if (lockoutTimerRef.current) clearInterval(lockoutTimerRef.current) }
   }, [lockout.isLockedOut])
 
   const resetState = useCallback(() => {
-    setDigits('')
     setFirstPin('')
     setError('')
     setSuccess('')
-    setShaking(false)
     setPendingAction(null)
   }, [])
 
-  const triggerShake = useCallback(() => {
-    setShaking(true)
-    setTimeout(() => { setShaking(false); setDigits('') }, 400)
-  }, [])
+  // Escape key to cancel PIN entry
+  useEffect(() => {
+    if (view === 'status') return
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { resetState(); setView('status') }
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [view, resetState])
 
   const handleBiometricToggle = useCallback(async () => {
     setBioLoading(true)
@@ -114,11 +119,11 @@ export const PinSetupPanel = () => {
   }, [bioEnrolled])
 
   const handleSubmit = useCallback(async (pin: string) => {
+    setError('')
+
     switch (view) {
       case 'set-new':
         setFirstPin(pin)
-        setDigits('')
-        setError('')
         setView('confirm-new')
         break
 
@@ -133,7 +138,6 @@ export const PinSetupPanel = () => {
           setTimeout(() => { resetState(); setView('status') }, 1200)
         } else {
           setError('PINs don\'t match')
-          triggerShake()
         }
         break
 
@@ -142,8 +146,6 @@ export const PinSetupPanel = () => {
         if (valid) {
           resetLockout()
           if (pendingAction === 'change') {
-            setDigits('')
-            setError('')
             setView('change-new')
           } else if (pendingAction === 'remove') {
             removePin()
@@ -157,16 +159,13 @@ export const PinSetupPanel = () => {
         } else {
           const state = recordFailedAttempt()
           setLockout(state)
-          setError(state.isLockedOut ? `Locked for ${state.remainingSeconds}s` : 'Incorrect PIN')
-          triggerShake()
+          setError('Incorrect PIN')
         }
         break
       }
 
       case 'change-new':
         setFirstPin(pin)
-        setDigits('')
-        setError('')
         setView('change-confirm')
         break
 
@@ -181,39 +180,10 @@ export const PinSetupPanel = () => {
           setTimeout(() => { resetState(); setView('status') }, 1200)
         } else {
           setError('PINs don\'t match')
-          triggerShake()
         }
         break
     }
-  }, [view, firstPin, pendingAction, resetState, triggerShake])
-
-  const handleDigitPress = useCallback((digit: string) => {
-    if (lockout.isLockedOut) return
-    setError('')
-    setDigits(prev => {
-      const next = prev + digit
-      if (next.length === 4) handleSubmit(next)
-      return next.length <= 4 ? next : prev
-    })
-  }, [lockout.isLockedOut, handleSubmit])
-
-  const handleBackspace = useCallback(() => {
-    if (lockout.isLockedOut) return
-    setError('')
-    setDigits(prev => prev.slice(0, -1))
-  }, [lockout.isLockedOut])
-
-  // Keyboard support
-  useEffect(() => {
-    if (view === 'status') return
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key >= '0' && e.key <= '9') handleDigitPress(e.key)
-      else if (e.key === 'Backspace') handleBackspace()
-      else if (e.key === 'Escape') { resetState(); setView('status') }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [view, handleDigitPress, handleBackspace, resetState])
+  }, [view, firstPin, pendingAction, resetState])
 
   const viewLabels: Record<string, string> = {
     'set-new': 'Create a 4-digit PIN',
@@ -349,59 +319,14 @@ export const PinSetupPanel = () => {
   return (
     <div className="h-full overflow-y-auto">
       <div className="flex flex-col items-center px-4 py-3 md:p-5">
-        {/* Label */}
-        <p className="text-sm font-medium text-primary mb-1">{viewLabels[view]}</p>
-        {error && (
-          <div className="flex items-center gap-1.5 mb-1">
-            <ShieldX size={14} className="text-themeredred" />
-            <span className="text-xs text-themeredred">{error}</span>
-          </div>
-        )}
-        {!error && <div className="h-5" />}
-
-        {/* Dot indicators */}
-        <div className={`flex gap-3 mb-6 ${shaking ? 'animate-shake' : ''}`}>
-          {[0, 1, 2, 3].map(i => (
-            <div
-              key={i}
-              className={`w-3 h-3 rounded-full transition-all duration-150 ${i < digits.length
-                ? error ? 'bg-themeredred scale-110' : 'bg-themeblue2 scale-110'
-                : 'bg-themegray1/50'
-                }`}
-            />
-          ))}
-        </div>
-
-        {/* Compact keypad */}
-        <div className="grid grid-cols-3 gap-x-5 gap-y-2 w-[220px]">
-          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'back'].map((key, idx) => {
-            if (key === '') return <div key={idx} />
-            if (key === 'back') {
-              return (
-                <button
-                  key={idx}
-                  onClick={handleBackspace}
-                  disabled={lockout.isLockedOut}
-                  className="w-[60px] h-[60px] rounded-full flex items-center justify-center
-                             active:bg-themegray1/20 transition-colors disabled:opacity-30"
-                >
-                  <Delete size={20} className="text-primary" />
-                </button>
-              )
-            }
-            return (
-              <button
-                key={idx}
-                onClick={() => handleDigitPress(key)}
-                disabled={lockout.isLockedOut}
-                className="w-[60px] h-[60px] rounded-full bg-themewhite2 flex items-center justify-center
-                           text-xl font-medium text-primary
-                           active:bg-themegray1/40 transition-colors disabled:opacity-30"
-              >
-                {key}
-              </button>
-            )
-          })}
+        <div className="w-[220px]">
+          <PinKeypad
+            onSubmit={handleSubmit}
+            label={viewLabels[view] || ''}
+            error={error}
+            disabled={lockout.isLockedOut}
+            lockoutMessage={lockout.isLockedOut ? `Locked for ${lockout.remainingSeconds}s` : undefined}
+          />
         </div>
 
         {/* Cancel link */}

@@ -26,7 +26,10 @@ export const TemplateOverlay = ({
         : [];
 
     return (
-        <div className="absolute left-2 right-2 bottom-1 z-10 rounded-lg bg-themewhite border border-themeblue2/25 shadow-lg animate-in fade-in slide-in-from-bottom-1 duration-150 overflow-hidden px-3 py-2">
+        <div
+            onMouseDown={(e) => e.preventDefault()}
+            className="absolute left-2 right-2 bottom-1 z-10 rounded-lg bg-themewhite border border-themeblue2/25 shadow-lg animate-in fade-in slide-in-from-bottom-1 duration-150 overflow-hidden px-3 py-2"
+        >
             <div className="flex items-center justify-between gap-2 mb-1">
                 <span className="text-xs font-medium text-tertiary">
                     {activeNode.label}

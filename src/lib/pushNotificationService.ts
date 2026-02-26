@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { urlBase64ToUint8Array } from './base64Utils'
+import { base64urlToBytes } from './base64Utils'
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined
 
@@ -32,7 +32,7 @@ export async function subscribeToPush(): Promise<{ success: boolean; error?: str
     const registration = await navigator.serviceWorker.ready
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      applicationServerKey: base64urlToBytes(VAPID_PUBLIC_KEY),
     })
 
     const subJson = subscription.toJSON()

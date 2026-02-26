@@ -49,6 +49,34 @@ export const SPRING_CONFIGS = {
   bounce: { tension: 300, friction: 22 },
 } as const
 
+// ─── Shared touch-gesture direction-lock helpers ─────────────────
+
+/** Mutable state for a direction-locked touch gesture. */
+export type DragState = {
+  startX: number;
+  startY: number;
+  lastX: number;
+  /** null = undecided, true = horizontal, false = vertical */
+  locked: boolean | null;
+}
+
+/** Check if a touch target is an interactive element that should prevent gesture tracking. */
+export function isInteractiveTarget(target: HTMLElement): boolean {
+  return !!target.closest('button, textarea, input, select, [role="checkbox"], [role="button"], [role="slider"]');
+}
+
+/**
+ * Apply direction-lock logic to a drag state based on current displacement.
+ * Mutates `state.locked`. Returns true if the gesture is horizontal (continue tracking).
+ */
+export function applyDirectionLock(state: DragState, dx: number, dy: number): boolean {
+  if (state.locked === null) {
+    if (Math.abs(dx) < GESTURE_THRESHOLDS.DIRECTION_LOCK && Math.abs(dy) < GESTURE_THRESHOLDS.DIRECTION_LOCK) return false;
+    state.locked = Math.abs(dx) > Math.abs(dy);
+  }
+  return !!state.locked;
+}
+
 // ─── Dampening / Physics ─────────────────────────────────────────
 
 /**

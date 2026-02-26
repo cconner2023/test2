@@ -1,6 +1,6 @@
 // Hooks/useNoteShare.ts — Share a note as a Data Matrix barcode image
 import { useCallback, useState } from 'react';
-import bwipjs from 'bwip-js';
+import { renderBarcodeToCanvas } from '../Utilities/NoteCodec';
 import { createLogger } from '../Utilities/Logger';
 import { UI_TIMING } from '../Utilities/constants';
 
@@ -10,24 +10,11 @@ export interface ShareableNote {
     symptomText?: string;
     dispositionType?: string;
     dispositionText?: string;
-    createdAt: string;
 }
 
 const logger = createLogger('NoteShare');
 
 type ShareStatus = 'idle' | 'generating' | 'sharing' | 'shared' | 'copied' | 'error';
-
-/**
- * Formats a Date into military DDHHmmMONYYYY string (e.g. "122148FEB2026").
- */
-function formatMilitaryDate(date: Date): string {
-    const day = date.getDate().toString().padStart(2, '0');
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-    const year = date.getFullYear();
-    return `${day}${hours}${minutes}${month}${year}`;
-}
 
 /**
  * Generates a shareable image containing only the Data Matrix barcode
@@ -38,9 +25,7 @@ function formatMilitaryDate(date: Date): string {
 function generateShareCanvas(note: ShareableNote): HTMLCanvasElement {
     const canvas = document.createElement('canvas');
     try {
-        bwipjs.toCanvas(canvas, {
-            bcid: 'datamatrix',
-            text: note.encodedText,
+        renderBarcodeToCanvas(canvas, note.encodedText, {
             scale: 6,
             padding: 6,
             backgroundcolor: 'ffffff',
@@ -64,9 +49,6 @@ function buildShareText(note: ShareableNote): string {
     if (note.dispositionType) {
         parts.push(note.dispositionType + (note.dispositionText ? ` — ${note.dispositionText}` : ''));
     }
-    try {
-        parts.push(formatMilitaryDate(new Date(note.createdAt)));
-    } catch { /* ignore */ }
     return parts.join(' | ');
 }
 

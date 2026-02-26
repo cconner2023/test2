@@ -31,10 +31,8 @@ export interface ParsedNote {
     hpiText: string;
     peText: string;
     flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean; includePhysicalExam: boolean };
-    timestamp: Date | null;
     user: UserTypes | null;
     userId: string | null;
-    clinicId: string | null;
 }
 
 export interface NoteEncodeOptions {
@@ -44,7 +42,6 @@ export interface NoteEncodeOptions {
     physicalExamNote?: string;
     user?: UserTypes;
     userId?: string;
-    clinicId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -93,22 +90,20 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         hpiText: '',
         peText: '',
         flags: { includeAlgorithm: true, includeDecisionMaking: true, includeHPI: false, includePhysicalExam: false },
-        timestamp: null,
         user: null,
         userId: null,
-        clinicId: null,
     };
 
     let legacyLastCard = -1;
     let legacySelections: number[] = [];
 
-    const nonEmptyParts = parts.filter(p => p.length > 0);
-    if (nonEmptyParts.length > 0) {
-        result.symptomCode = nonEmptyParts[0];
-    }
+    // First segment is always the symptomCode
+    result.symptomCode = parts[0] ?? '';
 
-    for (let partIdx = 1; partIdx < nonEmptyParts.length; partIdx++) {
-        const part = nonEmptyParts[partIdx];
+    // Parse tagged segments (skip empty parts from consecutive pipes)
+    for (let partIdx = 1; partIdx < parts.length; partIdx++) {
+        const part = parts[partIdx];
+        if (!part) continue;
         const prefix = part[0];
         const value = part.substring(1);
 
@@ -134,10 +129,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                 includePhysicalExam: !!(flagsNum & 8),
             };
         } else if (prefix === 'T') {
-            const epoch = parseInt(value, 36);
-            if (!isNaN(epoch)) {
-                result.timestamp = new Date(epoch * 1000);
-            }
+            // Legacy timestamp segment — ignored (no longer used)
         } else if (prefix === 'U') {
             // User segment: rankIdx.credIdx.compIdx.base64(first|last|middle)
             const segs = value.split('.');
@@ -147,7 +139,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                 const coi = parseInt(segs[2], 10);
                 let names: string[] = [];
                 try {
-                    names = decodeURIComponent(atob(segs.slice(3).join('.'))).split('|');
+                    names = decompressText(segs.slice(3).join('.')).split('|');
                 } catch (e) { logError('noteParser.decodeUser', e); }
                 result.user = {
                     firstName: names[0] || undefined,
@@ -165,10 +157,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                 result.userId = `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`;
             }
         } else if (prefix === 'C') {
-            // Clinic ID segment: C{hex32} — Supabase UUID with hyphens stripped
-            if (value.length === 32) {
-                result.clinicId = `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`;
-            }
+            // Legacy clinic ID segment — ignored (no longer used)
         } else if (prefix === 'A') {
             // Action status segment: A{cardIndex}.{P|D}
             const aSegs = value.split('.');
@@ -215,6 +204,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         result.flags = { includeAlgorithm: true, includeDecisionMaking: false, includeHPI: false, includePhysicalExam: false };
     }
 
+    // Require a symptomCode for a valid note
     if (!result.symptomCode) return null;
     return result;
 }
@@ -331,7 +321,7 @@ export function encodeNoteState(
         const coi = user.component ? components.indexOf(user.component) : -1;
         const nameStr = `${user.firstName ?? ''}|${user.lastName ?? ''}|${user.middleInitial ?? ''}|${user.uic ?? ''}`;
         try {
-            parts.push(`U${ri}.${ci}.${coi}.${btoa(encodeURIComponent(nameStr))}`);
+            parts.push(`U${ri}.${ci}.${coi}.${compressText(nameStr)}`);
         } catch (e) {
             logError('noteParser.encodeUser', e);
             parts.push(`U${ri}.${ci}.${coi}.${encodeURIComponent(nameStr)}`);
@@ -343,14 +333,6 @@ export function encodeNoteState(
         parts.push(`I${noteOptions.userId.replace(/-/g, '')}`);
     }
 
-    // 8. Clinic ID (UUID with hyphens stripped)
-    if (noteOptions.clinicId) {
-        parts.push(`C${noteOptions.clinicId.replace(/-/g, '')}`);
-    }
-
-    // 9. Timestamp (epoch seconds in base36)
-    parts.push(`T${Math.floor(Date.now() / 1000).toString(36)}`);
-
     return parts.join('|');
 }
 
@@ -358,7 +340,7 @@ export function encodeNoteState(
 // Content comparison (ignores volatile segments like timestamp)
 // ---------------------------------------------------------------------------
 
-/** Compare two encoded note strings ignoring volatile segments (T=timestamp, I=userId, C=clinicId) */
+/** Compare two encoded note strings ignoring volatile segments (I=userId, and legacy T/C) */
 export function encodedContentEquals(a: string, b: string): boolean {
     const strip = (s: string) => s.split('|').filter(p => !p.startsWith('T') && !p.startsWith('I') && !p.startsWith('C')).join('|');
     return strip(a) === strip(b);

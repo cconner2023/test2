@@ -1,21 +1,21 @@
 // components/NoteImport.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Camera, ScanLine, User, Building2, Clock, ImagePlus } from 'lucide-react';
-import bwipjs from 'bwip-js';
+import { X, Camera, ScanLine, User, ImagePlus } from 'lucide-react';
 import {
     MultiFormatReader, BinaryBitmap, HybridBinarizer,
     HTMLCanvasElementLuminanceSource, DecodeHintType, BarcodeFormat,
 } from '@zxing/library';
 import { TextButton } from './TextButton';
 import { BaseDrawer } from './BaseDrawer';
-import { ActionIconButton } from './WriteNoteHelpers';
+import { BarcodeDisplay } from './Barcode';
+import { ActionIconButton, shareStatusToIconStatus } from './WriteNoteHelpers';
 import { useNoteImport } from '../Hooks/useNoteImport';
 import type { ImportPreview } from '../Hooks/useNoteImport';
 import { useNoteShare } from '../Hooks/useNoteShare';
-import { useClinicName } from '../Hooks/useClinicNameResolver';
 import { useBarcodeScanner } from '../Hooks/useBarcodeScanner';
+import { isEncryptedBarcode, decryptBarcode } from '../Utilities/NoteCodec';
+import { copyWithHtml } from '../Utilities/clipboardUtils';
 import { getColorClasses } from '../Utilities/ColorUtilities';
-import { logError } from '../Utilities/ErrorHandler';
 import { UI_TIMING } from '../Utilities/constants';
 
 export type ViewState = 'input' | 'decoded' | 'scanning';
@@ -36,56 +36,6 @@ interface ContentState {
     copiedTarget: 'preview' | 'encoded' | null;
 }
 
-/** Format a Date into military DTG format: DDHHmmMONYYYY (e.g. "122148FEB2026") */
-function formatMilitaryDTG(date: Date): string {
-    const day = date.getDate().toString().padStart(2, '0');
-    const hours = date.getHours().toString().padStart(2, '0');
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-    const year = date.getFullYear();
-    return `${day}${hours}${minutes}${month}${year}`;
-}
-
-/** Renders a static Data Matrix barcode from an already-encoded string. */
-function StaticBarcode({ encodedText }: { encodedText: string }) {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-
-    useEffect(() => {
-        if (!canvasRef.current || !encodedText) return;
-        try {
-            bwipjs.toCanvas(canvasRef.current, {
-                bcid: 'datamatrix',
-                text: encodedText,
-                scale: 2,
-                padding: 3,
-            });
-        } catch (e) {
-            logError('NoteImport.StaticBarcode', e);
-        }
-    }, [encodedText]);
-
-    const isLong = encodedText.length > 300;
-
-    return (
-        <div className="p-2 bg-themewhite2">
-            <div className={`flex ${isLong ? 'flex-col items-center gap-3' : 'flex-row items-start gap-3'}`}>
-                <div className={`shrink-0 ${isLong ? 'flex justify-center' : ''}`}>
-                    <canvas
-                        ref={canvasRef}
-                        className="border border-gray-300 bg-white rounded-md"
-                        style={{ maxWidth: '120px', height: 'auto' }}
-                    />
-                </div>
-                <div className={`text-secondary ${isLong ? 'w-full' : 'flex-1 min-w-0'}`}>
-                    <code className="text-xs break-all bg-themewhite3 p-2 rounded block max-h-24 overflow-y-auto">
-                        {encodedText}
-                    </code>
-                </div>
-            </div>
-        </div>
-    );
-}
-
 // Shared content component - receives state from parent to persist across layout changes
 const NoteImportContent = ({
     state,
@@ -103,13 +53,26 @@ const NoteImportContent = ({
 
     const { importFromBarcode } = useNoteImport();
     const { shareNote, shareStatus } = useNoteShare();
-    const clinicName = useClinicName(state.preview?.clinicId ?? null);
     const { isScanning, error: scannerError, result: scanResult, startScanning, stopScanning, clearResult } = useBarcodeScanner();
 
-    // Shared decode logic
-    const decodeBarcode = useCallback((text: string) => {
+    // Decode a barcode string (from scan or paste) into a preview
+    const decodeBarcode = useCallback(async (text: string) => {
         try {
-            const preview = importFromBarcode(text);
+            let payload = text;
+
+            if (isEncryptedBarcode(text)) {
+                const decrypted = await decryptBarcode(text);
+                if (!decrypted) {
+                    setState(prev => ({
+                        ...prev,
+                        scanError: 'Sign in and connect to sync encryption key',
+                    }));
+                    return;
+                }
+                payload = decrypted;
+            }
+
+            const preview = importFromBarcode(payload);
             setState(prev => ({ ...prev, preview, viewState: 'decoded' }));
         } catch (error: any) {
             setState(prev => ({ ...prev, scanError: error.message || 'Failed to decode barcode' }));
@@ -184,6 +147,7 @@ const NoteImportContent = ({
 
             const result = reader.decode(bitmap);
             const text = result.getText();
+
             setState(prev => ({ ...prev, inputText: text }));
             decodeBarcode(text);
         } catch {
@@ -252,7 +216,7 @@ const NoteImportContent = ({
     };
 
     const handleCopy = useCallback((text: string, target: 'preview' | 'encoded') => {
-        navigator.clipboard.writeText(text);
+        copyWithHtml(text);
         setState(prev => ({ ...prev, copiedTarget: target }));
     }, [setState]);
 
@@ -260,7 +224,6 @@ const NoteImportContent = ({
         if (!state.preview) return;
         shareNote({
             encodedText: state.preview.encodedText,
-            createdAt: state.preview.timestamp?.toISOString() || new Date().toISOString(),
             symptomText: state.preview.symptomText,
             dispositionType: state.preview.dispositionType,
             dispositionText: state.preview.dispositionText,
@@ -391,19 +354,9 @@ const NoteImportContent = ({
                         </div>
                         {/* Metadata row */}
                         <div className="flex items-center gap-3 text-xs text-tertiary flex-wrap">
-                            {preview.timestamp && (
-                                <span className="flex items-center gap-1">
-                                    <Clock size={12} className="shrink-0" />
-                                    {formatMilitaryDTG(preview.timestamp)}
-                                </span>
-                            )}
                             <span className="flex items-center gap-1">
                                 <User size={12} className="shrink-0" />
                                 {preview.authorLabel}
-                            </span>
-                            <span className="flex items-center gap-1">
-                                <Building2 size={12} className="shrink-0" />
-                                {clinicName || (preview.clinicId ? 'Loading...' : 'Unknown')}
                             </span>
                         </div>
                     </div>
@@ -440,16 +393,14 @@ const NoteImportContent = ({
                                         />
                                         <ActionIconButton
                                             onClick={handleShare}
-                                            status={shareStatus === 'shared' || shareStatus === 'copied' ? 'done'
-                                                : shareStatus === 'generating' || shareStatus === 'sharing' ? 'busy'
-                                                    : 'idle'}
+                                            status={shareStatusToIconStatus(shareStatus)}
                                             variant="share"
                                             title="Share note as image"
                                         />
                                     </div>
                                 </div>
                                 <div className="mt-1">
-                                    <StaticBarcode encodedText={preview.encodedText} />
+                                    <BarcodeDisplay encodedText={preview.encodedText} />
                                 </div>
                             </div>
                         </div>

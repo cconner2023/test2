@@ -1,5 +1,7 @@
 import { type medListTypes } from "../Data/MedData"
 
+export type GuidelineType = 'gen' | 'medcom' | 'stp' | 'stp-task' | 'DDX';
+
 export interface catDataTypes {
     id: number,
     icon: string,
@@ -73,7 +75,7 @@ export type SearchResultType = {
         categoryId?: number;
         symptomId?: number;
         medicationData?: medListTypes;
-        guidelineType?: 'gen' | 'medcom' | 'stp' | 'stp-task' | 'DDX';
+        guidelineType?: GuidelineType;
         guidelineId?: number;
         taskId?: string;
         skillLevel?: string;

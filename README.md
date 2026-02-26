@@ -35,7 +35,7 @@ https://cconner2023.github.io/test2
 - We're always looking for feedback on how to make this product better. You can send feedback in the application settings.
 
 ## In Progress
-- **BAA:** To one day be able to transmit note information. 
+- **BAA:** To one day store / send PHI/PII through secured servers using signal protocols.
 - **Logistics:** Inventory your aid bag, your CLS, or your Aid bag. Keep track of expiring medications, and when to call up for re-supply.
 - **Battle Injuries:** Sick Call is one thing. Battle injury documentation could be handled the same way.
 - **Notifications:** Improved notifications for expiring inventory items and messaging system encrypted end-to-end.

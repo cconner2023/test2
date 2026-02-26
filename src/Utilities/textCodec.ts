@@ -3,6 +3,10 @@
 
 import { deflateRaw, inflateRaw } from 'pako';
 import { logError } from './ErrorHandler';
+import { uint8ToBase64, base64ToUint8 } from '../lib/base64Utils';
+
+// Re-export so existing consumers (NoteCodec barrel, barcodeCodec, cryptoService) keep working.
+export { uint8ToBase64, base64ToUint8 };
 
 // ---------------------------------------------------------------------------
 // Text compression (zlib deflateRaw + base64)
@@ -11,19 +15,6 @@ import { logError } from './ErrorHandler';
 // text ~1.78x. DeflateRaw + base64 compresses to ~0.78x of raw.
 // Compressed values are prefixed with "!" to distinguish from legacy base64.
 // Base64 never contains "!" so detection is unambiguous.
-
-function uint8ToBase64(bytes: Uint8Array): string {
-    let binary = '';
-    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-    return btoa(binary);
-}
-
-function base64ToUint8(b64: string): Uint8Array {
-    const binary = atob(b64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
-}
 
 /** Compress text for barcode encoding. Uses deflateRaw when it saves space. */
 export function compressText(text: string): string {

@@ -14,6 +14,24 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_keys: {
+        Row: {
+          id: string
+          key_base64: string
+          created_at: string
+        }
+        Insert: {
+          id: string
+          key_base64: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          key_base64?: string
+          created_at?: string
+        }
+        Relationships: []
+      }
       account_requests: {
         Row: {
           component: string | null

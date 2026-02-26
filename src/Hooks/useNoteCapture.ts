@@ -31,7 +31,6 @@ export const useNoteCapture = (
         dispositionType: string,
         dispositionText: string,
         selectedSymptom?: { icon: string; text: string; },
-        timestamp?: Date | null,
     ): NoteCaptureResult => {
         return assembleNote(
             options,
@@ -40,7 +39,6 @@ export const useNoteCapture = (
             dispositionType,
             dispositionText,
             selectedSymptom,
-            timestamp,
         );
     }, [algorithmOptions, cardStates]);
 

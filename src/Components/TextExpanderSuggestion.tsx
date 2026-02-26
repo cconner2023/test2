@@ -5,11 +5,15 @@ interface TextExpanderSuggestionProps {
     suggestions: TextExpander[];
     selectedIndex: number;
     onDismiss: () => void;
+    onAccept?: (expander: TextExpander) => void;
 }
 
-export const TextExpanderSuggestion = ({ suggestions, selectedIndex, onDismiss }: TextExpanderSuggestionProps) => {
+export const TextExpanderSuggestion = ({ suggestions, selectedIndex, onDismiss, onAccept }: TextExpanderSuggestionProps) => {
     return (
-        <div className="absolute left-2 right-2 bottom-1 z-10 rounded-lg bg-themewhite border border-themeblue2/25 shadow-lg animate-in fade-in slide-in-from-bottom-1 duration-150 overflow-hidden">
+        <div
+            onMouseDown={(e) => e.preventDefault()}
+            className="absolute left-2 right-2 bottom-1 z-10 rounded-lg bg-themewhite border border-themeblue2/25 shadow-lg animate-in fade-in slide-in-from-bottom-1 duration-150 overflow-hidden"
+        >
             {suggestions.map((s, i) => {
                 const isSelected = i === selectedIndex;
                 const hasTemplate = s.template && s.template.length > 0;
@@ -24,7 +28,8 @@ export const TextExpanderSuggestion = ({ suggestions, selectedIndex, onDismiss }
                 return (
                     <div
                         key={s.abbr}
-                        className={`flex items-center gap-2 px-3 py-2 ${isSelected ? 'bg-themeblue2/8' : ''} ${i > 0 ? 'border-t border-tertiary/8' : ''}`}
+                        onClick={() => onAccept?.(s)}
+                        className={`flex items-center gap-2 px-3 py-2 cursor-pointer active:bg-themeblue2/12 ${isSelected ? 'bg-themeblue2/8' : ''} ${i > 0 ? 'border-t border-tertiary/8' : ''}`}
                     >
                         <code className="shrink-0 text-[11px] font-mono font-semibold bg-themeblue2/10 text-themeblue2 px-1.5 py-0.5 rounded self-start mt-0.5">
                             {s.abbr}

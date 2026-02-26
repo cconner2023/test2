@@ -15,9 +15,7 @@ export interface ImportPreview {
     dispositionType: string;
     dispositionText: string;
     authorLabel: string;
-    clinicId: string | null;
     userId: string | null;
-    timestamp: Date | null;
     encodedText: string;
 }
 
@@ -29,6 +27,7 @@ export const useNoteImport = () => {
         if (!parsed) throw new Error('Could not parse barcode string');
 
         // 2. Find algorithm options
+        if (!parsed.symptomCode) throw new Error('Note has no symptom code');
         const algorithmOptions = findAlgorithmByCode(parsed.symptomCode);
         if (!algorithmOptions?.length) {
             throw new Error(`Algorithm ${parsed.symptomCode} not found`);
@@ -57,12 +56,11 @@ export const useNoteImport = () => {
                 physicalExamNote: parsed.flags.includePhysicalExam ? parsed.peText : '',
                 signature: parsed.user ? formatSignature(parsed.user) : undefined,
             },
-            algorithmOptions,
+            algorithmOptions ?? [],
             cardStates,
             disposition?.type ?? '',
             disposition?.text ?? '',
             selectedSymptom,
-            parsed.timestamp,
         );
 
         return {
@@ -73,9 +71,7 @@ export const useNoteImport = () => {
             dispositionType: disposition?.type ?? '',
             dispositionText: disposition?.text ?? '',
             authorLabel,
-            clinicId: parsed.clinicId,
             userId: parsed.userId,
-            timestamp: parsed.timestamp,
             encodedText: barcodeString,
         };
     }, []);

@@ -15,6 +15,7 @@ import { removeBiometric } from '../lib/biometricService'
 import { clearServiceWorkerCaches } from '../lib/cacheService'
 import { clearPasswordVerification } from '../lib/authService'
 import { isDevUser } from '../lib/adminService'
+import { prefetchBarcodeKey } from '../lib/cryptoService'
 import type { User } from '@supabase/supabase-js'
 import type { UserTypes, TextExpander } from '../Data/User'
 
@@ -212,6 +213,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         isSupervisorRole: roles.includes('supervisor'),
       })
       saveProfileToStorage(profile)
+
+      // Prefetch barcode encryption key for offline use (fire-and-forget)
+      prefetchBarcodeKey().catch(() => {})
     } catch {
       // Profile fetch failed — keep existing state
     }

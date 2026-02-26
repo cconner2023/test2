@@ -14,8 +14,8 @@ export const menuData: sideMenuDataType[] = [
     },
     {
         text: 'Settings',
-        icon: 'Settings',
-        action: 'Settings'
+        icon: 'settings',
+        action: 'settings'
     }
 ]
 

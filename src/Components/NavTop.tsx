@@ -12,7 +12,7 @@ import { menuData as allMenuData } from "../Data/CatData";
 const iconMap: Record<string, React.ReactNode> = {
     'import': <Upload size={16} className="text-primary/70" />,
     'medications': <Pill size={16} className="text-primary/70" />,
-    'Settings': <Settings size={16} className="text-primary/70" />,
+    'settings': <Settings size={16} className="text-primary/70" />,
 };
 
 export function NavTop({ search, actions, ui }: NavTopProps) {
@@ -103,7 +103,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
     // Menu item click handler
     const handleMenuItemClick = (action: string) => {
-        switch (action.toLowerCase()) {
+        switch (action) {
             case 'import':
                 onImportClick?.();
                 break;
@@ -336,10 +336,10 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                 ? (isSearchExpanded ? 'flex-1' : 'shrink-0 justify-end')
                 : 'flex-1 justify-center'
                 }`}>
-                {/* Mobile expanded search */}
-                {isMobile && isSearchExpanded && (
+                {/* Shared search input — mobile (expanded) and desktop */}
+                {(isMobile ? isSearchExpanded : true) && (
                     <div
-                        className={`flex items-center justify-center transition-all duration-300 bg-themewhite text-tertiary rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 w-full animate-expandSearch`}
+                        className={`flex items-center justify-center transition-all duration-300 bg-themewhite text-tertiary rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 w-full ${isMobile ? 'animate-expandSearch' : 'max-w-130'}`}
                     >
                         <input
                             ref={inputRef}
@@ -352,43 +352,27 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                             className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
                         />
 
-                        <div
-                            className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
-                            onClick={() => handleClearSearch(!hasSearchInput)}
-                        >
-                            <X className="w-5 h-5 stroke-themeblue1" />
-                        </div>
-                    </div>
-                )}
-
-                {/* Desktop search (always visible) */}
-                {!isMobile && (
-                    <div
-                        className={`flex items-center justify-center transition-all duration-300 bg-themewhite text-tertiary rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 w-full max-w-130`}
-                    >
-                        <input
-                            ref={inputRef}
-                            type="search"
-                            placeholder="search"
-                            value={searchInput}
-                            onChange={(e) => onSearchChange(e.target.value)}
-                            onFocus={handleSearchFocus}
-                            onBlur={handleSearchBlur}
-                            className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
-                        />
-
-                        <button
-                            type="button"
-                            className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full transition-all duration-300 hover:bg-themewhite shrink-0"
-                            onClick={hasSearchInput ? () => handleClearSearch(false) : undefined}
-                            aria-label={hasSearchInput ? "Clear search" : "Search"}
-                        >
-                            {hasSearchInput ? (
+                        {isMobile ? (
+                            <div
+                                className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
+                                onClick={() => handleClearSearch(!hasSearchInput)}
+                            >
                                 <X className="w-5 h-5 stroke-themeblue1" />
-                            ) : (
-                                <Search className="w-5 h-5 stroke-themeblue1 opacity-50" />
-                            )}
-                        </button>
+                            </div>
+                        ) : (
+                            <button
+                                type="button"
+                                className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full transition-all duration-300 hover:bg-themewhite shrink-0"
+                                onClick={hasSearchInput ? () => handleClearSearch(false) : undefined}
+                                aria-label={hasSearchInput ? "Clear search" : "Search"}
+                            >
+                                {hasSearchInput ? (
+                                    <X className="w-5 h-5 stroke-themeblue1" />
+                                ) : (
+                                    <Search className="w-5 h-5 stroke-themeblue1 opacity-50" />
+                                )}
+                            </button>
+                        )}
                     </div>
                 )}
 

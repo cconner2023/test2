@@ -28,13 +28,7 @@ export function bytesToBase64url(bytes: Uint8Array): string {
     .replace(/=+$/, '')
 }
 
-export function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const rawData = atob(base64)
-  const outputArray = new Uint8Array(rawData.length)
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i)
-  }
-  return outputArray
-}
+// Aliases used by Utilities/textCodec and consumers throughout the app.
+// Canonical implementations are base64ToBytes / bytesToBase64 above.
+export const base64ToUint8 = base64ToBytes
+export const uint8ToBase64 = bytesToBase64

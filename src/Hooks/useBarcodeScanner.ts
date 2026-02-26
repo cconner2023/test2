@@ -1,6 +1,6 @@
 // hooks/useBarcodeScanner.ts
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { BrowserMultiFormatReader } from '@zxing/library';
+import { BrowserMultiFormatReader, DecodeHintType } from '@zxing/library';
 
 interface ScannerState {
     isScanning: boolean;
@@ -60,7 +60,8 @@ export const useBarcodeScanner = () => {
             await video.play();
 
             // Use multi-format reader for barcode support including Data Matrix
-            const reader = new BrowserMultiFormatReader();
+            const hints = new Map<DecodeHintType, any>();
+            const reader = new BrowserMultiFormatReader(hints);
             readerRef.current = reader;
 
             // Continuous decode from our managed stream (not decodeFromVideoDevice which creates its own)
@@ -71,8 +72,7 @@ export const useBarcodeScanner = () => {
                     if (!scanningRef.current) return;
 
                     if (result) {
-                        const text = result.getText();
-                        setState(prev => ({ ...prev, result: text, isScanning: false }));
+                        setState(prev => ({ ...prev, result: result.getText(), isScanning: false }));
                         stopCamera();
                     }
                     // Ignore decode errors during continuous scanning (expected when no barcode in view)

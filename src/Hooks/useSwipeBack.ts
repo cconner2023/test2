@@ -1,5 +1,6 @@
 import { useRef, useCallback } from 'react';
-import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils';
+import { GESTURE_THRESHOLDS, isInteractiveTarget, applyDirectionLock } from '../Utilities/GestureUtils';
+import type { DragState } from '../Utilities/GestureUtils';
 
 /**
  * Lightweight left-edge swipe-back detector using vanilla touch events.
@@ -16,17 +17,11 @@ import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils';
  *   - Returns bind() props from useDrag
  */
 export function useSwipeBack(onBack: (() => void) | undefined, enabled = true) {
-    const dragRef = useRef<{
-        startX: number;
-        startY: number;
-        lastX: number;
-        locked: boolean | null; // null = undecided, true = horizontal, false = vertical
-    } | null>(null);
+    const dragRef = useRef<DragState | null>(null);
 
     const onTouchStart = useCallback((e: React.TouchEvent) => {
         if (!enabled || !onBack) return;
-        const t = e.target as HTMLElement;
-        if (t.closest('button, textarea, input, select, [role="checkbox"], [role="button"], [role="slider"]')) return;
+        if (isInteractiveTarget(e.target as HTMLElement)) return;
         const touch = e.touches[0];
         // Only activate from the left edge of the container
         const containerLeft = e.currentTarget.getBoundingClientRect().left;
@@ -38,14 +33,10 @@ export function useSwipeBack(onBack: (() => void) | undefined, enabled = true) {
         const d = dragRef.current;
         if (!d) return;
         const touch = e.touches[0];
-        const dx = touch.clientX - d.startX;
-        const dy = touch.clientY - d.startY;
-        if (d.locked === null) {
-            if (Math.abs(dx) < GESTURE_THRESHOLDS.DIRECTION_LOCK && Math.abs(dy) < GESTURE_THRESHOLDS.DIRECTION_LOCK) return;
-            d.locked = Math.abs(dx) > Math.abs(dy);
-            if (!d.locked) { dragRef.current = null; return; }
+        if (!applyDirectionLock(d, touch.clientX - d.startX, touch.clientY - d.startY)) {
+            if (d.locked === false) dragRef.current = null;
+            return;
         }
-        if (!d.locked) return;
         d.lastX = touch.clientX;
     }, []);
 

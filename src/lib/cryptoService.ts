@@ -23,6 +23,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { supabase } from './supabase'
 import { createLogger } from '../Utilities/Logger'
+import { uint8ToBase64, base64ToUint8 } from '../Utilities/textCodec'
 import type { LocalNote } from './offlineDb'
 
 const logger = createLogger('CryptoService')
@@ -73,30 +74,13 @@ async function getKeyDb(): Promise<IDBPDatabase<KeyStoreDB>> {
 
 const keyCache = new Map<string, CryptoKey>()
 
+/** Dedicated cache slot for the app-wide barcode encryption key. */
+let barcodeKeyCache: CryptoKey | null = null
+const BARCODE_KEY_ID = 'barcode_v1'
+const BARCODE_STORE_KEY = `app:${BARCODE_KEY_ID}`
+
 function storeKey(clinicId: string): string {
   return `clinic:${clinicId}`
-}
-
-// ---- Base64 Helpers ----
-
-/** Encode a Uint8Array to base64 string. Avoids spread operator
- *  to prevent stack overflow on large payloads. */
-function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return btoa(binary)
-}
-
-/** Decode a base64 string to Uint8Array. */
-function base64ToUint8(base64: string): Uint8Array {
-  const binary = atob(base64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i)
-  }
-  return bytes
 }
 
 // ---- Key Management ----
@@ -212,6 +196,69 @@ export async function prefetchClinicKey(clinicId: string): Promise<void> {
  */
 export async function prefetchClinicKeys(clinicIds: string[]): Promise<void> {
   await Promise.all(clinicIds.map((id) => getClinicKey(id)))
+}
+
+// ---- App-Wide Barcode Encryption Key ----
+
+/**
+ * Get the app-wide barcode encryption key.
+ * Checks: memory cache → IDB key store → Supabase app_keys table.
+ * Returns null if the key cannot be obtained (offline + never cached).
+ */
+export async function getBarcodeKey(): Promise<CryptoKey | null> {
+  // 1. Check memory cache
+  if (barcodeKeyCache) return barcodeKeyCache
+
+  // 2. Check IDB key store
+  try {
+    const db = await getKeyDb()
+    const stored = await db.get('keys', BARCODE_STORE_KEY)
+    if (stored) {
+      barcodeKeyCache = stored
+      return stored
+    }
+  } catch (err) {
+    logger.warn('Failed to load barcode key from store:', err)
+  }
+
+  // 3. Fetch from Supabase app_keys table
+  try {
+    const { data, error } = await supabase
+      .from('app_keys')
+      .select('key_base64')
+      .eq('id', BARCODE_KEY_ID)
+      .single()
+
+    if (error || !data?.key_base64) {
+      logger.warn('Failed to fetch barcode key from server:', error?.message)
+      return null
+    }
+
+    const cryptoKey = await importKey(data.key_base64)
+
+    // Cache in memory + IDB
+    barcodeKeyCache = cryptoKey
+    const db = await getKeyDb()
+    await db.put('keys', cryptoKey, BARCODE_STORE_KEY)
+
+    return cryptoKey
+  } catch (err) {
+    logger.warn('Failed to fetch barcode encryption key:', err)
+    return null
+  }
+}
+
+/**
+ * Prefetch and cache the barcode encryption key for offline readiness.
+ * Call during auth initialization (fire-and-forget).
+ */
+export async function prefetchBarcodeKey(): Promise<void> {
+  const key = await getBarcodeKey()
+  if (key) {
+    logger.info('Barcode encryption key cached')
+  } else {
+    logger.warn('Could not prefetch barcode encryption key')
+  }
 }
 
 // ---- Determine Encryption Clinic ----
@@ -477,6 +524,7 @@ export async function encryptClinicField(
 export async function clearKeyStore(): Promise<void> {
   try {
     keyCache.clear()
+    barcodeKeyCache = null
     const db = await getKeyDb()
     const tx = db.transaction('keys', 'readwrite')
     await tx.objectStore('keys').clear()

@@ -6,24 +6,7 @@ import type { AlgorithmOptions, ScreenerConfig, decisionMakingType } from '../Ty
 import type { CardState } from '../Hooks/useAlgorithm';
 import type { UserTypes } from '../Data/User';
 import { screenerRegistry, getScreenerMaxScore, getScreenerScore, isQuestionScored, isScreenerGateOpen } from '../Data/SpecTesting';
-
-// ---------------------------------------------------------------------------
-// Timestamp
-// ---------------------------------------------------------------------------
-
-/** Format a Date into the standard ADTMC screening timestamp string. */
-export function formatTimestamp(date: Date): string {
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-    const year = date.getFullYear().toString().slice(2);
-    const time = date.toLocaleTimeString('en-US', {
-        hour12: false,
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-    });
-    return `SCREENED IAW ADTMC MEDCOM PAM 40-7-21 ${day}${month}${year} ${time} UTC`;
-}
+import { bitmaskToIndices } from './textCodec';
 
 // ---------------------------------------------------------------------------
 // Algorithm content
@@ -90,7 +73,8 @@ export function formatAlgorithmContent(
 
                 if (q.type === 'check' && q.options) {
                     // Decode bitmask to list of checked items
-                    const checked = q.options.filter((_, optIdx) => (val & (1 << optIdx)) !== 0);
+                    const checkedIndices = bitmaskToIndices(val);
+                    const checked = q.options.filter((_, optIdx) => checkedIndices.includes(optIdx));
                     if (checked.length > 0) {
                         screenerLines.push(`  ${q.text}`);
                         checked.forEach(item => screenerLines.push(`    • ${item}`));
@@ -318,7 +302,7 @@ export interface AssembledNote {
 }
 
 /**
- * Assemble all note sections (HPI, PE, timestamp, algorithm, decision making, signature)
+ * Assemble all note sections (HPI, PE, algorithm, decision making, signature)
  * into a structured result with both individual sections and a combined full-text note.
  */
 export function assembleNote(
@@ -328,7 +312,6 @@ export function assembleNote(
     dispositionType: string,
     dispositionText: string,
     selectedSymptom?: { icon: string; text: string },
-    timestamp?: Date | null,
 ): AssembledNote {
     const fullNoteParts: string[] = [];
     const customNote = options.customNote.trim();
@@ -348,9 +331,9 @@ export function assembleNote(
         fullNoteParts.push('');
     }
 
-    // Timestamp — only included when explicitly provided (set on Confirm)
-    if (timestamp) {
-        fullNoteParts.push(formatTimestamp(timestamp));
+    // Screening line — static for algorithm-based notes
+    if (algorithmOptions.length > 0) {
+        fullNoteParts.push('SCREENED IAW MEDCOM PAM 40-7-21 ADTMC');
         fullNoteParts.push('');
     }
 
