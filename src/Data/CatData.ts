@@ -234,7 +234,7 @@ export const catData: catDataTypes[] = [
                 id: 1,
                 icon: "A-1",
                 text: "Sore Throat/Hoarseness ",
-                gen: [{}],
+                gen: [{ text: 'A sore throat is often due to a viral infection. Bacterial infections and other causes need to also be considered.' }],
                 medcom: [medcomTrainingData[11]],
                 stp: [
                     stpTask("081-000-1001"),
@@ -261,6 +261,7 @@ export const catData: catDataTypes[] = [
                 id: 2,
                 icon: "A-2",
                 text: "Ear Pain/Drainage/Trauma",
+                // no general information
                 gen: [{}],
                 medcom: [medcomTrainingData[3]],
                 stp: [
@@ -286,7 +287,7 @@ export const catData: catDataTypes[] = [
                 id: 3,
                 icon: "A-3",
                 text: "Cold Symptoms /Allergies /Cough",
-                gen: [{}],
+                gen: [{ text: 'If a Soldier states that they have a cold, determine what complaint to screen by asking, “What do you mean by a cold?” If his/her complaint can be screened by another protocol, use that protocol.' }],
                 medcom: [
                     medcomTrainingData[6],
                     medcomTrainingData[1],
@@ -317,6 +318,7 @@ export const catData: catDataTypes[] = [
                 id: 4,
                 icon: "A-4",
                 text: "Ringing in the Ears/Hearing Problems ",
+                // no general information
                 gen: [{}],
                 medcom: [medcomTrainingData[3]],
                 stp: [
@@ -344,6 +346,7 @@ export const catData: catDataTypes[] = [
                 id: 5,
                 icon: "A-5",
                 text: "Nosebleed/Nose Trauma ",
+                // no general information
                 gen: [{}],
                 medcom: [],
                 stp: [stpTask("081-68W-0254")],
@@ -373,6 +376,7 @@ export const catData: catDataTypes[] = [
                 id: 1,
                 icon: "B-1",
                 text: "Back Pain",
+                // no general information
                 gen: [{}],
                 medcom: [medcomTrainingData[14]],
                 stp: [stpTask("081-000-0103")],
@@ -399,6 +403,7 @@ export const catData: catDataTypes[] = [
                 id: 2,
                 icon: "B-2",
                 text: "Neck Pain",
+                // no general information
                 gen: [{}],
                 medcom: [medcomTrainingData[14]],
                 stp: [
@@ -449,7 +454,7 @@ export const catData: catDataTypes[] = [
                 id: 4,
                 icon: "B-4",
                 text: "Elbow Pain",
-                gen: [{}],
+                gen: [{ text: 'Elbow joint is formed by the connection of the distal humerus and the proximal radius (radial head). Epicondyles are bony prominences on the medial and lateral side of the distal humerus and are the site tendon attachment for muscles of the lower arm. Lateral elbow pain may represent tennis elbow, radiohumeral joint pain, or referred pain.' }],
                 medcom: [medcomTrainingData[14]],
                 stp: [
                     stpTask("081-68W-0270"),
@@ -630,7 +635,8 @@ export const catData: catDataTypes[] = [
                 id: 11,
                 icon: "B-11",
                 text: "Extremity, Non-joint Pain",
-                gen: [{ text: '' }],
+                // no general information
+                gen: [{}],
                 medcom: [medcomTrainingData[14]],
                 stp: [
                     stpTask("081-000-0103"),
@@ -662,6 +668,7 @@ export const catData: catDataTypes[] = [
                 id: 1,
                 icon: "C-1",
                 text: "Nausea/Vomiting",
+                // no general information
                 gen: [{}],
                 medcom: [
                     medcomTrainingData[5],
@@ -688,7 +695,7 @@ export const catData: catDataTypes[] = [
                 id: 2,
                 icon: "C-2",
                 text: "Diarrhea",
-                gen: [{}],
+                gen: [{ text: 'Acute diarrhea in adults is often infectious in nature. The largest risk is due to volume depletion secondary to fluid loss. Small intestine infections often result in large, watery bowel movements associated with cramping, bloating, and gas symptoms. Large intestine infections often result in frequent regular, small bowel movements that are painful and associated with symptoms of mucous, blood, or fever. In general, diarrhea is often self-limited. Note that treatment of the symptoms by decreasing bowel movements frequency may extend the length of the disease.' }],
                 medcom: [medcomTrainingData[23]],
                 stp: [
                     stpTask("081-000-0025"),
@@ -714,7 +721,7 @@ export const catData: catDataTypes[] = [
                 id: 3,
                 icon: "C-3",
                 text: "Abdominal and Flank Pain",
-                gen: [{}],
+                gen: [{ text: 'Abdominal pain is pain between the ribs and groin in the front half of the body. Note that a cardiac problem can cause upper abdominal pain. Pain may be related to the location: right upper quadrant (RUQ) (liver, gallbladder), left upper quadrant (LUQ) (spleen), epigastric (stomach, pancreas, aorta, heart), lower (intestines, urinary tract, hernia, pelvic organs), flank (kidney).' }],
                 medcom: [medcomTrainingData[23]],
                 stp: [stpTask("081-68W-0239")],
                 redFlags: [
@@ -741,7 +748,7 @@ export const catData: catDataTypes[] = [
                 id: 4,
                 icon: "C-4",
                 text: "Rectal Pain/Itching/ Bleeding",
-                gen: [{}],
+                gen: [{ text: 'Rectal pain, itching, and bleeding are often signs of hemorrhoids or an anal fissure, but more serious conditions must be ruled out.' }],
                 medcom: [],
                 stp: [
                     stpTask("081-68W-0239"),
@@ -765,7 +772,7 @@ export const catData: catDataTypes[] = [
                 id: 5,
                 icon: "C-5",
                 text: "Constipation",
-                gen: [{}],
+                gen: [{ text: 'Constipation means infrequent or difficult bowel movements. Soldiers use the word to mean many things--painful defecation, narrowing of the stools, or not having a “regular daily” bowel movement. Normal bowel habits differ from Soldier to Soldier; therefore, a wide variation exists in what Soldiers consider to be normal or to be a problem. Because constipation and hemorrhoids commonly occur together, rectal bleeding may be falsely attributed to these causes. This can be a dangerous mistake. Rectal bleeding must be screened as a separate problem. Constipation not associated with rectal bleeding may be appropriately treated through minor-care.' }],
                 medcom: [],
                 stp: [stpTask("081-68W-0239")],
                 redFlags: [
@@ -785,7 +792,7 @@ export const catData: catDataTypes[] = [
                 id: 6,
                 icon: "C-6",
                 text: "Difficulty When Swallowing",
-                gen: [{}],
+                gen: [{ text: 'Dysphagia means difficulty or pain when swallowing.' }],
                 medcom: [medcomTrainingData[23]],
                 stp: [stpTask("081-68W-0254")],
                 redFlags: [
@@ -803,7 +810,7 @@ export const catData: catDataTypes[] = [
                 id: 7,
                 icon: "C-7",
                 text: "Heartburn",
-                gen: [{}],
+                gen: [{ text: 'Heartburn is a common finding but can also be a sign of a more serious condition like a gastric ulcer or heart attack.' }],
                 medcom: [medcomTrainingData[24]],
                 stp: [
                     stpTask("081-000-0131"),
@@ -836,7 +843,7 @@ export const catData: catDataTypes[] = [
                 id: 1,
                 icon: "D-1",
                 text: "Shortness of Breath",
-                gen: [{}],
+                gen: [{ text: 'Dyspnea is a sensation of breathing discomfort that can be in respiratory or cardiovascular in nature.' }],
                 medcom: [
                     medcomTrainingData[15],
                     medcomTrainingData[19],
@@ -868,7 +875,7 @@ export const catData: catDataTypes[] = [
                 id: 2,
                 icon: "D-2",
                 text: "Chest Pain",
-                gen: [{}],
+                gen: [{ text: 'Chest pain must always be taken seriously. It is a sign of many serious conditions.' }],
                 medcom: [
                     medcomTrainingData[15],
                     medcomTrainingData[19],
@@ -929,7 +936,7 @@ export const catData: catDataTypes[] = [
                 id: 2,
                 icon: "E-2",
                 text: "Groin/ Testicular Pain or Urethral Discharge",
-                gen: [{}],
+                gen: [{ text: 'This term may be described as pain in the testes or groin. Look for visual cues and orient the Soldier to the pain scale prior to defining the level of pain.' }],
                 medcom: [
                     medcomTrainingData[14],
                     medcomTrainingData[23],
@@ -1050,7 +1057,6 @@ export const catData: catDataTypes[] = [
                 icon: "F-2",
                 text: "Headache",
                 gen: [{
-                    pg: {},
                     text: 'In the absence of fever, severe pain, or confusion, serious disease is extremely unlikely.Migraines often present with a gradual, increasing onset of a one sided, pulsatile moderate to severe headache worse with physical activity, noise, or light and associated with nausea and may have an aura. Tension-type headache often presents as a bilateral pressure that waxes and wanes lasting from 30 min to seven days. Cluster headache is rare. It presents with a rapid onset within minutes of unilateral deep, continuous severe pain around the eye or temple often associated with tearing, congestion, runny nose, pallor, or sweating.'
                 }],
                 medcom: [],
@@ -1076,7 +1082,6 @@ export const catData: catDataTypes[] = [
                 icon: "F-3",
                 text: "Numbness/Tingling/ Paralysis/Weakness ",
                 gen: [{
-                    pg: { start: 81, end: 82 },
                     text: '“Numbness” may be used by the Soldier to describe muscle weakness, malaise, confusion, or abnormal sensation including tingling (a “pins and needles” sensation). Paralysis/weakness is a condition that refers to a loss of muscular strength resulting in difficulty or inability to move a body part. A complete loss of muscular strength is paralysis; a partial loss is weakness.'
                 }],
                 medcom: [medcomTrainingData[18]],
@@ -1157,7 +1162,7 @@ export const catData: catDataTypes[] = [
                 id: 6,
                 icon: "F-6",
                 text: "Minor Traumatic Brain Injury",
-                gen: [{}],
+                gen: [{ text: 'A mild traumatic brain injury (mTBI) or concussion is an injury to the brain that may result after blunt force, an acceleration/deceleration head injury (whiplash), or exposure to a blast wave (close contact or prolonged duration such as a firing range). In addition, mild TBIs are defined by at least one of the following clinical signs immediately following the event: alteration of consciousness lasting <24 hours, loss of consciousness <30 minutes, or post-traumatic amnesia <24 hours. CT scans are not indicated for most patients with concussion, but if obtained, the results are typically normal.' }],
                 medcom: [],
                 stp: [stpTask("081-000-0023")],
                 redFlags: [
@@ -1197,7 +1202,7 @@ export const catData: catDataTypes[] = [
                 id: 1,
                 icon: "G-1",
                 text: "Fatigue",
-                gen: [{}],
+                gen: [{ text: 'Fatigue is a state of increased demand/stress on the body or decreased efficiency.' }],
                 medcom: [],
                 stp: [],
                 redFlags: [
@@ -1221,7 +1226,7 @@ export const catData: catDataTypes[] = [
                 id: 2,
                 icon: "G-2",
                 text: "Fever/Chills",
-                gen: [{}],
+                gen: [{ text: 'Fever/chills are usually associated with an acute illness with other obvious symptoms.' }],
                 medcom: [],
                 stp: [],
                 redFlags: [
@@ -1504,7 +1509,7 @@ export const catData: catDataTypes[] = [
                 id: 3,
                 icon: "J-3",
                 text: "Shaving-Pseudofolliculitis Barbae (Ingrown Hairs)",
-                gen: [{}],
+                gen: [{ text: 'Pseudofolliculitis Barbae is a chronic condition of the beard area resulting from the reentry of the growing hair into the upper layer of the skin or facial hairs becoming trapped in the upper layer of the skin. The genetic predisposition of the African American male to tight coiling hair makes him highly susceptible to this condition. The most common locations for lesions are the face and neck. The lesions can be painful and interfere with shaving although they rarely become secondarily infected. Permanent scarring is possible.' }],
                 medcom: [medcomTrainingData[2]],
                 stp: [
                     stpTask("081-68W-0125"),
@@ -2080,6 +2085,7 @@ export const catData: catDataTypes[] = [
                 id: 6,
                 icon: "L-6",
                 text: "Needs an Immunization",
+                // no general information
                 gen: [{}],
                 medcom: [medcomTrainingData[0]],
                 stp: [],
