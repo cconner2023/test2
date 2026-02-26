@@ -36,6 +36,7 @@ export default defineConfig({
       registerType: 'prompt',
       includeAssets: ['icon-144.png', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'browserconfig.xml', 'splash/*.png'],
       manifest: {
+        id: '/test2/',
         name: `ADTMC V${APP_VERSION}`,
         short_name: `ADTMC ${APP_VERSION}`,
         description: 'ADTMC documentation',
@@ -70,6 +71,22 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
+          }
+        ],
+        screenshots: [
+          {
+            src: '/test2/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            form_factor: 'wide',
+            label: 'ADTMC Desktop'
+          },
+          {
+            src: '/test2/icon-512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            form_factor: 'narrow',
+            label: 'ADTMC Mobile'
           }
         ],
         shortcuts: [
