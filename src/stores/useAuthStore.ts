@@ -85,7 +85,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   // Fetch core profile + clinic name
   const { data } = await supabase
     .from('profiles')
-    .select('first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notifications_enabled, notify_dev_alerts, note_include_hpi, note_include_pe, pe_depth, text_expanders, text_expander_enabled')
+    .select('first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, note_include_hpi, note_include_pe, pe_depth, text_expanders, text_expander_enabled')
     .eq('id', userId)
     .single()
 
@@ -111,7 +111,6 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
       await hydrateFromCloud(sec.pin_hash as string, sec.pin_salt as string)
     }
 
-    profile.notificationsEnabled = (sec.notifications_enabled as boolean) ?? false
     if (sec.notify_dev_alerts != null) profile.notifyDevAlerts = sec.notify_dev_alerts as boolean
     if (sec.note_include_hpi != null) profile.noteIncludeHPI = sec.note_include_hpi as boolean
     if (sec.note_include_pe != null) profile.noteIncludePE = sec.note_include_pe as boolean

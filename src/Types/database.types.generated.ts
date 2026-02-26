@@ -237,7 +237,6 @@ export type Database = {
           middle_initial: string | null
           note_include_hpi: boolean | null
           note_include_pe: boolean | null
-          notifications_enabled: boolean
           notify_clinic_notes: boolean | null
           notify_dev_alerts: boolean | null
           pe_depth: string | null
@@ -261,7 +260,6 @@ export type Database = {
           middle_initial?: string | null
           note_include_hpi?: boolean | null
           note_include_pe?: boolean | null
-          notifications_enabled?: boolean
           notify_clinic_notes?: boolean | null
           notify_dev_alerts?: boolean | null
           pe_depth?: string | null
@@ -285,7 +283,6 @@ export type Database = {
           middle_initial?: string | null
           note_include_hpi?: boolean | null
           note_include_pe?: boolean | null
-          notifications_enabled?: boolean
           notify_clinic_notes?: boolean | null
           notify_dev_alerts?: boolean | null
           pe_depth?: string | null
@@ -447,36 +444,22 @@ export type Database = {
         Args: { p_clinic_id: string; p_target_user_id: string }
         Returns: Json
       }
-      admin_update_profile:
-        | {
-            Args: {
-              p_component?: string
-              p_credential?: string
-              p_first_name?: string
-              p_last_name?: string
-              p_middle_initial?: string
-              p_rank?: string
-              p_target_user_id: string
-              p_uic?: string
-            }
-            Returns: Json
-          }
-        | {
-            Args: {
-              p_component?: string
-              p_credential?: string
-              p_first_name?: string
-              p_last_name?: string
-              p_middle_initial?: string
-              p_note_include_hpi?: boolean
-              p_note_include_pe?: boolean
-              p_pe_depth?: string
-              p_rank?: string
-              p_target_user_id: string
-              p_uic?: string
-            }
-            Returns: Json
-          }
+      admin_update_profile: {
+        Args: {
+          p_component?: string
+          p_credential?: string
+          p_first_name?: string
+          p_last_name?: string
+          p_middle_initial?: string
+          p_note_include_hpi?: boolean
+          p_note_include_pe?: boolean
+          p_pe_depth?: string
+          p_rank?: string
+          p_target_user_id: string
+          p_uic?: string
+        }
+        Returns: Json
+      }
       approve_account_request: {
         Args: {
           admin_user_id: string
@@ -547,7 +530,6 @@ export type Database = {
       }
       update_own_security_settings: {
         Args: {
-          p_notifications_enabled?: boolean
           p_pin_hash?: string
           p_pin_salt?: string
         }

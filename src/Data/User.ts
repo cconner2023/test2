@@ -28,8 +28,6 @@ export interface UserTypes {
     uic?: string;
     /** Clinic name resolved from the user's clinic_id association */
     clinicName?: string;
-    /** Whether the user wants push notifications (synced to cloud) */
-    notificationsEnabled?: boolean;
     /** Dev-only: login alerts, account requests, feedback */
     notifyDevAlerts?: boolean;
     /** Default: include HPI section when writing notes */
