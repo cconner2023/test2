@@ -37,14 +37,26 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 )
 
-// Dismiss splash screen when bar fill animation completes
+// Dismiss splash screen after bar fill animation completes, then fade out
+const splashEl = document.getElementById('splash')
 const splashBar = document.querySelector('.splash-bar-fill')
-if (splashBar) {
-  splashBar.addEventListener('animationend', () => {
-    const splash = document.getElementById('splash')
-    if (splash) {
-      splash.classList.add('splash-out')
-      setTimeout(() => splash.remove(), UI_TIMING.SLIDE_ANIMATION)
-    }
-  }, { once: true })
+
+function dismissSplash() {
+  if (!splashEl) return
+  splashEl.classList.add('splash-out')
+  splashEl.addEventListener('transitionend', () => splashEl.remove(), { once: true })
+  // Fallback removal if transitionend doesn't fire
+  setTimeout(() => { if (splashEl.parentNode) splashEl.remove() }, 500)
+}
+
+if (splashBar && splashEl) {
+  // Check if the fill animation is still running
+  const anims = splashBar.getAnimations()
+  if (anims.length > 0) {
+    // Animation still running — wait for it to finish, then fade out
+    splashBar.addEventListener('animationend', () => dismissSplash(), { once: true })
+  } else {
+    // Animation already completed before JS loaded — fade out now
+    dismissSplash()
+  }
 }
