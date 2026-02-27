@@ -16,6 +16,7 @@ import { clearServiceWorkerCaches } from '../lib/cacheService'
 import { clearPasswordVerification } from '../lib/authService'
 import { isDevUser } from '../lib/adminService'
 import { prefetchBarcodeKey } from '../lib/cryptoService'
+import { startHeartbeat, stopHeartbeat } from '../lib/activityHeartbeat'
 import type { User } from '@supabase/supabase-js'
 import type { UserTypes, TextExpander } from '../Data/User'
 
@@ -144,6 +145,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
+        stopHeartbeat()
         set({
           user: null,
           isGuest: true,
@@ -166,6 +168,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         }
         // Fetch profile in the background on sign-in
         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+          startHeartbeat(session.user.id)
           get().refreshProfile()
         }
       }

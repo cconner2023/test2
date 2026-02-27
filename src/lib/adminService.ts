@@ -36,6 +36,7 @@ export interface AdminUser {
   roles: string[]
   clinic_id: string | null
   created_at: string
+  last_active_at: string | null
   note_include_hpi: boolean | null
   note_include_pe: boolean | null
   pe_depth: string | null

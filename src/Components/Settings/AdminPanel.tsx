@@ -36,6 +36,34 @@ import type { CertInput } from '../../lib/certificationService'
 import { UI_TIMING } from '../../Utilities/constants'
 import { TextInput, SelectInput } from '../FormInputs'
 
+/** Format a timestamp as a human-readable relative time string */
+const formatLastActive = (isoString: string | null): string => {
+  if (!isoString) return 'Never'
+  const now = Date.now()
+  const then = new Date(isoString).getTime()
+  const diffMs = now - then
+  if (diffMs < 0) return 'Just now'
+  const mins = Math.floor(diffMs / 60_000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 30) return `${days}d ago`
+  const months = Math.floor(days / 30)
+  if (months < 12) return `${months}mo ago`
+  return `${Math.floor(months / 12)}y ago`
+}
+
+/** Color class for the last-active indicator dot */
+const lastActiveColor = (isoString: string | null): string => {
+  if (!isoString) return 'bg-tertiary/30'
+  const hrs = (Date.now() - new Date(isoString).getTime()) / 3_600_000
+  if (hrs < 24) return 'bg-themegreen'
+  if (hrs < 168) return 'bg-themeyellow'
+  return 'bg-tertiary/40'
+}
+
 const RoleBadge = ({ role }: { role: string }) => {
   const colors: Record<string, string> = {
     medic: 'bg-themeblue2/10 text-themeblue2 border-themeblue2/30',
@@ -454,6 +482,13 @@ const UsersTab = () => {
           {detailUser.clinic_id && clinicMap.has(detailUser.clinic_id) && (
             <div><span className="text-tertiary/60">Clinic:</span> <span className="text-primary font-medium">{clinicMap.get(detailUser.clinic_id)!.name}</span></div>
           )}
+          <div>
+            <span className="text-tertiary/60">Last Active:</span>{' '}
+            <span className="inline-flex items-center gap-1 text-primary font-medium">
+              <span className={`inline-block w-2 h-2 rounded-full ${lastActiveColor(detailUser.last_active_at)}`} />
+              {formatLastActive(detailUser.last_active_at)}
+            </span>
+          </div>
         </div>
 
         {/* Reset password inline */}
@@ -612,15 +647,21 @@ const UsersTab = () => {
                 onClick={() => { setDetailUser(user); setView('detail') }}
                 className="rounded-xl px-4 py-3 bg-themewhite2 cursor-pointer hover:ring-1 hover:ring-themeblue2/30 transition-all space-y-2"
               >
-                {/* Row 1: Name + credential + role badges */}
+                {/* Row 1: Name + credential + last active + role badges */}
                 <div className="flex items-center gap-3">
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-primary truncate">
                       {user.first_name || ''} {user.middle_initial || ''} {user.last_name || ''}
                     </p>
-                    {user.credential && (
-                      <p className="text-[9pt] text-tertiary/50">{user.credential}</p>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {user.credential && (
+                        <p className="text-[9pt] text-tertiary/50">{user.credential}</p>
+                      )}
+                      <span className="flex items-center gap-1 text-[9pt] text-tertiary/50">
+                        <span className={`inline-block w-1.5 h-1.5 rounded-full ${lastActiveColor(user.last_active_at)}`} />
+                        {formatLastActive(user.last_active_at)}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex gap-1 shrink-0">
                     {user.roles?.map((role) => <RoleBadge key={role} role={role} />)}

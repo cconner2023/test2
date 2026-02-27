@@ -31,7 +31,7 @@ export const PrivacyPolicyPanel = () => (
       </Section>
 
       <Section icon={<Database size={16} className="text-themeblue2" />} title="Information We Collect">
-        <p>If you create an account, we collect and store the following to support training logging and preferences:</p>
+        <p>If you create an account, we collect and store the following to support training, preferences, and application storage:</p>
         <ul className="list-disc list-outside ml-4 space-y-0.5">
           <li><strong className="text-primary">Profile:</strong> Name, rank, component (service branch), medical credential</li>
           <li><strong className="text-primary">Unit info:</strong> Unit Identification Code (UIC) and clinic association</li>

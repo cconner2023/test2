@@ -233,6 +233,7 @@ export type Database = {
           display_name: string | null
           first_name: string | null
           id: string
+          last_active_at: string | null
           last_name: string | null
           middle_initial: string | null
           note_include_hpi: boolean | null
@@ -256,6 +257,7 @@ export type Database = {
           display_name?: string | null
           first_name?: string | null
           id: string
+          last_active_at?: string | null
           last_name?: string | null
           middle_initial?: string | null
           note_include_hpi?: boolean | null
@@ -279,6 +281,7 @@ export type Database = {
           display_name?: string | null
           first_name?: string | null
           id?: string
+          last_active_at?: string | null
           last_name?: string | null
           middle_initial?: string | null
           note_include_hpi?: boolean | null

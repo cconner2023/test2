@@ -4,6 +4,9 @@ import { credentials, components, ranksByComponent } from '../../Data/User'
 import { submitAccountRequest, checkRequestStatus, type AccountRequest } from '../../lib/accountRequestService'
 import { TextInput, SelectInput } from '../FormInputs'
 
+const LOCAL_STORAGE_TOKEN_KEY = 'account_request_token'
+const LOCAL_STORAGE_EMAIL_KEY = 'account_request_email'
+
 /**
  * Saves the status check token to localStorage so the user can check
  * their request status later (even after closing the browser).
