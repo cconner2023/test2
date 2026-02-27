@@ -4,6 +4,7 @@ import type { CardState } from '../Hooks/useAlgorithm';
 import type { UserTypes } from '../Data/User';
 import { encodeNoteState, encryptBarcode, renderBarcodeToCanvas } from '../Utilities/NoteCodec';
 import { logError } from '../Utilities/ErrorHandler';
+import { selectIsAuthenticated, useAuthStore } from '../stores/useAuthStore';
 
 // ---------------------------------------------------------------------------
 // BarcodeDisplay — shared visual component for barcode canvas + encoded text
@@ -77,24 +78,25 @@ export function NoteBarcodeGenerator({
     layout = 'col'
 }: NoteBarcodeGeneratorProps) {
     const [encodedText, setEncodedText] = useState<string>('');
+    const isAuthenticated = useAuthStore(selectIsAuthenticated);
 
     const compactString = useMemo(() =>
         encodeNoteState(algorithmOptions, cardStates, noteOptions, symptomCode),
         [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.includeDecisionMaking, noteOptions.customNote, noteOptions.physicalExamNote, noteOptions.user, noteOptions.userId, symptomCode]
     );
 
-    // Encrypt (pack + deflate + AES-GCM + base64); fall back to plain ASCII if no key
+    // Encrypt (pack + deflate + AES-GCM + base64); skip for guests, fall back to plain ASCII if no key
     useEffect(() => {
         let cancelled = false;
         (async () => {
-            const encrypted = await encryptBarcode(compactString);
+            const encrypted = isAuthenticated ? await encryptBarcode(compactString) : null;
             if (cancelled) return;
             const displayValue = encrypted ?? compactString;
             setEncodedText(displayValue);
             onEncodedValueChange?.(displayValue);
         })();
         return () => { cancelled = true; };
-    }, [compactString, onEncodedValueChange]);
+    }, [compactString, isAuthenticated, onEncodedValueChange]);
 
     return <BarcodeDisplay encodedText={encodedText} layout={layout} />;
 }
