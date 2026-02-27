@@ -260,7 +260,7 @@ const RequestsTab = () => {
 
 // ─── Users Tab ────────────────────────────────────────────────────────
 
-type UsersView = 'list' | 'create' | 'edit'
+type UsersView = 'list' | 'detail' | 'create' | 'edit'
 
 const UsersTab = () => {
   const [view, setView] = useState<UsersView>('list')
@@ -270,6 +270,7 @@ const UsersTab = () => {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null)
+  const [detailUser, setDetailUser] = useState<AdminUser | null>(null)
 
   // Current user ID (to prevent self-deletion)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -304,6 +305,15 @@ const UsersTab = () => {
       if (user) setCurrentUserId(user.id)
     })
   }, [])
+
+  // Sync detailUser with latest data after reload
+  useEffect(() => {
+    if (detailUser) {
+      const updated = users.find((u) => u.id === detailUser.id)
+      if (updated) setDetailUser(updated)
+      else if (!loading) { setDetailUser(null); setView('list') }
+    }
+  }, [users]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDeleteUser = async (userId: string, expectedEmail: string) => {
     if (deleteConfirmEmail !== expectedEmail) return
@@ -377,9 +387,177 @@ const UsersTab = () => {
       <EditUserForm
         user={editingUser}
         clinics={clinics}
-        onBack={() => { setView('list'); setEditingUser(null) }}
-        onSaved={() => { setView('list'); setEditingUser(null); loadUsers(); setFeedback({ type: 'success', message: 'Profile updated successfully' }) }}
+        onBack={() => {
+          if (detailUser) { setView('detail'); setEditingUser(null) }
+          else { setView('list'); setEditingUser(null) }
+        }}
+        onSaved={() => {
+          setEditingUser(null)
+          loadUsers()
+          setFeedback({ type: 'success', message: 'Profile updated successfully' })
+          if (detailUser) setView('detail')
+          else setView('list')
+        }}
       />
+    )
+  }
+
+  // ─── User Detail View ────────────────────
+
+  if (view === 'detail' && detailUser) {
+    const userCerts = certsByUser.get(detailUser.id) || []
+    return (
+      <>
+        <button onClick={() => { setView('list'); setDetailUser(null) }}
+          className="flex items-center gap-1 text-sm text-themeblue2 mb-4 hover:underline">
+          <ChevronLeft size={16} /> Back to user list
+        </button>
+
+        {feedback && (
+          <div className={`mb-4 p-3 rounded-lg text-sm ${
+            feedback.type === 'success'
+              ? 'bg-themegreen/10 border border-themegreen/20 text-themegreen'
+              : 'bg-themeredred/10 border border-themeredred/20 text-themeredred'
+          }`}>
+            {feedback.message}
+            <button onClick={() => setFeedback(null)} className="float-right text-xs opacity-60 hover:opacity-100">dismiss</button>
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-base font-semibold text-primary">
+              {detailUser.first_name || ''} {detailUser.middle_initial || ''} {detailUser.last_name || ''}
+            </h3>
+            <p className="text-sm text-tertiary/70">{detailUser.email}</p>
+          </div>
+          <div className="flex gap-1 flex-wrap justify-end">
+            {detailUser.roles?.map((role) => <RoleBadge key={role} role={role} />)}
+          </div>
+        </div>
+
+        {/* Metadata grid */}
+        <div className="grid grid-cols-2 gap-2 text-sm mb-4">
+          {detailUser.rank && (
+            <div><span className="text-tertiary/60">Rank:</span> <span className="text-primary font-medium">{detailUser.rank}</span></div>
+          )}
+          {detailUser.credential && (
+            <div><span className="text-tertiary/60">Credential:</span> <span className="text-primary font-medium">{detailUser.credential}</span></div>
+          )}
+          {detailUser.component && (
+            <div><span className="text-tertiary/60">Component:</span> <span className="text-primary font-medium">{detailUser.component}</span></div>
+          )}
+          {detailUser.uic && (
+            <div><span className="text-tertiary/60">UIC:</span> <span className="text-primary font-medium">{detailUser.uic}</span></div>
+          )}
+          {detailUser.clinic_id && clinicMap.has(detailUser.clinic_id) && (
+            <div><span className="text-tertiary/60">Clinic:</span> <span className="text-primary font-medium">{clinicMap.get(detailUser.clinic_id)!.name}</span></div>
+          )}
+        </div>
+
+        {/* Reset password inline */}
+        {resetPwUserId === detailUser.id ? (
+          <div className="p-3 bg-themeyellow/10 rounded-lg mb-3">
+            <p className="text-sm text-themeyellow font-medium mb-2">Set new password:</p>
+            <div className="flex gap-2">
+              <input type="text" value={resetPwValue} onChange={(e) => setResetPwValue(e.target.value)}
+                placeholder="New password (min 12 chars)..."
+                className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 border border-themeyellow/30 text-sm" />
+              <button onClick={() => handleResetPassword(detailUser.id)}
+                disabled={resetPwProcessing || resetPwValue.length < 12}
+                className="px-3 py-2 rounded-lg bg-themeyellow text-white text-sm font-medium hover:bg-themeyellow/90 disabled:opacity-50">
+                {resetPwProcessing ? 'Resetting...' : 'Reset'}
+              </button>
+              <button onClick={() => { setResetPwUserId(null); setResetPwValue('') }}
+                className="px-3 py-2 rounded-lg bg-tertiary/10 text-primary text-sm">Cancel</button>
+            </div>
+            {resetPwValue.length > 0 && resetPwValue.length < 12 && (
+              <p className="text-xs text-themeredred mt-1">Password must be at least 12 characters</p>
+            )}
+          </div>
+        ) : resetPwSuccess === detailUser.id ? (
+          <div className="p-2 bg-themegreen/10 rounded-lg mb-3 text-sm text-themegreen font-medium">
+            Password reset successfully
+          </div>
+        ) : null}
+
+        {/* Delete user inline confirmation */}
+        {deleteUserId === detailUser.id && (
+          <div className="p-3 bg-themeredred/10 rounded-lg mb-3 border border-themeredred/20">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle size={16} className="text-themeredred shrink-0" />
+              <p className="text-sm text-themeredred font-semibold">Permanently delete this user?</p>
+            </div>
+            <p className="text-xs text-themeredred mb-3">
+              This will delete <span className="font-semibold">{detailUser.first_name} {detailUser.last_name}</span> and all
+              associated data (notes, training, sync queue). This action cannot be undone.
+            </p>
+            <p className="text-xs text-themeredred mb-2">
+              Type <span className="font-mono font-semibold bg-themeredred/10 px-1 py-0.5 rounded">{detailUser.email}</span> to confirm:
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={deleteConfirmEmail}
+                onChange={(e) => setDeleteConfirmEmail(e.target.value)}
+                placeholder="Type email to confirm..."
+                className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 border border-themeredred/30 text-sm
+                           focus:border-themeredred focus:outline-none transition-colors placeholder:text-tertiary/30"
+                autoComplete="off"
+              />
+              <button
+                onClick={() => handleDeleteUser(detailUser.id, detailUser.email)}
+                disabled={deleteProcessing || deleteConfirmEmail !== detailUser.email}
+                className="px-3 py-2 rounded-lg bg-themeredred text-white text-sm font-medium
+                           hover:bg-themeredred/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {deleteProcessing ? 'Deleting...' : 'Delete'}
+              </button>
+              <button
+                onClick={() => { setDeleteUserId(null); setDeleteConfirmEmail('') }}
+                className="px-3 py-2 rounded-lg bg-tertiary/10 text-primary text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Certifications */}
+        <UserCertsSection
+          userId={detailUser.id}
+          certs={userCerts}
+          currentUserId={currentUserId}
+          allUsers={users}
+          onChanged={loadUsers}
+        />
+
+        {/* Action buttons */}
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={() => { setEditingUser(detailUser); setView('edit') }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeblue2 text-white text-sm font-medium hover:bg-themeblue2/90 transition-colors"
+          >
+            <Pencil size={14} /> Edit
+          </button>
+          <button
+            onClick={() => { setResetPwUserId(detailUser.id); setResetPwValue(''); setResetPwSuccess(null) }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tertiary/10 text-primary text-sm font-medium hover:bg-tertiary/20 transition-colors"
+          >
+            <KeyRound size={14} /> Reset Password
+          </button>
+          {currentUserId !== detailUser.id && (
+            <button
+              onClick={() => { setDeleteUserId(detailUser.id); setDeleteConfirmEmail(''); setResetPwUserId(null) }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeredred/10 text-themeredred text-sm font-medium
+                         hover:bg-themeredred/20 border border-themeredred/20 transition-colors"
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+          )}
+        </div>
+      </>
     )
   }
 
@@ -425,141 +603,51 @@ const UsersTab = () => {
           <p className="text-tertiary/60">{searchQuery ? 'No users match your search' : 'No users found'}</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {filteredUsers.map((user) => (
-            <div key={user.id} className="p-4 rounded-lg border border-tertiary/10 bg-themewhite2">
-              <div className="flex items-start justify-between mb-2">
-                <div>
-                  <h4 className="font-semibold text-primary">
-                    {user.first_name || ''} {user.middle_initial || ''} {user.last_name || ''}
-                  </h4>
-                  <p className="text-sm text-tertiary/70">{user.email}</p>
-                </div>
-                <div className="flex gap-1 flex-wrap justify-end">
-                  {user.roles?.map((role) => <RoleBadge key={role} role={role} />)}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-                {user.rank && (
-                  <div><span className="text-tertiary/60">Rank:</span> <span className="text-primary font-medium">{user.rank}</span></div>
-                )}
-                {user.credential && (
-                  <div><span className="text-tertiary/60">Credential:</span> <span className="text-primary font-medium">{user.credential}</span></div>
-                )}
-                {user.component && (
-                  <div><span className="text-tertiary/60">Component:</span> <span className="text-primary font-medium">{user.component}</span></div>
-                )}
-                {user.uic && (
-                  <div><span className="text-tertiary/60">UIC:</span> <span className="text-primary font-medium">{user.uic}</span></div>
-                )}
-                {user.clinic_id && clinicMap.has(user.clinic_id) && (
-                  <div><span className="text-tertiary/60">Clinic:</span> <span className="text-primary font-medium">{clinicMap.get(user.clinic_id)!.name}</span></div>
-                )}
-              </div>
-
-              {/* Reset password inline */}
-              {resetPwUserId === user.id ? (
-                <div className="p-3 bg-themeyellow/10 rounded-lg mb-3">
-                  <p className="text-sm text-themeyellow font-medium mb-2">Set new password:</p>
-                  <div className="flex gap-2">
-                    <input type="text" value={resetPwValue} onChange={(e) => setResetPwValue(e.target.value)}
-                      placeholder="New password (min 12 chars)..."
-                      className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 border border-themeyellow/30 text-sm" />
-                    <button onClick={() => handleResetPassword(user.id)}
-                      disabled={resetPwProcessing || resetPwValue.length < 12}
-                      className="px-3 py-2 rounded-lg bg-themeyellow text-white text-sm font-medium hover:bg-themeyellow/90 disabled:opacity-50">
-                      {resetPwProcessing ? 'Resetting...' : 'Reset'}
-                    </button>
-                    <button onClick={() => { setResetPwUserId(null); setResetPwValue('') }}
-                      className="px-3 py-2 rounded-lg bg-tertiary/10 text-primary text-sm">Cancel</button>
+        <div className="space-y-2">
+          {filteredUsers.map((user) => {
+            const userCerts = certsByUser.get(user.id) || []
+            return (
+              <div
+                key={user.id}
+                onClick={() => { setDetailUser(user); setView('detail') }}
+                className="rounded-xl px-4 py-3 bg-themewhite2 cursor-pointer hover:ring-1 hover:ring-themeblue2/30 transition-all space-y-2"
+              >
+                {/* Row 1: Name + credential + role badges */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-primary truncate">
+                      {user.first_name || ''} {user.middle_initial || ''} {user.last_name || ''}
+                    </p>
+                    {user.credential && (
+                      <p className="text-[9pt] text-tertiary/50">{user.credential}</p>
+                    )}
                   </div>
-                  {resetPwValue.length > 0 && resetPwValue.length < 12 && (
-                    <p className="text-xs text-themeredred mt-1">Password must be at least 12 characters</p>
-                  )}
-                </div>
-              ) : resetPwSuccess === user.id ? (
-                <div className="p-2 bg-themegreen/10 rounded-lg mb-3 text-sm text-themegreen font-medium">
-                  Password reset successfully
-                </div>
-              ) : null}
-
-              {/* Delete user inline confirmation */}
-              {deleteUserId === user.id && (
-                <div className="p-3 bg-themeredred/10 rounded-lg mb-3 border border-themeredred/20">
-                  <div className="flex items-center gap-2 mb-2">
-                    <AlertTriangle size={16} className="text-themeredred shrink-0" />
-                    <p className="text-sm text-themeredred font-semibold">Permanently delete this user?</p>
-                  </div>
-                  <p className="text-xs text-themeredred mb-3">
-                    This will delete <span className="font-semibold">{user.first_name} {user.last_name}</span> and all
-                    associated data (notes, training, sync queue). This action cannot be undone.
-                  </p>
-                  <p className="text-xs text-themeredred mb-2">
-                    Type <span className="font-mono font-semibold bg-themeredred/10 px-1 py-0.5 rounded">{user.email}</span> to confirm:
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={deleteConfirmEmail}
-                      onChange={(e) => setDeleteConfirmEmail(e.target.value)}
-                      placeholder="Type email to confirm..."
-                      className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 border border-themeredred/30 text-sm
-                                 focus:border-themeredred focus:outline-none transition-colors placeholder:text-tertiary/30"
-                      autoComplete="off"
-                    />
-                    <button
-                      onClick={() => handleDeleteUser(user.id, user.email)}
-                      disabled={deleteProcessing || deleteConfirmEmail !== user.email}
-                      className="px-3 py-2 rounded-lg bg-themeredred text-white text-sm font-medium
-                                 hover:bg-themeredred/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {deleteProcessing ? 'Deleting...' : 'Delete'}
-                    </button>
-                    <button
-                      onClick={() => { setDeleteUserId(null); setDeleteConfirmEmail('') }}
-                      className="px-3 py-2 rounded-lg bg-tertiary/10 text-primary text-sm"
-                    >
-                      Cancel
-                    </button>
+                  <div className="flex gap-1 shrink-0">
+                    {user.roles?.map((role) => <RoleBadge key={role} role={role} />)}
                   </div>
                 </div>
-              )}
-
-              {/* Certifications */}
-              <UserCertsSection
-                userId={user.id}
-                certs={certsByUser.get(user.id) || []}
-                currentUserId={currentUserId}
-                allUsers={users}
-                onChanged={loadUsers}
-              />
-
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => { setEditingUser(user); setView('edit') }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeblue2 text-white text-sm font-medium hover:bg-themeblue2/90 transition-colors"
-                >
-                  <Pencil size={14} /> Edit
-                </button>
-                <button
-                  onClick={() => { setResetPwUserId(user.id); setResetPwValue(''); setResetPwSuccess(null) }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tertiary/10 text-primary text-sm font-medium hover:bg-tertiary/20 transition-colors"
-                >
-                  <KeyRound size={14} /> Reset Password
-                </button>
-                {currentUserId !== user.id && (
-                  <button
-                    onClick={() => { setDeleteUserId(user.id); setDeleteConfirmEmail(''); setResetPwUserId(null) }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeredred/10 text-themeredred text-sm font-medium
-                               hover:bg-themeredred/20 border border-themeredred/20 transition-colors"
-                  >
-                    <Trash2 size={14} /> Delete
-                  </button>
+                {/* Row 2: Cert badges */}
+                {userCerts.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1">
+                    {userCerts.map((cert) => {
+                      const status = getExpirationStatus(cert.exp_date)
+                      const color = certBadgeColors[status]
+                      return (
+                        <span
+                          key={cert.id}
+                          className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium border ${color}`}
+                        >
+                          {cert.title}
+                          {cert.is_primary && <Star size={8} className="fill-current" />}
+                          {cert.verified && <CheckCircle size={8} />}
+                        </span>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </>
@@ -1083,7 +1171,7 @@ const ClinicPicker = ({
 
 // ─── Clinics Tab ─────────────────────────────────────────────────────
 
-type ClinicsView = 'list' | 'create' | 'edit'
+type ClinicsView = 'list' | 'detail' | 'create' | 'edit'
 
 const ClinicsTab = () => {
   const [view, setView] = useState<ClinicsView>('list')
@@ -1092,6 +1180,7 @@ const ClinicsTab = () => {
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [editingClinic, setEditingClinic] = useState<AdminClinic | null>(null)
+  const [detailClinic, setDetailClinic] = useState<AdminClinic | null>(null)
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   // Delete inline state
@@ -1108,6 +1197,15 @@ const ClinicsTab = () => {
   }, [])
 
   useEffect(() => { loadData() }, [loadData])
+
+  // Sync detailClinic with latest data after reload
+  useEffect(() => {
+    if (detailClinic) {
+      const updated = clinics.find((c) => c.id === detailClinic.id)
+      if (updated) setDetailClinic(updated)
+      else if (!loading) { setDetailClinic(null); setView('list') }
+    }
+  }, [clinics]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleDeleteClinic = async (clinicId: string, expectedName: string) => {
     if (deleteConfirmName !== expectedName) return
@@ -1153,9 +1251,157 @@ const ClinicsTab = () => {
         clinic={editingClinic}
         allUsers={users}
         allClinics={clinics}
-        onBack={() => { setView('list'); setEditingClinic(null) }}
-        onSaved={() => { setView('list'); setEditingClinic(null); loadData(); setFeedback({ type: 'success', message: 'Clinic updated successfully' }) }}
+        onBack={() => {
+          if (detailClinic) { setView('detail'); setEditingClinic(null) }
+          else { setView('list'); setEditingClinic(null) }
+        }}
+        onSaved={() => {
+          setEditingClinic(null)
+          loadData()
+          setFeedback({ type: 'success', message: 'Clinic updated successfully' })
+          if (detailClinic) setView('detail')
+          else setView('list')
+        }}
       />
+    )
+  }
+
+  // ─── Clinic Detail View ─────────────────
+
+  if (view === 'detail' && detailClinic) {
+    const assignedUsers = usersInClinic(detailClinic.id)
+    return (
+      <>
+        <button onClick={() => { setView('list'); setDetailClinic(null) }}
+          className="flex items-center gap-1 text-sm text-themeblue2 mb-4 hover:underline">
+          <ChevronLeft size={16} /> Back to clinic list
+        </button>
+
+        {feedback && (
+          <div className={`mb-4 p-3 rounded-lg text-sm ${
+            feedback.type === 'success'
+              ? 'bg-themegreen/10 border border-themegreen/20 text-themegreen'
+              : 'bg-themeredred/10 border border-themeredred/20 text-themeredred'
+          }`}>
+            {feedback.message}
+            <button onClick={() => setFeedback(null)} className="float-right text-xs opacity-60 hover:opacity-100">dismiss</button>
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="flex items-start justify-between mb-4">
+          <div>
+            <h3 className="text-base font-semibold text-primary">{detailClinic.name}</h3>
+            {detailClinic.location && (
+              <p className="text-sm text-tertiary/70 flex items-center gap-1 mt-0.5">
+                <MapPin size={12} /> {detailClinic.location}
+              </p>
+            )}
+          </div>
+          <span className="px-2 py-0.5 rounded text-xs font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
+            {assignedUsers.length} user{assignedUsers.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+
+        {/* UIC badges */}
+        {detailClinic.uics.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {detailClinic.uics.map((uic) => (
+              <span key={uic} className="px-2 py-0.5 rounded text-xs font-medium bg-themeyellow/10 text-themeyellow border border-themeyellow/30">
+                {uic}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Child clinic badges */}
+        {detailClinic.child_clinic_ids.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {detailClinic.child_clinic_ids.map((cid) => {
+              const child = clinics.find((c) => c.id === cid)
+              return (
+                <span key={cid} className="px-2 py-0.5 rounded text-xs font-medium bg-themeblue2/10 text-themeblue2 border border-themeblue2/30">
+                  {child ? child.name : cid.slice(0, 8)}
+                </span>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Additional users */}
+        {detailClinic.additional_user_ids.length > 0 && (
+          <div className="mb-3">
+            <span className="text-xs text-tertiary/50">Additional users: </span>
+            <span className="text-xs text-primary">
+              {detailClinic.additional_user_ids.map((uid) => {
+                const u = users.find((usr) => usr.id === uid)
+                return u ? `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email : uid.slice(0, 8)
+              }).join(', ')}
+            </span>
+          </div>
+        )}
+
+        {/* Assigned users */}
+        {assignedUsers.length > 0 && (
+          <div className="mb-3 text-xs text-tertiary/50">
+            Assigned: {assignedUsers.map((u) => `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email).join(', ')}
+          </div>
+        )}
+
+        {/* Delete confirmation inline */}
+        {deleteClinicId === detailClinic.id && (
+          <div className="p-3 bg-themeredred/10 rounded-lg mb-3 border border-themeredred/20">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle size={16} className="text-themeredred shrink-0" />
+              <p className="text-sm text-themeredred font-semibold">Delete this clinic?</p>
+            </div>
+            <p className="text-xs text-themeredred mb-2">
+              Type <span className="font-mono font-semibold bg-themeredred/10 px-1 py-0.5 rounded">{detailClinic.name}</span> to confirm:
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text" value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                placeholder="Type clinic name to confirm..."
+                className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 border border-themeredred/30 text-sm
+                           focus:border-themeredred focus:outline-none transition-colors placeholder:text-tertiary/30"
+                autoComplete="off"
+              />
+              <button
+                onClick={() => handleDeleteClinic(detailClinic.id, detailClinic.name)}
+                disabled={deleteProcessing || deleteConfirmName !== detailClinic.name}
+                className="px-3 py-2 rounded-lg bg-themeredred text-white text-sm font-medium
+                           hover:bg-themeredred/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {deleteProcessing ? 'Deleting...' : 'Delete'}
+              </button>
+              <button
+                onClick={() => { setDeleteClinicId(null); setDeleteConfirmName('') }}
+                className="px-3 py-2 rounded-lg bg-tertiary/10 text-primary text-sm"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={() => { setEditingClinic(detailClinic); setView('edit') }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeblue2 text-white text-sm font-medium hover:bg-themeblue2/90 transition-colors"
+          >
+            <Pencil size={14} /> Edit
+          </button>
+          <button
+            onClick={() => { setDeleteClinicId(detailClinic.id); setDeleteConfirmName('') }}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeredred/10 text-themeredred text-sm font-medium
+                       hover:bg-themeredred/20 border border-themeredred/20 transition-colors"
+          >
+            <Trash2 size={14} /> Delete
+          </button>
+        </div>
+      </>
     )
   }
 
@@ -1200,118 +1446,42 @@ const ClinicsTab = () => {
           <p className="text-tertiary/60">{searchQuery ? 'No clinics match your search' : 'No clinics found'}</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {filteredClinics.map((clinic) => {
             const assignedUsers = usersInClinic(clinic.id)
             return (
-              <div key={clinic.id} className="p-4 rounded-lg border border-tertiary/10 bg-themewhite2">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <h4 className="font-semibold text-primary">{clinic.name}</h4>
+              <div
+                key={clinic.id}
+                onClick={() => { setDetailClinic(clinic); setView('detail') }}
+                className="rounded-xl px-4 py-3 bg-themewhite2 cursor-pointer hover:ring-1 hover:ring-themeblue2/30 transition-all space-y-2"
+              >
+                {/* Row 1: Clinic name + location + user count */}
+                <div className="flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-primary truncate">{clinic.name}</p>
                     {clinic.location && (
-                      <p className="text-sm text-tertiary/70 flex items-center gap-1 mt-0.5">
-                        <MapPin size={12} /> {clinic.location}
+                      <p className="text-[9pt] text-tertiary/50 flex items-center gap-1">
+                        <MapPin size={10} /> {clinic.location}
                       </p>
                     )}
                   </div>
-                  <span className="px-2 py-0.5 rounded text-xs font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
+                  <span className="shrink-0 px-2 py-0.5 rounded text-[9px] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
                     {assignedUsers.length} user{assignedUsers.length !== 1 ? 's' : ''}
                   </span>
                 </div>
-
+                {/* Row 2: UIC badges */}
                 {clinic.uics.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-3">
+                  <div className="flex flex-wrap items-center gap-1">
                     {clinic.uics.map((uic) => (
-                      <span key={uic} className="px-2 py-0.5 rounded text-xs font-medium bg-themeyellow/10 text-themeyellow border border-themeyellow/30">
+                      <span
+                        key={uic}
+                        className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeyellow/10 text-themeyellow border-themeyellow/30"
+                      >
                         {uic}
                       </span>
                     ))}
                   </div>
                 )}
-
-                {clinic.child_clinic_ids.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {clinic.child_clinic_ids.map((cid) => {
-                      const child = clinics.find((c) => c.id === cid)
-                      return (
-                        <span key={cid} className="px-2 py-0.5 rounded text-xs font-medium bg-themeblue2/10 text-themeblue2 border border-themeblue2/30">
-                          {child ? child.name : cid.slice(0, 8)}
-                        </span>
-                      )
-                    })}
-                  </div>
-                )}
-
-                {clinic.additional_user_ids.length > 0 && (
-                  <div className="mb-3">
-                    <span className="text-xs text-tertiary/50">Additional users: </span>
-                    <span className="text-xs text-primary">
-                      {clinic.additional_user_ids.map((uid) => {
-                        const u = users.find((usr) => usr.id === uid)
-                        return u ? `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email : uid.slice(0, 8)
-                      }).join(', ')}
-                    </span>
-                  </div>
-                )}
-
-                {assignedUsers.length > 0 && (
-                  <div className="mb-3 text-xs text-tertiary/50">
-                    Assigned: {assignedUsers.map((u) => `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email).join(', ')}
-                  </div>
-                )}
-
-                {/* Delete confirmation inline */}
-                {deleteClinicId === clinic.id && (
-                  <div className="p-3 bg-themeredred/10 rounded-lg mb-3 border border-themeredred/20">
-                    <div className="flex items-center gap-2 mb-2">
-                      <AlertTriangle size={16} className="text-themeredred shrink-0" />
-                      <p className="text-sm text-themeredred font-semibold">Delete this clinic?</p>
-                    </div>
-                    <p className="text-xs text-themeredred mb-2">
-                      Type <span className="font-mono font-semibold bg-themeredred/10 px-1 py-0.5 rounded">{clinic.name}</span> to confirm:
-                    </p>
-                    <div className="flex gap-2">
-                      <input
-                        type="text" value={deleteConfirmName}
-                        onChange={(e) => setDeleteConfirmName(e.target.value)}
-                        placeholder="Type clinic name to confirm..."
-                        className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 border border-themeredred/30 text-sm
-                                   focus:border-themeredred focus:outline-none transition-colors placeholder:text-tertiary/30"
-                        autoComplete="off"
-                      />
-                      <button
-                        onClick={() => handleDeleteClinic(clinic.id, clinic.name)}
-                        disabled={deleteProcessing || deleteConfirmName !== clinic.name}
-                        className="px-3 py-2 rounded-lg bg-themeredred text-white text-sm font-medium
-                                   hover:bg-themeredred/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                      >
-                        {deleteProcessing ? 'Deleting...' : 'Delete'}
-                      </button>
-                      <button
-                        onClick={() => { setDeleteClinicId(null); setDeleteConfirmName('') }}
-                        className="px-3 py-2 rounded-lg bg-tertiary/10 text-primary text-sm"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => { setEditingClinic(clinic); setView('edit') }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeblue2 text-white text-sm font-medium hover:bg-themeblue2/90 transition-colors"
-                  >
-                    <Pencil size={14} /> Edit
-                  </button>
-                  <button
-                    onClick={() => { setDeleteClinicId(clinic.id); setDeleteConfirmName('') }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeredred/10 text-themeredred text-sm font-medium
-                               hover:bg-themeredred/20 border border-themeredred/20 transition-colors"
-                  >
-                    <Trash2 size={14} /> Delete
-                  </button>
-                </div>
               </div>
             )
           })}
