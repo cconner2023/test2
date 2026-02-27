@@ -1,4 +1,4 @@
-import { ShieldCheck, Database, EyeOff, Server, Trash2, UserCheck, Scale } from 'lucide-react'
+import { ShieldCheck, Database, EyeOff, Server, Trash2, UserCheck, Scale, Activity } from 'lucide-react'
 
 const Section = ({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) => (
   <div className="flex gap-3">
@@ -38,6 +38,7 @@ export const PrivacyPolicyPanel = () => (
           <li><strong className="text-primary">Preferences:</strong> Theme, note content settings, text expanders</li>
           <li><strong className="text-primary">Training:</strong> Training task completion progress</li>
           <li><strong className="text-primary">Account:</strong> Email address and authentication credentials</li>
+          <li><strong className="text-primary">Activity:</strong> Timestamp of your last interaction with the application</li>
         </ul>
         <p className="mt-1">Guest users can use all app features without creating an account. No data is collected from guest users.</p>
       </Section>
@@ -70,6 +71,12 @@ export const PrivacyPolicyPanel = () => (
           <li><strong className="text-primary">Supervisors</strong> — training completion status only for personnel in their unit</li>
           <li><strong className="text-primary">Administrators</strong> — account management and support</li>
         </ul>
+      </Section>
+
+      <Section icon={<Activity size={16} className="text-themeblue2" />} title="Activity Monitoring & Account Deactivation">
+        <p>To maintain platform security and manage resources, we periodically record only the date and time of your last interaction with our server. This is used to determine whether your account is still active.</p>
+        <p className="mt-1">Accounts with no recorded activity for more than 90 consecutive days may be placed in hibernation.</p>
+        <p className="mt-1">You can always opt out of activity tracking in <strong className="text-primary">Settings &gt; Security &gt; Activity Tracking</strong></p>
       </Section>
 
       <Section icon={<Trash2 size={16} className="text-themeblue2" />} title="Your Rights & Data Deletion">

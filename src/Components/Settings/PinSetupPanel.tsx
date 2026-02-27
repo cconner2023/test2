@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Lock, KeyRound, Trash2, ScanFace, Timer } from 'lucide-react'
+import { Lock, KeyRound, Trash2, ScanFace, Timer, Activity } from 'lucide-react'
 import { StatusBanner } from './StatusBanner'
 import { PinKeypad } from '../PinKeypad'
 import { UI_TIMING } from '../../Utilities/constants'
@@ -16,6 +16,10 @@ import {
   getInactivityTimeoutMs,
   setInactivityTimeoutMs,
 } from '../../lib/pinService'
+import {
+  isActivityTrackingEnabled,
+  setActivityTrackingEnabled,
+} from '../../lib/activityHeartbeat'
 import { useAuth } from '../../Hooks/useAuth'
 import {
   isBiometricAvailable,
@@ -41,6 +45,9 @@ export const PinSetupPanel = () => {
   const { lockout, setLockout, error, setError } = usePinLockoutTimer()
   const [success, setSuccess] = useState('')
   const [pendingAction, setPendingAction] = useState<'change' | 'remove' | null>(null)
+
+  // Activity tracking state
+  const [activityTracking, setActivityTracking] = useState(isActivityTrackingEnabled)
 
   // Biometric state
   const [bioAvailable, setBioAvailable] = useState(false)
@@ -288,6 +295,44 @@ export const PinSetupPanel = () => {
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Activity tracking toggle */}
+              <div className="border-t border-tertiary/10 mt-5 pt-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-8 h-8 rounded-full bg-themeblue2/10 flex items-center justify-center">
+                    <Activity size={16} className="text-themeblue2" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-primary">Activity Tracking</p>
+                    <p className="text-[11px] text-tertiary/70">
+                      Periodically record activity date/time when interacting with the server
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    const next = !activityTracking
+                    setActivityTrackingEnabled(next)
+                    setActivityTracking(next)
+                  }}
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all active:scale-[0.98] ${activityTracking
+                      ? 'bg-themegreen/10 hover:bg-themegreen/15'
+                      : 'bg-tertiary/10 hover:bg-tertiary/15'
+                    }`}
+                >
+                  <Activity size={18} className={activityTracking ? 'text-themegreen' : 'text-tertiary'} />
+                  <div className="flex-1 text-left">
+                    <span className={`text-sm font-medium ${activityTracking ? 'text-themegreen' : 'text-tertiary'}`}>
+                      {activityTracking ? 'Activity Tracking On' : 'Activity Tracking Off'}
+                    </span>
+                    <p className="text-[11px] text-tertiary/70 mt-0.5">
+                      {activityTracking
+                        ? 'Your last-active timestamp is updated periodically when you interact with our server'
+                        : 'Disabled. After ~90 days inactivity your account may be placed in hibernation status'}
+                    </p>
+                  </div>
+                </button>
               </div>
             </>
           )}

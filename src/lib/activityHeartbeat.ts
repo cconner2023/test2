@@ -5,6 +5,9 @@
  * the foreground. Throttled to once every 5 minutes to avoid
  * excessive writes. Also fires on visibility-change (tab re-focus)
  * so the timestamp is fresh even if the user was away.
+ *
+ * Users can opt out of activity tracking in Security settings.
+ * Accounts with no activity for 90+ days may be deactivated.
  */
 
 import { supabase } from './supabase'
@@ -15,12 +18,29 @@ const logger = createLogger('ActivityHeartbeat')
 const HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 const MIN_ELAPSED_MS = 4 * 60 * 1000        // guard against double-fires
 
+const ACTIVITY_TRACKING_KEY = 'adtmc_activity_tracking_enabled'
+
 let intervalId: ReturnType<typeof setInterval> | null = null
 let lastSentAt = 0
 let currentUserId: string | null = null
 
+/** Check if the user has opted out of activity tracking */
+export function isActivityTrackingEnabled(): boolean {
+  const stored = localStorage.getItem(ACTIVITY_TRACKING_KEY)
+  // Default to enabled if never set
+  return stored !== 'false'
+}
+
+/** Toggle activity tracking on/off */
+export function setActivityTrackingEnabled(enabled: boolean) {
+  localStorage.setItem(ACTIVITY_TRACKING_KEY, String(enabled))
+  // If disabling while heartbeat is running, stop it
+  if (!enabled) stopHeartbeat()
+}
+
 async function sendHeartbeat() {
   if (!currentUserId) return
+  if (!isActivityTrackingEnabled()) return
   const now = Date.now()
   if (now - lastSentAt < MIN_ELAPSED_MS) return
 
@@ -45,6 +65,7 @@ function handleVisibilityChange() {
 
 export function startHeartbeat(userId: string) {
   stopHeartbeat()
+  if (!isActivityTrackingEnabled()) return
   currentUserId = userId
   lastSentAt = 0
 
