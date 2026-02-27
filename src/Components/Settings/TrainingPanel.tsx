@@ -282,7 +282,7 @@ function TaskDetail({
 
     // Mark as viewed on mount
     useEffect(() => {
-        markTaskViewed(taskNumber, 0)
+        markTaskViewed(taskNumber)
     }, [taskNumber, markTaskViewed])
 
     // Observe bottom of content to mark completed
