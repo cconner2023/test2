@@ -17,6 +17,12 @@ import { clearPasswordVerification } from '../lib/authService'
 import { isDevUser } from '../lib/adminService'
 import { prefetchBarcodeKey } from '../lib/cryptoService'
 import { startHeartbeat, stopHeartbeat } from '../lib/activityHeartbeat'
+import { initSignalBundle } from '../lib/signal/signalInit'
+import { clearSignalKeys, getLocalDeviceId } from '../lib/signal/keyManager'
+import { clearAllSessions } from '../lib/signal/session'
+import { clearMessageStore } from '../lib/signal/messageStore'
+import { clearClinicUsersCache } from '../lib/clinicUsersCache'
+import { unregisterDevice } from '../lib/signal/signalService'
 import type { User } from '@supabase/supabase-js'
 import type { UserTypes, TextExpander } from '../Data/User'
 
@@ -145,7 +151,19 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
+        // Capture userId before clearing state for device unregister
+        const signingOutUserId = get().user?.id
         stopHeartbeat()
+
+        // Unregister device before clearing keys (fire-and-forget)
+        if (signingOutUserId) {
+          getLocalDeviceId().then(deviceId => {
+            if (deviceId) {
+              unregisterDevice(signingOutUserId, deviceId).catch(() => {})
+            }
+          }).catch(() => {})
+        }
+
         set({
           user: null,
           isGuest: true,
@@ -160,6 +178,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         removeBiometric()
         clearPasswordVerification().catch(() => {})
         clearServiceWorkerCaches().catch(() => {})
+        clearSignalKeys().catch(() => {})
+        clearAllSessions().catch(() => {})
+        clearMessageStore().catch(() => {})
+        clearClinicUsersCache().catch(() => {})
       } else if (session?.user) {
         set({ user: session.user, isGuest: false })
         // Detect password recovery flow (user clicked reset-password email link)
@@ -218,6 +240,13 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
 
       // Prefetch barcode encryption key for offline use (fire-and-forget)
       prefetchBarcodeKey().catch(() => {})
+
+      // Initialize Signal Protocol key bundle, then restart heartbeat with deviceId
+      initSignalBundle(user.id).then(() => {
+        getLocalDeviceId().then(deviceId => {
+          if (deviceId) startHeartbeat(user.id, deviceId)
+        }).catch(() => {})
+      }).catch(() => {})
     } catch {
       // Profile fetch failed — keep existing state
     }

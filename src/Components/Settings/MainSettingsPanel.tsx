@@ -1,12 +1,10 @@
 import { ChevronUp, ChevronRight } from 'lucide-react';
 import type { PanelId, SettingsItem } from './SettingsTypes';
+import { useAvatar } from '../../Utilities/AvatarContext';
 
 export interface MainSettingsPanelProps {
     settingsOptions: SettingsItem[];
     onItemClick: (id: PanelId) => void;
-    avatarSvg: React.ReactNode;
-    customImage: string | null;
-    isCustom: boolean;
     displayName: string;
     displaySub: string;
     displayClinic?: string;
@@ -18,9 +16,6 @@ export interface MainSettingsPanelProps {
 export const MainSettingsPanel = ({
     settingsOptions,
     onItemClick,
-    avatarSvg,
-    customImage,
-    isCustom,
     displayName,
     displaySub,
     displayClinic,
@@ -28,6 +23,7 @@ export const MainSettingsPanel = ({
     onProfileClick,
     isConnected,
 }: MainSettingsPanelProps) => {
+    const { currentAvatar, customImage, isCustom } = useAvatar();
     // Separate top row items (no header before them) from grid sections
     const topItems: Extract<SettingsItem, { type: 'option' }>[] = [];
     const gridSections: { label: string; items: Extract<SettingsItem, { type: 'option' }>[] }[] = [];
@@ -56,7 +52,7 @@ export const MainSettingsPanel = ({
                         >
                             {isCustom && customImage ? (
                                 <img src={customImage} alt="Profile" className="w-full h-full object-cover" />
-                            ) : avatarSvg}
+                            ) : currentAvatar.svg}
                         </button>
                         <button
                             onClick={onProfileClick}

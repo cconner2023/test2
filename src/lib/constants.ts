@@ -18,3 +18,19 @@ export const STORAGE = {
   DB_VERSION: 3,
   SYNC_CLEANUP_DAYS: 7,
 } as const
+
+export const SIGNAL = {
+  /** Number of one-time pre-keys to generate per batch. */
+  PREKEY_BATCH_SIZE: 100,
+  /** Signed pre-key rotation interval (days). */
+  SIGNED_PREKEY_ROTATION_DAYS: 7,
+  /** ECDH / ECDSA curve for all Signal Protocol key operations. */
+  CURVE: 'P-256',
+  /** Max messages to skip in a chain for out-of-order delivery.
+   *  Prevents DoS via malicious headers with huge message numbers. */
+  MAX_SKIP: 256,
+  /** Maximum number of devices a single user can register. */
+  MAX_DEVICES_PER_USER: 10,
+  /** Devices with no activity for this many days may be pruned. */
+  STALE_DEVICE_DAYS: 90,
+} as const

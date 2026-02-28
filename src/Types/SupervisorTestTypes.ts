@@ -24,4 +24,5 @@ export interface ClinicMedic {
   middleInitial: string | null
   rank: string | null
   credential: string | null
+  avatarId: string | null
 }

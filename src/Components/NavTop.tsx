@@ -3,6 +3,7 @@ import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, HelpCircle 
 import { useRef, useEffect, useMemo } from "react";
 import { useSpring, useTrail, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
+import { useAvatar } from "../Utilities/AvatarContext";
 import { createLogger } from "../Utilities/Logger";
 
 const logger = createLogger('NavTop');
@@ -16,6 +17,8 @@ const iconMap: Record<string, React.ReactNode> = {
 };
 
 export function NavTop({ search, actions, ui }: NavTopProps) {
+    const { currentAvatar, customImage, isCustom } = useAvatar()
+
     // Destructure grouped props for cleaner usage
     const {
         searchInput,
@@ -234,20 +237,16 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                         className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform overflow-hidden"
                                         aria-label="Open menu"
                                     >
-                                        {ui.mobileAvatar ? (
-                                            ui.mobileAvatar.isCustom && ui.mobileAvatar.customImage ? (
-                                                <img
-                                                    src={ui.mobileAvatar.customImage}
-                                                    alt="Profile"
-                                                    className="w-full h-full object-cover rounded-full"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full rounded-full overflow-hidden">
-                                                    {ui.mobileAvatar.avatarSvg}
-                                                </div>
-                                            )
+                                        {isCustom && customImage ? (
+                                            <img
+                                                src={customImage}
+                                                alt="Profile"
+                                                className="w-full h-full object-cover rounded-full"
+                                            />
                                         ) : (
-                                            <Menu className="w-6 h-6 stroke-current" />
+                                            <div className="w-full h-full rounded-full overflow-hidden">
+                                                {currentAvatar.svg}
+                                            </div>
                                         )}
                                     </button>
                                 </animated.div>

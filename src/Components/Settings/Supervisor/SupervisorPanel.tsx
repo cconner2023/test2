@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, type MutableRefObject } from 'react'
 import { Ban, ClipboardCheck, Eye, Pencil } from 'lucide-react'
+import { UserAvatar } from '../UserAvatar'
 import { useTrainingCompletions } from '../../../Hooks/useTrainingCompletions'
 import { useSupervisorData } from './useSupervisorData'
 import { PersonnelRoster } from './PersonnelRoster'
@@ -199,9 +200,12 @@ export function SupervisorPanel({
       {view.screen === 'roster' && selectedSoldier && (
         <div className="shrink-0 px-4 md:px-5 py-3 border-t border-tertiary/10
                         bg-themewhite2/95 backdrop-blur-sm shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
-          <p className="text-[10px] text-tertiary/50 text-center mb-2 truncate">
-            {formatMedicName(selectedSoldier)}
-          </p>
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <UserAvatar avatarId={selectedSoldier.avatarId} firstName={selectedSoldier.firstName} lastName={selectedSoldier.lastName} className="w-8 h-8" />
+            <p className="text-[10px] text-tertiary/50 truncate">
+              {formatMedicName(selectedSoldier)}
+            </p>
+          </div>
           <div className="flex items-center justify-center gap-6">
             <button
               onClick={() => handleEvaluate(selectedSoldier)}

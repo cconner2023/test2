@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Lock, KeyRound, Trash2, ScanFace, Timer, Activity } from 'lucide-react'
+import { Lock, KeyRound, ScanFace, Timer, Activity } from 'lucide-react'
 import { StatusBanner } from './StatusBanner'
+import { ToggleSwitch } from './ToggleSwitch'
 import { PinKeypad } from '../PinKeypad'
 import { UI_TIMING } from '../../Utilities/constants'
 import {
@@ -31,10 +32,7 @@ import { usePinLockoutTimer } from '../../Hooks/usePinLockoutTimer'
 
 type PinView = 'status' | 'set-new' | 'confirm-new' | 'verify-current' | 'change-new' | 'change-confirm'
 
-const TIMEOUT_OPTIONS = [
-  { label: '20 minutes', value: 20 * 60 * 1000 },
-  { label: 'Never', value: 0 },
-]
+const TIMEOUT_20_MIN = 20 * 60 * 1000
 
 export const PinSetupPanel = () => {
   const [view, setView] = useState<PinView>('status')
@@ -183,156 +181,158 @@ export const PinSetupPanel = () => {
 
   // Status view — show enable/disable options
   if (view === 'status') {
+    const timeoutEnabled = timeoutMs > 0
+
     return (
       <div className="h-full overflow-y-auto">
-        <div className="px-4 py-3 md:p-5">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-themeblue2/10 flex items-center justify-center">
-              <Lock size={20} className="text-themeblue2" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-primary">App Lock</p>
-              <p className="text-xs text-tertiary">
-                {pinEnabled ? 'PIN lock is enabled' : 'Protect your app with a PIN'}
-              </p>
-            </div>
-          </div>
-
-          <p className="text-xs text-tertiary/70 mb-5 leading-relaxed">
+        <div className="px-5 py-4 space-y-5">
+          <p className="text-xs text-tertiary leading-relaxed">
             When enabled, a 4-digit PIN will be required each time you open the application.
             Your PIN persists across devices and protects cached notes.
           </p>
 
           {success && (
-            <StatusBanner type="success" message={success} className="mb-4" />
+            <StatusBanner type="success" message={success} className="" />
           )}
 
           {error && (
-            <StatusBanner type="error" message={error} className="mb-4" />
+            <StatusBanner type="error" message={error} className="" />
           )}
 
-          {!pinEnabled ? (
-            <button
-              onClick={() => { resetState(); setView('set-new') }}
-              className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-themeblue2/10
-                         hover:bg-themeblue2/15 active:scale-[0.98] transition-all"
+          {/* App Lock */}
+          <div className="rounded-xl border border-tertiary/15 bg-themewhite2 overflow-hidden">
+            <div
+              className="flex items-center gap-3 px-4 py-3.5 cursor-pointer"
+              onClick={() => {
+                if (pinEnabled) {
+                  resetState(); setPendingAction('remove'); setView('verify-current')
+                } else {
+                  resetState(); setView('set-new')
+                }
+              }}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  if (pinEnabled) {
+                    resetState(); setPendingAction('remove'); setView('verify-current')
+                  } else {
+                    resetState(); setView('set-new')
+                  }
+                }
+              }}
             >
-              <KeyRound size={18} className="text-themeblue2" />
-              <span className="text-sm font-medium text-themeblue2">Set Up PIN Lock</span>
-            </button>
-          ) : (
-            <div className="space-y-2">
-              {/* Biometric toggle — only show when PIN is enabled and device supports it */}
-              {bioAvailable && (
-                <button
-                  onClick={handleBiometricToggle}
-                  disabled={bioLoading}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all active:scale-[0.98] ${bioEnrolled
-                    ? 'bg-themegreen/10 hover:bg-themegreen/15'
-                    : 'bg-themeblue2/10 hover:bg-themeblue2/15'
-                    } disabled:opacity-50`}
-                >
-                  <ScanFace size={18} className={bioEnrolled ? 'text-themegreen' : 'text-themeblue2'} />
-                  <div className="flex-1 text-left">
-                    <span className={`text-sm font-medium ${bioEnrolled ? 'text-themegreen' : 'text-themeblue2'}`}>
-                      {bioLoading ? 'Setting up...' : bioEnrolled ? 'Face ID / Touch ID On' : 'Enable Face ID / Touch ID'}
-                    </span>
-                    <p className="text-[11px] text-tertiary/70 mt-0.5">
-                      {bioEnrolled ? 'Tap to disable biometric unlock' : 'Use biometrics instead of PIN to unlock'}
-                    </p>
-                  </div>
-                </button>
-              )}
-
-              <button
-                onClick={() => { resetState(); setPendingAction('change'); setView('verify-current') }}
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-themeblue2/10
-                           hover:bg-themeblue2/15 active:scale-[0.98] transition-all"
-              >
-                <KeyRound size={18} className="text-themeblue2" />
-                <span className="text-sm font-medium text-themeblue2">Change PIN</span>
-              </button>
-              <button
-                onClick={() => { resetState(); setPendingAction('remove'); setView('verify-current') }}
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-xl bg-themeredred/10
-                           hover:bg-themeredred/15 active:scale-[0.98] transition-all"
-              >
-                <Trash2 size={18} className="text-themeredred" />
-                <span className="text-sm font-medium text-themeredred">Remove PIN</span>
-              </button>
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${pinEnabled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                <Lock size={18} className={pinEnabled ? 'text-themeblue2' : 'text-tertiary/50'} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium ${pinEnabled ? 'text-primary' : 'text-tertiary'}`}>App Lock</p>
+                <p className="text-[11px] text-tertiary/70 mt-0.5">Protect your app with a 4-digit PIN</p>
+              </div>
+              <ToggleSwitch checked={pinEnabled} />
             </div>
-          )}
 
-          {/* Inactivity timeout picker — visible to all authenticated users */}
+            {/* Nested options when PIN is enabled */}
+            {pinEnabled && (
+              <div className="border-t border-tertiary/10 px-4 py-3 space-y-2">
+                {/* Biometric toggle */}
+                {bioAvailable && (
+                  <div
+                    onClick={bioLoading ? undefined : handleBiometricToggle}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border border-tertiary/15 bg-themewhite transition-all ${bioLoading ? 'opacity-50' : 'cursor-pointer'}`}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (!bioLoading && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleBiometricToggle(); } }}
+                  >
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${bioEnrolled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                      <ScanFace size={18} className={bioEnrolled ? 'text-themeblue2' : 'text-tertiary/50'} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium ${bioEnrolled ? 'text-primary' : 'text-tertiary'}`}>
+                        {bioLoading ? 'Setting up...' : 'Face ID / Touch ID'}
+                      </p>
+                      <p className="text-[11px] text-tertiary/70 mt-0.5">Use biometrics instead of PIN</p>
+                    </div>
+                    <ToggleSwitch checked={bioEnrolled} />
+                  </div>
+                )}
+
+                {/* Change PIN */}
+                <button
+                  onClick={() => { resetState(); setPendingAction('change'); setView('verify-current') }}
+                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-tertiary/15 bg-themewhite
+                             hover:bg-themewhite/80 active:scale-[0.98] transition-all text-left"
+                >
+                  <KeyRound size={16} className="text-themeblue2" />
+                  <span className="text-sm font-medium text-themeblue2">Change PIN</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Inactivity Timeout */}
           {isAuthenticated && (
             <>
-              <div className="border-t border-tertiary/10 mt-5 pt-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-8 h-8 rounded-full bg-themeblue2/10 flex items-center justify-center">
-                    <Timer size={16} className="text-themeblue2" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-primary">Inactivity Timeout</p>
-                    <p className="text-[11px] text-tertiary/70">
-                      {pinEnabled
-                        ? 'Locks to PIN screen after inactivity'
-                        : 'Requires password re-entry after inactivity'}
-                    </p>
-                  </div>
+              <div
+                className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-tertiary/15 bg-themewhite2 cursor-pointer"
+                onClick={() => {
+                  const next = timeoutEnabled ? 0 : TIMEOUT_20_MIN
+                  setTimeoutMs(next)
+                  setInactivityTimeoutMs(next)
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    const next = timeoutEnabled ? 0 : TIMEOUT_20_MIN
+                    setTimeoutMs(next)
+                    setInactivityTimeoutMs(next)
+                  }
+                }}
+              >
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${timeoutEnabled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                  <Timer size={18} className={timeoutEnabled ? 'text-themeblue2' : 'text-tertiary/50'} />
                 </div>
-                <select
-                  value={timeoutMs}
-                  onChange={(e) => {
-                    const ms = Number(e.target.value)
-                    setTimeoutMs(ms)
-                    setInactivityTimeoutMs(ms)
-                  }}
-                  className="w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-sm
-                             border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                             transition-colors appearance-none cursor-pointer"
-                >
-                  {TIMEOUT_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>{opt.label}</option>
-                  ))}
-                </select>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium ${timeoutEnabled ? 'text-primary' : 'text-tertiary'}`}>Inactivity Timeout</p>
+                  <p className="text-[11px] text-tertiary/70 mt-0.5">
+                    {pinEnabled
+                      ? 'Lock to PIN screen after 20 min'
+                      : 'Require password re-entry after 20 min'}
+                  </p>
+                </div>
+                <ToggleSwitch checked={timeoutEnabled} />
               </div>
 
-              {/* Activity tracking toggle */}
-              <div className="border-t border-tertiary/10 mt-5 pt-5">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="w-8 h-8 rounded-full bg-themeblue2/10 flex items-center justify-center">
-                    <Activity size={16} className="text-themeblue2" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-sm font-semibold text-primary">Activity Tracking</p>
-                    <p className="text-[11px] text-tertiary/70">
-                      Periodically record activity date/time when interacting with the server
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => {
+              {/* Activity Tracking */}
+              <div
+                className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-tertiary/15 bg-themewhite2 cursor-pointer"
+                onClick={() => {
+                  const next = !activityTracking
+                  setActivityTrackingEnabled(next)
+                  setActivityTracking(next)
+                }}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
                     const next = !activityTracking
                     setActivityTrackingEnabled(next)
                     setActivityTracking(next)
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl transition-all active:scale-[0.98] ${activityTracking
-                      ? 'bg-themegreen/10 hover:bg-themegreen/15'
-                      : 'bg-tertiary/10 hover:bg-tertiary/15'
-                    }`}
-                >
-                  <Activity size={18} className={activityTracking ? 'text-themegreen' : 'text-tertiary'} />
-                  <div className="flex-1 text-left">
-                    <span className={`text-sm font-medium ${activityTracking ? 'text-themegreen' : 'text-tertiary'}`}>
-                      {activityTracking ? 'Activity Tracking On' : 'Activity Tracking Off'}
-                    </span>
-                    <p className="text-[11px] text-tertiary/70 mt-0.5">
-                      {activityTracking
-                        ? 'Your last-active timestamp is updated periodically when you interact with our server'
-                        : 'Disabled. After ~90 days inactivity your account may be placed in hibernation status'}
-                    </p>
-                  </div>
-                </button>
+                  }
+                }}
+              >
+                <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${activityTracking ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                  <Activity size={18} className={activityTracking ? 'text-themeblue2' : 'text-tertiary/50'} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium ${activityTracking ? 'text-primary' : 'text-tertiary'}`}>Activity Tracking</p>
+                  <p className="text-[11px] text-tertiary/70 mt-0.5">Periodically record activity date/time when interacting with the server</p>
+                </div>
+                <ToggleSwitch checked={activityTracking} />
               </div>
             </>
           )}

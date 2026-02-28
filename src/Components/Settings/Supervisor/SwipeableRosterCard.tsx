@@ -4,6 +4,7 @@ import { useDrag } from '@use-gesture/react'
 import { ClipboardCheck, Eye, Pencil, Star, CheckCircle, Check } from 'lucide-react'
 import { GESTURE_THRESHOLDS, SPRING_CONFIGS } from '../../../Utilities/GestureUtils'
 import { formatMedicName, getExpirationStatus, certBadgeColors } from './supervisorHelpers'
+import { UserAvatar } from '../UserAvatar'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
 
@@ -149,10 +150,12 @@ export function SwipeableRosterCard({
       >
         {/* Soldier info */}
         <div className="flex items-center gap-3">
-          {isSelected && (
-            <div className="w-6 h-6 rounded-full flex items-center justify-center bg-themeblue2 shrink-0">
+          {isSelected ? (
+            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-themeblue2 shrink-0">
               <Check size={14} className="text-white" />
             </div>
+          ) : (
+            <UserAvatar avatarId={soldier.avatarId} firstName={soldier.firstName} lastName={soldier.lastName} className="w-8 h-8" />
           )}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-primary">{formatMedicName(soldier)}</p>

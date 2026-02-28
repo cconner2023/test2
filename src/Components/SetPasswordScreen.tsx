@@ -3,6 +3,7 @@ import { KeyRound } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/useAuthStore'
 import { PasswordInput } from './FormInputs'
+import { ErrorMessage } from './ErrorMessage'
 
 export const SetPasswordScreen = () => {
   const [password, setPassword] = useState('')
@@ -47,11 +48,7 @@ export const SetPasswordScreen = () => {
           <p className="text-sm text-tertiary mt-1 text-center">Set your password to complete account setup</p>
         </div>
 
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred text-sm text-center">
-            {error}
-          </div>
-        )}
+        <ErrorMessage error={error} />
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <PasswordInput

@@ -54,3 +54,48 @@ export function getImageDimensions(dataUrl: string): Promise<{ width: number; he
     img.src = dataUrl
   })
 }
+
+/**
+ * Generate a tiny JPEG thumbnail data URL from an existing data URL.
+ * Used for inline message previews before the full image loads.
+ */
+export function generateThumbnail(dataUrl: string, maxDim = 60, quality = 0.5): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      let { naturalWidth: w, naturalHeight: h } = img
+      if (w > maxDim || h > maxDim) {
+        if (w >= h) {
+          h = Math.round((h / w) * maxDim)
+          w = maxDim
+        } else {
+          w = Math.round((w / h) * maxDim)
+          h = maxDim
+        }
+      }
+      const canvas = document.createElement('canvas')
+      canvas.width = w
+      canvas.height = h
+      const ctx = canvas.getContext('2d')
+      if (!ctx) { reject(new Error('Canvas not supported')); return }
+      ctx.drawImage(img, 0, 0, w, h)
+      resolve(canvas.toDataURL('image/jpeg', quality))
+    }
+    img.onerror = () => reject(new Error('Failed to load image for thumbnail'))
+    img.src = dataUrl
+  })
+}
+
+/**
+ * Convert a base64 data URL to a Blob.
+ */
+export function dataUrlToBlob(dataUrl: string): Blob {
+  const [header, b64] = dataUrl.split(',')
+  const mime = header.match(/:(.*?);/)?.[1] ?? 'application/octet-stream'
+  const binary = atob(b64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  return new Blob([bytes], { type: mime })
+}

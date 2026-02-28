@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Check, X, UserPlus, Clock, Ban, Search, ChevronLeft, KeyRound, Pencil, Trash2, AlertTriangle, Plus, MapPin, Building2, CheckCircle, Star } from 'lucide-react'
 import type { Component, Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
+import { UserAvatar } from './UserAvatar'
 import {
   getAllAccountRequests,
   approveAccountRequest,
@@ -454,11 +455,14 @@ const UsersTab = () => {
 
         {/* Header */}
         <div className="flex items-start justify-between mb-4">
-          <div>
-            <h3 className="text-base font-semibold text-primary">
-              {detailUser.first_name || ''} {detailUser.middle_initial || ''} {detailUser.last_name || ''}
-            </h3>
-            <p className="text-sm text-tertiary/70">{detailUser.email}</p>
+          <div className="flex items-center gap-3">
+            <UserAvatar avatarId={detailUser.avatar_id} firstName={detailUser.first_name} lastName={detailUser.last_name} className="w-12 h-12" />
+            <div>
+              <h3 className="text-base font-semibold text-primary">
+                {detailUser.first_name || ''} {detailUser.middle_initial || ''} {detailUser.last_name || ''}
+              </h3>
+              <p className="text-sm text-tertiary/70">{detailUser.email}</p>
+            </div>
           </div>
           <div className="flex gap-1 flex-wrap justify-end">
             {detailUser.roles?.map((role) => <RoleBadge key={role} role={role} />)}
@@ -647,8 +651,9 @@ const UsersTab = () => {
                 onClick={() => { setDetailUser(user); setView('detail') }}
                 className="rounded-xl px-4 py-3 bg-themewhite2 cursor-pointer hover:ring-1 hover:ring-themeblue2/30 transition-all space-y-2"
               >
-                {/* Row 1: Name + credential + last active + role badges */}
+                {/* Row 1: Avatar + Name + credential + last active + role badges */}
                 <div className="flex items-center gap-3">
+                  <UserAvatar avatarId={user.avatar_id} firstName={user.first_name} lastName={user.last_name} className="w-9 h-9" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-semibold text-primary truncate">
                       {user.first_name || ''} {user.middle_initial || ''} {user.last_name || ''}

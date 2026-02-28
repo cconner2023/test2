@@ -23,6 +23,7 @@ const ACTIVITY_TRACKING_KEY = 'adtmc_activity_tracking_enabled'
 let intervalId: ReturnType<typeof setInterval> | null = null
 let lastSentAt = 0
 let currentUserId: string | null = null
+let currentDeviceId: string | null = null
 
 /** Check if the user has opted out of activity tracking */
 export function isActivityTrackingEnabled(): boolean {
@@ -45,13 +46,27 @@ async function sendHeartbeat() {
   if (now - lastSentAt < MIN_ELAPSED_MS) return
 
   try {
+    const ts = new Date().toISOString()
+
     const { error } = await supabase
       .from('profiles')
-      .update({ last_active_at: new Date().toISOString() })
+      .update({ last_active_at: ts })
       .eq('id', currentUserId)
 
     if (!error) lastSentAt = now
     else logger.warn('Heartbeat update failed:', error.message)
+
+    // Also update device last_active_at if device is registered
+    if (currentDeviceId) {
+      supabase
+        .from('user_devices')
+        .update({ last_active_at: ts })
+        .eq('user_id', currentUserId)
+        .eq('device_id', currentDeviceId)
+        .then(({ error: devErr }) => {
+          if (devErr) logger.warn('Device heartbeat update failed:', devErr.message)
+        })
+    }
   } catch {
     // Network error — silently skip, will retry next interval
   }
@@ -63,10 +78,11 @@ function handleVisibilityChange() {
   }
 }
 
-export function startHeartbeat(userId: string) {
+export function startHeartbeat(userId: string, deviceId?: string) {
   stopHeartbeat()
   if (!isActivityTrackingEnabled()) return
   currentUserId = userId
+  currentDeviceId = deviceId ?? null
   lastSentAt = 0
 
   // Immediate first heartbeat
@@ -86,4 +102,5 @@ export function stopHeartbeat() {
   }
   document.removeEventListener('visibilitychange', handleVisibilityChange)
   currentUserId = null
+  currentDeviceId = null
 }

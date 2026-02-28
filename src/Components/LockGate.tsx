@@ -6,6 +6,7 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { PinLockScreen } from './PinLockScreen'
 import { PasswordLockScreen } from './PasswordLockScreen'
 import { SetPasswordScreen } from './SetPasswordScreen'
+import { UserAcknowledgment, hasAcceptedAcknowledgment } from './UserAcknowledgment'
 
 const INITIAL_PW_UNLOCKED_KEY = 'adtmc_initial_pw_unlocked'
 
@@ -15,6 +16,16 @@ export function LockGate({ children }: { children: ReactNode }) {
   const [isInactivityLocked, setIsInactivityLocked] = useState(false)
   const [isInitialPasswordLocked, setIsInitialPasswordLocked] = useState(false)
   const [pinServiceReady, setPinServiceReady] = useState(false)
+  const [needsAcknowledgment, setNeedsAcknowledgment] = useState(false)
+
+  // Show acknowledgment for authenticated (non-guest) users who haven't accepted yet
+  useEffect(() => {
+    if (user && !isGuest && !hasAcceptedAcknowledgment()) {
+      setNeedsAcknowledgment(true)
+    } else {
+      setNeedsAcknowledgment(false)
+    }
+  }, [user, isGuest])
 
   useEffect(() => {
     initPinService().then(() => {
@@ -81,6 +92,9 @@ export function LockGate({ children }: { children: ReactNode }) {
       )}
       {isInactivityLocked && !isPinLocked && !isInitialPasswordLocked && user?.email && (
         <PasswordLockScreen onUnlock={() => setIsInactivityLocked(false)} email={user.email} reason="inactivity" />
+      )}
+      {needsAcknowledgment && !isPinLocked && !isInitialPasswordLocked && !isInactivityLocked && (
+        <UserAcknowledgment onAccept={() => setNeedsAcknowledgment(false)} />
       )}
       {useAuthStore((s) => s.isPasswordRecovery) && <SetPasswordScreen />}
     </>

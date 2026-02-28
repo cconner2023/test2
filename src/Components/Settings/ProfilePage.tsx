@@ -1,23 +1,19 @@
 import { User, Award, KeyRound, LogOut, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../Hooks/useAuth';
+import { useAvatar } from '../../Utilities/AvatarContext';
 
 interface ProfilePageProps {
-    avatarSvg: React.ReactNode;
-    customImage: string | null;
-    isCustom: boolean;
     onAvatarClick: () => void;
     onNavigate: (panel: 'user-profile-details' | 'certifications' | 'change-password') => void;
     onSignOut: () => void;
 }
 
 export const ProfilePage = ({
-    avatarSvg,
-    customImage,
-    isCustom,
     onAvatarClick,
     onNavigate,
     onSignOut,
 }: ProfilePageProps) => {
+    const { currentAvatar, customImage, isCustom } = useAvatar();
     const { profile } = useAuth();
 
     const displayName = profile.lastName
@@ -53,7 +49,7 @@ export const ProfilePage = ({
                             {isCustom && customImage ? (
                                 <img src={customImage} alt="Profile" className="w-full h-full object-cover" />
                             ) : (
-                                <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full">{avatarSvg}</div>
+                                <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full">{currentAvatar.svg}</div>
                             )}
                         </button>
                         <button

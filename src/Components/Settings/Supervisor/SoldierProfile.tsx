@@ -4,6 +4,7 @@ import { getTaskData } from '../../../Data/TrainingData'
 import { verifyCertification, unverifyCertification } from '../../../lib/certificationService'
 import { deleteCompletion as deleteCompletionApi } from '../../../lib/trainingService'
 import { formatMedicName, getExpirationStatus, certBadgeColors } from './supervisorHelpers'
+import { UserAvatar } from '../UserAvatar'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
 import type { TrainingCompletionUI } from '../../../lib/trainingService'
@@ -75,11 +76,14 @@ export function SoldierProfile({
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div>
-        <p className="text-lg font-semibold text-primary">{formatMedicName(soldier)}</p>
-        {soldier.credential && (
-          <p className="text-xs text-tertiary/50">{soldier.credential}</p>
-        )}
+      <div className="flex items-center gap-3">
+        <UserAvatar avatarId={soldier.avatarId} firstName={soldier.firstName} lastName={soldier.lastName} className="w-12 h-12" />
+        <div>
+          <p className="text-lg font-semibold text-primary">{formatMedicName(soldier)}</p>
+          {soldier.credential && (
+            <p className="text-xs text-tertiary/50">{soldier.credential}</p>
+          )}
+        </div>
       </div>
 
       {/* Section 1: Certifications */}

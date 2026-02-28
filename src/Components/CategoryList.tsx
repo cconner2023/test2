@@ -2,6 +2,7 @@
 import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes'
 import { catData } from '../Data/CatData'
 import { useAppAnimate } from '../Utilities/AnimationConfig'
+import { useNavigationStore } from '../stores/useNavigationStore'
 
 // Shared shape for guideline-like items (DDX, medcom, stp, gen all have text + optional id)
 export interface GuidelineItemData {
@@ -178,13 +179,6 @@ function NavigationRow({
 }
 
 interface CategoryListProps {
-    selectedCategory: catDataTypes | null
-    selectedSymptom: subCatDataTypes | null
-    selectedGuideline: {
-        type: 'gen' | 'medcom' | 'stp' | 'DDX',
-        id: number;
-        symptomId: number;
-    } | null
     onNavigate: (result: SearchResultType) => void
     desktopMode?: boolean
     /** When set, renders only the specified mobile carousel panel (no conditional switching, no key remounts) */
@@ -192,13 +186,12 @@ interface CategoryListProps {
 }
 
 export function CategoryList({
-    selectedCategory,
-    selectedSymptom,
-    selectedGuideline,
     onNavigate,
     desktopMode = false,
     mobilePanel,
 }: CategoryListProps) {
+    const selectedCategory = useNavigationStore((s) => s.selectedCategory)
+    const selectedSymptom = useNavigationStore((s) => s.selectedSymptom)
     const [parentRef] = useAppAnimate('fast')
 
     // Helper to convert category to SearchResultType

@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, BookOpen, UserCog, Lock, MessageSquare, Bell, Stethoscope, ClipboardCheck, Scale } from 'lucide-react';
+import { Moon, Sun, Shield, BookOpen, UserCog, Lock, MessageSquare, Mail, Bell, Stethoscope, ClipboardCheck, Scale } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
-import type { ProfileAvatar } from '../../Data/ProfileAvatars';
+import { useAvatar } from '../../Utilities/AvatarContext';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useSwipeBack } from '../../Hooks/useSwipeBack';
 import { ReleaseNotesPanel } from './ReleaseNotesPanel';
@@ -14,6 +14,7 @@ import { SupervisorPanel } from './SupervisorPanel';
 import { GuestOptionsPanel } from './GuestOptionsPanel';
 import { LoginPanel } from './LoginPanel';
 import { TrainingPanel, type TrainingView } from './TrainingPanel';
+import { MessagesPanel, type MessagesView } from './MessagesPanel';
 import { PinSetupPanel } from './PinSetupPanel';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { FeedbackPanel } from './FeedbackPanel';
@@ -40,19 +41,9 @@ interface SettingsDrawerProps {
     onClose: () => void;
     isDarkMode: boolean;
     onToggleTheme: () => void;
-    isMobile?: boolean;
     initialPanel?: 'main' | 'release-notes' | 'training';
     /** When set alongside initialPanel='training', deep-links to a specific training task */
     initialTrainingTaskId?: string | null;
-    avatar: {
-        currentAvatar: ProfileAvatar;
-        setAvatar: (id: string) => void;
-        avatarList: ProfileAvatar[];
-        customImage: string | null;
-        isCustom: boolean;
-        setCustomImage: (dataUrl: string) => void;
-        clearCustomImage: () => void;
-    };
 }
 
 export const Settings = ({
@@ -60,16 +51,15 @@ export const Settings = ({
     onClose,
     isDarkMode,
     onToggleTheme,
-    isMobile: externalIsMobile,
     initialPanel,
     initialTrainingTaskId,
-    avatar,
 }: SettingsDrawerProps) => {
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | TrainingView>('main');
-    const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = avatar;
+    const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | TrainingView | MessagesView>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const [selectedTask, setSelectedTask] = useState<subjectAreaArrayOptions | null>(null);
+    const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
     const prevVisibleRef = useRef(false);
     const supervisorBackRef = useRef<(() => void) | null>(null);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
@@ -147,8 +137,9 @@ export const Settings = ({
         // Toggle theme has no panel navigation
         if (id === PANEL.TOGGLE_THEME) return;
 
-        // Training needs extra reset
+        // Training / Messages need extra reset
         if (id === PANEL.TRAINING) setSelectedTask(null);
+        if (id === PANEL.MESSAGES) setSelectedPeerId(null);
 
         // Look up the target panel name from the constant map
         const target = PANEL_TARGET[id];
@@ -174,6 +165,10 @@ export const Settings = ({
             // Top section (no header)
             opt(PANEL.TRAINING, <BookOpen size={20} />, 'My Training'),
         ];
+
+        if (isAuthenticated) {
+            items.push(opt(PANEL.MESSAGES, <Mail size={20} />, 'Messages'));
+        }
 
         // ROLES section - only if user has supervisor or admin roles
         if (isSupervisorRole || isDevRole) {
@@ -202,6 +197,24 @@ export const Settings = ({
         return items;
     }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isSupervisorRole, isAuthenticated]);
 
+    // Messages panel navigation helpers
+    const handleMessagesSelectPeer = useCallback((medic: import('../../Types/SupervisorTestTypes').ClinicMedic) => {
+        setSelectedPeerId(medic.id);
+        handleSlideAnimation('left');
+        setActivePanel('messages-chat');
+    }, [handleSlideAnimation]);
+
+    const handleMessagesBack = useCallback(() => {
+        if (activePanel === 'messages-chat') {
+            handleSlideAnimation('right');
+            setActivePanel('messages');
+            setSelectedPeerId(null);
+        } else if (activePanel === 'messages') {
+            handleSlideAnimation('right');
+            setActivePanel('main');
+        }
+    }, [activePanel, handleSlideAnimation]);
+
     // Training panel navigation helpers
     const handleTrainingSelectTask = useCallback((task: subjectAreaArrayOptions) => {
         setSelectedTask(task);
@@ -227,6 +240,9 @@ export const Settings = ({
             if (activePanel === 'training-detail' || activePanel === 'training') {
                 return handleTrainingBack;
             }
+            if (activePanel === 'messages-chat' || activePanel === 'messages') {
+                return handleMessagesBack;
+            }
             // Sub-panels of the profile hub go back to user-profile
             if (activePanel === 'user-profile-details' || activePanel === 'change-password' || activePanel === 'certifications') {
                 return () => { handleSlideAnimation('right'); setActivePanel('user-profile'); };
@@ -235,7 +251,7 @@ export const Settings = ({
                 return () => { handleSlideAnimation('right'); setActivePanel('user-profile-details'); };
             }
             return () => { handleSlideAnimation('right'); setActivePanel('main'); };
-        }, [activePanel, handleSlideAnimation, handleTrainingBack]),
+        }, [activePanel, handleSlideAnimation, handleTrainingBack, handleMessagesBack]),
         activePanel !== 'main',
     );
 
@@ -265,6 +281,8 @@ export const Settings = ({
             case 'release-notes':       return { title: 'Release Notes', ...backTo() };
             case 'avatar-picker':       return { title: 'Choose Avatar', ...backTo() };
             case 'user-profile':        return { title: 'Profile', ...backTo() };
+            case 'messages':            return { title: 'Messages', ...backTo() };
+            case 'messages-chat':       return { title: 'Chat', showBack: true, onBack: handleMessagesBack };
             case 'training':            return { title: 'My Training', ...backTo() };
             case 'admin':               return { title: 'Admin Panel', ...backTo() };
             case 'guest-options':       return { title: 'Sign In', ...backTo() };
@@ -274,12 +292,12 @@ export const Settings = ({
             case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
             case 'note-content':        return { title: 'Note Content', ...backTo() };
         }
-    }, [activePanel, backTo, selectedTask, handleTrainingBack]);
+    }, [activePanel, backTo, selectedTask, handleTrainingBack, handleMessagesBack]);
 
     return (
         <BaseDrawer
             isVisible={isVisible}
-            onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedTask(null); onClose(); }}
+            onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedTask(null); setSelectedPeerId(null); onClose(); }}
             fullHeight="90dvh"
             disableDrag={false}
             header={headerConfig}
@@ -290,9 +308,6 @@ export const Settings = ({
                         <MainSettingsPanel
                             settingsOptions={buildSettingsOptions(handleClose)}
                             onItemClick={(id) => handleItemClick(id, handleClose)}
-                            avatarSvg={currentAvatar.svg}
-                            customImage={customImage}
-                            isCustom={isCustom}
                             displayName={
                                 isAuthenticated
                                     ? (profile.lastName
@@ -331,9 +346,6 @@ export const Settings = ({
                             <AccountRequestForm />
                         ) : (
                             <ProfilePage
-                                avatarSvg={currentAvatar.svg}
-                                customImage={customImage}
-                                isCustom={isCustom}
                                 onAvatarClick={() => handleItemClick(PANEL.AVATAR_PICKER, handleClose)}
                                 onNavigate={(panel) => {
                                     handleSlideAnimation('left');
@@ -354,10 +366,6 @@ export const Settings = ({
                         <ProfileChangeRequestForm />
                     ) : activePanel === 'avatar-picker' ? (
                         <AvatarPickerPanel
-                            avatarList={avatarList}
-                            currentAvatarId={currentAvatar.id}
-                            isCustom={isCustom}
-                            customImage={customImage}
                             onSelect={(id) => {
                                 if (id === 'custom') {
                                     setAvatar('custom');
@@ -377,7 +385,6 @@ export const Settings = ({
                                     // silently fail on unsupported image
                                 }
                             }}
-                            onClearCustom={clearCustomImage}
                         />
                     ) : activePanel === 'release-notes' ? (
                         <ReleaseNotesPanel />
@@ -417,6 +424,13 @@ export const Settings = ({
                         <NotificationSettingsPanel />
                     ) : activePanel === 'pin-setup' ? (
                         <PinSetupPanel />
+                    ) : (activePanel === 'messages' || activePanel === 'messages-chat') ? (
+                        <MessagesPanel
+                            view={activePanel}
+                            selectedPeerId={selectedPeerId}
+                            onSelectPeer={handleMessagesSelectPeer}
+                            onBack={handleMessagesBack}
+                        />
                     ) : (activePanel === 'training' || activePanel === 'training-detail') ? (
                         <TrainingPanel
                             view={activePanel}

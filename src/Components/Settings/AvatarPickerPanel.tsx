@@ -1,25 +1,17 @@
 import { useRef } from 'react';
 import { Check, Camera, X } from 'lucide-react';
+import { useAvatar } from '../../Utilities/AvatarContext';
 
 export interface AvatarPickerPanelProps {
-    avatarList: Array<{ id: string; svg: React.ReactNode }>;
-    currentAvatarId: string;
-    isCustom: boolean;
-    customImage: string | null;
     onSelect: (id: string) => void;
     onUpload: (file: File) => void;
-    onClearCustom: () => void;
 }
 
 export const AvatarPickerPanel = ({
-    avatarList,
-    currentAvatarId,
-    isCustom,
-    customImage,
     onSelect,
     onUpload,
-    onClearCustom,
 }: AvatarPickerPanelProps) => {
+    const { avatarList, currentAvatar, isCustom, customImage, clearCustomImage } = useAvatar();
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     return (
@@ -41,7 +33,7 @@ export const AvatarPickerPanel = ({
                                 )}
                             </button>
                             <button
-                                onClick={onClearCustom}
+                                onClick={clearCustomImage}
                                 className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-themeredred flex items-center justify-center active:scale-90 transition-transform"
                                 aria-label="Remove custom photo"
                             >
@@ -58,7 +50,7 @@ export const AvatarPickerPanel = ({
                             className="relative w-16 h-16 rounded-full overflow-hidden transition-all active:scale-95"
                         >
                             {avatar.svg}
-                            {avatar.id === currentAvatarId && !isCustom && (
+                            {avatar.id === currentAvatar.id && !isCustom && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-full">
                                     <Check size={20} className="text-white" />
                                 </div>

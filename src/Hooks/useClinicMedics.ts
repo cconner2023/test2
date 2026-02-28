@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { loadCachedClinicUsers, saveCachedClinicUsers } from '../lib/clinicUsersCache'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 
 /** Fetches the list of medics in the current user's clinic (excluding the current user). */
@@ -37,7 +38,7 @@ export function useClinicMedics() {
       // Fetch all profiles in the same clinic with medic role
       const { data: clinicProfiles, error: clinicError } = await supabase
         .from('profiles')
-        .select('id, first_name, last_name, middle_initial, rank, credential, roles')
+        .select('id, first_name, last_name, middle_initial, rank, credential, roles, avatar_id')
         .eq('clinic_id', profile.clinic_id)
 
       if (clinicError) {
@@ -56,9 +57,11 @@ export function useClinicMedics() {
           middleInitial: p.middle_initial,
           rank: p.rank,
           credential: p.credential,
+          avatarId: p.avatar_id ?? null,
         }))
 
       setMedics(medicProfiles)
+      saveCachedClinicUsers(medicProfiles).catch(() => {})
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch medics')
     } finally {
@@ -66,7 +69,25 @@ export function useClinicMedics() {
     }
   }, [])
 
-  useEffect(() => { fetchMedics() }, [fetchMedics])
+  useEffect(() => {
+    let cancelled = false
+
+    // Load from IDB cache first for instant render
+    loadCachedClinicUsers().then(cached => {
+      if (cancelled) return
+      if (cached.length > 0) {
+        setMedics(cached)
+        setLoading(false)
+      }
+      // Then refresh from Supabase in background
+      fetchMedics()
+    }).catch(() => {
+      // Cache load failed — fall through to network fetch
+      if (!cancelled) fetchMedics()
+    })
+
+    return () => { cancelled = true }
+  }, [fetchMedics])
 
   return { medics, loading, error, refresh: fetchMedics }
 }

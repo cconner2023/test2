@@ -40,6 +40,7 @@ export interface AdminUser {
   note_include_hpi: boolean | null
   note_include_pe: boolean | null
   pe_depth: string | null
+  avatar_id: string | null
 }
 
 /**

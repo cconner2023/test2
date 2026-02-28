@@ -4,10 +4,10 @@ import { NavTop } from './Components/NavTop'
 import { SearchResults } from './Components/SearchResults'
 import { NoteImport } from './Components/NoteImport'
 import { ThemeProvider, useTheme } from './Utilities/ThemeContext'
+import { AvatarProvider } from './Utilities/AvatarContext'
 import { AlgorithmPage } from './Components/AlgorithmPage'
 import { WriteNotePage } from './Components/WriteNotePage'
 import type { SearchResultType } from './Types/CatTypes'
-import type { WriteNoteData } from './Hooks/useNavigation'
 import { useSearch } from './Hooks/useSearch'
 import { useNavigation } from './Hooks/useNavigation'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
@@ -55,7 +55,6 @@ function AppContent() {
   const search = useSearch()
   const { user } = useAuth()
   const avatarState = useProfileAvatar(user?.id)
-  const { currentAvatar, customImage, isCustom } = avatarState
 
   // ── Settings/training targeting state (lightweight replacement for useActiveNote) ──
   const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'training'>('main')
@@ -87,10 +86,6 @@ function AppContent() {
       setImportInitialView(undefined)
     }
   }, [navigation.showNoteImport, importInitialView])
-
-  const handleExpandNote = useCallback((data: WriteNoteData) => {
-    navigation.showWriteNote(data)
-  }, [navigation])
 
   const openTrainingTask = useCallback((taskId: string) => {
     setSettingsInitialPanel('training')
@@ -211,6 +206,7 @@ function AppContent() {
   }, [navigation.isMobile, search.searchInput, navigation.selectedSymptom, navigation.showQuestionCard])
 
   return (
+    <AvatarProvider value={avatarState}>
     <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
       <div id="app-drawer-root" className="max-w-315 shrink flex-col w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1 relative md:bg-themewhite md:pb-10">
         {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
@@ -247,11 +243,6 @@ function AppContent() {
               isMobile: navigation.isMobile,
               isAlgorithmView: navigation.showQuestionCard,
               isMenuOpen: navigation.isMenuOpen,
-              mobileAvatar: {
-                avatarSvg: currentAvatar.svg,
-                customImage,
-                isCustom,
-              },
             }}
           />
         </div>
@@ -264,16 +255,7 @@ function AppContent() {
           >
             {/* Column A: Navigation carousel */}
             <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
-              <ColumnA
-                selectedCategory={navigation.selectedCategory}
-                selectedSymptom={navigation.selectedSymptom}
-                selectedGuideline={navigation.selectedGuideline}
-                onNavigate={handleNavigationClick}
-                isMobile={navigation.isMobile}
-                panelIndex={navigation.columnAPanel}
-                isVisible={!navigation.isMobileColumnB}
-                onSwipeBack={navigation.handleBackClick}
-              />
+              <ColumnA onNavigate={handleNavigationClick} />
             </div>
 
             {/* Column B: Content (algorithm / search / empty) */}
@@ -295,9 +277,6 @@ function AppContent() {
                     <ErrorBoundary>
                     <AlgorithmPage
                       key={`algo-${navigation.selectedSymptom.icon}`}
-                      selectedSymptom={navigation.selectedSymptom}
-                      onExpandNote={handleExpandNote}
-                      isMobile={navigation.isMobile}
                     />
                     </ErrorBoundary>
                   </div>
@@ -348,10 +327,8 @@ function AppContent() {
           onClose={() => { navigation.setShowSettings(false); resetSettingsPanel() }}
           isDarkMode={theme === 'dark'}
           onToggleTheme={toggleTheme}
-          isMobile={navigation.isMobile}
           initialPanel={settingsInitialPanel}
           initialTrainingTaskId={initialTrainingTaskId}
-          avatar={avatarState}
         />
         </ErrorBoundary>
         <ErrorBoundary>
@@ -397,6 +374,7 @@ function AppContent() {
         <InstallPrompt />
       </div>
     </div>
+    </AvatarProvider>
   )
 }
 

@@ -2,36 +2,27 @@ import { useRef, useEffect, memo } from 'react'
 import { animated } from '@react-spring/web'
 import { CategoryList } from './CategoryList'
 import { useColumnCarousel } from '../Hooks/useColumnCarousel'
-import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes'
+import type { SearchResultType } from '../Types/CatTypes'
+import {
+  useNavigationStore,
+  selectColumnAPanel,
+  selectIsMobileColumnB,
+} from '../stores/useNavigationStore'
 
 interface ColumnAProps {
-  selectedCategory: catDataTypes | null
-  selectedSymptom: subCatDataTypes | null
-  selectedGuideline: {
-    type: 'gen' | 'medcom' | 'stp' | 'DDX'
-    id: number
-    symptomId: number
-  } | null
   onNavigate: (result: SearchResultType) => void
-  isMobile: boolean
-  panelIndex: number
-  /** Whether Column A is currently the visible column (has non-zero width) */
-  isVisible?: boolean
-  onSwipeBack?: () => void
-  onSwipeForward?: () => void
 }
 
-export const ColumnA = memo(function ColumnA({
-  selectedCategory,
-  selectedSymptom,
-  selectedGuideline,
-  onNavigate,
-  isMobile,
-  panelIndex,
-  isVisible,
-  onSwipeBack,
-  onSwipeForward,
-}: ColumnAProps) {
+export const ColumnA = memo(function ColumnA({ onNavigate }: ColumnAProps) {
+  const selectedCategory = useNavigationStore((s) => s.selectedCategory)
+  const selectedSymptom = useNavigationStore((s) => s.selectedSymptom)
+  const isMobile = useNavigationStore((s) => s.isMobile)
+  const panelIndex = useNavigationStore(selectColumnAPanel)
+  const isMobileColumnB = useNavigationStore(selectIsMobileColumnB)
+  const handleBackClick = useNavigationStore((s) => s.handleBackClick)
+
+  const isVisible = !isMobileColumnB
+
   // Mobile: 2 panels (main, subcategory). Desktop: 3 panels (+ symptom info)
   const panelCount = isMobile ? 2 : 3
 
@@ -45,8 +36,7 @@ export const ColumnA = memo(function ColumnA({
     panelCount,
     isVisible,
     syncKey: carouselSyncKey,
-    onSwipeBack,
-    onSwipeForward,
+    onSwipeBack: handleBackClick,
   })
 
   // Scroll-to-top ref for subcategory panel when category changes
@@ -81,9 +71,6 @@ export const ColumnA = memo(function ColumnA({
           >
             <CategoryList
               mobilePanel="main"
-              selectedCategory={selectedCategory}
-              selectedSymptom={selectedSymptom}
-              selectedGuideline={selectedGuideline}
               onNavigate={onNavigate}
             />
           </div>
@@ -101,9 +88,6 @@ export const ColumnA = memo(function ColumnA({
           >
             <CategoryList
               mobilePanel="subcategory"
-              selectedCategory={selectedCategory}
-              selectedSymptom={selectedSymptom}
-              selectedGuideline={selectedGuideline}
               onNavigate={onNavigate}
             />
           </div>
@@ -115,9 +99,6 @@ export const ColumnA = memo(function ColumnA({
             <div className="px-2 min-h-full">
               <CategoryList
                 mobilePanel="guidelines"
-                selectedCategory={selectedCategory}
-                selectedSymptom={selectedSymptom}
-                selectedGuideline={selectedGuideline}
                 onNavigate={onNavigate}
               />
             </div>

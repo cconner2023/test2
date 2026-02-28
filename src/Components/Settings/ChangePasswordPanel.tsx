@@ -3,6 +3,7 @@ import { CheckCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../Hooks/useAuth';
 import { PasswordInput } from '../FormInputs';
+import { ErrorMessage } from '../ErrorMessage';
 
 export const ChangePasswordPanel = () => {
     const { user } = useAuth();
@@ -75,11 +76,7 @@ export const ChangePasswordPanel = () => {
                     </p>
                 </div>
 
-                {error && (
-                    <div className="mb-4 p-3 rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred text-sm text-center">
-                        {error}
-                    </div>
-                )}
+                <ErrorMessage error={error} />
 
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <PasswordInput

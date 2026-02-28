@@ -3,6 +3,7 @@ import { Lock, Lightbulb } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { verifyPasswordLocally, storePasswordHash } from '../lib/authService'
 import { PasswordInput } from './FormInputs'
+import { ErrorMessage } from './ErrorMessage'
 
 interface PasswordLockScreenProps {
   onUnlock: () => void
@@ -168,11 +169,7 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
         </div>
 
         {/* Error */}
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred text-sm text-center">
-            {error}
-          </div>
-        )}
+        <ErrorMessage error={error} />
 
         {/* Lockout */}
         {isLockedOut && (

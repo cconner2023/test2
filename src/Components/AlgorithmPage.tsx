@@ -1,7 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAlgorithm } from '../Hooks/useAlgorithm';
-import type { subCatDataTypes } from '../Types/CatTypes';
 import type { dispositionType } from '../Types/AlgorithmTypes';
 import { Algorithm as AlgorithmData } from '../Data/Algorithms';
 import { QuestionCard } from './QuestionCard';
@@ -9,16 +8,14 @@ import { ScreenerDrawer } from './ScreenerDrawer';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { ConnectorDots } from './ConnectorDots';
 import { ALGORITHM_TIMING } from '../Utilities/constants';
-import type { WriteNoteData } from '../Hooks/useNavigation';
+import { useNavigationStore } from '../stores/useNavigationStore';
 import { ChevronRight } from 'lucide-react';
 
-interface AlgorithmProps {
-    selectedSymptom: subCatDataTypes | null;
-    onExpandNote?: (data: WriteNoteData) => void;
-    isMobile?: boolean;
-}
+export function AlgorithmPage() {
+    const selectedSymptom = useNavigationStore((s) => s.selectedSymptom);
+    const isMobile = useNavigationStore((s) => s.isMobile);
+    const openWriteNote = useNavigationStore((s) => s.openWriteNote);
 
-export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false }: AlgorithmProps) {
     const containerRef = useRef<HTMLDivElement>(null);
     const markerRef = useRef<HTMLDivElement>(null);
     const prevDispositionRef = useRef<dispositionType | null>(null);
@@ -147,11 +144,11 @@ export function AlgorithmPage({ selectedSymptom, onExpandNote, isMobile = false 
         setOpenScreenerCardIndex(null);
     }, []);
 
-    // Handle expand note - calls callback to open WriteNotePage at App level
+    // Handle expand note - opens WriteNotePage via the navigation store
     const handleExpandNote = () => {
-        if (!currentDisposition || !selectedSymptom || !onExpandNote) return;
+        if (!currentDisposition || !selectedSymptom) return;
 
-        onExpandNote({
+        openWriteNote({
             disposition: currentDisposition,
             algorithmOptions,
             cardStates,

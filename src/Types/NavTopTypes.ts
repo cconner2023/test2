@@ -28,15 +28,6 @@ interface NavigationActions {
 }
 
 /**
- * Mobile avatar data for the menu trigger button
- */
-interface MobileAvatarData {
-  avatarSvg: React.ReactNode
-  customImage: string | null
-  isCustom: boolean
-}
-
-/**
  * UI state and display props grouped together
  */
 interface UIState {
@@ -47,7 +38,6 @@ interface UIState {
   isMobile: boolean
   isAlgorithmView?: boolean
   isMenuOpen?: boolean
-  mobileAvatar?: MobileAvatarData
 }
 
 /**
