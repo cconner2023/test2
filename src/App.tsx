@@ -24,6 +24,7 @@ import { TrainingDrawer } from './Components/TrainingDrawer'
 import { getTaskData } from './Data/TrainingData'
 import { LockGate } from './Components/LockGate'
 import { ErrorBoundary } from './Components/ErrorBoundary'
+import { MessagesProvider } from './Hooks/MessagesContext'
 
 // PWA App Shortcut: capture ?view= URL parameter once at module load time
 const _initialViewParam = (() => {
@@ -207,6 +208,7 @@ function AppContent() {
 
   return (
     <AvatarProvider value={avatarState}>
+    <MessagesProvider>
     <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
       <div id="app-drawer-root" className="max-w-315 shrink flex-col w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1 relative md:bg-themewhite md:pb-10">
         {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
@@ -374,6 +376,7 @@ function AppContent() {
         <InstallPrompt />
       </div>
     </div>
+    </MessagesProvider>
     </AvatarProvider>
   )
 }

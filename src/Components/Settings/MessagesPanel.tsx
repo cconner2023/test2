@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Trash2, Forward, Reply, X, ImagePlus } from 'lucide-react'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
-import { useMessages, type RequestStatus } from '../../Hooks/useMessages'
+import { useMessagesContext } from '../../Hooks/MessagesContext'
+import type { RequestStatus } from '../../Hooks/useMessages'
 import { ContactListItem } from './ContactListItem'
 import { MessageBubble, type SwipeAction } from './MessageBubble'
 import { MessageContextMenu } from './MessageContextMenu'
@@ -544,8 +545,18 @@ function ChatDetail({
 // ── Exported Panel ─────────────────────────────────────────────────────────
 
 export function MessagesPanel({ view, selectedPeerId, onSelectPeer, onBack }: MessagesPanelProps) {
-  const { conversations, unreadCounts, sendMessage, sendImage, sending, markAsRead, fetchHistory, acceptRequest, editMessage, deleteMessages, getRequestStatusForPeer } = useMessages()
+  const messagesCtx = useMessagesContext()
   const { medics } = useClinicMedics()
+
+  if (!messagesCtx) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <p className="text-sm text-tertiary/50">Sign in to use messages.</p>
+      </div>
+    )
+  }
+
+  const { conversations, unreadCounts, sendMessage, sendImage, sending, markAsRead, fetchHistory, acceptRequest, editMessage, deleteMessages, getRequestStatusForPeer } = messagesCtx
 
   if (view === 'messages-chat' && selectedPeerId) {
     const peer = medics.find(m => m.id === selectedPeerId)
