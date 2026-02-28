@@ -208,6 +208,35 @@ export async function fetchPeerBundleForDevice(
   }
 }
 
+/**
+ * Delete this device's key bundle from Supabase.
+ * Called on sign-out so stale bundles don't linger for a logged-out device.
+ */
+export async function deleteKeyBundle(
+  userId: string,
+  deviceId: string
+): Promise<Result<void>> {
+  try {
+    const { error } = await supabase
+      .from('signal_key_bundles')
+      .delete()
+      .eq('user_id', userId)
+      .eq('device_id', deviceId)
+
+    if (error) {
+      logger.error('Failed to delete key bundle:', error.message)
+      return err(error.message, error.code)
+    }
+
+    logger.info(`Key bundle deleted for device ${deviceId}`)
+    return ok(undefined)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unknown error'
+    logger.error('deleteKeyBundle exception:', msg)
+    return err(msg)
+  }
+}
+
 // ---- Message Operations ----
 
 /**
@@ -381,6 +410,34 @@ export async function markMessagesRead(
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error'
     logger.error('markMessagesRead exception:', msg)
+    return err(msg)
+  }
+}
+
+/**
+ * Delete messages from Supabase by their IDs.
+ */
+export async function deleteMessages(
+  messageIds: string[]
+): Promise<Result<void>> {
+  if (messageIds.length === 0) return ok(undefined)
+
+  try {
+    const { error } = await supabase
+      .from('signal_messages')
+      .delete()
+      .in('id', messageIds)
+
+    if (error) {
+      logger.error('deleteMessages error:', error.message)
+      return err(error.message, error.code)
+    }
+
+    logger.info(`Deleted ${messageIds.length} messages from Supabase`)
+    return ok(undefined)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unknown error'
+    logger.error('deleteMessages exception:', msg)
     return err(msg)
   }
 }

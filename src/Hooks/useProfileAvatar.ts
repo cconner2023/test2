@@ -14,21 +14,20 @@ const CUSTOM_IMAGE_KEY = 'adtmc_profile_custom_avatar';
 function loadAvatarId(): string {
     try {
         const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved === 'custom') return saved;
+        if (saved === 'custom' || saved === 'initials') return saved;
         if (saved && profileAvatars.some(a => a.id === saved)) {
             return saved;
         }
     } catch {
         // localStorage unavailable
     }
-    // Random assign on first load
-    const randomId = profileAvatars[Math.floor(Math.random() * profileAvatars.length)].id;
+    // Default to initials for new users
     try {
-        localStorage.setItem(STORAGE_KEY, randomId);
+        localStorage.setItem(STORAGE_KEY, 'initials');
     } catch {
         // localStorage full or unavailable
     }
-    return randomId;
+    return 'initials';
 }
 
 function loadCustomImage(): string | null {
@@ -90,6 +89,7 @@ export function useProfileAvatar(userId?: string) {
     const isPageVisible = usePageVisibility();
 
     const isCustom = avatarId === 'custom' && customImage !== null;
+    const isInitials = avatarId === 'initials';
 
     const currentAvatar: ProfileAvatar =
         profileAvatars.find(a => a.id === avatarId) ?? profileAvatars[0];
@@ -111,8 +111,8 @@ export function useProfileAvatar(userId?: string) {
                     syncAvatarToSupabase(userId, avatarId);
                     return;
                 }
-                // Apply remote avatar if it's a valid pre-made avatar
-                if (profileAvatars.some(a => a.id === remoteId)) {
+                // Apply remote avatar if it's a valid pre-made avatar or 'initials'
+                if (remoteId === 'initials' || profileAvatars.some(a => a.id === remoteId)) {
                     setAvatarId(remoteId);
                     try { localStorage.setItem(STORAGE_KEY, remoteId); } catch { /* */ }
                 }
@@ -132,8 +132,10 @@ export function useProfileAvatar(userId?: string) {
             if (!remoteId) return;
 
             // Only apply if it differs from the current local state
+            // Accept 'initials' as a valid remote avatar value
             setAvatarId(prev => {
                 if (prev === remoteId) return prev;
+                if (remoteId !== 'initials' && remoteId !== 'custom' && !profileAvatars.some(a => a.id === remoteId)) return prev;
                 try { localStorage.setItem(STORAGE_KEY, remoteId); } catch { /* */ }
                 // If switching away from custom, clear the custom image locally
                 if (remoteId !== 'custom') {
@@ -176,15 +178,14 @@ export function useProfileAvatar(userId?: string) {
             // ignore
         }
         setCustomImageState(null);
-        // Fall back to first SVG avatar if custom was active
-        const fallback = profileAvatars[0].id;
-        setAvatarId(fallback);
+        // Fall back to initials when custom image is cleared
+        setAvatarId('initials');
         try {
-            localStorage.setItem(STORAGE_KEY, fallback);
+            localStorage.setItem(STORAGE_KEY, 'initials');
         } catch {
             // ignore
         }
-        if (userId) syncAvatarToSupabase(userId, fallback);
+        if (userId) syncAvatarToSupabase(userId, 'initials');
     }, [userId]);
 
     return {
@@ -193,6 +194,7 @@ export function useProfileAvatar(userId?: string) {
         avatarList: profileAvatars,
         customImage,
         isCustom,
+        isInitials,
         setCustomImage,
         clearCustomImage,
     };

@@ -22,7 +22,9 @@ import { clearSignalKeys, getLocalDeviceId } from '../lib/signal/keyManager'
 import { clearAllSessions } from '../lib/signal/session'
 import { clearMessageStore } from '../lib/signal/messageStore'
 import { clearClinicUsersCache } from '../lib/clinicUsersCache'
-import { unregisterDevice } from '../lib/signal/signalService'
+import { useCallStore } from './useCallStore'
+import { unregisterDevice, deleteKeyBundle } from '../lib/signal/signalService'
+import { secureSet, secureGet, secureRemove } from '../lib/secureStorage'
 import type { User } from '@supabase/supabase-js'
 import type { UserTypes, TextExpander } from '../Data/User'
 
@@ -60,24 +62,38 @@ function migratePeDepth(profile: UserTypes): UserTypes {
   return profile
 }
 
+/** Sync initial load: reads legacy plaintext from localStorage for instant render.
+ *  New sessions start empty until the async encrypted read completes. */
 function loadProfileFromStorage(): UserTypes {
   try {
     const saved = localStorage.getItem(STORAGE_KEY)
-    if (saved) return migratePeDepth(JSON.parse(saved) as UserTypes)
+    // Only read plaintext legacy entries (encrypted entries start with 'enc:')
+    if (saved && !saved.startsWith('enc:')) {
+      return migratePeDepth(JSON.parse(saved) as UserTypes)
+    }
   } catch { /* ignore */ }
   return {}
 }
 
-function saveProfileToStorage(profile: UserTypes) {
+/** Async load from encrypted storage (secureStorage). */
+async function loadProfileFromSecureStorage(): Promise<UserTypes | null> {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(profile))
+    const saved = await secureGet(STORAGE_KEY)
+    if (saved) return migratePeDepth(JSON.parse(saved) as UserTypes)
   } catch { /* ignore */ }
+  return null
+}
+
+/** Persist profile to encrypted storage and remove any plaintext remnant. */
+function saveProfileToStorage(profile: UserTypes) {
+  secureSet(STORAGE_KEY, JSON.stringify(profile)).catch(() => {})
+  // Remove any legacy plaintext entry
+  try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
 }
 
 function clearProfileStorage() {
-  try {
-    localStorage.removeItem(STORAGE_KEY)
-  } catch { /* ignore */ }
+  secureRemove(STORAGE_KEY).catch(() => {})
+  try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
 }
 
 /**
@@ -92,7 +108,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   // Fetch core profile + clinic name
   const { data } = await supabase
     .from('profiles')
-    .select('first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, note_include_hpi, note_include_pe, pe_depth, text_expanders, text_expander_enabled')
+    .select('first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, notify_messages, note_include_hpi, note_include_pe, pe_depth, text_expanders, text_expander_enabled')
     .eq('id', userId)
     .single()
 
@@ -119,6 +135,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     }
 
     if (sec.notify_dev_alerts != null) profile.notifyDevAlerts = sec.notify_dev_alerts as boolean
+    if (sec.notify_messages != null) profile.notifyMessages = sec.notify_messages as boolean
     if (sec.note_include_hpi != null) profile.noteIncludeHPI = sec.note_include_hpi as boolean
     if (sec.note_include_pe != null) profile.noteIncludePE = sec.note_include_pe as boolean
     if (sec.pe_depth != null) {
@@ -147,6 +164,17 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
   isPasswordRecovery: false,
 
   init: () => {
+    // Hydrate profile from encrypted storage (fast, runs before Supabase fetch)
+    loadProfileFromSecureStorage().then(cached => {
+      if (cached && Object.keys(cached).length > 0) {
+        const current = get().profile
+        // Only hydrate if the sync load returned empty
+        if (Object.keys(current).length === 0) {
+          set({ profile: cached })
+        }
+      }
+    }).catch(() => {})
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
@@ -155,11 +183,12 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         const signingOutUserId = get().user?.id
         stopHeartbeat()
 
-        // Unregister device before clearing keys (fire-and-forget)
+        // Unregister device + delete key bundle before clearing keys (fire-and-forget)
         if (signingOutUserId) {
           getLocalDeviceId().then(deviceId => {
             if (deviceId) {
               unregisterDevice(signingOutUserId, deviceId).catch(() => {})
+              deleteKeyBundle(signingOutUserId, deviceId).catch(() => {})
             }
           }).catch(() => {})
         }
@@ -182,6 +211,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         clearAllSessions().catch(() => {})
         clearMessageStore().catch(() => {})
         clearClinicUsersCache().catch(() => {})
+        useCallStore.getState().reset()
       } else if (session?.user) {
         set({ user: session.user, isGuest: false })
         // Detect password recovery flow (user clicked reset-password email link)

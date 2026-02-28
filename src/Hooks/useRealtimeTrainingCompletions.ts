@@ -20,46 +20,11 @@
 
 import { useEffect, useRef, useCallback, useMemo } from 'react'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
-import type { TrainingCompletionUI } from '../lib/trainingService'
-import type { CompletionType, CompletionResult } from '../Types/database.types'
-import type { StepResult } from '../Types/SupervisorTestTypes'
+import { mapRowToTrainingCompletionUI, type TrainingCompletionUI, type TrainingCompletionRow } from '../lib/trainingService'
 import { createLogger } from '../Utilities/Logger'
 import { useSupabaseSubscription } from './useSupabaseSubscription'
 
 const logger = createLogger('RealtimeTraining')
-
-interface RealtimeTrainingCompletionRow {
-  [key: string]: unknown
-  id: string
-  user_id: string
-  training_item_id: string
-  completed: boolean
-  completed_at: string | null
-  completion_type: string
-  result: string
-  supervisor_id: string | null
-  step_results: unknown
-  supervisor_notes: string | null
-  created_at: string
-  updated_at: string
-}
-
-function realtimeRowToTrainingCompletionUI(row: RealtimeTrainingCompletionRow): TrainingCompletionUI {
-  return {
-    id: row.id,
-    userId: row.user_id,
-    trainingItemId: row.training_item_id,
-    completionType: row.completion_type as CompletionType,
-    result: row.result as CompletionResult,
-    supervisorId: row.supervisor_id,
-    stepResults: (row.step_results as StepResult[] | null) ?? null,
-    supervisorNotes: row.supervisor_notes,
-    completedAt: row.completed_at,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    syncStatus: 'synced',
-  }
-}
 
 interface UseRealtimeTrainingCompletionsOptions {
   userId: string | null
@@ -84,18 +49,18 @@ export function useRealtimeTrainingCompletions({
   }, [onUpsert, onDelete])
 
   const handlePayload = useCallback(
-    (payload: RealtimePostgresChangesPayload<RealtimeTrainingCompletionRow>) => {
+    (payload: RealtimePostgresChangesPayload<TrainingCompletionRow>) => {
       const eventType = payload.eventType
 
       if (eventType === 'INSERT' || eventType === 'UPDATE') {
         const row = payload.new
         logger.debug(`${eventType}: ${row.id}`)
-        onUpsertRef.current(realtimeRowToTrainingCompletionUI(row))
+        onUpsertRef.current(mapRowToTrainingCompletionUI(row))
         return
       }
 
       if (eventType === 'DELETE') {
-        const oldRow = payload.old as Partial<RealtimeTrainingCompletionRow>
+        const oldRow = payload.old as Partial<TrainingCompletionRow>
         const completionId = oldRow.id
         if (!completionId) {
           logger.warn('DELETE event missing row id, ignoring')
@@ -116,7 +81,7 @@ export function useRealtimeTrainingCompletions({
     [userId],
   )
 
-  useSupabaseSubscription<RealtimeTrainingCompletionRow>({
+  useSupabaseSubscription<TrainingCompletionRow>({
     shouldSubscribe: isAuthenticated && !!userId && isPageVisible,
     channelName: `personal-training:${userId}`,
     postgresFilter,

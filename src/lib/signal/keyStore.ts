@@ -172,6 +172,51 @@ export async function getLatestSignedPreKeyId(): Promise<number> {
   }
 }
 
+/** Load the latest signed pre-key (by highest keyId), or null if none exist. */
+export async function loadLatestSignedPreKey(): Promise<StoredSignedPreKey | null> {
+  try {
+    const latestId = await getLatestSignedPreKeyId()
+    if (latestId === 0) return null
+    return await loadSignedPreKey(latestId)
+  } catch (err) {
+    logger.warn('Failed to load latest signed pre-key:', err)
+    return null
+  }
+}
+
+/**
+ * Delete signed pre-keys older than maxAgeDays, keeping the latest
+ * regardless of age so there's always at least one available.
+ * Returns the number of pruned keys.
+ */
+export async function pruneOldSignedPreKeys(maxAgeDays: number): Promise<number> {
+  try {
+    const db = await getDb()
+    const all = await db.getAll('signedPreKeys')
+    if (all.length <= 1) return 0
+
+    const latestId = Math.max(...all.map(s => s.keyId))
+    const cutoff = Date.now() - maxAgeDays * 24 * 60 * 60 * 1000
+    const toDelete = all.filter(
+      s => s.keyId !== latestId && new Date(s.createdAt).getTime() < cutoff
+    )
+
+    if (toDelete.length === 0) return 0
+
+    const tx = db.transaction('signedPreKeys', 'readwrite')
+    await Promise.all([
+      ...toDelete.map(s => tx.store.delete(s.keyId)),
+      tx.done,
+    ])
+
+    logger.info(`Pruned ${toDelete.length} old signed pre-key(s)`)
+    return toDelete.length
+  } catch (err) {
+    logger.warn('Failed to prune old signed pre-keys:', err)
+    return 0
+  }
+}
+
 // ---- Peer Identities ----
 
 export async function loadPeerIdentity(identityKey: string): Promise<StoredPeerIdentity | null> {

@@ -2,6 +2,9 @@
 import { useCallback, useState } from 'react';
 import type { DD689ExportParams } from '../Utilities/DD689Export';
 import { UI_TIMING } from '../Utilities/constants';
+import { createLogger } from '../Utilities/Logger';
+
+const logger = createLogger('DD689Export');
 
 type ExportStatus = 'idle' | 'generating' | 'done' | 'error';
 
@@ -23,7 +26,7 @@ export function useDD689Export() {
             setExportStatus('done');
             setTimeout(() => setExportStatus('idle'), UI_TIMING.FEEDBACK_DURATION);
         } catch (err) {
-            console.error('DD689 export failed:', err);
+            logger.error('DD689 export failed:', err);
             setExportStatus('error');
             setTimeout(() => setExportStatus('idle'), UI_TIMING.FEEDBACK_DURATION);
         }

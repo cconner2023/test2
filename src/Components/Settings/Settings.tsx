@@ -35,6 +35,7 @@ import { UI_TIMING } from '../../Utilities/constants';
 import { MainSettingsPanel } from './MainSettingsPanel';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
 import { ContentWrapper } from './ContentWrapper';
+import { useMessagesContext } from '../../Hooks/MessagesContext';
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -60,10 +61,16 @@ export const Settings = ({
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const [selectedTask, setSelectedTask] = useState<subjectAreaArrayOptions | null>(null);
     const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
+    const [selectedPeerName, setSelectedPeerName] = useState<string | null>(null);
     const prevVisibleRef = useRef(false);
     const supervisorBackRef = useRef<(() => void) | null>(null);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
-    const { signOut, isAuthenticated, isDevRole, isSupervisorRole } = useAuth();
+    const { user, signOut, isAuthenticated, isDevRole, isSupervisorRole } = useAuth();
+    const messagesCtx = useMessagesContext();
+    const totalUnread = useMemo(() => {
+        if (!messagesCtx) return 0;
+        return Object.values(messagesCtx.unreadCounts).reduce((sum, n) => sum + n, 0);
+    }, [messagesCtx?.unreadCounts]);
 
     // Supabase realtime WebSocket for device status — active only while settings is open
     useEffect(() => {
@@ -167,7 +174,7 @@ export const Settings = ({
         ];
 
         if (isAuthenticated) {
-            items.push(opt(PANEL.MESSAGES, <Mail size={20} />, 'Messages'));
+            items.push(opt(PANEL.MESSAGES, <Mail size={20} />, 'Messages', totalUnread > 0 ? { badge: totalUnread } : undefined));
         }
 
         // ROLES section - only if user has supervisor or admin roles
@@ -183,7 +190,7 @@ export const Settings = ({
             opt(PANEL.TOGGLE_THEME, isDarkMode ? <Sun size={20} /> : <Moon size={20} />, 'Toggle Theme', { action: onToggleTheme }),
             opt(PANEL.PIN_SETUP, <Lock size={20} />, 'Security'),
             opt(PANEL.NOTE_CONTENT, <Stethoscope size={20} />, 'Note Content'),
-            opt(PANEL.NOTIFICATION_SETTINGS, <Bell size={20} />, 'Notifications', { disabled: !isDevRole }),
+            opt(PANEL.NOTIFICATION_SETTINGS, <Bell size={20} />, 'Notifications'),
         );
 
         // ABOUT section
@@ -195,20 +202,27 @@ export const Settings = ({
         );
 
         return items;
-    }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isSupervisorRole, isAuthenticated]);
+    }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isSupervisorRole, isAuthenticated, totalUnread]);
 
     // Messages panel navigation helpers
     const handleMessagesSelectPeer = useCallback((medic: import('../../Types/SupervisorTestTypes').ClinicMedic) => {
         setSelectedPeerId(medic.id);
+        // Build header name — use own profile name when messaging self
+        const isSelf = medic.id === user?.id;
+        const name = isSelf
+            ? [profile.rank, profile.lastName].filter(Boolean).join(' ') || profile.firstName || 'Notes'
+            : [medic.rank, medic.lastName].filter(Boolean).join(' ') || medic.firstName || 'Chat';
+        setSelectedPeerName(name);
         handleSlideAnimation('left');
         setActivePanel('messages-chat');
-    }, [handleSlideAnimation]);
+    }, [handleSlideAnimation, user?.id, profile.rank, profile.lastName, profile.firstName]);
 
     const handleMessagesBack = useCallback(() => {
         if (activePanel === 'messages-chat') {
             handleSlideAnimation('right');
             setActivePanel('messages');
             setSelectedPeerId(null);
+            setSelectedPeerName(null);
         } else if (activePanel === 'messages') {
             handleSlideAnimation('right');
             setActivePanel('main');
@@ -282,7 +296,7 @@ export const Settings = ({
             case 'avatar-picker':       return { title: 'Choose Avatar', ...backTo() };
             case 'user-profile':        return { title: 'Profile', ...backTo() };
             case 'messages':            return { title: 'Messages', ...backTo() };
-            case 'messages-chat':       return { title: 'Chat', showBack: true, onBack: handleMessagesBack };
+            case 'messages-chat':       return { title: selectedPeerName ?? 'Chat', showBack: true, onBack: handleMessagesBack };
             case 'training':            return { title: 'My Training', ...backTo() };
             case 'admin':               return { title: 'Admin Panel', ...backTo() };
             case 'guest-options':       return { title: 'Sign In', ...backTo() };
@@ -292,12 +306,12 @@ export const Settings = ({
             case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
             case 'note-content':        return { title: 'Note Content', ...backTo() };
         }
-    }, [activePanel, backTo, selectedTask, handleTrainingBack, handleMessagesBack]);
+    }, [activePanel, backTo, selectedTask, selectedPeerName, handleTrainingBack, handleMessagesBack]);
 
     return (
         <BaseDrawer
             isVisible={isVisible}
-            onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedTask(null); setSelectedPeerId(null); onClose(); }}
+            onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedTask(null); setSelectedPeerId(null); setSelectedPeerName(null); onClose(); }}
             fullHeight="90dvh"
             disableDrag={false}
             header={headerConfig}
@@ -388,13 +402,6 @@ export const Settings = ({
                         />
                     ) : activePanel === 'release-notes' ? (
                         <ReleaseNotesPanel />
-                    ) : activePanel === 'admin' ? (
-                        <AdminPanel />
-                    ) : activePanel === 'supervisor' ? (
-                        <SupervisorPanel
-                            backRef={supervisorBackRef}
-                            onBackToMain={() => { handleSlideAnimation('right'); setActivePanel('main'); }}
-                        />
                     ) : activePanel === 'guest-options' ? (
                         <GuestOptionsPanel
                             onSignIn={() => handleItemClick(PANEL.LOGIN, handleClose)}
@@ -424,13 +431,6 @@ export const Settings = ({
                         <NotificationSettingsPanel />
                     ) : activePanel === 'pin-setup' ? (
                         <PinSetupPanel />
-                    ) : (activePanel === 'messages' || activePanel === 'messages-chat') ? (
-                        <MessagesPanel
-                            view={activePanel}
-                            selectedPeerId={selectedPeerId}
-                            onSelectPeer={handleMessagesSelectPeer}
-                            onBack={handleMessagesBack}
-                        />
                     ) : (activePanel === 'training' || activePanel === 'training-detail') ? (
                         <TrainingPanel
                             view={activePanel}
@@ -438,6 +438,31 @@ export const Settings = ({
                             onSelectTask={handleTrainingSelectTask}
                         />
                     ) : null}
+
+                    {/* Pre-mounted panels — data loads when Settings opens, hidden until active */}
+                    {isAuthenticated && (
+                        <div className="h-full" style={{ display: activePanel === 'messages' || activePanel === 'messages-chat' ? undefined : 'none' }}>
+                            <MessagesPanel
+                                view={(activePanel === 'messages' || activePanel === 'messages-chat') ? activePanel : 'messages'}
+                                selectedPeerId={selectedPeerId}
+                                onSelectPeer={handleMessagesSelectPeer}
+                                onBack={handleMessagesBack}
+                            />
+                        </div>
+                    )}
+                    {isSupervisorRole && (
+                        <div className="h-full" style={{ display: activePanel === 'supervisor' ? undefined : 'none' }}>
+                            <SupervisorPanel
+                                backRef={supervisorBackRef}
+                                onBackToMain={() => { handleSlideAnimation('right'); setActivePanel('main'); }}
+                            />
+                        </div>
+                    )}
+                    {isDevRole && (
+                        <div className="h-full" style={{ display: activePanel === 'admin' ? undefined : 'none' }}>
+                            <AdminPanel />
+                        </div>
+                    )}
                 </ContentWrapper>
             )}
         </BaseDrawer>

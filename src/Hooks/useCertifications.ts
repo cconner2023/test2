@@ -6,6 +6,7 @@ import {
   removeCertification,
   togglePrimary,
 } from '../lib/certificationService'
+import { fail } from '../lib/result'
 import { useAuth } from './useAuth'
 
 export function useCertifications() {
@@ -30,7 +31,7 @@ export function useCertifications() {
     exp_date?: string | null
     is_primary?: boolean
   }) => {
-    if (!user) return { success: false, error: 'Not authenticated' }
+    if (!user) return fail('Not authenticated')
     const result = await addCertification(user.id, input)
     if (result.success) {
       await load()
@@ -40,7 +41,7 @@ export function useCertifications() {
   }, [user, load, refreshProfile])
 
   const removeCert = useCallback(async (certId: string, wasPrimary: boolean) => {
-    if (!user) return { success: false, error: 'Not authenticated' }
+    if (!user) return fail('Not authenticated')
     const result = await removeCertification(user.id, certId, wasPrimary)
     if (result.success) {
       await load()
@@ -50,7 +51,7 @@ export function useCertifications() {
   }, [user, load, refreshProfile])
 
   const togglePrimaryCert = useCallback(async (certId: string, currentlyPrimary: boolean) => {
-    if (!user) return { success: false, error: 'Not authenticated' }
+    if (!user) return fail('Not authenticated')
     const result = await togglePrimary(user.id, certId, currentlyPrimary)
     if (result.success) {
       await load()

@@ -17,7 +17,9 @@ import {
   decryptWithRawKey,
   encryptClinicField,
 } from './cryptoService'
-import { SECURITY } from './constants'
+import { validatePasswordComplexity } from './constants'
+import { getErrorMessage } from '../Utilities/errorUtils'
+import { succeed, fail, type ServiceResult } from './result'
 import { classifySupabaseError, ErrorCode } from './errorCodes'
 import { validateRpcResult } from './validators'
 
@@ -117,16 +119,13 @@ export async function getAllAccountRequests(
 export async function approveAccountRequest(
   requestId: string,
   tempPassword: string
-): Promise<{ success: boolean; error?: string; userId?: string }> {
+): Promise<ServiceResult<{ userId?: string }>> {
   try {
     const { data: { user: currentUser } } = await supabase.auth.getUser()
-    if (!currentUser) {
-      return { success: false, error: 'Not authenticated' }
-    }
+    if (!currentUser) return fail('Not authenticated')
 
-    if (tempPassword.length < SECURITY.MIN_PASSWORD_LENGTH) {
-      return { success: false, error: `Temporary password must be at least ${SECURITY.MIN_PASSWORD_LENGTH} characters` }
-    }
+    const pwError = validatePasswordComplexity(tempPassword)
+    if (pwError) return fail(pwError)
 
     const { data, error: approveError } = await supabase.rpc('approve_account_request', {
       request_id: requestId,
@@ -137,24 +136,20 @@ export async function approveAccountRequest(
     if (approveError) {
       const code = classifySupabaseError(approveError)
       if (code === ErrorCode.RATE_LIMITED) {
-        return { success: false, error: 'Rate limited. Please try again later.' }
+        return fail('Rate limited. Please try again later.')
       }
-      return { success: false, error: approveError.message }
+      return fail(approveError.message)
     }
 
     const validated = validateRpcResult<{ user_id: string; email: string; message: string }>(
       data, ['user_id'], 'approveAccountRequest'
     )
-    return {
-      success: true,
+    return succeed({
       userId: validated.ok ? validated.data.user_id : undefined,
-    }
+    })
   } catch (error) {
     logger.error('Failed to approve request:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
+    return fail(getErrorMessage(error))
   }
 }
 
@@ -165,12 +160,10 @@ export async function approveAccountRequest(
 export async function rejectAccountRequest(
   requestId: string,
   reason: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const { data: { user: currentUser } } = await supabase.auth.getUser()
-    if (!currentUser) {
-      return { success: false, error: 'Not authenticated' }
-    }
+    if (!currentUser) return fail('Not authenticated')
 
     const { error } = await supabase.rpc('reject_account_request', {
       request_id: requestId,
@@ -178,17 +171,11 @@ export async function rejectAccountRequest(
       reason,
     })
 
-    if (error) {
-      return { success: false, error: error.message }
-    }
-
-    return { success: true }
+    if (error) return fail(error.message)
+    return succeed()
   } catch (error) {
     logger.error('Failed to reject request:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
+    return fail(getErrorMessage(error))
   }
 }
 
@@ -216,13 +203,11 @@ export async function getUserRoles(userId: string): Promise<string[]> {
 export async function addUserRole(
   userId: string,
   role: 'medic' | 'supervisor' | 'dev'
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const currentRoles = await getUserRoles(userId)
 
-    if (currentRoles.includes(role)) {
-      return { success: true }
-    }
+    if (currentRoles.includes(role)) return succeed()
 
     const newRoles = [...currentRoles, role] as ('medic' | 'supervisor' | 'dev')[]
 
@@ -231,16 +216,10 @@ export async function addUserRole(
       new_roles: newRoles,
     })
 
-    if (error) {
-      return { success: false, error: error.message }
-    }
-
-    return { success: true }
+    if (error) return fail(error.message)
+    return succeed()
   } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
+    return fail(getErrorMessage(error))
   }
 }
 
@@ -250,30 +229,22 @@ export async function addUserRole(
 export async function removeUserRole(
   userId: string,
   role: 'medic' | 'supervisor' | 'dev'
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const currentRoles = await getUserRoles(userId)
     const newRoles = currentRoles.filter(r => r !== role) as ('medic' | 'supervisor' | 'dev')[]
 
-    if (newRoles.length === currentRoles.length) {
-      return { success: true } // Role wasn't present
-    }
+    if (newRoles.length === currentRoles.length) return succeed() // Role wasn't present
 
     const { error } = await supabase.rpc('set_user_roles', {
       target_user_id: userId,
       new_roles: newRoles,
     })
 
-    if (error) {
-      return { success: false, error: error.message }
-    }
-
-    return { success: true }
+    if (error) return fail(error.message)
+    return succeed()
   } catch (error) {
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-    }
+    return fail(getErrorMessage(error))
   }
 }
 
@@ -306,14 +277,13 @@ export async function createUser(userData: {
   rank?: string
   uic?: string
   roles?: ('medic' | 'supervisor' | 'dev')[]
-}): Promise<{ success: boolean; error?: string; userId?: string }> {
+}): Promise<ServiceResult<{ userId?: string }>> {
   try {
     const { data: { user: currentUser } } = await supabase.auth.getUser()
-    if (!currentUser) return { success: false, error: 'Not authenticated' }
+    if (!currentUser) return fail('Not authenticated')
 
-    if (userData.tempPassword.length < SECURITY.MIN_PASSWORD_LENGTH) {
-      return { success: false, error: `Password must be at least ${SECURITY.MIN_PASSWORD_LENGTH} characters` }
-    }
+    const createPwError = validatePasswordComplexity(userData.tempPassword)
+    if (createPwError) return fail(createPwError)
 
     const { data, error } = await supabase.rpc('admin_create_user', {
       p_email: userData.email,
@@ -328,15 +298,15 @@ export async function createUser(userData: {
       p_roles: userData.roles as ('medic' | 'supervisor' | 'dev')[] | undefined,
     })
 
-    if (error) return { success: false, error: error.message }
+    if (error) return fail(error.message)
 
     const validated = validateRpcResult<{ user_id: string; email: string; message: string }>(
       data, ['user_id'], 'createUser'
     )
-    return { success: true, userId: validated.ok ? validated.data.user_id : undefined }
+    return succeed({ userId: validated.ok ? validated.data.user_id : undefined })
   } catch (error) {
     logger.error('Failed to create user:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    return fail(getErrorMessage(error))
   }
 }
 
@@ -346,25 +316,24 @@ export async function createUser(userData: {
 export async function resetUserPassword(
   userId: string,
   newPassword: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const { data: { user: currentUser } } = await supabase.auth.getUser()
-    if (!currentUser) return { success: false, error: 'Not authenticated' }
+    if (!currentUser) return fail('Not authenticated')
 
-    if (newPassword.length < SECURITY.MIN_PASSWORD_LENGTH) {
-      return { success: false, error: `Password must be at least ${SECURITY.MIN_PASSWORD_LENGTH} characters` }
-    }
+    const resetPwError = validatePasswordComplexity(newPassword)
+    if (resetPwError) return fail(resetPwError)
 
     const { error } = await supabase.rpc('admin_reset_password', {
       p_target_user_id: userId,
       p_new_password: newPassword,
     })
 
-    if (error) return { success: false, error: error.message }
-    return { success: true }
+    if (error) return fail(error.message)
+    return succeed()
   } catch (error) {
     logger.error('Failed to reset password:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    return fail(getErrorMessage(error))
   }
 }
 
@@ -376,24 +345,22 @@ export async function resetUserPassword(
  */
 export async function deleteUser(
   userId: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const { data: { user: currentUser } } = await supabase.auth.getUser()
-    if (!currentUser) return { success: false, error: 'Not authenticated' }
+    if (!currentUser) return fail('Not authenticated')
 
-    if (currentUser.id === userId) {
-      return { success: false, error: 'Cannot delete your own account' }
-    }
+    if (currentUser.id === userId) return fail('Cannot delete your own account')
 
     const { error } = await supabase.rpc('admin_delete_user', {
       p_target_user_id: userId,
     })
 
-    if (error) return { success: false, error: error.message }
-    return { success: true }
+    if (error) return fail(error.message)
+    return succeed()
   } catch (error) {
     logger.error('Failed to delete user:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    return fail(getErrorMessage(error))
   }
 }
 
@@ -451,7 +418,7 @@ export async function createClinic(data: {
   uics?: string[]
   child_clinic_ids?: string[]
   additional_user_ids?: string[]
-}): Promise<{ success: boolean; error?: string; id?: string }> {
+}): Promise<ServiceResult<{ id?: string }>> {
   try {
     const rawKey = generateClinicKeyBase64()
     const encryptedLocation = data.location
@@ -471,11 +438,11 @@ export async function createClinic(data: {
       .select('id')
       .single()
 
-    if (error) return { success: false, error: error.message }
-    return { success: true, id: result.id }
+    if (error) return fail(error.message)
+    return succeed({ id: result.id })
   } catch (error) {
     logger.error('Failed to create clinic:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    return fail(getErrorMessage(error))
   }
 }
 
@@ -490,7 +457,7 @@ export async function updateClinic(
     uics?: string[]
     additional_user_ids?: string[]
   }
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     // Encrypt location if it's being updated
     const payload: Record<string, unknown> = { ...updates }
@@ -503,11 +470,11 @@ export async function updateClinic(
       .update(payload)
       .eq('id', id)
 
-    if (error) return { success: false, error: error.message }
-    return { success: true }
+    if (error) return fail(error.message)
+    return succeed()
   } catch (error) {
     logger.error('Failed to update clinic:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    return fail(getErrorMessage(error))
   }
 }
 
@@ -516,18 +483,18 @@ export async function updateClinic(
  */
 export async function deleteClinic(
   id: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const { error } = await supabase
       .from('clinics')
       .delete()
       .eq('id', id)
 
-    if (error) return { success: false, error: error.message }
-    return { success: true }
+    if (error) return fail(error.message)
+    return succeed()
   } catch (error) {
     logger.error('Failed to delete clinic:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    return fail(getErrorMessage(error))
   }
 }
 
@@ -541,21 +508,21 @@ export async function deleteClinic(
 export async function setUserClinic(
   userId: string,
   clinicId: string | null
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const { data: { user: currentUser } } = await supabase.auth.getUser()
-    if (!currentUser) return { success: false, error: 'Not authenticated' }
+    if (!currentUser) return fail('Not authenticated')
 
     const { error } = await supabase.rpc('admin_set_clinic', {
       p_target_user_id: userId,
       p_clinic_id: clinicId,
     })
 
-    if (error) return { success: false, error: error.message }
-    return { success: true }
+    if (error) return fail(error.message)
+    return succeed()
   } catch (error) {
     logger.error('Failed to set user clinic:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    return fail(getErrorMessage(error))
   }
 }
 
@@ -576,10 +543,10 @@ export async function updateUserProfile(
     noteIncludePE?: boolean
     peDepth?: string
   }
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const { data: { user: currentUser } } = await supabase.auth.getUser()
-    if (!currentUser) return { success: false, error: 'Not authenticated' }
+    if (!currentUser) return fail('Not authenticated')
 
     const { error } = await supabase.rpc('admin_update_profile', {
       p_target_user_id: userId,
@@ -595,10 +562,10 @@ export async function updateUserProfile(
       p_pe_depth: profileData.peDepth ?? undefined,
     })
 
-    if (error) return { success: false, error: error.message }
-    return { success: true }
+    if (error) return fail(error.message)
+    return succeed()
   } catch (error) {
     logger.error('Failed to update profile:', error)
-    return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    return fail(getErrorMessage(error))
   }
 }

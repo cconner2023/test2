@@ -2,6 +2,7 @@
 
 import { renderBarcodeToCanvas } from './NoteCodec';
 import { logError } from './ErrorHandler';
+import { base64ToBytes } from '../lib/base64Utils';
 
 // ── Layout constants (PDF points, origin = bottom-left) ──
 // Adjust these to calibrate placement on the DD689 template.
@@ -38,10 +39,7 @@ function generateBarcodePng(text: string): Uint8Array {
 
     const dataUrl = canvas.toDataURL('image/png');
     const base64 = dataUrl.split(',')[1];
-    const binary = atob(base64);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    return bytes;
+    return base64ToBytes(base64);
 }
 
 /**

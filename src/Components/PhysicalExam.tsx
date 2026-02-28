@@ -446,16 +446,15 @@ function ExamItemRow({ label, normalText, abnormalOptions, state, onCycleStatus,
                 onClick={onCycleStatus}
             >
                 <span className="font-medium">{label.toUpperCase()}</span>
-                <span className={`text-[10px] uppercase tracking-wide font-semibold ${
-                    state.status === 'normal'
+                <span className={`text-[10px] uppercase tracking-wide font-semibold ${state.status === 'normal'
                         ? 'text-emerald-600'
                         : state.status === 'abnormal'
                             ? 'text-themeredred'
                             : 'text-secondary/40'
-                }`}>
+                    }`}>
                     {state.status === 'not-examined' ? 'Not Examined'
                         : state.status === 'normal' ? 'Normal'
-                        : 'Abnormal'}
+                            : 'Abnormal'}
                 </span>
             </button>
             {state.status === 'normal' && normalText && (
@@ -471,11 +470,10 @@ function ExamItemRow({ label, normalText, abnormalOptions, state, onCycleStatus,
                                 <button
                                     key={opt.key}
                                     onClick={(e) => { e.stopPropagation(); onToggleAbnormal(opt.key); }}
-                                    className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
-                                        state.selectedAbnormals.includes(opt.key)
+                                    className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${state.selectedAbnormals.includes(opt.key)
                                             ? 'bg-themeredred/20 border-themeredred/40 text-primary'
                                             : 'border-themegray1/20 bg-themewhite text-secondary hover:bg-themewhite3'
-                                    }`}
+                                        }`}
                                 >
                                     {opt.label}
                                 </button>
@@ -696,140 +694,138 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
                         value={additional}
                         onChange={(e) => setAdditional(e.target.value)}
                         placeholder="Enter additional findings..."
-                        className="w-full text-xs px-3 py-2 rounded border border-themegray1/20 bg-themewhite text-tertiary outline-none focus:border-themeblue1/30 resize-none min-h-[3rem]"
+                        className="w-full text-xs px-3 py-2 rounded border border-themegray1/20 bg-themewhite text-tertiary outline-none focus:border-themeblue1/30 resize-none min-h-3rem"
                     />
                     <PIIWarningBanner warnings={additionalPiiWarnings} />
                 </div>
             ) : (
-            <>
+                <>
 
-            {/* All Normal button */}
-            <button
-                onClick={markAllNormal}
-                className="w-full py-2 text-xs font-medium rounded-md border border-themeblue1/30 text-themeblue1 bg-themeblue1/5 hover:bg-themeblue1/10 transition-colors"
-            >
-                All Normal
-            </button>
+                    {/* All Normal button */}
+                    <button
+                        onClick={markAllNormal}
+                        className="w-full py-2 text-xs font-medium rounded-md border border-themeblue1/30 text-themeblue1 bg-themeblue1/5 hover:bg-themeblue1/10 transition-colors"
+                    >
+                        All Normal
+                    </button>
 
-            {/* MSK laterality / spine region selector */}
-            {!isCustom && categoryLetter === 'B' && bodyPart && (
-                <div className="flex items-center gap-2">
-                    <span className="text-xs text-secondary font-medium">{bodyPart.label}</span>
-                    <div className="flex gap-1 ml-auto">
-                        {isBack ? (
-                            (['cervical', 'thoracic', 'lumbar', 'sacral'] as SpineRegion[]).map(region => (
-                                <button
-                                    key={region}
-                                    onClick={() => setSpineRegion(region)}
-                                    className={`px-2.5 py-1 text-[10px] rounded-full transition-colors ${
-                                        spineRegion === region
-                                            ? colors.symptomClass
-                                            : 'bg-themewhite3 text-secondary hover:bg-themewhite'
-                                    }`}
-                                >
-                                    {region.charAt(0).toUpperCase() + region.slice(1)}
-                                </button>
-                            ))
+                    {/* MSK laterality / spine region selector */}
+                    {!isCustom && categoryLetter === 'B' && bodyPart && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs text-secondary font-medium">{bodyPart.label}</span>
+                            <div className="flex gap-1 ml-auto">
+                                {isBack ? (
+                                    (['cervical', 'thoracic', 'lumbar', 'sacral'] as SpineRegion[]).map(region => (
+                                        <button
+                                            key={region}
+                                            onClick={() => setSpineRegion(region)}
+                                            className={`px-2.5 py-1 text-[10px] rounded-full transition-colors ${spineRegion === region
+                                                    ? colors.symptomClass
+                                                    : 'bg-themewhite3 text-secondary hover:bg-themewhite'
+                                                }`}
+                                        >
+                                            {region.charAt(0).toUpperCase() + region.slice(1)}
+                                        </button>
+                                    ))
+                                ) : (
+                                    (['left', 'right', 'bilateral'] as Laterality[]).map(lat => (
+                                        <button
+                                            key={lat}
+                                            onClick={() => setLaterality(lat)}
+                                            className={`px-2.5 py-1 text-[10px] rounded-full transition-colors ${laterality === lat
+                                                    ? colors.symptomClass
+                                                    : 'bg-themewhite3 text-secondary hover:bg-themewhite'
+                                                }`}
+                                        >
+                                            {lat === 'bilateral' ? 'BL' : lat === 'left' ? 'L' : 'R'}
+                                        </button>
+                                    ))
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* All exam items: GEN, HEAD, [category or custom blocks], DERM, NEURO, PSYCH */}
+                    <div className="space-y-2">
+                        {generalDefs.slice(0, WRAPPER_BEFORE_COUNT).map(g => {
+                            const state = generalStates[g.key] || defaultItemState();
+                            return (
+                                <ExamItemRow
+                                    key={g.key}
+                                    label={g.label}
+                                    normalText={g.normalText}
+                                    abnormalOptions={g.abnormalOptions}
+                                    state={state}
+                                    onCycleStatus={() => cycleStatus(g.key, setGeneralStates)}
+                                    onToggleAbnormal={(optKey) => toggleAbnormal(g.key, optKey, setGeneralStates)}
+                                    onSetFindings={(findings) => setFindings(g.key, findings, setGeneralStates)}
+                                />
+                            );
+                        })}
+                        {isCustom ? (
+                            customBlocks.map(block => {
+                                const state = customStates[block.id] || defaultItemState();
+                                const abnormalOptions: AbnormalOption[] = block.abnormalTags.map(tag => ({ key: tag, label: tag }));
+                                return (
+                                    <ExamItemRow
+                                        key={block.id}
+                                        label={block.name}
+                                        normalText={block.normalText}
+                                        abnormalOptions={abnormalOptions}
+                                        state={state}
+                                        onCycleStatus={() => cycleStatus(block.id, setCustomStates)}
+                                        onToggleAbnormal={(optKey) => toggleAbnormal(block.id, optKey, setCustomStates)}
+                                        onSetFindings={(findings) => setFindings(block.id, findings, setCustomStates)}
+                                    />
+                                );
+                            })
                         ) : (
-                            (['left', 'right', 'bilateral'] as Laterality[]).map(lat => (
-                                <button
-                                    key={lat}
-                                    onClick={() => setLaterality(lat)}
-                                    className={`px-2.5 py-1 text-[10px] rounded-full transition-colors ${
-                                        laterality === lat
-                                            ? colors.symptomClass
-                                            : 'bg-themewhite3 text-secondary hover:bg-themewhite'
-                                    }`}
-                                >
-                                    {lat === 'bilateral' ? 'BL' : lat === 'left' ? 'L' : 'R'}
-                                </button>
-                            ))
+                            categoryDef.items.map(item => {
+                                const state = itemStates[item.key] || defaultItemState();
+                                return (
+                                    <ExamItemRow
+                                        key={item.key}
+                                        label={item.label}
+                                        normalText={item.normalText}
+                                        abnormalOptions={item.abnormalOptions}
+                                        state={state}
+                                        onCycleStatus={() => cycleStatus(item.key, setItemStates)}
+                                        onToggleAbnormal={(optKey) => toggleAbnormal(item.key, optKey, setItemStates)}
+                                        onSetFindings={(findings) => setFindings(item.key, findings, setItemStates)}
+                                    />
+                                );
+                            })
                         )}
+                        {generalDefs.slice(WRAPPER_BEFORE_COUNT).map(g => {
+                            const state = generalStates[g.key] || defaultItemState();
+                            return (
+                                <ExamItemRow
+                                    key={g.key}
+                                    label={g.label}
+                                    normalText={g.normalText}
+                                    abnormalOptions={g.abnormalOptions}
+                                    state={state}
+                                    onCycleStatus={() => cycleStatus(g.key, setGeneralStates)}
+                                    onToggleAbnormal={(optKey) => toggleAbnormal(g.key, optKey, setGeneralStates)}
+                                    onSetFindings={(findings) => setFindings(g.key, findings, setGeneralStates)}
+                                />
+                            );
+                        })}
                     </div>
-                </div>
-            )}
 
-            {/* All exam items: GEN, HEAD, [category or custom blocks], DERM, NEURO, PSYCH */}
-            <div className="space-y-2">
-                {generalDefs.slice(0, WRAPPER_BEFORE_COUNT).map(g => {
-                    const state = generalStates[g.key] || defaultItemState();
-                    return (
-                        <ExamItemRow
-                            key={g.key}
-                            label={g.label}
-                            normalText={g.normalText}
-                            abnormalOptions={g.abnormalOptions}
-                            state={state}
-                            onCycleStatus={() => cycleStatus(g.key, setGeneralStates)}
-                            onToggleAbnormal={(optKey) => toggleAbnormal(g.key, optKey, setGeneralStates)}
-                            onSetFindings={(findings) => setFindings(g.key, findings, setGeneralStates)}
+                    {/* Additional Findings */}
+                    <div>
+                        <label className="text-xs text-secondary font-medium block mb-1">Additional Findings</label>
+                        <textarea
+                            value={additional}
+                            onChange={(e) => setAdditional(e.target.value)}
+                            placeholder="Enter additional findings..."
+                            className="w-full text-xs px-3 py-2 rounded border border-themegray1/20 bg-themewhite text-tertiary outline-none focus:border-themeblue1/30 resize-none min-h-[3rem]"
                         />
-                    );
-                })}
-                {isCustom ? (
-                    customBlocks.map(block => {
-                        const state = customStates[block.id] || defaultItemState();
-                        const abnormalOptions: AbnormalOption[] = block.abnormalTags.map(tag => ({ key: tag, label: tag }));
-                        return (
-                            <ExamItemRow
-                                key={block.id}
-                                label={block.name}
-                                normalText={block.normalText}
-                                abnormalOptions={abnormalOptions}
-                                state={state}
-                                onCycleStatus={() => cycleStatus(block.id, setCustomStates)}
-                                onToggleAbnormal={(optKey) => toggleAbnormal(block.id, optKey, setCustomStates)}
-                                onSetFindings={(findings) => setFindings(block.id, findings, setCustomStates)}
-                            />
-                        );
-                    })
-                ) : (
-                    categoryDef.items.map(item => {
-                        const state = itemStates[item.key] || defaultItemState();
-                        return (
-                            <ExamItemRow
-                                key={item.key}
-                                label={item.label}
-                                normalText={item.normalText}
-                                abnormalOptions={item.abnormalOptions}
-                                state={state}
-                                onCycleStatus={() => cycleStatus(item.key, setItemStates)}
-                                onToggleAbnormal={(optKey) => toggleAbnormal(item.key, optKey, setItemStates)}
-                                onSetFindings={(findings) => setFindings(item.key, findings, setItemStates)}
-                            />
-                        );
-                    })
-                )}
-                {generalDefs.slice(WRAPPER_BEFORE_COUNT).map(g => {
-                    const state = generalStates[g.key] || defaultItemState();
-                    return (
-                        <ExamItemRow
-                            key={g.key}
-                            label={g.label}
-                            normalText={g.normalText}
-                            abnormalOptions={g.abnormalOptions}
-                            state={state}
-                            onCycleStatus={() => cycleStatus(g.key, setGeneralStates)}
-                            onToggleAbnormal={(optKey) => toggleAbnormal(g.key, optKey, setGeneralStates)}
-                            onSetFindings={(findings) => setFindings(g.key, findings, setGeneralStates)}
-                        />
-                    );
-                })}
-            </div>
+                        <PIIWarningBanner warnings={additionalPiiWarnings} />
+                    </div>
 
-            {/* Additional Findings */}
-            <div>
-                <label className="text-xs text-secondary font-medium block mb-1">Additional Findings</label>
-                <textarea
-                    value={additional}
-                    onChange={(e) => setAdditional(e.target.value)}
-                    placeholder="Enter additional findings..."
-                    className="w-full text-xs px-3 py-2 rounded border border-themegray1/20 bg-themewhite text-tertiary outline-none focus:border-themeblue1/30 resize-none min-h-[3rem]"
-                />
-                <PIIWarningBanner warnings={additionalPiiWarnings} />
-            </div>
-
-            </>
+                </>
             )}
         </div>
     );

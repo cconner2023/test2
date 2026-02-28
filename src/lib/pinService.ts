@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { hashWithSalt, verifyHash } from './cryptoUtils'
+import { hashWithSalt, verifyHash, isLegacyHash } from './cryptoUtils'
 import { secureSet, secureGet, secureRemove } from './secureStorage'
 
 const STORAGE_KEYS = {
@@ -16,11 +16,44 @@ let _pinHash: string | null = null
 let _pinSalt: string | null = null
 let _pinHydrated = false
 
+// In-memory lockout state backed by secureStorage (tamper-resistant)
+let _permanentLock = false
+let _failures = 0
+let _lockoutHydrated = false
+
 async function hydratePinCache(): Promise<void> {
   if (_pinHydrated) return
   _pinHash = await secureGet(STORAGE_KEYS.hash)
   _pinSalt = await secureGet(STORAGE_KEYS.salt)
   _pinHydrated = true
+}
+
+/** Hydrate lockout state from secureStorage + localStorage into memory. */
+async function hydrateLockoutCache(): Promise<void> {
+  if (_lockoutHydrated) return
+  try {
+    const lockVal = await secureGet(STORAGE_KEYS.permanentLock)
+    _permanentLock = lockVal === 'true'
+    const failVal = await secureGet(STORAGE_KEYS.failures)
+    _failures = failVal ? parseInt(failVal, 10) || 0 : 0
+  } catch { /* secure storage unavailable, assume clean state */ }
+  // Migrate legacy localStorage values to secureStorage (one-time)
+  try {
+    const legacyLock = localStorage.getItem(STORAGE_KEYS.permanentLock)
+    if (legacyLock === 'true' && !_permanentLock) {
+      _permanentLock = true
+      secureSet(STORAGE_KEYS.permanentLock, 'true').catch(() => {})
+    }
+    const legacyFail = localStorage.getItem(STORAGE_KEYS.failures)
+    if (legacyFail && _failures === 0) {
+      _failures = parseInt(legacyFail, 10) || 0
+      if (_failures > 0) secureSet(STORAGE_KEYS.failures, String(_failures)).catch(() => {})
+    }
+    // Clean up legacy entries
+    localStorage.removeItem(STORAGE_KEYS.permanentLock)
+    localStorage.removeItem(STORAGE_KEYS.failures)
+  } catch { /* ignore */ }
+  _lockoutHydrated = true
 }
 
 // --- Inactivity timeout config ---
@@ -55,7 +88,12 @@ export async function hashPin(pin: string): Promise<{ hash: string; salt: string
 export async function verifyPin(pin: string): Promise<boolean> {
   await hydratePinCache()
   if (!_pinHash || !_pinSalt) return false
-  return verifyHash(pin, _pinHash, _pinSalt)
+  const match = await verifyHash(pin, _pinHash, _pinSalt)
+  // Transparently upgrade legacy SHA-256 hashes to PBKDF2 on successful verify
+  if (match && isLegacyHash(_pinHash)) {
+    savePin(pin).catch(() => {})
+  }
+  return match
 }
 
 // --- Storage ---
@@ -124,20 +162,22 @@ export function clearSessionUnlocked(): void {
 }
 
 // --- Permanent lock (3 failed attempts across reloads) ---
+// In-memory flag backed by secureStorage — cannot be cleared via DevTools.
 
 export function isPinPermanentlyLocked(): boolean {
-  try {
-    return localStorage.getItem(STORAGE_KEYS.permanentLock) === 'true'
-  } catch {
-    return false
-  }
+  return _permanentLock
 }
 
 export function clearPinPermanentLock(): void {
+  _permanentLock = false
+  _failures = 0
+  secureRemove(STORAGE_KEYS.permanentLock).catch(() => {})
+  secureRemove(STORAGE_KEYS.failures).catch(() => {})
   try {
+    localStorage.removeItem(STORAGE_KEYS.lockoutUntil)
+    // Clean up any legacy entries
     localStorage.removeItem(STORAGE_KEYS.permanentLock)
     localStorage.removeItem(STORAGE_KEYS.failures)
-    sessionStorage.removeItem(STORAGE_KEYS.lockoutUntil)
   } catch {
     // fail silently
   }
@@ -153,14 +193,15 @@ interface LockoutState {
 
 export function checkLockout(): LockoutState {
   try {
-    if (isPinPermanentlyLocked()) {
+    if (_permanentLock) {
       return { isLockedOut: true, remainingSeconds: 0, isPermanentlyLocked: true }
     }
-    const until = sessionStorage.getItem(STORAGE_KEYS.lockoutUntil)
+    // Cooldown stored in localStorage for cross-tab visibility
+    const until = localStorage.getItem(STORAGE_KEYS.lockoutUntil)
     if (!until) return { isLockedOut: false, remainingSeconds: 0 }
     const remaining = Math.ceil((parseInt(until, 10) - Date.now()) / 1000)
     if (remaining <= 0) {
-      sessionStorage.removeItem(STORAGE_KEYS.lockoutUntil)
+      localStorage.removeItem(STORAGE_KEYS.lockoutUntil)
       return { isLockedOut: false, remainingSeconds: 0 }
     }
     return { isLockedOut: true, remainingSeconds: remaining }
@@ -173,18 +214,21 @@ const LOCKOUT_TIERS = [30, 60, 120, 240, 300]
 
 export function recordFailedAttempt(): LockoutState {
   try {
-    const failures = parseInt(localStorage.getItem(STORAGE_KEYS.failures) || '0', 10) + 1
-    localStorage.setItem(STORAGE_KEYS.failures, String(failures))
+    _failures++
+    // Persist to secureStorage (fire-and-forget, tamper-resistant)
+    secureSet(STORAGE_KEYS.failures, String(_failures)).catch(() => {})
 
-    if (failures >= 3) {
-      localStorage.setItem(STORAGE_KEYS.permanentLock, 'true')
+    if (_failures >= 3) {
+      _permanentLock = true
+      secureSet(STORAGE_KEYS.permanentLock, 'true').catch(() => {})
       return { isLockedOut: true, remainingSeconds: 0, isPermanentlyLocked: true }
     }
 
-    const tierIndex = Math.min(failures - 1, LOCKOUT_TIERS.length - 1)
+    const tierIndex = Math.min(_failures - 1, LOCKOUT_TIERS.length - 1)
     const cooldown = LOCKOUT_TIERS[tierIndex]
     const until = Date.now() + cooldown * 1000
-    sessionStorage.setItem(STORAGE_KEYS.lockoutUntil, String(until))
+    // Cooldown in localStorage for cross-tab enforcement
+    localStorage.setItem(STORAGE_KEYS.lockoutUntil, String(until))
     return { isLockedOut: true, remainingSeconds: cooldown }
   } catch {
     return { isLockedOut: false, remainingSeconds: 0 }
@@ -192,9 +236,12 @@ export function recordFailedAttempt(): LockoutState {
 }
 
 export function resetLockout(): void {
+  _failures = 0
+  secureRemove(STORAGE_KEYS.failures).catch(() => {})
   try {
+    localStorage.removeItem(STORAGE_KEYS.lockoutUntil)
+    // Clean up legacy entries
     localStorage.removeItem(STORAGE_KEYS.failures)
-    sessionStorage.removeItem(STORAGE_KEYS.lockoutUntil)
   } catch {
     // fail silently
   }
@@ -235,4 +282,5 @@ export async function hydrateFromCloud(hash: string, salt: string): Promise<void
 
 export async function initPinService(): Promise<void> {
   await hydratePinCache()
+  await hydrateLockoutCache()
 }

@@ -1,4 +1,5 @@
 import { profileAvatars } from '../../Data/ProfileAvatars'
+import { getInitials } from '../../Utilities/nameUtils'
 
 interface UserAvatarProps {
   avatarId: string | null | undefined
@@ -20,9 +21,7 @@ export function UserAvatar({ avatarId, firstName, lastName, className = 'w-10 h-
   }
 
   // Initials fallback
-  const first = firstName?.charAt(0) ?? ''
-  const last = lastName?.charAt(0) ?? ''
-  const initials = (first + last).toUpperCase() || '?'
+  const initials = getInitials(firstName, lastName)
 
   return (
     <div className={`${className} rounded-full bg-themeblue2/15 flex items-center justify-center shrink-0`}>

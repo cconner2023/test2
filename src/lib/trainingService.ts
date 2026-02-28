@@ -54,6 +54,40 @@ export interface TrainingCompletionUI {
 // Conversion Functions
 // ============================================================
 
+/** Row shape shared by Supabase query results and Realtime payloads. */
+export interface TrainingCompletionRow {
+  [key: string]: unknown
+  id: string
+  user_id: string
+  training_item_id: string
+  completion_type: string
+  result: string
+  supervisor_id: string | null
+  step_results: unknown
+  supervisor_notes: string | null
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+/** Map a snake_case Supabase/Realtime row to the camelCase UI type. */
+export function mapRowToTrainingCompletionUI(row: TrainingCompletionRow): TrainingCompletionUI {
+  return {
+    id: row.id,
+    userId: row.user_id,
+    trainingItemId: row.training_item_id,
+    completionType: row.completion_type as CompletionType,
+    result: row.result as CompletionResult,
+    supervisorId: row.supervisor_id,
+    stepResults: row.step_results as StepResult[] | null,
+    supervisorNotes: row.supervisor_notes,
+    completedAt: row.completed_at,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    syncStatus: 'synced',
+  }
+}
+
 /** Convert a LocalTrainingCompletion (IndexedDB) to UI format. */
 export function localToUI(local: LocalTrainingCompletion): TrainingCompletionUI {
   return {
@@ -294,20 +328,7 @@ export async function fetchSupervisorTestHistory(supervisorId: string): Promise<
     throw new Error(`Failed to fetch supervisor test history: ${error.message}`)
   }
 
-  return (data || []).map((row): TrainingCompletionUI => ({
-    id: row.id,
-    userId: row.user_id,
-    trainingItemId: row.training_item_id,
-    completionType: row.completion_type as CompletionType,
-    result: row.result as CompletionResult,
-    supervisorId: row.supervisor_id,
-    stepResults: row.step_results as StepResult[] | null,
-    supervisorNotes: row.supervisor_notes,
-    completedAt: row.completed_at,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    syncStatus: 'synced',
-  }))
+  return (data || []).map(mapRowToTrainingCompletionUI)
 }
 
 /**
@@ -332,18 +353,5 @@ export async function fetchClinicTestHistory(
     throw new Error(`Failed to fetch clinic test history: ${error.message}`)
   }
 
-  return (data || []).map((row): TrainingCompletionUI => ({
-    id: row.id,
-    userId: row.user_id,
-    trainingItemId: row.training_item_id,
-    completionType: row.completion_type as CompletionType,
-    result: row.result as CompletionResult,
-    supervisorId: row.supervisor_id,
-    stepResults: row.step_results as StepResult[] | null,
-    supervisorNotes: row.supervisor_notes,
-    completedAt: row.completed_at,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    syncStatus: 'synced',
-  }))
+  return (data || []).map(mapRowToTrainingCompletionUI)
 }

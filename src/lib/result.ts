@@ -22,3 +22,20 @@ export function fromSupabase<T>(response: {
   }
   return ok(response.data)
 }
+
+// ─── Service-layer result helpers ────────────────────────────
+
+/** Standardised result type for service mutation operations. */
+export type ServiceResult<T extends Record<string, unknown> = Record<string, never>> =
+  | ({ success: true } & T)
+  | { success: false; error: string }
+
+export function succeed(): { success: true }
+export function succeed<T extends Record<string, unknown>>(extra: T): { success: true } & T
+export function succeed(extra?: Record<string, unknown>) {
+  return extra ? { success: true, ...extra } : { success: true }
+}
+
+export function fail(error: string): { success: false; error: string } {
+  return { success: false, error }
+}

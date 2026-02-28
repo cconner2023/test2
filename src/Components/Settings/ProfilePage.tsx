@@ -1,6 +1,7 @@
 import { User, Award, KeyRound, LogOut, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../Hooks/useAuth';
 import { useAvatar } from '../../Utilities/AvatarContext';
+import { getInitials } from '../../Utilities/nameUtils';
 
 interface ProfilePageProps {
     onAvatarClick: () => void;
@@ -13,7 +14,7 @@ export const ProfilePage = ({
     onNavigate,
     onSignOut,
 }: ProfilePageProps) => {
-    const { currentAvatar, customImage, isCustom } = useAvatar();
+    const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
     const { profile } = useAuth();
 
     const displayName = profile.lastName
@@ -48,6 +49,12 @@ export const ProfilePage = ({
                         >
                             {isCustom && customImage ? (
                                 <img src={customImage} alt="Profile" className="w-full h-full object-cover" />
+                            ) : isInitials ? (
+                                <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
+                                    <span className="text-base font-semibold text-themeblue2">
+                                        {getInitials(profile.firstName, profile.lastName)}
+                                    </span>
+                                </div>
                             ) : (
                                 <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full">{currentAvatar.svg}</div>
                             )}

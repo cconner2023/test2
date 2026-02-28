@@ -13,6 +13,7 @@ import { BarcodeDisplay } from './Barcode';
 import { ActionIconButton, shareStatusToIconStatus } from './WriteNoteHelpers';
 import { useNoteImport } from '../Hooks/useNoteImport';
 import type { ImportPreview } from '../Hooks/useNoteImport';
+import { useImagePaste } from '../Hooks/useImagePaste';
 import { useNoteShare } from '../Hooks/useNoteShare';
 import { useBarcodeScanner } from '../Hooks/useBarcodeScanner';
 import { isEncryptedBarcode, decryptBarcode } from '../Utilities/NoteCodec';
@@ -182,26 +183,7 @@ const NoteImportContent = ({
     }, [decodeBarcode, setState]);
 
     // Intercept clipboard paste for images (text pastes flow through to the input normally)
-    useEffect(() => {
-        if (state.viewState !== 'input') return;
-
-        const handlePaste = (e: ClipboardEvent) => {
-            const items = e.clipboardData?.items;
-            if (!items) return;
-
-            for (const item of Array.from(items)) {
-                if (item.type.startsWith('image/')) {
-                    e.preventDefault();
-                    const file = item.getAsFile();
-                    if (file) handleImageDecode(file);
-                    return;
-                }
-            }
-        };
-
-        document.addEventListener('paste', handlePaste);
-        return () => document.removeEventListener('paste', handlePaste);
-    }, [state.viewState, handleImageDecode]);
+    useImagePaste(state.viewState === 'input', handleImageDecode);
 
     // File input change handler
     const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

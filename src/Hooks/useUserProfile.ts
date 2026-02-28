@@ -2,6 +2,9 @@ import { useCallback } from 'react';
 import type { UserTypes } from '../Data/User';
 import { useAuthStore } from '../stores/useAuthStore';
 import { supabase } from '../lib/supabase';
+import { createLogger } from '../Utilities/Logger';
+
+const logger = createLogger('UserProfile');
 
 /** Provides the user profile from the auth store with helpers to update locally and sync fields to Supabase. */
 export function useUserProfile() {
@@ -19,7 +22,7 @@ export function useUserProfile() {
         if (!user) return;
         supabase.from('profiles').update(fields).eq('id', user.id)
             .then(({ error }) => {
-                if (error) console.error('syncProfileField failed:', error);
+                if (error) logger.error('syncProfileField failed:', error);
             });
     }, [user]);
 

@@ -1,6 +1,8 @@
 import { useRef } from 'react';
 import { Check, Camera, X } from 'lucide-react';
 import { useAvatar } from '../../Utilities/AvatarContext';
+import { useAuth } from '../../Hooks/useAuth';
+import { getInitials } from '../../Utilities/nameUtils';
 
 export interface AvatarPickerPanelProps {
     onSelect: (id: string) => void;
@@ -11,13 +13,30 @@ export const AvatarPickerPanel = ({
     onSelect,
     onUpload,
 }: AvatarPickerPanelProps) => {
-    const { avatarList, currentAvatar, isCustom, customImage, clearCustomImage } = useAvatar();
+    const { avatarList, currentAvatar, isCustom, isInitials, customImage, clearCustomImage } = useAvatar();
+    const { profile } = useAuth();
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const initials = getInitials(profile.firstName, profile.lastName);
 
     return (
         <div className="h-full overflow-y-auto">
             <div className="px-4 py-3 md:p-5">
                 <div className="grid grid-cols-3 gap-4 justify-items-center md:grid-cols-4">
+                    {/* Initials avatar */}
+                    <button
+                        onClick={() => onSelect('initials')}
+                        className="relative w-16 h-16 rounded-full overflow-hidden transition-all active:scale-95
+                                   bg-themeblue2/15 flex items-center justify-center"
+                    >
+                        <span className="text-lg font-semibold text-themeblue2">{initials}</span>
+                        {isInitials && (
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-full">
+                                <Check size={20} className="text-white" />
+                            </div>
+                        )}
+                    </button>
+
                     {/* Custom image avatar (if uploaded) */}
                     {customImage && (
                         <div className="relative">
@@ -50,7 +69,7 @@ export const AvatarPickerPanel = ({
                             className="relative w-16 h-16 rounded-full overflow-hidden transition-all active:scale-95"
                         >
                             {avatar.svg}
-                            {avatar.id === currentAvatar.id && !isCustom && (
+                            {avatar.id === currentAvatar.id && !isCustom && !isInitials && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-full">
                                     <Check size={20} className="text-white" />
                                 </div>

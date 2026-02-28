@@ -1,5 +1,8 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
+import { useSpring, animated } from '@react-spring/web'
+import { useDrag } from '@use-gesture/react'
 import { Check, X, Loader2, CheckCircle2, Circle, Copy, Pencil, Reply, Trash2 } from 'lucide-react'
+import { GESTURE_THRESHOLDS, SPRING_CONFIGS } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
 
@@ -8,6 +11,7 @@ export type SwipeAction = 'copy' | 'reply' | 'delete' | 'edit'
 interface MessageBubbleProps {
   message: DecryptedSignalMessage
   isOwn: boolean
+  avatar?: React.ReactNode
   selected?: boolean
   selectionMode?: boolean
   onTap?: (message: DecryptedSignalMessage) => void
@@ -24,11 +28,6 @@ function formatTime(iso: string): string {
   const d = new Date(iso)
   return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 }
-
-const LONG_PRESS_MS = 500
-const SWIPE_DEAD_ZONE = 10
-const SNAP_THRESHOLD = 40
-const BUTTON_SLOT = 44
 
 /** Lazy-load and decrypt an image attachment, caching the object URL. */
 function useDecryptedImage(path: string | undefined, key: string | undefined) {
@@ -63,6 +62,7 @@ function useDecryptedImage(path: string | undefined, key: string | undefined) {
 export function MessageBubble({
   message,
   isOwn,
+  avatar,
   selected,
   selectionMode,
   onTap,
@@ -74,31 +74,24 @@ export function MessageBubble({
   onSaveEdit,
   onCancelEdit,
 }: MessageBubbleProps) {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const longPressedRef = useRef(false)
-  const touchedRef = useRef(false)
+  const contextMenuFiredRef = useRef(false)
   const [showFullImage, setShowFullImage] = useState(false)
-
-  // Swipe state
-  const swipeRef = useRef<HTMLDivElement>(null)
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
-  const swipingRef = useRef(false)
-  const directionDecidedRef = useRef(false)
-  const swipeOffsetRef = useRef(0)
   const [swipeOpen, setSwipeOpen] = useState(false)
 
-  // How many action buttons to show
-  const actionCount = isOwn ? 4 : 3 // own: Reply, Copy, Edit, Delete  |  other: Reply, Copy, Delete
-  const maxSwipe = actionCount * BUTTON_SLOT
+  const ACTION_WIDTH = GESTURE_THRESHOLDS.SWIPE_BACK_THRESHOLD
+  const OPEN_THRESHOLD = GESTURE_THRESHOLDS.NOTE_SWIPE_THRESHOLD
+  const swipeEnabled = !isEditing && !selectionMode
+
+  // Spring for horizontal swipe translation (same pattern as SwipeableRosterCard)
+  const [style, api] = useSpring(() => ({
+    x: 0,
+    config: SPRING_CONFIGS.snap,
+  }))
 
   // Close swipe when entering selection mode
   useEffect(() => {
     if (selectionMode && swipeOpen) {
-      if (swipeRef.current) {
-        swipeRef.current.style.transition = 'transform 0.2s ease-out'
-        swipeRef.current.style.transform = 'translateX(0)'
-      }
-      swipeOffsetRef.current = 0
+      api.start({ x: 0, config: SPRING_CONFIGS.snap })
       setSwipeOpen(false)
     }
   }, [selectionMode]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -115,158 +108,80 @@ export function MessageBubble({
     imageContent?.key,
   )
 
+  // Drag gesture (same pattern as SwipeableRosterCard — no extra touch handlers)
+  const bind = useDrag(
+    ({ active, movement: [mx], velocity: [vx], direction: [dx], tap }) => {
+      if (tap) {
+        // Skip tap if contextmenu (long-press) just fired
+        if (contextMenuFiredRef.current) {
+          contextMenuFiredRef.current = false
+          return
+        }
+        if (swipeOpen) {
+          api.start({ x: 0, config: SPRING_CONFIGS.snap })
+          setSwipeOpen(false)
+          return
+        }
+        onTap?.(message)
+        return
+      }
+
+      if (!swipeEnabled) return
+
+      if (active) {
+        const baseX = swipeOpen ? -ACTION_WIDTH : 0
+        const clampedX = Math.min(0, Math.max(-ACTION_WIDTH, baseX + mx))
+        api.start({ x: clampedX, immediate: true })
+      } else {
+        const baseX = swipeOpen ? -ACTION_WIDTH : 0
+        const finalX = baseX + mx
+        const shouldOpen =
+          Math.abs(finalX) > OPEN_THRESHOLD ||
+          (vx > GESTURE_THRESHOLDS.FLING_VELOCITY && dx < 0)
+        const shouldClose =
+          (!shouldOpen && !swipeOpen) ||
+          (vx > GESTURE_THRESHOLDS.FLING_VELOCITY && dx > 0)
+
+        if (shouldOpen && !swipeOpen) {
+          api.start({ x: -ACTION_WIDTH, config: SPRING_CONFIGS.fling })
+          setSwipeOpen(true)
+        } else if (shouldClose || !shouldOpen) {
+          api.start({ x: 0, config: SPRING_CONFIGS.snap })
+          if (swipeOpen) setSwipeOpen(false)
+        } else {
+          api.start({ x: -ACTION_WIDTH, config: SPRING_CONFIGS.snap })
+        }
+      }
+    },
+    {
+      axis: 'x',
+      filterTaps: true,
+      pointer: { touch: true },
+      from: () => [swipeOpen ? -ACTION_WIDTH : 0, 0],
+    }
+  )
+
+  // Context menu — fires on desktop right-click AND mobile long-press
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
+    contextMenuFiredRef.current = true
     onLongPress?.(message, e.clientX, e.clientY)
   }, [message, onLongPress])
 
-  const clearTimer = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current)
-      timerRef.current = null
-    }
-  }, [])
+  // ── Swipe action handler ─────────────────────────────────────────────
 
-  // ── Touch interaction state machine ──────────────────────────────────
-
-  const swipeEnabled = !isEditing && !selectionMode
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    longPressedRef.current = false
-    swipingRef.current = false
-    directionDecidedRef.current = false
-    touchedRef.current = true
-
-    const touch = e.touches[0]
-    const x = touch.clientX
-    const y = touch.clientY
-    touchStartRef.current = { x, y }
-
-    timerRef.current = setTimeout(() => {
-      longPressedRef.current = true
-      onLongPress?.(message, x, y)
-    }, LONG_PRESS_MS)
-  }, [message, onLongPress])
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchStartRef.current) return
-    const touch = e.touches[0]
-    const dx = touch.clientX - touchStartRef.current.x
-    const dy = touch.clientY - touchStartRef.current.y
-
-    // Decide direction once past dead zone
-    if (!directionDecidedRef.current) {
-      if (Math.abs(dx) < SWIPE_DEAD_ZONE && Math.abs(dy) < SWIPE_DEAD_ZONE) return
-
-      directionDecidedRef.current = true
-      if (Math.abs(dy) > Math.abs(dx)) {
-        // Vertical — let scroll happen, cancel everything
-        clearTimer()
-        touchStartRef.current = null
-        return
-      }
-      // Horizontal — this is a swipe
-      if (swipeEnabled) {
-        swipingRef.current = true
-        clearTimer()
-      } else {
-        clearTimer()
-        touchStartRef.current = null
-        return
-      }
-    }
-
-    if (!swipingRef.current) return
-
-    // Calculate offset from the starting position, accounting for already-open state
-    const base = swipeOpen ? -maxSwipe : 0
-    let offset = base + dx
-    // Clamp: can't swipe right past 0, can't swipe left past maxSwipe
-    offset = Math.max(-maxSwipe, Math.min(0, offset))
-
-    swipeOffsetRef.current = offset
-    if (swipeRef.current) {
-      swipeRef.current.style.transition = 'none'
-      swipeRef.current.style.transform = `translateX(${offset}px)`
-    }
-  }, [clearTimer, swipeEnabled, swipeOpen, maxSwipe])
-
-  const handleTouchEnd = useCallback(() => {
-    clearTimer()
-
-    if (swipingRef.current) {
-      // Snap open or closed
-      const shouldOpen = Math.abs(swipeOffsetRef.current) > SNAP_THRESHOLD
-      if (swipeRef.current) {
-        swipeRef.current.style.transition = 'transform 0.2s ease-out'
-        swipeRef.current.style.transform = shouldOpen ? `translateX(${-maxSwipe}px)` : 'translateX(0)'
-      }
-      swipeOffsetRef.current = shouldOpen ? -maxSwipe : 0
-      setSwipeOpen(shouldOpen)
-      touchStartRef.current = null
-      return
-    }
-
-    // If swipe is open and user taps the bubble, close it
-    if (swipeOpen) {
-      if (swipeRef.current) {
-        swipeRef.current.style.transition = 'transform 0.2s ease-out'
-        swipeRef.current.style.transform = 'translateX(0)'
-      }
-      swipeOffsetRef.current = 0
-      setSwipeOpen(false)
-      touchStartRef.current = null
-      return
-    }
-
-    // Short tap (not long-press) → toggle selection
-    if (!longPressedRef.current) {
-      onTap?.(message)
-    }
-    touchStartRef.current = null
-  }, [clearTimer, onTap, message, swipeOpen, maxSwipe])
-
-  const handleTouchCancel = useCallback(() => {
-    clearTimer()
-    // Restore to pre-gesture state
-    if (swipeRef.current) {
-      const restoreOffset = swipeOpen ? -maxSwipe : 0
-      swipeRef.current.style.transition = 'transform 0.2s ease-out'
-      swipeRef.current.style.transform = `translateX(${restoreOffset}px)`
-      swipeOffsetRef.current = restoreOffset
-    }
-    touchStartRef.current = null
-  }, [clearTimer, swipeOpen, maxSwipe])
-
-  const handleClick = useCallback(() => {
-    // Skip if a touch event just fired (prevents double-toggle on mobile)
-    if (touchedRef.current) {
-      touchedRef.current = false
-      return
-    }
-    // Desktop click → toggle selection
-    onTap?.(message)
-  }, [onTap, message])
+  const handleSwipeAction = useCallback((action: SwipeAction) => {
+    api.start({ x: 0, config: SPRING_CONFIGS.snap })
+    setSwipeOpen(false)
+    onSwipeAction?.(message, action)
+  }, [message, onSwipeAction, api])
 
   const handleImageTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     if (fullImageUrl) setShowFullImage(true)
   }, [fullImageUrl])
 
-  // ── Swipe action button handler ─────────────────────────────────────
-
-  const handleSwipeBtn = useCallback((action: SwipeAction) => {
-    // Close swipe
-    if (swipeRef.current) {
-      swipeRef.current.style.transition = 'transform 0.2s ease-out'
-      swipeRef.current.style.transform = 'translateX(0)'
-    }
-    swipeOffsetRef.current = 0
-    setSwipeOpen(false)
-    onSwipeAction?.(message, action)
-  }, [message, onSwipeAction])
-
-  // ── Render image content ──────────────────────────────────────────
+  // ── Render content ────────────────────────────────────────────────────
 
   const renderContent = () => {
     if (isEditing && !isImage) {
@@ -341,81 +256,86 @@ export function MessageBubble({
     return <p className="text-sm whitespace-pre-wrap break-words">{message.plaintext}</p>
   }
 
-  // ── Swipe action buttons (rendered behind the bubble) ────────────────
-
-  const renderSwipeActions = () => {
-    const buttons: { action: SwipeAction; icon: typeof Reply; label: string; color: string }[] = [
-      { action: 'reply', icon: Reply, label: 'Reply', color: 'text-themeblue2' },
-      { action: 'copy', icon: Copy, label: 'Copy', color: 'text-tertiary' },
-    ]
-    if (isOwn) {
-      buttons.push({ action: 'edit', icon: Pencil, label: 'Edit', color: 'text-tertiary' })
-    }
-    buttons.push({ action: 'delete', icon: Trash2, label: 'Delete', color: 'text-red-400' })
-
-    return (
-      <div
-        className="absolute top-0 bottom-0 right-0 flex items-center gap-0.5 pr-1"
-        style={{ width: maxSwipe }}
-      >
-        {buttons.map(({ action, icon: Icon, color }) => (
-          <button
-            key={action}
-            onClick={(e) => { e.stopPropagation(); handleSwipeBtn(action) }}
-            className={`w-10 h-10 rounded-full flex items-center justify-center
-                       bg-primary/5 active:scale-90 transition-transform ${color}`}
-          >
-            <Icon size={16} />
-          </button>
-        ))}
-      </div>
-    )
-  }
-
   return (
     <>
-      <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} mb-1.5 items-center`}>
-        {/* Selection checkmark indicator */}
-        {selectionMode && (
-          <div className="w-8 flex items-center justify-center shrink-0">
-            {selected ? (
-              <CheckCircle2 size={20} className="text-themeblue2" />
-            ) : (
-              <Circle size={20} className="text-tertiary/30" />
+      {/* Full-width container with overflow-hidden — same pattern as SwipeableRosterCard */}
+      <div className="relative overflow-hidden mb-1.5">
+        {/* Swipe action buttons — revealed on drag (supervisor card style) */}
+        {swipeEnabled && (
+          <div
+            className="absolute inset-y-0 right-0 flex items-center justify-evenly gap-1 px-2"
+            style={{ width: ACTION_WIDTH }}
+          >
+            <button onClick={() => handleSwipeAction('reply')} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-themeblue2/15">
+                <Reply size={16} className="text-themeblue2" />
+              </div>
+              <span className="text-[8px] font-medium text-tertiary/60">Reply</span>
+            </button>
+            <button onClick={() => handleSwipeAction('copy')} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/5">
+                <Copy size={16} className="text-tertiary" />
+              </div>
+              <span className="text-[8px] font-medium text-tertiary/60">Copy</span>
+            </button>
+            {isOwn && (
+              <button onClick={() => handleSwipeAction('edit')} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/5">
+                  <Pencil size={16} className="text-tertiary" />
+                </div>
+                <span className="text-[8px] font-medium text-tertiary/60">Edit</span>
+              </button>
             )}
+            <button onClick={() => handleSwipeAction('delete')} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-themeredred/10">
+                <Trash2 size={16} className="text-red-400" />
+              </div>
+              <span className="text-[8px] font-medium text-tertiary/60">Delete</span>
+            </button>
           </div>
         )}
 
-        {/* Swipe container — positions action buttons behind the bubble row */}
-        <div className={`relative overflow-hidden ${selectionMode ? 'flex-1 min-w-0' : 'max-w-[80%]'}
-                        ${isOwn ? (selectionMode ? 'flex justify-end' : 'ml-auto') : ''}`}>
-          {/* Action buttons (behind) */}
-          {swipeEnabled && renderSwipeActions()}
+        {/* Slidable message row — only useDrag bindings, no extra touch handlers */}
+        <animated.div
+          {...bind()}
+          onContextMenu={handleContextMenu}
+          style={{ x: style.x, touchAction: 'pan-y' }}
+          className="relative bg-themewhite3 select-none cursor-pointer"
+        >
+          <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} items-end`}>
+            {/* Selection checkmark indicator */}
+            {selectionMode && (
+              <div className="w-8 flex items-center justify-center shrink-0">
+                {selected ? (
+                  <CheckCircle2 size={20} className="text-themeblue2" />
+                ) : (
+                  <Circle size={20} className="text-tertiary/30" />
+                )}
+              </div>
+            )}
 
-          {/* Slidable bubble row */}
-          <div
-            ref={swipeRef}
-            onClick={handleClick}
-            onContextMenu={handleContextMenu}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            onTouchCancel={handleTouchCancel}
-            className={`relative z-[1] rounded-2xl ${isImage ? 'p-1.5' : 'px-3.5 py-2'} select-none cursor-pointer transition-colors touch-pan-y
-                       ${isOwn ? 'bg-themeblue2 text-white rounded-br-md' : 'bg-themewhite2 text-primary rounded-bl-md'}
-                       ${selected ? (isOwn ? 'ring-2 ring-white/50' : 'ring-2 ring-themeblue2/50') : ''}
-                       ${selectionMode ? (isOwn ? 'ml-auto' : '') : ''}`}
-            style={selectionMode ? { maxWidth: '80%' } : undefined}
-          >
-            {renderContent()}
-            <div className={`flex items-center gap-1 mt-0.5 ${isImage ? 'px-1.5' : ''} ${isOwn ? 'text-white/60' : 'text-tertiary/40'}`}>
-              <p className="text-[9px]">{formatTime(message.createdAt)}</p>
-              {message.messageType === 'request' && isOwn && (
-                <span className="text-[9px] italic">Pending</span>
-              )}
+            {/* Avatar for received messages */}
+            {!isOwn && avatar && (
+              <div className="shrink-0 mb-0.5 mr-1.5">{avatar}</div>
+            )}
+
+            {/* Visual bubble */}
+            <div
+              className={`rounded-2xl ${isImage ? 'p-1.5' : 'px-3.5 py-2'}
+                         ${isOwn ? 'bg-themeblue2 text-white rounded-br-md' : 'bg-themewhite2 text-primary rounded-bl-md'}
+                         ${selected ? (isOwn ? 'ring-2 ring-white/50' : 'ring-2 ring-themeblue2/50') : ''}
+                         ${selectionMode ? 'max-w-[80%]' : 'max-w-[75%]'}`}
+            >
+              {renderContent()}
+              <div className={`flex items-center gap-1 mt-0.5 ${isImage ? 'px-1.5' : ''} ${isOwn ? 'text-white/60' : 'text-tertiary/40'}`}>
+                <p className="text-[9px]">{formatTime(message.createdAt)}</p>
+                {message.messageType === 'request' && isOwn && (
+                  <span className="text-[9px] italic">Pending</span>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        </animated.div>
       </div>
 
       {/* Full-size image overlay */}

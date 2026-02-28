@@ -1,7 +1,8 @@
 import { supabase } from './supabase'
 import { createLogger } from '../Utilities/Logger'
 import { fireNotification } from './notifyDispatcher'
-import { fromSupabase } from './result'
+import { fromSupabase, succeed, fail, type ServiceResult } from './result'
+import { getErrorMessage } from '../Utilities/errorUtils'
 
 const logger = createLogger('FeedbackService')
 
@@ -31,7 +32,7 @@ export interface FeedbackRow {
  */
 export async function submitFeedback(
   data: FeedbackSubmission
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     let user_id: string | null = null
     let display_name: string | null = null
@@ -59,9 +60,7 @@ export async function submitFeedback(
       needs_improvement: data.needs_improvement?.trim() || null,
     })
 
-    if (insertError) {
-      return { success: false, error: insertError.message }
-    }
+    if (insertError) return fail(insertError.message)
 
     fireNotification({
       type: 'new_feedback',
@@ -69,13 +68,10 @@ export async function submitFeedback(
       email: null,
     })
 
-    return { success: true }
+    return succeed()
   } catch (error) {
     logger.error('Failed to submit feedback:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to submit feedback',
-    }
+    return fail(getErrorMessage(error, 'Failed to submit feedback'))
   }
 }
 

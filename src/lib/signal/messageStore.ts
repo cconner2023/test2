@@ -19,6 +19,7 @@
 
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { createLogger } from '../../Utilities/Logger'
+import { encryptString, decryptString } from '../secureStorage'
 import type { DecryptedSignalMessage } from './transportTypes'
 
 const logger = createLogger('MessageStore')
@@ -62,6 +63,41 @@ async function getDb(): Promise<IDBPDatabase<MessageDB>> {
   return dbInstance
 }
 
+// ---- At-rest encryption helpers ----
+
+/** Encrypt sensitive fields before writing to IndexedDB. */
+async function encryptMessage(msg: StoredMessage): Promise<StoredMessage> {
+  const encrypted = { ...msg }
+  if (encrypted.plaintext) {
+    encrypted.plaintext = await encryptString(encrypted.plaintext)
+  }
+  if (encrypted.content) {
+    // Store encrypted content as a string (type-punned via cast)
+    ;(encrypted as Record<string, unknown>).content =
+      await encryptString(JSON.stringify(encrypted.content))
+  }
+  return encrypted
+}
+
+/** Decrypt sensitive fields after reading from IndexedDB.
+ *  Handles legacy plaintext messages transparently. */
+async function decryptMessage(msg: StoredMessage): Promise<StoredMessage> {
+  const decrypted = { ...msg }
+  if (decrypted.plaintext) {
+    decrypted.plaintext = await decryptString(decrypted.plaintext)
+  }
+  if (decrypted.content) {
+    // content may be an encrypted string stored as the plaintext field, or a plain object
+    const raw = decrypted.content as unknown
+    if (typeof raw === 'string') {
+      try {
+        decrypted.content = JSON.parse(await decryptString(raw))
+      } catch { /* leave as-is */ }
+    }
+  }
+  return decrypted
+}
+
 // ---- Save ----
 
 /** Persist a single decrypted message to IndexedDB. */
@@ -70,10 +106,11 @@ export async function saveMessage(
   localUserId: string,
 ): Promise<void> {
   try {
-    const db = await getDb()
     const peerId = msg.senderId === localUserId ? msg.recipientId : msg.senderId
     const stored: StoredMessage = { ...msg, peerId }
-    await db.put('messages', stored)
+    const encrypted = await encryptMessage(stored)
+    const db = await getDb()
+    await db.put('messages', encrypted)
   } catch (err) {
     logger.warn('Failed to save message:', err)
   }
@@ -85,10 +122,11 @@ export async function saveMessage(
 export async function loadConversation(peerId: string): Promise<DecryptedSignalMessage[]> {
   try {
     const db = await getDb()
-    return await db.getAllFromIndex('messages', 'by-peer-time', IDBKeyRange.bound(
+    const messages = await db.getAllFromIndex('messages', 'by-peer-time', IDBKeyRange.bound(
       [peerId, ''],
       [peerId, '\uffff'],
     ))
+    return Promise.all(messages.map(decryptMessage))
   } catch (err) {
     logger.warn(`Failed to load conversation for ${peerId}:`, err)
     return []
@@ -100,10 +138,11 @@ export async function loadAllConversations(): Promise<Record<string, DecryptedSi
   try {
     const db = await getDb()
     const all = await db.getAll('messages')
+    const decrypted = await Promise.all(all.map(decryptMessage))
     const grouped: Record<string, DecryptedSignalMessage[]> = {}
 
-    for (const msg of all) {
-      const peer = msg.peerId
+    for (const msg of decrypted) {
+      const peer = (msg as StoredMessage).peerId
       if (!grouped[peer]) grouped[peer] = []
       grouped[peer].push(msg)
     }
@@ -180,7 +219,7 @@ export async function updateMessageText(
     const db = await getDb()
     const msg = await db.get('messages', messageId)
     if (msg) {
-      msg.plaintext = newText
+      msg.plaintext = await encryptString(newText)
       await db.put('messages', msg)
     }
   } catch (err) {

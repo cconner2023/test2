@@ -22,6 +22,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { CompletionType, CompletionResult, Json } from '../Types/database.types'
 import { createLogger } from '../Utilities/Logger'
+import { encryptString, decryptString } from './secureStorage'
 
 const logger = createLogger('OfflineDb')
 
@@ -207,6 +208,38 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
 }
 
 // ============================================================
+// Sync Queue Payload Encryption
+// ============================================================
+
+/** Encrypt a payload object for at-rest storage in IndexedDB. */
+async function encryptPayload(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+  try {
+    const encrypted = await encryptString(JSON.stringify(payload))
+    return { _encrypted: encrypted }
+  } catch {
+    return payload
+  }
+}
+
+/** Decrypt a payload that may be encrypted or legacy plaintext. */
+async function decryptPayload(payload: Record<string, unknown>): Promise<Record<string, unknown>> {
+  if (typeof payload._encrypted === 'string') {
+    try {
+      const decrypted = await decryptString(payload._encrypted)
+      return JSON.parse(decrypted) as Record<string, unknown>
+    } catch {
+      return payload
+    }
+  }
+  return payload
+}
+
+/** Decrypt the payload field on a SyncQueueItem (returns a copy). */
+async function decryptQueueItem(item: SyncQueueItem): Promise<SyncQueueItem> {
+  return { ...item, payload: await decryptPayload(item.payload) }
+}
+
+// ============================================================
 // Sync Queue Operations
 // ============================================================
 
@@ -219,48 +252,40 @@ export async function addToSyncQueue(
   item: Omit<SyncQueueItem, 'id' | 'created_at' | 'synced_at' | 'status' | 'retry_count' | 'last_error'>
 ): Promise<SyncQueueItem> {
   const db = await getDb()
-  const tx = db.transaction('syncQueue', 'readwrite')
-  const store = tx.objectStore('syncQueue')
 
-  // Check for existing pending item for the same record
-  const allPending = await store.index('by-user-status').getAll([item.user_id, 'pending'])
+  // Phase 1: Read existing items (separate transaction so async encryption doesn't break it)
+  const allPending = await db.getAllFromIndex('syncQueue', 'by-user-status', [item.user_id, 'pending'])
   const existing = allPending.find(
     (q) => q.record_id === item.record_id && q.table_name === item.table_name
   )
 
   if (existing) {
-    // Merge: upgrade action priority (create+update=create, create+delete=remove both,
-    // update+delete=delete)
     if (existing.action === 'create' && item.action === 'delete') {
-      // Note was created offline then deleted offline -- remove from queue entirely,
-      // nothing to sync since the server never saw it.
-      await store.delete(existing.id)
-      await tx.done
-      return { ...existing, status: 'synced' }
+      await db.delete('syncQueue', existing.id)
+      return { ...existing, payload: item.payload, status: 'synced' }
     }
 
     if (existing.action === 'create' && item.action === 'update') {
-      // Note was created offline then updated offline -- keep as create with
-      // the latest payload.
-      existing.payload = { ...existing.payload, ...item.payload }
+      const existingPayload = await decryptPayload(existing.payload)
+      const mergedPayload = { ...existingPayload, ...item.payload }
+      existing.payload = await encryptPayload(mergedPayload)
       existing.created_at = new Date().toISOString()
-      await store.put(existing)
-      await tx.done
-      return existing
+      await db.put('syncQueue', existing)
+      return { ...existing, payload: mergedPayload }
     }
 
-    // For all other cases (update+update, update+delete), use the latest action
     existing.action = item.action
-    existing.payload = item.payload
+    existing.payload = await encryptPayload(item.payload)
     existing.created_at = new Date().toISOString()
-    await store.put(existing)
-    await tx.done
-    return existing
+    await db.put('syncQueue', existing)
+    return { ...existing, payload: item.payload }
   }
 
-  // No existing item: create new queue entry
+  // Phase 2: Encrypt and write new item
+  const encryptedPayload = await encryptPayload(item.payload)
   const queueItem: SyncQueueItem = {
     ...item,
+    payload: encryptedPayload,
     id: crypto.randomUUID(),
     created_at: new Date().toISOString(),
     synced_at: null,
@@ -268,9 +293,8 @@ export async function addToSyncQueue(
     retry_count: 0,
     last_error: null,
   }
-  await store.put(queueItem)
-  await tx.done
-  return queueItem
+  await db.put('syncQueue', queueItem)
+  return { ...queueItem, payload: item.payload }
 }
 
 /**
@@ -279,7 +303,8 @@ export async function addToSyncQueue(
 export async function getPendingSyncItems(userId: string): Promise<SyncQueueItem[]> {
   const db = await getDb()
   const items = await db.getAllFromIndex('syncQueue', 'by-user-status', [userId, 'pending'])
-  return items.sort((a, b) =>
+  const decrypted = await Promise.all(items.map(decryptQueueItem))
+  return decrypted.sort((a, b) =>
     new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   )
 }
@@ -289,7 +314,8 @@ export async function getPendingSyncItems(userId: string): Promise<SyncQueueItem
  */
 export async function getFailedSyncItems(userId: string): Promise<SyncQueueItem[]> {
   const db = await getDb()
-  return db.getAllFromIndex('syncQueue', 'by-user-status', [userId, 'failed'])
+  const items = await db.getAllFromIndex('syncQueue', 'by-user-status', [userId, 'failed'])
+  return Promise.all(items.map(decryptQueueItem))
 }
 
 /**

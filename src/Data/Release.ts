@@ -8,7 +8,7 @@ export interface ReleaseNoteTypes {
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
     { version: '2.6.3', type: 'added', text: 'User credentials managed and updated by supervisors' },
-    { version: '2.6.3', type: 'added', text: 'Messaging system for units - ratcheting using signal open-source. Message persist x 24 hours currently' },
+    { version: '2.6.3', type: 'added', text: 'Messaging system architecture for units - ratcheting using signal open-source. Messages persist across devices' },
     { version: '2.6.3', type: 'changed', text: 'text expander for HPI and physical exams. Make your own templates' },
     { version: '2.6.3', type: 'changed', text: 'DD FORM 689 export' },
     { version: '2.6.2', type: 'added', text: 'Note Content can be toggled on in settings' },

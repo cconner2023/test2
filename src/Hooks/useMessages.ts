@@ -21,6 +21,7 @@ import {
   fetchPeerDevices,
   fetchConversation,
   markMessagesRead,
+  deleteMessages as deleteMessagesFromSupabase,
 } from '../lib/signal/signalService'
 import {
   createOutboundSession,
@@ -280,19 +281,24 @@ export function useMessages(): UseMessagesReturn {
     }
 
     if (status === 'none') {
-      // No prior interaction — send as a request (unencrypted plaintext)
-      // Fan out to all peer devices
+      // No prior interaction — send as an encrypted request (X3DH)
       setSending(true)
       try {
+        const serialized = serializeContent({ type: 'text', text })
         const devicesResult = await fetchPeerDevices(peerId)
         const peerDevices = devicesResult.ok ? devicesResult.data : []
 
         if (peerDevices.length > 0) {
-          const fanOutInputs: FanOutMessageInput[] = peerDevices.map(d => ({
-            recipientDeviceId: d.deviceId,
-            payload: { text } as unknown as Record<string, unknown>,
-            messageType: 'request' as const,
-          }))
+          // Encrypt via X3DH for each device, then tag as 'request'
+          const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized)
+          for (const input of fanOutInputs) {
+            input.messageType = 'request'
+          }
+
+          if (fanOutInputs.length === 0) {
+            logger.error('Could not encrypt request for any peer device')
+            return false
+          }
 
           const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs)
           if (!sendResult.ok) {
@@ -310,8 +316,18 @@ export function useMessages(): UseMessagesReturn {
             readAt: null,
           })
         } else {
-          // No devices registered — fall back to single send (no device targeting)
-          const sendResult = await sendSignalMessage(userId, peerId, { text }, 'request', localDeviceId)
+          // No devices registered — legacy single-device X3DH
+          const bundleResult = await fetchPeerBundle(peerId)
+          if (!bundleResult.ok) {
+            logger.error('Failed to fetch peer bundle for request:', bundleResult.error)
+            return false
+          }
+
+          const bundle = rpcResultToBundle(bundleResult.data)
+          const peerDeviceId = bundle.deviceId || 'unknown'
+          const initialMessage = await createOutboundSession(peerId, peerDeviceId, bundle, serialized)
+
+          const sendResult = await sendSignalMessage(userId, peerId, initialMessage, 'request', localDeviceId)
           if (!sendResult.ok) {
             logger.error('Failed to send request:', sendResult.error)
             return false
@@ -608,8 +624,8 @@ export function useMessages(): UseMessagesReturn {
       return next
     })
 
-    // Mark on server
-    const msgs = conversations[peerId]
+    // Mark on server — use ref to avoid conversations dependency cascade
+    const msgs = conversationsRef.current[peerId]
     if (!msgs) return
 
     const unreadIds = msgs
@@ -634,31 +650,46 @@ export function useMessages(): UseMessagesReturn {
         return { ...prev, [peerId]: updated }
       })
     }
-  }, [conversations, userId])
+  }, [userId])
 
   /** Accept a message request from a peer (fan out to all peer devices). */
   const acceptRequest = useCallback(async (peerId: string): Promise<void> => {
     if (!userId || !localDeviceId) return
 
-    // Fan out request-accepted to all peer devices
-    const devicesResult = await fetchPeerDevices(peerId)
-    const peerDevices = devicesResult.ok ? devicesResult.data : []
+    try {
+      // Fan out request-accepted to all peer devices
+      const devicesResult = await fetchPeerDevices(peerId)
+      const peerDevices = devicesResult.ok ? devicesResult.data : []
 
-    if (peerDevices.length > 0) {
-      const fanOutInputs: FanOutMessageInput[] = peerDevices.map(d => ({
-        recipientDeviceId: d.deviceId,
-        payload: {} as Record<string, unknown>,
-        messageType: 'request-accepted' as const,
-      }))
+      let messageId: string
 
-      const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs)
-      if (!sendResult.ok) {
-        logger.error('Failed to send request-accepted fan-out:', sendResult.error)
-        return
+      if (peerDevices.length > 0) {
+        const fanOutInputs: FanOutMessageInput[] = peerDevices.map(d => ({
+          recipientDeviceId: d.deviceId,
+          payload: {} as Record<string, unknown>,
+          messageType: 'request-accepted' as const,
+        }))
+
+        const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs)
+        if (!sendResult.ok) {
+          logger.error('Failed to send request-accepted fan-out:', sendResult.error)
+          return
+        }
+
+        messageId = sendResult.data[0] ?? crypto.randomUUID()
+      } else {
+        // Fallback: single send
+        const sendResult = await sendSignalMessage(userId, peerId, {} as Record<string, never>, 'request-accepted', localDeviceId)
+        if (!sendResult.ok) {
+          logger.error('Failed to send request-accepted:', sendResult.error)
+          return
+        }
+
+        messageId = sendResult.data
       }
 
       addMessage({
-        id: sendResult.data[0],
+        id: messageId,
         senderId: userId,
         recipientId: peerId,
         plaintext: '',
@@ -666,23 +697,8 @@ export function useMessages(): UseMessagesReturn {
         createdAt: new Date().toISOString(),
         readAt: null,
       })
-    } else {
-      // Fallback: single send
-      const sendResult = await sendSignalMessage(userId, peerId, {} as Record<string, never>, 'request-accepted', localDeviceId)
-      if (!sendResult.ok) {
-        logger.error('Failed to send request-accepted:', sendResult.error)
-        return
-      }
-
-      addMessage({
-        id: sendResult.data,
-        senderId: userId,
-        recipientId: peerId,
-        plaintext: '',
-        messageType: 'request-accepted',
-        createdAt: new Date().toISOString(),
-        readAt: null,
-      })
+    } catch (e) {
+      logger.error('acceptRequest error:', e instanceof Error ? e.message : e)
     }
   }, [userId, localDeviceId, addMessage])
 
@@ -704,7 +720,7 @@ export function useMessages(): UseMessagesReturn {
     updateMessageText(messageId, newText).catch(() => {})
   }, [])
 
-  /** Delete messages locally (state + IndexedDB). */
+  /** Delete messages (state + IndexedDB + Supabase). */
   const deleteMessages = useCallback((peerId: string, messageIds: string[]) => {
     const idSet = new Set(messageIds)
     setConversations(prev => {
@@ -721,6 +737,9 @@ export function useMessages(): UseMessagesReturn {
 
     // Persist to IndexedDB (fire-and-forget)
     deleteMessagesFromDb(messageIds).catch(() => {})
+
+    // Delete from Supabase (fire-and-forget)
+    deleteMessagesFromSupabase(messageIds).catch(() => {})
   }, [])
 
   // Clear active peer when unmounting

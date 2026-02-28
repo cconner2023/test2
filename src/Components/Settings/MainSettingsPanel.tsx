@@ -88,6 +88,11 @@ export const MainSettingsPanel = ({
                             <span className="flex-1 text-left text-base text-primary font-medium md:font-[11pt]">
                                 {item.label}
                             </span>
+                            {item.badge != null && item.badge > 0 && (
+                                <span className="min-w-5 h-5 px-1.5 rounded-full bg-themeblue2 text-white text-[11px] font-semibold flex items-center justify-center mr-1">
+                                    {item.badge > 99 ? '99+' : item.badge}
+                                </span>
+                            )}
                             <ChevronUp size={16} className="text-tertiary/40 rotate-90 md:hidden" />
                         </button>
                     ))}

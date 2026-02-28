@@ -1,3 +1,5 @@
+import { base64ToBytes } from '../lib/base64Utils'
+
 /**
  * Image resize utility — aspect-preserving compression for item photos and layout images.
  * Generalized from useProfileAvatar.ts:resizeImage() (which center-crops to square).
@@ -92,10 +94,5 @@ export function generateThumbnail(dataUrl: string, maxDim = 60, quality = 0.5): 
 export function dataUrlToBlob(dataUrl: string): Blob {
   const [header, b64] = dataUrl.split(',')
   const mime = header.match(/:(.*?);/)?.[1] ?? 'application/octet-stream'
-  const binary = atob(b64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i)
-  }
-  return new Blob([bytes], { type: mime })
+  return new Blob([base64ToBytes(b64)], { type: mime })
 }

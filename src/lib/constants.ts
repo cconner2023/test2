@@ -14,6 +14,27 @@ export const SECURITY = {
   LOCKOUT_MAX_SECONDS: 300,
 } as const
 
+/** Validate password meets complexity requirements.
+ *  Returns null if valid, or an error message string. */
+export function validatePasswordComplexity(password: string): string | null {
+  if (password.length < SECURITY.MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${SECURITY.MIN_PASSWORD_LENGTH} characters`
+  }
+  if (!/[A-Z]/.test(password)) {
+    return 'Password must contain at least one uppercase letter'
+  }
+  if (!/[a-z]/.test(password)) {
+    return 'Password must contain at least one lowercase letter'
+  }
+  if (!/[0-9]/.test(password)) {
+    return 'Password must contain at least one digit'
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    return 'Password must contain at least one special character'
+  }
+  return null
+}
+
 export const STORAGE = {
   DB_VERSION: 3,
   SYNC_CLEANUP_DAYS: 7,
@@ -33,4 +54,6 @@ export const SIGNAL = {
   MAX_DEVICES_PER_USER: 10,
   /** Devices with no activity for this many days may be pruned. */
   STALE_DEVICE_DAYS: 90,
+  /** Signed pre-keys older than this (days) are pruned on init. */
+  SIGNED_PREKEY_MAX_AGE_DAYS: 30,
 } as const

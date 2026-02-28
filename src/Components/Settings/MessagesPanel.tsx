@@ -1,13 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Trash2, Forward, Reply, X, ImagePlus } from 'lucide-react'
+import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone } from 'lucide-react'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import type { RequestStatus } from '../../Hooks/useMessages'
 import { ContactListItem } from './ContactListItem'
 import { MessageBubble, type SwipeAction } from './MessageBubble'
 import { MessageContextMenu } from './MessageContextMenu'
+import { UserAvatar } from './UserAvatar'
 import { useAuth } from '../../Hooks/useAuth'
+import { useCallActions } from '../../Hooks/CallContext'
 import { useAvatar } from '../../Utilities/AvatarContext'
+import { useImagePaste } from '../../Hooks/useImagePaste'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 
@@ -26,14 +29,17 @@ function ConversationList({
   onSelectPeer,
   conversations,
   unreadCounts,
+  medics,
+  loading,
 }: {
   onSelectPeer: (medic: ClinicMedic) => void
   conversations: Record<string, DecryptedSignalMessage[]>
   unreadCounts: Record<string, number>
+  medics: ClinicMedic[]
+  loading: boolean
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? null
-  const { medics, loading } = useClinicMedics()
   const { currentAvatar } = useAvatar()
 
   // Sort medics: those with messages first (by recency), then alphabetical
@@ -66,7 +72,7 @@ function ConversationList({
 
   // Synthetic medic for self-notes entry
   const selfMedic: ClinicMedic | null = userId
-    ? { id: userId, firstName: 'Notes to', lastName: 'Self', middleInitial: null, rank: null, credential: null, avatarId: currentAvatar.id }
+    ? { id: userId, firstName: null, lastName: 'Notes', middleInitial: null, rank: null, credential: null, avatarId: currentAvatar.id }
     : null
 
   return (
@@ -109,17 +115,18 @@ function ConversationList({
 function ForwardPicker({
   conversations,
   currentPeerId,
+  medics,
   onSelect,
   onCancel,
 }: {
   conversations: Record<string, DecryptedSignalMessage[]>
   currentPeerId: string
+  medics: ClinicMedic[]
   onSelect: (medic: ClinicMedic) => void
   onCancel: () => void
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? null
-  const { medics } = useClinicMedics()
 
   // Exclude self and the current peer from forward targets
   const targets = medics.filter(m => m.id !== currentPeerId && m.id !== userId)
@@ -162,6 +169,7 @@ function ForwardPicker({
 function ChatDetail({
   peerId,
   conversations,
+  medics,
   sendMessage,
   sendImage,
   sending,
@@ -172,10 +180,15 @@ function ChatDetail({
   editMessage,
   deleteMessages,
   onBack,
+  onStartCall,
   peerName,
+  peerAvatarId,
+  peerFirstName,
+  peerLastName,
 }: {
   peerId: string
   conversations: Record<string, DecryptedSignalMessage[]>
+  medics: ClinicMedic[]
   sendMessage: (peerId: string, text: string) => Promise<boolean>
   sendImage: (peerId: string, file: File) => Promise<boolean>
   sending: boolean
@@ -186,7 +199,11 @@ function ChatDetail({
   editMessage: (peerId: string, messageId: string, newText: string) => void
   deleteMessages: (peerId: string, messageIds: string[]) => void
   onBack?: () => void
+  onStartCall?: () => void
   peerName?: string
+  peerAvatarId?: string | null
+  peerFirstName?: string | null
+  peerLastName?: string | null
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? ''
@@ -228,6 +245,12 @@ function ChatDetail({
     setSelectedIds(new Set())
     setShowForwardPicker(false)
   }, [peerId])
+
+  // Accept pasted images (disabled while a send is in progress)
+  const handlePastedImage = useCallback((file: File) => {
+    sendImage(peerId, file)
+  }, [sendImage, peerId])
+  useImagePaste(!sending, handlePastedImage)
 
   const handleSend = useCallback(async () => {
     const trimmed = text.trim()
@@ -382,19 +405,25 @@ function ChatDetail({
 
   const inputDisabled = sending || requestStatus === 'sent'
 
+  const isSelf = peerId === userId
+  const canCall = !isSelf && requestStatus === 'accepted' && onStartCall
+
   return (
     <div className="flex flex-col h-full relative">
-      {/* Selection header bar */}
-      {hasSelection && (
-        <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center justify-between bg-themewhite3">
-          <div className="flex items-center gap-2">
-            <button onClick={clearSelection} className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
-              <X size={18} className="text-tertiary" />
-            </button>
-            <p className="text-sm text-primary font-medium">{selectedIds.size} selected</p>
-          </div>
-        </div>
-      )}
+      {/* Chat header bar with peer name + call button */}
+      <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center justify-between bg-themewhite3">
+        <p className="text-sm font-medium text-primary truncate">
+          {peerName ?? (isSelf ? 'Notes' : 'Chat')}
+        </p>
+        {canCall && (
+          <button
+            onClick={onStartCall}
+            className="p-2 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
+          >
+            <Phone size={18} className="text-themeblue2" />
+          </button>
+        )}
+      </div>
 
       {/* Messages area */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3"
@@ -407,23 +436,27 @@ function ChatDetail({
             </p>
           </div>
         ) : (
-          messages.map(msg => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              isOwn={msg.senderId === userId}
-              selected={selectedIds.has(msg.id)}
-              selectionMode={hasSelection}
-              onTap={handleTap}
-              onLongPress={handleLongPress}
-              onSwipeAction={handleSwipeAction}
-              isEditing={editingMessageId === msg.id}
-              editText={editingMessageId === msg.id ? editText : undefined}
-              onEditTextChange={setEditText}
-              onSaveEdit={handleSaveEdit}
-              onCancelEdit={handleCancelEdit}
-            />
-          ))
+          messages.map(msg => {
+            const own = msg.senderId === userId
+            return (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                isOwn={own}
+                avatar={!own ? <UserAvatar avatarId={peerAvatarId} firstName={peerFirstName} lastName={peerLastName} className="w-7 h-7" /> : undefined}
+                selected={selectedIds.has(msg.id)}
+                selectionMode={hasSelection}
+                onTap={handleTap}
+                onLongPress={handleLongPress}
+                onSwipeAction={handleSwipeAction}
+                isEditing={editingMessageId === msg.id}
+                editText={editingMessageId === msg.id ? editText : undefined}
+                onEditTextChange={setEditText}
+                onSaveEdit={handleSaveEdit}
+                onCancelEdit={handleCancelEdit}
+              />
+            )
+          })
         )}
       </div>
 
@@ -534,6 +567,7 @@ function ChatDetail({
         <ForwardPicker
           conversations={conversations}
           currentPeerId={peerId}
+          medics={medics}
           onSelect={handleForwardSelect}
           onCancel={() => setShowForwardPicker(false)}
         />
@@ -546,7 +580,8 @@ function ChatDetail({
 
 export function MessagesPanel({ view, selectedPeerId, onSelectPeer, onBack }: MessagesPanelProps) {
   const messagesCtx = useMessagesContext()
-  const { medics } = useClinicMedics()
+  const { medics, loading } = useClinicMedics()
+  const callActions = useCallActions()
 
   if (!messagesCtx) {
     return (
@@ -568,6 +603,7 @@ export function MessagesPanel({ view, selectedPeerId, onSelectPeer, onBack }: Me
       <ChatDetail
         peerId={selectedPeerId}
         conversations={conversations}
+        medics={medics}
         sendMessage={sendMessage}
         sendImage={sendImage}
         sending={sending}
@@ -578,7 +614,11 @@ export function MessagesPanel({ view, selectedPeerId, onSelectPeer, onBack }: Me
         editMessage={editMessage}
         deleteMessages={deleteMessages}
         onBack={onBack}
+        onStartCall={callActions ? () => callActions.startCall({ userId: selectedPeerId, displayName: peerName ?? 'Unknown' }) : undefined}
         peerName={peerName}
+        peerAvatarId={peer?.avatarId}
+        peerFirstName={peer?.firstName}
+        peerLastName={peer?.lastName}
       />
     )
   }
@@ -588,6 +628,8 @@ export function MessagesPanel({ view, selectedPeerId, onSelectPeer, onBack }: Me
       onSelectPeer={onSelectPeer}
       conversations={conversations}
       unreadCounts={unreadCounts}
+      medics={medics}
+      loading={loading}
     />
   )
 }

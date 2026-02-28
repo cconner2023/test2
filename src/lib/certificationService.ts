@@ -1,6 +1,7 @@
 import { supabase } from './supabase'
 import { createLogger } from '../Utilities/Logger'
-import { fromSupabase } from './result'
+import { fromSupabase, succeed, fail, type ServiceResult } from './result'
+import { getErrorMessage } from '../Utilities/errorUtils'
 import type { Certification } from '../Data/User'
 
 const logger = createLogger('CertificationService')
@@ -63,7 +64,7 @@ export async function syncPrimaryToProfile(userId: string): Promise<void> {
 export async function addCertification(
   userId: string,
   input: CertInput
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const { error } = await supabase.from('certifications').insert({
       user_id: userId,
@@ -74,21 +75,16 @@ export async function addCertification(
       is_primary: input.is_primary ?? false,
     })
 
-    if (error) {
-      return { success: false, error: error.message }
-    }
+    if (error) return fail(error.message)
 
     if (input.is_primary) {
       await syncPrimaryToProfile(userId)
     }
 
-    return { success: true }
+    return succeed()
   } catch (error) {
     logger.error('Failed to add certification:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to add certification',
-    }
+    return fail(getErrorMessage(error, 'Failed to add certification'))
   }
 }
 
@@ -99,7 +95,7 @@ export async function removeCertification(
   userId: string,
   certId: string,
   wasPrimary: boolean
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const { error } = await supabase
       .from('certifications')
@@ -107,21 +103,16 @@ export async function removeCertification(
       .eq('id', certId)
       .eq('user_id', userId)
 
-    if (error) {
-      return { success: false, error: error.message }
-    }
+    if (error) return fail(error.message)
 
     if (wasPrimary) {
       await syncPrimaryToProfile(userId)
     }
 
-    return { success: true }
+    return succeed()
   } catch (error) {
     logger.error('Failed to remove certification:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to remove certification',
-    }
+    return fail(getErrorMessage(error, 'Failed to remove certification'))
   }
 }
 
@@ -132,7 +123,7 @@ export async function togglePrimary(
   userId: string,
   certId: string,
   currentlyPrimary: boolean
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const { error } = await supabase
       .from('certifications')
@@ -140,18 +131,13 @@ export async function togglePrimary(
       .eq('id', certId)
       .eq('user_id', userId)
 
-    if (error) {
-      return { success: false, error: error.message }
-    }
+    if (error) return fail(error.message)
 
     await syncPrimaryToProfile(userId)
-    return { success: true }
+    return succeed()
   } catch (error) {
     logger.error('Failed to toggle primary:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to toggle primary',
-    }
+    return fail(getErrorMessage(error, 'Failed to toggle primary'))
   }
 }
 
@@ -189,7 +175,7 @@ export async function fetchClinicCertifications(
 export async function verifyCertification(
   certId: string,
   supervisorId: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const { error } = await supabase
       .from('certifications')
@@ -200,16 +186,11 @@ export async function verifyCertification(
       })
       .eq('id', certId)
 
-    if (error) {
-      return { success: false, error: error.message }
-    }
-    return { success: true }
+    if (error) return fail(error.message)
+    return succeed()
   } catch (error) {
     logger.error('Failed to verify certification:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to verify certification',
-    }
+    return fail(getErrorMessage(error, 'Failed to verify certification'))
   }
 }
 
@@ -218,7 +199,7 @@ export async function verifyCertification(
  */
 export async function unverifyCertification(
   certId: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const { error } = await supabase
       .from('certifications')
@@ -229,16 +210,11 @@ export async function unverifyCertification(
       })
       .eq('id', certId)
 
-    if (error) {
-      return { success: false, error: error.message }
-    }
-    return { success: true }
+    if (error) return fail(error.message)
+    return succeed()
   } catch (error) {
     logger.error('Failed to unverify certification:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to unverify certification',
-    }
+    return fail(getErrorMessage(error, 'Failed to unverify certification'))
   }
 }
 
@@ -274,7 +250,7 @@ export async function fetchAllCertifications(): Promise<Certification[]> {
 export async function updateCertification(
   certId: string,
   fields: Partial<CertInput>
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const update: Record<string, unknown> = {}
     if (fields.title !== undefined) update.title = fields.title.trim()
@@ -288,16 +264,11 @@ export async function updateCertification(
       .update(update)
       .eq('id', certId)
 
-    if (error) {
-      return { success: false, error: error.message }
-    }
-    return { success: true }
+    if (error) return fail(error.message)
+    return succeed()
   } catch (error) {
     logger.error('Failed to update certification:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to update certification',
-    }
+    return fail(getErrorMessage(error, 'Failed to update certification'))
   }
 }
 
@@ -307,7 +278,7 @@ export async function updateCertification(
 export async function adminAddCertification(
   userId: string,
   input: CertInput
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const { error } = await supabase.from('certifications').insert({
       user_id: userId,
@@ -318,21 +289,16 @@ export async function adminAddCertification(
       is_primary: input.is_primary ?? false,
     })
 
-    if (error) {
-      return { success: false, error: error.message }
-    }
+    if (error) return fail(error.message)
 
     if (input.is_primary) {
       await syncPrimaryToProfile(userId)
     }
 
-    return { success: true }
+    return succeed()
   } catch (error) {
     logger.error('Failed to admin-add certification:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to add certification',
-    }
+    return fail(getErrorMessage(error, 'Failed to add certification'))
   }
 }
 
@@ -343,27 +309,22 @@ export async function adminDeleteCertification(
   certId: string,
   userId: string,
   wasPrimary: boolean
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const { error } = await supabase
       .from('certifications')
       .delete()
       .eq('id', certId)
 
-    if (error) {
-      return { success: false, error: error.message }
-    }
+    if (error) return fail(error.message)
 
     if (wasPrimary) {
       await syncPrimaryToProfile(userId)
     }
 
-    return { success: true }
+    return succeed()
   } catch (error) {
     logger.error('Failed to admin-delete certification:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to delete certification',
-    }
+    return fail(getErrorMessage(error, 'Failed to delete certification'))
   }
 }

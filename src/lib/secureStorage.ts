@@ -1,3 +1,8 @@
+import { base64ToBytes } from './base64Utils'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('SecureStorage')
+
 const DB_NAME = 'adtmc-secure-store'
 const DB_VERSION = 1
 const STORE_NAME = 'kv'
@@ -7,6 +12,9 @@ let encKey: CryptoKey | null = null
 let useLocalStorageFallback = false
 /** True when Web Crypto is missing — we cannot encrypt at all. */
 let cryptoUnavailable = false
+
+/** localStorage key for persisted encryption key (stable across browser updates). */
+const PERSISTED_KEY_NAME = 'adtmc_enc_key'
 
 async function getFingerprint(): Promise<ArrayBuffer> {
   const raw = [
@@ -21,14 +29,34 @@ async function getFingerprint(): Promise<ArrayBuffer> {
 
 async function getEncryptionKey(): Promise<CryptoKey> {
   if (encKey) return encKey
+
+  // 1. Use persisted key if available (stable across browser updates)
+  const persistedB64 = localStorage.getItem(PERSISTED_KEY_NAME)
+  if (persistedB64) {
+    try {
+      const keyBytes = base64ToBytes(persistedB64)
+      encKey = await crypto.subtle.importKey(
+        'raw', keyBytes, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+      )
+      return encKey
+    } catch {
+      // Persisted key corrupted — fall through to fingerprint
+      localStorage.removeItem(PERSISTED_KEY_NAME)
+    }
+  }
+
+  // 2. Derive from device fingerprint (first run or legacy)
   const fingerprint = await getFingerprint()
   encKey = await crypto.subtle.importKey(
-    'raw',
-    fingerprint,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
+    'raw', fingerprint, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
   )
+
+  // 3. Persist the derived key so future browser updates don't invalidate it
+  try {
+    const fpBytes = new Uint8Array(fingerprint)
+    localStorage.setItem(PERSISTED_KEY_NAME, btoa(String.fromCharCode(...fpBytes)))
+  } catch { /* localStorage full — key still works in memory */ }
+
   return encKey
 }
 
@@ -95,12 +123,12 @@ function checkFallback(): boolean {
   if (typeof crypto?.subtle === 'undefined') {
     cryptoUnavailable = true
     useLocalStorageFallback = true
-    console.warn('secureStorage: Web Crypto unavailable — writes will be rejected to prevent plaintext storage')
+    logger.warn('Web Crypto unavailable — writes will be rejected to prevent plaintext storage')
     return true
   }
   if (typeof indexedDB === 'undefined') {
     useLocalStorageFallback = true
-    console.warn('secureStorage: IndexedDB unavailable, falling back to encrypted localStorage')
+    logger.warn('IndexedDB unavailable, falling back to encrypted localStorage')
     return true
   }
   return false
@@ -109,7 +137,7 @@ function checkFallback(): boolean {
 /** Encrypt value and store as base64 in localStorage. */
 async function lsEncryptedSet(key: string, value: string): Promise<void> {
   if (cryptoUnavailable) {
-    console.error('secureStorage: cannot store data — encryption unavailable')
+    logger.error('Cannot store data — encryption unavailable')
     return
   }
   const ek = await getEncryptionKey()
@@ -139,13 +167,11 @@ async function lsEncryptedGet(key: string): Promise<string | null> {
     return raw
   }
   if (cryptoUnavailable) {
-    console.error('secureStorage: cannot decrypt — Web Crypto unavailable')
+    logger.error('Cannot decrypt — Web Crypto unavailable')
     return null
   }
   const b64 = raw.slice(LS_ENC_PREFIX.length)
-  const binary = atob(b64)
-  const combined = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) combined[i] = binary.charCodeAt(i)
+  const combined = base64ToBytes(b64)
   const iv = combined.slice(0, 12)
   const ciphertext = combined.slice(12)
   const ek = await getEncryptionKey()
@@ -170,7 +196,7 @@ export async function secureSet(key: string, value: string): Promise<void> {
     await idbPut(db, key, combined.buffer as ArrayBuffer)
   } catch {
     useLocalStorageFallback = true
-    console.warn('secureStorage: IndexedDB write failed, falling back to encrypted localStorage')
+    logger.warn('IndexedDB write failed, falling back to encrypted localStorage')
     await lsEncryptedSet(key, value)
   }
 }
@@ -221,4 +247,48 @@ export async function secureClear(): Promise<void> {
     const db = await getDb()
     await idbClear(db)
   } catch { /* best effort */ }
+}
+
+// ---- Exported encrypt/decrypt string helpers ----
+// Used by offlineDb, messageStore, and other modules for at-rest encryption
+// of data stored in IndexedDB. Uses the same device-local AES-GCM key.
+
+/** Prefix for encrypted string values (distinct from LS_ENC_PREFIX). */
+const STR_ENC_PREFIX = 'senc:'
+
+/** Encrypt a plaintext string. Returns a prefixed base64 ciphertext.
+ *  Returns the original string if Web Crypto is unavailable. */
+export async function encryptString(plaintext: string): Promise<string> {
+  if (cryptoUnavailable) return plaintext
+  try {
+    const ek = await getEncryptionKey()
+    const iv = crypto.getRandomValues(new Uint8Array(12))
+    const encoded = new TextEncoder().encode(plaintext)
+    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, ek, encoded)
+    const combined = new Uint8Array(iv.length + ciphertext.byteLength)
+    combined.set(iv)
+    combined.set(new Uint8Array(ciphertext), iv.length)
+    return STR_ENC_PREFIX + btoa(String.fromCharCode(...combined))
+  } catch {
+    return plaintext
+  }
+}
+
+/** Decrypt a string previously encrypted with encryptString().
+ *  Handles plaintext transparently (returns as-is if no senc: prefix). */
+export async function decryptString(value: string): Promise<string> {
+  if (!value.startsWith(STR_ENC_PREFIX)) return value
+  if (cryptoUnavailable) return value
+  try {
+    const b64 = value.slice(STR_ENC_PREFIX.length)
+    const combined = base64ToBytes(b64)
+    const iv = combined.slice(0, 12)
+    const ciphertext = combined.slice(12)
+    const ek = await getEncryptionKey()
+    const plainBuffer = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, ek, ciphertext)
+    return new TextDecoder().decode(plainBuffer)
+  } catch {
+    // Decryption failed (key changed, corrupted data) — return raw value
+    return value
+  }
 }

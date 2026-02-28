@@ -14,6 +14,7 @@
  */
 import { supabase } from './supabase'
 import { createLogger } from '../Utilities/Logger'
+import { getErrorMessage } from '../Utilities/errorUtils'
 import {
   getPendingSyncItems,
   markSyncItemSynced,
@@ -194,7 +195,7 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
 
         processed++
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error)
+        const errorMessage = getErrorMessage(error, String(error))
         logger.error(`Sync failed for item ${item.id}:`, errorMessage)
 
         await markSyncItemFailed(item.id, errorMessage)

@@ -24,6 +24,8 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { supabase } from './supabase'
 import { createLogger } from '../Utilities/Logger'
 import { uint8ToBase64, base64ToUint8 } from '../Utilities/textCodec'
+import { succeed, fail, type ServiceResult } from './result'
+import { getErrorMessage } from '../Utilities/errorUtils'
 import type { LocalNote } from './offlineDb'
 
 const logger = createLogger('CryptoService')
@@ -539,12 +541,10 @@ export async function clearKeyStore(): Promise<void> {
 
 export async function rotateClinicKey(
   clinicId: string
-): Promise<{ success: boolean; error?: string }> {
+): Promise<ServiceResult> {
   try {
     const oldRawKey = await fetchClinicKeyFromServer(clinicId)
-    if (!oldRawKey) {
-      return { success: false, error: 'Could not fetch current clinic key' }
-    }
+    if (!oldRawKey) return fail('Could not fetch current clinic key')
 
     const newRawKeyBase64 = generateClinicKeyBase64()
 
@@ -553,20 +553,18 @@ export async function rotateClinicKey(
       .update({ encryption_key: newRawKeyBase64 })
       .eq('id', clinicId)
 
-    if (updateError) {
-      return { success: false, error: updateError.message }
-    }
+    if (updateError) return fail(updateError.message)
 
     const newCryptoKey = await importKey(newRawKeyBase64)
     keyCache.set(clinicId, newCryptoKey)
     await saveKeyToStore(clinicId, newCryptoKey)
 
     logger.info(`Rotated encryption key for clinic ${clinicId}`)
-    return { success: true }
+    return succeed()
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Unknown error'
+    const message = getErrorMessage(err)
     logger.error('Key rotation failed:', message)
-    return { success: false, error: message }
+    return fail(message)
   }
 }
 

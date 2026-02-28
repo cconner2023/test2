@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Bell, Code, Info } from 'lucide-react'
+import { Mail, Code, Info } from 'lucide-react'
 import { usePushNotifications } from '../../Hooks/usePushNotifications'
 import { useUserProfile } from '../../Hooks/useUserProfile'
+import { useAuth } from '../../Hooks/useAuth'
 import { isDevUser } from '../../lib/adminService'
 import { ToggleSwitch } from './ToggleSwitch'
 import { StatusBanner } from './StatusBanner'
@@ -10,11 +11,13 @@ import { UI_TIMING } from '../../Utilities/constants'
 export const NotificationSettingsPanel = () => {
   const { isSupported, isSubscribed, loading, error: pushError, subscribe, unsubscribe } = usePushNotifications()
   const { profile, updateProfile, syncProfileField } = useUserProfile()
+  const { isAuthenticated } = useAuth()
   const [isDev, setIsDev] = useState(false)
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
 
   const devAlerts = profile.notifyDevAlerts ?? false
+  const messageNotifs = profile.notifyMessages ?? true
 
   useEffect(() => {
     isDevUser().then(setIsDev)
@@ -32,7 +35,7 @@ export const NotificationSettingsPanel = () => {
 
   /** Persist a notification preference optimistically */
   const handleToggle = useCallback(async (
-    field: 'notifyDevAlerts',
+    field: 'notifyDevAlerts' | 'notifyMessages',
     dbColumn: string,
     newValue: boolean,
   ) => {
@@ -53,13 +56,8 @@ export const NotificationSettingsPanel = () => {
     // Fire-and-forget Supabase sync
     syncProfileField({ [dbColumn]: newValue })
 
-    // If turning off, unsubscribe (fire-and-forget)
-    if (!newValue) {
-      unsubscribe()
-    }
-
     showSuccess(newValue ? 'Notifications enabled' : 'Notifications updated')
-  }, [isSubscribed, subscribe, unsubscribe, pushError, updateProfile, syncProfileField, showSuccess, showError])
+  }, [isSubscribed, subscribe, pushError, updateProfile, syncProfileField, showSuccess, showError])
 
   return (
     <div className="h-full overflow-y-auto">
@@ -90,6 +88,31 @@ export const NotificationSettingsPanel = () => {
           </div>
         )}
 
+        {/* Messages toggle — visible to all authenticated users */}
+        {isSupported && isAuthenticated && (
+          <div
+            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all cursor-pointer
+              ${messageNotifs
+                ? 'border-themeblue2/25 bg-themeblue2/10'
+                : 'border-tertiary/15 bg-themewhite2'
+              } ${loading ? 'opacity-50 pointer-events-none' : ''}`}
+            onClick={() => handleToggle('notifyMessages', 'notify_messages', !messageNotifs)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggle('notifyMessages', 'notify_messages', !messageNotifs); } }}
+          >
+            <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${messageNotifs ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+              <Mail size={18} className={messageNotifs ? 'text-themeblue2' : 'text-tertiary/50'} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className={`text-sm font-medium ${messageNotifs ? 'text-primary' : 'text-tertiary'}`}>Messages</p>
+              <p className="text-[11px] text-tertiary/70 mt-0.5">New messages, requests, and accepted requests</p>
+            </div>
+            <ToggleSwitch checked={messageNotifs} />
+          </div>
+        )}
+
+        {/* Dev alerts toggle — only visible to dev users */}
         {isSupported && isDev && (
           <div
             className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all cursor-pointer

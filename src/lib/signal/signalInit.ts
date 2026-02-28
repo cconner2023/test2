@@ -18,9 +18,17 @@ import {
   getPreKeyCount,
   assemblePublicKeyBundle,
 } from './keyManager'
+import { loadLatestSignedPreKey, pruneOldSignedPreKeys } from './keyStore'
 import { uploadKeyBundle, registerDevice } from './signalService'
 
 const logger = createLogger('SignalInit')
+
+/** Check whether a signed pre-key has exceeded its rotation period. */
+function isSignedPreKeyExpired(createdAt: string): boolean {
+  const ageMs = Date.now() - new Date(createdAt).getTime()
+  const maxAgeMs = SIGNAL.SIGNED_PREKEY_ROTATION_DAYS * 24 * 60 * 60 * 1000
+  return ageMs >= maxAgeMs
+}
 
 /**
  * Initialize Signal Protocol key material and upload bundle.
@@ -45,8 +53,15 @@ export async function initSignalBundle(userId: string): Promise<void> {
     // Non-fatal — continue with bundle upload
   }
 
-  // 3. Signed pre-key (generates if none exists)
-  await generateSignedPreKey()
+  // 3. Signed pre-key — only generate if missing or expired
+  const existingSpk = await loadLatestSignedPreKey()
+  if (!existingSpk || isSignedPreKeyExpired(existingSpk.createdAt)) {
+    logger.info(existingSpk ? 'Signed pre-key expired, rotating' : 'No signed pre-key, generating')
+    await generateSignedPreKey()
+  }
+
+  // 3b. Prune signed pre-keys older than 30 days (keep latest always)
+  pruneOldSignedPreKeys(SIGNAL.SIGNED_PREKEY_MAX_AGE_DAYS).catch(() => {})
 
   // 4. Top up OTP keys if running low
   const currentCount = await getPreKeyCount()

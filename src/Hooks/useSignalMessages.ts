@@ -33,13 +33,18 @@ interface UseSignalMessagesOptions {
 
 async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage | null> {
   try {
-    // Request types carry plaintext — no crypto needed
+    // Requests are encrypted via X3DH (InitialMessage) — decrypt + establish session
     if (row.message_type === 'request') {
+      const senderDeviceId = row.sender_device_id ?? 'unknown'
+      const payload = row.payload as unknown as InitialMessage
+      const rawPlaintext = await receiveInitialMessage(row.sender_id, senderDeviceId, payload)
+      const { plaintext, content } = parseMessageContent(rawPlaintext)
       return {
         id: row.id,
         senderId: row.sender_id,
         recipientId: row.recipient_id,
-        plaintext: (row.payload as unknown as { text: string }).text,
+        plaintext,
+        content,
         messageType: row.message_type,
         createdAt: row.created_at,
         readAt: row.read_at,

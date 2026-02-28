@@ -19,6 +19,8 @@ import { createLogger } from '../Utilities/Logger'
 import { classifySupabaseError, ErrorCode } from './errorCodes'
 import { validateRpcResult } from './validators'
 import { fireNotification } from './notifyDispatcher'
+import { getErrorMessage } from '../Utilities/errorUtils'
+import { succeed, fail, type ServiceResult } from './result'
 
 const logger = createLogger('AccountRequest')
 
@@ -54,13 +56,11 @@ export interface AccountRequestSubmission {
   notes?: string
 }
 
-export interface SubmitResult {
-  success: boolean
-  error?: string
+export type SubmitResult = ServiceResult<{
   /** Save this token -- it is required to check request status later */
   statusCheckToken?: string
   requestId?: string
-}
+}>
 
 /**
  * Submit a new account request via the submit_account_request RPC.
@@ -86,10 +86,7 @@ export async function submitAccountRequest(
     if (error) {
       const code = classifySupabaseError(error)
       if (code === ErrorCode.RATE_LIMITED) {
-        return {
-          success: false,
-          error: 'You have too many pending requests. Please wait for existing requests to be reviewed.',
-        }
+        return fail('You have too many pending requests. Please wait for existing requests to be reviewed.')
       }
       throw error
     }
@@ -105,17 +102,13 @@ export async function submitAccountRequest(
       email: request.email,
     })
 
-    return {
-      success: true,
+    return succeed({
       statusCheckToken: result?.status_check_token,
       requestId: result?.id,
-    }
+    })
   } catch (error) {
     logger.error('Failed to submit account request:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to submit request',
-    }
+    return fail(getErrorMessage(error, 'Failed to submit request'))
   }
 }
 
@@ -129,10 +122,7 @@ export async function submitProfileChangeRequest(
   try {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
-      return {
-        success: false,
-        error: 'You must be logged in to request profile changes.',
-      }
+      return fail('You must be logged in to request profile changes.')
     }
 
     const { data, error } = await supabase.rpc('submit_account_request', {
@@ -155,17 +145,13 @@ export async function submitProfileChangeRequest(
     )
     const result = validated.ok ? validated.data : null
 
-    return {
-      success: true,
+    return succeed({
       statusCheckToken: result?.status_check_token,
       requestId: result?.id,
-    }
+    })
   } catch (error) {
     logger.error('Failed to submit profile change request:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to submit request',
-    }
+    return fail(getErrorMessage(error, 'Failed to submit request'))
   }
 }
 
