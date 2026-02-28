@@ -38,6 +38,8 @@ async function getEncryptionKey(): Promise<CryptoKey> {
       encKey = await crypto.subtle.importKey(
         'raw', keyBytes, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
       )
+      // Persist raw key bytes to IDB for service worker access
+      persistKeyToIdb(keyBytes).catch(() => {})
       return encKey
     } catch {
       // Persisted key corrupted — fall through to fingerprint
@@ -57,7 +59,20 @@ async function getEncryptionKey(): Promise<CryptoKey> {
     localStorage.setItem(PERSISTED_KEY_NAME, btoa(String.fromCharCode(...fpBytes)))
   } catch { /* localStorage full — key still works in memory */ }
 
+  // 4. Persist raw key bytes to IDB for service worker access
+  persistKeyToIdb(new Uint8Array(fingerprint)).catch(() => {})
+
   return encKey
+}
+
+/** Persist raw encryption key bytes into adtmc-secure-store IDB for SW access. */
+async function persistKeyToIdb(rawBytes: Uint8Array): Promise<void> {
+  try {
+    const db = await getDb()
+    await idbPut(db, '__enc_key_raw', rawBytes.buffer as ArrayBuffer)
+  } catch {
+    logger.warn('Failed to persist encryption key to IDB for SW')
+  }
 }
 
 function getDb(): Promise<IDBDatabase> {
@@ -290,5 +305,28 @@ export async function decryptString(value: string): Promise<string> {
   } catch {
     // Decryption failed (key changed, corrupted data) — return raw value
     return value
+  }
+}
+
+// ---- Supabase auth persistence for SW ----
+
+/**
+ * Persist Supabase connection info to IDB so the service worker can
+ * make authenticated REST API calls without importing the Supabase client.
+ * Called on sign-in and token refresh.
+ */
+export async function persistSupabaseAuth(
+  url: string,
+  accessToken: string,
+  anonKey: string,
+): Promise<void> {
+  try {
+    const payload = JSON.stringify({ url, accessToken, anonKey })
+    const encrypted = await encryptString(payload)
+    const db = await getDb()
+    const encoded = new TextEncoder().encode(encrypted)
+    await idbPut(db, '__supabase_auth', encoded.buffer as ArrayBuffer)
+  } catch {
+    logger.warn('Failed to persist Supabase auth to IDB for SW')
   }
 }

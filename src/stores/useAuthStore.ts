@@ -24,7 +24,8 @@ import { clearMessageStore } from '../lib/signal/messageStore'
 import { clearClinicUsersCache } from '../lib/clinicUsersCache'
 import { useCallStore } from './useCallStore'
 import { unregisterDevice, deleteKeyBundle } from '../lib/signal/signalService'
-import { secureSet, secureGet, secureRemove } from '../lib/secureStorage'
+import { secureSet, secureGet, secureRemove, persistSupabaseAuth } from '../lib/secureStorage'
+import { clearOutboundQueue } from '../lib/signal/outboundQueue'
 import type { User } from '@supabase/supabase-js'
 import type { UserTypes, TextExpander } from '../Data/User'
 
@@ -210,6 +211,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         clearSignalKeys().catch(() => {})
         clearAllSessions().catch(() => {})
         clearMessageStore().catch(() => {})
+        clearOutboundQueue().catch(() => {})
         clearClinicUsersCache().catch(() => {})
         useCallStore.getState().reset()
       } else if (session?.user) {
@@ -217,6 +219,12 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         // Detect password recovery flow (user clicked reset-password email link)
         if (event === 'PASSWORD_RECOVERY') {
           set({ isPasswordRecovery: true })
+        }
+        // Persist Supabase auth to IDB for service worker (sign-in + token refresh)
+        if (session.access_token) {
+          const url = import.meta.env.VITE_SUPABASE_URL as string
+          const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+          persistSupabaseAuth(url, session.access_token, anonKey).catch(() => {})
         }
         // Fetch profile in the background on sign-in
         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {

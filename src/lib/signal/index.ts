@@ -111,6 +111,11 @@ export {
   clearAllSessions,
 } from './session'
 
+// ---- Transport Adapter ----
+
+export type { SignalTransport, SendMessageParams, SendBatchParams } from './transport'
+export { TransportManager } from './transport'
+
 // ---- Transport Layer (Phase 3) ----
 
 export {
@@ -131,9 +136,16 @@ export {
   fetchUnreadMessages,
   markMessagesRead,
   fetchConversation,
+
+  // Transport manager singleton
+  transportManager,
 } from './signalService'
 
 export { initSignalBundle } from './signalInit'
+
+// ---- Outbound Queue ----
+
+export { clearOutboundQueue } from './outboundQueue'
 
 // ---- Message Persistence (Phase 5) ----
 

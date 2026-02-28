@@ -213,13 +213,22 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [userId])
 
+  // Wrap addMessage to auto-mark incoming self-notes as read
+  const handleIncomingMessage = useCallback((msg: DecryptedSignalMessage) => {
+    if (msg.senderId === userId && msg.recipientId === userId && !msg.readAt) {
+      msg.readAt = new Date().toISOString()
+      markMessagesRead([msg.id]).catch(() => {})
+    }
+    addMessage(msg)
+  }, [userId, addMessage])
+
   // Subscribe to realtime incoming messages (pass localDeviceId for filtering)
   useSignalMessages({
     userId,
     localDeviceId,
     isAuthenticated,
     isPageVisible,
-    onMessage: addMessage,
+    onMessage: handleIncomingMessage,
   })
 
   // Hydrate conversations and unread counts from IndexedDB on mount
@@ -257,13 +266,19 @@ export function useMessages(): UseMessagesReturn {
   const sendMessage = useCallback(async (peerId: string, text: string): Promise<boolean> => {
     if (!userId || !localDeviceId) return false
 
-    // Self-notes: store locally only, no crypto or network
+    // Self-notes: send via Supabase (no crypto) for cross-device sync
     if (peerId === userId) {
+      const serialized = serializeContent({ type: 'text', text })
+      const result = await sendSignalMessage(
+        userId, userId, { text: serialized }, 'message',
+        localDeviceId ?? undefined, undefined
+      )
       const selfNote: DecryptedSignalMessage = {
-        id: crypto.randomUUID(),
+        id: result.ok ? result.data : crypto.randomUUID(),
         senderId: userId,
         recipientId: userId,
         plaintext: text,
+        content: { type: 'text', text },
         messageType: 'message',
         createdAt: new Date().toISOString(),
         readAt: new Date().toISOString(),
@@ -585,8 +600,27 @@ export function useMessages(): UseMessagesReturn {
   /** Fetch conversation history from Supabase, decrypt locally, merge into state. */
   const fetchHistory = useCallback(async (peerId: string) => {
     if (!userId) return
-    // Self-notes are IDB-only — no Supabase history to fetch
-    if (peerId === userId) return
+
+    // Self-notes: fetch from Supabase and extract plaintext (no crypto)
+    if (peerId === userId) {
+      const result = await fetchConversation(userId, userId)
+      if (!result.ok) { logger.warn('fetchHistory (self) failed:', result.error); return }
+      for (const row of result.data.reverse()) {
+        const payload = row.payload as { text?: string }
+        const { plaintext, content } = parseMessageContent(payload?.text ?? '')
+        addMessage({
+          id: row.id,
+          senderId: row.sender_id,
+          recipientId: row.recipient_id,
+          plaintext,
+          content,
+          messageType: row.message_type,
+          createdAt: row.created_at,
+          readAt: row.read_at ?? undefined,
+        })
+      }
+      return
+    }
 
     const result = await fetchConversation(userId, peerId)
     if (!result.ok) {
@@ -610,7 +644,7 @@ export function useMessages(): UseMessagesReturn {
     }
 
     logger.info(`fetchHistory: ${rows.length} rows for peer ${peerId}`)
-  }, [userId])
+  }, [userId, addMessage])
 
   /** Mark messages from a peer as read. */
   const markAsRead = useCallback((peerId: string) => {

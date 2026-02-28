@@ -9,6 +9,14 @@ import { createHandlerBoundToURL } from 'workbox-precaching';
 
 declare let self: ServiceWorkerGlobalScope;
 
+// Background Sync types (not in all TS libs)
+interface SyncEvent extends ExtendableEvent {
+  tag: string;
+}
+interface SyncManager {
+  register(tag: string): Promise<void>;
+}
+
 // ─── Precaching ──────────────────────────────────────────────────────
 cleanupOutdatedCaches();
 precacheAndRoute(self.__WB_MANIFEST);
@@ -130,10 +138,31 @@ self.addEventListener('notificationclick', (event) => {
   );
 });
 
-// ─── Skip waiting on message ─────────────────────────────────────────
+// ─── Background Sync — outbound message queue flush ─────────────────
+
+self.addEventListener('sync', (event: SyncEvent) => {
+  if (event.tag === 'signal-outbound-flush') {
+    event.waitUntil(
+      import('./lib/signal/swFlush').then(m => m.flushOutboundQueue())
+    );
+  }
+});
+
+// ─── Skip waiting + queue notification on message ────────────────────
 
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
+  }
+
+  // Tab notifies SW that the outbound queue has new entries
+  if (event.data && event.data.type === 'QUEUE_UPDATED') {
+    if ('sync' in self.registration) {
+      (self.registration as ServiceWorkerRegistration & { sync: SyncManager })
+        .sync.register('signal-outbound-flush').catch(() => {});
+    } else {
+      // Fallback for browsers without SyncManager (Safari) — flush inline
+      import('./lib/signal/swFlush').then(m => m.flushOutboundQueue()).catch(() => {});
+    }
   }
 });

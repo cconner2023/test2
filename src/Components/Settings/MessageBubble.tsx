@@ -1,6 +1,5 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
 import { useSpring, animated } from '@react-spring/web'
-import { useDrag } from '@use-gesture/react'
 import { Check, X, Loader2, CheckCircle2, Circle, Copy, Pencil, Reply, Trash2 } from 'lucide-react'
 import { GESTURE_THRESHOLDS, SPRING_CONFIGS } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
@@ -74,15 +73,21 @@ export function MessageBubble({
   onSaveEdit,
   onCancelEdit,
 }: MessageBubbleProps) {
-  const contextMenuFiredRef = useRef(false)
+  const touchRef = useRef<{
+    startX: number
+    startY: number
+    lastDx: number
+    swiping: boolean
+    dirDecided: boolean
+  } | null>(null)
+  const touchedRef = useRef(false)
   const [showFullImage, setShowFullImage] = useState(false)
   const [swipeOpen, setSwipeOpen] = useState(false)
 
   const ACTION_WIDTH = GESTURE_THRESHOLDS.SWIPE_BACK_THRESHOLD
-  const OPEN_THRESHOLD = GESTURE_THRESHOLDS.NOTE_SWIPE_THRESHOLD
   const swipeEnabled = !isEditing && !selectionMode
 
-  // Spring for horizontal swipe translation (same pattern as SwipeableRosterCard)
+  // Spring for smooth swipe animation
   const [style, api] = useSpring(() => ({
     x: 0,
     config: SPRING_CONFIGS.snap,
@@ -99,72 +104,115 @@ export function MessageBubble({
   // request-accepted is an invisible signal — don't render
   if (message.messageType === 'request-accepted') return null
 
-  const isImage = message.content?.type === 'image'
-  const imageContent = isImage ? message.content : null
+  const imageContent = message.content?.type === 'image' ? message.content : null
+  const isImage = !!imageContent
 
-  // Lazy-load the full decrypted image
   const { url: fullImageUrl, loading: imageLoading } = useDecryptedImage(
     imageContent?.path,
     imageContent?.key,
   )
 
-  // Drag gesture (same pattern as SwipeableRosterCard — no extra touch handlers)
-  const bind = useDrag(
-    ({ active, movement: [mx], velocity: [vx], direction: [dx], tap }) => {
-      if (tap) {
-        // Skip tap if contextmenu (long-press) just fired
-        if (contextMenuFiredRef.current) {
-          contextMenuFiredRef.current = false
-          return
-        }
-        if (swipeOpen) {
-          api.start({ x: 0, config: SPRING_CONFIGS.snap })
-          setSwipeOpen(false)
-          return
-        }
-        onTap?.(message)
+  // ── Manual touch gesture (no @use-gesture — works reliably on mobile) ──
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchedRef.current = true
+    const touch = e.touches[0]
+    touchRef.current = {
+      startX: touch.clientX,
+      startY: touch.clientY,
+      lastDx: 0,
+      swiping: false,
+      dirDecided: false,
+    }
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!touchRef.current) return
+    const touch = e.touches[0]
+    const dx = touch.clientX - touchRef.current.startX
+    const dy = touch.clientY - touchRef.current.startY
+
+    // Direction lock: decide horizontal vs vertical once past dead zone
+    if (!touchRef.current.dirDecided) {
+      if (Math.abs(dx) < GESTURE_THRESHOLDS.DIRECTION_LOCK && Math.abs(dy) < GESTURE_THRESHOLDS.DIRECTION_LOCK) return
+      touchRef.current.dirDecided = true
+      if (Math.abs(dy) > Math.abs(dx)) {
+        // Vertical — let scroll handle it
+        touchRef.current = null
         return
       }
-
-      if (!swipeEnabled) return
-
-      if (active) {
-        const baseX = swipeOpen ? -ACTION_WIDTH : 0
-        const clampedX = Math.min(0, Math.max(-ACTION_WIDTH, baseX + mx))
-        api.start({ x: clampedX, immediate: true })
+      if (swipeEnabled) {
+        touchRef.current.swiping = true
       } else {
-        const baseX = swipeOpen ? -ACTION_WIDTH : 0
-        const finalX = baseX + mx
-        const shouldOpen =
-          Math.abs(finalX) > OPEN_THRESHOLD ||
-          (vx > GESTURE_THRESHOLDS.FLING_VELOCITY && dx < 0)
-        const shouldClose =
-          (!shouldOpen && !swipeOpen) ||
-          (vx > GESTURE_THRESHOLDS.FLING_VELOCITY && dx > 0)
-
-        if (shouldOpen && !swipeOpen) {
-          api.start({ x: -ACTION_WIDTH, config: SPRING_CONFIGS.fling })
-          setSwipeOpen(true)
-        } else if (shouldClose || !shouldOpen) {
-          api.start({ x: 0, config: SPRING_CONFIGS.snap })
-          if (swipeOpen) setSwipeOpen(false)
-        } else {
-          api.start({ x: -ACTION_WIDTH, config: SPRING_CONFIGS.snap })
-        }
+        touchRef.current = null
+        return
       }
-    },
-    {
-      axis: 'x',
-      filterTaps: true,
-      pointer: { touch: true },
-      from: () => [swipeOpen ? -ACTION_WIDTH : 0, 0],
     }
-  )
 
-  // Context menu — fires on desktop right-click AND mobile long-press
+    if (!touchRef.current.swiping) return
+
+    touchRef.current.lastDx = dx
+    const base = swipeOpen ? -ACTION_WIDTH : 0
+    const offset = Math.max(-ACTION_WIDTH, Math.min(0, base + dx))
+    api.start({ x: offset, immediate: true })
+  }, [swipeEnabled, swipeOpen, ACTION_WIDTH, api])
+
+  const handleTouchEnd = useCallback(() => {
+    if (!touchRef.current) return
+    const { swiping, dirDecided, lastDx } = touchRef.current
+    touchRef.current = null
+
+    if (swiping) {
+      // Snap open or closed based on displacement
+      const base = swipeOpen ? -ACTION_WIDTH : 0
+      const finalOffset = base + lastDx
+      const shouldOpen = Math.abs(finalOffset) > GESTURE_THRESHOLDS.NOTE_SWIPE_THRESHOLD
+
+      if (shouldOpen) {
+        api.start({ x: -ACTION_WIDTH, config: SPRING_CONFIGS.fling })
+        setSwipeOpen(true)
+      } else {
+        api.start({ x: 0, config: SPRING_CONFIGS.snap })
+        setSwipeOpen(false)
+      }
+      return
+    }
+
+    // No direction decided = tap
+    if (!dirDecided) {
+      if (swipeOpen) {
+        api.start({ x: 0, config: SPRING_CONFIGS.snap })
+        setSwipeOpen(false)
+      } else {
+        onTap?.(message)
+      }
+    }
+  }, [swipeOpen, ACTION_WIDTH, api, onTap, message])
+
+  const handleTouchCancel = useCallback(() => {
+    if (!touchRef.current) return
+    touchRef.current = null
+    // Restore to current open/closed state
+    api.start({ x: swipeOpen ? -ACTION_WIDTH : 0, config: SPRING_CONFIGS.snap })
+  }, [swipeOpen, ACTION_WIDTH, api])
+
+  // Desktop click → tap (skip if touch just fired)
+  const handleClick = useCallback(() => {
+    if (touchedRef.current) {
+      touchedRef.current = false
+      return
+    }
+    if (swipeOpen) {
+      api.start({ x: 0, config: SPRING_CONFIGS.snap })
+      setSwipeOpen(false)
+      return
+    }
+    onTap?.(message)
+  }, [swipeOpen, api, onTap, message])
+
+  // Desktop right-click + mobile long-press
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
-    contextMenuFiredRef.current = true
     onLongPress?.(message, e.clientX, e.clientY)
   }, [message, onLongPress])
 
@@ -258,9 +306,9 @@ export function MessageBubble({
 
   return (
     <>
-      {/* Full-width container with overflow-hidden — same pattern as SwipeableRosterCard */}
+      {/* Full-width container with overflow-hidden (same layout as SwipeableRosterCard) */}
       <div className="relative overflow-hidden mb-1.5">
-        {/* Swipe action buttons — revealed on drag (supervisor card style) */}
+        {/* Swipe action buttons — revealed on drag */}
         {swipeEnabled && (
           <div
             className="absolute inset-y-0 right-0 flex items-center justify-evenly gap-1 px-2"
@@ -295,9 +343,13 @@ export function MessageBubble({
           </div>
         )}
 
-        {/* Slidable message row — only useDrag bindings, no extra touch handlers */}
+        {/* Slidable message row — manual touch handling + react-spring animation */}
         <animated.div
-          {...bind()}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          onTouchCancel={handleTouchCancel}
+          onClick={handleClick}
           onContextMenu={handleContextMenu}
           style={{ x: style.x, touchAction: 'pan-y' }}
           className="relative bg-themewhite3 select-none cursor-pointer"

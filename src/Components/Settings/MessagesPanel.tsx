@@ -426,7 +426,7 @@ function ChatDetail({
       </div>
 
       {/* Messages area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3"
+      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3"
         onScroll={() => setContextMenu(null)}
       >
         {messages.length === 0 ? (
