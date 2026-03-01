@@ -717,7 +717,7 @@ function ChatDetail({
   return (
     <div className="flex flex-col h-full relative">
       {/* Mobile conversation header — circle buttons matching NavTop */}
-      <div className="md:hidden shrink-0 px-3 py-2 border-b border-primary/10 flex items-center bg-themewhite3">
+      <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-primary/10 flex items-center bg-themewhite3">
         <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
           <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
             <ChevronLeft className="w-6 h-6 text-tertiary" />
@@ -1176,7 +1176,7 @@ function GroupChatDetail({
   return (
     <div className="flex flex-col h-full relative">
       {/* Mobile group header — circle buttons matching NavTop */}
-      <div className="md:hidden shrink-0 px-3 py-2 border-b border-primary/10 flex items-center bg-themewhite3">
+      <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-primary/10 flex items-center bg-themewhite3">
         <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
           <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
             <ChevronLeft className="w-6 h-6 text-tertiary" />
