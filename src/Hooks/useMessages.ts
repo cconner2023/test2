@@ -425,7 +425,10 @@ export function useMessages(): UseMessagesReturn {
 
   /** Send a plaintext message to a peer. */
   const sendMessage = useCallback(async (peerId: string, text: string, threadId?: string): Promise<boolean> => {
-    if (!userId || !localDeviceId) return false
+    if (!userId || !localDeviceId) {
+      logger.error('sendMessage blocked: userId=', userId, 'localDeviceId=', localDeviceId)
+      return false
+    }
 
     // Build replyTo if this is a thread reply
     const replyTo = threadId ? buildReplyTo(peerId, threadId) : undefined
@@ -455,6 +458,7 @@ export function useMessages(): UseMessagesReturn {
       if (result.ok) {
         updateMessageStatus(userId, localId, result.data)
       } else {
+        logger.error('Self-note send failed:', result.error)
         removeOptimisticMessage(userId, localId)
       }
       return result.ok

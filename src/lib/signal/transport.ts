@@ -54,6 +54,7 @@ export interface SignalTransport {
  */
 export class TransportManager {
   private primary: SignalTransport | null = null
+  private secondary: SignalTransport | null = null
   private onlineHandler: (() => void) | null = null
 
   // Lazy imports to avoid circular deps — set by signalService on init
@@ -66,6 +67,12 @@ export class TransportManager {
   setPrimary(transport: SignalTransport): void {
     this.primary = transport
     logger.info(`Primary transport set: ${transport.name}`)
+  }
+
+  /** Register a secondary (fallback) transport, e.g. LoRa mesh. */
+  setSecondary(transport: SignalTransport): void {
+    this.secondary = transport
+    logger.info(`Secondary transport set: ${transport.name}`)
   }
 
   /** Wire up the outbound queue functions (called once from signalService). */
@@ -89,7 +96,7 @@ export class TransportManager {
     }
   }
 
-  /** Send a message. Falls back to offline queue on network failure. */
+  /** Send a message. Tries secondary transport on network failure before queuing. */
   async send(params: SendMessageParams): Promise<Result<string>> {
     if (!this.primary) return err('No transport configured')
 
@@ -99,19 +106,17 @@ export class TransportManager {
 
       // Check if it's a network error (not a server-side rejection)
       if (this.isNetworkError(result.error)) {
-        await this.queueMessage(params)
-        return ok(params.id) // optimistic return
+        return this.fallbackOrQueue(params)
       }
 
       return result
     } catch (e) {
       // Exception = likely network failure
-      await this.queueMessage(params)
-      return ok(params.id)
+      return this.fallbackOrQueue(params)
     }
   }
 
-  /** Send a batch of messages. Falls back to offline queue on network failure. */
+  /** Send a batch of messages. Tries secondary on network failure before queuing. */
   async sendBatch(params: SendBatchParams): Promise<Result<string[]>> {
     if (!this.primary) return err('No transport configured')
 
@@ -120,14 +125,12 @@ export class TransportManager {
       if (result.ok) return result
 
       if (this.isNetworkError(result.error)) {
-        await this.queueBatch(params)
-        return ok(params.messages.map(m => m.id))
+        return this.fallbackBatchOrQueue(params)
       }
 
       return result
     } catch (e) {
-      await this.queueBatch(params)
-      return ok(params.messages.map(m => m.id))
+      return this.fallbackBatchOrQueue(params)
     }
   }
 
@@ -156,10 +159,14 @@ export class TransportManager {
     return this.primary.fetchGroupConversation(groupId, limit)
   }
 
-  /** Flush the offline queue through the primary transport. */
+  /** Flush the offline queue through primary (or secondary if primary is down). */
   async flush(): Promise<number> {
     if (!this.primary || !this.dequeueFn || !this.markSentFn || !this.markFailedFn) return 0
-    if (!navigator.onLine) return 0
+
+    // Allow flush via secondary even when offline (e.g. LoRa mesh is up)
+    const primaryUp = navigator.onLine
+    const secondaryUp = this.secondary?.isAvailable() ?? false
+    if (!primaryUp && !secondaryUp) return 0
 
     try {
       const queued = await this.dequeueFn()
@@ -171,8 +178,19 @@ export class TransportManager {
       const failedIds: string[] = []
 
       for (const entry of queued) {
-        const result = await this.primary.sendMessage(entry)
-        if (result.ok) {
+        // Try primary first if online
+        let sent = false
+        if (primaryUp) {
+          const result = await this.primary.sendMessage(entry)
+          if (result.ok) sent = true
+        }
+        // Fall back to secondary
+        if (!sent && secondaryUp && this.secondary) {
+          const result = await this.secondary.sendMessage(entry)
+          if (result.ok) sent = true
+        }
+
+        if (sent) {
           sentIds.push(entry.id)
         } else {
           failedIds.push(entry.id)
@@ -197,6 +215,36 @@ export class TransportManager {
         reg.active?.postMessage({ type: 'QUEUE_UPDATED' })
       }).catch(() => {})
     }
+  }
+
+  /** Try secondary transport, then fall back to offline queue. */
+  private async fallbackOrQueue(params: SendMessageParams): Promise<Result<string>> {
+    if (this.secondary?.isAvailable()) {
+      try {
+        const secResult = await this.secondary.sendMessage(params)
+        if (secResult.ok) {
+          logger.info(`Sent via secondary transport (${this.secondary.name})`)
+          return secResult
+        }
+      } catch { /* fall through to queue */ }
+    }
+    await this.queueMessage(params)
+    return ok(params.id)
+  }
+
+  /** Try secondary transport for batch, then fall back to offline queue. */
+  private async fallbackBatchOrQueue(params: SendBatchParams): Promise<Result<string[]>> {
+    if (this.secondary?.isAvailable()) {
+      try {
+        const secResult = await this.secondary.sendMessageBatch(params)
+        if (secResult.ok) {
+          logger.info(`Batch sent via secondary transport (${this.secondary.name})`)
+          return secResult
+        }
+      } catch { /* fall through to queue */ }
+    }
+    await this.queueBatch(params)
+    return ok(params.messages.map(m => m.id))
   }
 
   private async queueMessage(params: SendMessageParams): Promise<void> {

@@ -20,18 +20,20 @@ export class SupabaseTransport implements SignalTransport {
 
   async sendMessage(params: SendMessageParams): Promise<Result<string>> {
     try {
+      const row: Record<string, unknown> = {
+        id: params.id,
+        sender_id: params.senderId,
+        recipient_id: params.recipientId,
+        sender_device_id: params.senderDeviceId ?? null,
+        recipient_device_id: params.recipientDeviceId ?? null,
+        message_type: params.messageType,
+        payload: params.payload,
+      }
+      if (params.groupId) row.group_id = params.groupId
+
       const { data, error } = await supabase
         .from('signal_messages')
-        .insert({
-          id: params.id,
-          sender_id: params.senderId,
-          recipient_id: params.recipientId,
-          sender_device_id: params.senderDeviceId ?? null,
-          recipient_device_id: params.recipientDeviceId ?? null,
-          group_id: params.groupId ?? null,
-          message_type: params.messageType,
-          payload: params.payload,
-        })
+        .insert(row)
         .select('id')
         .single()
 
@@ -58,16 +60,19 @@ export class SupabaseTransport implements SignalTransport {
     if (params.messages.length === 0) return ok([])
 
     try {
-      const rows = params.messages.map(m => ({
-        id: m.id,
-        sender_id: params.senderId,
-        sender_device_id: params.senderDeviceId,
-        recipient_id: params.recipientId,
-        recipient_device_id: m.recipientDeviceId,
-        group_id: params.groupId ?? null,
-        message_type: m.messageType,
-        payload: m.payload,
-      }))
+      const rows = params.messages.map(m => {
+        const row: Record<string, unknown> = {
+          id: m.id,
+          sender_id: params.senderId,
+          sender_device_id: params.senderDeviceId,
+          recipient_id: params.recipientId,
+          recipient_device_id: m.recipientDeviceId,
+          message_type: m.messageType,
+          payload: m.payload,
+        }
+        if (params.groupId) row.group_id = params.groupId
+        return row
+      })
 
       const { data, error } = await supabase
         .from('signal_messages')
@@ -218,6 +223,37 @@ export class SupabaseTransport implements SignalTransport {
 
   isAvailable(): boolean {
     return navigator.onLine
+  }
+
+  /** Diagnostic: test a raw INSERT into signal_messages. Call from console via window.__testSignalSend(). */
+  async testInsert(senderId: string, deviceId: string): Promise<void> {
+    const testId = crypto.randomUUID()
+    console.log('[DiagnosticTest] Attempting INSERT into signal_messages...')
+    console.log('[DiagnosticTest] senderId:', senderId, 'deviceId:', deviceId, 'testId:', testId)
+
+    const { data, error } = await supabase
+      .from('signal_messages')
+      .insert({
+        id: testId,
+        sender_id: senderId,
+        recipient_id: senderId,
+        sender_device_id: deviceId,
+        recipient_device_id: null,
+        group_id: null,
+        message_type: 'message',
+        payload: { text: '{"t":"t","d":"diagnostic test"}' },
+      })
+      .select('id')
+      .single()
+
+    if (error) {
+      console.error('[DiagnosticTest] INSERT FAILED:', error.message, '| code:', error.code, '| details:', error.details, '| hint:', error.hint)
+    } else {
+      console.log('[DiagnosticTest] INSERT SUCCESS! id:', data.id)
+      // Clean up test message
+      await supabase.from('signal_messages').delete().eq('id', testId)
+      console.log('[DiagnosticTest] Test message cleaned up')
+    }
   }
 
   private fireNotif(

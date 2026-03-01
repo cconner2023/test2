@@ -20,6 +20,7 @@ import {
   markSent,
   markFailed,
 } from './outboundQueue'
+import { LORA_MESH_ENABLED } from '../featureFlags'
 import type { PublicKeyBundle, EncryptedMessage, InitialMessage } from './types'
 import type {
   PeerBundleRpcResult,
@@ -45,6 +46,20 @@ transportManager.setQueue({
   markSent,
   markFailed,
 })
+
+// Expose diagnostic test on window for debugging
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>).__testSignalSend = async () => {
+    const { getLocalDeviceId } = await import('./keyManager')
+    const { supabase: sb } = await import('../supabase')
+    const { data: { user } } = await sb.auth.getUser()
+    if (!user) { console.error('[Diagnostic] Not authenticated'); return }
+    const deviceId = await getLocalDeviceId()
+    if (!deviceId) { console.error('[Diagnostic] No localDeviceId'); return }
+    console.log('[Diagnostic] user:', user.id, 'device:', deviceId)
+    await supabaseTransport.testInsert(user.id, deviceId)
+  }
+}
 
 // ---- Device Registration ----
 
@@ -405,4 +420,93 @@ export async function fetchGroupConversation(
   limit: number = 50
 ): Promise<Result<SignalMessageRow[]>> {
   return transportManager.fetchGroupConversation(groupId, limit)
+}
+
+// ---- LoRa Mesh (behind feature flag) ----
+
+import type { BleAdapter } from '../lora/bleAdapter'
+import type { MeshRouter } from '../lora/meshRouter'
+import type { LoRaTransport } from '../lora/loraTransport'
+
+let loraBleAdapter: BleAdapter | null = null
+let loraMeshRouter: MeshRouter | null = null
+let loraTransportInstance: LoRaTransport | null = null
+
+/**
+ * Initialize the LoRa mesh subsystem.
+ * Called once from the auth store after Signal bundle init.
+ * Lazy-imports to avoid loading LoRa code when the flag is off.
+ */
+export async function initLoRaMesh(userId: string): Promise<void> {
+  if (!LORA_MESH_ENABLED) return
+
+  try {
+    const { BleAdapter } = await import('../lora/bleAdapter')
+    const { MeshRouter } = await import('../lora/meshRouter')
+    const { LoRaTransport } = await import('../lora/loraTransport')
+    const { userIdToShortId, shortIdToHex } = await import('../lora/wireFormat')
+
+    const shortId = await userIdToShortId(userId)
+    const localNode = {
+      userId,
+      shortId,
+      shortIdHex: shortIdToHex(shortId),
+    }
+
+    loraBleAdapter = new BleAdapter({
+      onStateChange: (state) => {
+        logger.info(`LoRa BLE state: ${state}`)
+      },
+      onReceive: (frame) => {
+        loraMeshRouter?.handleIncoming(frame)
+      },
+      onError: (error) => {
+        logger.warn(`LoRa BLE error: ${error}`)
+      },
+    })
+
+    loraTransportInstance = new LoRaTransport(
+      null as unknown as MeshRouter, // will be set after MeshRouter is created
+      localNode,
+      loraBleAdapter,
+    )
+
+    loraMeshRouter = new MeshRouter(localNode, loraBleAdapter, (frame) => {
+      loraTransportInstance?.handleReceivedFrame(frame)
+    })
+
+    // Wire up the real router reference
+    loraTransportInstance.meshRouter = loraMeshRouter
+
+    transportManager.setSecondary(loraTransportInstance)
+    logger.info('LoRa mesh subsystem initialized')
+  } catch (e) {
+    logger.warn('Failed to initialize LoRa mesh:', e)
+  }
+}
+
+/**
+ * Connect to a LoRa BLE radio module.
+ * Triggers the browser BLE device picker, then connects and starts the mesh router.
+ */
+export async function connectLoRa(): Promise<Result<void>> {
+  if (!LORA_MESH_ENABLED || !loraBleAdapter || !loraMeshRouter) {
+    return err('LoRa mesh not initialized')
+  }
+
+  const deviceResult = await loraBleAdapter.requestDevice()
+  if (!deviceResult.ok) return deviceResult
+
+  const connectResult = await loraBleAdapter.connect()
+  if (!connectResult.ok) return connectResult
+
+  loraMeshRouter.start()
+  loraBleAdapter.startAutoReconnect()
+  return ok(undefined)
+}
+
+/** Disconnect from the LoRa BLE radio module. */
+export function disconnectLoRa(): void {
+  loraMeshRouter?.stop()
+  loraBleAdapter?.disconnect()
 }
