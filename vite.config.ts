@@ -14,7 +14,7 @@ export default defineConfig({
     {
       name: 'html-version',
       transformIndexHtml(html) {
-        return html.replace(/%APP_VERSION%/g, APP_VERSION)
+        return html.replace(/%APP_VERSION%/, APP_VERSION)
       }
     },
     {
@@ -39,7 +39,7 @@ export default defineConfig({
         id: '/test2/',
         name: `ADTMC V${APP_VERSION}`,
         short_name: `ADTMC ${APP_VERSION}`,
-        description: 'ADTMC documentation',
+        description: 'knowledge base, logistics, and mesh node communication ',
         start_url: '/test2/',
         display: 'standalone',
         background_color: '#ffffff',

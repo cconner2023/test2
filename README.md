@@ -1,5 +1,5 @@
-# (ADTMC)
-Provides triage algorithms, medication references, note documentation, property management, forward-security comms for medical personnel, and training IAW updated CPGs, MEDCOM PAM 40-7-21. Built mobile-first, offline-first. Always updating as the battlefield changes and based off of feedback.
+# started as just ADTMC. name in progress - I'm open to suggestions.
+I've tried to code this to provides triage algorithms, medication references, note documentation, property management, forward-security comms for medical personnel, and training IAW updated CPGs, MEDCOM PAM 40-7-21. Built mobile-first, offline-first. It's time we consolidated all of the apps and systems.
 
 ```
 https://cconner2023.github.io/test2
@@ -18,11 +18,12 @@ https://cconner2023.github.io/test2
   - Integrated screening tools (PHQ-2/9, GAD-7, MACE-2) with automatic scoring
   - Inline clinical guidelines, medication references, and linked training tasks
 - **Note Customization:** custom text expanders mimicking other auto-text templates. User-defined: you don't have to look at 30-thousand enterprise templates.
-- **Training Tracking:** Per-item training completion with sync to server for authenticated users based off of critical task list and 68W STP.
+- **Knowledge Base:** Per-item training completion with sync to server for authenticated users based off of critical task list and 68W STP.
  - Train anywhere
  - Leaders can evaluate training. Progressed encrypted and cached locally. Sent to server when connectivity is restored.
- - **Messaging:** Message users in clinic, chain ratchet + DH ratchet encrypted at rest. Device purge for inactive devices. Message purge after > 4MB network storage.
-- **Offline-First:** sync queue pushes training progress and messaging to network on connect. training information, certification, and knowledge base accessible offline. LoRa architecture + DH/chain ratchet in place for offline messaging for low-connectivity medical personnel
+- **Messaging:** Message users in clinic, chain ratchet + DH ratchet encrypted at rest. Device purge for inactive devices. Message purge after > 4MB network storage.
+- 
+- **Offline-First:** sync queue pushes training progress and messaging to network on connect. training information, certification, and knowledge base accessible offline. LoRa architecture + DH/chain ratchet in place for offline messaging in low-bandwidth environments.
 - **Authentication:** Auth with role-based accesses
 - **Dark/Light Theme:** System preference detection with manual toggle
 
@@ -36,6 +37,5 @@ https://cconner2023.github.io/test2
 - We're always looking for feedback on how to make this product better. You can send feedback in the application settings.
 
 ## In Progress
-- **BAA:** To one day store / send PHI/PII through secured servers using signal protocols.
-- **Battle Injuries:** Sick Call is one thing. Battle injury documentation could be handled the same way.
-- **9-line MEDEVAC:** Craft your 9-line as you work.
+- **BAA:** To one day store / send PHI/PII through secured servers using signal protocols or LoRa transmission.
+- **Battle Injuries:** TC3 cards and 9-lines.
