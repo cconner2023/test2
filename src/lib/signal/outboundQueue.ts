@@ -24,6 +24,7 @@ export interface OutboundQueueEntry {
   recipientId: string
   senderDeviceId: string | null
   recipientDeviceId: string | null
+  groupId: string | null  // set for group messages
   messageType: 'initial' | 'message' | 'request' | 'request-accepted'
   payload: string         // encrypted via encryptString()
   createdAt: string       // ISO timestamp
@@ -75,6 +76,7 @@ export async function enqueue(params: SendMessageParams): Promise<void> {
       recipientId: params.recipientId,
       senderDeviceId: params.senderDeviceId ?? null,
       recipientDeviceId: params.recipientDeviceId ?? null,
+      groupId: params.groupId ?? null,
       messageType: params.messageType,
       payload: encPayload,
       createdAt: new Date().toISOString(),
@@ -106,6 +108,7 @@ export async function enqueueBatch(params: SendBatchParams): Promise<void> {
         recipientId: params.recipientId,
         senderDeviceId: params.senderDeviceId,
         recipientDeviceId: m.recipientDeviceId,
+        groupId: params.groupId ?? null,
         messageType: m.messageType,
         payload: encPayload,
         createdAt: new Date().toISOString(),
@@ -142,6 +145,7 @@ export async function dequeueAll(): Promise<SendMessageParams[]> {
           recipientId: entry.recipientId,
           senderDeviceId: entry.senderDeviceId ?? undefined,
           recipientDeviceId: entry.recipientDeviceId ?? undefined,
+          groupId: entry.groupId ?? undefined,
           messageType: entry.messageType,
           payload,
         })

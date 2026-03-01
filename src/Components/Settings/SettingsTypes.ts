@@ -25,6 +25,7 @@ export const PANEL = {
     CHANGE_PASSWORD: 22,
     CERTIFICATIONS: 23,
     MESSAGES: 24,
+    PROPERTY: 25,
 } as const;
 
 export type PanelId = (typeof PANEL)[keyof typeof PANEL];
@@ -48,6 +49,7 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.CHANGE_PASSWORD]: 'change-password',
     [PANEL.CERTIFICATIONS]: 'certifications',
     [PANEL.MESSAGES]: 'messages',
+    [PANEL.PROPERTY]: 'property',
 };
 
 export type SettingsItem =

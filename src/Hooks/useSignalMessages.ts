@@ -19,6 +19,7 @@ import { fetchUnreadMessages } from '../lib/signal/signalService'
 import { receiveInitialMessage, decryptMessage } from '../lib/signal/session'
 import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { InitialMessage, EncryptedMessage } from '../lib/signal/types'
+import type { SyncMessagePayload } from '../lib/signal/transportTypes'
 import { parseMessageContent } from '../lib/signal/messageContent'
 
 const logger = createLogger('RealtimeSignal')
@@ -33,11 +34,40 @@ interface UseSignalMessagesOptions {
 
 async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage | null> {
   try {
+    // Sync messages: encrypted envelope containing a SyncMessagePayload
+    if (row.message_type === 'sync') {
+      const senderDeviceId = row.sender_device_id ?? 'unknown'
+      const payload = row.payload
+      let rawPlaintext: string
+
+      if ('identitySigningKey' in payload) {
+        rawPlaintext = await receiveInitialMessage(row.sender_id, senderDeviceId, payload as unknown as InitialMessage)
+      } else {
+        rawPlaintext = await decryptMessage(row.sender_id, senderDeviceId, payload as unknown as EncryptedMessage)
+      }
+
+      const sync = JSON.parse(rawPlaintext) as SyncMessagePayload
+      const { plaintext, content, replyTo } = parseMessageContent(sync.serialized)
+
+      return {
+        id: sync.originalMessageId,
+        senderId: row.sender_id,
+        recipientId: sync.forPeerId,
+        plaintext,
+        content,
+        messageType: sync.originalMessageType,
+        createdAt: sync.originalTimestamp,
+        readAt: new Date().toISOString(), // auto-read (own sent message)
+        ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
+        ...(sync.forGroupId && { groupId: sync.forGroupId }),
+      }
+    }
+
     // Self-notes: no Signal Protocol encryption — extract plaintext directly
     if (row.sender_id === row.recipient_id) {
       const payload = row.payload as { text?: string }
       const rawPlaintext = payload?.text ?? ''
-      const { plaintext, content } = parseMessageContent(rawPlaintext)
+      const { plaintext, content, replyTo } = parseMessageContent(rawPlaintext)
       return {
         id: row.id,
         senderId: row.sender_id,
@@ -47,6 +77,8 @@ async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage
         messageType: row.message_type,
         createdAt: row.created_at,
         readAt: row.read_at,
+        ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
+        ...(row.group_id && { groupId: row.group_id }),
       }
     }
 
@@ -55,7 +87,7 @@ async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage
       const senderDeviceId = row.sender_device_id ?? 'unknown'
       const payload = row.payload as unknown as InitialMessage
       const rawPlaintext = await receiveInitialMessage(row.sender_id, senderDeviceId, payload)
-      const { plaintext, content } = parseMessageContent(rawPlaintext)
+      const { plaintext, content, replyTo } = parseMessageContent(rawPlaintext)
       return {
         id: row.id,
         senderId: row.sender_id,
@@ -65,6 +97,8 @@ async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage
         messageType: row.message_type,
         createdAt: row.created_at,
         readAt: row.read_at,
+        ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
+        ...(row.group_id && { groupId: row.group_id }),
       }
     }
     if (row.message_type === 'request-accepted') {
@@ -76,6 +110,7 @@ async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage
         messageType: row.message_type,
         createdAt: row.created_at,
         readAt: row.read_at,
+        ...(row.group_id && { groupId: row.group_id }),
       }
     }
 
@@ -92,7 +127,7 @@ async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage
     }
 
     // Parse structured content (text or image) from the decrypted payload
-    const { plaintext, content } = parseMessageContent(rawPlaintext)
+    const { plaintext, content, replyTo } = parseMessageContent(rawPlaintext)
 
     return {
       id: row.id,
@@ -103,6 +138,8 @@ async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage
       messageType: row.message_type,
       createdAt: row.created_at,
       readAt: row.read_at,
+      ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
+      ...(row.group_id && { groupId: row.group_id }),
     }
   } catch (e) {
     logger.error(`Failed to decrypt message ${row.id}:`, e instanceof Error ? e.message : e)
@@ -130,13 +167,23 @@ export function useSignalMessages({
   // Track whether catch-up has already run to avoid re-fetching on re-subscribe
   const catchUpDone = useRef(false)
 
-  // Offline catch-up: fetch unread messages on mount (filtered by device)
+  // Reset catch-up when page visibility restores (messages may have been missed while hidden)
+  const prevVisibleRef = useRef(isPageVisible)
   useEffect(() => {
-    if (!isAuthenticated || !userId || catchUpDone.current) return
+    if (isPageVisible && !prevVisibleRef.current) {
+      catchUpDone.current = false
+    }
+    prevVisibleRef.current = isPageVisible
+  }, [isPageVisible])
+
+  // Offline catch-up: fetch unread messages on mount (filtered by device)
+  // Gated on localDeviceId to prevent unfiltered queries
+  useEffect(() => {
+    if (!isAuthenticated || !userId || !localDeviceId || catchUpDone.current) return
     catchUpDone.current = true
 
     ;(async () => {
-      const result = await fetchUnreadMessages(userId, localDeviceIdRef.current ?? undefined)
+      const result = await fetchUnreadMessages(userId, localDeviceId)
       if (!result.ok) {
         logger.warn('Offline catch-up failed:', result.error)
         return
@@ -152,7 +199,7 @@ export function useSignalMessages({
         }
       }
     })()
-  }, [isAuthenticated, userId])
+  }, [isAuthenticated, userId, localDeviceId])
 
   // Handle realtime INSERT events — filter by recipient_device_id
   const handlePayload = useCallback(

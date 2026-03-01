@@ -28,13 +28,24 @@ if (typeof window !== 'undefined') {
  * Manages the PWA install prompt lifecycle: captures the beforeinstallprompt event,
  * handles iOS detection, dismissal with 7-day cooldown, and the install flow.
  */
+const MOUNT_DELAY_MS = 2000;
+
 export function useInstallPrompt() {
     const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
     const [showPrompt, setShowPrompt] = useState(false);
     const [isInstalling, setIsInstalling] = useState(false);
     const [isIOS, setIsIOS] = useState(false);
+    const [mountReady, setMountReady] = useState(false);
+
+    // Delay mount readiness so SW registration + update check can complete first
+    useEffect(() => {
+        const timer = setTimeout(() => setMountReady(true), MOUNT_DELAY_MS);
+        return () => clearTimeout(timer);
+    }, []);
 
     useEffect(() => {
+        if (!mountReady) return;
+
         // Detect iOS (no beforeinstallprompt support)
         const ua = navigator.userAgent;
         const ios = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
@@ -76,7 +87,7 @@ export function useInstallPrompt() {
         };
         _listeners.add(handler);
         return () => { _listeners.delete(handler); };
-    }, []);
+    }, [mountReady]);
 
     // Hide prompt if app gets installed
     useEffect(() => {

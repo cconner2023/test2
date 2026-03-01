@@ -1,7 +1,6 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
-import { useSpring, animated } from '@react-spring/web'
-import { Check, X, Loader2, CheckCircle2, Circle, Copy, Pencil, Reply, Trash2 } from 'lucide-react'
-import { GESTURE_THRESHOLDS, SPRING_CONFIGS } from '../../Utilities/GestureUtils'
+import { Check, X, Loader2, CheckCircle2, Circle, Copy, Pencil, Reply, Trash2, Clock, MessageSquare } from 'lucide-react'
+import { GESTURE_THRESHOLDS } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
 
@@ -21,6 +20,12 @@ interface MessageBubbleProps {
   onEditTextChange?: (text: string) => void
   onSaveEdit?: () => void
   onCancelEdit?: () => void
+  /** Number of thread replies if this message is a thread root. */
+  threadReplyCount?: number
+  /** Callback when user taps to open a thread (reply header or reply count badge). */
+  onOpenThread?: (rootMessageId: string) => void
+  /** Sender name to display above non-own bubbles in group chats. */
+  senderName?: string
 }
 
 function formatTime(iso: string): string {
@@ -72,31 +77,32 @@ export function MessageBubble({
   onEditTextChange,
   onSaveEdit,
   onCancelEdit,
+  threadReplyCount,
+  onOpenThread,
+  senderName,
 }: MessageBubbleProps) {
   const touchRef = useRef<{
     startX: number
     startY: number
-    lastDx: number
     swiping: boolean
     dirDecided: boolean
   } | null>(null)
   const touchedRef = useRef(false)
+  const rowRef = useRef<HTMLDivElement>(null)
   const [showFullImage, setShowFullImage] = useState(false)
   const [swipeOpen, setSwipeOpen] = useState(false)
 
-  const ACTION_WIDTH = GESTURE_THRESHOLDS.SWIPE_BACK_THRESHOLD
+  const ACTION_WIDTH = 192
   const swipeEnabled = !isEditing && !selectionMode
-
-  // Spring for smooth swipe animation
-  const [style, api] = useSpring(() => ({
-    x: 0,
-    config: SPRING_CONFIGS.snap,
-  }))
 
   // Close swipe when entering selection mode
   useEffect(() => {
     if (selectionMode && swipeOpen) {
-      api.start({ x: 0, config: SPRING_CONFIGS.snap })
+      const el = rowRef.current
+      if (el) {
+        el.style.transition = 'transform 200ms ease-out'
+        el.style.transform = 'translateX(0px)'
+      }
       setSwipeOpen(false)
     }
   }, [selectionMode]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -112,103 +118,77 @@ export function MessageBubble({
     imageContent?.key,
   )
 
-  // ── Manual touch gesture (no @use-gesture — works reliably on mobile) ──
+  // ── Direct DOM touch handling ──
+
+  const snapTo = useCallback((x: number) => {
+    const el = rowRef.current
+    if (!el) return
+    el.style.transition = 'transform 200ms ease-out'
+    el.style.transform = `translateX(${x}px)`
+  }, [])
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     touchedRef.current = true
-    const touch = e.touches[0]
-    touchRef.current = {
-      startX: touch.clientX,
-      startY: touch.clientY,
-      lastDx: 0,
-      swiping: false,
-      dirDecided: false,
-    }
+    const t = e.touches[0]
+    touchRef.current = { startX: t.clientX, startY: t.clientY, swiping: false, dirDecided: false }
   }, [])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!touchRef.current) return
-    const touch = e.touches[0]
-    const dx = touch.clientX - touchRef.current.startX
-    const dy = touch.clientY - touchRef.current.startY
+    const state = touchRef.current
+    if (!state) return
+    const t = e.touches[0]
+    const dx = t.clientX - state.startX
+    const dy = t.clientY - state.startY
 
-    // Direction lock: decide horizontal vs vertical once past dead zone
-    if (!touchRef.current.dirDecided) {
+    if (!state.dirDecided) {
       if (Math.abs(dx) < GESTURE_THRESHOLDS.DIRECTION_LOCK && Math.abs(dy) < GESTURE_THRESHOLDS.DIRECTION_LOCK) return
-      touchRef.current.dirDecided = true
-      if (Math.abs(dy) > Math.abs(dx)) {
-        // Vertical — let scroll handle it
-        touchRef.current = null
-        return
-      }
-      if (swipeEnabled) {
-        touchRef.current.swiping = true
-      } else {
-        touchRef.current = null
-        return
-      }
+      state.dirDecided = true
+      if (Math.abs(dy) > Math.abs(dx)) { touchRef.current = null; return }
+      if (!swipeEnabled) { touchRef.current = null; return }
+      state.swiping = true
     }
+    if (!state.swiping) return
 
-    if (!touchRef.current.swiping) return
-
-    touchRef.current.lastDx = dx
     const base = swipeOpen ? -ACTION_WIDTH : 0
     const offset = Math.max(-ACTION_WIDTH, Math.min(0, base + dx))
-    api.start({ x: offset, immediate: true })
-  }, [swipeEnabled, swipeOpen, ACTION_WIDTH, api])
+    const el = rowRef.current
+    if (el) {
+      el.style.transition = 'none'
+      el.style.transform = `translateX(${offset}px)`
+    }
+  }, [swipeEnabled, swipeOpen, ACTION_WIDTH])
 
-  const handleTouchEnd = useCallback(() => {
-    if (!touchRef.current) return
-    const { swiping, dirDecided, lastDx } = touchRef.current
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    const state = touchRef.current
+    if (!state) return
     touchRef.current = null
 
-    if (swiping) {
-      // Snap open or closed based on displacement
+    if (state.swiping) {
+      const dx = e.changedTouches[0].clientX - state.startX
       const base = swipeOpen ? -ACTION_WIDTH : 0
-      const finalOffset = base + lastDx
-      const shouldOpen = Math.abs(finalOffset) > GESTURE_THRESHOLDS.NOTE_SWIPE_THRESHOLD
-
-      if (shouldOpen) {
-        api.start({ x: -ACTION_WIDTH, config: SPRING_CONFIGS.fling })
-        setSwipeOpen(true)
-      } else {
-        api.start({ x: 0, config: SPRING_CONFIGS.snap })
-        setSwipeOpen(false)
-      }
+      const shouldOpen = Math.abs(base + dx) > ACTION_WIDTH * 0.3
+      snapTo(shouldOpen ? -ACTION_WIDTH : 0)
+      setSwipeOpen(shouldOpen)
       return
     }
 
-    // No direction decided = tap
-    if (!dirDecided) {
-      if (swipeOpen) {
-        api.start({ x: 0, config: SPRING_CONFIGS.snap })
-        setSwipeOpen(false)
-      } else {
-        onTap?.(message)
-      }
+    if (!state.dirDecided) {
+      if (swipeOpen) { snapTo(0); setSwipeOpen(false) }
+      else onTap?.(message)
     }
-  }, [swipeOpen, ACTION_WIDTH, api, onTap, message])
+  }, [swipeOpen, ACTION_WIDTH, snapTo, onTap, message])
 
   const handleTouchCancel = useCallback(() => {
-    if (!touchRef.current) return
     touchRef.current = null
-    // Restore to current open/closed state
-    api.start({ x: swipeOpen ? -ACTION_WIDTH : 0, config: SPRING_CONFIGS.snap })
-  }, [swipeOpen, ACTION_WIDTH, api])
+    snapTo(swipeOpen ? -ACTION_WIDTH : 0)
+  }, [swipeOpen, ACTION_WIDTH, snapTo])
 
   // Desktop click → tap (skip if touch just fired)
   const handleClick = useCallback(() => {
-    if (touchedRef.current) {
-      touchedRef.current = false
-      return
-    }
-    if (swipeOpen) {
-      api.start({ x: 0, config: SPRING_CONFIGS.snap })
-      setSwipeOpen(false)
-      return
-    }
+    if (touchedRef.current) { touchedRef.current = false; return }
+    if (swipeOpen) { snapTo(0); setSwipeOpen(false); return }
     onTap?.(message)
-  }, [swipeOpen, api, onTap, message])
+  }, [swipeOpen, snapTo, onTap, message])
 
   // Desktop right-click + mobile long-press
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -219,10 +199,10 @@ export function MessageBubble({
   // ── Swipe action handler ─────────────────────────────────────────────
 
   const handleSwipeAction = useCallback((action: SwipeAction) => {
-    api.start({ x: 0, config: SPRING_CONFIGS.snap })
+    snapTo(0)
     setSwipeOpen(false)
     onSwipeAction?.(message, action)
-  }, [message, onSwipeAction, api])
+  }, [message, onSwipeAction, snapTo])
 
   const handleImageTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -311,7 +291,7 @@ export function MessageBubble({
         {/* Swipe action buttons — revealed on drag */}
         {swipeEnabled && (
           <div
-            className="absolute inset-y-0 right-0 flex items-center justify-evenly gap-1 px-2"
+            className="absolute inset-y-0 right-0 flex items-center justify-evenly px-2"
             style={{ width: ACTION_WIDTH }}
           >
             <button onClick={() => handleSwipeAction('reply')} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
@@ -343,15 +323,16 @@ export function MessageBubble({
           </div>
         )}
 
-        {/* Slidable message row — manual touch handling + react-spring animation */}
-        <animated.div
+        {/* Slidable message row — direct DOM touch handling */}
+        <div
+          ref={rowRef}
           onTouchStart={handleTouchStart}
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
           onTouchCancel={handleTouchCancel}
           onClick={handleClick}
           onContextMenu={handleContextMenu}
-          style={{ x: style.x, touchAction: 'pan-y' }}
+          style={{ touchAction: 'pan-y' }}
           className="relative bg-themewhite3 select-none cursor-pointer"
         >
           <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} items-end`}>
@@ -372,22 +353,64 @@ export function MessageBubble({
             )}
 
             {/* Visual bubble */}
-            <div
-              className={`rounded-2xl ${isImage ? 'p-1.5' : 'px-3.5 py-2'}
-                         ${isOwn ? 'bg-themeblue2 text-white rounded-br-md' : 'bg-themewhite2 text-primary rounded-bl-md'}
-                         ${selected ? (isOwn ? 'ring-2 ring-white/50' : 'ring-2 ring-themeblue2/50') : ''}
-                         ${selectionMode ? 'max-w-[80%]' : 'max-w-[75%]'}`}
-            >
-              {renderContent()}
-              <div className={`flex items-center gap-1 mt-0.5 ${isImage ? 'px-1.5' : ''} ${isOwn ? 'text-white/60' : 'text-tertiary/40'}`}>
-                <p className="text-[9px]">{formatTime(message.createdAt)}</p>
-                {message.messageType === 'request' && isOwn && (
-                  <span className="text-[9px] italic">Pending</span>
+            <div className={`${selectionMode ? 'max-w-[80%]' : 'max-w-[75%]'}`}>
+              <div
+                className={`rounded-2xl ${isImage ? 'p-1.5' : 'px-3.5 py-2'}
+                           ${isOwn ? 'bg-themeblue2 text-white rounded-br-md' : 'bg-themewhite2 text-primary rounded-bl-md'}
+                           ${selected ? (isOwn ? 'ring-2 ring-white/50' : 'ring-2 ring-themeblue2/50') : ''}`}
+              >
+                {/* Sender name label (group chats) */}
+                {senderName && !isOwn && (
+                  <p className="text-[10px] font-semibold text-themeblue2 mb-0.5">{senderName}</p>
                 )}
+                {/* Reply-to header */}
+                {message.threadId && message.replyPreview && (
+                  <div
+                    className={`flex items-start gap-1.5 mb-1.5 pb-1.5 border-b cursor-pointer
+                               ${isOwn ? 'border-white/20' : 'border-primary/10'}`}
+                    onClick={e => { e.stopPropagation(); onOpenThread?.(message.threadId!) }}
+                  >
+                    <div className={`w-0.5 self-stretch rounded-full shrink-0 ${isOwn ? 'bg-white/40' : 'bg-themeblue2/40'}`} />
+                    <div className="min-w-0">
+                      <p className={`text-[10px] font-medium ${isOwn ? 'text-white/70' : 'text-themeblue2/70'}`}>
+                        Replying to
+                      </p>
+                      <p className={`text-[11px] truncate ${isOwn ? 'text-white/50' : 'text-tertiary/50'}`}>
+                        {message.replyPreview}
+                      </p>
+                    </div>
+                  </div>
+                )}
+                {renderContent()}
+                <div className={`flex items-center gap-1 mt-0.5 ${isImage ? 'px-1.5' : ''} ${isOwn ? 'text-white/60' : 'text-tertiary/40'}`}>
+                  <p className="text-[9px]">{formatTime(message.createdAt)}</p>
+                  {isOwn && message.messageType === 'request' && (
+                    <span className="text-[9px] italic">Pending</span>
+                  )}
+                  {isOwn && message.messageType !== 'request' && message.status === 'sending' && (
+                    <Clock size={10} className="opacity-60" />
+                  )}
+                  {isOwn && message.messageType !== 'request' && message.status !== 'sending' && (
+                    <Check size={10} className="opacity-60" />
+                  )}
+                </div>
               </div>
+
+              {/* Thread reply count badge */}
+              {!!threadReplyCount && threadReplyCount > 0 && (
+                <button
+                  onClick={e => { e.stopPropagation(); onOpenThread?.(message.id) }}
+                  className={`flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium
+                             text-themeblue2 hover:bg-themeblue2/10 active:scale-95 transition-all
+                             ${isOwn ? 'ml-auto' : ''}`}
+                >
+                  <MessageSquare size={10} />
+                  {threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}
+                </button>
+              )}
             </div>
           </div>
-        </animated.div>
+        </div>
       </div>
 
       {/* Full-size image overlay */}

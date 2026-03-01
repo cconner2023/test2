@@ -4,7 +4,7 @@ import { X, Download, Wifi, RefreshCw } from 'lucide-react';
 import { useServiceWorker } from '../Hooks/useServiceWorker';
 import { UI_TIMING } from '../Utilities/constants';
 
-const UpdateNotification: React.FC = () => {
+const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => void }> = ({ onVisibilityChange }) => {
     const {
         updateAvailable,
         offlineReady,
@@ -44,6 +44,10 @@ const UpdateNotification: React.FC = () => {
             setIsVisible(false);
         }
     }, [updateAvailable, dismissed]);
+
+    useEffect(() => {
+        onVisibilityChange?.(isVisible);
+    }, [isVisible, onVisibilityChange]);
 
     useEffect(() => {
         // Show offline ready toast briefly

@@ -14,11 +14,26 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
+const isBrowser = typeof window !== 'undefined'
+
+/**
+ * True when running as an installed PWA (standalone/fullscreen display mode).
+ * Browser tabs and sandboxed PWAs that don't match standalone get session-scoped auth.
+ */
+export const isPWA = isBrowser && (
+  window.matchMedia('(display-mode: standalone)').matches ||
+  window.matchMedia('(display-mode: fullscreen)').matches ||
+  (navigator as unknown as { standalone?: boolean }).standalone === true
+)
+
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    // Browser mode: use sessionStorage so auth is cleared when the tab closes.
+    // PWA mode: use default localStorage for persistent sessions.
+    ...(isBrowser && !isPWA ? { storage: window.sessionStorage } : {}),
   },
 })
 

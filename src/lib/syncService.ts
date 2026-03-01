@@ -25,14 +25,18 @@ import {
   saveLocalTrainingCompletion,
   updateTrainingCompletionSyncStatus,
   hardDeleteLocalTrainingCompletion,
+  getLocalPropertyItems,
+  saveLocalPropertyItem,
+  deleteLocalPropertyItem,
   stripLocalFields,
   type LocalTrainingCompletion,
 } from './offlineDb'
+import type { LocalPropertyItem } from '../Types/PropertyTypes'
 
 const logger = createLogger('SyncService')
 
 /** Tables that the sync queue is allowed to write to. */
-const ALLOWED_SYNC_TABLES = ['training_completions'] as const
+const ALLOWED_SYNC_TABLES = ['training_completions', 'property_items', 'property_locations', 'discrepancies', 'custody_ledger'] as const
 type SyncableTable = typeof ALLOWED_SYNC_TABLES[number]
 
 /** Maximum number of retries before giving up on a sync item. */
@@ -458,6 +462,55 @@ export async function reconcileTrainingCompletionsWithServer(
 }
 
 // ============================================================
+// Property Reconciliation
+// ============================================================
+
+export async function reconcilePropertyWithServer(
+  clinicId: string,
+): Promise<LocalPropertyItem[]> {
+  if (!isOnline()) {
+    logger.debug('Offline, skipping property reconciliation')
+    return getLocalPropertyItems(clinicId)
+  }
+
+  logger.info('Starting property items reconciliation with server')
+
+  try {
+    await reconcile<LocalPropertyItem, Record<string, unknown>>(clinicId, {
+      tableName: 'property_items',
+      fetchLocal: getLocalPropertyItems,
+      fetchServer: async (cId) => {
+        const { data, error } = await supabase
+          .from('property_items')
+          .select('*')
+          .eq('clinic_id', cId)
+          .order('updated_at', { ascending: false })
+        if (error) throw error
+        return data || []
+      },
+      getId: (r) => (r as Record<string, unknown>).id as string,
+      getTimestamp: (r) => (r as Record<string, unknown>).updated_at as string,
+      saveLocal: async (serverRecord) => {
+        await saveLocalPropertyItem({
+          ...serverRecord as unknown as LocalPropertyItem,
+          _sync_status: 'synced',
+          _sync_retry_count: 0,
+          _last_sync_error: null,
+          _last_sync_error_message: null,
+        })
+      },
+      deleteLocal: deleteLocalPropertyItem,
+      upsertServer: async () => {},
+    })
+  } catch (err) {
+    logger.error('Failed to reconcile property items:', err)
+    return getLocalPropertyItems(clinicId)
+  }
+
+  return getLocalPropertyItems(clinicId)
+}
+
+// ============================================================
 // Connectivity Listeners
 // ============================================================
 
@@ -478,6 +531,8 @@ export function setupConnectivityListeners(
     onSyncStart?: () => void
     onSyncComplete?: (result: SyncResult) => void
     onTrainingReconcileComplete?: (completions: LocalTrainingCompletion[]) => void
+    onPropertyReconcileComplete?: (items: LocalPropertyItem[]) => void
+    clinicId?: string
   }
 ): () => void {
   let syncInProgress = false
@@ -493,6 +548,12 @@ export function setupConnectivityListeners(
       // 1. Reconcile (pull server changes)
       const reconciledCompletions = await reconcileTrainingCompletionsWithServer(userId)
       callbacks?.onTrainingReconcileComplete?.(reconciledCompletions)
+
+      // 1b. Reconcile property if clinic context available
+      if (callbacks?.clinicId) {
+        const reconciledItems = await reconcilePropertyWithServer(callbacks.clinicId)
+        callbacks?.onPropertyReconcileComplete?.(reconciledItems)
+      }
 
       // 2. Push local changes
       const result = await processSyncQueue(userId)

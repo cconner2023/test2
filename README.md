@@ -1,5 +1,5 @@
 # (ADTMC)
-Provides triage algorithms, medication references, note documentation with data matrix sharing, and 68W training IAW updated CPGs, MEDCOM PAM 40-7-21. Built mobile-first, offline-first. Always updating as the battlefield changes and based off of feedback.
+Provides triage algorithms, medication references, note documentation, property management, forward-security comms for medical personnel, and training IAW updated CPGs, MEDCOM PAM 40-7-21. Built mobile-first, offline-first. Always updating as the battlefield changes and based off of feedback.
 
 ```
 https://cconner2023.github.io/test2
@@ -7,9 +7,9 @@ https://cconner2023.github.io/test2
 
 ## Tech Stack
 - **Frontend:** React 19 + TypeScript, Vite, Tailwind CSS 4.
-- **Backend:** Supabase (PostgreSQL, Auth, RLS)
-- **Offline:** Service Worker (vite-plugin-pwa), IndexedDB (idb) for local persistence encrypted with AES-256-GCM for authenticated users
-- **Sync:** Custom offline-first sync queue with conflict resolution. training that occurs offline is saved locally until the server is contacted.
+- **Backend:** Supabase (PostgreSQL, Auth, RLS), Rust / Tauri for LoRa side-load components.
+- **Offline:** Service Worker (vite-plugin-pwa), IndexedDB (idb) for local persistence encrypted with AES-256-GCM for authenticated users. 
+- **Sync:** Custom offline-first sync queue with conflict resolution. training, messaging, property changes that occurs offline is saved locally until the server is contacted.
 
 ## Key Features
 
@@ -18,11 +18,12 @@ https://cconner2023.github.io/test2
   - Integrated screening tools (PHQ-2/9, GAD-7, MACE-2) with automatic scoring
   - Inline clinical guidelines, medication references, and linked training tasks
 - **Note Customization:** custom text expanders mimicking other auto-text templates. User-defined: you don't have to look at 30-thousand enterprise templates.
-- **Training Tracking:** Per-item training completion with sync to server for authenticated users
+- **Training Tracking:** Per-item training completion with sync to server for authenticated users based off of critical task list and 68W STP.
  - Train anywhere
  - Leaders can evaluate training. Progressed encrypted and cached locally. Sent to server when connectivity is restored.
-- **Offline-First:** Full functionality without network; sync queue pushes training progress on reconnect
-- **Authentication:** Auth with role-based access
+ - **Messaging:** Message users in clinic, chain ratchet + DH ratchet encrypted at rest. Device purge for inactive devices. Message purge after > 4MB network storage.
+- **Offline-First:** sync queue pushes training progress and messaging to network on connect. training information, certification, and knowledge base accessible offline. LoRa architecture + DH/chain ratchet in place for offline messaging for low-connectivity medical personnel
+- **Authentication:** Auth with role-based accesses
 - **Dark/Light Theme:** System preference detection with manual toggle
 
 ## Usage Notes
@@ -36,7 +37,5 @@ https://cconner2023.github.io/test2
 
 ## In Progress
 - **BAA:** To one day store / send PHI/PII through secured servers using signal protocols.
-- **Logistics:** Inventory your aid bag, your CLS, or your Aid bag. Keep track of expiring medications, and when to call up for re-supply.
 - **Battle Injuries:** Sick Call is one thing. Battle injury documentation could be handled the same way.
-- **Notifications:** Improved notifications for expiring inventory items and messaging system encrypted end-to-end.
 - **9-line MEDEVAC:** Craft your 9-line as you work.

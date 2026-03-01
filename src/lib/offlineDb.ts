@@ -21,6 +21,7 @@
  */
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { CompletionType, CompletionResult, Json } from '../Types/database.types'
+import type { LocalPropertyItem, LocalPropertyLocation, LocalDiscrepancy } from '../Types/PropertyTypes'
 import { createLogger } from '../Utilities/Logger'
 import { encryptString, decryptString } from './secureStorage'
 
@@ -92,10 +93,37 @@ interface PackageBackEndDB extends DBSchema {
       'by-user-sync': [string, string]
     }
   }
+  propertyItems: {
+    key: string
+    value: LocalPropertyItem
+    indexes: {
+      'by-clinic': string
+      'by-holder': string
+      'by-parent': string
+      'by-clinic-sync': [string, string]
+    }
+  }
+  propertyLocations: {
+    key: string
+    value: LocalPropertyLocation
+    indexes: {
+      'by-clinic': string
+      'by-parent': string
+    }
+  }
+  propertyDiscrepancies: {
+    key: string
+    value: LocalDiscrepancy
+    indexes: {
+      'by-responsible': string
+      'by-item': string
+      'by-status': string
+    }
+  }
 }
 
 const DB_NAME = 'packagebackend-offline'
-const DB_VERSION = 3
+const DB_VERSION = 4
 
 let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 
@@ -158,6 +186,27 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
         if (!trainingStore.indexNames.contains('by-user-sync')) {
           trainingStore.createIndex('by-user-sync', ['user_id', '_sync_status'])
         }
+      }
+
+      // v3 → v4: Property management stores
+      if (oldVersion < 4) {
+        // Property items
+        const itemsStore = db.createObjectStore('propertyItems', { keyPath: 'id' })
+        itemsStore.createIndex('by-clinic', 'clinic_id')
+        itemsStore.createIndex('by-holder', 'current_holder_id')
+        itemsStore.createIndex('by-parent', 'parent_item_id')
+        itemsStore.createIndex('by-clinic-sync', ['clinic_id', '_sync_status'])
+
+        // Property locations
+        const locationsStore = db.createObjectStore('propertyLocations', { keyPath: 'id' })
+        locationsStore.createIndex('by-clinic', 'clinic_id')
+        locationsStore.createIndex('by-parent', 'parent_id')
+
+        // Property discrepancies
+        const discrepanciesStore = db.createObjectStore('propertyDiscrepancies', { keyPath: 'id' })
+        discrepanciesStore.createIndex('by-responsible', 'responsible_holder_id')
+        discrepanciesStore.createIndex('by-item', 'item_id')
+        discrepanciesStore.createIndex('by-status', 'status')
       }
     },
   })
@@ -456,6 +505,114 @@ export async function updateTrainingCompletionSyncStatus(
 }
 
 // ============================================================
+// Property Items Operations
+// ============================================================
+
+/**
+ * Get all local property items for a clinic.
+ */
+export async function getLocalPropertyItems(clinicId: string): Promise<LocalPropertyItem[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('propertyItems', 'by-clinic', clinicId)
+}
+
+/**
+ * Save or update a property item in IndexedDB (upsert).
+ */
+export async function saveLocalPropertyItem(item: LocalPropertyItem): Promise<void> {
+  const db = await getDb()
+  await db.put('propertyItems', item)
+}
+
+/**
+ * Hard-delete a property item from IndexedDB.
+ */
+export async function deleteLocalPropertyItem(itemId: string): Promise<void> {
+  const db = await getDb()
+  await db.delete('propertyItems', itemId)
+}
+
+/**
+ * Get property items by holder.
+ */
+export async function getLocalPropertyItemsByHolder(holderId: string): Promise<LocalPropertyItem[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('propertyItems', 'by-holder', holderId)
+}
+
+/**
+ * Get sub-items of a parent property item.
+ */
+export async function getLocalPropertySubItems(parentId: string): Promise<LocalPropertyItem[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('propertyItems', 'by-parent', parentId)
+}
+
+// ============================================================
+// Property Locations Operations
+// ============================================================
+
+/**
+ * Get all local property locations for a clinic.
+ */
+export async function getLocalPropertyLocations(clinicId: string): Promise<LocalPropertyLocation[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('propertyLocations', 'by-clinic', clinicId)
+}
+
+/**
+ * Save or update a property location in IndexedDB (upsert).
+ */
+export async function saveLocalPropertyLocation(location: LocalPropertyLocation): Promise<void> {
+  const db = await getDb()
+  await db.put('propertyLocations', location)
+}
+
+/**
+ * Hard-delete a property location from IndexedDB.
+ */
+export async function deleteLocalPropertyLocation(locationId: string): Promise<void> {
+  const db = await getDb()
+  await db.delete('propertyLocations', locationId)
+}
+
+// ============================================================
+// Property Discrepancies Operations
+// ============================================================
+
+/**
+ * Get discrepancies for a responsible holder.
+ */
+export async function getLocalDiscrepancies(holderId: string): Promise<LocalDiscrepancy[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('propertyDiscrepancies', 'by-responsible', holderId)
+}
+
+/**
+ * Get all discrepancies for a clinic (by iterating items).
+ */
+export async function getLocalDiscrepanciesByStatus(status: string): Promise<LocalDiscrepancy[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('propertyDiscrepancies', 'by-status', status)
+}
+
+/**
+ * Save or update a discrepancy in IndexedDB (upsert).
+ */
+export async function saveLocalDiscrepancy(discrepancy: LocalDiscrepancy): Promise<void> {
+  const db = await getDb()
+  await db.put('propertyDiscrepancies', discrepancy)
+}
+
+/**
+ * Hard-delete a discrepancy from IndexedDB.
+ */
+export async function deleteLocalDiscrepancy(discrepancyId: string): Promise<void> {
+  const db = await getDb()
+  await db.delete('propertyDiscrepancies', discrepancyId)
+}
+
+// ============================================================
 // Cleanup Operations
 // ============================================================
 
@@ -465,9 +622,15 @@ export async function updateTrainingCompletionSyncStatus(
  */
 export async function clearAllUserData(): Promise<void> {
   const db = await getDb()
-  const tx = db.transaction(['syncQueue', 'trainingCompletions'], 'readwrite')
+  const tx = db.transaction(
+    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies'],
+    'readwrite',
+  )
   await tx.objectStore('syncQueue').clear()
   await tx.objectStore('trainingCompletions').clear()
+  await tx.objectStore('propertyItems').clear()
+  await tx.objectStore('propertyLocations').clear()
+  await tx.objectStore('propertyDiscrepancies').clear()
   await tx.done
   logger.info('Cleared all user data from IndexedDB')
 }

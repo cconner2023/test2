@@ -62,6 +62,7 @@ function AppContent() {
   // ── Settings/training targeting state (lightweight replacement for useActiveNote) ──
   const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'training'>('main')
   const [initialTrainingTaskId, setInitialTrainingTaskId] = useState<string | null>(null)
+  const [updateVisible, setUpdateVisible] = useState(false)
   const [importInitialView, setImportInitialView] = useState<'input' | 'scanning' | undefined>(
     _initialViewParam === 'import' ? 'scanning' : undefined
   )
@@ -375,8 +376,8 @@ function AppContent() {
           />
           </ErrorBoundary>
         )}
-        <UpdateNotification />
-        <InstallPrompt />
+        <UpdateNotification onVisibilityChange={setUpdateVisible} />
+        {!updateVisible && <InstallPrompt />}
       </div>
       <CallOverlay />
     </div>

@@ -106,7 +106,7 @@ export async function saveMessage(
   localUserId: string,
 ): Promise<void> {
   try {
-    const peerId = msg.senderId === localUserId ? msg.recipientId : msg.senderId
+    const peerId = msg.groupId ?? (msg.senderId === localUserId ? msg.recipientId : msg.senderId)
     const stored: StoredMessage = { ...msg, peerId }
     const encrypted = await encryptMessage(stored)
     const db = await getDb()

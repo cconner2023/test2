@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, BookOpen, UserCog, Lock, MessageSquare, Mail, Bell, Stethoscope, ClipboardCheck, Scale } from 'lucide-react';
+import { Moon, Sun, Shield, BookOpen, UserCog, Lock, MessageSquare, Mail, Bell, Stethoscope, ClipboardCheck, Scale, Package } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -36,6 +36,8 @@ import { MainSettingsPanel } from './MainSettingsPanel';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
 import { ContentWrapper } from './ContentWrapper';
 import { useMessagesContext } from '../../Hooks/MessagesContext';
+import { PropertyPanel } from '../Property/PropertyPanel';
+import { PROPERTY_MANAGEMENT_ENABLED } from '../../lib/featureFlags';
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -56,12 +58,13 @@ export const Settings = ({
     initialTrainingTaskId,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | TrainingView | MessagesView>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'property' | TrainingView | MessagesView>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const [selectedTask, setSelectedTask] = useState<subjectAreaArrayOptions | null>(null);
     const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
     const [selectedPeerName, setSelectedPeerName] = useState<string | null>(null);
+    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
     const prevVisibleRef = useRef(false);
     const supervisorBackRef = useRef<(() => void) | null>(null);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
@@ -175,6 +178,9 @@ export const Settings = ({
 
         if (isAuthenticated) {
             items.push(opt(PANEL.MESSAGES, <Mail size={20} />, 'Messages', totalUnread > 0 ? { badge: totalUnread } : undefined));
+            if (PROPERTY_MANAGEMENT_ENABLED) {
+                items.push(opt(PANEL.PROPERTY, <Package size={20} />, 'Property Book'));
+            }
         }
 
         // ROLES section - only if user has supervisor or admin roles
@@ -207,6 +213,7 @@ export const Settings = ({
     // Messages panel navigation helpers
     const handleMessagesSelectPeer = useCallback((medic: import('../../Types/SupervisorTestTypes').ClinicMedic) => {
         setSelectedPeerId(medic.id);
+        setSelectedGroupId(null);
         // Build header name — use own profile name when messaging self
         const isSelf = medic.id === user?.id;
         const name = isSelf
@@ -217,12 +224,21 @@ export const Settings = ({
         setActivePanel('messages-chat');
     }, [handleSlideAnimation, user?.id, profile.rank, profile.lastName, profile.firstName]);
 
+    const handleMessagesSelectGroup = useCallback((group: import('../../lib/signal/groupTypes').GroupInfo) => {
+        setSelectedGroupId(group.groupId);
+        setSelectedPeerId(null);
+        setSelectedPeerName(group.name);
+        handleSlideAnimation('left');
+        setActivePanel('messages-group-chat');
+    }, [handleSlideAnimation]);
+
     const handleMessagesBack = useCallback(() => {
-        if (activePanel === 'messages-chat') {
+        if (activePanel === 'messages-chat' || activePanel === 'messages-group-chat') {
             handleSlideAnimation('right');
             setActivePanel('messages');
             setSelectedPeerId(null);
             setSelectedPeerName(null);
+            setSelectedGroupId(null);
         } else if (activePanel === 'messages') {
             handleSlideAnimation('right');
             setActivePanel('main');
@@ -254,7 +270,7 @@ export const Settings = ({
             if (activePanel === 'training-detail' || activePanel === 'training') {
                 return handleTrainingBack;
             }
-            if (activePanel === 'messages-chat' || activePanel === 'messages') {
+            if (activePanel === 'messages-chat' || activePanel === 'messages-group-chat' || activePanel === 'messages') {
                 return handleMessagesBack;
             }
             // Sub-panels of the profile hub go back to user-profile
@@ -297,7 +313,9 @@ export const Settings = ({
             case 'user-profile':        return { title: 'Profile', ...backTo() };
             case 'messages':            return { title: 'Messages', ...backTo() };
             case 'messages-chat':       return { title: selectedPeerName ?? 'Chat', showBack: true, onBack: handleMessagesBack };
+            case 'messages-group-chat': return { title: selectedPeerName ?? 'Group', showBack: true, onBack: handleMessagesBack };
             case 'training':            return { title: 'My Training', ...backTo() };
+            case 'property':            return { title: 'Property Book', ...backTo() };
             case 'admin':               return { title: 'Admin Panel', ...backTo() };
             case 'guest-options':       return { title: 'Sign In', ...backTo() };
             case 'pin-setup':           return { title: 'App Lock', ...backTo() };
@@ -311,7 +329,7 @@ export const Settings = ({
     return (
         <BaseDrawer
             isVisible={isVisible}
-            onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedTask(null); setSelectedPeerId(null); setSelectedPeerName(null); onClose(); }}
+            onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedTask(null); setSelectedPeerId(null); setSelectedPeerName(null); setSelectedGroupId(null); onClose(); }}
             fullHeight="90dvh"
             disableDrag={false}
             header={headerConfig}
@@ -441,11 +459,13 @@ export const Settings = ({
 
                     {/* Pre-mounted panels — data loads when Settings opens, hidden until active */}
                     {isAuthenticated && (
-                        <div className="h-full" style={{ display: activePanel === 'messages' || activePanel === 'messages-chat' ? undefined : 'none' }}>
+                        <div className="h-full" style={{ display: activePanel === 'messages' || activePanel === 'messages-chat' || activePanel === 'messages-group-chat' ? undefined : 'none' }}>
                             <MessagesPanel
-                                view={(activePanel === 'messages' || activePanel === 'messages-chat') ? activePanel : 'messages'}
+                                view={(activePanel === 'messages' || activePanel === 'messages-chat' || activePanel === 'messages-group-chat') ? activePanel : 'messages'}
                                 selectedPeerId={selectedPeerId}
+                                selectedGroupId={selectedGroupId}
                                 onSelectPeer={handleMessagesSelectPeer}
+                                onSelectGroup={handleMessagesSelectGroup}
                                 onBack={handleMessagesBack}
                             />
                         </div>
@@ -461,6 +481,11 @@ export const Settings = ({
                     {isDevRole && (
                         <div className="h-full" style={{ display: activePanel === 'admin' ? undefined : 'none' }}>
                             <AdminPanel />
+                        </div>
+                    )}
+                    {isAuthenticated && PROPERTY_MANAGEMENT_ENABLED && (
+                        <div className="h-full relative" style={{ display: activePanel === 'property' ? undefined : 'none' }}>
+                            <PropertyPanel />
                         </div>
                     )}
                 </ContentWrapper>

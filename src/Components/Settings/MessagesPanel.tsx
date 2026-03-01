@@ -1,25 +1,33 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone } from 'lucide-react'
+import { useMemo } from 'react'
+import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, ArrowLeft, MessageSquare, Users, Plus, Info } from 'lucide-react'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import type { RequestStatus } from '../../Hooks/useMessages'
 import { ContactListItem } from './ContactListItem'
+import { GroupListItem } from './GroupListItem'
+import { CreateGroupModal } from './CreateGroupModal'
+import { GroupInfoPanel } from './GroupInfoPanel'
 import { MessageBubble, type SwipeAction } from './MessageBubble'
 import { MessageContextMenu } from './MessageContextMenu'
 import { UserAvatar } from './UserAvatar'
+import { ProvisionalDeviceModal } from './ProvisionalDeviceModal'
 import { useAuth } from '../../Hooks/useAuth'
 import { useCallActions } from '../../Hooks/CallContext'
 import { useAvatar } from '../../Utilities/AvatarContext'
 import { useImagePaste } from '../../Hooks/useImagePaste'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
+import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
 
-export type MessagesView = 'messages' | 'messages-chat'
+export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat'
 
 interface MessagesPanelProps {
   view: MessagesView
   selectedPeerId: string | null
+  selectedGroupId: string | null
   onSelectPeer: (medic: ClinicMedic) => void
+  onSelectGroup: (group: GroupInfo) => void
   onBack?: () => void
 }
 
@@ -27,16 +35,22 @@ interface MessagesPanelProps {
 
 function ConversationList({
   onSelectPeer,
+  onSelectGroup,
   conversations,
   unreadCounts,
   medics,
+  groups,
   loading,
+  onCreateGroup,
 }: {
   onSelectPeer: (medic: ClinicMedic) => void
+  onSelectGroup: (group: GroupInfo) => void
   conversations: Record<string, DecryptedSignalMessage[]>
   unreadCounts: Record<string, number>
   medics: ClinicMedic[]
+  groups: Record<string, GroupInfo>
   loading: boolean
+  onCreateGroup: () => void
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? null
@@ -50,6 +64,16 @@ function ConversationList({
     if (aLast) return -1
     if (bLast) return 1
     return (a.lastName ?? '').localeCompare(b.lastName ?? '')
+  })
+
+  // Sort groups by recency of last message
+  const sortedGroups = Object.values(groups).sort((a, b) => {
+    const aLast = conversations[a.groupId]?.at(-1)?.createdAt ?? ''
+    const bLast = conversations[b.groupId]?.at(-1)?.createdAt ?? ''
+    if (aLast && bLast) return bLast.localeCompare(aLast)
+    if (aLast) return -1
+    if (bLast) return 1
+    return a.name.localeCompare(b.name)
   })
 
   if (loading) {
@@ -89,6 +113,40 @@ function ConversationList({
             <div className="mx-4 my-1 border-b border-primary/10" />
           </>
         )}
+
+        {/* Groups section */}
+        {(sortedGroups.length > 0 || medics.length > 0) && (
+          <>
+            <div className="flex items-center justify-between px-4 mb-2">
+              <p className="text-xs text-tertiary/60">Groups</p>
+              <button
+                onClick={onCreateGroup}
+                className="flex items-center gap-1 text-xs text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
+              >
+                <Plus size={12} />
+                New
+              </button>
+            </div>
+            {sortedGroups.map(group => {
+              const msgs = conversations[group.groupId]
+              const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted').at(-1)
+              return (
+                <GroupListItem
+                  key={group.groupId}
+                  group={group}
+                  lastMessage={lastMsg?.plaintext}
+                  unreadCount={unreadCounts[group.groupId] ?? 0}
+                  onClick={() => onSelectGroup(group)}
+                />
+              )
+            })}
+            {sortedGroups.length === 0 && (
+              <p className="text-xs text-tertiary/30 px-4 mb-2">No groups yet</p>
+            )}
+            <div className="mx-4 my-1 border-b border-primary/10" />
+          </>
+        )}
+
         <p className="text-xs text-tertiary/60 px-4 mb-2">Clinic Members</p>
         {sortedMedics.map(medic => {
           const msgs = conversations[medic.id]
@@ -164,7 +222,7 @@ function ForwardPicker({
   )
 }
 
-// ── Chat Detail ────────────────────────────────────────────────────────────
+// ── Chat Detail (1:1) ────────────────────────────────────────────────────────────
 
 function ChatDetail({
   peerId,
@@ -189,7 +247,7 @@ function ChatDetail({
   peerId: string
   conversations: Record<string, DecryptedSignalMessage[]>
   medics: ClinicMedic[]
-  sendMessage: (peerId: string, text: string) => Promise<boolean>
+  sendMessage: (peerId: string, text: string, threadId?: string) => Promise<boolean>
   sendImage: (peerId: string, file: File) => Promise<boolean>
   sending: boolean
   markAsRead: (peerId: string) => void
@@ -221,9 +279,29 @@ function ChatDetail({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   // Forward picker
   const [showForwardPicker, setShowForwardPicker] = useState(false)
+  // Threading state
+  const [replyingTo, setReplyingTo] = useState<DecryptedSignalMessage | null>(null)
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
 
   const messages = conversations[peerId] ?? []
   const hasSelection = selectedIds.size > 0
+
+  // Compute thread reply counts: how many messages reference each root
+  const threadReplyCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const m of messages) {
+      if (m.threadId) {
+        counts[m.threadId] = (counts[m.threadId] ?? 0) + 1
+      }
+    }
+    return counts
+  }, [messages])
+
+  // Thread view messages: root + all replies
+  const threadMessages = useMemo(() => {
+    if (!activeThreadId) return []
+    return messages.filter(m => m.id === activeThreadId || m.threadId === activeThreadId)
+  }, [activeThreadId, messages])
 
   // Find the message being context-menued
   const contextMsg = contextMenu ? messages.find(m => m.id === contextMenu.messageId) : null
@@ -240,10 +318,12 @@ function ChatDetail({
     fetchHistory(peerId)
   }, [peerId, markAsRead, fetchHistory])
 
-  // Clear selection when switching peers
+  // Clear selection and threading state when switching peers
   useEffect(() => {
     setSelectedIds(new Set())
     setShowForwardPicker(false)
+    setReplyingTo(null)
+    setActiveThreadId(null)
   }, [peerId])
 
   // Accept pasted images (disabled while a send is in progress)
@@ -256,13 +336,17 @@ function ChatDetail({
     const trimmed = text.trim()
     if (!trimmed || sending) return
 
+    // Determine threadId: explicit thread view or reply-to banner
+    const threadId = activeThreadId ?? replyingTo?.id ?? undefined
+
     setText('')
-    const success = await sendMessage(peerId, trimmed)
+    setReplyingTo(null)
+    const success = await sendMessage(peerId, trimmed, threadId)
     if (!success) {
       setText(trimmed)
     }
     inputRef.current?.focus()
-  }, [text, sending, sendMessage, peerId])
+  }, [text, sending, sendMessage, peerId, activeThreadId, replyingTo])
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -356,11 +440,9 @@ function ChatDetail({
   }, [deleteMessages, peerId, selectedIds])
 
   const handleReply = useCallback(() => {
-    // Quote the first selected message into the input
     const firstSelected = messages.find(m => selectedIds.has(m.id))
     if (firstSelected) {
-      const quote = firstSelected.plaintext.split('\n').map(l => `> ${l}`).join('\n')
-      setText(quote + '\n')
+      setReplyingTo(firstSelected)
       setSelectedIds(new Set())
       inputRef.current?.focus()
     }
@@ -377,12 +459,10 @@ function ChatDetail({
       case 'copy':
         navigator.clipboard.writeText(msg.plaintext).catch(() => {})
         break
-      case 'reply': {
-        const quote = msg.plaintext.split('\n').map(l => `> ${l}`).join('\n')
-        setText(quote + '\n')
+      case 'reply':
+        setReplyingTo(msg)
         inputRef.current?.focus()
         break
-      }
       case 'edit':
         setEditingMessageId(msg.id)
         setEditText(msg.plaintext)
@@ -392,6 +472,11 @@ function ChatDetail({
         break
     }
   }, [deleteMessages, peerId])
+
+  const handleOpenThread = useCallback((rootMessageId: string) => {
+    setActiveThreadId(rootMessageId)
+    setReplyingTo(null)
+  }, [])
 
   const handleForwardSelect = useCallback(async (medic: ClinicMedic) => {
     // Send each selected message's text to the chosen contact
@@ -408,74 +493,10 @@ function ChatDetail({
   const isSelf = peerId === userId
   const canCall = !isSelf && requestStatus === 'accepted' && onStartCall
 
-  return (
-    <div className="flex flex-col h-full relative">
-      {/* Chat header bar with peer name + call button */}
-      <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center justify-between bg-themewhite3">
-        <p className="text-sm font-medium text-primary truncate">
-          {peerName ?? (isSelf ? 'Notes' : 'Chat')}
-        </p>
-        {canCall && (
-          <button
-            onClick={onStartCall}
-            className="p-2 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
-          >
-            <Phone size={18} className="text-themeblue2" />
-          </button>
-        )}
-      </div>
-
-      {/* Messages area */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3"
-        onScroll={() => setContextMenu(null)}
-      >
-        {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-sm text-tertiary/40">
-              {peerId === userId ? 'Write a note...' : 'No messages yet. Say hello!'}
-            </p>
-          </div>
-        ) : (
-          messages.map(msg => {
-            const own = msg.senderId === userId
-            return (
-              <MessageBubble
-                key={msg.id}
-                message={msg}
-                isOwn={own}
-                avatar={!own ? <UserAvatar avatarId={peerAvatarId} firstName={peerFirstName} lastName={peerLastName} className="w-7 h-7" /> : undefined}
-                selected={selectedIds.has(msg.id)}
-                selectionMode={hasSelection}
-                onTap={handleTap}
-                onLongPress={handleLongPress}
-                onSwipeAction={handleSwipeAction}
-                isEditing={editingMessageId === msg.id}
-                editText={editingMessageId === msg.id ? editText : undefined}
-                onEditTextChange={setEditText}
-                onSaveEdit={handleSaveEdit}
-                onCancelEdit={handleCancelEdit}
-              />
-            )
-          })
-        )}
-      </div>
-
-      {/* Context menu popup (rendered via portal) */}
-      {contextMenu && contextMsg && (
-        <MessageContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          isOwn={contextMsg.senderId === userId}
-          isImage={contextMsg.content?.type === 'image'}
-          onCopy={handleCopy}
-          onEdit={handleStartEdit}
-          onSave={handleSaveImage}
-          onClose={() => setContextMenu(null)}
-        />
-      )}
-
-      {/* Bottom area — action bar when selected, otherwise input or accept/decline */}
-      {hasSelection ? (
+  // Shared input area renderer (used in both main view and thread view)
+  const renderInputArea = () => {
+    if (hasSelection) {
+      return (
         <div className="shrink-0 px-4 py-3 border-t border-primary/10">
           <div className="flex items-center justify-around">
             <button onClick={handleReply} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
@@ -492,8 +513,11 @@ function ChatDetail({
             </button>
           </div>
         </div>
-      ) : requestStatus === 'received' ? (
-        // Accept / Decline bar
+      )
+    }
+
+    if (requestStatus === 'received') {
+      return (
         <div className="shrink-0 px-4 py-3 border-t border-primary/10">
           <p className="text-sm text-center text-tertiary/70 mb-2">
             {peerName ?? 'This user'} wants to message you
@@ -515,10 +539,34 @@ function ChatDetail({
             </button>
           </div>
         </div>
-      ) : (
-        // Normal input (disabled when request is pending)
-        <div className="shrink-0 px-4 py-3 border-t border-primary/10">
-          {/* Hidden file input for image picker */}
+      )
+    }
+
+    return (
+      <div className="shrink-0 border-t border-primary/10">
+        {/* Replying-to banner */}
+        {replyingTo && !activeThreadId && (
+          <div className="px-4 pt-2 flex items-center gap-2">
+            <div className="flex-1 flex items-center gap-2 min-w-0 bg-themewhite2 rounded-lg px-3 py-1.5">
+              <div className="w-0.5 self-stretch rounded-full bg-themeblue2 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-medium text-themeblue2">Replying to</p>
+                <p className="text-[11px] text-tertiary/60 truncate">
+                  {(replyingTo.plaintext || '\u{1F4F7} Photo').slice(0, 60)}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setReplyingTo(null)}
+              className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all shrink-0"
+            >
+              <X size={14} className="text-tertiary/50" />
+            </button>
+          </div>
+        )}
+
+        {/* Input row */}
+        <div className="px-4 py-3">
           <input
             ref={fileInputRef}
             type="file"
@@ -527,8 +575,7 @@ function ChatDetail({
             className="hidden"
           />
           <div className="flex items-center gap-2">
-            {/* Image picker button — only show when conversation is accepted */}
-            {requestStatus === 'accepted' && (
+            {requestStatus === 'accepted' && !activeThreadId && (
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={sending}
@@ -545,7 +592,11 @@ function ChatDetail({
               value={text}
               onChange={e => setText(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder={requestStatus === 'sent' ? 'Waiting for response...' : 'Type a message...'}
+              placeholder={
+                activeThreadId ? 'Reply in thread...'
+                  : requestStatus === 'sent' ? 'Waiting for response...'
+                  : 'Type a message...'
+              }
               className="flex-1 px-4 py-2.5 rounded-full bg-themewhite2 text-sm text-primary
                          placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
               disabled={inputDisabled}
@@ -560,7 +611,136 @@ function ChatDetail({
             </button>
           </div>
         </div>
+      </div>
+    )
+  }
+
+  // Render message list (shared between main and thread views)
+  const renderMessageList = (msgs: DecryptedSignalMessage[], emptyText: string) => (
+    <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3"
+      onScroll={() => setContextMenu(null)}
+    >
+      {msgs.length === 0 ? (
+        <div className="flex items-center justify-center h-full">
+          <p className="text-sm text-tertiary/40">{emptyText}</p>
+        </div>
+      ) : (
+        msgs.map((msg, idx) => {
+          const own = msg.senderId === userId
+          const isThreadRoot = activeThreadId && msg.id === activeThreadId && idx === 0
+          return (
+            <div key={msg.id}>
+              <MessageBubble
+                message={msg}
+                isOwn={own}
+                avatar={!own ? <UserAvatar avatarId={peerAvatarId} firstName={peerFirstName} lastName={peerLastName} className="w-7 h-7" /> : undefined}
+                selected={selectedIds.has(msg.id)}
+                selectionMode={hasSelection}
+                onTap={handleTap}
+                onLongPress={handleLongPress}
+                onSwipeAction={handleSwipeAction}
+                isEditing={editingMessageId === msg.id}
+                editText={editingMessageId === msg.id ? editText : undefined}
+                onEditTextChange={setEditText}
+                onSaveEdit={handleSaveEdit}
+                onCancelEdit={handleCancelEdit}
+                threadReplyCount={!activeThreadId ? threadReplyCounts[msg.id] : undefined}
+                onOpenThread={handleOpenThread}
+              />
+              {/* Separator after thread root in thread view */}
+              {isThreadRoot && msgs.length > 1 && (
+                <div className="flex items-center gap-2 my-2 px-2">
+                  <div className="flex-1 border-b border-primary/10" />
+                  <span className="text-[10px] text-tertiary/40 shrink-0">
+                    {msgs.length - 1} {msgs.length - 1 === 1 ? 'reply' : 'replies'}
+                  </span>
+                  <div className="flex-1 border-b border-primary/10" />
+                </div>
+              )}
+            </div>
+          )
+        })
       )}
+    </div>
+  )
+
+  // ── Thread view ──────────────────────────────────────────────────────
+  if (activeThreadId) {
+    return (
+      <div className="flex flex-col h-full relative">
+        {/* Thread header */}
+        <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center gap-3 bg-themewhite3">
+          <button
+            onClick={() => setActiveThreadId(null)}
+            className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
+          >
+            <ArrowLeft size={18} className="text-tertiary" />
+          </button>
+          <div className="flex items-center gap-1.5">
+            <MessageSquare size={14} className="text-themeblue2" />
+            <p className="text-sm font-medium text-primary">Thread</p>
+          </div>
+        </div>
+
+        {renderMessageList(threadMessages, 'No messages in this thread')}
+
+        {/* Context menu popup */}
+        {contextMenu && contextMsg && (
+          <MessageContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            isOwn={contextMsg.senderId === userId}
+            isImage={contextMsg.content?.type === 'image'}
+            onCopy={handleCopy}
+            onEdit={handleStartEdit}
+            onSave={handleSaveImage}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+
+        {renderInputArea()}
+      </div>
+    )
+  }
+
+  // ── Main view ────────────────────────────────────────────────────────
+  return (
+    <div className="flex flex-col h-full relative">
+      {/* Chat header bar with peer name + call button */}
+      <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center justify-between bg-themewhite3">
+        <p className="text-sm font-medium text-primary truncate">
+          {peerName ?? (isSelf ? 'Notes' : 'Chat')}
+        </p>
+        {canCall && (
+          <button
+            onClick={onStartCall}
+            className="p-2 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
+          >
+            <Phone size={18} className="text-themeblue2" />
+          </button>
+        )}
+      </div>
+
+      {renderMessageList(
+        messages,
+        peerId === userId ? 'Write a note...' : 'No messages yet. Say hello!',
+      )}
+
+      {/* Context menu popup (rendered via portal) */}
+      {contextMenu && contextMsg && (
+        <MessageContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          isOwn={contextMsg.senderId === userId}
+          isImage={contextMsg.content?.type === 'image'}
+          onCopy={handleCopy}
+          onEdit={handleStartEdit}
+          onSave={handleSaveImage}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+
+      {renderInputArea()}
 
       {/* Forward contact picker overlay */}
       {showForwardPicker && (
@@ -576,12 +756,442 @@ function ChatDetail({
   )
 }
 
+// ── Group Chat Detail ──────────────────────────────────────────────────────
+
+function GroupChatDetail({
+  groupId,
+  group,
+  conversations,
+  medics,
+  sendGroupMessage,
+  sendGroupImage,
+  sending,
+  markAsRead,
+  fetchGroupHistory,
+  editMessage,
+  deleteMessages,
+  onBack,
+  leaveGroup,
+  renameGroup,
+  addGroupMember,
+  removeGroupMember,
+  fetchGroupMembers,
+}: {
+  groupId: string
+  group: GroupInfo
+  conversations: Record<string, DecryptedSignalMessage[]>
+  medics: ClinicMedic[]
+  sendGroupMessage: (groupId: string, text: string, threadId?: string) => Promise<boolean>
+  sendGroupImage: (groupId: string, file: File) => Promise<boolean>
+  sending: boolean
+  markAsRead: (peerId: string) => void
+  fetchGroupHistory: (groupId: string) => Promise<void>
+  editMessage: (peerId: string, messageId: string, newText: string) => void
+  deleteMessages: (peerId: string, messageIds: string[]) => void
+  onBack?: () => void
+  leaveGroup: (groupId: string) => Promise<void>
+  renameGroup: (groupId: string, name: string) => Promise<void>
+  addGroupMember: (groupId: string, userId: string) => Promise<void>
+  removeGroupMember: (groupId: string, userId: string) => Promise<void>
+  fetchGroupMembers: (groupId: string) => Promise<GroupMember[]>
+}) {
+  const { user } = useAuth()
+  const userId = user?.id ?? ''
+  const [text, setText] = useState('')
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [showGroupInfo, setShowGroupInfo] = useState(false)
+
+  // Context menu state
+  const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null)
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const [editText, setEditText] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [replyingTo, setReplyingTo] = useState<DecryptedSignalMessage | null>(null)
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
+
+  // Cache members for sender name resolution
+  const [membersCache, setMembersCache] = useState<GroupMember[]>([])
+
+  const messages = conversations[groupId] ?? []
+  const hasSelection = selectedIds.size > 0
+
+  const threadReplyCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const m of messages) {
+      if (m.threadId) counts[m.threadId] = (counts[m.threadId] ?? 0) + 1
+    }
+    return counts
+  }, [messages])
+
+  const threadMessages = useMemo(() => {
+    if (!activeThreadId) return []
+    return messages.filter(m => m.id === activeThreadId || m.threadId === activeThreadId)
+  }, [activeThreadId, messages])
+
+  const contextMsg = contextMenu ? messages.find(m => m.id === contextMenu.messageId) : null
+
+  // Build sender name lookup from cached members
+  const senderNameMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    for (const m of membersCache) {
+      const parts: string[] = []
+      if (m.rank) parts.push(m.rank)
+      if (m.lastName) parts.push(m.lastName)
+      map[m.userId] = parts.join(' ') || m.firstName || 'Unknown'
+    }
+    return map
+  }, [membersCache])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+  }, [messages.length])
+
+  useEffect(() => {
+    markAsRead(groupId)
+    fetchGroupHistory(groupId)
+    // Load members for sender name display
+    fetchGroupMembers(groupId).then(setMembersCache)
+  }, [groupId, markAsRead, fetchGroupHistory, fetchGroupMembers])
+
+  useEffect(() => {
+    setSelectedIds(new Set())
+    setReplyingTo(null)
+    setActiveThreadId(null)
+  }, [groupId])
+
+  const handlePastedImage = useCallback((file: File) => {
+    sendGroupImage(groupId, file)
+  }, [sendGroupImage, groupId])
+  useImagePaste(!sending, handlePastedImage)
+
+  const handleSend = useCallback(async () => {
+    const trimmed = text.trim()
+    if (!trimmed || sending) return
+    const threadId = activeThreadId ?? replyingTo?.id ?? undefined
+    setText('')
+    setReplyingTo(null)
+    const success = await sendGroupMessage(groupId, trimmed, threadId)
+    if (!success) setText(trimmed)
+    inputRef.current?.focus()
+  }, [text, sending, sendGroupMessage, groupId, activeThreadId, replyingTo])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
+  }, [handleSend])
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) sendGroupImage(groupId, file)
+    e.target.value = ''
+  }, [sendGroupImage, groupId])
+
+  const handleLongPress = useCallback((message: DecryptedSignalMessage, x: number, y: number) => {
+    setContextMenu({ messageId: message.id, x, y })
+  }, [])
+
+  const handleCopy = useCallback(() => {
+    if (!contextMsg) return
+    navigator.clipboard.writeText(contextMsg.plaintext).catch(() => {})
+    setContextMenu(null)
+  }, [contextMsg])
+
+  const handleStartEdit = useCallback(() => {
+    if (!contextMsg) return
+    setEditingMessageId(contextMsg.id)
+    setEditText(contextMsg.plaintext)
+    setContextMenu(null)
+  }, [contextMsg])
+
+  const handleSaveImage = useCallback(async () => {
+    if (!contextMsg || contextMsg.content?.type !== 'image') return
+    setContextMenu(null)
+    const { downloadDecryptedAttachment } = await import('../../lib/signal/attachmentService')
+    const result = await downloadDecryptedAttachment(contextMsg.content.path, contextMsg.content.key)
+    if (!result.ok) return
+    const url = URL.createObjectURL(result.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `photo-${Date.now()}.jpg`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [contextMsg])
+
+  const handleSaveEdit = useCallback(() => {
+    if (!editingMessageId) return
+    const trimmed = editText.trim()
+    if (trimmed) editMessage(groupId, editingMessageId, trimmed)
+    setEditingMessageId(null)
+    setEditText('')
+  }, [editingMessageId, editText, editMessage, groupId])
+
+  const handleCancelEdit = useCallback(() => {
+    setEditingMessageId(null)
+    setEditText('')
+  }, [])
+
+  const handleTap = useCallback((message: DecryptedSignalMessage) => {
+    if (editingMessageId) return
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(message.id)) next.delete(message.id)
+      else next.add(message.id)
+      return next
+    })
+  }, [editingMessageId])
+
+  const handleDelete = useCallback(() => {
+    deleteMessages(groupId, [...selectedIds])
+    setSelectedIds(new Set())
+  }, [deleteMessages, groupId, selectedIds])
+
+  const handleReply = useCallback(() => {
+    const firstSelected = messages.find(m => selectedIds.has(m.id))
+    if (firstSelected) {
+      setReplyingTo(firstSelected)
+      setSelectedIds(new Set())
+      inputRef.current?.focus()
+    }
+  }, [messages, selectedIds])
+
+  const handleSwipeAction = useCallback((msg: DecryptedSignalMessage, action: SwipeAction) => {
+    switch (action) {
+      case 'copy': navigator.clipboard.writeText(msg.plaintext).catch(() => {}); break
+      case 'reply': setReplyingTo(msg); inputRef.current?.focus(); break
+      case 'edit': setEditingMessageId(msg.id); setEditText(msg.plaintext); break
+      case 'delete': deleteMessages(groupId, [msg.id]); break
+    }
+  }, [deleteMessages, groupId])
+
+  const handleOpenThread = useCallback((rootMessageId: string) => {
+    setActiveThreadId(rootMessageId)
+    setReplyingTo(null)
+  }, [])
+
+  const handleLeave = useCallback(async (gid: string) => {
+    await leaveGroup(gid)
+    onBack?.()
+  }, [leaveGroup, onBack])
+
+  // Render group input area (no request flow)
+  const renderInputArea = () => {
+    if (hasSelection) {
+      return (
+        <div className="shrink-0 px-4 py-3 border-t border-primary/10">
+          <div className="flex items-center justify-around">
+            <button onClick={handleReply} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
+              <Reply size={18} className="text-tertiary" />
+              <span className="text-[10px] text-tertiary">Reply</span>
+            </button>
+            <button onClick={handleDelete} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
+              <Trash2 size={18} className="text-red-400" />
+              <span className="text-[10px] text-red-400">Delete</span>
+            </button>
+          </div>
+        </div>
+      )
+    }
+
+    return (
+      <div className="shrink-0 border-t border-primary/10">
+        {replyingTo && !activeThreadId && (
+          <div className="px-4 pt-2 flex items-center gap-2">
+            <div className="flex-1 flex items-center gap-2 min-w-0 bg-themewhite2 rounded-lg px-3 py-1.5">
+              <div className="w-0.5 self-stretch rounded-full bg-themeblue2 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-[10px] font-medium text-themeblue2">Replying to</p>
+                <p className="text-[11px] text-tertiary/60 truncate">
+                  {(replyingTo.plaintext || '\u{1F4F7} Photo').slice(0, 60)}
+                </p>
+              </div>
+            </div>
+            <button onClick={() => setReplyingTo(null)} className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all shrink-0">
+              <X size={14} className="text-tertiary/50" />
+            </button>
+          </div>
+        )}
+        <div className="px-4 py-3">
+          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+          <div className="flex items-center gap-2">
+            {!activeThreadId && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={sending}
+                className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-primary/5 active:scale-95 transition-all shrink-0 disabled:opacity-30"
+              >
+                <ImagePlus size={20} className="text-tertiary/60" />
+              </button>
+            )}
+            <input
+              ref={inputRef}
+              type="text"
+              value={text}
+              onChange={e => setText(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={activeThreadId ? 'Reply in thread...' : 'Type a message...'}
+              className="flex-1 px-4 py-2.5 rounded-full bg-themewhite2 text-sm text-primary placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
+              disabled={sending}
+            />
+            <button
+              onClick={handleSend}
+              disabled={!text.trim() || sending}
+              className="w-10 h-10 rounded-full bg-themeblue2 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0"
+            >
+              <Send size={16} className="text-white ml-0.5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderMessageList = (msgs: DecryptedSignalMessage[], emptyText: string) => (
+    <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3" onScroll={() => setContextMenu(null)}>
+      {msgs.length === 0 ? (
+        <div className="flex items-center justify-center h-full">
+          <p className="text-sm text-tertiary/40">{emptyText}</p>
+        </div>
+      ) : (
+        msgs.map((msg, idx) => {
+          const own = msg.senderId === userId
+          const isThreadRoot = activeThreadId && msg.id === activeThreadId && idx === 0
+          // Resolve sender avatar info from medics or cached members
+          const senderMedic = !own ? medics.find(m => m.id === msg.senderId) : null
+          const senderMember = !own ? membersCache.find(m => m.userId === msg.senderId) : null
+          return (
+            <div key={msg.id}>
+              <MessageBubble
+                message={msg}
+                isOwn={own}
+                avatar={!own ? (
+                  <UserAvatar
+                    avatarId={senderMedic?.avatarId ?? senderMember?.avatarId}
+                    firstName={senderMedic?.firstName ?? senderMember?.firstName}
+                    lastName={senderMedic?.lastName ?? senderMember?.lastName}
+                    className="w-7 h-7"
+                  />
+                ) : undefined}
+                senderName={!own ? senderNameMap[msg.senderId] : undefined}
+                selected={selectedIds.has(msg.id)}
+                selectionMode={hasSelection}
+                onTap={handleTap}
+                onLongPress={handleLongPress}
+                onSwipeAction={handleSwipeAction}
+                isEditing={editingMessageId === msg.id}
+                editText={editingMessageId === msg.id ? editText : undefined}
+                onEditTextChange={setEditText}
+                onSaveEdit={handleSaveEdit}
+                onCancelEdit={handleCancelEdit}
+                threadReplyCount={!activeThreadId ? threadReplyCounts[msg.id] : undefined}
+                onOpenThread={handleOpenThread}
+              />
+              {isThreadRoot && msgs.length > 1 && (
+                <div className="flex items-center gap-2 my-2 px-2">
+                  <div className="flex-1 border-b border-primary/10" />
+                  <span className="text-[10px] text-tertiary/40 shrink-0">
+                    {msgs.length - 1} {msgs.length - 1 === 1 ? 'reply' : 'replies'}
+                  </span>
+                  <div className="flex-1 border-b border-primary/10" />
+                </div>
+              )}
+            </div>
+          )
+        })
+      )}
+    </div>
+  )
+
+  // Thread view
+  if (activeThreadId) {
+    return (
+      <div className="flex flex-col h-full relative">
+        <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center gap-3 bg-themewhite3">
+          <button onClick={() => setActiveThreadId(null)} className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
+            <ArrowLeft size={18} className="text-tertiary" />
+          </button>
+          <div className="flex items-center gap-1.5">
+            <MessageSquare size={14} className="text-themeblue2" />
+            <p className="text-sm font-medium text-primary">Thread</p>
+          </div>
+        </div>
+        {renderMessageList(threadMessages, 'No messages in this thread')}
+        {contextMenu && contextMsg && (
+          <MessageContextMenu
+            x={contextMenu.x} y={contextMenu.y}
+            isOwn={contextMsg.senderId === userId}
+            isImage={contextMsg.content?.type === 'image'}
+            onCopy={handleCopy} onEdit={handleStartEdit} onSave={handleSaveImage}
+            onClose={() => setContextMenu(null)}
+          />
+        )}
+        {renderInputArea()}
+      </div>
+    )
+  }
+
+  // Main group chat view
+  return (
+    <div className="flex flex-col h-full relative">
+      {/* Group header */}
+      <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center justify-between bg-themewhite3">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
+            <Users size={14} className="text-themeblue2" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-primary truncate">{group.name}</p>
+            <p className="text-[10px] text-tertiary/40">{group.memberCount} members</p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowGroupInfo(true)}
+          className="p-2 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
+        >
+          <Info size={18} className="text-tertiary" />
+        </button>
+      </div>
+
+      {renderMessageList(messages, 'No messages yet. Start the conversation!')}
+
+      {contextMenu && contextMsg && (
+        <MessageContextMenu
+          x={contextMenu.x} y={contextMenu.y}
+          isOwn={contextMsg.senderId === userId}
+          isImage={contextMsg.content?.type === 'image'}
+          onCopy={handleCopy} onEdit={handleStartEdit} onSave={handleSaveImage}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+
+      {renderInputArea()}
+
+      {/* Group info overlay */}
+      {showGroupInfo && (
+        <GroupInfoPanel
+          group={group}
+          userId={userId}
+          medics={medics}
+          onClose={() => setShowGroupInfo(false)}
+          onLeave={handleLeave}
+          onRename={renameGroup}
+          onAddMember={addGroupMember}
+          onRemoveMember={removeGroupMember}
+          fetchMembers={fetchGroupMembers}
+        />
+      )}
+    </div>
+  )
+}
+
 // ── Exported Panel ─────────────────────────────────────────────────────────
 
-export function MessagesPanel({ view, selectedPeerId, onSelectPeer, onBack }: MessagesPanelProps) {
+export function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack }: MessagesPanelProps) {
   const messagesCtx = useMessagesContext()
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
+  const [showCreateGroup, setShowCreateGroup] = useState(false)
 
   if (!messagesCtx) {
     return (
@@ -591,8 +1201,40 @@ export function MessagesPanel({ view, selectedPeerId, onSelectPeer, onBack }: Me
     )
   }
 
-  const { conversations, unreadCounts, sendMessage, sendImage, sending, markAsRead, fetchHistory, acceptRequest, editMessage, deleteMessages, getRequestStatusForPeer } = messagesCtx
+  const {
+    conversations, unreadCounts, sendMessage, sendImage, sending,
+    markAsRead, fetchHistory, acceptRequest, editMessage, deleteMessages,
+    getRequestStatusForPeer, groups, sendGroupMessage, sendGroupImage,
+    createGroup, leaveGroup, renameGroup, addGroupMember, removeGroupMember,
+    fetchGroupMembers, fetchGroupHistory,
+  } = messagesCtx
 
+  // Group chat view
+  if (view === 'messages-group-chat' && selectedGroupId && groups[selectedGroupId]) {
+    return (
+      <GroupChatDetail
+        groupId={selectedGroupId}
+        group={groups[selectedGroupId]}
+        conversations={conversations}
+        medics={medics}
+        sendGroupMessage={sendGroupMessage}
+        sendGroupImage={sendGroupImage}
+        sending={sending}
+        markAsRead={markAsRead}
+        fetchGroupHistory={fetchGroupHistory}
+        editMessage={editMessage}
+        deleteMessages={deleteMessages}
+        onBack={onBack}
+        leaveGroup={leaveGroup}
+        renameGroup={renameGroup}
+        addGroupMember={addGroupMember}
+        removeGroupMember={removeGroupMember}
+        fetchGroupMembers={fetchGroupMembers}
+      />
+    )
+  }
+
+  // 1:1 chat view
   if (view === 'messages-chat' && selectedPeerId) {
     const peer = medics.find(m => m.id === selectedPeerId)
     const peerName = peer
@@ -624,12 +1266,25 @@ export function MessagesPanel({ view, selectedPeerId, onSelectPeer, onBack }: Me
   }
 
   return (
-    <ConversationList
-      onSelectPeer={onSelectPeer}
-      conversations={conversations}
-      unreadCounts={unreadCounts}
-      medics={medics}
-      loading={loading}
-    />
+    <>
+      <ConversationList
+        onSelectPeer={onSelectPeer}
+        onSelectGroup={onSelectGroup}
+        conversations={conversations}
+        unreadCounts={unreadCounts}
+        medics={medics}
+        groups={groups}
+        loading={loading}
+        onCreateGroup={() => setShowCreateGroup(true)}
+      />
+      {showCreateGroup && (
+        <CreateGroupModal
+          medics={medics}
+          onClose={() => setShowCreateGroup(false)}
+          onCreate={createGroup}
+        />
+      )}
+      <ProvisionalDeviceModal />
+    </>
   )
 }

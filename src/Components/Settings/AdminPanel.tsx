@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Check, X, UserPlus, Clock, Ban, Search, ChevronLeft, KeyRound, Pencil, Trash2, AlertTriangle, Plus, MapPin, Building2, CheckCircle, Star } from 'lucide-react'
+import { Check, X, UserPlus, Clock, Ban, Search, ChevronLeft, KeyRound, Pencil, Trash2, AlertTriangle, Plus, MapPin, Building2, CheckCircle, Star, LogOut } from 'lucide-react'
 import type { Component, Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import { UserAvatar } from './UserAvatar'
@@ -15,6 +15,7 @@ import {
   addUserRole,
   removeUserRole,
   deleteUser,
+  forceLogoutUser,
   listClinics,
   setUserClinic,
   createClinic,
@@ -315,6 +316,9 @@ const UsersTab = () => {
   const [deleteConfirmEmail, setDeleteConfirmEmail] = useState('')
   const [deleteProcessing, setDeleteProcessing] = useState(false)
 
+  // Force logout inline state
+  const [forceLogoutProcessing, setForceLogoutProcessing] = useState<string | null>(null)
+
   const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   const loadUsers = useCallback(async () => {
@@ -371,6 +375,20 @@ const UsersTab = () => {
       setTimeout(() => setResetPwSuccess(null), UI_TIMING.SAVE_ERROR_DURATION)
     } else {
       setFeedback({ type: 'error', message: result.error || 'Failed to reset password' })
+    }
+  }
+
+  const handleForceLogout = async (userId: string) => {
+    setForceLogoutProcessing(userId)
+    const result = await forceLogoutUser(userId)
+    setForceLogoutProcessing(null)
+    if (result.success) {
+      setFeedback({
+        type: 'success',
+        message: `Force logout complete: ${result.sessionsDeleted} session(s), ${result.devicesDeleted} device(s), ${result.bundlesDeleted} key bundle(s) cleared`,
+      })
+    } else {
+      setFeedback({ type: 'error', message: result.error || 'Failed to force logout user' })
     }
   }
 
@@ -586,6 +604,16 @@ const UsersTab = () => {
           >
             <KeyRound size={14} /> Reset Password
           </button>
+          {currentUserId !== detailUser.id && (
+            <button
+              onClick={() => handleForceLogout(detailUser.id)}
+              disabled={forceLogoutProcessing === detailUser.id}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeyellow/10 text-themeyellow text-sm font-medium
+                         hover:bg-themeyellow/20 border border-themeyellow/20 transition-colors disabled:opacity-50"
+            >
+              <LogOut size={14} /> {forceLogoutProcessing === detailUser.id ? 'Logging out...' : 'Force Logout'}
+            </button>
+          )}
           {currentUserId !== detailUser.id && (
             <button
               onClick={() => { setDeleteUserId(detailUser.id); setDeleteConfirmEmail(''); setResetPwUserId(null) }}

@@ -5,6 +5,27 @@
  * and the `consume_peer_bundle` RPC return shape.
  */
 
+// ---- Device Hierarchy ----
+
+export type DeviceRole = 'primary' | 'linked' | 'provisional'
+
+export interface DeviceRegistrationResult {
+  registered: boolean
+  role?: DeviceRole
+  hasPrimary?: boolean
+  primaryDeviceId?: string | null
+  error?: string
+}
+
+export interface SyncMessagePayload {
+  forPeerId: string           // peer this message belongs to
+  serialized: string          // serializeContent() output
+  originalMessageType: 'initial' | 'message' | 'request' | 'request-accepted'
+  originalTimestamp: string
+  originalMessageId: string   // for dedup on receiving device
+  forGroupId?: string         // group this message belongs to (if group message)
+}
+
 // ---- Key Bundle Row (signal_key_bundles) ----
 
 export interface SignalKeyBundleRow {
@@ -41,7 +62,8 @@ export interface SignalMessageRow {
   recipient_id: string
   sender_device_id: string | null
   recipient_device_id: string | null
-  message_type: 'initial' | 'message' | 'request' | 'request-accepted'
+  group_id: string | null
+  message_type: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync'
   payload: Record<string, unknown>
   created_at: string
   read_at: string | null
@@ -58,7 +80,7 @@ export interface PeerDevice {
 export interface FanOutMessageInput {
   recipientDeviceId: string
   payload: Record<string, unknown>
-  messageType: 'initial' | 'message' | 'request' | 'request-accepted'
+  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync'
 }
 
 // ---- Decrypted message surfaced to the UI ----
@@ -72,7 +94,15 @@ export interface DecryptedSignalMessage {
   plaintext: string
   /** Structured content (text or image). Populated after parsing the decrypted payload. */
   content?: MessageContent
-  messageType: 'initial' | 'message' | 'request' | 'request-accepted'
+  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync'
   createdAt: string
   readAt: string | null
+  /** Delivery status for outgoing messages (undefined = delivered/incoming). */
+  status?: 'sending' | 'delivered'
+  /** Root message ID this message is a reply to (thread ID). */
+  threadId?: string
+  /** Short preview of the root message text (for display without lookup). */
+  replyPreview?: string
+  /** Group ID if this is a group message (null/undefined = 1:1). */
+  groupId?: string
 }

@@ -23,11 +23,13 @@ import { clearAllSessions } from '../lib/signal/session'
 import { clearMessageStore } from '../lib/signal/messageStore'
 import { clearClinicUsersCache } from '../lib/clinicUsersCache'
 import { useCallStore } from './useCallStore'
-import { unregisterDevice, deleteKeyBundle } from '../lib/signal/signalService'
+import { unregisterDevice, deleteKeyBundle, primaryLogoutAll } from '../lib/signal/signalService'
 import { secureSet, secureGet, secureRemove, persistSupabaseAuth } from '../lib/secureStorage'
 import { clearOutboundQueue } from '../lib/signal/outboundQueue'
+import { registerSessionCleanup, updateCleanupToken, updateCleanupDeviceId, updateCleanupIsPrimary } from '../lib/sessionCleanup'
 import type { User } from '@supabase/supabase-js'
 import type { UserTypes, TextExpander } from '../Data/User'
+import type { DeviceRole } from '../lib/signal/transportTypes'
 
 const STORAGE_KEY = 'adtmc_user_profile'
 
@@ -41,6 +43,7 @@ interface AuthState {
   isDevRole: boolean
   isSupervisorRole: boolean
   isPasswordRecovery: boolean
+  deviceRole: DeviceRole | null
 }
 
 interface AuthActions {
@@ -163,6 +166,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
   isDevRole: false,
   isSupervisorRole: false,
   isPasswordRecovery: false,
+  deviceRole: null,
 
   init: () => {
     // Hydrate profile from encrypted storage (fast, runs before Supabase fetch)
@@ -176,23 +180,18 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
       }
     }).catch(() => {})
 
+    // Register browser-mode cleanup (no-ops if PWA)
+    registerSessionCleanup()
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        // Capture userId before clearing state for device unregister
-        const signingOutUserId = get().user?.id
         stopHeartbeat()
 
-        // Unregister device + delete key bundle before clearing keys (fire-and-forget)
-        if (signingOutUserId) {
-          getLocalDeviceId().then(deviceId => {
-            if (deviceId) {
-              unregisterDevice(signingOutUserId, deviceId).catch(() => {})
-              deleteKeyBundle(signingOutUserId, deviceId).catch(() => {})
-            }
-          }).catch(() => {})
-        }
+        // NOTE: Supabase key cleanup (unregisterDevice + deleteKeyBundle) is done
+        // in signOut() BEFORE the auth token is invalidated.  By this point the
+        // token is already dead, so we only clear local state here.
 
         set({
           user: null,
@@ -202,6 +201,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
           clinicId: null,
           isDevRole: false,
           isSupervisorRole: false,
+          deviceRole: null,
         })
         clearProfileStorage()
         removePin()
@@ -219,6 +219,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         // Detect password recovery flow (user clicked reset-password email link)
         if (event === 'PASSWORD_RECOVERY') {
           set({ isPasswordRecovery: true })
+        }
+        // Keep cleanup handler's token in sync for pagehide
+        if (session.access_token) {
+          updateCleanupToken(session.access_token)
         }
         // Persist Supabase auth to IDB for service worker (sign-in + token refresh)
         if (session.access_token) {
@@ -245,8 +249,31 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
   },
 
   signOut: async () => {
+    // Force-delete keys from Supabase BEFORE signing out.
+    // After signOut the auth token is dead and these calls would fail silently.
+    const userId = get().user?.id
+    const role = get().deviceRole
+    if (userId) {
+      try {
+        if (role === 'primary') {
+          // Primary logout: destroy all linked devices + sessions first
+          await primaryLogoutAll()
+        }
+        // Then clean up own device (both primary and linked)
+        const deviceId = await getLocalDeviceId()
+        if (deviceId) {
+          await Promise.all([
+            unregisterDevice(userId, deviceId),
+            deleteKeyBundle(userId, deviceId),
+          ])
+        }
+      } catch {
+        // Best-effort — continue with sign-out even if cleanup fails
+      }
+    }
+
     await supabase.auth.signOut({ scope: 'local' })
-    // onAuthStateChange handler already clears state
+    // onAuthStateChange handler clears local state (IDB, sessions, etc.)
   },
 
   patchProfile: (fields) => {
@@ -279,11 +306,14 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
       // Prefetch barcode encryption key for offline use (fire-and-forget)
       prefetchBarcodeKey().catch(() => {})
 
-      // Initialize Signal Protocol key bundle, then restart heartbeat with deviceId
-      initSignalBundle(user.id).then(() => {
-        getLocalDeviceId().then(deviceId => {
-          if (deviceId) startHeartbeat(user.id, deviceId)
-        }).catch(() => {})
+      // Initialize Signal Protocol key bundle with device role classification
+      initSignalBundle(user.id).then(initResult => {
+        if (initResult) {
+          set({ deviceRole: initResult.role })
+          startHeartbeat(user.id, initResult.deviceId)
+          updateCleanupDeviceId(initResult.deviceId)
+          updateCleanupIsPrimary(initResult.role === 'primary')
+        }
       }).catch(() => {})
     } catch {
       // Profile fetch failed — keep existing state

@@ -26,6 +26,7 @@ import type {
   SignalMessageRow,
   PeerDevice,
   FanOutMessageInput,
+  DeviceRegistrationResult,
 } from './transportTypes'
 
 const logger = createLogger('SignalService')
@@ -110,6 +111,80 @@ export async function unregisterDevice(
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error'
     logger.error('unregisterDevice exception:', msg)
+    return err(msg)
+  }
+}
+
+/** Register a device with role classification (primary/linked/provisional). */
+export async function registerDeviceWithRole(
+  deviceId: string,
+  deviceLabel: string,
+  isPrimary: boolean
+): Promise<Result<DeviceRegistrationResult>> {
+  try {
+    const { data, error } = await supabase
+      .rpc('register_device_with_role', {
+        p_device_id: deviceId,
+        p_device_label: deviceLabel,
+        p_is_primary: isPrimary,
+      })
+
+    if (error) {
+      logger.error('registerDeviceWithRole RPC error:', error.message)
+      return err(error.message, error.code)
+    }
+
+    return ok(data as unknown as DeviceRegistrationResult)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unknown error'
+    logger.error('registerDeviceWithRole exception:', msg)
+    return err(msg)
+  }
+}
+
+/** Fetch all devices for the current user (reuses fetchPeerDevices). */
+export async function fetchOwnDevices(
+  userId: string
+): Promise<Result<PeerDevice[]>> {
+  return fetchPeerDevices(userId)
+}
+
+/** Primary device: force-logout all linked devices and invalidate sessions. */
+export async function primaryLogoutAll(): Promise<Result<{ devicesDeleted: number; bundlesDeleted: number; sessionsDeleted: number }>> {
+  try {
+    const { data, error } = await supabase
+      .rpc('primary_logout_all')
+
+    if (error) {
+      logger.error('primaryLogoutAll RPC error:', error.message)
+      return err(error.message, error.code)
+    }
+
+    return ok(data as unknown as { devicesDeleted: number; bundlesDeleted: number; sessionsDeleted: number })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unknown error'
+    logger.error('primaryLogoutAll exception:', msg)
+    return err(msg)
+  }
+}
+
+/** Clean up stale linked devices (called on login). */
+export async function cleanupStaleDevices(
+  staleMinutes: number = 30
+): Promise<Result<{ devicesDeleted: number; bundlesDeleted: number }>> {
+  try {
+    const { data, error } = await supabase
+      .rpc('cleanup_stale_linked_devices', { p_stale_minutes: staleMinutes })
+
+    if (error) {
+      logger.error('cleanupStaleDevices RPC error:', error.message)
+      return err(error.message, error.code)
+    }
+
+    return ok(data as unknown as { devicesDeleted: number; bundlesDeleted: number })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Unknown error'
+    logger.error('cleanupStaleDevices exception:', msg)
     return err(msg)
   }
 }
@@ -258,7 +333,8 @@ export async function sendMessage(
   payload: InitialMessage | EncryptedMessage | { text: string } | Record<string, never>,
   messageType: 'initial' | 'message' | 'request' | 'request-accepted',
   senderDeviceId?: string,
-  recipientDeviceId?: string
+  recipientDeviceId?: string,
+  groupId?: string
 ): Promise<Result<string>> {
   return transportManager.send({
     id: crypto.randomUUID(),
@@ -268,6 +344,7 @@ export async function sendMessage(
     recipientDeviceId,
     messageType,
     payload: payload as unknown as Record<string, unknown>,
+    groupId,
   })
 }
 
@@ -279,7 +356,8 @@ export async function sendMessageFanOut(
   senderId: string,
   senderDeviceId: string,
   recipientId: string,
-  messages: FanOutMessageInput[]
+  messages: FanOutMessageInput[],
+  groupId?: string
 ): Promise<Result<string[]>> {
   if (messages.length === 0) return ok([])
 
@@ -291,6 +369,7 @@ export async function sendMessageFanOut(
       id: crypto.randomUUID(),
       ...m,
     })),
+    groupId,
   })
 }
 
@@ -319,4 +398,11 @@ export async function fetchConversation(
   limit: number = 50
 ): Promise<Result<SignalMessageRow[]>> {
   return transportManager.fetchConversation(userId, peerId, limit)
+}
+
+export async function fetchGroupConversation(
+  groupId: string,
+  limit: number = 50
+): Promise<Result<SignalMessageRow[]>> {
+  return transportManager.fetchGroupConversation(groupId, limit)
 }

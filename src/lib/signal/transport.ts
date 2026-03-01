@@ -20,8 +20,9 @@ export interface SendMessageParams {
   recipientId: string
   senderDeviceId?: string
   recipientDeviceId?: string
-  messageType: 'initial' | 'message' | 'request' | 'request-accepted'
+  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync'
   payload: Record<string, unknown>
+  groupId?: string         // set for group messages
 }
 
 export interface SendBatchParams {
@@ -29,6 +30,7 @@ export interface SendBatchParams {
   senderDeviceId: string
   recipientId: string
   messages: Array<{ id: string } & FanOutMessageInput>
+  groupId?: string         // set for group messages
 }
 
 export interface SignalTransport {
@@ -39,6 +41,7 @@ export interface SignalTransport {
   markRead(messageIds: string[]): Promise<Result<void>>
   deleteMessages(messageIds: string[]): Promise<Result<void>>
   fetchConversation(userId: string, peerId: string, limit?: number): Promise<Result<SignalMessageRow[]>>
+  fetchGroupConversation(groupId: string, limit?: number): Promise<Result<SignalMessageRow[]>>
   isAvailable(): boolean
 }
 
@@ -146,6 +149,11 @@ export class TransportManager {
   async fetchConversation(userId: string, peerId: string, limit?: number): Promise<Result<SignalMessageRow[]>> {
     if (!this.primary) return err('No transport configured')
     return this.primary.fetchConversation(userId, peerId, limit)
+  }
+
+  async fetchGroupConversation(groupId: string, limit?: number): Promise<Result<SignalMessageRow[]>> {
+    if (!this.primary) return err('No transport configured')
+    return this.primary.fetchGroupConversation(groupId, limit)
   }
 
   /** Flush the offline queue through the primary transport. */

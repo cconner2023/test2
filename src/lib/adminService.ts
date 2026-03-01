@@ -365,6 +365,36 @@ export async function deleteUser(
 }
 
 /**
+ * Force-logout a user across all devices (dev only).
+ * Invalidates all auth sessions and clears device registrations + Signal key bundles.
+ * The user must re-authenticate and re-register on every device.
+ */
+export async function forceLogoutUser(
+  userId: string
+): Promise<ServiceResult<{ sessionsDeleted?: number; devicesDeleted?: number; bundlesDeleted?: number }>> {
+  try {
+    const { data: { user: currentUser } } = await supabase.auth.getUser()
+    if (!currentUser) return fail('Not authenticated')
+
+    const { data, error } = await supabase.rpc('admin_force_logout', {
+      p_target_user_id: userId,
+    })
+
+    if (error) return fail(error.message)
+
+    const result = data as { sessions_deleted?: number; devices_deleted?: number; bundles_deleted?: number } | null
+    return succeed({
+      sessionsDeleted: result?.sessions_deleted ?? 0,
+      devicesDeleted: result?.devices_deleted ?? 0,
+      bundlesDeleted: result?.bundles_deleted ?? 0,
+    })
+  } catch (error) {
+    logger.error('Failed to force logout user:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
  * Clinic summary returned by listClinics.
  */
 export interface AdminClinic {

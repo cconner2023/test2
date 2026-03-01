@@ -28,6 +28,7 @@ export class SupabaseTransport implements SignalTransport {
           recipient_id: params.recipientId,
           sender_device_id: params.senderDeviceId ?? null,
           recipient_device_id: params.recipientDeviceId ?? null,
+          group_id: params.groupId ?? null,
           message_type: params.messageType,
           payload: params.payload,
         })
@@ -63,6 +64,7 @@ export class SupabaseTransport implements SignalTransport {
         sender_device_id: params.senderDeviceId,
         recipient_id: params.recipientId,
         recipient_device_id: m.recipientDeviceId,
+        group_id: params.groupId ?? null,
         message_type: m.messageType,
         payload: m.payload,
       }))
@@ -192,6 +194,28 @@ export class SupabaseTransport implements SignalTransport {
     }
   }
 
+  async fetchGroupConversation(groupId: string, limit: number = 50): Promise<Result<SignalMessageRow[]>> {
+    try {
+      const { data, error } = await supabase
+        .from('signal_messages')
+        .select('*')
+        .eq('group_id', groupId)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+
+      if (error) {
+        logger.error('fetchGroupConversation error:', error.message)
+        return err(error.message, error.code)
+      }
+
+      return ok((data ?? []) as unknown as SignalMessageRow[])
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Unknown error'
+      logger.error('fetchGroupConversation exception:', msg)
+      return err(msg)
+    }
+  }
+
   isAvailable(): boolean {
     return navigator.onLine
   }
@@ -201,6 +225,9 @@ export class SupabaseTransport implements SignalTransport {
     senderId: string,
     messageType: string,
   ): void {
+    // Sync messages are self-addressed — never notify
+    if (messageType === 'sync') return
+
     const notif = messageType === 'request'
       ? { title: 'New message request', body: 'Someone wants to message you' }
       : messageType === 'request-accepted'

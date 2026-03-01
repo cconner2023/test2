@@ -19,10 +19,22 @@ import {
   sendMessage as sendSignalMessage,
   sendMessageFanOut,
   fetchPeerDevices,
+  fetchOwnDevices,
   fetchConversation,
+  fetchGroupConversation,
   markMessagesRead,
   deleteMessages as deleteMessagesFromSupabase,
 } from '../lib/signal/signalService'
+import {
+  fetchMyGroups as fetchMyGroupsRpc,
+  createGroup as createGroupRpc,
+  leaveGroup as leaveGroupRpc,
+  renameGroup as renameGroupRpc,
+  addGroupMember as addGroupMemberRpc,
+  removeGroupMember as removeGroupMemberRpc,
+  fetchGroupMembers as fetchGroupMembersRpc,
+} from '../lib/signal/groupService'
+import type { GroupInfo, GroupMember } from '../lib/signal/groupTypes'
 import {
   createOutboundSession,
   encryptMessage,
@@ -43,10 +55,10 @@ import {
   serializeContent,
   parseMessageContent,
 } from '../lib/signal/messageContent'
-import type { MessageContent, ImageContent } from '../lib/signal/messageContent'
+import type { MessageContent, ImageContent, ReplyTo } from '../lib/signal/messageContent'
 import { uploadEncryptedAttachment } from '../lib/signal/attachmentService'
 import { resizeImage, getImageDimensions, generateThumbnail, dataUrlToBlob } from '../Utilities/imageUtils'
-import type { DecryptedSignalMessage, PeerDevice, FanOutMessageInput } from '../lib/signal/transportTypes'
+import type { DecryptedSignalMessage, PeerDevice, FanOutMessageInput, SyncMessagePayload } from '../lib/signal/transportTypes'
 import type { PublicKeyBundle } from '../lib/signal/types'
 import type { PeerBundleRpcResult } from '../lib/signal/transportTypes'
 
@@ -136,13 +148,43 @@ async function encryptForAllDevices(
   return results
 }
 
+/**
+ * Send a sync message to all own devices (except the current one).
+ * Fire-and-forget — errors are silently swallowed.
+ */
+async function sendSyncToOwnDevices(
+  userId: string,
+  localDeviceId: string,
+  syncPayload: SyncMessagePayload,
+  forGroupId?: string
+): Promise<void> {
+  if (forGroupId) syncPayload.forGroupId = forGroupId
+  const devicesResult = await fetchOwnDevices(userId)
+  if (!devicesResult.ok) return
+
+  const otherDevices = devicesResult.data.filter(d => d.deviceId !== localDeviceId)
+  if (otherDevices.length === 0) return
+
+  const serialized = JSON.stringify(syncPayload)
+  const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized)
+
+  // Tag all as sync
+  for (const input of fanOutInputs) {
+    input.messageType = 'sync'
+  }
+
+  if (fanOutInputs.length === 0) return
+
+  await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs)
+}
+
 export interface UseMessagesReturn {
-  /** All conversations keyed by peerId, messages sorted oldest-first. */
+  /** All conversations keyed by peerId (or groupId for groups), messages sorted oldest-first. */
   conversations: Record<string, DecryptedSignalMessage[]>
-  /** Unread count per peer. */
+  /** Unread count per peer/group. */
   unreadCounts: Record<string, number>
-  /** Send a plaintext message to a peer. Handles session creation if needed. */
-  sendMessage: (peerId: string, text: string) => Promise<boolean>
+  /** Send a plaintext message to a peer. Handles session creation if needed. Optional threadId for thread replies. */
+  sendMessage: (peerId: string, text: string, threadId?: string) => Promise<boolean>
   /** Send an image to a peer. Compresses, encrypts, uploads, and sends via Signal. */
   sendImage: (peerId: string, file: File) => Promise<boolean>
   /** Accept a message request from a peer, opening the conversation. */
@@ -155,10 +197,32 @@ export interface UseMessagesReturn {
   markAsRead: (peerId: string) => void
   /** Edit a message's plaintext (local-only). */
   editMessage: (peerId: string, messageId: string, newText: string) => void
-  /** Delete messages locally (state + IndexedDB). */
-  deleteMessages: (peerId: string, messageIds: string[]) => void
+  /** Delete messages (state + IndexedDB + Supabase). */
+  deleteMessages: (peerId: string, messageIds: string[]) => Promise<void>
   /** Whether a send is currently in progress. */
   sending: boolean
+  /** Group metadata keyed by groupId. */
+  groups: Record<string, GroupInfo>
+  /** Send a text message to a group (encrypts to each member's devices). */
+  sendGroupMessage: (groupId: string, text: string, threadId?: string) => Promise<boolean>
+  /** Send an image to a group. */
+  sendGroupImage: (groupId: string, file: File) => Promise<boolean>
+  /** Create a new group. */
+  createGroup: (name: string, memberIds: string[]) => Promise<string | null>
+  /** Leave a group. */
+  leaveGroup: (groupId: string) => Promise<void>
+  /** Rename a group (admin only). */
+  renameGroup: (groupId: string, name: string) => Promise<void>
+  /** Add a member to a group (admin only). */
+  addGroupMember: (groupId: string, userId: string) => Promise<void>
+  /** Remove a member from a group (admin only). */
+  removeGroupMember: (groupId: string, userId: string) => Promise<void>
+  /** Fetch group members. */
+  fetchGroupMembers: (groupId: string) => Promise<GroupMember[]>
+  /** Fetch group message history from Supabase. */
+  fetchGroupHistory: (groupId: string) => Promise<void>
+  /** Refresh group list from server. */
+  refreshGroups: () => Promise<void>
 }
 
 export function useMessages(): UseMessagesReturn {
@@ -170,42 +234,68 @@ export function useMessages(): UseMessagesReturn {
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({})
   const [sending, setSending] = useState(false)
   const [localDeviceId, setLocalDeviceId] = useState<string | null>(null)
+  const [groups, setGroups] = useState<Record<string, GroupInfo>>({})
 
   // Track which peer's chat is currently open (for auto-mark-read)
   const activePeerRef = useRef<string | null>(null)
 
-  // Load local device ID on mount
+  // Load local device ID — retry until available (identity may not exist until after initSignalBundle)
   useEffect(() => {
-    getLocalDeviceId().then(id => {
-      if (id) setLocalDeviceId(id)
-    }).catch(() => {})
-  }, [])
+    if (!isAuthenticated) return
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout>
+
+    const load = async () => {
+      const id = await getLocalDeviceId()
+      if (cancelled) return
+      if (id) {
+        setLocalDeviceId(id)
+      } else {
+        timer = setTimeout(load, 300)
+      }
+    }
+
+    load()
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [isAuthenticated])
 
   /** Add a decrypted message to the conversations map, deduplicating by ID. */
   const addMessage = useCallback((msg: DecryptedSignalMessage) => {
-    const peerId = msg.senderId === userId ? msg.recipientId : msg.senderId
+    // Route by conversation key: groupId for group messages, peerId for 1:1
+    const conversationKey = msg.groupId ?? (msg.senderId === userId ? msg.recipientId : msg.senderId)
 
     setConversations(prev => {
-      const existing = prev[peerId] ?? []
-      // Deduplicate
+      const existing = prev[conversationKey] ?? []
+      // Deduplicate by ID
       if (existing.some(m => m.id === msg.id)) return prev
+
+      // Deduplicate request-accepted by sender (fan-out creates one per device)
+      if (msg.messageType === 'request-accepted') {
+        if (existing.some(m => m.messageType === 'request-accepted' && m.senderId === msg.senderId)) {
+          return prev
+        }
+      }
 
       const updated = [...existing, msg].sort(
         (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       )
-      return { ...prev, [peerId]: updated }
+      return { ...prev, [conversationKey]: updated }
     })
 
     // Update unread count if it's an incoming message and not the active chat
     // Skip request-accepted — it's a signal, not user content
     if (msg.senderId !== userId && !msg.readAt && msg.messageType !== 'request-accepted') {
-      if (activePeerRef.current !== msg.senderId) {
+      const unreadKey = msg.groupId ?? msg.senderId
+      if (activePeerRef.current !== unreadKey) {
         setUnreadCounts(prev => ({
           ...prev,
-          [msg.senderId]: (prev[msg.senderId] ?? 0) + 1,
+          [unreadKey]: (prev[unreadKey] ?? 0) + 1,
         }))
       }
     }
+
+    // Skip IDB persist for optimistic messages — persist on confirmation
+    if (msg.status === 'sending') return
 
     // Persist to IndexedDB (fire-and-forget)
     if (userId) {
@@ -223,10 +313,11 @@ export function useMessages(): UseMessagesReturn {
   }, [userId, addMessage])
 
   // Subscribe to realtime incoming messages (pass localDeviceId for filtering)
+  // Require localDeviceId before subscribing to prevent unfiltered catch-up/realtime
   useSignalMessages({
     userId,
     localDeviceId,
-    isAuthenticated,
+    isAuthenticated: isAuthenticated && !!localDeviceId,
     isPageVisible,
     onMessage: handleIncomingMessage,
   })
@@ -258,33 +349,115 @@ export function useMessages(): UseMessagesReturn {
     return () => { cancelled = true }
   }, [userId])
 
+  // Hydrate groups from Supabase on mount
+  const refreshGroups = useCallback(async () => {
+    const result = await fetchMyGroupsRpc()
+    if (!result.ok) {
+      logger.warn('Failed to fetch groups:', result.error)
+      return
+    }
+    const map: Record<string, GroupInfo> = {}
+    for (const g of result.data) {
+      map[g.groupId] = g
+    }
+    setGroups(map)
+  }, [])
+
+  useEffect(() => {
+    if (!userId) return
+    refreshGroups().catch(e => logger.warn('Group hydration failed:', e))
+  }, [userId, refreshGroups])
+
   // Ref to track latest conversations without adding to callback deps
   const conversationsRef = useRef(conversations)
   useEffect(() => { conversationsRef.current = conversations }, [conversations])
 
+  /** Update an optimistic message's ID and status after server confirms, then persist. */
+  const updateMessageStatus = useCallback((
+    peerId: string,
+    localId: string,
+    serverId: string,
+  ) => {
+    setConversations(prev => {
+      const msgs = prev[peerId]
+      if (!msgs) return prev
+      const updated = msgs.map(m =>
+        m.id === localId ? { ...m, id: serverId, status: undefined } : m
+      )
+      return { ...prev, [peerId]: updated }
+    })
+
+    // Now persist the confirmed message to IDB
+    if (userId) {
+      setTimeout(() => {
+        const msgs = conversationsRef.current[peerId]
+        const confirmed = msgs?.find(m => m.id === serverId)
+        if (confirmed) {
+          saveMessage({ ...confirmed, status: undefined }, userId!).catch(() => {})
+        }
+      }, 0)
+    }
+  }, [userId])
+
+  /** Remove an optimistic message from state (on send failure). */
+  const removeOptimisticMessage = useCallback((peerId: string, localId: string) => {
+    setConversations(prev => {
+      const msgs = prev[peerId]
+      if (!msgs) return prev
+      const filtered = msgs.filter(m => m.id !== localId)
+      if (filtered.length === 0) {
+        const next = { ...prev }
+        delete next[peerId]
+        return next
+      }
+      return { ...prev, [peerId]: filtered }
+    })
+  }, [])
+
+  /** Build replyTo metadata from a threadId by looking up the root message. */
+  const buildReplyTo = useCallback((peerId: string, threadId: string): ReplyTo | undefined => {
+    const msgs = conversationsRef.current[peerId]
+    const root = msgs?.find(m => m.id === threadId)
+    if (!root) return undefined
+    const preview = (root.plaintext || '\u{1F4F7} Photo').slice(0, 50)
+    return { messageId: threadId, preview }
+  }, [])
+
   /** Send a plaintext message to a peer. */
-  const sendMessage = useCallback(async (peerId: string, text: string): Promise<boolean> => {
+  const sendMessage = useCallback(async (peerId: string, text: string, threadId?: string): Promise<boolean> => {
     if (!userId || !localDeviceId) return false
+
+    // Build replyTo if this is a thread reply
+    const replyTo = threadId ? buildReplyTo(peerId, threadId) : undefined
 
     // Self-notes: send via Supabase (no crypto) for cross-device sync
     if (peerId === userId) {
-      const serialized = serializeContent({ type: 'text', text })
+      const localId = crypto.randomUUID()
+      const now = new Date().toISOString()
+      addMessage({
+        id: localId,
+        senderId: userId,
+        recipientId: userId,
+        plaintext: text,
+        content: { type: 'text', text, ...(replyTo && { replyTo }) },
+        messageType: 'message',
+        createdAt: now,
+        readAt: now,
+        status: 'sending',
+        ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
+      })
+
+      const serialized = serializeContent({ type: 'text', text, ...(replyTo && { replyTo }) })
       const result = await sendSignalMessage(
         userId, userId, { text: serialized }, 'message',
         localDeviceId ?? undefined, undefined
       )
-      const selfNote: DecryptedSignalMessage = {
-        id: result.ok ? result.data : crypto.randomUUID(),
-        senderId: userId,
-        recipientId: userId,
-        plaintext: text,
-        content: { type: 'text', text },
-        messageType: 'message',
-        createdAt: new Date().toISOString(),
-        readAt: new Date().toISOString(),
+      if (result.ok) {
+        updateMessageStatus(userId, localId, result.data)
+      } else {
+        removeOptimisticMessage(userId, localId)
       }
-      addMessage(selfNote)
-      return true
+      return result.ok
     }
 
     // Request gate: check if we need to send a request first
@@ -297,9 +470,22 @@ export function useMessages(): UseMessagesReturn {
 
     if (status === 'none') {
       // No prior interaction — send as an encrypted request (X3DH)
+      const localId = crypto.randomUUID()
+      addMessage({
+        id: localId,
+        senderId: userId,
+        recipientId: peerId,
+        plaintext: text,
+        messageType: 'request',
+        createdAt: new Date().toISOString(),
+        readAt: null,
+        status: 'sending',
+        ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
+      })
+
       setSending(true)
       try {
-        const serialized = serializeContent({ type: 'text', text })
+        const serialized = serializeContent({ type: 'text', text, ...(replyTo && { replyTo }) })
         const devicesResult = await fetchPeerDevices(peerId)
         const peerDevices = devicesResult.ok ? devicesResult.data : []
 
@@ -312,29 +498,28 @@ export function useMessages(): UseMessagesReturn {
 
           if (fanOutInputs.length === 0) {
             logger.error('Could not encrypt request for any peer device')
+            removeOptimisticMessage(peerId, localId)
             return false
           }
 
           const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs)
           if (!sendResult.ok) {
             logger.error('Failed to send request fan-out:', sendResult.error)
+            removeOptimisticMessage(peerId, localId)
             return false
           }
 
-          addMessage({
-            id: sendResult.data[0],
-            senderId: userId,
-            recipientId: peerId,
-            plaintext: text,
-            messageType: 'request',
-            createdAt: new Date().toISOString(),
-            readAt: null,
-          })
+          updateMessageStatus(peerId, localId, sendResult.data[0])
+          sendSyncToOwnDevices(userId, localDeviceId, {
+            forPeerId: peerId, serialized, originalMessageType: 'request',
+            originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data[0],
+          }).catch(() => {})
         } else {
           // No devices registered — legacy single-device X3DH
           const bundleResult = await fetchPeerBundle(peerId)
           if (!bundleResult.ok) {
             logger.error('Failed to fetch peer bundle for request:', bundleResult.error)
+            removeOptimisticMessage(peerId, localId)
             return false
           }
 
@@ -342,26 +527,24 @@ export function useMessages(): UseMessagesReturn {
           const peerDeviceId = bundle.deviceId || 'unknown'
           const initialMessage = await createOutboundSession(peerId, peerDeviceId, bundle, serialized)
 
-          const sendResult = await sendSignalMessage(userId, peerId, initialMessage, 'request', localDeviceId)
+          const sendResult = await sendSignalMessage(userId, peerId, initialMessage, 'request', localDeviceId, peerDeviceId)
           if (!sendResult.ok) {
             logger.error('Failed to send request:', sendResult.error)
+            removeOptimisticMessage(peerId, localId)
             return false
           }
 
-          addMessage({
-            id: sendResult.data,
-            senderId: userId,
-            recipientId: peerId,
-            plaintext: text,
-            messageType: 'request',
-            createdAt: new Date().toISOString(),
-            readAt: null,
-          })
+          updateMessageStatus(peerId, localId, sendResult.data)
+          sendSyncToOwnDevices(userId, localDeviceId, {
+            forPeerId: peerId, serialized, originalMessageType: 'request',
+            originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data,
+          }).catch(() => {})
         }
 
         return true
       } catch (e) {
         logger.error('sendMessage (request) error:', e instanceof Error ? e.message : e)
+        removeOptimisticMessage(peerId, localId)
         return false
       } finally {
         setSending(false)
@@ -369,11 +552,25 @@ export function useMessages(): UseMessagesReturn {
     }
 
     // status === 'received' or 'accepted' — fall through to X3DH / encrypt path
+    const localId = crypto.randomUUID()
+    const textContent: MessageContent = { type: 'text', text, ...(replyTo && { replyTo }) }
+    addMessage({
+      id: localId,
+      senderId: userId,
+      recipientId: peerId,
+      plaintext: text,
+      content: textContent,
+      messageType: 'message',
+      createdAt: new Date().toISOString(),
+      readAt: null,
+      status: 'sending',
+      ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
+    })
+
     setSending(true)
     try {
       // Wrap text in structured content format before encryption
-      const serialized = serializeContent({ type: 'text', text })
-      const textContent: MessageContent = { type: 'text', text }
+      const serialized = serializeContent(textContent)
 
       // Fetch peer devices for fan-out
       const devicesResult = await fetchPeerDevices(peerId)
@@ -385,26 +582,22 @@ export function useMessages(): UseMessagesReturn {
 
         if (fanOutInputs.length === 0) {
           logger.error('Could not encrypt for any peer device')
+          removeOptimisticMessage(peerId, localId)
           return false
         }
 
         const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs)
         if (!sendResult.ok) {
           logger.error('Failed to send fan-out message:', sendResult.error)
+          removeOptimisticMessage(peerId, localId)
           return false
         }
 
-        // Add first copy to local conversations
-        addMessage({
-          id: sendResult.data[0],
-          senderId: userId,
-          recipientId: peerId,
-          plaintext: text,
-          content: textContent,
-          messageType: fanOutInputs[0].messageType,
-          createdAt: new Date().toISOString(),
-          readAt: null,
-        })
+        updateMessageStatus(peerId, localId, sendResult.data[0])
+        sendSyncToOwnDevices(userId, localDeviceId, {
+          forPeerId: peerId, serialized, originalMessageType: 'message',
+          originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data[0],
+        }).catch(() => {})
       } else {
         // No devices registered — legacy single-device path
         const sessionExists = await hasSession(peerId, 'unknown')
@@ -414,6 +607,7 @@ export function useMessages(): UseMessagesReturn {
           const bundleResult = await fetchPeerBundle(peerId)
           if (!bundleResult.ok) {
             logger.error('Failed to fetch peer bundle:', bundleResult.error)
+            removeOptimisticMessage(peerId, localId)
             return false
           }
 
@@ -421,51 +615,44 @@ export function useMessages(): UseMessagesReturn {
           const peerDeviceId = bundle.deviceId || 'unknown'
           const initialMessage = await createOutboundSession(peerId, peerDeviceId, bundle, serialized)
 
-          const sendResult = await sendSignalMessage(userId, peerId, initialMessage, 'initial', localDeviceId)
+          const sendResult = await sendSignalMessage(userId, peerId, initialMessage, 'initial', localDeviceId, peerDeviceId)
           if (!sendResult.ok) {
             logger.error('Failed to send initial message:', sendResult.error)
+            removeOptimisticMessage(peerId, localId)
             return false
           }
 
-          addMessage({
-            id: sendResult.data,
-            senderId: userId,
-            recipientId: peerId,
-            plaintext: text,
-            content: textContent,
-            messageType: 'initial',
-            createdAt: new Date().toISOString(),
-            readAt: null,
-          })
+          updateMessageStatus(peerId, localId, sendResult.data)
+          sendSyncToOwnDevices(userId, localDeviceId, {
+            forPeerId: peerId, serialized, originalMessageType: 'message',
+            originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data,
+          }).catch(() => {})
         } else {
           const encrypted = await encryptMessage(peerId, 'unknown', serialized)
           const sendResult = await sendSignalMessage(userId, peerId, encrypted, 'message', localDeviceId)
           if (!sendResult.ok) {
             logger.error('Failed to send message:', sendResult.error)
+            removeOptimisticMessage(peerId, localId)
             return false
           }
 
-          addMessage({
-            id: sendResult.data,
-            senderId: userId,
-            recipientId: peerId,
-            plaintext: text,
-            content: textContent,
-            messageType: 'message',
-            createdAt: new Date().toISOString(),
-            readAt: null,
-          })
+          updateMessageStatus(peerId, localId, sendResult.data)
+          sendSyncToOwnDevices(userId, localDeviceId, {
+            forPeerId: peerId, serialized, originalMessageType: 'message',
+            originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data,
+          }).catch(() => {})
         }
       }
 
       return true
     } catch (e) {
       logger.error('sendMessage error:', e instanceof Error ? e.message : e)
+      removeOptimisticMessage(peerId, localId)
       return false
     } finally {
       setSending(false)
     }
-  }, [userId, localDeviceId, addMessage])
+  }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage, buildReplyTo])
 
   /** Send an image message to a peer. Compresses, encrypts, uploads, then sends via Signal. */
   const sendImage = useCallback(async (peerId: string, file: File): Promise<boolean> => {
@@ -478,6 +665,8 @@ export function useMessages(): UseMessagesReturn {
       return false
     }
 
+    // Generate thumbnail early so we can show a placeholder immediately
+    let localId: string | null = null
     setSending(true)
     try {
       // 1. Resize image
@@ -487,6 +676,29 @@ export function useMessages(): UseMessagesReturn {
       // 2. Generate tiny thumbnail for inline preview
       const thumbnail = await generateThumbnail(resizedDataUrl, 60, 0.5)
 
+      // Show optimistic placeholder with thumbnail immediately
+      localId = crypto.randomUUID()
+      const placeholderContent: ImageContent = {
+        type: 'image',
+        mime: 'image/jpeg',
+        key: '',
+        path: '',
+        width,
+        height,
+        thumbnail,
+      }
+      addMessage({
+        id: localId,
+        senderId: userId,
+        recipientId: peerId,
+        plaintext: '\u{1F4F7} Photo',
+        content: placeholderContent,
+        messageType: 'message',
+        createdAt: new Date().toISOString(),
+        readAt: null,
+        status: 'sending',
+      })
+
       // 3. Convert resized image to blob for upload
       const imageBlob = dataUrlToBlob(resizedDataUrl)
 
@@ -494,6 +706,7 @@ export function useMessages(): UseMessagesReturn {
       const uploadResult = await uploadEncryptedAttachment(userId, imageBlob)
       if (!uploadResult.ok) {
         logger.error('Image upload failed:', uploadResult.error)
+        removeOptimisticMessage(peerId, localId)
         return false
       }
 
@@ -510,6 +723,16 @@ export function useMessages(): UseMessagesReturn {
         thumbnail,
       }
 
+      // Update the optimistic message's content with the real path/key
+      setConversations(prev => {
+        const msgs = prev[peerId]
+        if (!msgs) return prev
+        const updated = msgs.map(m =>
+          m.id === localId ? { ...m, content: imageContent } : m
+        )
+        return { ...prev, [peerId]: updated }
+      })
+
       // 6. Serialize for encryption
       const serialized = serializeContent(imageContent)
 
@@ -521,25 +744,22 @@ export function useMessages(): UseMessagesReturn {
         const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized)
         if (fanOutInputs.length === 0) {
           logger.error('Could not encrypt image for any peer device')
+          removeOptimisticMessage(peerId, localId)
           return false
         }
 
         const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs)
         if (!sendResult.ok) {
           logger.error('Failed to send image fan-out:', sendResult.error)
+          removeOptimisticMessage(peerId, localId)
           return false
         }
 
-        addMessage({
-          id: sendResult.data[0],
-          senderId: userId,
-          recipientId: peerId,
-          plaintext: '\u{1F4F7} Photo',
-          content: imageContent,
-          messageType: fanOutInputs[0].messageType,
-          createdAt: new Date().toISOString(),
-          readAt: null,
-        })
+        updateMessageStatus(peerId, localId, sendResult.data[0])
+        sendSyncToOwnDevices(userId, localDeviceId, {
+          forPeerId: peerId, serialized, originalMessageType: 'message',
+          originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data[0],
+        }).catch(() => {})
       } else {
         // Legacy single-device path
         const sessionExists = await hasSession(peerId, 'unknown')
@@ -548,54 +768,48 @@ export function useMessages(): UseMessagesReturn {
           const bundleResult = await fetchPeerBundle(peerId)
           if (!bundleResult.ok) {
             logger.error('Failed to fetch peer bundle for image:', bundleResult.error)
+            removeOptimisticMessage(peerId, localId)
             return false
           }
           const bundle = rpcResultToBundle(bundleResult.data)
           const peerDeviceId = bundle.deviceId || 'unknown'
           const initialMessage = await createOutboundSession(peerId, peerDeviceId, bundle, serialized)
-          const sendResult = await sendSignalMessage(userId, peerId, initialMessage, 'initial', localDeviceId)
+          const sendResult = await sendSignalMessage(userId, peerId, initialMessage, 'initial', localDeviceId, peerDeviceId)
           if (!sendResult.ok) {
             logger.error('Failed to send image initial:', sendResult.error)
+            removeOptimisticMessage(peerId, localId)
             return false
           }
-          addMessage({
-            id: sendResult.data,
-            senderId: userId,
-            recipientId: peerId,
-            plaintext: '\u{1F4F7} Photo',
-            content: imageContent,
-            messageType: 'initial',
-            createdAt: new Date().toISOString(),
-            readAt: null,
-          })
+          updateMessageStatus(peerId, localId, sendResult.data)
+          sendSyncToOwnDevices(userId, localDeviceId, {
+            forPeerId: peerId, serialized, originalMessageType: 'message',
+            originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data,
+          }).catch(() => {})
         } else {
           const encrypted = await encryptMessage(peerId, 'unknown', serialized)
           const sendResult = await sendSignalMessage(userId, peerId, encrypted, 'message', localDeviceId)
           if (!sendResult.ok) {
             logger.error('Failed to send image message:', sendResult.error)
+            removeOptimisticMessage(peerId, localId)
             return false
           }
-          addMessage({
-            id: sendResult.data,
-            senderId: userId,
-            recipientId: peerId,
-            plaintext: '\u{1F4F7} Photo',
-            content: imageContent,
-            messageType: 'message',
-            createdAt: new Date().toISOString(),
-            readAt: null,
-          })
+          updateMessageStatus(peerId, localId, sendResult.data)
+          sendSyncToOwnDevices(userId, localDeviceId, {
+            forPeerId: peerId, serialized, originalMessageType: 'message',
+            originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data,
+          }).catch(() => {})
         }
       }
 
       return true
     } catch (e) {
       logger.error('sendImage error:', e instanceof Error ? e.message : e)
+      if (localId) removeOptimisticMessage(peerId, localId)
       return false
     } finally {
       setSending(false)
     }
-  }, [userId, localDeviceId, addMessage])
+  }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage])
 
   /** Fetch conversation history from Supabase, decrypt locally, merge into state. */
   const fetchHistory = useCallback(async (peerId: string) => {
@@ -686,9 +900,24 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [userId])
 
+  // Guard against concurrent acceptRequest calls
+  const acceptingRef = useRef<Set<string>>(new Set())
+
   /** Accept a message request from a peer (fan out to all peer devices). */
   const acceptRequest = useCallback(async (peerId: string): Promise<void> => {
     if (!userId || !localDeviceId) return
+
+    // Idempotency: skip if already accepted or accept in-flight
+    const status = getRequestStatus(conversationsRef.current[peerId], userId)
+    if (status === 'accepted') {
+      logger.info(`Request from ${peerId} already accepted, skipping`)
+      return
+    }
+    if (acceptingRef.current.has(peerId)) {
+      logger.info(`Accept already in-flight for ${peerId}, skipping`)
+      return
+    }
+    acceptingRef.current.add(peerId)
 
     try {
       // Fan out request-accepted to all peer devices
@@ -731,8 +960,17 @@ export function useMessages(): UseMessagesReturn {
         createdAt: new Date().toISOString(),
         readAt: null,
       })
+
+      // Sync accept to own devices
+      const serialized = serializeContent({ type: 'text', text: '' })
+      sendSyncToOwnDevices(userId, localDeviceId, {
+        forPeerId: peerId, serialized, originalMessageType: 'request-accepted',
+        originalTimestamp: new Date().toISOString(), originalMessageId: messageId,
+      }).catch(() => {})
     } catch (e) {
       logger.error('acceptRequest error:', e instanceof Error ? e.message : e)
+    } finally {
+      acceptingRef.current.delete(peerId)
     }
   }, [userId, localDeviceId, addMessage])
 
@@ -755,7 +993,7 @@ export function useMessages(): UseMessagesReturn {
   }, [])
 
   /** Delete messages (state + IndexedDB + Supabase). */
-  const deleteMessages = useCallback((peerId: string, messageIds: string[]) => {
+  const deleteMessages = useCallback(async (peerId: string, messageIds: string[]) => {
     const idSet = new Set(messageIds)
     setConversations(prev => {
       const msgs = prev[peerId]
@@ -769,12 +1007,287 @@ export function useMessages(): UseMessagesReturn {
       return { ...prev, [peerId]: filtered }
     })
 
-    // Persist to IndexedDB (fire-and-forget)
-    deleteMessagesFromDb(messageIds).catch(() => {})
+    // Persist to IndexedDB
+    deleteMessagesFromDb(messageIds).catch(e =>
+      logger.warn('Failed to delete messages from IDB:', e instanceof Error ? e.message : e)
+    )
 
-    // Delete from Supabase (fire-and-forget)
-    deleteMessagesFromSupabase(messageIds).catch(() => {})
+    // Force-delete from Supabase
+    const result = await deleteMessagesFromSupabase(messageIds)
+    if (!result.ok) {
+      logger.error('Failed to delete messages from Supabase:', result.error)
+    }
   }, [])
+
+  // ── Group messaging ────────────────────────────────────────────────────
+
+  /** Send a text message to a group (pairwise fan-out to each member's devices). */
+  const sendGroupMessage = useCallback(async (groupId: string, text: string, threadId?: string): Promise<boolean> => {
+    if (!userId || !localDeviceId) return false
+
+    const replyTo = threadId ? buildReplyTo(groupId, threadId) : undefined
+
+    const localId = crypto.randomUUID()
+    const now = new Date().toISOString()
+    const textContent: MessageContent = { type: 'text', text, ...(replyTo && { replyTo }) }
+
+    // Optimistic message
+    addMessage({
+      id: localId,
+      senderId: userId,
+      recipientId: userId, // placeholder — group messages have recipientId per-member
+      plaintext: text,
+      content: textContent,
+      messageType: 'message',
+      createdAt: now,
+      readAt: now,
+      status: 'sending',
+      groupId,
+      ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
+    })
+
+    setSending(true)
+    try {
+      const serialized = serializeContent(textContent)
+
+      // Fetch group members
+      const membersResult = await fetchGroupMembersRpc(groupId)
+      if (!membersResult.ok) {
+        logger.error('Failed to fetch group members:', membersResult.error)
+        removeOptimisticMessage(groupId, localId)
+        return false
+      }
+
+      const otherMembers = membersResult.data.filter(m => m.userId !== userId)
+      let firstServerId: string | null = null
+
+      // Fan-out to each member's devices
+      for (const member of otherMembers) {
+        const devicesResult = await fetchPeerDevices(member.userId)
+        const peerDevices = devicesResult.ok ? devicesResult.data : []
+
+        if (peerDevices.length > 0) {
+          const fanOutInputs = await encryptForAllDevices(member.userId, peerDevices, serialized)
+          if (fanOutInputs.length === 0) {
+            logger.warn(`Could not encrypt group message for ${member.userId}`)
+            continue
+          }
+          const sendResult = await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, groupId)
+          if (sendResult.ok && !firstServerId) {
+            firstServerId = sendResult.data[0]
+          }
+        }
+      }
+
+      if (firstServerId) {
+        updateMessageStatus(groupId, localId, firstServerId)
+      } else {
+        // All sends failed or no members
+        removeOptimisticMessage(groupId, localId)
+        return false
+      }
+
+      // Sync to own devices
+      sendSyncToOwnDevices(userId, localDeviceId, {
+        forPeerId: userId, serialized, originalMessageType: 'message',
+        originalTimestamp: now, originalMessageId: firstServerId,
+      }, groupId).catch(() => {})
+
+      return true
+    } catch (e) {
+      logger.error('sendGroupMessage error:', e instanceof Error ? e.message : e)
+      removeOptimisticMessage(groupId, localId)
+      return false
+    } finally {
+      setSending(false)
+    }
+  }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage, buildReplyTo])
+
+  /** Send an image to a group. */
+  const sendGroupImage = useCallback(async (groupId: string, file: File): Promise<boolean> => {
+    if (!userId || !localDeviceId) return false
+
+    let localId: string | null = null
+    setSending(true)
+    try {
+      const resizedDataUrl = await resizeImage(file, 800, 0.7)
+      const { width, height } = await getImageDimensions(resizedDataUrl)
+      const thumbnail = await generateThumbnail(resizedDataUrl, 60, 0.5)
+
+      localId = crypto.randomUUID()
+      const placeholderContent: ImageContent = {
+        type: 'image', mime: 'image/jpeg', key: '', path: '', width, height, thumbnail,
+      }
+      addMessage({
+        id: localId,
+        senderId: userId,
+        recipientId: userId,
+        plaintext: '\u{1F4F7} Photo',
+        content: placeholderContent,
+        messageType: 'message',
+        createdAt: new Date().toISOString(),
+        readAt: new Date().toISOString(),
+        status: 'sending',
+        groupId,
+      })
+
+      const imageBlob = dataUrlToBlob(resizedDataUrl)
+      const uploadResult = await uploadEncryptedAttachment(userId, imageBlob)
+      if (!uploadResult.ok) {
+        logger.error('Group image upload failed:', uploadResult.error)
+        removeOptimisticMessage(groupId, localId)
+        return false
+      }
+
+      const { path, key } = uploadResult.data
+      const imageContent: ImageContent = {
+        type: 'image', mime: 'image/jpeg', key, path, width, height, thumbnail,
+      }
+
+      // Update optimistic message content
+      setConversations(prev => {
+        const msgs = prev[groupId]
+        if (!msgs) return prev
+        const updated = msgs.map(m => m.id === localId ? { ...m, content: imageContent } : m)
+        return { ...prev, [groupId]: updated }
+      })
+
+      const serialized = serializeContent(imageContent)
+
+      const membersResult = await fetchGroupMembersRpc(groupId)
+      if (!membersResult.ok) {
+        logger.error('Failed to fetch group members for image:', membersResult.error)
+        removeOptimisticMessage(groupId, localId)
+        return false
+      }
+
+      const otherMembers = membersResult.data.filter(m => m.userId !== userId)
+      let firstServerId: string | null = null
+
+      for (const member of otherMembers) {
+        const devicesResult = await fetchPeerDevices(member.userId)
+        const peerDevices = devicesResult.ok ? devicesResult.data : []
+
+        if (peerDevices.length > 0) {
+          const fanOutInputs = await encryptForAllDevices(member.userId, peerDevices, serialized)
+          if (fanOutInputs.length === 0) continue
+          const sendResult = await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, groupId)
+          if (sendResult.ok && !firstServerId) {
+            firstServerId = sendResult.data[0]
+          }
+        }
+      }
+
+      if (firstServerId) {
+        updateMessageStatus(groupId, localId, firstServerId)
+        sendSyncToOwnDevices(userId, localDeviceId, {
+          forPeerId: userId, serialized, originalMessageType: 'message',
+          originalTimestamp: new Date().toISOString(), originalMessageId: firstServerId,
+        }, groupId).catch(() => {})
+      } else {
+        removeOptimisticMessage(groupId, localId)
+        return false
+      }
+
+      return true
+    } catch (e) {
+      logger.error('sendGroupImage error:', e instanceof Error ? e.message : e)
+      if (localId) removeOptimisticMessage(groupId, localId)
+      return false
+    } finally {
+      setSending(false)
+    }
+  }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage])
+
+  /** Create a new group. Returns the groupId on success, null on failure. */
+  const createGroup = useCallback(async (name: string, memberIds: string[]): Promise<string | null> => {
+    const result = await createGroupRpc({ name, memberIds })
+    if (!result.ok) {
+      logger.error('createGroup failed:', result.error)
+      return null
+    }
+    await refreshGroups()
+    return result.data.groupId
+  }, [refreshGroups])
+
+  /** Leave a group. */
+  const leaveGroupFn = useCallback(async (groupId: string): Promise<void> => {
+    const result = await leaveGroupRpc(groupId)
+    if (!result.ok) {
+      logger.error('leaveGroup failed:', result.error)
+      return
+    }
+    // Remove from local state
+    setGroups(prev => {
+      const next = { ...prev }
+      delete next[groupId]
+      return next
+    })
+    setConversations(prev => {
+      const next = { ...prev }
+      delete next[groupId]
+      return next
+    })
+  }, [])
+
+  /** Rename a group. */
+  const renameGroupFn = useCallback(async (groupId: string, name: string): Promise<void> => {
+    const result = await renameGroupRpc(groupId, name)
+    if (!result.ok) {
+      logger.error('renameGroup failed:', result.error)
+      return
+    }
+    setGroups(prev => ({
+      ...prev,
+      [groupId]: { ...prev[groupId], name },
+    }))
+  }, [])
+
+  /** Add a member to a group. */
+  const addGroupMemberFn = useCallback(async (groupId: string, memberId: string): Promise<void> => {
+    const result = await addGroupMemberRpc(groupId, memberId)
+    if (!result.ok) {
+      logger.error('addGroupMember failed:', result.error)
+      return
+    }
+    await refreshGroups()
+  }, [refreshGroups])
+
+  /** Remove a member from a group. */
+  const removeGroupMemberFn = useCallback(async (groupId: string, memberId: string): Promise<void> => {
+    const result = await removeGroupMemberRpc(groupId, memberId)
+    if (!result.ok) {
+      logger.error('removeGroupMember failed:', result.error)
+      return
+    }
+    await refreshGroups()
+  }, [refreshGroups])
+
+  /** Fetch group members. */
+  const fetchGroupMembersFn = useCallback(async (groupId: string): Promise<GroupMember[]> => {
+    const result = await fetchGroupMembersRpc(groupId)
+    if (!result.ok) {
+      logger.warn('fetchGroupMembers failed:', result.error)
+      return []
+    }
+    return result.data
+  }, [])
+
+  /** Fetch group message history from Supabase. */
+  const fetchGroupHistory = useCallback(async (groupId: string): Promise<void> => {
+    if (!userId) return
+
+    const result = await fetchGroupConversation(groupId)
+    if (!result.ok) {
+      logger.warn('fetchGroupHistory failed:', result.error)
+      return
+    }
+
+    // Rows come newest-first — reverse for chronological order
+    // Like 1:1, we can't re-decrypt received messages here (ratchet state)
+    // They come through the realtime subscription catch-up instead
+    logger.info(`fetchGroupHistory: ${result.data.length} rows for group ${groupId}`)
+  }, [userId])
 
   // Clear active peer when unmounting
   useEffect(() => {
@@ -793,5 +1306,16 @@ export function useMessages(): UseMessagesReturn {
     editMessage,
     deleteMessages,
     sending,
+    groups,
+    sendGroupMessage,
+    sendGroupImage,
+    createGroup,
+    leaveGroup: leaveGroupFn,
+    renameGroup: renameGroupFn,
+    addGroupMember: addGroupMemberFn,
+    removeGroupMember: removeGroupMemberFn,
+    fetchGroupMembers: fetchGroupMembersFn,
+    fetchGroupHistory,
+    refreshGroups,
   }
 }
