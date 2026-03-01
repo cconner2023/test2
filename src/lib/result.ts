@@ -23,6 +23,39 @@ export function fromSupabase<T>(response: {
   return ok(response.data)
 }
 
+// ─── Shared error helpers ────────────────────────────────────
+
+/** Safely extract a message from an unknown thrown value. */
+export function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : 'Unknown error'
+}
+
+/**
+ * Generic wrapper for Supabase RPC / query calls.
+ *
+ * Eliminates the repeated try-catch → if (error) → return err() boilerplate.
+ * Pass a `fallback` (e.g. `[]`) for operations that may return null data.
+ */
+export async function callRpc<T = void>(
+  operation: () => Promise<{ data: unknown; error: { message: string; code?: string } | null }>,
+  label: string,
+  logger: { error: (...args: unknown[]) => void },
+  fallback?: T,
+): Promise<Result<T>> {
+  try {
+    const { data, error } = await operation()
+    if (error) {
+      logger.error(`${label} error:`, error.message)
+      return err(error.message, error.code)
+    }
+    return ok((data ?? fallback) as T)
+  } catch (e) {
+    const msg = getErrorMessage(e)
+    logger.error(`${label} exception:`, msg)
+    return err(msg)
+  }
+}
+
 // ─── Service-layer result helpers ────────────────────────────
 
 /** Standardised result type for service mutation operations. */

@@ -292,7 +292,7 @@ describe('Note Encoding round-trips', () => {
         expect(parsed!.peText).toContain('GEN');
     });
 
-    it('encodedContentEquals ignores timestamps', () => {
+    it('encodedContentEquals ignores T/I/C segments', () => {
         const states = buildCardStates();
         const opts: NoteEncodeOptions = {
             includeAlgorithm: true,
@@ -301,14 +301,13 @@ describe('Note Encoding round-trips', () => {
         };
 
         const encoded1 = encodeNoteState(mockAlgorithm, states, opts, symptomCode);
-        // Simulate a different timestamp by replacing the T segment
-        const parts = encoded1.split('|');
-        const tIdx = parts.findIndex(p => p.startsWith('T'));
-        expect(tIdx).toBeGreaterThan(-1);
-        parts[tIdx] = 'T99999'; // Different timestamp
-        const encoded2 = parts.join('|');
 
-        expect(encodedContentEquals(encoded1, encoded2)).toBe(true);
+        // Inject synthetic T, I, and C segments — should be stripped
+        const parts = encoded1.split('|');
+        const withExtra = [...parts, 'T12345', 'I99', 'Cfoo'].join('|');
+
+        // Same content despite extra T/I/C segments
+        expect(encodedContentEquals(encoded1, withExtra)).toBe(true);
     });
 
     it('encodedContentEquals detects different content', () => {
@@ -361,9 +360,12 @@ describe('PE Codec', () => {
         const compact = encodePECompact(peText, symptomCode);
         const decoded = decodePECompact(compact, symptomCode);
 
-        expect(decoded).toContain('GEN: Normal');
-        expect(decoded).toContain('HEAD: Normal');
-        expect(decoded).toContain('Ears: Normal');
+        // V3 uses uppercase labels and normal text directly (no "Normal - " prefix)
+        expect(decoded).toContain('GEN:');
+        expect(decoded).toContain('Alert, oriented');
+        expect(decoded).toContain('HEAD:');
+        expect(decoded).toContain('Normocephalic');
+        expect(decoded).toContain('EARS:');
     });
 
     it('encodePECompact -> decodePECompact preserves abnormal findings with chips', () => {
@@ -375,7 +377,8 @@ describe('PE Codec', () => {
         const compact = encodePECompact(peText, symptomCode);
         const decoded = decodePECompact(compact, symptomCode);
 
-        expect(decoded).toContain('Ears: Abnormal');
+        // V3 uses uppercase label and no "Abnormal - " prefix
+        expect(decoded).toContain('EARS:');
         expect(decoded).toContain('TM erythema');
         expect(decoded).toContain('TM bulging');
     });
@@ -450,8 +453,9 @@ describe('PE Codec', () => {
         const decoded = decodePECompact(compact, symptomCode);
 
         expect(decoded).toContain('MSK - Shoulder (Left)');
-        expect(decoded).toContain('Inspection: Normal');
-        expect(decoded).toContain('Palpation: Normal');
+        // V3 uses uppercase labels and normal text directly (no "Normal - " prefix)
+        expect(decoded).toContain('INSPECTION:');
+        expect(decoded).toContain('PALPATION:');
     });
 });
 

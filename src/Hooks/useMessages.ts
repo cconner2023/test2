@@ -24,6 +24,8 @@ import {
   fetchGroupConversation,
   markMessagesRead,
   deleteMessages as deleteMessagesFromSupabase,
+  softDeleteMessages,
+  fetchDeletedMessages,
 } from '../lib/signal/signalService'
 import {
   fetchMyGroups as fetchMyGroupsRpc,
@@ -57,6 +59,7 @@ import {
 } from '../lib/signal/messageContent'
 import type { MessageContent, ImageContent, ReplyTo } from '../lib/signal/messageContent'
 import { uploadEncryptedAttachment } from '../lib/signal/attachmentService'
+import { ok as okResult, err as errResult, type Result } from '../lib/result'
 import { resizeImage, getImageDimensions, generateThumbnail, dataUrlToBlob } from '../Utilities/imageUtils'
 import type { DecryptedSignalMessage, PeerDevice, FanOutMessageInput, SyncMessagePayload } from '../lib/signal/transportTypes'
 import type { PublicKeyBundle } from '../lib/signal/types'
@@ -156,9 +159,11 @@ async function sendSyncToOwnDevices(
   userId: string,
   localDeviceId: string,
   syncPayload: SyncMessagePayload,
-  forGroupId?: string
+  forGroupId?: string,
+  originId?: string
 ): Promise<void> {
   if (forGroupId) syncPayload.forGroupId = forGroupId
+  if (originId) syncPayload.originId = originId
   const devicesResult = await fetchOwnDevices(userId)
   if (!devicesResult.ok) return
 
@@ -175,7 +180,104 @@ async function sendSyncToOwnDevices(
 
   if (fanOutInputs.length === 0) return
 
-  await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs)
+  await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, undefined, originId)
+}
+
+/**
+ * Encrypt serialized content and send to a single peer's devices.
+ * Handles multi-device fan-out and legacy single-device fallback.
+ */
+async function encryptAndSendToPeer(
+  userId: string,
+  localDeviceId: string,
+  peerId: string,
+  serialized: string,
+  messageType: 'message' | 'request',
+  groupId?: string,
+  originId?: string,
+): Promise<Result<string>> {
+  const devicesResult = await fetchPeerDevices(peerId)
+  const peerDevices = devicesResult.ok ? devicesResult.data : []
+
+  if (peerDevices.length > 0) {
+    const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized)
+    // Tag as 'request' if needed (X3DH creates 'initial' type, but requests need the tag)
+    if (messageType === 'request') {
+      for (const input of fanOutInputs) input.messageType = 'request'
+    }
+    if (fanOutInputs.length === 0) return errResult('Could not encrypt for any peer device')
+
+    const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, groupId, originId)
+    if (!sendResult.ok) return errResult(sendResult.error)
+    return okResult(sendResult.data[0])
+  }
+
+  // Legacy single-device path
+  const sessionExists = await hasSession(peerId, 'unknown')
+
+  if (!sessionExists) {
+    const bundleResult = await fetchPeerBundle(peerId)
+    if (!bundleResult.ok) return errResult(bundleResult.error)
+    const bundle = rpcResultToBundle(bundleResult.data)
+    const peerDeviceId = bundle.deviceId || 'unknown'
+    const initialMessage = await createOutboundSession(peerId, peerDeviceId, bundle, serialized)
+    const legacyType = messageType === 'request' ? 'request' : 'initial'
+    return sendSignalMessage(userId, peerId, initialMessage, legacyType, localDeviceId, peerDeviceId, groupId, originId)
+  }
+
+  const encrypted = await encryptMessage(peerId, 'unknown', serialized)
+  return sendSignalMessage(userId, peerId, encrypted, 'message', localDeviceId, undefined, groupId, originId)
+}
+
+/**
+ * Encrypt and send serialized content to all group members (pairwise fan-out).
+ * Returns the first server message ID on success.
+ */
+async function encryptAndSendToGroupMembers(
+  userId: string,
+  localDeviceId: string,
+  groupId: string,
+  serialized: string,
+  originId: string,
+  members: GroupMember[],
+): Promise<Result<string>> {
+  const otherMembers = members.filter(m => m.userId !== userId)
+  let firstServerId: string | null = null
+
+  for (const member of otherMembers) {
+    const devicesResult = await fetchPeerDevices(member.userId)
+    const peerDevices = devicesResult.ok ? devicesResult.data : []
+
+    if (peerDevices.length > 0) {
+      const fanOutInputs = await encryptForAllDevices(member.userId, peerDevices, serialized)
+      if (fanOutInputs.length === 0) {
+        logger.warn(`Could not encrypt group message for ${member.userId}`)
+        continue
+      }
+      const sendResult = await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, groupId, originId)
+      if (sendResult.ok && !firstServerId) {
+        firstServerId = sendResult.data[0]
+      }
+    }
+  }
+
+  return firstServerId ? okResult(firstServerId) : errResult('All group sends failed')
+}
+
+/**
+ * Resize an image and generate a thumbnail for inline preview.
+ * Returns intermediate data needed for both the optimistic placeholder and upload.
+ */
+async function resizeAndThumbnail(file: File): Promise<{
+  resizedDataUrl: string
+  width: number
+  height: number
+  thumbnail: string
+}> {
+  const resizedDataUrl = await resizeImage(file, 800, 0.7)
+  const { width, height } = await getImageDimensions(resizedDataUrl)
+  const thumbnail = await generateThumbnail(resizedDataUrl, 60, 0.5)
+  return { resizedDataUrl, width, height, thumbnail }
 }
 
 export interface UseMessagesReturn {
@@ -312,6 +414,25 @@ export function useMessages(): UseMessagesReturn {
     addMessage(msg)
   }, [userId, addMessage])
 
+  /** Remove messages by IDs from all conversations (tombstone cleanup callback). */
+  const removeMessagesByIds = useCallback((messageIds: string[]) => {
+    const idSet = new Set(messageIds)
+    setConversations(prev => {
+      let changed = false
+      const next: Record<string, DecryptedSignalMessage[]> = {}
+      for (const [key, msgs] of Object.entries(prev)) {
+        const filtered = msgs.filter(m => !idSet.has(m.id))
+        if (filtered.length !== msgs.length) changed = true
+        if (filtered.length > 0) {
+          next[key] = filtered
+        } else {
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [])
+
   // Subscribe to realtime incoming messages (pass localDeviceId for filtering)
   // Require localDeviceId before subscribing to prevent unfiltered catch-up/realtime
   useSignalMessages({
@@ -320,6 +441,7 @@ export function useMessages(): UseMessagesReturn {
     isAuthenticated: isAuthenticated && !!localDeviceId,
     isPageVisible,
     onMessage: handleIncomingMessage,
+    onDelete: removeMessagesByIds,
   })
 
   // Hydrate conversations and unread counts from IndexedDB on mount
@@ -433,9 +555,10 @@ export function useMessages(): UseMessagesReturn {
     // Build replyTo if this is a thread reply
     const replyTo = threadId ? buildReplyTo(peerId, threadId) : undefined
 
-    // Self-notes: send via Supabase (no crypto) for cross-device sync
+    // Self-notes: encrypt to own devices (E2EE even for notes to self)
     if (peerId === userId) {
       const localId = crypto.randomUUID()
+      const originId = crypto.randomUUID()
       const now = new Date().toISOString()
       addMessage({
         id: localId,
@@ -447,21 +570,39 @@ export function useMessages(): UseMessagesReturn {
         createdAt: now,
         readAt: now,
         status: 'sending',
+        originId,
         ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
       })
 
       const serialized = serializeContent({ type: 'text', text, ...(replyTo && { replyTo }) })
-      const result = await sendSignalMessage(
-        userId, userId, { text: serialized }, 'message',
-        localDeviceId ?? undefined, undefined
-      )
-      if (result.ok) {
-        updateMessageStatus(userId, localId, result.data)
-      } else {
-        logger.error('Self-note send failed:', result.error)
+
+      try {
+        // Exclude current device — we already have the message locally (optimistic + IDB).
+        // Only encrypt to OTHER devices, same pattern as sendSyncToOwnDevices.
+        const devicesResult = await fetchOwnDevices(userId)
+        const otherDevices = devicesResult.ok
+          ? devicesResult.data.filter(d => d.deviceId !== localDeviceId)
+          : []
+
+        if (otherDevices.length > 0) {
+          const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized)
+          if (fanOutInputs.length > 0) {
+            const sendResult = await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, undefined, originId)
+            if (!sendResult.ok) {
+              logger.error('Self-note fan-out failed:', sendResult.error)
+            }
+          }
+        }
+
+        // Confirm optimistic message (local-only, no server row targets this device)
+        const confirmedId = crypto.randomUUID()
+        updateMessageStatus(userId, localId, confirmedId)
+        return true
+      } catch (e) {
+        logger.error('Self-note error:', e instanceof Error ? e.message : e)
         removeOptimisticMessage(userId, localId)
+        return false
       }
-      return result.ok
     }
 
     // Request gate: check if we need to send a request first
@@ -475,6 +616,7 @@ export function useMessages(): UseMessagesReturn {
     if (status === 'none') {
       // No prior interaction — send as an encrypted request (X3DH)
       const localId = crypto.randomUUID()
+      const originId = crypto.randomUUID()
       addMessage({
         id: localId,
         senderId: userId,
@@ -484,67 +626,25 @@ export function useMessages(): UseMessagesReturn {
         createdAt: new Date().toISOString(),
         readAt: null,
         status: 'sending',
+        originId,
         ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
       })
 
       setSending(true)
       try {
         const serialized = serializeContent({ type: 'text', text, ...(replyTo && { replyTo }) })
-        const devicesResult = await fetchPeerDevices(peerId)
-        const peerDevices = devicesResult.ok ? devicesResult.data : []
-
-        if (peerDevices.length > 0) {
-          // Encrypt via X3DH for each device, then tag as 'request'
-          const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized)
-          for (const input of fanOutInputs) {
-            input.messageType = 'request'
-          }
-
-          if (fanOutInputs.length === 0) {
-            logger.error('Could not encrypt request for any peer device')
-            removeOptimisticMessage(peerId, localId)
-            return false
-          }
-
-          const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs)
-          if (!sendResult.ok) {
-            logger.error('Failed to send request fan-out:', sendResult.error)
-            removeOptimisticMessage(peerId, localId)
-            return false
-          }
-
-          updateMessageStatus(peerId, localId, sendResult.data[0])
-          sendSyncToOwnDevices(userId, localDeviceId, {
-            forPeerId: peerId, serialized, originalMessageType: 'request',
-            originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data[0],
-          }).catch(() => {})
-        } else {
-          // No devices registered — legacy single-device X3DH
-          const bundleResult = await fetchPeerBundle(peerId)
-          if (!bundleResult.ok) {
-            logger.error('Failed to fetch peer bundle for request:', bundleResult.error)
-            removeOptimisticMessage(peerId, localId)
-            return false
-          }
-
-          const bundle = rpcResultToBundle(bundleResult.data)
-          const peerDeviceId = bundle.deviceId || 'unknown'
-          const initialMessage = await createOutboundSession(peerId, peerDeviceId, bundle, serialized)
-
-          const sendResult = await sendSignalMessage(userId, peerId, initialMessage, 'request', localDeviceId, peerDeviceId)
-          if (!sendResult.ok) {
-            logger.error('Failed to send request:', sendResult.error)
-            removeOptimisticMessage(peerId, localId)
-            return false
-          }
-
-          updateMessageStatus(peerId, localId, sendResult.data)
-          sendSyncToOwnDevices(userId, localDeviceId, {
-            forPeerId: peerId, serialized, originalMessageType: 'request',
-            originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data,
-          }).catch(() => {})
+        const result = await encryptAndSendToPeer(userId, localDeviceId, peerId, serialized, 'request', undefined, originId)
+        if (!result.ok) {
+          logger.error('Failed to send request:', result.error)
+          removeOptimisticMessage(peerId, localId)
+          return false
         }
 
+        updateMessageStatus(peerId, localId, result.data)
+        sendSyncToOwnDevices(userId, localDeviceId, {
+          forPeerId: peerId, serialized, originalMessageType: 'request',
+          originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
+        }, undefined, originId).catch(() => {})
         return true
       } catch (e) {
         logger.error('sendMessage (request) error:', e instanceof Error ? e.message : e)
@@ -557,6 +657,7 @@ export function useMessages(): UseMessagesReturn {
 
     // status === 'received' or 'accepted' — fall through to X3DH / encrypt path
     const localId = crypto.randomUUID()
+    const originId = crypto.randomUUID()
     const textContent: MessageContent = { type: 'text', text, ...(replyTo && { replyTo }) }
     addMessage({
       id: localId,
@@ -568,86 +669,25 @@ export function useMessages(): UseMessagesReturn {
       createdAt: new Date().toISOString(),
       readAt: null,
       status: 'sending',
+      originId,
       ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
     })
 
     setSending(true)
     try {
-      // Wrap text in structured content format before encryption
       const serialized = serializeContent(textContent)
-
-      // Fetch peer devices for fan-out
-      const devicesResult = await fetchPeerDevices(peerId)
-      const peerDevices = devicesResult.ok ? devicesResult.data : []
-
-      if (peerDevices.length > 0) {
-        // Multi-device fan-out
-        const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized)
-
-        if (fanOutInputs.length === 0) {
-          logger.error('Could not encrypt for any peer device')
-          removeOptimisticMessage(peerId, localId)
-          return false
-        }
-
-        const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs)
-        if (!sendResult.ok) {
-          logger.error('Failed to send fan-out message:', sendResult.error)
-          removeOptimisticMessage(peerId, localId)
-          return false
-        }
-
-        updateMessageStatus(peerId, localId, sendResult.data[0])
-        sendSyncToOwnDevices(userId, localDeviceId, {
-          forPeerId: peerId, serialized, originalMessageType: 'message',
-          originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data[0],
-        }).catch(() => {})
-      } else {
-        // No devices registered — legacy single-device path
-        const sessionExists = await hasSession(peerId, 'unknown')
-
-        if (!sessionExists) {
-          // Try old fetchPeerBundle for legacy
-          const bundleResult = await fetchPeerBundle(peerId)
-          if (!bundleResult.ok) {
-            logger.error('Failed to fetch peer bundle:', bundleResult.error)
-            removeOptimisticMessage(peerId, localId)
-            return false
-          }
-
-          const bundle = rpcResultToBundle(bundleResult.data)
-          const peerDeviceId = bundle.deviceId || 'unknown'
-          const initialMessage = await createOutboundSession(peerId, peerDeviceId, bundle, serialized)
-
-          const sendResult = await sendSignalMessage(userId, peerId, initialMessage, 'initial', localDeviceId, peerDeviceId)
-          if (!sendResult.ok) {
-            logger.error('Failed to send initial message:', sendResult.error)
-            removeOptimisticMessage(peerId, localId)
-            return false
-          }
-
-          updateMessageStatus(peerId, localId, sendResult.data)
-          sendSyncToOwnDevices(userId, localDeviceId, {
-            forPeerId: peerId, serialized, originalMessageType: 'message',
-            originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data,
-          }).catch(() => {})
-        } else {
-          const encrypted = await encryptMessage(peerId, 'unknown', serialized)
-          const sendResult = await sendSignalMessage(userId, peerId, encrypted, 'message', localDeviceId)
-          if (!sendResult.ok) {
-            logger.error('Failed to send message:', sendResult.error)
-            removeOptimisticMessage(peerId, localId)
-            return false
-          }
-
-          updateMessageStatus(peerId, localId, sendResult.data)
-          sendSyncToOwnDevices(userId, localDeviceId, {
-            forPeerId: peerId, serialized, originalMessageType: 'message',
-            originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data,
-          }).catch(() => {})
-        }
+      const result = await encryptAndSendToPeer(userId, localDeviceId, peerId, serialized, 'message', undefined, originId)
+      if (!result.ok) {
+        logger.error('Failed to send message:', result.error)
+        removeOptimisticMessage(peerId, localId)
+        return false
       }
 
+      updateMessageStatus(peerId, localId, result.data)
+      sendSyncToOwnDevices(userId, localDeviceId, {
+        forPeerId: peerId, serialized, originalMessageType: 'message',
+        originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
+      }, undefined, originId).catch(() => {})
       return true
     } catch (e) {
       logger.error('sendMessage error:', e instanceof Error ? e.message : e)
@@ -669,27 +709,16 @@ export function useMessages(): UseMessagesReturn {
       return false
     }
 
-    // Generate thumbnail early so we can show a placeholder immediately
     let localId: string | null = null
+    const originId = crypto.randomUUID()
     setSending(true)
     try {
-      // 1. Resize image
-      const resizedDataUrl = await resizeImage(file, 800, 0.7)
-      const { width, height } = await getImageDimensions(resizedDataUrl)
+      // 1. Resize + thumbnail for immediate placeholder
+      const { resizedDataUrl, width, height, thumbnail } = await resizeAndThumbnail(file)
 
-      // 2. Generate tiny thumbnail for inline preview
-      const thumbnail = await generateThumbnail(resizedDataUrl, 60, 0.5)
-
-      // Show optimistic placeholder with thumbnail immediately
       localId = crypto.randomUUID()
       const placeholderContent: ImageContent = {
-        type: 'image',
-        mime: 'image/jpeg',
-        key: '',
-        path: '',
-        width,
-        height,
-        thumbnail,
+        type: 'image', mime: 'image/jpeg', key: '', path: '', width, height, thumbnail,
       }
       addMessage({
         id: localId,
@@ -701,12 +730,11 @@ export function useMessages(): UseMessagesReturn {
         createdAt: new Date().toISOString(),
         readAt: null,
         status: 'sending',
+        originId,
       })
 
-      // 3. Convert resized image to blob for upload
+      // 2. Encrypt + upload to Supabase Storage
       const imageBlob = dataUrlToBlob(resizedDataUrl)
-
-      // 4. Encrypt + upload to Supabase Storage
       const uploadResult = await uploadEncryptedAttachment(userId, imageBlob)
       if (!uploadResult.ok) {
         logger.error('Image upload failed:', uploadResult.error)
@@ -715,96 +743,31 @@ export function useMessages(): UseMessagesReturn {
       }
 
       const { path, key } = uploadResult.data
-
-      // 5. Build ImageContent
       const imageContent: ImageContent = {
-        type: 'image',
-        mime: 'image/jpeg',
-        key,
-        path,
-        width,
-        height,
-        thumbnail,
+        type: 'image', mime: 'image/jpeg', key, path, width, height, thumbnail,
       }
 
-      // Update the optimistic message's content with the real path/key
+      // Update optimistic message with real path/key
       setConversations(prev => {
         const msgs = prev[peerId]
         if (!msgs) return prev
-        const updated = msgs.map(m =>
-          m.id === localId ? { ...m, content: imageContent } : m
-        )
-        return { ...prev, [peerId]: updated }
+        return { ...prev, [peerId]: msgs.map(m => m.id === localId ? { ...m, content: imageContent } : m) }
       })
 
-      // 6. Serialize for encryption
+      // 3. Encrypt + send
       const serialized = serializeContent(imageContent)
-
-      // 7. Encrypt + send via existing fan-out flow
-      const devicesResult = await fetchPeerDevices(peerId)
-      const peerDevices = devicesResult.ok ? devicesResult.data : []
-
-      if (peerDevices.length > 0) {
-        const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized)
-        if (fanOutInputs.length === 0) {
-          logger.error('Could not encrypt image for any peer device')
-          removeOptimisticMessage(peerId, localId)
-          return false
-        }
-
-        const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs)
-        if (!sendResult.ok) {
-          logger.error('Failed to send image fan-out:', sendResult.error)
-          removeOptimisticMessage(peerId, localId)
-          return false
-        }
-
-        updateMessageStatus(peerId, localId, sendResult.data[0])
-        sendSyncToOwnDevices(userId, localDeviceId, {
-          forPeerId: peerId, serialized, originalMessageType: 'message',
-          originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data[0],
-        }).catch(() => {})
-      } else {
-        // Legacy single-device path
-        const sessionExists = await hasSession(peerId, 'unknown')
-
-        if (!sessionExists) {
-          const bundleResult = await fetchPeerBundle(peerId)
-          if (!bundleResult.ok) {
-            logger.error('Failed to fetch peer bundle for image:', bundleResult.error)
-            removeOptimisticMessage(peerId, localId)
-            return false
-          }
-          const bundle = rpcResultToBundle(bundleResult.data)
-          const peerDeviceId = bundle.deviceId || 'unknown'
-          const initialMessage = await createOutboundSession(peerId, peerDeviceId, bundle, serialized)
-          const sendResult = await sendSignalMessage(userId, peerId, initialMessage, 'initial', localDeviceId, peerDeviceId)
-          if (!sendResult.ok) {
-            logger.error('Failed to send image initial:', sendResult.error)
-            removeOptimisticMessage(peerId, localId)
-            return false
-          }
-          updateMessageStatus(peerId, localId, sendResult.data)
-          sendSyncToOwnDevices(userId, localDeviceId, {
-            forPeerId: peerId, serialized, originalMessageType: 'message',
-            originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data,
-          }).catch(() => {})
-        } else {
-          const encrypted = await encryptMessage(peerId, 'unknown', serialized)
-          const sendResult = await sendSignalMessage(userId, peerId, encrypted, 'message', localDeviceId)
-          if (!sendResult.ok) {
-            logger.error('Failed to send image message:', sendResult.error)
-            removeOptimisticMessage(peerId, localId)
-            return false
-          }
-          updateMessageStatus(peerId, localId, sendResult.data)
-          sendSyncToOwnDevices(userId, localDeviceId, {
-            forPeerId: peerId, serialized, originalMessageType: 'message',
-            originalTimestamp: new Date().toISOString(), originalMessageId: sendResult.data,
-          }).catch(() => {})
-        }
+      const result = await encryptAndSendToPeer(userId, localDeviceId, peerId, serialized, 'message', undefined, originId)
+      if (!result.ok) {
+        logger.error('Failed to send image:', result.error)
+        removeOptimisticMessage(peerId, localId)
+        return false
       }
 
+      updateMessageStatus(peerId, localId, result.data)
+      sendSyncToOwnDevices(userId, localDeviceId, {
+        forPeerId: peerId, serialized, originalMessageType: 'message',
+        originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
+      }, undefined, originId).catch(() => {})
       return true
     } catch (e) {
       logger.error('sendImage error:', e instanceof Error ? e.message : e)
@@ -819,26 +782,9 @@ export function useMessages(): UseMessagesReturn {
   const fetchHistory = useCallback(async (peerId: string) => {
     if (!userId) return
 
-    // Self-notes: fetch from Supabase and extract plaintext (no crypto)
-    if (peerId === userId) {
-      const result = await fetchConversation(userId, userId)
-      if (!result.ok) { logger.warn('fetchHistory (self) failed:', result.error); return }
-      for (const row of result.data.reverse()) {
-        const payload = row.payload as { text?: string }
-        const { plaintext, content } = parseMessageContent(payload?.text ?? '')
-        addMessage({
-          id: row.id,
-          senderId: row.sender_id,
-          recipientId: row.recipient_id,
-          plaintext,
-          content,
-          messageType: row.message_type,
-          createdAt: row.created_at,
-          readAt: row.read_at ?? undefined,
-        })
-      }
-      return
-    }
+    // Self-notes are encrypted per-device — Supabase rows target OTHER devices.
+    // The current device's copies live in IDB (hydrated on mount). Nothing to fetch.
+    if (peerId === userId) return
 
     const result = await fetchConversation(userId, peerId)
     if (!result.ok) {
@@ -996,13 +942,20 @@ export function useMessages(): UseMessagesReturn {
     updateMessageText(messageId, newText).catch(() => {})
   }, [])
 
-  /** Delete messages (state + IndexedDB + Supabase). */
+  /** Delete messages for everyone (state + IndexedDB + soft-delete RPC). */
   const deleteMessages = useCallback(async (peerId: string, messageIds: string[]) => {
+    // 1. Collect originIds from the messages being deleted
+    const msgs = conversationsRef.current[peerId] ?? []
+    const originIds = messageIds
+      .map(id => msgs.find(m => m.id === id)?.originId)
+      .filter((oid): oid is string => !!oid)
+
+    // 2. Remove from React state
     const idSet = new Set(messageIds)
     setConversations(prev => {
-      const msgs = prev[peerId]
-      if (!msgs) return prev
-      const filtered = msgs.filter(m => !idSet.has(m.id))
+      const existing = prev[peerId]
+      if (!existing) return prev
+      const filtered = existing.filter(m => !idSet.has(m.id))
       if (filtered.length === 0) {
         const next = { ...prev }
         delete next[peerId]
@@ -1011,15 +964,17 @@ export function useMessages(): UseMessagesReturn {
       return { ...prev, [peerId]: filtered }
     })
 
-    // Persist to IndexedDB
+    // 3. Delete from local IDB
     deleteMessagesFromDb(messageIds).catch(e =>
       logger.warn('Failed to delete messages from IDB:', e instanceof Error ? e.message : e)
     )
 
-    // Force-delete from Supabase
-    const result = await deleteMessagesFromSupabase(messageIds)
-    if (!result.ok) {
-      logger.error('Failed to delete messages from Supabase:', result.error)
+    // 4. Soft-delete all copies via RPC (sender-only, tags all fan-out rows)
+    if (originIds.length > 0) {
+      const result = await softDeleteMessages(originIds)
+      if (!result.ok) {
+        logger.error('Soft delete failed:', result.error)
+      }
     }
   }, [])
 
@@ -1032,14 +987,14 @@ export function useMessages(): UseMessagesReturn {
     const replyTo = threadId ? buildReplyTo(groupId, threadId) : undefined
 
     const localId = crypto.randomUUID()
+    const originId = crypto.randomUUID()
     const now = new Date().toISOString()
     const textContent: MessageContent = { type: 'text', text, ...(replyTo && { replyTo }) }
 
-    // Optimistic message
     addMessage({
       id: localId,
       senderId: userId,
-      recipientId: userId, // placeholder — group messages have recipientId per-member
+      recipientId: userId,
       plaintext: text,
       content: textContent,
       messageType: 'message',
@@ -1047,6 +1002,7 @@ export function useMessages(): UseMessagesReturn {
       readAt: now,
       status: 'sending',
       groupId,
+      originId,
       ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
     })
 
@@ -1054,7 +1010,6 @@ export function useMessages(): UseMessagesReturn {
     try {
       const serialized = serializeContent(textContent)
 
-      // Fetch group members
       const membersResult = await fetchGroupMembersRpc(groupId)
       if (!membersResult.ok) {
         logger.error('Failed to fetch group members:', membersResult.error)
@@ -1062,41 +1017,17 @@ export function useMessages(): UseMessagesReturn {
         return false
       }
 
-      const otherMembers = membersResult.data.filter(m => m.userId !== userId)
-      let firstServerId: string | null = null
-
-      // Fan-out to each member's devices
-      for (const member of otherMembers) {
-        const devicesResult = await fetchPeerDevices(member.userId)
-        const peerDevices = devicesResult.ok ? devicesResult.data : []
-
-        if (peerDevices.length > 0) {
-          const fanOutInputs = await encryptForAllDevices(member.userId, peerDevices, serialized)
-          if (fanOutInputs.length === 0) {
-            logger.warn(`Could not encrypt group message for ${member.userId}`)
-            continue
-          }
-          const sendResult = await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, groupId)
-          if (sendResult.ok && !firstServerId) {
-            firstServerId = sendResult.data[0]
-          }
-        }
-      }
-
-      if (firstServerId) {
-        updateMessageStatus(groupId, localId, firstServerId)
-      } else {
-        // All sends failed or no members
+      const result = await encryptAndSendToGroupMembers(userId, localDeviceId, groupId, serialized, originId, membersResult.data)
+      if (!result.ok) {
         removeOptimisticMessage(groupId, localId)
         return false
       }
 
-      // Sync to own devices
+      updateMessageStatus(groupId, localId, result.data)
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: userId, serialized, originalMessageType: 'message',
-        originalTimestamp: now, originalMessageId: firstServerId,
-      }, groupId).catch(() => {})
-
+        originalTimestamp: now, originalMessageId: result.data,
+      }, groupId, originId).catch(() => {})
       return true
     } catch (e) {
       logger.error('sendGroupMessage error:', e instanceof Error ? e.message : e)
@@ -1112,11 +1043,11 @@ export function useMessages(): UseMessagesReturn {
     if (!userId || !localDeviceId) return false
 
     let localId: string | null = null
+    const originId = crypto.randomUUID()
     setSending(true)
     try {
-      const resizedDataUrl = await resizeImage(file, 800, 0.7)
-      const { width, height } = await getImageDimensions(resizedDataUrl)
-      const thumbnail = await generateThumbnail(resizedDataUrl, 60, 0.5)
+      // 1. Resize + thumbnail for immediate placeholder
+      const { resizedDataUrl, width, height, thumbnail } = await resizeAndThumbnail(file)
 
       localId = crypto.randomUUID()
       const placeholderContent: ImageContent = {
@@ -1133,8 +1064,10 @@ export function useMessages(): UseMessagesReturn {
         readAt: new Date().toISOString(),
         status: 'sending',
         groupId,
+        originId,
       })
 
+      // 2. Encrypt + upload
       const imageBlob = dataUrlToBlob(resizedDataUrl)
       const uploadResult = await uploadEncryptedAttachment(userId, imageBlob)
       if (!uploadResult.ok) {
@@ -1148,14 +1081,14 @@ export function useMessages(): UseMessagesReturn {
         type: 'image', mime: 'image/jpeg', key, path, width, height, thumbnail,
       }
 
-      // Update optimistic message content
+      // Update optimistic message with real path/key
       setConversations(prev => {
         const msgs = prev[groupId]
         if (!msgs) return prev
-        const updated = msgs.map(m => m.id === localId ? { ...m, content: imageContent } : m)
-        return { ...prev, [groupId]: updated }
+        return { ...prev, [groupId]: msgs.map(m => m.id === localId ? { ...m, content: imageContent } : m) }
       })
 
+      // 3. Encrypt + send to group members
       const serialized = serializeContent(imageContent)
 
       const membersResult = await fetchGroupMembersRpc(groupId)
@@ -1165,34 +1098,17 @@ export function useMessages(): UseMessagesReturn {
         return false
       }
 
-      const otherMembers = membersResult.data.filter(m => m.userId !== userId)
-      let firstServerId: string | null = null
-
-      for (const member of otherMembers) {
-        const devicesResult = await fetchPeerDevices(member.userId)
-        const peerDevices = devicesResult.ok ? devicesResult.data : []
-
-        if (peerDevices.length > 0) {
-          const fanOutInputs = await encryptForAllDevices(member.userId, peerDevices, serialized)
-          if (fanOutInputs.length === 0) continue
-          const sendResult = await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, groupId)
-          if (sendResult.ok && !firstServerId) {
-            firstServerId = sendResult.data[0]
-          }
-        }
-      }
-
-      if (firstServerId) {
-        updateMessageStatus(groupId, localId, firstServerId)
-        sendSyncToOwnDevices(userId, localDeviceId, {
-          forPeerId: userId, serialized, originalMessageType: 'message',
-          originalTimestamp: new Date().toISOString(), originalMessageId: firstServerId,
-        }, groupId).catch(() => {})
-      } else {
+      const result = await encryptAndSendToGroupMembers(userId, localDeviceId, groupId, serialized, originId, membersResult.data)
+      if (!result.ok) {
         removeOptimisticMessage(groupId, localId)
         return false
       }
 
+      updateMessageStatus(groupId, localId, result.data)
+      sendSyncToOwnDevices(userId, localDeviceId, {
+        forPeerId: userId, serialized, originalMessageType: 'message',
+        originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
+      }, groupId, originId).catch(() => {})
       return true
     } catch (e) {
       logger.error('sendGroupImage error:', e instanceof Error ? e.message : e)

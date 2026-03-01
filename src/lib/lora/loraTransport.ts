@@ -20,8 +20,7 @@ import type {
   SendBatchParams,
 } from '../signal/transport'
 import type { SignalMessageRow } from '../signal/transportTypes'
-import type { LoRaFrame, LoRaNodeId } from './types'
-import type { BleAdapter } from './bleAdapter'
+import type { LoRaFrame, LoRaNodeId, MeshAdapter } from './types'
 import type { MeshRouter } from './meshRouter'
 import { userIdToShortId, shortIdToHex } from './wireFormat'
 
@@ -31,24 +30,27 @@ export class LoRaTransport implements SignalTransport {
   name = 'lora-mesh'
 
   meshRouter: MeshRouter
-  private bleAdapter: BleAdapter | null
+  private adapter: MeshAdapter | null
   private localNode: LoRaNodeId
 
   /** Buffer of received messages (push-based, drained by fetchUnread). */
   private receivedBuffer: SignalMessageRow[] = []
 
+  /** Callback fired when a LoRa message is received and buffered. */
+  onReceive: ((row: SignalMessageRow) => void) | null = null
+
   /** Cache of userId → shortIdHex for outbound routing. */
   private shortIdCache = new Map<string, string>()
 
-  constructor(meshRouter: MeshRouter, localNode: LoRaNodeId, bleAdapter?: BleAdapter) {
+  constructor(meshRouter: MeshRouter, localNode: LoRaNodeId, adapter?: MeshAdapter) {
     this.meshRouter = meshRouter
     this.localNode = localNode
-    this.bleAdapter = bleAdapter ?? null
+    this.adapter = adapter ?? null
   }
 
-  /** Set the BLE adapter reference (for isAvailable check). */
-  setBleAdapter(adapter: BleAdapter): void {
-    this.bleAdapter = adapter
+  /** Set the adapter reference (for isAvailable check). */
+  setAdapter(adapter: MeshAdapter): void {
+    this.adapter = adapter
   }
 
   // ---- SignalTransport Implementation ----
@@ -68,6 +70,7 @@ export class LoRaTransport implements SignalTransport {
         messageType: params.messageType,
         payload: params.payload,
         groupId: params.groupId,
+        originId: params.originId,
         createdAt: new Date().toISOString(),
       }))
 
@@ -99,6 +102,7 @@ export class LoRaTransport implements SignalTransport {
         messageType: m.messageType,
         payload: m.payload,
         groupId: params.groupId,
+        originId: params.originId,
       })
 
       if (result.ok) {
@@ -132,6 +136,16 @@ export class LoRaTransport implements SignalTransport {
     return ok(undefined)
   }
 
+  /** No-op — soft-delete is handled via Supabase RPC. */
+  async softDeleteMessages(_originIds: string[]): Promise<Result<number>> {
+    return ok(0)
+  }
+
+  /** No-op — tombstone cleanup is handled via Supabase. */
+  async fetchDeletedMessages(_userId: string): Promise<Result<SignalMessageRow[]>> {
+    return ok([])
+  }
+
   /** Delegate to existing message store (same IDB as Supabase messages). */
   async fetchConversation(
     _userId: string,
@@ -152,7 +166,7 @@ export class LoRaTransport implements SignalTransport {
   }
 
   isAvailable(): boolean {
-    return this.bleAdapter?.isConnected() ?? false
+    return this.adapter?.isConnected() ?? false
   }
 
   // ---- Public API (called by MeshRouter callback) ----
@@ -175,13 +189,16 @@ export class LoRaTransport implements SignalTransport {
         sender_device_id: (parsed.senderDeviceId as string) ?? null,
         recipient_device_id: (parsed.recipientDeviceId as string) ?? null,
         group_id: (parsed.groupId as string) ?? null,
+        origin_id: (parsed.originId as string) ?? null,
         message_type: parsed.messageType as SignalMessageRow['message_type'],
         payload: parsed.payload as Record<string, unknown>,
         created_at: (parsed.createdAt as string) ?? new Date().toISOString(),
         read_at: null,
+        deleted_at: null,
       }
 
       this.receivedBuffer.push(row)
+      this.onReceive?.(row)
       logger.info(`Buffered received message ${row.id.substring(0, 8)}…`)
     } catch (e) {
       logger.warn('Failed to decode received LoRa frame:', e)

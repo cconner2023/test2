@@ -64,8 +64,7 @@ export const UserAcknowledgment = ({ onAccept }: UserAcknowledgmentProps) => {
           <Section icon={<EyeOff size={14} className="text-themeblue2" />}>
             <p>
               <strong className="text-primary">No patient data is stored on our servers.</strong>{' '}
-              Clinical notes, including HPI and physical exam documentation, are generated and
-              processed entirely on your device. No Protected Health Information (PHI) or
+              Clinical notes, including HPI and physical exam documentation, are generated entirely on your device for your education. No Protected Health Information (PHI) or
               Personally Identifiable Information (PII) is transmitted to or stored on any server.
             </p>
           </Section>
@@ -73,7 +72,7 @@ export const UserAcknowledgment = ({ onAccept }: UserAcknowledgmentProps) => {
           <Section icon={<FileText size={14} className="text-themeblue2" />}>
             <p>
               <strong className="text-primary">Notes are your responsibility.</strong>{' '}
-              When you share, export, or copy a clinical note — whether as a barcode,
+              When you share or copy a clinical note — whether as a barcode,
               DD Form 689, or plain text — you assume responsibility for the handling
               of that information in accordance with HIPAA, DoD 6025.18-R, and your
               organization's privacy policies.

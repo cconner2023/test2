@@ -15,7 +15,9 @@ import { useEffect, useRef, useCallback, useMemo } from 'react'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { createLogger } from '../Utilities/Logger'
 import { useSupabaseSubscription } from './useSupabaseSubscription'
-import { fetchUnreadMessages } from '../lib/signal/signalService'
+import { fetchUnreadMessages, fetchDeletedMessages, deleteMessages as hardDeleteMessages, onLoRaMessage } from '../lib/signal/signalService'
+import { deleteMessages as deleteMessagesFromDb } from '../lib/signal/messageStore'
+import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { receiveInitialMessage, decryptMessage } from '../lib/signal/session'
 import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { InitialMessage, EncryptedMessage } from '../lib/signal/types'
@@ -30,6 +32,7 @@ interface UseSignalMessagesOptions {
   isAuthenticated: boolean
   isPageVisible: boolean
   onMessage: (message: DecryptedSignalMessage) => void
+  onDelete?: (messageIds: string[]) => void
 }
 
 async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage | null> {
@@ -60,27 +63,11 @@ async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage
         readAt: new Date().toISOString(), // auto-read (own sent message)
         ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
         ...(sync.forGroupId && { groupId: sync.forGroupId }),
+        originId: sync.originId ?? row.origin_id ?? undefined,
       }
     }
 
-    // Self-notes: no Signal Protocol encryption — extract plaintext directly
-    if (row.sender_id === row.recipient_id) {
-      const payload = row.payload as { text?: string }
-      const rawPlaintext = payload?.text ?? ''
-      const { plaintext, content, replyTo } = parseMessageContent(rawPlaintext)
-      return {
-        id: row.id,
-        senderId: row.sender_id,
-        recipientId: row.recipient_id,
-        plaintext,
-        content,
-        messageType: row.message_type,
-        createdAt: row.created_at,
-        readAt: row.read_at,
-        ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
-        ...(row.group_id && { groupId: row.group_id }),
-      }
-    }
+    // Self-notes: encrypted like any other message — fall through to normal decryption
 
     // Requests are encrypted via X3DH (InitialMessage) — decrypt + establish session
     if (row.message_type === 'request') {
@@ -99,6 +86,7 @@ async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage
         readAt: row.read_at,
         ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
         ...(row.group_id && { groupId: row.group_id }),
+        originId: row.origin_id ?? undefined,
       }
     }
     if (row.message_type === 'request-accepted') {
@@ -111,6 +99,7 @@ async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage
         createdAt: row.created_at,
         readAt: row.read_at,
         ...(row.group_id && { groupId: row.group_id }),
+        originId: row.origin_id ?? undefined,
       }
     }
 
@@ -140,6 +129,7 @@ async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage
       readAt: row.read_at,
       ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
       ...(row.group_id && { groupId: row.group_id }),
+      originId: row.origin_id ?? undefined,
     }
   } catch (e) {
     logger.error(`Failed to decrypt message ${row.id}:`, e instanceof Error ? e.message : e)
@@ -153,11 +143,17 @@ export function useSignalMessages({
   isAuthenticated,
   isPageVisible,
   onMessage,
+  onDelete,
 }: UseSignalMessagesOptions): void {
   const onMessageRef = useRef(onMessage)
   useEffect(() => {
     onMessageRef.current = onMessage
   }, [onMessage])
+
+  const onDeleteRef = useRef(onDelete)
+  useEffect(() => {
+    onDeleteRef.current = onDelete
+  }, [onDelete])
 
   const localDeviceIdRef = useRef(localDeviceId)
   useEffect(() => {
@@ -200,6 +196,49 @@ export function useSignalMessages({
       }
     })()
   }, [isAuthenticated, userId, localDeviceId])
+
+  // Tombstone cleanup: process pending deletions on mount
+  useEffect(() => {
+    if (!isAuthenticated || !userId) return
+
+    ;(async () => {
+      const result = await fetchDeletedMessages(userId)
+      if (!result.ok || result.data.length === 0) return
+
+      const deletedIds = result.data.map(r => r.id)
+      logger.info(`Tombstone cleanup: ${deletedIds.length} deleted messages`)
+
+      // 1. Remove from IDB
+      await deleteMessagesFromDb(deletedIds).catch(() => {})
+
+      // 2. Remove from React state
+      onDeleteRef.current?.(deletedIds)
+
+      // 3. Hard-delete from Supabase (tombstone cleanup)
+      await hardDeleteMessages(deletedIds).catch(() => {})
+    })()
+  }, [isAuthenticated, userId])
+
+  // LoRa push subscription — process messages arriving via LoRa mesh
+  useEffect(() => {
+    if (!LORA_MESH_ENABLED || !isAuthenticated || !userId) return
+
+    const unsub = onLoRaMessage((row) => {
+      // Multi-device filter (same as Supabase realtime handler)
+      const myDeviceId = localDeviceIdRef.current
+      if (myDeviceId && row.recipient_device_id && row.recipient_device_id !== myDeviceId) {
+        return
+      }
+
+      decryptRow(row).then((decrypted) => {
+        if (decrypted) {
+          onMessageRef.current(decrypted)
+        }
+      })
+    })
+
+    return unsub
+  }, [isAuthenticated, userId])
 
   // Handle realtime INSERT events — filter by recipient_device_id
   const handlePayload = useCallback(

@@ -44,6 +44,8 @@ import {
   segmentPayload,
   reassemblePayload,
   uuidToBytes,
+  bytesToHex,
+  hexToBytes,
 } from './wireFormat'
 import {
   saveWitness,
@@ -56,7 +58,7 @@ import {
   enforceWitnessBudget,
   enforceRouteBudget,
 } from './loraDb'
-import type { BleAdapter } from './bleAdapter'
+import type { MeshAdapter } from './types'
 
 const logger = createLogger('MeshRouter')
 
@@ -82,7 +84,7 @@ const REASSEMBLY_TIMEOUT = 5 * 60 * 1000 // 5 minutes
 
 export class MeshRouter {
   private localNode: LoRaNodeId
-  private bleAdapter: BleAdapter
+  private adapter: MeshAdapter
   private onMessageReceived: (frame: LoRaFrame) => void
   private running = false
   private sequence = 0
@@ -98,11 +100,11 @@ export class MeshRouter {
 
   constructor(
     localNode: LoRaNodeId,
-    bleAdapter: BleAdapter,
+    adapter: MeshAdapter,
     onMessageReceived: (frame: LoRaFrame) => void,
   ) {
     this.localNode = localNode
-    this.bleAdapter = bleAdapter
+    this.adapter = adapter
     this.onMessageReceived = onMessageReceived
   }
 
@@ -149,7 +151,7 @@ export class MeshRouter {
     }
 
     // Data frame (0x01)
-    const msgIdHex = bytesToHexFull(frame.messageId)
+    const msgIdHex = bytesToHex(frame.messageId)
 
     // Dedup check
     if (await hasWitnessed(msgIdHex)) {
@@ -233,7 +235,7 @@ export class MeshRouter {
   // ---- Confirmation Handling ----
 
   async handleConfirmation(conf: ConfirmationFrame): Promise<void> {
-    const msgIdHex = bytesToHexFull(conf.messageId)
+    const msgIdHex = bytesToHex(conf.messageId)
     const recipientHex = shortIdToHex(conf.recipientId)
 
     // Is this confirmation for us?
@@ -246,9 +248,9 @@ export class MeshRouter {
 
     // Not for us — propagate along reverse path
     // (confirmation routing follows learned routes back to sender)
-    if (this.bleAdapter.isConnected()) {
+    if (this.adapter.isConnected()) {
       const encoded = encodeConfirmation(conf)
-      await this.bleAdapter.send(encoded)
+      await this.adapter.send(encoded)
     }
   }
 
@@ -262,12 +264,12 @@ export class MeshRouter {
     recipientShortId: string,
     payload: Uint8Array,
   ): Promise<Result<string>> {
-    if (!this.bleAdapter.isConnected()) {
+    if (!this.adapter.isConnected()) {
       return err('BLE not connected')
     }
 
     const messageId = uuidToBytes(crypto.randomUUID())
-    const msgIdHex = bytesToHexFull(messageId)
+    const msgIdHex = bytesToHex(messageId)
     const now = Math.floor(Date.now() / 1000)
     const seq = this.sequence++
 
@@ -313,7 +315,7 @@ export class MeshRouter {
         encoded.set(sig, encoded.length - LORA_SIGNATURE)
       }
 
-      const sendResult = await this.bleAdapter.send(encoded)
+      const sendResult = await this.adapter.send(encoded)
       if (!sendResult.ok) return err(sendResult.error)
     }
 
@@ -356,7 +358,7 @@ export class MeshRouter {
   // ---- Internal ----
 
   private async forwardFrame(frame: LoRaFrame): Promise<void> {
-    if (!this.bleAdapter.isConnected()) return
+    if (!this.adapter.isConnected()) return
 
     // Increment hop count
     frame.hopCount++
@@ -376,15 +378,15 @@ export class MeshRouter {
       encoded.set(sig, encoded.length - LORA_SIGNATURE)
     }
 
-    const result = await this.bleAdapter.send(encoded)
+    const result = await this.adapter.send(encoded)
     if (result.ok) {
-      const msgIdHex = bytesToHexFull(frame.messageId)
+      const msgIdHex = bytesToHex(frame.messageId)
       logger.info(`Forwarded ${msgIdHex.substring(0, 8)}… (hop=${frame.hopCount})`)
     }
   }
 
   private async sendConfirmation(originalFrame: LoRaFrame): Promise<void> {
-    if (!this.bleAdapter.isConnected()) return
+    if (!this.adapter.isConnected()) return
 
     const conf: ConfirmationFrame = {
       version: 0x01,
@@ -403,7 +405,7 @@ export class MeshRouter {
       encoded.set(sig, encoded.length - LORA_SIGNATURE)
     }
 
-    await this.bleAdapter.send(encoded)
+    await this.adapter.send(encoded)
   }
 
   /** Learn routes from an incoming frame's path field. */
@@ -479,20 +481,3 @@ export class MeshRouter {
   }
 }
 
-// ---- Internal Helpers ----
-
-function bytesToHexFull(bytes: Uint8Array): string {
-  let hex = ''
-  for (let i = 0; i < bytes.length; i++) {
-    hex += bytes[i].toString(16).padStart(2, '0')
-  }
-  return hex
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2)
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16)
-  }
-  return bytes
-}

@@ -15,7 +15,7 @@
 
 import { ok, err, type Result } from '../result'
 import { createLogger } from '../../Utilities/Logger'
-import type { BleConnectionState, BleAdapterEvents } from './types'
+import type { MeshAdapter, MeshAdapterState, MeshAdapterEvents } from './types'
 import {
   LORA_BLE_SERVICE_UUID,
   LORA_BLE_TX_CHAR_UUID,
@@ -30,14 +30,14 @@ const DEFAULT_MTU = 20
 /** Time between auto-reconnect attempts (ms). */
 const DEFAULT_RECONNECT_INTERVAL = 5000
 
-export class BleAdapter {
-  state: BleConnectionState = 'disconnected'
+export class BleAdapter implements MeshAdapter {
+  state: MeshAdapterState = 'disconnected'
 
   private device: BluetoothDevice | null = null
   private server: BluetoothRemoteGATTServer | null = null
   private txChar: BluetoothRemoteGATTCharacteristic | null = null
   private rxChar: BluetoothRemoteGATTCharacteristic | null = null
-  private events: BleAdapterEvents
+  private events: MeshAdapterEvents
   private mtu = DEFAULT_MTU
   private reconnectTimer: ReturnType<typeof setInterval> | null = null
   private disconnectHandler: (() => void) | null = null
@@ -47,7 +47,7 @@ export class BleAdapter {
   private rxBuffer: Uint8Array[] = []
   private rxExpectedLen = 0
 
-  constructor(events: BleAdapterEvents) {
+  constructor(events: MeshAdapterEvents) {
     this.events = events
   }
 
@@ -206,7 +206,7 @@ export class BleAdapter {
 
   // ---- Internal ----
 
-  private setState(state: BleConnectionState): void {
+  private setState(state: MeshAdapterState): void {
     this.state = state
     this.events.onStateChange(state)
   }

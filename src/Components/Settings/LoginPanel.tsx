@@ -160,7 +160,7 @@ export const LoginPanel = ({
             className="w-full px-4 py-3 rounded-lg bg-tertiary/10 text-primary font-medium
                      hover:bg-tertiary/20 disabled:opacity-50 transition-colors text-sm"
           >
-            {variant === 'modal' ? 'Send Magic Link Instead' : 'send sign-in link instead'}
+            {variant === 'modal' ? 'Send sign-in link Instead' : 'send sign-in link instead'}
           </button>
         </div>
 

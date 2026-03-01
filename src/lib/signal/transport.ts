@@ -23,6 +23,7 @@ export interface SendMessageParams {
   messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync'
   payload: Record<string, unknown>
   groupId?: string         // set for group messages
+  originId?: string        // shared UUID for delete-for-everyone
 }
 
 export interface SendBatchParams {
@@ -31,6 +32,7 @@ export interface SendBatchParams {
   recipientId: string
   messages: Array<{ id: string } & FanOutMessageInput>
   groupId?: string         // set for group messages
+  originId?: string        // shared UUID for delete-for-everyone
 }
 
 export interface SignalTransport {
@@ -40,6 +42,8 @@ export interface SignalTransport {
   fetchUnread(userId: string, deviceId?: string): Promise<Result<SignalMessageRow[]>>
   markRead(messageIds: string[]): Promise<Result<void>>
   deleteMessages(messageIds: string[]): Promise<Result<void>>
+  softDeleteMessages(originIds: string[]): Promise<Result<number>>
+  fetchDeletedMessages(userId: string): Promise<Result<SignalMessageRow[]>>
   fetchConversation(userId: string, peerId: string, limit?: number): Promise<Result<SignalMessageRow[]>>
   fetchGroupConversation(groupId: string, limit?: number): Promise<Result<SignalMessageRow[]>>
   isAvailable(): boolean
@@ -136,7 +140,32 @@ export class TransportManager {
 
   async fetchUnread(userId: string, deviceId?: string): Promise<Result<SignalMessageRow[]>> {
     if (!this.primary) return err('No transport configured')
-    return this.primary.fetchUnread(userId, deviceId)
+
+    const primaryResult = await this.primary.fetchUnread(userId, deviceId)
+    if (!primaryResult.ok) return primaryResult
+
+    // Merge secondary transport buffer (e.g. LoRa-received messages)
+    if (this.secondary?.isAvailable()) {
+      try {
+        const secResult = await this.secondary.fetchUnread(userId, deviceId)
+        if (secResult.ok && secResult.data.length > 0) {
+          // Deduplicate by message ID
+          const seen = new Set(primaryResult.data.map(m => m.id))
+          const merged = [...primaryResult.data]
+          for (const row of secResult.data) {
+            if (!seen.has(row.id)) {
+              merged.push(row)
+              seen.add(row.id)
+            }
+          }
+          return ok(merged)
+        }
+      } catch {
+        // Secondary fetch failed — return primary results only
+      }
+    }
+
+    return primaryResult
   }
 
   async markRead(messageIds: string[]): Promise<Result<void>> {
@@ -147,6 +176,16 @@ export class TransportManager {
   async deleteMessages(messageIds: string[]): Promise<Result<void>> {
     if (!this.primary) return err('No transport configured')
     return this.primary.deleteMessages(messageIds)
+  }
+
+  async softDeleteMessages(originIds: string[]): Promise<Result<number>> {
+    if (!this.primary) return err('No transport configured')
+    return this.primary.softDeleteMessages(originIds)
+  }
+
+  async fetchDeletedMessages(userId: string): Promise<Result<SignalMessageRow[]>> {
+    if (!this.primary) return err('No transport configured')
+    return this.primary.fetchDeletedMessages(userId)
   }
 
   async fetchConversation(userId: string, peerId: string, limit?: number): Promise<Result<SignalMessageRow[]>> {

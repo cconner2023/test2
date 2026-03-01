@@ -27,7 +27,7 @@ export const PrivacyPolicyPanel = () => (
       </div>
 
       <Section icon={<EyeOff size={16} className="text-themeblue2" />} title="No Patient Data Collected">
-        <p>This application does <strong className="text-primary">not</strong> collect, store, or transmit Protected Health Information (PHI) or patients' Personally Identifiable Information (PII). No patient data is recorded on or sent to our servers. No patient information is saved locally to cache.</p>
+        <p>This application does <strong className="text-primary">not</strong> collect, store, or transmit Protected Health Information (PHI) or patients' Personally Identifiable Information (PII). No patient data is recorded on or sent to our servers. No patient information is saved locally.</p>
       </Section>
 
       <Section icon={<Database size={16} className="text-themeblue2" />} title="Information We Collect">
@@ -39,19 +39,21 @@ export const PrivacyPolicyPanel = () => (
           <li><strong className="text-primary">Training:</strong> Training task completion progress</li>
           <li><strong className="text-primary">Account:</strong> Email address and authentication credentials</li>
           <li><strong className="text-primary">Activity:</strong> Timestamp of your last interaction with the application</li>
+          <li><strong className="text-primary">Messaging:</strong> All message contents are end-to-end encrypted (E2EE) and the server is not able to interpret them</li>
+          <li><strong className="text-primary">Property:</strong> Property locations, quantities are stored so you always have access to them</li>
         </ul>
-        <p className="mt-1">Guest users can use all app features without creating an account. No data is collected from guest users.</p>
+        <p className="mt-1">Guest users can use most app features without creating an account. No data is collected from guest users.</p>
       </Section>
 
       <Section icon={<UserCheck size={16} className="text-themeblue2" />} title="How We Use Your Information">
         <p>Your information is used solely for:</p>
         <ul className="list-disc list-outside ml-4 space-y-0.5">
           <li>Logging training completion and enabling supervisor validation</li>
-          <li>Storing your app preferences so they persist across devices</li>
+          <li>Storing your app preferences and your app information so it persists across devices</li>
           <li>Authenticating your identity when you sign in</li>
           <li>Associating you with your unit for training administration</li>
         </ul>
-        <p className="mt-1">We do <strong className="text-primary">not</strong> sell, share, or distribute your information to third parties. Training completion data may be used for analytics. Your data is not used for advertising, or any purpose beyond the features listed above.</p>
+        <p className="mt-1">We do <strong className="text-primary">not</strong> sell, share, or distribute your information to outside third parties. Training completion data may be used for analytics within the unit. Your data is not used for advertising, or any purpose beyond the features listed above.</p>
       </Section>
 
       <Section icon={<Server size={16} className="text-themeblue2" />} title="Data Storage & Security">

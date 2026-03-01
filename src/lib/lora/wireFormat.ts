@@ -223,12 +223,22 @@ export function reassemblePayload(
   return result
 }
 
-// ---- Internal Helpers ----
+// ---- Binary Conversion Helpers ----
 
-function bytesToHex(bytes: Uint8Array): string {
+/** Convert a byte array to a hex string. */
+export function bytesToHex(bytes: Uint8Array): string {
   let hex = ''
   for (let i = 0; i < bytes.length; i++) {
     hex += bytes[i].toString(16).padStart(2, '0')
   }
   return hex
+}
+
+/** Convert a hex string to a byte array. */
+export function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2)
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.substring(i * 2, i * 2 + 2), 16)
+  }
+  return bytes
 }

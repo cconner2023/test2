@@ -210,6 +210,17 @@ export async function clearWitnesses(): Promise<void> {
   }
 }
 
+/** Count total route entries (for mesh stats). */
+export async function countRoutes(): Promise<number> {
+  try {
+    const db = await getDb()
+    return await db.count('routes')
+  } catch (e) {
+    logger.warn('Failed to count routes:', e)
+    return 0
+  }
+}
+
 // ---- Route Operations ----
 
 /** Save a route entry. */

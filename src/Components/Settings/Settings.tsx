@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, BookOpen, UserCog, Lock, MessageSquare, Mail, Bell, Stethoscope, ClipboardCheck, Scale, Package } from 'lucide-react';
+import { Moon, Sun, Shield, BookOpen, UserCog, Lock, MessageSquare, Mail, Bell, Stethoscope, ClipboardCheck, Scale, Package, Radio } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -37,7 +37,8 @@ import { AvatarPickerPanel } from './AvatarPickerPanel';
 import { ContentWrapper } from './ContentWrapper';
 import { useMessagesContext } from '../../Hooks/MessagesContext';
 import { PropertyPanel } from '../Property/PropertyPanel';
-import { PROPERTY_MANAGEMENT_ENABLED } from '../../lib/featureFlags';
+import { LoRaPanel } from './LoRaPanel';
+import { PROPERTY_MANAGEMENT_ENABLED, LORA_MESH_ENABLED } from '../../lib/featureFlags';
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -58,7 +59,7 @@ export const Settings = ({
     initialTrainingTaskId,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'property' | TrainingView | MessagesView>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'property' | 'lora' | TrainingView | MessagesView>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const [selectedTask, setSelectedTask] = useState<subjectAreaArrayOptions | null>(null);
@@ -180,6 +181,9 @@ export const Settings = ({
             items.push(opt(PANEL.MESSAGES, <Mail size={20} />, 'Messages', totalUnread > 0 ? { badge: totalUnread } : undefined));
             if (PROPERTY_MANAGEMENT_ENABLED) {
                 items.push(opt(PANEL.PROPERTY, <Package size={20} />, 'Property Book'));
+            }
+            if (LORA_MESH_ENABLED) {
+                items.push(opt(PANEL.LORA, <Radio size={20} />, 'LoRa Mesh'));
             }
         }
 
@@ -316,6 +320,7 @@ export const Settings = ({
             case 'messages-group-chat': return { title: selectedPeerName ?? 'Group', showBack: true, onBack: handleMessagesBack };
             case 'training':            return { title: 'My Training', ...backTo() };
             case 'property':            return { title: 'Property Book', ...backTo() };
+            case 'lora':                return { title: 'LoRa Mesh', ...backTo() };
             case 'admin':               return { title: 'Admin Panel', ...backTo() };
             case 'guest-options':       return { title: 'Sign In', ...backTo() };
             case 'pin-setup':           return { title: 'App Lock', ...backTo() };
@@ -326,6 +331,8 @@ export const Settings = ({
         }
     }, [activePanel, backTo, selectedTask, selectedPeerName, handleTrainingBack, handleMessagesBack]);
 
+    const isConversationView = activePanel === 'messages-chat' || activePanel === 'messages-group-chat';
+
     return (
         <BaseDrawer
             isVisible={isVisible}
@@ -333,6 +340,7 @@ export const Settings = ({
             fullHeight="90dvh"
             disableDrag={false}
             header={headerConfig}
+            mobileFullScreen={isConversationView}
         >
             {(handleClose) => (
                 <ContentWrapper slideDirection={slideDirection} swipeHandlers={activePanel !== 'main' ? swipeHandlers : undefined}>
@@ -486,6 +494,11 @@ export const Settings = ({
                     {isAuthenticated && PROPERTY_MANAGEMENT_ENABLED && (
                         <div className="h-full relative" style={{ display: activePanel === 'property' ? undefined : 'none' }}>
                             <PropertyPanel />
+                        </div>
+                    )}
+                    {isAuthenticated && LORA_MESH_ENABLED && (
+                        <div className="h-full" style={{ display: activePanel === 'lora' ? undefined : 'none' }}>
+                            <LoRaPanel />
                         </div>
                     )}
                 </ContentWrapper>

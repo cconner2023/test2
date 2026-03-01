@@ -74,14 +74,29 @@ export interface RouteEntry {
   ttl: number               // epoch seconds when entry expires
 }
 
-// ---- BLE Adapter ----
+// ---- Mesh Adapter ----
 
-export type BleConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error'
+import type { Result } from '../result'
 
-export interface BleAdapterEvents {
-  onStateChange: (state: BleConnectionState) => void
+export type MeshAdapterState = 'disconnected' | 'connecting' | 'connected' | 'error'
+export type BleConnectionState = MeshAdapterState  // backward compat
+
+export interface MeshAdapterEvents {
+  onStateChange: (state: MeshAdapterState) => void
   onReceive: (frame: Uint8Array) => void  // raw bytes from LoRa module
   onError: (error: string) => void
+}
+export type BleAdapterEvents = MeshAdapterEvents  // backward compat
+
+export interface MeshAdapter {
+  state: MeshAdapterState
+  requestDevice(): Promise<Result<void>>
+  connect(): Promise<Result<void>>
+  disconnect(): void
+  isConnected(): boolean
+  send(data: Uint8Array): Promise<Result<void>>
+  startAutoReconnect(intervalMs?: number): void
+  stopAutoReconnect(): void
 }
 
 // ---- Node Identity ----
@@ -99,7 +114,7 @@ export interface LoRaNodeId {
 export const LORA_MAX_PAYLOAD = 250
 
 /** Fixed header size before path segment. */
-export const LORA_HEADER_FIXED = 45 // version(1)+type(1)+msgId(16)+sender(8)+recipient(8)+seq(4)+ts(4)+hop(1)+maxHop(1)+seg(1)
+export const LORA_HEADER_FIXED = 46 // version(1)+type(1)+msgId(16)+sender(8)+recipient(8)+seq(4)+ts(4)+hop(1)+maxHop(1)+seg(1)+pathLen(1)
 
 /** Bytes per path hop entry. */
 export const LORA_PATH_ENTRY = 8

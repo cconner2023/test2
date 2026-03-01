@@ -24,6 +24,7 @@ export interface SyncMessagePayload {
   originalTimestamp: string
   originalMessageId: string   // for dedup on receiving device
   forGroupId?: string         // group this message belongs to (if group message)
+  originId?: string           // shared origin UUID for delete-for-everyone
 }
 
 // ---- Key Bundle Row (signal_key_bundles) ----
@@ -63,10 +64,12 @@ export interface SignalMessageRow {
   sender_device_id: string | null
   recipient_device_id: string | null
   group_id: string | null
+  origin_id: string | null
   message_type: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync'
   payload: Record<string, unknown>
   created_at: string
   read_at: string | null
+  deleted_at: string | null
 }
 
 /** A registered device for a peer (returned by fetch_peer_devices RPC). */
@@ -105,4 +108,6 @@ export interface DecryptedSignalMessage {
   replyPreview?: string
   /** Group ID if this is a group message (null/undefined = 1:1). */
   groupId?: string
+  /** Shared origin UUID across all fan-out copies (for delete-for-everyone). */
+  originId?: string
 }

@@ -93,6 +93,9 @@ interface BaseDrawerProps {
      *  header with drag handle (mobile), title, back button (optional), and
      *  close button (always). Children render below the header. */
     header?: DrawerHeaderConfig;
+    /** When true, mobile drawer expands to 100dvh with no border-radius,
+     *  drag is disabled, and the built-in header is hidden (children provide their own). */
+    mobileFullScreen?: boolean;
 }
 
 export function BaseDrawer({
@@ -107,6 +110,7 @@ export function BaseDrawer({
     mobileClassName = '',
     zIndex = 'z-60',
     header,
+    mobileFullScreen = false,
 }: BaseDrawerProps) {
     const [drawerPosition, setDrawerPosition] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
@@ -231,7 +235,7 @@ export function BaseDrawer({
             }
         },
         {
-            enabled: !disableDrag,
+            enabled: !disableDrag && !(useMobileLayout && mobileFullScreen),
             axis: 'y',
             filterTaps: true,
             pointer: { touch: true },
@@ -293,14 +297,14 @@ export function BaseDrawer({
                         transform-gpu overflow-hidden text-primary/80 text-sm`
                 }
                 style={useMobileLayout ? {
-                    height: fullHeight,
-                    maxHeight: fullHeight,
+                    height: mobileFullScreen ? '100dvh' : fullHeight,
+                    maxHeight: mobileFullScreen ? '100dvh' : fullHeight,
                     width: '100%',
                     transform: `translateY(${100 - drawerPosition}%)`,
                     opacity: Math.min(1, drawerPosition / 60 + 0.2),
-                    borderRadius: '1.25rem 1.25rem 0 0',
+                    borderRadius: mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0',
                     willChange: isDragging ? 'transform' : 'auto',
-                    boxShadow: '0 -4px 20px rgba(0, 0, 0, 0.1)',
+                    boxShadow: mobileFullScreen ? 'none' : '0 -4px 20px rgba(0, 0, 0, 0.1)',
                     overflow: 'hidden',
                     visibility: isMounted ? 'visible' : 'hidden',
                 } : {
@@ -315,16 +319,18 @@ export function BaseDrawer({
             >
                 {header ? (
                     <>
-                        <div {...(useMobileLayout ? bindDrawerDrag() : {})}>
-                            <DrawerHeader
-                                title={header.title}
-                                showBack={header.showBack}
-                                onBack={header.onBack}
-                                badge={header.badge}
-                                onClose={handleClose}
-                                isMobile={useMobileLayout}
-                            />
-                        </div>
+                        {!(mobileFullScreen && useMobileLayout) && (
+                            <div {...(useMobileLayout ? bindDrawerDrag() : {})}>
+                                <DrawerHeader
+                                    title={header.title}
+                                    showBack={header.showBack}
+                                    onBack={header.onBack}
+                                    badge={header.badge}
+                                    onClose={handleClose}
+                                    isMobile={useMobileLayout}
+                                />
+                            </div>
+                        )}
                         <div className="flex-1 min-h-0 overflow-hidden">
                             {resolvedChildren}
                         </div>

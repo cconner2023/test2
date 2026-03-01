@@ -9,7 +9,7 @@
  */
 
 import { supabase } from '../supabase'
-import { ok, err, type Result } from '../result'
+import { ok, err, callRpc, getErrorMessage, type Result } from '../result'
 import { createLogger } from '../../Utilities/Logger'
 import { TransportManager } from './transport'
 import { SupabaseTransport } from './supabaseTransport'
@@ -80,28 +80,19 @@ export async function registerDevice(
   deviceId: string,
   deviceLabel?: string
 ): Promise<Result<void>> {
-  try {
-    const { error } = await supabase
+  const result = await callRpc(
+    () => supabase
       .from('user_devices')
       .upsert({
         user_id: userId,
         device_id: deviceId,
         device_label: deviceLabel ?? getDeviceLabel(),
         last_active_at: new Date().toISOString(),
-      }, { onConflict: 'user_id,device_id' })
-
-    if (error) {
-      logger.error('Failed to register device:', error.message)
-      return err(error.message, error.code)
-    }
-
-    logger.info(`Device ${deviceId} registered`)
-    return ok(undefined)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Unknown error'
-    logger.error('registerDevice exception:', msg)
-    return err(msg)
-  }
+      }, { onConflict: 'user_id,device_id' }),
+    'registerDevice', logger,
+  )
+  if (result.ok) logger.info(`Device ${deviceId} registered`)
+  return result
 }
 
 /** Unregister a device (delete from user_devices). */
@@ -109,25 +100,12 @@ export async function unregisterDevice(
   userId: string,
   deviceId: string
 ): Promise<Result<void>> {
-  try {
-    const { error } = await supabase
-      .from('user_devices')
-      .delete()
-      .eq('user_id', userId)
-      .eq('device_id', deviceId)
-
-    if (error) {
-      logger.error('Failed to unregister device:', error.message)
-      return err(error.message, error.code)
-    }
-
-    logger.info(`Device ${deviceId} unregistered`)
-    return ok(undefined)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Unknown error'
-    logger.error('unregisterDevice exception:', msg)
-    return err(msg)
-  }
+  const result = await callRpc(
+    () => supabase.from('user_devices').delete().eq('user_id', userId).eq('device_id', deviceId),
+    'unregisterDevice', logger,
+  )
+  if (result.ok) logger.info(`Device ${deviceId} unregistered`)
+  return result
 }
 
 /** Register a device with role classification (primary/linked/provisional). */
@@ -136,25 +114,14 @@ export async function registerDeviceWithRole(
   deviceLabel: string,
   isPrimary: boolean
 ): Promise<Result<DeviceRegistrationResult>> {
-  try {
-    const { data, error } = await supabase
-      .rpc('register_device_with_role', {
-        p_device_id: deviceId,
-        p_device_label: deviceLabel,
-        p_is_primary: isPrimary,
-      })
-
-    if (error) {
-      logger.error('registerDeviceWithRole RPC error:', error.message)
-      return err(error.message, error.code)
-    }
-
-    return ok(data as unknown as DeviceRegistrationResult)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Unknown error'
-    logger.error('registerDeviceWithRole exception:', msg)
-    return err(msg)
-  }
+  return callRpc<DeviceRegistrationResult>(
+    () => supabase.rpc('register_device_with_role', {
+      p_device_id: deviceId,
+      p_device_label: deviceLabel,
+      p_is_primary: isPrimary,
+    }),
+    'registerDeviceWithRole', logger,
+  )
 }
 
 /** Fetch all devices for the current user (reuses fetchPeerDevices). */
@@ -166,63 +133,30 @@ export async function fetchOwnDevices(
 
 /** Primary device: force-logout all linked devices and invalidate sessions. */
 export async function primaryLogoutAll(): Promise<Result<{ devicesDeleted: number; bundlesDeleted: number; sessionsDeleted: number }>> {
-  try {
-    const { data, error } = await supabase
-      .rpc('primary_logout_all')
-
-    if (error) {
-      logger.error('primaryLogoutAll RPC error:', error.message)
-      return err(error.message, error.code)
-    }
-
-    return ok(data as unknown as { devicesDeleted: number; bundlesDeleted: number; sessionsDeleted: number })
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Unknown error'
-    logger.error('primaryLogoutAll exception:', msg)
-    return err(msg)
-  }
+  return callRpc<{ devicesDeleted: number; bundlesDeleted: number; sessionsDeleted: number }>(
+    () => supabase.rpc('primary_logout_all'),
+    'primaryLogoutAll', logger,
+  )
 }
 
 /** Clean up stale linked devices (called on login). */
 export async function cleanupStaleDevices(
   staleMinutes: number = 30
 ): Promise<Result<{ devicesDeleted: number; bundlesDeleted: number }>> {
-  try {
-    const { data, error } = await supabase
-      .rpc('cleanup_stale_linked_devices', { p_stale_minutes: staleMinutes })
-
-    if (error) {
-      logger.error('cleanupStaleDevices RPC error:', error.message)
-      return err(error.message, error.code)
-    }
-
-    return ok(data as unknown as { devicesDeleted: number; bundlesDeleted: number })
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Unknown error'
-    logger.error('cleanupStaleDevices exception:', msg)
-    return err(msg)
-  }
+  return callRpc<{ devicesDeleted: number; bundlesDeleted: number }>(
+    () => supabase.rpc('cleanup_stale_linked_devices', { p_stale_minutes: staleMinutes }),
+    'cleanupStaleDevices', logger,
+  )
 }
 
 /** Fetch all registered devices for a peer. */
 export async function fetchPeerDevices(
   peerId: string
 ): Promise<Result<PeerDevice[]>> {
-  try {
-    const { data, error } = await supabase
-      .rpc('fetch_peer_devices', { p_peer_id: peerId })
-
-    if (error) {
-      logger.error('fetchPeerDevices RPC error:', error.message)
-      return err(error.message, error.code)
-    }
-
-    return ok((data ?? []) as unknown as PeerDevice[])
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Unknown error'
-    logger.error('fetchPeerDevices exception:', msg)
-    return err(msg)
-  }
+  return callRpc<PeerDevice[]>(
+    () => supabase.rpc('fetch_peer_devices', { p_peer_id: peerId }),
+    'fetchPeerDevices', logger, [],
+  )
 }
 
 // ---- Key Bundle Operations ----
@@ -230,8 +164,8 @@ export async function fetchPeerDevices(
 export async function uploadKeyBundle(
   bundle: PublicKeyBundle
 ): Promise<Result<void>> {
-  try {
-    const { error } = await supabase
+  const result = await callRpc(
+    () => supabase
       .from('signal_key_bundles')
       .upsert({
         user_id: bundle.userId,
@@ -243,97 +177,51 @@ export async function uploadKeyBundle(
         signed_pre_key_sig: bundle.signedPreKey.signature,
         one_time_pre_keys: bundle.oneTimePreKeys,
         updated_at: new Date().toISOString(),
-      }, { onConflict: 'user_id,device_id' })
-
-    if (error) {
-      logger.error('Failed to upload key bundle:', error.message)
-      return err(error.message, error.code)
-    }
-
-    logger.info('Key bundle uploaded')
-    return ok(undefined)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Unknown error'
-    logger.error('uploadKeyBundle exception:', msg)
-    return err(msg)
-  }
+      }, { onConflict: 'user_id,device_id' }),
+    'uploadKeyBundle', logger,
+  )
+  if (result.ok) logger.info('Key bundle uploaded')
+  return result
 }
 
 export async function fetchPeerBundle(
   peerId: string
 ): Promise<Result<PeerBundleRpcResult>> {
-  try {
-    const { data, error } = await supabase
-      .rpc('consume_peer_bundle', { p_peer_id: peerId })
-
-    if (error) {
-      logger.error('fetchPeerBundle RPC error:', error.message)
-      return err(error.message, error.code)
-    }
-
-    if (!data) {
-      return err('No key bundle found for peer')
-    }
-
-    return ok(data as unknown as PeerBundleRpcResult)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Unknown error'
-    logger.error('fetchPeerBundle exception:', msg)
-    return err(msg)
-  }
+  const result = await callRpc<PeerBundleRpcResult | null>(
+    () => supabase.rpc('consume_peer_bundle', { p_peer_id: peerId }),
+    'fetchPeerBundle', logger,
+  )
+  if (!result.ok) return result
+  if (!result.data) return err('No key bundle found for peer')
+  return ok(result.data)
 }
 
 export async function fetchPeerBundleForDevice(
   peerId: string,
   deviceId: string
 ): Promise<Result<PeerBundleRpcResult>> {
-  try {
-    const { data, error } = await supabase
-      .rpc('consume_peer_bundle_for_device', {
-        p_peer_id: peerId,
-        p_device_id: deviceId,
-      })
-
-    if (error) {
-      logger.error('fetchPeerBundleForDevice RPC error:', error.message)
-      return err(error.message, error.code)
-    }
-
-    if (!data) {
-      return err(`No key bundle found for peer ${peerId} device ${deviceId}`)
-    }
-
-    return ok(data as unknown as PeerBundleRpcResult)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Unknown error'
-    logger.error('fetchPeerBundleForDevice exception:', msg)
-    return err(msg)
-  }
+  const result = await callRpc<PeerBundleRpcResult | null>(
+    () => supabase.rpc('consume_peer_bundle_for_device', {
+      p_peer_id: peerId,
+      p_device_id: deviceId,
+    }),
+    'fetchPeerBundleForDevice', logger,
+  )
+  if (!result.ok) return result
+  if (!result.data) return err(`No key bundle found for peer ${peerId} device ${deviceId}`)
+  return ok(result.data)
 }
 
 export async function deleteKeyBundle(
   userId: string,
   deviceId: string
 ): Promise<Result<void>> {
-  try {
-    const { error } = await supabase
-      .from('signal_key_bundles')
-      .delete()
-      .eq('user_id', userId)
-      .eq('device_id', deviceId)
-
-    if (error) {
-      logger.error('Failed to delete key bundle:', error.message)
-      return err(error.message, error.code)
-    }
-
-    logger.info(`Key bundle deleted for device ${deviceId}`)
-    return ok(undefined)
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Unknown error'
-    logger.error('deleteKeyBundle exception:', msg)
-    return err(msg)
-  }
+  const result = await callRpc(
+    () => supabase.from('signal_key_bundles').delete().eq('user_id', userId).eq('device_id', deviceId),
+    'deleteKeyBundle', logger,
+  )
+  if (result.ok) logger.info(`Key bundle deleted for device ${deviceId}`)
+  return result
 }
 
 // ---- Message Operations (delegated to TransportManager) ----
@@ -349,7 +237,8 @@ export async function sendMessage(
   messageType: 'initial' | 'message' | 'request' | 'request-accepted',
   senderDeviceId?: string,
   recipientDeviceId?: string,
-  groupId?: string
+  groupId?: string,
+  originId?: string
 ): Promise<Result<string>> {
   return transportManager.send({
     id: crypto.randomUUID(),
@@ -360,6 +249,7 @@ export async function sendMessage(
     messageType,
     payload: payload as unknown as Record<string, unknown>,
     groupId,
+    originId,
   })
 }
 
@@ -372,7 +262,8 @@ export async function sendMessageFanOut(
   senderDeviceId: string,
   recipientId: string,
   messages: FanOutMessageInput[],
-  groupId?: string
+  groupId?: string,
+  originId?: string
 ): Promise<Result<string[]>> {
   if (messages.length === 0) return ok([])
 
@@ -385,6 +276,7 @@ export async function sendMessageFanOut(
       ...m,
     })),
     groupId,
+    originId,
   })
 }
 
@@ -407,6 +299,18 @@ export async function deleteMessages(
   return transportManager.deleteMessages(messageIds)
 }
 
+export async function softDeleteMessages(
+  originIds: string[]
+): Promise<Result<number>> {
+  return transportManager.softDeleteMessages(originIds)
+}
+
+export async function fetchDeletedMessages(
+  userId: string
+): Promise<Result<SignalMessageRow[]>> {
+  return transportManager.fetchDeletedMessages(userId)
+}
+
 export async function fetchConversation(
   userId: string,
   peerId: string,
@@ -424,13 +328,49 @@ export async function fetchGroupConversation(
 
 // ---- LoRa Mesh (behind feature flag) ----
 
-import type { BleAdapter } from '../lora/bleAdapter'
+import type { MeshAdapter, MeshAdapterState } from '../lora/types'
 import type { MeshRouter } from '../lora/meshRouter'
 import type { LoRaTransport } from '../lora/loraTransport'
 
-let loraBleAdapter: BleAdapter | null = null
+let loraAdapter: MeshAdapter | null = null
 let loraMeshRouter: MeshRouter | null = null
 let loraTransportInstance: LoRaTransport | null = null
+let loraPruneTimer: ReturnType<typeof setInterval> | null = null
+let loraFlushTimer: ReturnType<typeof setInterval> | null = null
+
+// ---- LoRa pub/sub listeners ----
+
+const loraStateListeners = new Set<(state: MeshAdapterState) => void>()
+const loraMessageListeners = new Set<(row: SignalMessageRow) => void>()
+
+/** Subscribe to LoRa adapter state changes. Returns an unsubscribe function. */
+export function onLoRaStateChange(cb: (state: MeshAdapterState) => void): () => void {
+  loraStateListeners.add(cb)
+  return () => { loraStateListeners.delete(cb) }
+}
+
+/** Subscribe to LoRa incoming messages. Returns an unsubscribe function. */
+export function onLoRaMessage(cb: (row: SignalMessageRow) => void): () => void {
+  loraMessageListeners.add(cb)
+  return () => { loraMessageListeners.delete(cb) }
+}
+
+/** Get the current LoRa adapter state. */
+export function getLoRaState(): MeshAdapterState {
+  return loraAdapter?.state ?? 'disconnected'
+}
+
+/** Get mesh stats (witness + route counts). Returns null if LoRa is not initialized. */
+export async function getLoRaMeshStats(): Promise<{ witnessCount: number; routeCount: number } | null> {
+  if (!loraTransportInstance) return null
+  try {
+    const { countWitnesses, countRoutes } = await import('../lora/loraDb')
+    const [witnessCount, routeCount] = await Promise.all([countWitnesses(), countRoutes()])
+    return { witnessCount, routeCount }
+  } catch {
+    return null
+  }
+}
 
 /**
  * Initialize the LoRa mesh subsystem.
@@ -441,7 +381,7 @@ export async function initLoRaMesh(userId: string): Promise<void> {
   if (!LORA_MESH_ENABLED) return
 
   try {
-    const { BleAdapter } = await import('../lora/bleAdapter')
+    const { createMeshAdapter } = await import('../lora/adapterFactory')
     const { MeshRouter } = await import('../lora/meshRouter')
     const { LoRaTransport } = await import('../lora/loraTransport')
     const { userIdToShortId, shortIdToHex } = await import('../lora/wireFormat')
@@ -453,25 +393,31 @@ export async function initLoRaMesh(userId: string): Promise<void> {
       shortIdHex: shortIdToHex(shortId),
     }
 
-    loraBleAdapter = new BleAdapter({
+    loraAdapter = await createMeshAdapter({
       onStateChange: (state) => {
-        logger.info(`LoRa BLE state: ${state}`)
+        logger.info(`LoRa adapter state: ${state}`)
+        for (const cb of loraStateListeners) cb(state)
       },
       onReceive: (frame) => {
         loraMeshRouter?.handleIncoming(frame)
       },
       onError: (error) => {
-        logger.warn(`LoRa BLE error: ${error}`)
+        logger.warn(`LoRa adapter error: ${error}`)
       },
     })
 
     loraTransportInstance = new LoRaTransport(
       null as unknown as MeshRouter, // will be set after MeshRouter is created
       localNode,
-      loraBleAdapter,
+      loraAdapter,
     )
 
-    loraMeshRouter = new MeshRouter(localNode, loraBleAdapter, (frame) => {
+    // Wire up push callback for incoming LoRa messages
+    loraTransportInstance.onReceive = (row) => {
+      for (const cb of loraMessageListeners) cb(row)
+    }
+
+    loraMeshRouter = new MeshRouter(localNode, loraAdapter, (frame) => {
       loraTransportInstance?.handleReceivedFrame(frame)
     })
 
@@ -486,27 +432,53 @@ export async function initLoRaMesh(userId: string): Promise<void> {
 }
 
 /**
- * Connect to a LoRa BLE radio module.
+ * Connect to a LoRa radio module.
  * Triggers the browser BLE device picker, then connects and starts the mesh router.
  */
 export async function connectLoRa(): Promise<Result<void>> {
-  if (!LORA_MESH_ENABLED || !loraBleAdapter || !loraMeshRouter) {
+  if (!LORA_MESH_ENABLED || !loraAdapter || !loraMeshRouter) {
     return err('LoRa mesh not initialized')
   }
 
-  const deviceResult = await loraBleAdapter.requestDevice()
+  const deviceResult = await loraAdapter.requestDevice()
   if (!deviceResult.ok) return deviceResult
 
-  const connectResult = await loraBleAdapter.connect()
+  const connectResult = await loraAdapter.connect()
   if (!connectResult.ok) return connectResult
 
   loraMeshRouter.start()
-  loraBleAdapter.startAutoReconnect()
+  loraAdapter.startAutoReconnect()
+
+  // Start periodic maintenance tasks
+  startPeriodicTasks()
+
   return ok(undefined)
 }
 
-/** Disconnect from the LoRa BLE radio module. */
+/** Disconnect from the LoRa radio module. */
 export function disconnectLoRa(): void {
+  stopPeriodicTasks()
   loraMeshRouter?.stop()
-  loraBleAdapter?.disconnect()
+  loraAdapter?.disconnect()
+}
+
+/** Start periodic pruning and queue flushing while LoRa is connected. */
+function startPeriodicTasks(): void {
+  stopPeriodicTasks()
+
+  // Prune stale witnesses and routes every 15 minutes
+  loraPruneTimer = setInterval(() => {
+    loraMeshRouter?.pruneStaleData().catch(() => {})
+  }, 15 * 60 * 1000)
+
+  // Flush offline queue via LoRa every 30 seconds
+  loraFlushTimer = setInterval(() => {
+    transportManager.flush().catch(() => {})
+  }, 30 * 1000)
+}
+
+/** Stop periodic maintenance tasks. */
+function stopPeriodicTasks(): void {
+  if (loraPruneTimer) { clearInterval(loraPruneTimer); loraPruneTimer = null }
+  if (loraFlushTimer) { clearInterval(loraFlushTimer); loraFlushTimer = null }
 }

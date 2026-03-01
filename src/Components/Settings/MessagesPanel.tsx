@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMemo } from 'react'
-import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, ArrowLeft, MessageSquare, Users, Plus, Info } from 'lucide-react'
+import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, ArrowLeft, MessageSquare, Users, Plus, Info, ChevronLeft } from 'lucide-react'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import type { RequestStatus } from '../../Hooks/useMessages'
@@ -285,6 +285,11 @@ function ChatDetail({
 
   const messages = conversations[peerId] ?? []
   const hasSelection = selectedIds.size > 0
+  // Delete is only allowed for sent messages
+  const canDeleteSelection = hasSelection && [...selectedIds].every(id => {
+    const m = messages.find(msg => msg.id === id)
+    return m && m.senderId === userId
+  })
 
   // Compute thread reply counts: how many messages reference each root
   const threadReplyCounts = useMemo(() => {
@@ -468,10 +473,13 @@ function ChatDetail({
         setEditText(msg.plaintext)
         break
       case 'delete':
-        deleteMessages(peerId, [msg.id])
+        // Only allow deleting own sent messages
+        if (msg.senderId === userId) {
+          deleteMessages(peerId, [msg.id])
+        }
         break
     }
-  }, [deleteMessages, peerId])
+  }, [deleteMessages, peerId, userId])
 
   const handleOpenThread = useCallback((rootMessageId: string) => {
     setActiveThreadId(rootMessageId)
@@ -507,10 +515,12 @@ function ChatDetail({
               <Forward size={18} className="text-tertiary" />
               <span className="text-[10px] text-tertiary">Forward</span>
             </button>
-            <button onClick={handleDelete} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
-              <Trash2 size={18} className="text-red-400" />
-              <span className="text-[10px] text-red-400">Delete</span>
-            </button>
+            {canDeleteSelection && (
+              <button onClick={handleDelete} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
+                <Trash2 size={18} className="text-red-400" />
+                <span className="text-[10px] text-red-400">Delete</span>
+              </button>
+            )}
           </div>
         </div>
       )
@@ -565,8 +575,8 @@ function ChatDetail({
           </div>
         )}
 
-        {/* Input row */}
-        <div className="px-4 py-3">
+        {/* Input row — extra bottom padding on mobile */}
+        <div className="px-4 pt-3 pb-8 md:pb-3">
           <input
             ref={fileInputRef}
             type="file"
@@ -706,8 +716,29 @@ function ChatDetail({
   // ── Main view ────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col h-full relative">
-      {/* Chat header bar with peer name + call button */}
-      <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center justify-between bg-themewhite3">
+      {/* Mobile conversation header — circle buttons matching NavTop */}
+      <div className="md:hidden shrink-0 px-3 py-2 border-b border-primary/10 flex items-center bg-themewhite3">
+        <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
+          <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
+            <ChevronLeft className="w-6 h-6 text-tertiary" />
+          </button>
+        </div>
+        <p className="flex-1 text-sm font-medium text-primary truncate text-center mx-3">
+          {peerName ?? (isSelf ? 'Notes' : 'Chat')}
+        </p>
+        {canCall ? (
+          <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
+            <button onClick={onStartCall} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
+              <Phone className="w-5 h-5 text-themeblue2" />
+            </button>
+          </div>
+        ) : (
+          <div className="w-12 shrink-0" />
+        )}
+      </div>
+
+      {/* Desktop header — unchanged */}
+      <div className="hidden md:flex shrink-0 px-4 py-2.5 border-b border-primary/10 items-center justify-between bg-themewhite3">
         <p className="text-sm font-medium text-primary truncate">
           {peerName ?? (isSelf ? 'Notes' : 'Chat')}
         </p>
@@ -816,6 +847,10 @@ function GroupChatDetail({
 
   const messages = conversations[groupId] ?? []
   const hasSelection = selectedIds.size > 0
+  const canDeleteSelection = hasSelection && [...selectedIds].every(id => {
+    const m = messages.find(msg => msg.id === id)
+    return m && m.senderId === userId
+  })
 
   const threadReplyCounts = useMemo(() => {
     const counts: Record<string, number> = {}
@@ -961,9 +996,13 @@ function GroupChatDetail({
       case 'copy': navigator.clipboard.writeText(msg.plaintext).catch(() => {}); break
       case 'reply': setReplyingTo(msg); inputRef.current?.focus(); break
       case 'edit': setEditingMessageId(msg.id); setEditText(msg.plaintext); break
-      case 'delete': deleteMessages(groupId, [msg.id]); break
+      case 'delete':
+        if (msg.senderId === userId) {
+          deleteMessages(groupId, [msg.id])
+        }
+        break
     }
-  }, [deleteMessages, groupId])
+  }, [deleteMessages, groupId, userId])
 
   const handleOpenThread = useCallback((rootMessageId: string) => {
     setActiveThreadId(rootMessageId)
@@ -985,10 +1024,12 @@ function GroupChatDetail({
               <Reply size={18} className="text-tertiary" />
               <span className="text-[10px] text-tertiary">Reply</span>
             </button>
-            <button onClick={handleDelete} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
-              <Trash2 size={18} className="text-red-400" />
-              <span className="text-[10px] text-red-400">Delete</span>
-            </button>
+            {canDeleteSelection && (
+              <button onClick={handleDelete} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
+                <Trash2 size={18} className="text-red-400" />
+                <span className="text-[10px] text-red-400">Delete</span>
+              </button>
+            )}
           </div>
         </div>
       )
@@ -1012,7 +1053,7 @@ function GroupChatDetail({
             </button>
           </div>
         )}
-        <div className="px-4 py-3">
+        <div className="px-4 pt-3 pb-8 md:pb-3">
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
           <div className="flex items-center gap-2">
             {!activeThreadId && (
@@ -1134,8 +1175,26 @@ function GroupChatDetail({
   // Main group chat view
   return (
     <div className="flex flex-col h-full relative">
-      {/* Group header */}
-      <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center justify-between bg-themewhite3">
+      {/* Mobile group header — circle buttons matching NavTop */}
+      <div className="md:hidden shrink-0 px-3 py-2 border-b border-primary/10 flex items-center bg-themewhite3">
+        <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
+          <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
+            <ChevronLeft className="w-6 h-6 text-tertiary" />
+          </button>
+        </div>
+        <div className="flex-1 min-w-0 text-center mx-3">
+          <p className="text-sm font-medium text-primary truncate">{group.name}</p>
+          <p className="text-[10px] text-tertiary/40">{group.memberCount} members</p>
+        </div>
+        <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
+          <button onClick={() => setShowGroupInfo(true)} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
+            <Info className="w-5 h-5 text-tertiary" />
+          </button>
+        </div>
+      </div>
+
+      {/* Desktop group header — unchanged */}
+      <div className="hidden md:flex shrink-0 px-4 py-2.5 border-b border-primary/10 items-center justify-between bg-themewhite3">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
             <Users size={14} className="text-themeblue2" />

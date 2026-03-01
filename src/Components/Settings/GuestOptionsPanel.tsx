@@ -13,7 +13,7 @@ export const GuestOptionsPanel = ({
     <div className="h-full overflow-y-auto">
       <div className="px-4 py-3 md:p-5">
         <p className="text-[10pt] font-normal text-tertiary mb-5 items-center">
-          You're currently using the app as a guest. Your notes are saved locally to this device
+          You're currently using the app as a guest. Your preferences and training completion are saved locally to this device
         </p>
 
         <div className="flex w-full gap-2 justify-between">
@@ -41,19 +41,21 @@ export const GuestOptionsPanel = ({
         <div className="mt-6 pt-6 border-t border-tertiary/10">
           <h3 className="text-sm font-semibold text-primary mb-2">Guest Mode</h3>
           <ul className="text-xs text-tertiary space-y-1">
-            <li>✓ Full app functionality</li>
-            <li>✓ Notes saved locally</li>
-            <li>✗ No sync across devices</li>
-            <li>✗ Notes may be lost if you clear browser data</li>
+            <li>✓ full access to knowledge base</li>
+            <li>✗ No messaging</li>
+            <li>✗ No property management</li>
+            <li>✗ No user ID or transfer between devices</li>
           </ul>
         </div>
 
         <div className="mt-6 pt-6 border-t border-tertiary/10">
           <h3 className="text-sm font-semibold text-primary mb-2">With an Account</h3>
           <ul className="text-xs text-tertiary space-y-1">
-            <li>✓ Log and track training completion</li>
             <li>✓ Store preferences across devices</li>
-            <li>✓ Supervisor training validation</li>
+            <li>✓ Log and track training completion</li>
+            <li>✓ Validate training with a supervisor</li>
+            <li>✓ Encrypted messaging and calls between your clinic members </li>
+            <li>✓ Property Management with chain of custody and DA 2062 creation</li>
           </ul>
         </div>
       </div>
