@@ -51,16 +51,7 @@ export function LockGate({ children }: { children: ReactNode }) {
   const [isInactivityLocked, setIsInactivityLocked] = useState(false)
   const [isInitialPasswordLocked, setIsInitialPasswordLocked] = useState(false)
   const [pinServiceReady, setPinServiceReady] = useState(false)
-  const [needsAcknowledgment, setNeedsAcknowledgment] = useState(false)
-
-  // Show acknowledgment for authenticated (non-guest) users who haven't accepted yet
-  useEffect(() => {
-    if (user && !isGuest && !hasAcceptedAcknowledgment()) {
-      setNeedsAcknowledgment(true)
-    } else {
-      setNeedsAcknowledgment(false)
-    }
-  }, [user, isGuest])
+  const [needsAcknowledgment, setNeedsAcknowledgment] = useState(() => !hasAcceptedAcknowledgment())
 
   useEffect(() => {
     initPinService().then(() => {
@@ -113,17 +104,20 @@ export function LockGate({ children }: { children: ReactNode }) {
 
   // Gate ordering (later = on top):
   // 1. children (app)
-  // 2. loading screen — base gate while auth initializes
-  // 3. login screen — shown when not authenticated and not guest
-  // 4. PIN lock
-  // 5. inactivity / initial password locks
-  // 6. user acknowledgment (guarded by !isPasswordRecovery so it doesn't stack)
-  // 7. password recovery — always on top
+  // 2. loading screen (z-100) — while auth + SW settle
+  // 3. user acknowledgment (z-100) — PHI disclosure, every session
+  // 4. login screen (z-90) — when not authenticated
+  // 5. PIN lock (z-100)
+  // 6. inactivity / initial password locks (z-100)
+  // 7. password recovery / setup — always on top
   const showLogin = !shouldLoad && !user && !isGuest
   return (
     <>
       {children}
       {shouldLoad && <LoadingScreen />}
+      {needsAcknowledgment && !shouldLoad && (
+        <UserAcknowledgment onAccept={() => setNeedsAcknowledgment(false)} />
+      )}
       {showLogin && <LoginScreen />}
       {isPinLocked && <PinLockScreen onUnlock={handlePinUnlock} />}
       {isInitialPasswordLocked && !isPinLocked && user?.email && (
@@ -138,9 +132,6 @@ export function LockGate({ children }: { children: ReactNode }) {
       )}
       {isInactivityLocked && !isPinLocked && !isInitialPasswordLocked && user?.email && (
         <PasswordLockScreen onUnlock={() => setIsInactivityLocked(false)} email={user.email} reason="inactivity" />
-      )}
-      {needsAcknowledgment && !isPasswordRecovery && !needsPasswordSetup && !isPinLocked && !isInitialPasswordLocked && !isInactivityLocked && (
-        <UserAcknowledgment onAccept={() => setNeedsAcknowledgment(false)} />
       )}
       {isPasswordRecovery && <SetPasswordScreen mode="recovery" />}
       {needsPasswordSetup && !isPasswordRecovery && <SetPasswordScreen mode="setup" />}

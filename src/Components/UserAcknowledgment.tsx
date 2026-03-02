@@ -10,7 +10,7 @@ const ACK_STORAGE_KEY = `adtmc_user_ack_v${ACK_VERSION}`
 
 export function hasAcceptedAcknowledgment(): boolean {
   try {
-    return localStorage.getItem(ACK_STORAGE_KEY) === 'true'
+    return sessionStorage.getItem(ACK_STORAGE_KEY) === 'true'
   } catch {
     return false
   }
@@ -18,7 +18,7 @@ export function hasAcceptedAcknowledgment(): boolean {
 
 export function recordAcknowledgment(): void {
   try {
-    localStorage.setItem(ACK_STORAGE_KEY, 'true')
+    sessionStorage.setItem(ACK_STORAGE_KEY, 'true')
   } catch { /* ignore */ }
 }
 

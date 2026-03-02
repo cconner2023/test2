@@ -246,6 +246,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         // Detect password recovery flow (user clicked reset-password email link)
         if (event === 'PASSWORD_RECOVERY') {
           set({ isPasswordRecovery: true })
+          // Ensure profile is fetched for recovery logins (token-based new users)
+          startHeartbeat(session.user.id)
+          get().refreshProfile()
         }
         // Keep cleanup handler's token in sync for pagehide
         if (session.access_token) {

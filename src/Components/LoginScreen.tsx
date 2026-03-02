@@ -102,7 +102,7 @@ export function LoginScreen() {
             </g>
           </svg>
           <h1 className="text-xl font-semibold tracking-[2px] text-[rgba(0,66,92,1)] dark:text-[rgba(129,161,181,1)]">
-            ADTMC <div className='text-[10pt]'>Combat Health Intelligence Repository and Operational Network</div>
+            ADTMC <div className='text-[10pt]'>Medical Knowledge Repository and Operational Network</div>
           </h1>
         </div>
 

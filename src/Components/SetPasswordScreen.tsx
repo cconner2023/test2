@@ -20,7 +20,6 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
 
   const setPasswordRecovery = useAuthStore((s) => s.setPasswordRecovery)
   const setNeedsPasswordSetup = useAuthStore((s) => s.setNeedsPasswordSetup)
-  const needsPasswordSetup = useAuthStore((s) => s.needsPasswordSetup)
   const user = useAuthStore((s) => s.user)
 
   const isValid = password.length >= 12 && password === confirm
@@ -49,10 +48,9 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
       }
     }
 
-    // Clear needs_password_setup in DB whenever it was set — covers both the
-    // in-app token path (mode='setup') and the email recovery link path (mode='recovery')
-    // for users whose accounts were created via the approval flow.
-    if (user && needsPasswordSetup) {
+    // Always clear needs_password_setup in DB — the in-memory flag may not be
+    // loaded yet (race with refreshProfile), so unconditionally clear it.
+    if (user) {
       await supabase
         .from('profiles')
         .update({ needs_password_setup: false } as any)
@@ -62,6 +60,9 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
     setSubmitting(false)
     setNeedsPasswordSetup(false)
     setPasswordRecovery(false)
+
+    // Refresh profile so the settings panel has up-to-date data from the DB
+    useAuthStore.getState().refreshProfile()
   }
 
   const isSetup = mode === 'setup'
