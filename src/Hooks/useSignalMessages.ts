@@ -19,9 +19,7 @@ import { fetchUnreadMessages, deleteMessages as hardDeleteMessages, onLoRaMessag
 import { deleteMessages as deleteMessagesFromDb } from '../lib/signal/messageStore'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { processIncomingMessage } from '../lib/signal/session'
-import { unseal } from '../lib/signal/sealedSender'
 import type { SealedEnvelope } from '../lib/signal/sealedSender'
-import { ensureLocalIdentity } from '../lib/signal/keyManager'
 import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { SyncMessagePayload } from '../lib/signal/transportTypes'
 import { parseMessageContent } from '../lib/signal/messageContent'
@@ -42,13 +40,12 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
     const envelope = row.payload as unknown as SealedEnvelope
     const senderDeviceId = row.sender_device_id ?? 'unknown'
 
-    // Delete messages: unseal, extract originIds, return special marker
+    // Delete messages: decrypt through session, extract originIds
     if (row.message_type === 'delete') {
-      const identity = await ensureLocalIdentity()
-      const { inner, senderUuid } = await unseal(
-        envelope, myUuid, identity.dhPrivateKey, identity.dhPublicKeyBase64
+      const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
+        senderDeviceId, envelope, myUuid
       )
-      const { originIds } = inner as { originIds: string[] }
+      const { originIds } = JSON.parse(rawPlaintext) as { originIds: string[] }
       return {
         id: row.id,
         senderId: senderUuid,
@@ -104,11 +101,10 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
       }
     }
 
-    // Request-accepted: unseal to get senderUuid (no plaintext content)
+    // Request-accepted: decrypt through session to get senderUuid
     if (row.message_type === 'request-accepted') {
-      const identity = await ensureLocalIdentity()
-      const { senderUuid } = await unseal(
-        envelope, myUuid, identity.dhPrivateKey, identity.dhPublicKeyBase64
+      const { senderUuid } = await processIncomingMessage(
+        senderDeviceId, envelope, myUuid
       )
       return {
         id: row.id,

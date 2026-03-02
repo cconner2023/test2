@@ -886,18 +886,25 @@ export function useMessages(): UseMessagesReturn {
     acceptingRef.current.add(peerId)
 
     try {
-      // Fan out request-accepted to all peer devices
+      // Encrypt the accept signal through established sessions (created when
+      // the inbound request was decrypted via X3DH).
+      const serialized = serializeContent({ type: 'text', text: '' })
       const devicesResult = await fetchPeerDevices(peerId)
       const peerDevices = devicesResult.ok ? devicesResult.data : []
 
       let messageId: string
 
       if (peerDevices.length > 0) {
-        const fanOutInputs: FanOutMessageInput[] = peerDevices.map(d => ({
-          recipientDeviceId: d.deviceId,
-          payload: {} as Record<string, unknown>,
-          messageType: 'request-accepted' as const,
-        }))
+        const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized, userId)
+        // Tag all as request-accepted (encryptForAllDevices sets 'initial' or 'message')
+        for (const input of fanOutInputs) {
+          input.messageType = 'request-accepted'
+        }
+
+        if (fanOutInputs.length === 0) {
+          logger.error('Could not encrypt request-accepted for any peer device')
+          return
+        }
 
         const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs)
         if (!sendResult.ok) {
@@ -907,14 +914,33 @@ export function useMessages(): UseMessagesReturn {
 
         messageId = sendResult.data[0] ?? crypto.randomUUID()
       } else {
-        // Fallback: single send
-        const sendResult = await sendSignalMessage(userId, peerId, {} as Record<string, never>, 'request-accepted', localDeviceId)
-        if (!sendResult.ok) {
-          logger.error('Failed to send request-accepted:', sendResult.error)
-          return
-        }
+        // Legacy single-device fallback: encrypt through existing session
+        const sessionExists = await hasSession(peerId, 'unknown')
 
-        messageId = sendResult.data
+        if (sessionExists) {
+          const encrypted = await encryptMessage(peerId, 'unknown', serialized, userId)
+          const sendResult = await sendSignalMessage(userId, peerId, encrypted, 'request-accepted', localDeviceId)
+          if (!sendResult.ok) {
+            logger.error('Failed to send request-accepted:', sendResult.error)
+            return
+          }
+          messageId = sendResult.data
+        } else {
+          const bundleResult = await fetchPeerBundle(peerId)
+          if (!bundleResult.ok) {
+            logger.error('Failed to fetch peer bundle for request-accepted:', bundleResult.error)
+            return
+          }
+          const bundle = rpcResultToBundle(bundleResult.data)
+          const peerDeviceId = bundle.deviceId || 'unknown'
+          const sealedEnvelope = await createOutboundSession(peerId, peerDeviceId, bundle, serialized, userId)
+          const sendResult = await sendSignalMessage(userId, peerId, sealedEnvelope, 'request-accepted', localDeviceId, peerDeviceId)
+          if (!sendResult.ok) {
+            logger.error('Failed to send request-accepted:', sendResult.error)
+            return
+          }
+          messageId = sendResult.data
+        }
       }
 
       addMessage({
@@ -928,7 +954,6 @@ export function useMessages(): UseMessagesReturn {
       })
 
       // Sync accept to own devices
-      const serialized = serializeContent({ type: 'text', text: '' })
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: peerId, serialized, originalMessageType: 'request-accepted',
         originalTimestamp: new Date().toISOString(), originalMessageId: messageId,

@@ -6,7 +6,7 @@ import { useAuthStore } from '../stores/useAuthStore'
 import { PinLockScreen } from './PinLockScreen'
 import { PasswordLockScreen } from './PasswordLockScreen'
 import { SetPasswordScreen } from './SetPasswordScreen'
-import { UserAcknowledgment, hasAcceptedAcknowledgment } from './UserAcknowledgment'
+import { UserAcknowledgment, hasAcceptedAcknowledgment, recordAcknowledgment } from './UserAcknowledgment'
 import { LoginScreen } from './LoginScreen'
 
 const INITIAL_PW_UNLOCKED_KEY = 'adtmc_initial_pw_unlocked'
@@ -51,7 +51,19 @@ export function LockGate({ children }: { children: ReactNode }) {
   const [isInactivityLocked, setIsInactivityLocked] = useState(false)
   const [isInitialPasswordLocked, setIsInitialPasswordLocked] = useState(false)
   const [pinServiceReady, setPinServiceReady] = useState(false)
-  const [needsAcknowledgment, setNeedsAcknowledgment] = useState(() => !hasAcceptedAcknowledgment())
+  // Check both sessionStorage and localStorage on init so returning authenticated
+  // users who already accepted this version skip the gate immediately.
+  const [needsAcknowledgment, setNeedsAcknowledgment] = useState(() => !hasAcceptedAcknowledgment(true))
+
+  // Once auth settles: if an authenticated user already accepted (even just in
+  // sessionStorage from before login), promote to localStorage and dismiss.
+  useEffect(() => {
+    if (loading) return
+    if (user && !isGuest && hasAcceptedAcknowledgment(true)) {
+      recordAcknowledgment(true) // ensure persisted
+      setNeedsAcknowledgment(false)
+    }
+  }, [loading, user, isGuest])
 
   useEffect(() => {
     initPinService().then(() => {
@@ -105,7 +117,7 @@ export function LockGate({ children }: { children: ReactNode }) {
   // Gate ordering (later = on top):
   // 1. children (app)
   // 2. loading screen (z-100) — while auth + SW settle
-  // 3. user acknowledgment (z-100) — PHI disclosure, every session
+  // 3. user acknowledgment (z-100) — PHI disclosure (persistent for authed users, per-session for guests)
   // 4. login screen (z-90) — when not authenticated
   // 5. PIN lock (z-100)
   // 6. inactivity / initial password locks (z-100)
@@ -116,7 +128,10 @@ export function LockGate({ children }: { children: ReactNode }) {
       {children}
       {shouldLoad && <LoadingScreen />}
       {needsAcknowledgment && !shouldLoad && (
-        <UserAcknowledgment onAccept={() => setNeedsAcknowledgment(false)} />
+        <UserAcknowledgment
+          onAccept={() => setNeedsAcknowledgment(false)}
+          persistent={!!user && !isGuest}
+        />
       )}
       {showLogin && <LoginScreen />}
       {isPinLocked && <PinLockScreen onUnlock={handlePinUnlock} />}

@@ -8,22 +8,36 @@ import { ShieldCheck, EyeOff, FileText, UserCheck } from 'lucide-react'
 export const ACK_VERSION = 1
 const ACK_STORAGE_KEY = `adtmc_user_ack_v${ACK_VERSION}`
 
-export function hasAcceptedAcknowledgment(): boolean {
+/**
+ * Check whether the user has already accepted this version of the acknowledgment.
+ * @param checkPersistent  When true, also checks localStorage (for authenticated
+ *                         users whose acceptance persists across sessions).
+ */
+export function hasAcceptedAcknowledgment(checkPersistent = false): boolean {
   try {
+    if (checkPersistent && localStorage.getItem(ACK_STORAGE_KEY) === 'true') return true
     return sessionStorage.getItem(ACK_STORAGE_KEY) === 'true'
   } catch {
     return false
   }
 }
 
-export function recordAcknowledgment(): void {
+/**
+ * Record that the user accepted the acknowledgment.
+ * Always writes to sessionStorage. When `persistent` is true (authenticated users),
+ * also writes to localStorage so it survives across sessions.
+ */
+export function recordAcknowledgment(persistent = false): void {
   try {
     sessionStorage.setItem(ACK_STORAGE_KEY, 'true')
+    if (persistent) localStorage.setItem(ACK_STORAGE_KEY, 'true')
   } catch { /* ignore */ }
 }
 
 interface UserAcknowledgmentProps {
   onAccept: () => void
+  /** When true, acceptance is persisted to localStorage (for authenticated users). */
+  persistent?: boolean
 }
 
 const Section = ({ icon, children }: { icon: React.ReactNode; children: React.ReactNode }) => (
@@ -35,12 +49,12 @@ const Section = ({ icon, children }: { icon: React.ReactNode; children: React.Re
   </div>
 )
 
-export const UserAcknowledgment = ({ onAccept }: UserAcknowledgmentProps) => {
+export const UserAcknowledgment = ({ onAccept, persistent }: UserAcknowledgmentProps) => {
   const [checked, setChecked] = useState(false)
 
   const handleAccept = () => {
     if (!checked) return
-    recordAcknowledgment()
+    recordAcknowledgment(persistent)
     onAccept()
   }
 
