@@ -47,20 +47,6 @@ transportManager.setQueue({
   markFailed,
 })
 
-// Expose diagnostic test on window for debugging
-if (typeof window !== 'undefined') {
-  (window as unknown as Record<string, unknown>).__testSignalSend = async () => {
-    const { getLocalDeviceId } = await import('./keyManager')
-    const { supabase: sb } = await import('../supabase')
-    const { data: { user } } = await sb.auth.getUser()
-    if (!user) { console.error('[Diagnostic] Not authenticated'); return }
-    const deviceId = await getLocalDeviceId()
-    if (!deviceId) { console.error('[Diagnostic] No localDeviceId'); return }
-    console.log('[Diagnostic] user:', user.id, 'device:', deviceId)
-    await supabaseTransport.testInsert(user.id, deviceId)
-  }
-}
-
 // ---- Device Registration ----
 
 /** Parse the User-Agent for a human-readable device label. */

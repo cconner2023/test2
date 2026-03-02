@@ -8,6 +8,7 @@ import { supabase } from '../supabase'
 import { callRpc, type Result } from '../result'
 import { createLogger } from '../../Utilities/Logger'
 import type { GroupInfo, GroupMember } from './groupTypes'
+import { encryptGroupName, decryptGroupName } from './groupNameCrypto'
 
 const logger = createLogger('GroupService')
 
@@ -15,20 +16,41 @@ export async function createGroup(params: {
   name: string
   memberIds: string[]
 }): Promise<Result<{ groupId: string; name: string }>> {
-  return callRpc<{ groupId: string; name: string }>(
+  // Create with plaintext to obtain the server-assigned groupId, then immediately
+  // overwrite with the per-group encrypted name so plaintext is transient in the DB.
+  const result = await callRpc<{ groupId: string; name: string }>(
     () => supabase.rpc('create_message_group', {
       p_name: params.name,
       p_member_ids: params.memberIds,
     }),
     'createGroup', logger,
   )
+
+  if (!result.ok) return result
+
+  const { groupId } = result.data
+  const encryptedName = await encryptGroupName(groupId, params.name)
+  await callRpc(
+    () => supabase.rpc('rename_message_group', { p_group_id: groupId, p_name: encryptedName }),
+    'createGroup:rename', logger,
+  )
+
+  return { ok: true, data: { groupId, name: params.name } }
 }
 
 export async function fetchMyGroups(): Promise<Result<GroupInfo[]>> {
-  return callRpc<GroupInfo[]>(
+  const result = await callRpc<GroupInfo[]>(
     () => supabase.rpc('fetch_my_groups'),
     'fetchMyGroups', logger, [],
   )
+  if (!result.ok) return result
+  const decrypted = await Promise.all(
+    result.data.map(async (g) => ({
+      ...g,
+      name: await decryptGroupName(g.groupId, g.name),
+    })),
+  )
+  return { ok: true, data: decrypted }
 }
 
 export async function fetchGroupMembers(groupId: string): Promise<Result<GroupMember[]>> {
@@ -39,8 +61,9 @@ export async function fetchGroupMembers(groupId: string): Promise<Result<GroupMe
 }
 
 export async function renameGroup(groupId: string, name: string): Promise<Result<void>> {
+  const encryptedName = await encryptGroupName(groupId, name)
   return callRpc(
-    () => supabase.rpc('rename_message_group', { p_group_id: groupId, p_name: name }),
+    () => supabase.rpc('rename_message_group', { p_group_id: groupId, p_name: encryptedName }),
     'renameGroup', logger,
   )
 }

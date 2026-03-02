@@ -13,9 +13,6 @@ let useLocalStorageFallback = false
 /** True when Web Crypto is missing — we cannot encrypt at all. */
 let cryptoUnavailable = false
 
-/** localStorage key for persisted encryption key (stable across browser updates). */
-const PERSISTED_KEY_NAME = 'adtmc_enc_key'
-
 async function getFingerprint(): Promise<ArrayBuffer> {
   const raw = [
     navigator.userAgent,
@@ -30,36 +27,25 @@ async function getFingerprint(): Promise<ArrayBuffer> {
 async function getEncryptionKey(): Promise<CryptoKey> {
   if (encKey) return encKey
 
-  // 1. Use persisted key if available (stable across browser updates)
-  const persistedB64 = localStorage.getItem(PERSISTED_KEY_NAME)
-  if (persistedB64) {
-    try {
-      const keyBytes = base64ToBytes(persistedB64)
+  // 1. Load persisted key from IDB if available (stable across browser updates)
+  try {
+    const db = await getDb()
+    const rawBytes = await idbGet(db, '__enc_key_raw')
+    if (rawBytes) {
       encKey = await crypto.subtle.importKey(
-        'raw', keyBytes, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+        'raw', rawBytes, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
       )
-      // Persist raw key bytes to IDB for service worker access
-      persistKeyToIdb(keyBytes).catch(() => {})
       return encKey
-    } catch {
-      // Persisted key corrupted — fall through to fingerprint
-      localStorage.removeItem(PERSISTED_KEY_NAME)
     }
-  }
+  } catch { /* IDB unavailable or key not yet stored — fall through to fingerprint */ }
 
-  // 2. Derive from device fingerprint (first run or legacy)
+  // 2. Derive from device fingerprint (first run or fallback)
   const fingerprint = await getFingerprint()
   encKey = await crypto.subtle.importKey(
     'raw', fingerprint, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
   )
 
-  // 3. Persist the derived key so future browser updates don't invalidate it
-  try {
-    const fpBytes = new Uint8Array(fingerprint)
-    localStorage.setItem(PERSISTED_KEY_NAME, btoa(String.fromCharCode(...fpBytes)))
-  } catch { /* localStorage full — key still works in memory */ }
-
-  // 4. Persist raw key bytes to IDB for service worker access
+  // 3. Persist raw key bytes to IDB for future loads and service worker access
   persistKeyToIdb(new Uint8Array(fingerprint)).catch(() => {})
 
   return encKey

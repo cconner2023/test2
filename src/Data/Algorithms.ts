@@ -764,7 +764,7 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "No",
                         disposition: [],
-                        next: 5,
+                        next: 6,
                         selectAll: false,
                     }
                 ]

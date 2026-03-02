@@ -195,37 +195,6 @@ export class SupabaseTransport implements SignalTransport {
     return navigator.onLine
   }
 
-  /** Diagnostic: test a raw INSERT into signal_messages. Call from console via window.__testSignalSend(). */
-  async testInsert(senderId: string, deviceId: string): Promise<void> {
-    const testId = crypto.randomUUID()
-    console.log('[DiagnosticTest] Attempting INSERT into signal_messages...')
-    console.log('[DiagnosticTest] senderId:', senderId, 'deviceId:', deviceId, 'testId:', testId)
-
-    const { data, error } = await supabase
-      .from('signal_messages')
-      .insert({
-        id: testId,
-        sender_id: senderId,
-        recipient_id: senderId,
-        sender_device_id: deviceId,
-        recipient_device_id: null,
-        group_id: null,
-        message_type: 'message',
-        payload: { text: '{"t":"t","d":"diagnostic test"}' },
-      })
-      .select('id')
-      .single()
-
-    if (error) {
-      console.error('[DiagnosticTest] INSERT FAILED:', error.message, '| code:', error.code, '| details:', error.details, '| hint:', error.hint)
-    } else {
-      console.log('[DiagnosticTest] INSERT SUCCESS! id:', data.id)
-      // Clean up test message
-      await supabase.from('signal_messages').delete().eq('id', testId)
-      console.log('[DiagnosticTest] Test message cleaned up')
-    }
-  }
-
   private fireNotif(
     recipientId: string,
     senderId: string,
