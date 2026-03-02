@@ -1,4 +1,4 @@
-# started with ADTMC and then got distracted. Name in progress - I'm open to suggestions. I've got: ARGUS, CHIRON, and HERA. THE next medical application for the medical MOS.
+# Name in progress - I'm open to suggestions. An application for the medical MOSs.
 I coded this with 2017 SPC me in mind - what could he have used, what would've made us more effective as medics. Triage algorithms, medication references, note documentation suggestions, property management, E2EE comms for medical personnel so we could evac faster, and training IAW updated CPGs, STP, MEDCOM PAM 40-7-21. Built mobile-first, offline-first. Maybe its a playground, maybe it actually goes somewhere, maybe its the next system of record. Who knows. Feel free to chime in.
 
 ```
@@ -19,7 +19,7 @@ https://cconner2023.github.io/test2
 - **Additional Knowledge Base:** Per-item training completion with sync to server for authenticated users based off of critical task list and 68W STP.
   - Train anywhere with the doctrine.
   - Leaders can evaluate training. encrypt at rest with sync to server on connect.
-- **Note Customization:** custom text expanders mimicking other auto-text templates. User-defined (you don't have to look at what the admins think you'll use).
+- **Note Customization:** custom text expanders mimicking other auto-text templates. User-defined (you don't have to look at what the admins think you'll use). The EHR doesn't give me what I want, so I'll just make my own text-expanders and action steps.
 - **Messaging:** Message users in your clinic
   - chain ratchet + DH ratchet encrypted at rest. Device purge for inactive devices. Message purge after > 4MB network storage. 
   - LoRa architecture + the same DH/chain ratchet for offline messaging in low-bandwidth environments using mesh node, guardian + witness prop, and self-healing node architecture.
@@ -43,4 +43,4 @@ https://cconner2023.github.io/test2
 - **Prolonged Field Care Algorithms:** they're at deployed medicine, but what if you don't have connectivity and you need it quick.
 - **Call higher:** built in E2EE web calls to your clinic provider, but what if you have to send to the next geographic node.
 - **VoIP:** DSN becomes encrypt VoIP on medic devices with audit logging. Why are we posting medics 24/7 somewhere when we could run E2EE on-call with a familiar number.
-- **Shift handoff:** we train like we're going to sit on a patient until a miracle happens, but I've gotten some pretty crummy hand-offs from medics who were never taught.
+- **Shift handoff:** we train like we're going to sit on a patient until a miracle happens. I've gotten some pretty crummy hand-offs from medics who were never taught.

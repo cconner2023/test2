@@ -114,8 +114,20 @@ self.addEventListener('push', (event) => {
     tag: 'adtmc-push',
   };
 
-  // Always call waitUntil — iOS aggressively suspends the SW otherwise
-  event.waitUntil(self.registration.showNotification(title, options));
+  // Always call waitUntil — iOS aggressively suspends the SW otherwise.
+  // Only show the OS notification if no app window is currently visible;
+  // when the app is in the foreground the in-app toast handles it.
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clients) => {
+        const appIsVisible = clients.some(
+          (c) => c.visibilityState === 'visible'
+        );
+        if (appIsVisible) return;               // in-app toast will handle it
+        return self.registration.showNotification(title, options);
+      })
+  );
 });
 
 self.addEventListener('notificationclick', (event) => {
@@ -140,7 +152,7 @@ self.addEventListener('notificationclick', (event) => {
 
 // ─── Background Sync — outbound message queue flush ─────────────────
 
-self.addEventListener('sync', (event: SyncEvent) => {
+(self as any).addEventListener('sync', (event: SyncEvent) => {
   if (event.tag === 'signal-outbound-flush') {
     event.waitUntil(
       import('./lib/signal/swFlush').then(m => m.flushOutboundQueue())
@@ -159,10 +171,10 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'QUEUE_UPDATED') {
     if ('sync' in self.registration) {
       (self.registration as ServiceWorkerRegistration & { sync: SyncManager })
-        .sync.register('signal-outbound-flush').catch(() => {});
+        .sync.register('signal-outbound-flush').catch(() => { });
     } else {
       // Fallback for browsers without SyncManager (Safari) — flush inline
-      import('./lib/signal/swFlush').then(m => m.flushOutboundQueue()).catch(() => {});
+      import('./lib/signal/swFlush').then(m => m.flushOutboundQueue()).catch(() => { });
     }
   }
 });

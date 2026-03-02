@@ -4,7 +4,6 @@ import './index.css'
 import App from './App.tsx'
 import { checkSupabaseConnection } from './lib/supabase.ts'
 import { createLogger } from './Utilities/Logger.ts'
-import { UI_TIMING } from './Utilities/constants.ts'
 
 const logger = createLogger('App')
 

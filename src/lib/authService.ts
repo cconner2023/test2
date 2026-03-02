@@ -11,6 +11,7 @@ import { createLogger } from '../Utilities/Logger'
 import { hashWithSalt, verifyHash } from './cryptoUtils'
 import { secureSet, secureGet, secureRemove } from './secureStorage'
 import { fireNotification } from './notifyDispatcher'
+import { setBackupPassword } from './signal/backupService'
 
 const logger = createLogger('AuthService')
 
@@ -138,6 +139,8 @@ export async function signIn(
   if (!error && data.user) {
     // Store password hash for offline lock-screen verification
     storePasswordHash(password).catch(() => {})
+    // Cache raw password for encrypted backup key derivation
+    setBackupPassword(password)
 
     fireNotification({
       type: 'user_login',

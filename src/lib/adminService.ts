@@ -113,24 +113,23 @@ export async function getAllAccountRequests(
 /**
  * Approve an account request and create the user account.
  *
- * The RPC function verifies the caller has dev role via auth.uid(),
- * creates the auth user, populates the profile, and marks approved.
+ * The RPC creates the auth user with a random temporary password and sets
+ * needs_password_setup=TRUE on the profile. Supabase then sends a
+ * password-recovery email ({{ .AuthToken }}) via the configured SMTP.
+ * The user enters that token in the app's "Login with Token" section, which
+ * calls verifyOtp({ type: 'recovery' }), signs them in, and prompts them to
+ * set a permanent password via SetPasswordScreen.
  */
 export async function approveAccountRequest(
   requestId: string,
-  tempPassword: string
-): Promise<ServiceResult<{ userId?: string }>> {
+): Promise<ServiceResult<{ userId?: string; email?: string; firstName?: string; lastName?: string }>> {
   try {
     const { data: { user: currentUser } } = await supabase.auth.getUser()
     if (!currentUser) return fail('Not authenticated')
 
-    const pwError = validatePasswordComplexity(tempPassword)
-    if (pwError) return fail(pwError)
-
     const { data, error: approveError } = await supabase.rpc('approve_account_request', {
       request_id: requestId,
       admin_user_id: currentUser.id,
-      temp_password: tempPassword,
     })
 
     if (approveError) {
@@ -141,11 +140,28 @@ export async function approveAccountRequest(
       return fail(approveError.message)
     }
 
-    const validated = validateRpcResult<{ user_id: string; email: string; message: string }>(
-      data, ['user_id'], 'approveAccountRequest'
-    )
+    const validated = validateRpcResult<{
+      user_id: string
+      email: string
+      first_name: string
+      last_name: string
+      login_token: string
+      message: string
+    }>(data, ['user_id', 'login_token'], 'approveAccountRequest')
+
+    if (validated.ok) {
+      // Send Supabase password-recovery email. The user's email template uses
+      // {{ .AuthToken }} — the user copies that token and enters it in the app.
+      await supabase.auth.resetPasswordForEmail(validated.data.email, {
+        redirectTo: window.location.origin,
+      })
+    }
+
     return succeed({
       userId: validated.ok ? validated.data.user_id : undefined,
+      email: validated.ok ? validated.data.email : undefined,
+      firstName: validated.ok ? validated.data.first_name : undefined,
+      lastName: validated.ok ? validated.data.last_name : undefined,
     })
   } catch (error) {
     logger.error('Failed to approve request:', error)

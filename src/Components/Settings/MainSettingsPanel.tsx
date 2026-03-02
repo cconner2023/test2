@@ -1,6 +1,8 @@
 import { ChevronUp, ChevronRight } from 'lucide-react';
 import type { PanelId, SettingsItem } from './SettingsTypes';
 import { useAvatar } from '../../Utilities/AvatarContext';
+import { useAuth } from '../../Hooks/useAuth';
+import { getInitials } from '../../Utilities/nameUtils';
 
 export interface MainSettingsPanelProps {
     settingsOptions: SettingsItem[];
@@ -23,7 +25,8 @@ export const MainSettingsPanel = ({
     onProfileClick,
     isConnected,
 }: MainSettingsPanelProps) => {
-    const { currentAvatar, customImage, isCustom } = useAvatar();
+    const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
+    const { profile } = useAuth();
     // Separate top row items (no header before them) from grid sections
     const topItems: Extract<SettingsItem, { type: 'option' }>[] = [];
     const gridSections: { label: string; items: Extract<SettingsItem, { type: 'option' }>[] }[] = [];
@@ -52,6 +55,12 @@ export const MainSettingsPanel = ({
                         >
                             {isCustom && customImage ? (
                                 <img src={customImage} alt="Profile" className="w-full h-full object-cover" />
+                            ) : isInitials ? (
+                                <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
+                                    <span className="text-base font-semibold text-themeblue2">
+                                        {getInitials(profile.firstName, profile.lastName)}
+                                    </span>
+                                </div>
                             ) : currentAvatar.svg}
                         </button>
                         <button
@@ -138,7 +147,7 @@ export const MainSettingsPanel = ({
 
                 <div className="mt-8 pt-6 border-t border-tertiary/10 md:mt-10">
                     <div className="text-center">
-                        <p className="text-sm text-tertiary/60 font-medium md:text-base">ADTMC MEDCOM PAM 40-7-21</p>
+                        <p className="text-sm text-tertiary/60 font-medium md:text-base">ADTMC</p>
                         <p className="text-xs text-tertiary/40 mt-1 md:text-sm">Version {__APP_VERSION__}</p>
                         <div className="flex items-center justify-center gap-1.5 mt-2">
                             <span className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-themegreen' : 'bg-tertiary/40'}`} />

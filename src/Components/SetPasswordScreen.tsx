@@ -2,16 +2,26 @@ import { useState } from 'react'
 import { KeyRound } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/useAuthStore'
+import { setBackupPassword, createBackup } from '../lib/signal/backupService'
 import { PasswordInput } from './FormInputs'
 import { ErrorMessage } from './ErrorMessage'
 
-export const SetPasswordScreen = () => {
+interface SetPasswordScreenProps {
+  /** 'recovery' = user clicked a password-reset link (forgot password flow)
+   *  'setup'    = new account first login — clears the needs_password_setup flag */
+  mode?: 'recovery' | 'setup'
+}
+
+export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps) => {
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const setPasswordRecovery = useAuthStore((s) => s.setPasswordRecovery)
+  const setNeedsPasswordSetup = useAuthStore((s) => s.setNeedsPasswordSetup)
+  const needsPasswordSetup = useAuthStore((s) => s.needsPasswordSetup)
+  const user = useAuthStore((s) => s.user)
 
   const isValid = password.length >= 12 && password === confirm
 
@@ -24,14 +34,37 @@ export const SetPasswordScreen = () => {
 
     const { error: updateError } = await supabase.auth.updateUser({ password })
 
-    setSubmitting(false)
-
     if (updateError) {
       setError(updateError.message)
-    } else {
-      setPasswordRecovery(false)
+      setSubmitting(false)
+      return
     }
+
+    // Update backup encryption key with new password
+    setBackupPassword(password)
+    if (user) {
+      const deviceRole = useAuthStore.getState().deviceRole
+      if (deviceRole === 'primary') {
+        createBackup(user.id).catch(() => { })
+      }
+    }
+
+    // Clear needs_password_setup in DB whenever it was set — covers both the
+    // in-app token path (mode='setup') and the email recovery link path (mode='recovery')
+    // for users whose accounts were created via the approval flow.
+    if (user && needsPasswordSetup) {
+      await supabase
+        .from('profiles')
+        .update({ needs_password_setup: false } as any)
+        .eq('id', user.id)
+    }
+
+    setSubmitting(false)
+    setNeedsPasswordSetup(false)
+    setPasswordRecovery(false)
   }
+
+  const isSetup = mode === 'setup'
 
   return (
     <div
@@ -45,7 +78,11 @@ export const SetPasswordScreen = () => {
             <KeyRound size={26} className="text-themeblue2" />
           </div>
           <h1 className="text-xl font-bold text-primary tracking-wide">ADTMC</h1>
-          <p className="text-sm text-tertiary mt-1 text-center">Set your password to complete account setup</p>
+          <p className="text-sm text-tertiary mt-1 text-center">
+            {isSetup
+              ? 'Set your password to complete account setup'
+              : 'Create a new password to regain access'}
+          </p>
         </div>
 
         <ErrorMessage error={error} />
@@ -79,7 +116,7 @@ export const SetPasswordScreen = () => {
             className="w-full px-4 py-3 rounded-lg bg-themeblue2 text-white font-medium
                        hover:bg-themeblue2/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? 'Setting Password...' : 'Set Password'}
+            {submitting ? 'Setting Password...' : isSetup ? 'Set Password' : 'Update Password'}
           </button>
         </form>
       </div>

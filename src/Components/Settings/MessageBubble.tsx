@@ -291,7 +291,7 @@ export function MessageBubble({
         {/* Swipe action buttons — revealed on drag */}
         {swipeEnabled && (
           <div
-            className="absolute inset-y-0 right-0 flex items-center justify-evenly px-2"
+            className="absolute inset-y-0 right-0 flex items-center justify-evenly px-2 md:hidden"
             style={{ width: ACTION_WIDTH }}
           >
             <button onClick={() => handleSwipeAction('reply')} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
@@ -333,9 +333,9 @@ export function MessageBubble({
           onClick={handleClick}
           onContextMenu={handleContextMenu}
           style={{ touchAction: 'pan-y' }}
-          className="relative bg-themewhite3 select-none cursor-pointer"
+          className="relative bg-themewhite3 md:bg-transparent select-none cursor-pointer"
         >
-          <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} items-end`}>
+          <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} items-end px-1`}>
             {/* Selection checkmark indicator */}
             {selectionMode && (
               <div className="w-8 flex items-center justify-center shrink-0">
@@ -357,7 +357,7 @@ export function MessageBubble({
               <div
                 className={`rounded-2xl ${isImage ? 'p-1.5' : 'px-3.5 py-2'}
                            ${isOwn ? 'bg-themeblue2 text-white rounded-br-md' : 'bg-themewhite2 text-primary rounded-bl-md'}
-                           ${selected ? (isOwn ? 'ring-2 ring-white/50' : 'ring-2 ring-themeblue2/50') : ''}`}
+                           ${selected ? (isOwn ? 'ring-2 ring-inset ring-white/50' : 'ring-2 ring-inset ring-themeblue2/50') : ''}`}
               >
                 {/* Sender name label (group chats) */}
                 {senderName && !isOwn && (

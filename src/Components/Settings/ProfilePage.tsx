@@ -32,9 +32,9 @@ export const ProfilePage = ({
             : null;
 
     const menuItems = [
-        { icon: <User size={20} />, label: 'Update User Information', panel: 'user-profile-details' as const, color: 'text-themeblue2' },
-        { icon: <Award size={20} />, label: 'Certifications', panel: 'certifications' as const, color: 'text-themeblue2' },
-        { icon: <KeyRound size={20} />, label: 'Change Password', panel: 'change-password' as const, color: 'text-themeblue2' },
+        { icon: <User size={20} />, label: 'Update User Information', panel: 'user-profile-details' as const },
+        { icon: <Award size={20} />, label: 'Certifications', panel: 'certifications' as const },
+        { icon: <KeyRound size={20} />, label: 'Change Password', panel: 'change-password' as const },
     ];
 
     return (
@@ -61,7 +61,7 @@ export const ProfilePage = ({
                         </button>
                         <button
                             onClick={onAvatarClick}
-                            className="mt-1.5 text-[11px] font-medium text-themeblue2 active:opacity-70 transition-opacity"
+                            className="mt-1.5 text-[11px] font-medium text-tertiary/60 active:opacity-70 transition-opacity"
                         >
                             Edit Photo
                         </button>
@@ -86,7 +86,7 @@ export const ProfilePage = ({
                             className="flex items-center w-full px-5 py-3.5 hover:bg-themewhite2 active:scale-[0.98]
                                        transition-all rounded-xl group"
                         >
-                            <div className={`mr-4 ${item.color} group-hover:scale-110 transition-transform`}>
+                            <div className="mr-4 text-tertiary/60 group-hover:scale-110 transition-transform">
                                 {item.icon}
                             </div>
                             <span className="flex-1 text-left text-base text-primary font-medium">

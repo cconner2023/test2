@@ -101,19 +101,8 @@ const RequestsTab = () => {
 
   const handleApprove = async (requestId: string) => {
     setProcessingId(requestId)
-    // Auto-generate a random 16-char password (user will set their own via email)
-    const array = crypto.getRandomValues(new Uint8Array(12))
-    const autoPassword = btoa(String.fromCharCode(...array)).slice(0, 16)
-
-    const result = await approveAccountRequest(requestId, autoPassword)
+    const result = await approveAccountRequest(requestId)
     if (result.success) {
-      // Send password-setup email via Supabase's built-in reset flow
-      const request = requests.find((r) => r.id === requestId)
-      if (request) {
-        await supabase.auth.resetPasswordForEmail(request.email, {
-          redirectTo: window.location.origin + '/test2/',
-        })
-      }
       setApprovingId(null)
       await loadRequests()
     } else {

@@ -56,4 +56,12 @@ export const SIGNAL = {
   STALE_DEVICE_DAYS: 90,
   /** Signed pre-keys older than this (days) are pruned on init. */
   SIGNED_PREKEY_MAX_AGE_DAYS: 30,
+  /** Max messages to include in a server-side backup. */
+  BACKUP_MAX_MESSAGES: 5000,
+  /** Max compressed backup size in bytes before halving message count. */
+  BACKUP_MAX_BYTES: 5_000_000,
+  /** Debounce interval (ms) before creating a backup after message save. */
+  BACKUP_DEBOUNCE_MS: 30_000,
+  /** PBKDF2 iteration count for backup encryption key derivation. */
+  BACKUP_PBKDF2_ITERATIONS: 600_000,
 } as const

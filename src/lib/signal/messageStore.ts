@@ -98,6 +98,15 @@ async function decryptMessage(msg: StoredMessage): Promise<StoredMessage> {
   return decrypted
 }
 
+// ---- Save callback (used by backupService to schedule backups) ----
+
+let _onMessageSaved: ((localUserId: string) => void) | null = null
+
+/** Register a callback invoked after every message save (e.g. to schedule backup). */
+export function setOnMessageSaved(cb: (localUserId: string) => void): void {
+  _onMessageSaved = cb
+}
+
 // ---- Save ----
 
 /** Persist a single decrypted message to IndexedDB. */
@@ -111,6 +120,7 @@ export async function saveMessage(
     const encrypted = await encryptMessage(stored)
     const db = await getDb()
     await db.put('messages', encrypted)
+    _onMessageSaved?.(localUserId)
   } catch (err) {
     logger.warn('Failed to save message:', err)
   }

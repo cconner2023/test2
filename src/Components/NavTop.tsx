@@ -4,6 +4,8 @@ import { useRef, useEffect, useMemo } from "react";
 import { useSpring, useTrail, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { useAvatar } from "../Utilities/AvatarContext";
+import { useAuth } from "../Hooks/useAuth";
+import { getInitials } from "../Utilities/nameUtils";
 import { createLogger } from "../Utilities/Logger";
 
 const logger = createLogger('NavTop');
@@ -17,7 +19,8 @@ const iconMap: Record<string, React.ReactNode> = {
 };
 
 export function NavTop({ search, actions, ui }: NavTopProps) {
-    const { currentAvatar, customImage, isCustom } = useAvatar()
+    const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
+    const { profile } = useAuth()
 
     // Destructure grouped props for cleaner usage
     const {
@@ -243,6 +246,12 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                                 alt="Profile"
                                                 className="w-full h-full object-cover rounded-full"
                                             />
+                                        ) : isInitials ? (
+                                            <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
+                                                <span className="text-sm font-semibold text-themeblue2">
+                                                    {getInitials(profile.firstName, profile.lastName)}
+                                                </span>
+                                            </div>
                                         ) : (
                                             <div className="w-full h-full rounded-full overflow-hidden">
                                                 {currentAvatar.svg}

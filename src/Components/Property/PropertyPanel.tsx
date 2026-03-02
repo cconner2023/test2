@@ -10,9 +10,10 @@ import { PropertyItemForm } from './PropertyItemForm'
 import { PropertySearch } from './PropertySearch'
 import { HandReceiptView } from './HandReceiptView'
 import { PropertyLocationMap } from './PropertyLocationMap'
+import { PropertyLocationTree } from './PropertyLocationTree'
 import { CustodyTransferForm } from './CustodyTransferForm'
 import { DiscrepancyList } from './DiscrepancyList'
-import type { LocalPropertyItem, HolderInfo } from '../../Types/PropertyTypes'
+import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 
 type Tab = 'list' | 'hand-receipt' | 'location-map' | 'discrepancies'
 
@@ -24,6 +25,7 @@ export function PropertyPanel() {
   const [holders, setHolders] = useState<Map<string, HolderInfo>>(new Map())
   const [clinicMembers, setClinicMembers] = useState<HolderInfo[]>([])
   const [showSearch, setShowSearch] = useState(false)
+  const [locationViewMode, setLocationViewMode] = useState<'map' | 'tree'>('map')
 
   // Load clinic members for holder display names and transfer picker
   useEffect(() => {
@@ -105,6 +107,19 @@ export function PropertyPanel() {
       setShowSearch(false)
     }
   }, [property.locations, store])
+
+  const handleTreeSelectLocation = useCallback((loc: LocalPropertyLocation) => {
+    store.pushLocation(loc)
+    setLocationViewMode('map')
+  }, [store])
+
+  const handleMoveLocation = useCallback(async (locationId: string, newParentId: string | null) => {
+    await property.editLocation(locationId, { parent_id: newParentId })
+  }, [property])
+
+  const handleMoveItem = useCallback(async (itemId: string, newLocationId: string | null) => {
+    await property.editItem(itemId, { location_id: newLocationId })
+  }, [property])
 
   const handleDeleteItem = useCallback(async () => {
     if (!store.selectedItem) return
@@ -239,16 +254,53 @@ export function PropertyPanel() {
         )}
 
         {activeTab === 'location-map' && (
-          <PropertyLocationMap
-            locations={property.locations}
-            items={property.items}
-            clinicId={property.clinicId || ''}
-            onAddLocation={property.addLocation}
-            onUpdateLocation={property.editLocation}
-            onDeleteLocation={property.removeLocation}
-            onSelectItem={handleSelectItem}
-            userId={user?.id || ''}
-          />
+          <div className="flex flex-col">
+            {/* Map / Tree toggle */}
+            <div className="flex gap-1 px-4 py-2">
+              <button
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                  locationViewMode === 'map'
+                    ? 'bg-themeblue3 text-white'
+                    : 'bg-secondary/10 text-tertiary hover:text-primary'
+                }`}
+                onClick={() => setLocationViewMode('map')}
+              >
+                Map
+              </button>
+              <button
+                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                  locationViewMode === 'tree'
+                    ? 'bg-themeblue3 text-white'
+                    : 'bg-secondary/10 text-tertiary hover:text-primary'
+                }`}
+                onClick={() => setLocationViewMode('tree')}
+              >
+                Tree
+              </button>
+            </div>
+
+            {locationViewMode === 'map' ? (
+              <PropertyLocationMap
+                locations={property.locations}
+                items={property.items}
+                clinicId={property.clinicId || ''}
+                onAddLocation={property.addLocation}
+                onUpdateLocation={property.editLocation}
+                onDeleteLocation={property.removeLocation}
+                onSelectItem={handleSelectItem}
+                userId={user?.id || ''}
+              />
+            ) : (
+              <PropertyLocationTree
+                locations={property.locations}
+                items={property.items}
+                onSelectLocation={handleTreeSelectLocation}
+                onSelectItem={handleSelectItem}
+                onMoveLocation={handleMoveLocation}
+                onMoveItem={handleMoveItem}
+              />
+            )}
+          </div>
         )}
 
         {activeTab === 'discrepancies' && (

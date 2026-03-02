@@ -39,7 +39,7 @@ export default defineConfig({
         id: '/test2/',
         name: `ADTMC V${APP_VERSION}`,
         short_name: `ADTMC ${APP_VERSION}`,
-        description: 'knowledge base, logistics, and mesh node communication ',
+        description: 'knowledge base, training, logistics, and mesh communications',
         start_url: '/test2/',
         display: 'standalone',
         background_color: '#ffffff',

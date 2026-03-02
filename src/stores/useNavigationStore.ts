@@ -316,17 +316,15 @@ export const selectShowQuestionCard = (s: NavigationState) =>
     s.selectedSymptom !== null && s.viewState === 'questions'
 
 export const selectMobileGridClass = (s: NavigationState) => {
-    const showQ = s.selectedSymptom !== null && s.viewState === 'questions'
-    if (s.isSearchExpanded || showQ) return 'grid-cols-[0fr_1fr]'
+    if (s.isSearchExpanded || selectShowQuestionCard(s)) return 'grid-cols-[0fr_1fr]'
     return 'grid-cols-[1fr_0fr]'
 }
 
 export const selectColumnAPanel = (s: NavigationState) => {
-    const showQ = s.selectedSymptom !== null && s.viewState === 'questions'
     if (!s.selectedCategory) return 0
-    if (!showQ) return 1
+    if (!selectShowQuestionCard(s)) return 1
     return 2
 }
 
 export const selectIsMobileColumnB = (s: NavigationState) =>
-    s.isMobile && (s.isSearchExpanded || (s.selectedSymptom !== null && s.viewState === 'questions'))
+    s.isMobile && (s.isSearchExpanded || selectShowQuestionCard(s))

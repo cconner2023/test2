@@ -684,7 +684,7 @@ function ChatDetail({
     return (
       <div className="flex flex-col h-full relative">
         {/* Thread header */}
-        <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center gap-3 bg-themewhite3">
+        <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center gap-3 bg-themewhite3 md:bg-transparent">
           <button
             onClick={() => setActiveThreadId(null)}
             className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
@@ -742,8 +742,8 @@ function ChatDetail({
         )}
       </div>
 
-      {/* Desktop header — unchanged */}
-      <div className="hidden md:flex shrink-0 px-4 py-2.5 border-b border-primary/10 items-center justify-between bg-themewhite3">
+      {/* Desktop header */}
+      <div className="hidden md:flex shrink-0 px-4 py-2.5 border-b border-primary/10 items-center justify-between">
         <p className="text-sm font-medium text-primary truncate">
           {peerName ?? (isSelf ? 'Notes' : 'Chat')}
         </p>
@@ -1161,7 +1161,7 @@ function GroupChatDetail({
   if (activeThreadId) {
     return (
       <div className="flex flex-col h-full relative">
-        <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center gap-3 bg-themewhite3">
+        <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center gap-3 bg-themewhite3 md:bg-transparent">
           <button onClick={() => setActiveThreadId(null)} className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
             <ArrowLeft size={18} className="text-tertiary" />
           </button>
@@ -1206,8 +1206,8 @@ function GroupChatDetail({
         </div>
       </div>
 
-      {/* Desktop group header — unchanged */}
-      <div className="hidden md:flex shrink-0 px-4 py-2.5 border-b border-primary/10 items-center justify-between bg-themewhite3">
+      {/* Desktop group header */}
+      <div className="hidden md:flex shrink-0 px-4 py-2.5 border-b border-primary/10 items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
             <Users size={14} className="text-themeblue2" />

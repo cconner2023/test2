@@ -242,7 +242,7 @@ async function handleCreate(tableName: SyncableTable, payload: Record<string, un
   // on the server (e.g., from another device). This prevents duplicate
   // key errors when retrying a create that partially succeeded.
   const { error } = await supabase
-    .from(tableName)
+    .from(tableName as any)
     .upsert(payload as never, { onConflict: 'id' })
 
   if (error) throw new Error(`Create failed: ${error.message}`)
@@ -257,13 +257,13 @@ async function handleUpdate(
   // Compare local updated_at against server updated_at.
   // Only apply the update if the local change is more recent.
   const { data: existing } = await supabase
-    .from(tableName)
+    .from(tableName as any)
     .select('updated_at' as '*')
     .eq('id' as never, recordId)
     .maybeSingle()
 
   if (existing) {
-    const serverUpdatedAt = (existing as Record<string, unknown>).updated_at as string | undefined
+    const serverUpdatedAt = (existing as unknown as Record<string, unknown>).updated_at as string | undefined
     const localUpdatedAt = payload.updated_at as string | undefined
 
     if (serverUpdatedAt && localUpdatedAt) {
@@ -282,7 +282,7 @@ async function handleUpdate(
     // This handles the case where a note was created offline,
     // then updated offline before the create was synced.
     const { error } = await supabase
-      .from(tableName)
+      .from(tableName as any)
       .upsert(payload as never, { onConflict: 'id' })
 
     if (error) throw new Error(`Upsert failed: ${error.message}`)
@@ -290,7 +290,7 @@ async function handleUpdate(
   }
 
   const { error } = await supabase
-    .from(tableName)
+    .from(tableName as any)
     .update(payload as never)
     .eq('id' as never, recordId)
 
@@ -307,13 +307,13 @@ async function handleDelete(
   const deletedAtTimestamp = payload._deleted_at_timestamp as string | undefined
   if (deletedAtTimestamp) {
     const { data: existing } = await supabase
-      .from(tableName)
+      .from(tableName as any)
       .select('updated_at' as '*')
       .eq('id' as never, recordId)
       .maybeSingle()
 
     if (existing) {
-      const serverUpdatedAt = (existing as Record<string, unknown>).updated_at as string | undefined
+      const serverUpdatedAt = (existing as unknown as Record<string, unknown>).updated_at as string | undefined
       if (serverUpdatedAt) {
         const serverTime = new Date(serverUpdatedAt).getTime()
         const deleteTime = new Date(deletedAtTimestamp).getTime()
@@ -334,7 +334,7 @@ async function handleDelete(
 
   // Hard delete: actually remove the row from the database.
   const { error } = await supabase
-    .from(tableName)
+    .from(tableName as any)
     .delete()
     .eq('id' as never, recordId)
 
@@ -481,12 +481,12 @@ export async function reconcilePropertyWithServer(
       fetchLocal: getLocalPropertyItems,
       fetchServer: async (cId) => {
         const { data, error } = await supabase
-          .from('property_items')
+          .from('property_items' as any)
           .select('*')
           .eq('clinic_id', cId)
           .order('updated_at', { ascending: false })
         if (error) throw error
-        return data || []
+        return (data || []) as unknown as Record<string, unknown>[]
       },
       getId: (r) => (r as Record<string, unknown>).id as string,
       getTimestamp: (r) => (r as Record<string, unknown>).updated_at as string,

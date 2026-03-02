@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { LogIn } from 'lucide-react'
+import { LogIn, ChevronDown } from 'lucide-react'
 import { signIn } from '../../lib/authService'
 import { supabase } from '../../lib/supabase'
 
@@ -17,87 +17,56 @@ export const LoginPanel = ({
   variant = 'panel',
   onContinueAsGuest,
 }: LoginPanelProps) => {
-  const [email, setEmail] = useState('')
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [tokenEmail, setTokenEmail] = useState('')
+  const [loginToken, setLoginToken] = useState('')
+  const [showTokenSection, setShowTokenSection] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [magicLinkSent, setMagicLinkSent] = useState(false)
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSignIn = async (email: string, pass: string) => {
     setLoading(true)
     setError(null)
-
-    const result = await signIn(email, password)
-
+    const result = await signIn(email, pass)
     if (result.error) {
       setError(result.error.message)
     } else {
       onSuccess()
     }
-
     setLoading(false)
   }
 
-  const handleMagicLink = async () => {
-    if (!email) {
-      setError('Please enter your email')
-      return
-    }
+  const handlePasswordLogin = (e: React.FormEvent) => {
+    e.preventDefault()
+    handleSignIn(username, password)
+  }
 
+  const handleTokenLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
     setLoading(true)
     setError(null)
-
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: window.location.origin,
-      },
+    const { error: otpError } = await supabase.auth.verifyOtp({
+      email: tokenEmail,
+      token: loginToken,
+      type: 'recovery',
     })
-
-    if (error) {
-      setError(error.message)
+    if (otpError) {
+      setError(otpError.message)
     } else {
-      setMagicLinkSent(true)
+      onSuccess()
     }
-
     setLoading(false)
   }
 
-  if (magicLinkSent) {
-    return (
-      <div className={variant === 'panel' ? 'h-full overflow-y-auto' : ''}>
-        <div className={variant === 'panel' ? 'px-4 py-3 md:p-5' : 'p-6'}>
-          <div className="text-center py-8">
-            <div className="text-5xl mb-4">📧</div>
-            <h2 className="text-xl font-semibold text-primary mb-2">Check Your Email</h2>
-            <p className="text-tertiary/70 mb-6">
-              A sign-in link has been sent to <strong>{email}</strong>
-              <br />
-              Click the link to sign in.
-            </p>
-            <button
-              onClick={() => {
-                setMagicLinkSent(false)
-                setEmail('')
-              }}
-              className="px-4 py-2 rounded-lg bg-tertiary/10 text-primary font-medium
-                       hover:bg-tertiary/20 transition-colors"
-            >
-              Try Another Email
-            </button>
-          </div>
-        </div>
-      </div>
-    )
+  const toggleTokenSection = () => {
+    setShowTokenSection((prev) => !prev)
+    setError(null)
   }
 
   return (
     <div className={variant === 'panel' ? 'h-full overflow-y-auto' : ''}>
       <div className={variant === 'panel' ? 'px-4 py-3 md:p-5' : 'p-6'}>
-        <p className="text-sm text-tertiary/60 mb-5">
-          Sign in to sync your training and preferences across devices.
-        </p>
 
         {error && (
           <div className={`mb-4 p-3 text-sm ${variant === 'modal'
@@ -108,15 +77,16 @@ export const LoginPanel = ({
           </div>
         )}
 
-        <form onSubmit={handleEmailLogin} className="space-y-4">
+        {/* ── Primary: username / password ── */}
+        <form onSubmit={handlePasswordLogin} className="space-y-4">
           <div>
             <label className="block text-xs font-medium text-tertiary/60 uppercase tracking-wide mb-2">
-              Email
+              Username
             </label>
             <input
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
               placeholder={variant === 'modal' ? 'your.email@mail.mil' : 'email'}
               required
               className="w-full px-4 py-3 rounded-lg bg-themewhite2 border border-tertiary/10
@@ -153,15 +123,63 @@ export const LoginPanel = ({
           </button>
         </form>
 
+        {/* ── Token login (new account first login) ── */}
         <div className="mt-4">
           <button
-            onClick={handleMagicLink}
-            disabled={loading}
-            className="w-full px-4 py-3 rounded-lg bg-tertiary/10 text-primary font-medium
-                     hover:bg-tertiary/20 disabled:opacity-50 transition-colors text-sm"
+            type="button"
+            onClick={toggleTokenSection}
+            className="flex items-center gap-2 w-full px-4 py-3 rounded-lg bg-tertiary/10
+                     text-primary font-medium hover:bg-tertiary/20 transition-colors text-sm"
           >
-            {variant === 'modal' ? 'Send sign-in link Instead' : 'send sign-in link instead'}
+            <ChevronDown
+              size={16}
+              className={`transition-transform ${showTokenSection ? 'rotate-180' : ''}`}
+            />
+            {showTokenSection ? 'Sign in with password instead' : 'New account? Enter your login token'}
           </button>
+
+          {showTokenSection && (
+            <form
+              onSubmit={handleTokenLogin}
+              className="mt-3 space-y-3 p-4 rounded-lg bg-themewhite2 border border-tertiary/10"
+            >
+              <p className="text-xs text-tertiary/60">
+                Enter the username and login token from your approval email. You will be prompted to set a password after signing in.
+              </p>
+
+              <input
+                type="email"
+                value={tokenEmail}
+                onChange={(e) => setTokenEmail(e.target.value)}
+                placeholder="Username (your email)"
+                required
+                className="w-full px-3 py-2 rounded-lg bg-themewhite border border-tertiary/10
+                         focus:border-themeblue2 focus:outline-none text-primary placeholder:text-tertiary/30"
+              />
+
+              <input
+                type="text"
+                value={loginToken}
+                onChange={(e) => setLoginToken(e.target.value)}
+                placeholder="Login token (from your email)"
+                required
+                className="w-full px-3 py-2 rounded-lg bg-themewhite border border-tertiary/10
+                         focus:border-themeblue2 focus:outline-none text-primary placeholder:text-tertiary/30
+                         font-mono"
+              />
+
+              <button
+                type="submit"
+                disabled={loading}
+                className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg
+                         text-white font-medium disabled:opacity-50 transition-colors text-sm
+                         ${variant === 'modal' ? 'bg-themeblue2 hover:bg-themeblue2/90' : 'bg-themeblue3 hover:bg-themeblue2/90'}`}
+              >
+                <LogIn size={16} />
+                {loading ? 'Verifying...' : 'Verify Token'}
+              </button>
+            </form>
+          )}
         </div>
 
         {variant === 'modal' ? (

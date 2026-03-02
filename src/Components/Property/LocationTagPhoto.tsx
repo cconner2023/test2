@@ -1,6 +1,6 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useState, useCallback } from 'react'
 import { useDrag } from '@use-gesture/react'
-import { MapPin, Package } from 'lucide-react'
+import { MapPin, Package, ZoomIn, ZoomOut } from 'lucide-react'
 import { clamp } from '../../Utilities/GestureUtils'
 import type { LocationTag } from '../../Types/PropertyTypes'
 
@@ -20,45 +20,79 @@ export function LocationTagPhoto({
   onTagDrag,
 }: LocationTagPhotoProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const [zoom, setZoom] = useState(1)
 
   return (
-    <div ref={containerRef} className="relative w-full select-none touch-none">
-      {photoData ? (
-        <img
-          src={photoData}
-          alt="Location"
-          className="w-full rounded-lg"
-          draggable={false}
-        />
-      ) : (
+    <div className="relative">
+      {/* Scrollable viewport */}
+      <div
+        className="max-h-[40vh] rounded-lg"
+        style={{ overflow: zoom > 1 ? 'auto' : 'hidden' }}
+      >
+        {/* Zoomable content — width scales with zoom so native scroll handles panning */}
         <div
-          className="w-full rounded-lg"
+          ref={containerRef}
+          className="relative select-none"
           style={{
-            aspectRatio: '1 / 1',
-            backgroundColor: '#f0f0f0',
-            backgroundImage:
-              'linear-gradient(to right, #e0e0e0 1px, transparent 1px), linear-gradient(to bottom, #e0e0e0 1px, transparent 1px)',
-            backgroundSize: '10% 10%',
+            width: `${zoom * 100}%`,
+            touchAction: isEditMode ? 'none' : 'auto',
           }}
-        />
-      )}
+        >
+          {photoData ? (
+            <img
+              src={photoData}
+              alt="Location"
+              className="w-full rounded-lg"
+              draggable={false}
+            />
+          ) : (
+            <div
+              className="w-full rounded-lg"
+              style={{
+                aspectRatio: '1 / 1',
+                backgroundColor: '#f0f0f0',
+                backgroundImage:
+                  'linear-gradient(to right, #e0e0e0 1px, transparent 1px), linear-gradient(to bottom, #e0e0e0 1px, transparent 1px)',
+                backgroundSize: '10% 10%',
+              }}
+            />
+          )}
 
-      {tags.map((tag) =>
-        isEditMode ? (
-          <DraggableTag
-            key={tag.id}
-            tag={tag}
-            containerRef={containerRef}
-            onDrag={onTagDrag}
-          />
-        ) : (
-          <StaticTag
-            key={tag.id}
-            tag={tag}
-            onTap={onTagTap}
-          />
-        )
-      )}
+          {tags.map((tag) =>
+            isEditMode ? (
+              <DraggableTag
+                key={tag.id}
+                tag={tag}
+                containerRef={containerRef}
+                onDrag={onTagDrag}
+              />
+            ) : (
+              <StaticTag
+                key={tag.id}
+                tag={tag}
+                onTap={onTagTap}
+              />
+            )
+          )}
+        </div>
+      </div>
+
+      {/* Zoom controls */}
+      <div className="absolute bottom-2 left-2 flex flex-col gap-1 z-10">
+        <button
+          className="p-1.5 rounded-full bg-black/50 text-white shadow-md hover:bg-black/60 transition-colors disabled:opacity-30"
+          onClick={() => setZoom((z) => Math.min(z + 0.5, 3))}
+        >
+          <ZoomIn size={14} />
+        </button>
+        <button
+          className="p-1.5 rounded-full bg-black/50 text-white shadow-md hover:bg-black/60 transition-colors disabled:opacity-30"
+          onClick={() => setZoom((z) => Math.max(z - 0.5, 1))}
+          disabled={zoom <= 1}
+        >
+          <ZoomOut size={14} />
+        </button>
+      </div>
     </div>
   )
 }

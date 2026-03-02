@@ -26,6 +26,7 @@ import { useCallStore } from './useCallStore'
 import { unregisterDevice, deleteKeyBundle, primaryLogoutAll } from '../lib/signal/signalService'
 import { secureSet, secureGet, secureRemove, persistSupabaseAuth } from '../lib/secureStorage'
 import { clearOutboundQueue } from '../lib/signal/outboundQueue'
+import { clearBackupPassword, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { registerSessionCleanup, updateCleanupToken, updateCleanupDeviceId, updateCleanupIsPrimary } from '../lib/sessionCleanup'
 import type { User } from '@supabase/supabase-js'
@@ -44,6 +45,8 @@ interface AuthState {
   isDevRole: boolean
   isSupervisorRole: boolean
   isPasswordRecovery: boolean
+  /** True for newly approved accounts that haven't set a permanent password yet. */
+  needsPasswordSetup: boolean
   deviceRole: DeviceRole | null
 }
 
@@ -58,6 +61,8 @@ interface AuthActions {
   refreshProfile: () => Promise<void>
   /** Clear the password recovery flag (after user sets their password). */
   setPasswordRecovery: (value: boolean) => void
+  /** Clear the first-time password setup flag (after new user sets their password). */
+  setNeedsPasswordSetup: (value: boolean) => void
 }
 
 function migratePeDepth(profile: UserTypes): UserTypes {
@@ -105,17 +110,32 @@ function clearProfileStorage() {
  * Fetch a full profile from Supabase for the given user ID.
  * Returns the UserTypes profile and the roles array.
  */
-async function fetchProfileFromSupabase(userId: string): Promise<{ profile: UserTypes; roles: string[]; clinicId: string | null }> {
+async function fetchProfileFromSupabase(userId: string): Promise<{ profile: UserTypes; roles: string[]; clinicId: string | null; needsPasswordSetup: boolean }> {
   const profile: UserTypes = {}
   let roles: string[] = []
   let clinicId: string | null = null
+  let needsPasswordSetup = false
 
-  // Fetch core profile + clinic name
-  const { data } = await supabase
+  // Fetch core profile + clinic name.
+  // Try with needs_password_setup first (available after migration).
+  // Fall back to the query without it if the column doesn't exist yet.
+  const BASE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, notify_messages, note_include_hpi, note_include_pe, pe_depth, text_expanders, text_expander_enabled'
+  let { data, error: fetchError } = await supabase
     .from('profiles')
-    .select('first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, notify_messages, note_include_hpi, note_include_pe, pe_depth, text_expanders, text_expander_enabled')
+    .select(`${BASE_SELECT}, needs_password_setup`)
     .eq('id', userId)
     .single()
+
+  if (fetchError && !data) {
+    // Column likely not yet migrated — retry without needs_password_setup
+    const fallback = await supabase
+      .from('profiles')
+      .select(BASE_SELECT)
+      .eq('id', userId)
+      .single()
+    data = fallback.data
+    fetchError = fallback.error
+  }
 
   if (data) {
     const clinicRow = data.clinics as { name: string } | null
@@ -152,21 +172,23 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     }
     if (sec.text_expanders != null) profile.textExpanders = sec.text_expanders as TextExpander[]
     if (sec.text_expander_enabled != null) profile.textExpanderEnabled = sec.text_expander_enabled as boolean
+    if (sec.needs_password_setup === true) needsPasswordSetup = true
   }
 
-  return { profile, roles, clinicId }
+  return { profile, roles, clinicId, needsPasswordSetup }
 }
 
 export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
   user: null,
   loading: true,
-  isGuest: true,
+  isGuest: false,
   profile: loadProfileFromStorage(),
   roles: [],
   clinicId: null,
   isDevRole: false,
   isSupervisorRole: false,
   isPasswordRecovery: false,
+  needsPasswordSetup: false,
   deviceRole: null,
 
   init: () => {
@@ -196,7 +218,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
 
         set({
           user: null,
-          isGuest: true,
+          isGuest: false,
           profile: {},
           roles: [],
           clinicId: null,
@@ -213,6 +235,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         clearAllSessions().catch(() => {})
         clearMessageStore().catch(() => {})
         clearOutboundQueue().catch(() => {})
+        clearBackupPassword()
         if (LORA_MESH_ENABLED) {
           import('../lib/lora/loraDb').then(m => m.clearLoraDb()).catch(() => {})
         }
@@ -290,12 +313,16 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
     set({ isPasswordRecovery: value })
   },
 
+  setNeedsPasswordSetup: (value) => {
+    set({ needsPasswordSetup: value })
+  },
+
   refreshProfile: async () => {
     const user = get().user
     if (!user) return
 
     try {
-      const { profile, roles, clinicId } = await fetchProfileFromSupabase(user.id)
+      const { profile, roles, clinicId, needsPasswordSetup } = await fetchProfileFromSupabase(user.id)
       const isDev = await isDevUser()
 
       set({
@@ -304,6 +331,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         clinicId,
         isDevRole: isDev,
         isSupervisorRole: roles.includes('supervisor'),
+        needsPasswordSetup,
       })
       saveProfileToStorage(profile)
 
@@ -317,6 +345,13 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
           startHeartbeat(user.id, initResult.deviceId)
           updateCleanupDeviceId(initResult.deviceId)
           updateCleanupIsPrimary(initResult.role === 'primary')
+
+          // Server-side encrypted backup: create on primary, restore on linked
+          if (initResult.role === 'primary') {
+            scheduleBackup(user.id)
+          } else if (initResult.role === 'linked' || initResult.role === 'provisional') {
+            restoreBackup(user.id).catch(() => {})
+          }
         }
       }).catch(() => {})
     } catch {

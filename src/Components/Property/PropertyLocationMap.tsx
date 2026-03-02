@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Plus, Camera, Image, Edit3, Check, Trash2, MoreVertical, X, Package, CheckCircle2, CirclePlus, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Camera, Image, Edit3, Check, Trash2, MoreVertical, X, Package, CheckCircle2, CirclePlus, ChevronDown, ChevronUp, MapPin } from 'lucide-react'
+import { resizeImage } from '../../Utilities/imageUtils'
 import { clamp } from '../../Utilities/GestureUtils'
 import { LocationBreadcrumb } from './LocationBreadcrumb'
 import { LocationTagPhoto } from './LocationTagPhoto'
@@ -46,7 +47,8 @@ export function PropertyLocationMap({
   const editPhotoInputRef = useRef<HTMLInputElement>(null)
 
   // Item tray state
-  const [isTrayExpanded, setIsTrayExpanded] = useState(false)
+  const [isTrayExpanded, setIsTrayExpanded] = useState(true)
+  const [isLocationTrayExpanded, setIsLocationTrayExpanded] = useState(false)
 
   // Child locations of current level
   const childLocations = useMemo(() => {
@@ -64,10 +66,15 @@ export function PropertyLocationMap({
     return new Set(tags.filter((t) => t.target_type === 'item').map((t) => t.target_id))
   }, [tags])
 
+  const taggedLocationIds = useMemo(() => {
+    return new Set(tags.filter((t) => t.target_type === 'location').map((t) => t.target_id))
+  }, [tags])
+
   // Load tags for current location
   useEffect(() => {
     if (!currentLocation?.id) { setTags([]); return }
     setIsTrayExpanded(false)
+    setIsLocationTrayExpanded(false)
     fetchLocationTags(currentLocation.id).then(setTags)
   }, [currentLocation?.id])
 
@@ -123,11 +130,33 @@ export function PropertyLocationMap({
     if (!isEditMode) setIsEditMode(true)
   }, [isEditMode])
 
+  const handleAddLocationTag = useCallback((loc: LocalPropertyLocation) => {
+    if (tags.some((t) => t.target_type === 'location' && t.target_id === loc.id)) return
+    const existingCount = tags.length
+    const col = existingCount % 3
+    const row = Math.floor(existingCount / 3)
+    const newTag: LocationTag = {
+      id: crypto.randomUUID(),
+      location_id: currentLocation!.id,
+      target_type: 'location',
+      target_id: loc.id,
+      x: clamp(0.2 + col * 0.3, 0, 0.85),
+      y: clamp(0.2 + row * 0.15, 0, 0.85),
+      label: loc.name,
+    }
+    setTags((prev) => [...prev, newTag])
+    if (!isEditMode) setIsEditMode(true)
+  }, [tags, currentLocation, isEditMode])
+
+  const handleRemoveLocationTag = useCallback((locId: string) => {
+    setTags((prev) => prev.filter((t) => !(t.target_type === 'location' && t.target_id === locId)))
+    if (!isEditMode) setIsEditMode(true)
+  }, [isEditMode])
+
   const handlePhotoSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     try {
-      const { resizeImage } = await import('../../Hooks/useProfileAvatar')
       const resized = await resizeImage(file, 1200)
       setPhotoData(resized)
     } catch { /* */ }
@@ -168,7 +197,6 @@ export function PropertyLocationMap({
     const file = e.target.files?.[0]
     if (!file) return
     try {
-      const { resizeImage } = await import('../../Hooks/useProfileAvatar')
       const resized = await resizeImage(file, 1200)
       setEditPhotoData(resized)
     } catch { /* */ }
@@ -297,6 +325,73 @@ export function PropertyLocationMap({
                         <button
                           className="flex items-center gap-1 px-2 py-1 rounded-full bg-themeblue3/10 text-themeblue3 text-[10px] font-medium hover:bg-themeblue3/20 transition-colors"
                           onClick={() => handleAddItemTag(item)}
+                        >
+                          <Plus size={10} /> Place
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Sub-locations tray */}
+      {currentLocation && childLocations.length > 0 && (
+        <div className="px-4 mb-3">
+          <div className="rounded-lg border border-tertiary/10 overflow-hidden">
+            {/* Summary bar */}
+            <button
+              className="w-full flex items-center justify-between px-3 py-2 bg-secondary/5 hover:bg-secondary/10 transition-colors"
+              onClick={() => setIsLocationTrayExpanded((prev) => !prev)}
+            >
+              <div className="flex items-center gap-2">
+                <MapPin size={14} className="text-tertiary" />
+                <span className="text-xs font-medium text-primary">
+                  {childLocations.length} sub-location{childLocations.length !== 1 ? 's' : ''}
+                </span>
+                {childLocations.length - taggedLocationIds.size > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
+                    {childLocations.length - taggedLocationIds.size} not on schematic
+                  </span>
+                )}
+              </div>
+              {isLocationTrayExpanded ? <ChevronUp size={14} className="text-tertiary" /> : <ChevronDown size={14} className="text-tertiary" />}
+            </button>
+
+            {/* Expanded list */}
+            {isLocationTrayExpanded && (
+              <div className="max-h-[200px] overflow-y-auto divide-y divide-tertiary/5">
+                {childLocations.map((loc) => {
+                  const isPlaced = taggedLocationIds.has(loc.id)
+                  return (
+                    <div key={loc.id} className="flex items-center gap-2 px-3 py-2">
+                      {isPlaced ? (
+                        <CheckCircle2 size={14} className="text-green-500 shrink-0" />
+                      ) : (
+                        <CirclePlus size={14} className="text-tertiary shrink-0" />
+                      )}
+                      <button
+                        className="flex-1 text-left text-xs text-primary truncate hover:text-themeblue3"
+                        onClick={() => pushLocation(loc)}
+                      >
+                        {loc.name}
+                      </button>
+                      {isPlaced ? (
+                        isEditMode && (
+                          <button
+                            className="p-1 rounded-full hover:bg-red-50 text-tertiary hover:text-red-500 transition-colors"
+                            onClick={() => handleRemoveLocationTag(loc.id)}
+                          >
+                            <X size={12} />
+                          </button>
+                        )
+                      ) : (
+                        <button
+                          className="flex items-center gap-1 px-2 py-1 rounded-full bg-themeblue3/10 text-themeblue3 text-[10px] font-medium hover:bg-themeblue3/20 transition-colors"
+                          onClick={() => handleAddLocationTag(loc)}
                         >
                           <Plus size={10} /> Place
                         </button>

@@ -90,7 +90,7 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
 
       if (!authError) {
         // Success — update local hash for future offline use
-        storePasswordHash(password).catch(() => {})
+        storePasswordHash(password).catch(() => { })
         setFailures(0)
         onUnlock()
         return

@@ -7,6 +7,7 @@ import { PinLockScreen } from './PinLockScreen'
 import { PasswordLockScreen } from './PasswordLockScreen'
 import { SetPasswordScreen } from './SetPasswordScreen'
 import { UserAcknowledgment, hasAcceptedAcknowledgment } from './UserAcknowledgment'
+import { LoginScreen } from './LoginScreen'
 
 const INITIAL_PW_UNLOCKED_KEY = 'adtmc_initial_pw_unlocked'
 
@@ -28,10 +29,24 @@ function LoadingScreen() {
   )
 }
 
+/** Minimum time (ms) to hold the loading screen so the service worker can
+ *  detect silent updates and reload before any content flashes. */
+const SW_SETTLE_MS = 3000
+
 export function LockGate({ children }: { children: ReactNode }) {
   const { user, isGuest } = useAuth()
   const loading = useAuthStore(s => s.loading)
+  const [swHold, setSwHold] = useState(true)
+
+  // Release the hold after the settle window
+  useEffect(() => {
+    const id = setTimeout(() => setSwHold(false), SW_SETTLE_MS)
+    return () => clearTimeout(id)
+  }, [])
+
+  const shouldLoad = loading || swHold
   const isPasswordRecovery = useAuthStore(s => s.isPasswordRecovery)
+  const needsPasswordSetup = useAuthStore(s => s.needsPasswordSetup)
   const [isPinLocked, setIsPinLocked] = useState(() => isPinEnabled() && !isSessionUnlocked())
   const [isInactivityLocked, setIsInactivityLocked] = useState(false)
   const [isInitialPasswordLocked, setIsInitialPasswordLocked] = useState(false)
@@ -99,14 +114,17 @@ export function LockGate({ children }: { children: ReactNode }) {
   // Gate ordering (later = on top):
   // 1. children (app)
   // 2. loading screen — base gate while auth initializes
-  // 3. PIN lock
-  // 4. inactivity / initial password locks
-  // 5. user acknowledgment (guarded by !isPasswordRecovery so it doesn't stack)
-  // 6. password recovery — always on top
+  // 3. login screen — shown when not authenticated and not guest
+  // 4. PIN lock
+  // 5. inactivity / initial password locks
+  // 6. user acknowledgment (guarded by !isPasswordRecovery so it doesn't stack)
+  // 7. password recovery — always on top
+  const showLogin = !shouldLoad && !user && !isGuest
   return (
     <>
       {children}
-      {loading && <LoadingScreen />}
+      {shouldLoad && <LoadingScreen />}
+      {showLogin && <LoginScreen />}
       {isPinLocked && <PinLockScreen onUnlock={handlePinUnlock} />}
       {isInitialPasswordLocked && !isPinLocked && user?.email && (
         <PasswordLockScreen
@@ -121,10 +139,11 @@ export function LockGate({ children }: { children: ReactNode }) {
       {isInactivityLocked && !isPinLocked && !isInitialPasswordLocked && user?.email && (
         <PasswordLockScreen onUnlock={() => setIsInactivityLocked(false)} email={user.email} reason="inactivity" />
       )}
-      {needsAcknowledgment && !isPasswordRecovery && !isPinLocked && !isInitialPasswordLocked && !isInactivityLocked && (
+      {needsAcknowledgment && !isPasswordRecovery && !needsPasswordSetup && !isPinLocked && !isInitialPasswordLocked && !isInactivityLocked && (
         <UserAcknowledgment onAccept={() => setNeedsAcknowledgment(false)} />
       )}
-      {isPasswordRecovery && <SetPasswordScreen />}
+      {isPasswordRecovery && <SetPasswordScreen mode="recovery" />}
+      {needsPasswordSetup && !isPasswordRecovery && <SetPasswordScreen mode="setup" />}
     </>
   )
 }

@@ -9706,12 +9706,6 @@ export const Algorithm: AlgorithmType[] = [
         id: "L-13",
         options: [
             {
-                text: "Rescreen Algorithm",
-                type: "action",
-                questionOptions: [],
-                answerOptions: []
-            },
-            {
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
@@ -9758,7 +9752,7 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "No",
                         disposition: [],
-                        next: 3,
+                        next: 2,
                         selectAll: false
                     }
                 ]
