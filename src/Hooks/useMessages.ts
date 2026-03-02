@@ -889,6 +889,7 @@ export function useMessages(): UseMessagesReturn {
       // Encrypt the accept signal through established sessions (created when
       // the inbound request was decrypted via X3DH).
       const serialized = serializeContent({ type: 'text', text: '' })
+      const originId = crypto.randomUUID()
       const devicesResult = await fetchPeerDevices(peerId)
       const peerDevices = devicesResult.ok ? devicesResult.data : []
 
@@ -906,7 +907,7 @@ export function useMessages(): UseMessagesReturn {
           return
         }
 
-        const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs)
+        const sendResult = await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, undefined, originId)
         if (!sendResult.ok) {
           logger.error('Failed to send request-accepted fan-out:', sendResult.error)
           return
@@ -919,7 +920,7 @@ export function useMessages(): UseMessagesReturn {
 
         if (sessionExists) {
           const encrypted = await encryptMessage(peerId, 'unknown', serialized, userId)
-          const sendResult = await sendSignalMessage(userId, peerId, encrypted, 'request-accepted', localDeviceId)
+          const sendResult = await sendSignalMessage(userId, peerId, encrypted, 'request-accepted', localDeviceId, undefined, undefined, originId)
           if (!sendResult.ok) {
             logger.error('Failed to send request-accepted:', sendResult.error)
             return
@@ -934,7 +935,7 @@ export function useMessages(): UseMessagesReturn {
           const bundle = rpcResultToBundle(bundleResult.data)
           const peerDeviceId = bundle.deviceId || 'unknown'
           const sealedEnvelope = await createOutboundSession(peerId, peerDeviceId, bundle, serialized, userId)
-          const sendResult = await sendSignalMessage(userId, peerId, sealedEnvelope, 'request-accepted', localDeviceId, peerDeviceId)
+          const sendResult = await sendSignalMessage(userId, peerId, sealedEnvelope, 'request-accepted', localDeviceId, peerDeviceId, undefined, originId)
           if (!sendResult.ok) {
             logger.error('Failed to send request-accepted:', sendResult.error)
             return
@@ -1015,6 +1016,7 @@ export function useMessages(): UseMessagesReturn {
     if (originIds.length === 0) return
 
     const deletePayload = JSON.stringify({ originIds })
+    const deleteOriginId = crypto.randomUUID()
 
     // 4. Send protocol-level 'delete' to peer's devices
     try {
@@ -1025,7 +1027,7 @@ export function useMessages(): UseMessagesReturn {
           input.messageType = 'delete'
         }
         if (fanOutInputs.length > 0) {
-          await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs).catch(e =>
+          await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs, undefined, deleteOriginId).catch(e =>
             logger.warn('Failed to send delete to peer devices:', e instanceof Error ? e.message : e)
           )
         }
@@ -1045,7 +1047,7 @@ export function useMessages(): UseMessagesReturn {
             input.messageType = 'delete'
           }
           if (syncInputs.length > 0) {
-            await sendMessageFanOut(userId, localDeviceId, userId, syncInputs).catch(e =>
+            await sendMessageFanOut(userId, localDeviceId, userId, syncInputs, undefined, deleteOriginId).catch(e =>
               logger.warn('Failed to sync delete to own devices:', e instanceof Error ? e.message : e)
             )
           }
