@@ -325,6 +325,10 @@ export interface UseMessagesReturn {
   fetchGroupHistory: (groupId: string) => Promise<void>
   /** Refresh group list from server. */
   refreshGroups: () => Promise<void>
+  /** Ref for external listeners to receive qualifying incoming messages. */
+  onIncomingRef: React.MutableRefObject<((msg: DecryptedSignalMessage) => void) | null>
+  /** Ref tracking the currently-open conversation key (peerId or groupId). */
+  activePeerRef: React.MutableRefObject<string | null>
 }
 
 export function useMessages(): UseMessagesReturn {
@@ -340,6 +344,9 @@ export function useMessages(): UseMessagesReturn {
 
   // Track which peer's chat is currently open (for auto-mark-read)
   const activePeerRef = useRef<string | null>(null)
+
+  // External listener ref — MessagesContext sets this to fire notifications
+  const onIncomingRef = useRef<((msg: DecryptedSignalMessage) => void) | null>(null)
 
   // Load local device ID — retry until available (identity may not exist until after initSignalBundle)
   useEffect(() => {
@@ -412,6 +419,15 @@ export function useMessages(): UseMessagesReturn {
       markMessagesRead([msg.id]).catch(() => {})
     }
     addMessage(msg)
+
+    // Fire external listener for qualifying incoming messages (notifications)
+    if (
+      msg.senderId !== userId &&
+      msg.messageType !== 'request-accepted' &&
+      msg.messageType !== 'sync'
+    ) {
+      onIncomingRef.current?.(msg)
+    }
   }, [userId, addMessage])
 
   /** Remove messages by IDs from all conversations (tombstone cleanup callback). */
@@ -1237,5 +1253,7 @@ export function useMessages(): UseMessagesReturn {
     fetchGroupMembers: fetchGroupMembersFn,
     fetchGroupHistory,
     refreshGroups,
+    onIncomingRef,
+    activePeerRef,
   }
 }

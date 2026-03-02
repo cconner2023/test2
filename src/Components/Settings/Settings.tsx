@@ -45,9 +45,15 @@ interface SettingsDrawerProps {
     onClose: () => void;
     isDarkMode: boolean;
     onToggleTheme: () => void;
-    initialPanel?: 'main' | 'release-notes' | 'training';
+    initialPanel?: 'main' | 'release-notes' | 'training' | 'messages';
     /** When set alongside initialPanel='training', deep-links to a specific training task */
     initialTrainingTaskId?: string | null;
+    /** Deep-link to a specific 1:1 conversation (requires initialPanel='messages') */
+    initialPeerId?: string | null;
+    /** Deep-link to a specific group conversation (requires initialPanel='messages') */
+    initialGroupId?: string | null;
+    /** Display name for the deep-linked conversation */
+    initialPeerName?: string | null;
 }
 
 export const Settings = ({
@@ -57,6 +63,9 @@ export const Settings = ({
     onToggleTheme,
     initialPanel,
     initialTrainingTaskId,
+    initialPeerId,
+    initialGroupId,
+    initialPeerName,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
     const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'property' | 'lora' | TrainingView | MessagesView>('main');
@@ -128,13 +137,27 @@ export const Settings = ({
                     setActivePanel('training');
                     setSlideDirection('');
                 }
+            } else if (initialPanel === 'messages' && (initialPeerId || initialGroupId)) {
+                // Deep-link to a specific conversation
+                if (initialGroupId) {
+                    setSelectedGroupId(initialGroupId);
+                    setSelectedPeerId(null);
+                    setSelectedPeerName(initialPeerName ?? 'Group');
+                    setActivePanel('messages-group-chat');
+                } else if (initialPeerId) {
+                    setSelectedPeerId(initialPeerId);
+                    setSelectedGroupId(null);
+                    setSelectedPeerName(initialPeerName ?? 'Chat');
+                    setActivePanel('messages-chat');
+                }
+                setSlideDirection('');
             } else {
                 setActivePanel(initialPanel || 'main');
                 setSlideDirection('');
             }
         }
         prevVisibleRef.current = isVisible;
-    }, [isVisible, initialPanel, initialTrainingTaskId]);
+    }, [isVisible, initialPanel, initialTrainingTaskId, initialPeerId, initialGroupId, initialPeerName]);
 
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
         setSlideDirection(direction);
@@ -243,11 +266,13 @@ export const Settings = ({
             setSelectedPeerId(null);
             setSelectedPeerName(null);
             setSelectedGroupId(null);
+            // Clear active peer so notifications resume for this conversation
+            if (messagesCtx) messagesCtx.activePeerRef.current = null;
         } else if (activePanel === 'messages') {
             handleSlideAnimation('right');
             setActivePanel('main');
         }
-    }, [activePanel, handleSlideAnimation]);
+    }, [activePanel, handleSlideAnimation, messagesCtx]);
 
     // Training panel navigation helpers
     const handleTrainingSelectTask = useCallback((task: subjectAreaArrayOptions) => {
@@ -336,7 +361,7 @@ export const Settings = ({
     return (
         <BaseDrawer
             isVisible={isVisible}
-            onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedTask(null); setSelectedPeerId(null); setSelectedPeerName(null); setSelectedGroupId(null); onClose(); }}
+            onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedTask(null); setSelectedPeerId(null); setSelectedPeerName(null); setSelectedGroupId(null); if (messagesCtx) messagesCtx.activePeerRef.current = null; onClose(); }}
             fullHeight="90dvh"
             disableDrag={false}
             header={headerConfig}

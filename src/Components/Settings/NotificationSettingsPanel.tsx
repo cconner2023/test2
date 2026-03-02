@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Mail, Code, Info } from 'lucide-react'
+import { Mail, Code, Info, Volume2 } from 'lucide-react'
 import { usePushNotifications } from '../../Hooks/usePushNotifications'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import { useAuth } from '../../Hooks/useAuth'
 import { isDevUser } from '../../lib/adminService'
+import { isMessageSoundsEnabled, setMessageSoundsEnabled } from '../../lib/soundService'
 import { ToggleSwitch } from './ToggleSwitch'
 import { StatusBanner } from './StatusBanner'
 import { UI_TIMING } from '../../Utilities/constants'
@@ -18,6 +19,7 @@ export const NotificationSettingsPanel = () => {
 
   const devAlerts = profile.notifyDevAlerts ?? false
   const messageNotifs = profile.notifyMessages ?? true
+  const [soundsEnabled, setSoundsEnabled] = useState(isMessageSoundsEnabled)
 
   useEffect(() => {
     isDevUser().then(setIsDev)
@@ -90,25 +92,59 @@ export const NotificationSettingsPanel = () => {
 
         {/* Messages toggle — visible to all authenticated users */}
         {isSupported && isAuthenticated && (
-          <div
-            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all cursor-pointer
-              ${messageNotifs
-                ? 'border-themeblue2/25 bg-themeblue2/10'
-                : 'border-tertiary/15 bg-themewhite2'
-              } ${loading ? 'opacity-50 pointer-events-none' : ''}`}
-            onClick={() => handleToggle('notifyMessages', 'notify_messages', !messageNotifs)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggle('notifyMessages', 'notify_messages', !messageNotifs); } }}
+          <div className={`rounded-xl border overflow-hidden transition-all
+            ${messageNotifs ? 'border-themeblue2/25 bg-themeblue2/10' : 'border-tertiary/15 bg-themewhite2'}
+            ${loading ? 'opacity-50 pointer-events-none' : ''}`}
           >
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${messageNotifs ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-              <Mail size={18} className={messageNotifs ? 'text-themeblue2' : 'text-tertiary/50'} />
+            <div
+              className="flex items-center gap-3 px-4 py-3.5 cursor-pointer"
+              onClick={() => handleToggle('notifyMessages', 'notify_messages', !messageNotifs)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggle('notifyMessages', 'notify_messages', !messageNotifs); } }}
+            >
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${messageNotifs ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                <Mail size={18} className={messageNotifs ? 'text-themeblue2' : 'text-tertiary/50'} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-medium ${messageNotifs ? 'text-primary' : 'text-tertiary'}`}>Messages</p>
+                <p className="text-[11px] text-tertiary/70 mt-0.5">New messages, requests, and accepted requests</p>
+              </div>
+              <ToggleSwitch checked={messageNotifs} />
             </div>
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-medium ${messageNotifs ? 'text-primary' : 'text-tertiary'}`}>Messages</p>
-              <p className="text-[11px] text-tertiary/70 mt-0.5">New messages, requests, and accepted requests</p>
-            </div>
-            <ToggleSwitch checked={messageNotifs} />
+
+            {/* Nested: Message Sounds */}
+            {messageNotifs && (
+              <div className="border-t border-tertiary/10 px-4 py-3">
+                <div
+                  onClick={() => {
+                    const next = !soundsEnabled
+                    setMessageSoundsEnabled(next)
+                    setSoundsEnabled(next)
+                  }}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border border-tertiary/15 bg-themewhite transition-all cursor-pointer`}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      const next = !soundsEnabled
+                      setMessageSoundsEnabled(next)
+                      setSoundsEnabled(next)
+                    }
+                  }}
+                >
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${soundsEnabled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                    <Volume2 size={18} className={soundsEnabled ? 'text-themeblue2' : 'text-tertiary/50'} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-medium ${soundsEnabled ? 'text-primary' : 'text-tertiary'}`}>Message Sounds</p>
+                    <p className="text-[11px] text-tertiary/70 mt-0.5">Play sounds when sending and receiving messages</p>
+                  </div>
+                  <ToggleSwitch checked={soundsEnabled} />
+                </div>
+              </div>
+            )}
           </div>
         )}
 

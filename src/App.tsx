@@ -24,9 +24,11 @@ import { TrainingDrawer } from './Components/TrainingDrawer'
 import { getTaskData } from './Data/TrainingData'
 import { LockGate } from './Components/LockGate'
 import { ErrorBoundary } from './Components/ErrorBoundary'
-import { MessagesProvider } from './Hooks/MessagesContext'
+import { MessagesProvider, useMessagesContext } from './Hooks/MessagesContext'
 import { CallProvider } from './Hooks/CallContext'
 import { CallOverlay } from './Components/Settings/CallOverlay'
+import { MessageNotificationToast } from './Components/MessageNotificationToast'
+import type { MessageNotification } from './Hooks/useMessageNotifications'
 
 // PWA App Shortcut: capture ?view= URL parameter once at module load time
 const _initialViewParam = (() => {
@@ -60,8 +62,11 @@ function AppContent() {
   const avatarState = useProfileAvatar(user?.id)
 
   // ── Settings/training targeting state (lightweight replacement for useActiveNote) ──
-  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'training'>('main')
+  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'training' | 'messages'>('main')
   const [initialTrainingTaskId, setInitialTrainingTaskId] = useState<string | null>(null)
+  const [initialPeerId, setInitialPeerId] = useState<string | null>(null)
+  const [initialGroupId, setInitialGroupId] = useState<string | null>(null)
+  const [initialPeerName, setInitialPeerName] = useState<string | null>(null)
   const [updateVisible, setUpdateVisible] = useState(false)
   const [importInitialView, setImportInitialView] = useState<'input' | 'scanning' | undefined>(
     _initialViewParam === 'import' ? 'scanning' : undefined
@@ -99,7 +104,25 @@ function AppContent() {
   const resetSettingsPanel = useCallback(() => {
     setSettingsInitialPanel('main')
     setInitialTrainingTaskId(null)
+    setInitialPeerId(null)
+    setInitialGroupId(null)
+    setInitialPeerName(null)
   }, [])
+
+  // Callback for notification toast tap — opens Settings to the target conversation
+  const handleNotificationTap = useCallback((n: MessageNotification) => {
+    if (n.isGroup && n.groupId) {
+      setInitialGroupId(n.groupId)
+      setInitialPeerId(null)
+      setInitialPeerName(n.groupName ?? 'Group')
+    } else {
+      setInitialPeerId(n.peerId)
+      setInitialGroupId(null)
+      setInitialPeerName(n.senderName)
+    }
+    setSettingsInitialPanel('messages')
+    navigation.setShowSettings(true)
+  }, [navigation])
 
   // Cross-column swipe: swipe back from Column B (algorithm) to Column A
   const swipe = useSwipeNavigation({
@@ -335,6 +358,9 @@ function AppContent() {
           onToggleTheme={toggleTheme}
           initialPanel={settingsInitialPanel}
           initialTrainingTaskId={initialTrainingTaskId}
+          initialPeerId={initialPeerId}
+          initialGroupId={initialGroupId}
+          initialPeerName={initialPeerName}
         />
         </ErrorBoundary>
         <ErrorBoundary>
@@ -380,10 +406,25 @@ function AppContent() {
         {!updateVisible && <InstallPrompt />}
       </div>
       <CallOverlay />
+      <MessageToastBridge onTap={handleNotificationTap} />
     </div>
     </CallProvider>
     </MessagesProvider>
     </AvatarProvider>
+  )
+}
+
+/** Bridges MessagesContext notification state to the MessageNotificationToast UI. */
+function MessageToastBridge({ onTap }: { onTap: (n: MessageNotification) => void }) {
+  const ctx = useMessagesContext()
+  if (!ctx) return null
+
+  return (
+    <MessageNotificationToast
+      notification={ctx.notification}
+      onDismiss={ctx.dismissNotification}
+      onTap={(n) => { ctx.dismissNotification(); onTap(n) }}
+    />
   )
 }
 

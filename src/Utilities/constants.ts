@@ -32,4 +32,5 @@ export const UI_TIMING = {
     SAVE_ERROR_DURATION: 3000, // save error feedback display time
     AFTER_SAVE_DELAY: 800,     // delay before after-save callback
     OFFLINE_TOAST_DURATION: 3000, // offline notification display time
+    NOTIFICATION_TOAST_DURATION: 4000, // message notification banner auto-dismiss
 } as const;

@@ -4,29 +4,86 @@
  * The useMessages() hook lives here at the app level, so conversations,
  * unread counts, and the realtime subscription persist even when
  * MessagesPanel unmounts.
+ *
+ * Also wires up message notifications (toast + sound) for incoming messages.
  */
 
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useEffect, useMemo } from 'react'
 import { useMessages, type UseMessagesReturn } from './useMessages'
 import { useAuth } from './useAuth'
+import { useClinicMedics } from './useClinicMedics'
+import { useMessageNotifications, type MessageNotification } from './useMessageNotifications'
+import type { DecryptedSignalMessage } from '../lib/signal/transportTypes'
 
-const MessagesContext = createContext<UseMessagesReturn | null>(null)
+interface MessagesContextValue extends UseMessagesReturn {
+  notification: MessageNotification | null
+  dismissNotification: () => void
+}
+
+const MessagesContext = createContext<MessagesContextValue | null>(null)
 
 export function MessagesProvider({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuth()
-
-  // Only mount useMessages when authenticated (it guards internally too,
-  // but this avoids unnecessary IDB/realtime work for guests)
+  const { isAuthenticated, user } = useAuth()
   const messages = useMessages()
+  const { medics } = useClinicMedics()
+  const { notification, notify, dismiss } = useMessageNotifications()
+
+  // Build a name lookup map from clinic medics
+  const nameMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const m of medics) {
+      const parts: string[] = []
+      if (m.rank) parts.push(m.rank)
+      if (m.lastName) {
+        let name = m.lastName
+        if (m.firstName) name += ', ' + m.firstName.charAt(0) + '.'
+        parts.push(name)
+      }
+      map.set(m.id, parts.join(' ') || m.firstName || 'Unknown')
+    }
+    return map
+  }, [medics])
+
+  // Wire the incoming message ref to fire notifications
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id) return
+
+    messages.onIncomingRef.current = (msg: DecryptedSignalMessage) => {
+      // Skip if the user is currently viewing this conversation
+      const conversationKey = msg.groupId ?? msg.senderId
+      if (messages.activePeerRef.current === conversationKey) return
+
+      const senderName = nameMap.get(msg.senderId) ?? 'Unknown'
+      const isGroup = !!msg.groupId
+      const groupName = isGroup ? (messages.groups[msg.groupId!]?.name ?? 'Group') : undefined
+      const preview = msg.plaintext || '\u{1F4F7} Photo'
+
+      notify({
+        peerId: msg.senderId,
+        groupId: msg.groupId,
+        senderName,
+        preview,
+        isGroup,
+        groupName,
+      })
+    }
+
+    return () => { messages.onIncomingRef.current = null }
+  }, [isAuthenticated, user?.id, nameMap, messages.onIncomingRef, messages.activePeerRef, messages.groups, notify])
+
+  const value = useMemo<MessagesContextValue | null>(() => {
+    if (!isAuthenticated) return null
+    return { ...messages, notification, dismissNotification: dismiss }
+  }, [isAuthenticated, messages, notification, dismiss])
 
   return (
-    <MessagesContext.Provider value={isAuthenticated ? messages : null}>
+    <MessagesContext.Provider value={value}>
       {children}
     </MessagesContext.Provider>
   )
 }
 
 /** Consume the app-level messaging state. Returns null if not authenticated. */
-export function useMessagesContext(): UseMessagesReturn | null {
+export function useMessagesContext(): MessagesContextValue | null {
   return useContext(MessagesContext)
 }

@@ -19,6 +19,7 @@ import { useImagePaste } from '../../Hooks/useImagePaste'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
+import { playSendSound } from '../../lib/soundService'
 
 export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat'
 
@@ -332,8 +333,9 @@ function ChatDetail({
   }, [peerId])
 
   // Accept pasted images (disabled while a send is in progress)
-  const handlePastedImage = useCallback((file: File) => {
-    sendImage(peerId, file)
+  const handlePastedImage = useCallback(async (file: File) => {
+    const success = await sendImage(peerId, file)
+    if (success) playSendSound()
   }, [sendImage, peerId])
   useImagePaste(!sending, handlePastedImage)
 
@@ -347,7 +349,9 @@ function ChatDetail({
     setText('')
     setReplyingTo(null)
     const success = await sendMessage(peerId, trimmed, threadId)
-    if (!success) {
+    if (success) {
+      playSendSound()
+    } else {
       setText(trimmed)
     }
     inputRef.current?.focus()
@@ -360,10 +364,11 @@ function ChatDetail({
     }
   }, [handleSend])
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
-      sendImage(peerId, file)
+      const success = await sendImage(peerId, file)
+      if (success) playSendSound()
     }
     // Reset so the same file can be re-selected
     e.target.value = ''
@@ -897,8 +902,9 @@ function GroupChatDetail({
     setActiveThreadId(null)
   }, [groupId])
 
-  const handlePastedImage = useCallback((file: File) => {
-    sendGroupImage(groupId, file)
+  const handlePastedImage = useCallback(async (file: File) => {
+    const success = await sendGroupImage(groupId, file)
+    if (success) playSendSound()
   }, [sendGroupImage, groupId])
   useImagePaste(!sending, handlePastedImage)
 
@@ -909,7 +915,11 @@ function GroupChatDetail({
     setText('')
     setReplyingTo(null)
     const success = await sendGroupMessage(groupId, trimmed, threadId)
-    if (!success) setText(trimmed)
+    if (success) {
+      playSendSound()
+    } else {
+      setText(trimmed)
+    }
     inputRef.current?.focus()
   }, [text, sending, sendGroupMessage, groupId, activeThreadId, replyingTo])
 
@@ -917,9 +927,12 @@ function GroupChatDetail({
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
   }, [handleSend])
 
-  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) sendGroupImage(groupId, file)
+    if (file) {
+      const success = await sendGroupImage(groupId, file)
+      if (success) playSendSound()
+    }
     e.target.value = ''
   }, [sendGroupImage, groupId])
 

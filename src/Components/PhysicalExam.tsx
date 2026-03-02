@@ -162,11 +162,15 @@ function parseInitialText(
                 if (dia && dia !== '--') vitals['bpDia'] = dia;
                 continue;
             }
+            // Skip BMI line (computed, not stored)
+            if (line.match(/^\s*BMI:/)) continue;
             const vitalMatch = line.match(/^\s*(\w+):\s*(.+)/);
             if (vitalMatch) {
                 const key = vitalLabelToKey[vitalMatch[1]];
                 if (key) {
                     let val = vitalMatch[2].trim();
+                    // Strip metric conversion suffix e.g. "(172.7 cm)" or "(77.1 kg)"
+                    val = val.replace(/\s*\([^)]*\)\s*$/, '');
                     const vitalDef = VITAL_SIGNS.find(v => v.key === key);
                     if (vitalDef && val.endsWith(vitalDef.unit)) {
                         val = val.slice(0, -vitalDef.unit.length).trim();
@@ -305,8 +309,23 @@ function formatVitals(vitals: Record<string, string>): string[] {
         if (v.key === 'bpDia') continue;
         const val = vitals[v.key]?.trim();
         if (val) {
-            lines.push(`  ${v.shortLabel}: ${val} ${v.unit}`);
+            const num = parseFloat(val);
+            if (v.key === 'ht' && !isNaN(num)) {
+                lines.push(`  ${v.shortLabel}: ${val} ${v.unit} (${(num * 2.54).toFixed(1)} cm)`);
+            } else if (v.key === 'wt' && !isNaN(num)) {
+                lines.push(`  ${v.shortLabel}: ${val} ${v.unit} (${(num * 0.453592).toFixed(1)} kg)`);
+            } else {
+                lines.push(`  ${v.shortLabel}: ${val} ${v.unit}`);
+            }
         }
+    }
+    // BMI
+    const htNum = parseFloat(vitals['ht']?.trim() || '');
+    const wtNum = parseFloat(vitals['wt']?.trim() || '');
+    if (!isNaN(htNum) && htNum > 0 && !isNaN(wtNum) && wtNum > 0) {
+        const htM = (htNum * 2.54) / 100;
+        const bmi = (wtNum * 0.453592) / (htM * htM);
+        lines.push(`  BMI: ${bmi.toFixed(1)}`);
     }
     return lines;
 }
@@ -531,6 +550,16 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
     const isBack = isBackPainCode(symptomCode);
     const isCustom = depth === 'custom' && customBlocks.length > 0;
 
+    const bmiInfo = useMemo(() => {
+        const htNum = parseFloat(vitals['ht'] || '');
+        const wtNum = parseFloat(vitals['wt'] || '');
+        if (isNaN(htNum) || htNum <= 0 || isNaN(wtNum) || wtNum <= 0) return null;
+        const htM = (htNum * 2.54) / 100;
+        const wtKg = wtNum * 0.453592;
+        const bmi = wtKg / (htM * htM);
+        return { value: bmi, display: bmi.toFixed(1) };
+    }, [vitals]);
+
     // PII detection on additional findings (debounced)
     const [additionalPiiWarnings, setAdditionalPiiWarnings] = useState<string[]>([]);
     useEffect(() => {
@@ -680,10 +709,35 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
                                     placeholder={v.placeholder}
                                     className="text-xs px-2 py-1.5 rounded border border-themegray1/20 bg-themewhite text-tertiary outline-none focus:border-themeblue1/30"
                                 />
+                                {v.key === 'ht' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
+                                    <span className="text-[10px] text-secondary/50 mt-0.5">= {(parseFloat(vitals[v.key]) * 2.54).toFixed(1)} cm</span>
+                                )}
+                                {v.key === 'wt' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
+                                    <span className="text-[10px] text-secondary/50 mt-0.5">= {(parseFloat(vitals[v.key]) * 0.453592).toFixed(1)} kg</span>
+                                )}
                             </div>
                         );
                     })}
                 </div>
+                {bmiInfo && (
+                    <div className="flex items-center gap-2 mt-1.5">
+                        <span className="text-xs text-secondary">BMI:</span>
+                        <span className={`text-xs font-medium ${
+                            bmiInfo.value < 18.5 ? 'text-amber-500'
+                            : bmiInfo.value < 25 ? 'text-emerald-600'
+                            : bmiInfo.value < 30 ? 'text-amber-500'
+                            : 'text-themeredred'
+                        }`}>
+                            {bmiInfo.display}
+                        </span>
+                        <span className="text-[10px] text-secondary/50">
+                            {bmiInfo.value < 18.5 ? 'Underweight'
+                            : bmiInfo.value < 25 ? 'Normal'
+                            : bmiInfo.value < 30 ? 'Overweight'
+                            : 'Obese'}
+                        </span>
+                    </div>
+                )}
             </div>
 
             {/* Minimal mode: skip exam items, show only vitals + additional findings */}
