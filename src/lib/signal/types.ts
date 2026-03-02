@@ -143,6 +143,8 @@ export interface StoredSession {
   state: RatchetState
   /** Associated data for AEAD: concat(initiator identity DH pub, responder identity DH pub), base64. */
   associatedData: string
+  /** Peer's identity DH public key (raw base64), used to seal outbound messages. */
+  peerIdentityDhKey: string
   createdAt: string
   updatedAt: string
 }

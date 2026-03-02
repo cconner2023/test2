@@ -16,18 +16,18 @@ const logger = createLogger('TransportManager')
 
 export interface SendMessageParams {
   id: string               // client-generated UUID
-  senderId: string
+  senderId?: string        // optional (used only for notification skip check)
   recipientId: string
   senderDeviceId?: string
   recipientDeviceId?: string
-  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync'
+  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync' | 'delete'
   payload: Record<string, unknown>
   groupId?: string         // set for group messages
   originId?: string        // shared UUID for delete-for-everyone
 }
 
 export interface SendBatchParams {
-  senderId: string
+  senderId?: string        // optional (used only for notification skip check)
   senderDeviceId: string
   recipientId: string
   messages: Array<{ id: string } & FanOutMessageInput>
@@ -42,8 +42,6 @@ export interface SignalTransport {
   fetchUnread(userId: string, deviceId?: string): Promise<Result<SignalMessageRow[]>>
   markRead(messageIds: string[]): Promise<Result<void>>
   deleteMessages(messageIds: string[]): Promise<Result<void>>
-  softDeleteMessages(originIds: string[]): Promise<Result<number>>
-  fetchDeletedMessages(userId: string): Promise<Result<SignalMessageRow[]>>
   fetchConversation(userId: string, peerId: string, limit?: number): Promise<Result<SignalMessageRow[]>>
   fetchGroupConversation(groupId: string, limit?: number): Promise<Result<SignalMessageRow[]>>
   isAvailable(): boolean
@@ -176,16 +174,6 @@ export class TransportManager {
   async deleteMessages(messageIds: string[]): Promise<Result<void>> {
     if (!this.primary) return err('No transport configured')
     return this.primary.deleteMessages(messageIds)
-  }
-
-  async softDeleteMessages(originIds: string[]): Promise<Result<number>> {
-    if (!this.primary) return err('No transport configured')
-    return this.primary.softDeleteMessages(originIds)
-  }
-
-  async fetchDeletedMessages(userId: string): Promise<Result<SignalMessageRow[]>> {
-    if (!this.primary) return err('No transport configured')
-    return this.primary.fetchDeletedMessages(userId)
   }
 
   async fetchConversation(userId: string, peerId: string, limit?: number): Promise<Result<SignalMessageRow[]>> {

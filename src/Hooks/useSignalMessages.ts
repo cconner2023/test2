@@ -3,7 +3,7 @@
  *
  * Subscribes to INSERT events on `signal_messages` filtered by recipient_id.
  * On mount: fetches unread messages for offline catch-up.
- * On realtime INSERT: decrypts via receiveInitialMessage or decryptMessage.
+ * On realtime INSERT: decrypts via processIncomingMessage (sealed sender).
  *
  * Multi-device: filters messages by recipient_device_id to only process
  * messages targeted at this device (or null for legacy messages).
@@ -15,12 +15,14 @@ import { useEffect, useRef, useCallback, useMemo } from 'react'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { createLogger } from '../Utilities/Logger'
 import { useSupabaseSubscription } from './useSupabaseSubscription'
-import { fetchUnreadMessages, fetchDeletedMessages, deleteMessages as hardDeleteMessages, onLoRaMessage } from '../lib/signal/signalService'
+import { fetchUnreadMessages, deleteMessages as hardDeleteMessages, onLoRaMessage } from '../lib/signal/signalService'
 import { deleteMessages as deleteMessagesFromDb } from '../lib/signal/messageStore'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
-import { receiveInitialMessage, decryptMessage } from '../lib/signal/session'
+import { processIncomingMessage } from '../lib/signal/session'
+import { unseal } from '../lib/signal/sealedSender'
+import type { SealedEnvelope } from '../lib/signal/sealedSender'
+import { ensureLocalIdentity } from '../lib/signal/keyManager'
 import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/transportTypes'
-import type { InitialMessage, EncryptedMessage } from '../lib/signal/types'
 import type { SyncMessagePayload } from '../lib/signal/transportTypes'
 import { parseMessageContent } from '../lib/signal/messageContent'
 
@@ -35,26 +37,40 @@ interface UseSignalMessagesOptions {
   onDelete?: (messageIds: string[]) => void
 }
 
-async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage | null> {
+async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<DecryptedSignalMessage | null> {
   try {
-    // Sync messages: encrypted envelope containing a SyncMessagePayload
-    if (row.message_type === 'sync') {
-      const senderDeviceId = row.sender_device_id ?? 'unknown'
-      const payload = row.payload
-      let rawPlaintext: string
+    const envelope = row.payload as unknown as SealedEnvelope
+    const senderDeviceId = row.sender_device_id ?? 'unknown'
 
-      if ('identitySigningKey' in payload) {
-        rawPlaintext = await receiveInitialMessage(row.sender_id, senderDeviceId, payload as unknown as InitialMessage)
-      } else {
-        rawPlaintext = await decryptMessage(row.sender_id, senderDeviceId, payload as unknown as EncryptedMessage)
+    // Delete messages: unseal, extract originIds, return special marker
+    if (row.message_type === 'delete') {
+      const identity = await ensureLocalIdentity()
+      const { inner, senderUuid } = await unseal(
+        envelope, myUuid, identity.dhPrivateKey, identity.dhPublicKeyBase64
+      )
+      const { originIds } = inner as { originIds: string[] }
+      return {
+        id: row.id,
+        senderId: senderUuid,
+        recipientId: row.recipient_id,
+        plaintext: JSON.stringify({ originIds }),
+        messageType: 'delete' as const,
+        createdAt: row.created_at,
+        readAt: row.read_at,
       }
+    }
 
+    // Sync messages: sealed envelope containing a SyncMessagePayload
+    if (row.message_type === 'sync') {
+      const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
+        senderDeviceId, envelope, myUuid
+      )
       const sync = JSON.parse(rawPlaintext) as SyncMessagePayload
       const { plaintext, content, replyTo } = parseMessageContent(sync.serialized)
 
       return {
         id: sync.originalMessageId,
-        senderId: row.sender_id,
+        senderId: senderUuid,
         recipientId: sync.forPeerId,
         plaintext,
         content,
@@ -67,17 +83,15 @@ async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage
       }
     }
 
-    // Self-notes: encrypted like any other message — fall through to normal decryption
-
-    // Requests are encrypted via X3DH (InitialMessage) — decrypt + establish session
+    // Requests: sealed envelope (X3DH InitialMessage inside)
     if (row.message_type === 'request') {
-      const senderDeviceId = row.sender_device_id ?? 'unknown'
-      const payload = row.payload as unknown as InitialMessage
-      const rawPlaintext = await receiveInitialMessage(row.sender_id, senderDeviceId, payload)
+      const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
+        senderDeviceId, envelope, myUuid
+      )
       const { plaintext, content, replyTo } = parseMessageContent(rawPlaintext)
       return {
         id: row.id,
-        senderId: row.sender_id,
+        senderId: senderUuid,
         recipientId: row.recipient_id,
         plaintext,
         content,
@@ -89,10 +103,16 @@ async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage
         originId: row.origin_id ?? undefined,
       }
     }
+
+    // Request-accepted: unseal to get senderUuid (no plaintext content)
     if (row.message_type === 'request-accepted') {
+      const identity = await ensureLocalIdentity()
+      const { senderUuid } = await unseal(
+        envelope, myUuid, identity.dhPrivateKey, identity.dhPublicKeyBase64
+      )
       return {
         id: row.id,
-        senderId: row.sender_id,
+        senderId: senderUuid,
         recipientId: row.recipient_id,
         plaintext: '',
         messageType: row.message_type,
@@ -103,24 +123,17 @@ async function decryptRow(row: SignalMessageRow): Promise<DecryptedSignalMessage
       }
     }
 
-    // Use sender_device_id for session lookup; fall back to 'unknown' for legacy
-    const senderDeviceId = row.sender_device_id ?? 'unknown'
-    let rawPlaintext: string
-
-    if (row.message_type === 'initial') {
-      const payload = row.payload as unknown as InitialMessage
-      rawPlaintext = await receiveInitialMessage(row.sender_id, senderDeviceId, payload)
-    } else {
-      const payload = row.payload as unknown as EncryptedMessage
-      rawPlaintext = await decryptMessage(row.sender_id, senderDeviceId, payload)
-    }
+    // Initial and message types: both go through processIncomingMessage
+    const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
+      senderDeviceId, envelope, myUuid
+    )
 
     // Parse structured content (text or image) from the decrypted payload
     const { plaintext, content, replyTo } = parseMessageContent(rawPlaintext)
 
     return {
       id: row.id,
-      senderId: row.sender_id,
+      senderId: senderUuid,
       recipientId: row.recipient_id,
       plaintext,
       content,
@@ -160,6 +173,12 @@ export function useSignalMessages({
     localDeviceIdRef.current = localDeviceId
   }, [localDeviceId])
 
+  // Track userId via ref so callbacks with empty deps can always read the latest value
+  const userIdRef = useRef(userId)
+  useEffect(() => {
+    userIdRef.current = userId
+  }, [userId])
+
   // Track whether catch-up has already run to avoid re-fetching on re-subscribe
   const catchUpDone = useRef(false)
 
@@ -189,35 +208,22 @@ export function useSignalMessages({
 
       // Decrypt sequentially to preserve ratchet state ordering
       for (const row of result.data) {
-        const decrypted = await decryptRow(row)
+        const decrypted = await decryptRow(row, userId)
         if (decrypted) {
-          onMessageRef.current(decrypted)
+          if (decrypted.messageType === 'delete') {
+            try {
+              const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
+              await deleteMessagesFromDb(originIds).catch(() => {})
+              onDeleteRef.current?.(originIds)
+              await hardDeleteMessages([decrypted.id]).catch(() => {})
+            } catch { /* ignore parse errors */ }
+          } else {
+            onMessageRef.current(decrypted)
+          }
         }
       }
     })()
   }, [isAuthenticated, userId, localDeviceId])
-
-  // Tombstone cleanup: process pending deletions on mount
-  useEffect(() => {
-    if (!isAuthenticated || !userId) return
-
-    ;(async () => {
-      const result = await fetchDeletedMessages(userId)
-      if (!result.ok || result.data.length === 0) return
-
-      const deletedIds = result.data.map(r => r.id)
-      logger.info(`Tombstone cleanup: ${deletedIds.length} deleted messages`)
-
-      // 1. Remove from IDB
-      await deleteMessagesFromDb(deletedIds).catch(() => {})
-
-      // 2. Remove from React state
-      onDeleteRef.current?.(deletedIds)
-
-      // 3. Hard-delete from Supabase (tombstone cleanup)
-      await hardDeleteMessages(deletedIds).catch(() => {})
-    })()
-  }, [isAuthenticated, userId])
 
   // LoRa push subscription — process messages arriving via LoRa mesh
   useEffect(() => {
@@ -226,14 +232,24 @@ export function useSignalMessages({
     const unsub = onLoRaMessage((row) => {
       // Multi-device filter (same as Supabase realtime handler)
       const myDeviceId = localDeviceIdRef.current
+      const myUuid = userIdRef.current
+      if (!myUuid) return
       if (myDeviceId && row.recipient_device_id && row.recipient_device_id !== myDeviceId) {
         return
       }
 
-      decryptRow(row).then((decrypted) => {
-        if (decrypted) {
-          onMessageRef.current(decrypted)
+      decryptRow(row, myUuid).then((decrypted) => {
+        if (!decrypted) return
+        if (decrypted.messageType === 'delete') {
+          try {
+            const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
+            deleteMessagesFromDb(originIds).catch(() => {})
+            onDeleteRef.current?.(originIds)
+            hardDeleteMessages([decrypted.id]).catch(() => {})
+          } catch { /* ignore parse errors */ }
+          return
         }
+        onMessageRef.current(decrypted)
       })
     })
 
@@ -251,15 +267,25 @@ export function useSignalMessages({
       // Multi-device filter: skip messages not targeted at this device
       // Allow null recipient_device_id for legacy messages
       const myDeviceId = localDeviceIdRef.current
+      const myUuid = userIdRef.current
+      if (!myUuid) return
       if (myDeviceId && row.recipient_device_id && row.recipient_device_id !== myDeviceId) {
         logger.debug(`Skipping message ${row.id}: for device ${row.recipient_device_id}, not ${myDeviceId}`)
         return
       }
 
-      decryptRow(row).then((decrypted) => {
-        if (decrypted) {
-          onMessageRef.current(decrypted)
+      decryptRow(row, myUuid).then((decrypted) => {
+        if (!decrypted) return
+        if (decrypted.messageType === 'delete') {
+          try {
+            const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
+            deleteMessagesFromDb(originIds).catch(() => {})
+            onDeleteRef.current?.(originIds)
+            hardDeleteMessages([decrypted.id]).catch(() => {})
+          } catch { /* ignore parse errors */ }
+          return
         }
+        onMessageRef.current(decrypted)
       })
     },
     [],

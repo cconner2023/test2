@@ -285,18 +285,6 @@ export async function deleteMessages(
   return transportManager.deleteMessages(messageIds)
 }
 
-export async function softDeleteMessages(
-  originIds: string[]
-): Promise<Result<number>> {
-  return transportManager.softDeleteMessages(originIds)
-}
-
-export async function fetchDeletedMessages(
-  userId: string
-): Promise<Result<SignalMessageRow[]>> {
-  return transportManager.fetchDeletedMessages(userId)
-}
-
 export async function fetchConversation(
   userId: string,
   peerId: string,

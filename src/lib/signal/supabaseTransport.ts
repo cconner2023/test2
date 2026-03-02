@@ -42,31 +42,31 @@ export class SupabaseTransport implements SignalTransport {
   }
 
   async sendMessage(params: SendMessageParams): Promise<Result<string>> {
-    const row: Record<string, unknown> = {
-      id: params.id,
-      sender_id: params.senderId,
-      recipient_id: params.recipientId,
-      sender_device_id: params.senderDeviceId ?? null,
-      recipient_device_id: params.recipientDeviceId ?? null,
-      message_type: params.messageType,
-      payload: params.payload,
-    }
-    if (params.groupId) row.group_id = params.groupId
-    if (params.originId) row.origin_id = params.originId
-
-    const result = await this.runQuery<{ id: string }>(
-      () => supabase.from('signal_messages').insert(row).select('id').single(),
+    const result = await this.runQuery<string>(
+      () => supabase.rpc('send_signal_message', {
+        p_id: params.id,
+        p_recipient_id: params.recipientId,
+        p_sender_device_id: params.senderDeviceId ?? null,
+        p_recipient_device_id: params.recipientDeviceId ?? null,
+        p_message_type: params.messageType,
+        p_payload: params.payload,
+        p_group_id: params.groupId ?? null,
+        p_origin_id: params.originId ?? null,
+      }),
       'sendMessage',
     )
     if (!result.ok) return result
 
     // Fire push notification (fire-and-forget, skip self-notes)
-    if (params.senderId !== params.recipientId) {
-      this.fireNotif(params.recipientId, params.senderId, params.messageType)
+    if (params.senderId && params.senderId !== params.recipientId) {
+      this.fireNotif(params.recipientId, params.messageType)
+    } else if (!params.senderId) {
+      // senderId not provided — always notify (conservative)
+      this.fireNotif(params.recipientId, params.messageType)
     }
 
     logger.info(`Message sent to ${params.recipientId} (type=${params.messageType})`)
-    return ok(result.data.id)
+    return ok(params.id)
   }
 
   async sendMessageBatch(params: SendBatchParams): Promise<Result<string[]>> {
@@ -75,34 +75,33 @@ export class SupabaseTransport implements SignalTransport {
     const rows = params.messages.map(m => {
       const row: Record<string, unknown> = {
         id: m.id,
-        sender_id: params.senderId,
-        sender_device_id: params.senderDeviceId,
         recipient_id: params.recipientId,
-        recipient_device_id: m.recipientDeviceId,
+        sender_device_id: params.senderDeviceId ?? null,
+        recipient_device_id: m.recipientDeviceId ?? null,
         message_type: m.messageType,
         payload: m.payload,
+        group_id: params.groupId ?? null,
+        origin_id: params.originId ?? null,
       }
-      if (params.groupId) row.group_id = params.groupId
-      if (params.originId) row.origin_id = params.originId
       return row
     })
 
-    const result = await this.runQuery<{ id: string }[]>(
-      () => supabase.from('signal_messages').insert(rows).select('id'),
+    const result = await this.runQuery<string[]>(
+      () => supabase.rpc('send_signal_messages_batch', { p_messages: rows }),
       'sendMessageBatch', [],
     )
     if (!result.ok) return result
 
-    const ids = result.data.map(d => d.id)
-
-    // Single push notification for the batch (skip self-notes)
+    // Single notification for the batch
     const firstType = params.messages[0].messageType
-    if (params.senderId !== params.recipientId) {
-      this.fireNotif(params.recipientId, params.senderId, firstType)
+    if (params.senderId && params.senderId !== params.recipientId) {
+      this.fireNotif(params.recipientId, firstType)
+    } else if (!params.senderId) {
+      this.fireNotif(params.recipientId, firstType)
     }
 
     logger.info(`Fan-out: ${params.messages.length} messages sent to ${params.recipientId}`)
-    return ok(ids)
+    return ok(result.data)
   }
 
   async fetchUnread(userId: string, deviceId?: string): Promise<Result<SignalMessageRow[]>> {
@@ -170,38 +169,12 @@ export class SupabaseTransport implements SignalTransport {
     )
   }
 
-  async softDeleteMessages(originIds: string[]): Promise<Result<number>> {
-    if (originIds.length === 0) return ok(0)
-    const result = await this.runQuery<number>(
-      () => supabase.rpc('soft_delete_messages', { p_origin_ids: originIds }),
-      'softDeleteMessages', 0,
-    )
-    if (result.ok) logger.info(`Soft-deleted ${result.data} message rows for ${originIds.length} origin IDs`)
-    return result
-  }
-
-  async fetchDeletedMessages(userId: string): Promise<Result<SignalMessageRow[]>> {
-    return this.runQuery<SignalMessageRow[]>(
-      () => supabase
-        .from('signal_messages')
-        .select('*')
-        .eq('recipient_id', userId)
-        .not('deleted_at', 'is', null),
-      'fetchDeletedMessages', [],
-    )
-  }
-
   isAvailable(): boolean {
     return navigator.onLine
   }
 
-  private fireNotif(
-    recipientId: string,
-    senderId: string,
-    messageType: string,
-  ): void {
-    // Sync messages are self-addressed — never notify
-    if (messageType === 'sync') return
+  private fireNotif(recipientId: string, messageType: string): void {
+    if (messageType === 'sync' || messageType === 'delete') return
 
     const notif = messageType === 'request'
       ? { title: 'New message request', body: 'Someone wants to message you' }
@@ -213,7 +186,7 @@ export class SupabaseTransport implements SignalTransport {
       user_id: recipientId,
       ...notif,
       type: 'signal_message',
-      author_id: senderId,
+      // author_id removed (sealed sender — server doesn't know who sent)
     })
   }
 }

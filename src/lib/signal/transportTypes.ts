@@ -20,7 +20,7 @@ export interface DeviceRegistrationResult {
 export interface SyncMessagePayload {
   forPeerId: string           // peer this message belongs to
   serialized: string          // serializeContent() output
-  originalMessageType: 'initial' | 'message' | 'request' | 'request-accepted'
+  originalMessageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'delete'
   originalTimestamp: string
   originalMessageId: string   // for dedup on receiving device
   forGroupId?: string         // group this message belongs to (if group message)
@@ -59,13 +59,13 @@ export interface PeerBundleRpcResult {
 export interface SignalMessageRow {
   [key: string]: unknown
   id: string
-  sender_id: string
+  sender_id: string | null   // nullable (sealed sender — not stored in DB)
   recipient_id: string
   sender_device_id: string | null
   recipient_device_id: string | null
   group_id: string | null
   origin_id: string | null
-  message_type: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync'
+  message_type: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync' | 'delete'
   payload: Record<string, unknown>
   created_at: string
   read_at: string | null
@@ -83,7 +83,7 @@ export interface PeerDevice {
 export interface FanOutMessageInput {
   recipientDeviceId: string
   payload: Record<string, unknown>
-  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync'
+  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync' | 'delete'
 }
 
 // ---- Decrypted message surfaced to the UI ----
@@ -97,7 +97,7 @@ export interface DecryptedSignalMessage {
   plaintext: string
   /** Structured content (text or image). Populated after parsing the decrypted payload. */
   content?: MessageContent
-  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync'
+  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync' | 'delete'
   createdAt: string
   readAt: string | null
   /** Delivery status for outgoing messages (undefined = delivered/incoming). */

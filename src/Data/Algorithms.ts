@@ -3251,7 +3251,7 @@ export const Algorithm: AlgorithmType[] = [
                         disposition: [
                             {
                                 ...Disposition[0],
-                                modifier: "Oxygen, EKG, Aspirin 325mg"
+                                modifier: "Oxygen, EKG, IV, Aspirin 325mg"
                             }
                         ],
                         decisionMaking: [
@@ -3544,7 +3544,7 @@ export const Algorithm: AlgorithmType[] = [
                                     specLim: [
                                         'Consider quarters/ contagious precautions while febrile',
                                         'Aerobic training at own pace/distance x 3 days',
-                                        'Limit exposure to temperatures below <50 degrees F'
+                                        'Limit exposure to temperatures below < 50° F'
                                     ]
                                 },
                             },
@@ -3562,7 +3562,7 @@ export const Algorithm: AlgorithmType[] = [
                                         }
                                     ],
                                     specLim: [
-                                        'Limit exposure to temperatures below <50 degrees F'
+                                        'Limit exposure to temperatures below < 50° F'
                                     ]
                                 }
                             },
@@ -4606,7 +4606,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [{ ...Disposition[0], modifier: 'Glucose < 70 - provide glucose. SpO2 <90 - start oxygen. H/O alcohol - give thiamine. H/O narcotics - give naloxone' }],
+                        disposition: [{ ...Disposition[0], modifier: 'Glucose < 70 - provide glucose. SpO2 < 90% - start oxygen. H/O alcohol - give thiamine. H/O narcotics - give naloxone' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -4622,7 +4622,7 @@ export const Algorithm: AlgorithmType[] = [
                                     { type: 'med', modifier: 'H/O alcohol - thiamine' },
                                     { type: 'med', modifier: 'H/O narcotics - naloxone' },
                                     { type: 'med', modifier: 'Glucose < 70 - glucose' },
-                                    { type: 'protocol', modifier: 'SpO2 < 90 - oxygen' },
+                                    { type: 'protocol', modifier: 'SpO2 < 90% - oxygen' },
                                 ]
                             }
                         ],
@@ -7241,7 +7241,7 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 type: 'dmp',
                                 ddx: ['SIRS', 'bacterial infection', 'tetanus risk'],
-                                text: 'Systemic Inflammatory Response Syndrome (SIRS) criteria includes two of the following: heart rate over 90 bpm, respiratory rate over 20, Temp >100.4 or <96.8o F, or WBC >12,000 cells. SIRS criteria with a source of infection is sepsis and requires prompt treatment. Fever, red streaks, and oozing wounds indicate an infection that requires further evaluation and treatment. Puncture wounds, avulsions, from crushing or burns, and wounds contaminated with dirt, saliva, or feces require tetanus immunization if not given within last five years. Clean wounds require tetanus immunization if not given within last 10 years. High risk wounds increase the risk of complications. Bite wounds have a risk of infection. Lacerations over a joint, on the face, or on the hand or foot have a higher risk of complication from the laceration.'
+                                text: 'Systemic Inflammatory Response Syndrome (SIRS) criteria includes two of the following: heart rate over 90 bpm, respiratory rate over 20, Temp >100.4 or <96.8° F, or WBC >12,000 cells. SIRS criteria with a source of infection is sepsis and requires prompt treatment. Fever, red streaks, and oozing wounds indicate an infection that requires further evaluation and treatment. Puncture wounds, avulsions, from crushing or burns, and wounds contaminated with dirt, saliva, or feces require tetanus immunization if not given within last five years. Clean wounds require tetanus immunization if not given within last 10 years. High risk wounds increase the risk of complications. Bite wounds have a risk of infection. Lacerations over a joint, on the face, or on the hand or foot have a higher risk of complication from the laceration.'
                             }
                         ],
                         disposition: [Disposition[0]],
@@ -8138,7 +8138,7 @@ export const Algorithm: AlgorithmType[] = [
                 text: "Red Flags",
                 type: "rf",
                 questionOptions: [
-                    { text: "T<96 degrees F" },
+                    { text: "T< 96° F" },
                     { text: "Altered Mental Status" },
                     { text: "Abnormal Vital Signs" },
                     { text: "Frostbite" },
@@ -8177,7 +8177,7 @@ export const Algorithm: AlgorithmType[] = [
                             {
                                 type: 'dmp',
                                 ddx: ['hypothermia', 'head injury', 'frostbite'],
-                                text: 'Mild hypothermia presents with body temperature 90-95oF, normal mental status, tachycardia, tachypnea, and shivering. Moderate hypothermia presents with body temperature 82-90° F, lethargy, bradycardia with arrhythmias, and hypoventilation without shivering. Severe hypothermia presents with body temperature <82° F, coma, asystole, and apnea so that the Soldier may appear dead but resuscitation is still possible. Note any discrepancy between the extent of an abnormal vital sign and the degree of hypothermia may represent an underlying alternate cause for the vital sign abnormality like a head injury for confusion or hypovolemia for tachycardia. Frostbite may appear white or grayish-yellow and be hard or waxy to the touch. Support the Soldier’s airway, breathing, circulation, start two large bore IVs with warmed fluids, remove wet clothes, use body heat, blankets, and space/hypothermia blanket to rewarm, and transport horizontally.',
+                                text: 'Mild hypothermia presents with body temperature 90-95°F, normal mental status, tachycardia, tachypnea, and shivering. Moderate hypothermia presents with body temperature 82-90° F, lethargy, bradycardia with arrhythmias, and hypoventilation without shivering. Severe hypothermia presents with body temperature <82° F, coma, asystole, and apnea so that the Soldier may appear dead but resuscitation is still possible. Note any discrepancy between the extent of an abnormal vital sign and the degree of hypothermia may represent an underlying alternate cause for the vital sign abnormality like a head injury for confusion or hypovolemia for tachycardia. Frostbite may appear white or grayish-yellow and be hard or waxy to the touch. Support the Soldier’s airway, breathing, circulation, start two large bore IVs with warmed fluids, remove wet clothes, use body heat, blankets, and space/hypothermia blanket to rewarm, and transport horizontally.',
                                 ancillaryFind: [
                                     { type: 'protocol', modifier: 'obtain IV access' },
                                     { type: 'protocol', modifier: 'active warming protocols' },

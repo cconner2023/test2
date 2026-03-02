@@ -1,23 +1,28 @@
 /**
  * Session management — high-level messaging API.
  *
- * Ties together X3DH key agreement, Double Ratchet, and IndexedDB
- * persistence to provide a clean encrypt/decrypt interface.
+ * Ties together X3DH key agreement, Double Ratchet, IndexedDB
+ * persistence, and Sealed Sender to provide a clean encrypt/decrypt
+ * interface.
+ *
+ * All outbound messages are wrapped in a SealedEnvelope so the server
+ * cannot identify the sender. Inbound messages are unsealed before
+ * being dispatched to either the X3DH responder path (first contact)
+ * or the Double Ratchet decrypt path (established session).
  *
  * Multi-device: sessions are keyed by `${peerId}:${peerDeviceId}`.
  * Legacy sessions (bare peerId key) are migrated on first access.
  *
  * Usage:
  *   // Alice initiates a session with Bob's device
- *   const initial = await createOutboundSession(bobId, bobDeviceId, bobBundle, "Hello")
- *   // → send `initial` to Bob via Supabase
+ *   const envelope = await createOutboundSession(bobId, bobDeviceId, bobBundle, "Hello", aliceUuid)
+ *   // → send `envelope` to Bob via Supabase
  *
- *   // Bob receives Alice's initial message
- *   const text = await receiveInitialMessage(aliceId, aliceDeviceId, initial)
+ *   // Bob receives any inbound sealed envelope
+ *   const { plaintext, senderUuid } = await processIncomingMessage(aliceDeviceId, envelope, bobUuid)
  *
  *   // Subsequent messages (either direction)
- *   const encrypted = await encryptMessage(peerId, peerDeviceId, "Follow-up")
- *   const decrypted = await decryptMessage(peerId, peerDeviceId, encrypted)
+ *   const envelope2 = await encryptMessage(peerId, peerDeviceId, "Follow-up", senderUuid)
  */
 
 import { createLogger } from '../../Utilities/Logger'
@@ -27,6 +32,8 @@ import * as store from './keyStore'
 import { x3dhInitiate, x3dhRespond } from './x3dh'
 import { initSender, initReceiver, ratchetEncrypt, ratchetDecrypt } from './ratchet'
 import { importDhPublicKey } from './keyManager'
+import { seal, unseal } from './sealedSender'
+import type { SealedEnvelope } from './sealedSender'
 import type {
   PublicKeyBundle,
   StoredSession,
@@ -90,18 +97,21 @@ async function persistSession(session: StoredSession): Promise<void> {
  *
  * Performs X3DH key agreement using the peer's public key bundle
  * (fetched from Supabase by the caller), initializes the Double
- * Ratchet as sender, and encrypts the first message.
+ * Ratchet as sender, encrypts the first message, and wraps the
+ * result in a SealedEnvelope so the server cannot identify the sender.
  *
- * @returns InitialMessage to send to the peer (contains X3DH handshake
- *          data + the encrypted first message)
+ * @param senderUuid - Caller's user UUID (used to issue the sender certificate)
+ * @returns SealedEnvelope to send to the peer (contains X3DH handshake
+ *          data + the encrypted first message, sealed for the recipient)
  * @throws If the peer's signed pre-key signature is invalid
  */
 export async function createOutboundSession(
   peerId: string,
   peerDeviceId: string,
   peerBundle: PublicKeyBundle,
-  firstMessage: string
-): Promise<InitialMessage> {
+  firstMessage: string,
+  senderUuid: string
+): Promise<SealedEnvelope> {
   const identity = await ensureLocalIdentity()
 
   // X3DH key agreement
@@ -129,7 +139,7 @@ export async function createOutboundSession(
     ratchetState, plaintext, x3dh.associatedData
   )
 
-  // Persist session
+  // Persist session (including peerIdentityDhKey for future sealing)
   const sessionKey = makeSessionKey(peerId, peerDeviceId)
   const session: StoredSession = {
     peerId,
@@ -137,13 +147,14 @@ export async function createOutboundSession(
     sessionKey,
     state,
     associatedData: uint8ToBase64(x3dh.associatedData),
+    peerIdentityDhKey: peerBundle.identityDhKey,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
   await persistSession(session)
 
-  logger.info(`Outbound session created with peer ${peerId} device ${peerDeviceId}`)
-  return {
+  // Build the InitialMessage inner payload
+  const initialMessage: InitialMessage = {
     identitySigningKey: identity.signingPublicKeyBase64,
     identityDhKey: identity.dhPublicKeyBase64,
     ephemeralKey: x3dh.ephemeralPublicKeyBase64,
@@ -151,106 +162,45 @@ export async function createOutboundSession(
     oneTimePreKeyId: x3dh.oneTimePreKeyId,
     message,
   }
-}
 
-/**
- * Receive an initial message from a peer device and decrypt it.
- *
- * Performs X3DH responder flow using our pre-keys, initializes
- * the Double Ratchet as receiver, and decrypts the first message.
- *
- * @param peerId - The sender's user ID (known from Supabase message metadata)
- * @param peerDeviceId - The sender's device ID
- * @param initial - The InitialMessage received from the peer
- * @returns Decrypted first message text
- * @throws If required pre-keys are missing or decryption fails
- */
-export async function receiveInitialMessage(
-  peerId: string,
-  peerDeviceId: string,
-  initial: InitialMessage
-): Promise<string> {
-  const identity = await ensureLocalIdentity()
+  logger.info(`Outbound session created with peer ${peerId} device ${peerDeviceId}`)
 
-  // Load the signed pre-key that was used
-  const signedPreKey = await store.loadSignedPreKey(initial.signedPreKeyId)
-  if (!signedPreKey) {
-    throw new Error(`Signed pre-key ${initial.signedPreKeyId} not found`)
-  }
-
-  // Load and consume the one-time pre-key if used
-  let oneTimePreKeyPair = null
-  if (initial.oneTimePreKeyId !== null) {
-    const otpk = await consumePreKey(initial.oneTimePreKeyId)
-    if (otpk) {
-      oneTimePreKeyPair = {
-        publicKey: otpk.publicKey,
-        privateKey: otpk.privateKey,
-      }
-    }
-  }
-
-  // X3DH responder
-  const x3dh = await x3dhRespond(
+  // Seal the InitialMessage for the recipient
+  return seal(
+    initialMessage as unknown as Record<string, unknown>,
+    senderUuid,
     identity,
-    { publicKey: signedPreKey.publicKey, privateKey: signedPreKey.privateKey },
-    oneTimePreKeyPair,
-    initial.identityDhKey,
-    initial.ephemeralKey
-  )
-
-  // Store peer's identity for trust verification
-  await storePeerIdentity(
     peerId,
-    peerDeviceId,
-    initial.identitySigningKey,
-    initial.identityDhKey
+    peerBundle.identityDhKey
   )
-
-  // Initialize receiver ratchet
-  const ratchetState = await initReceiver(x3dh.sharedSecret, {
-    publicKey: signedPreKey.publicKey,
-    privateKey: signedPreKey.privateKey,
-    publicKeyBase64: signedPreKey.publicKeyBase64,
-  })
-
-  // Decrypt first message
-  const { state, plaintext } = await ratchetDecrypt(
-    ratchetState, initial.message, x3dh.associatedData
-  )
-
-  // Persist session
-  const sessionKey = makeSessionKey(peerId, peerDeviceId)
-  const session: StoredSession = {
-    peerId,
-    peerDeviceId,
-    sessionKey,
-    state,
-    associatedData: uint8ToBase64(x3dh.associatedData),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  }
-  await persistSession(session)
-
-  logger.info(`Inbound session created with peer ${peerId} device ${peerDeviceId}`)
-  return new TextDecoder().decode(plaintext)
 }
 
-// ---- Message Encryption / Decryption ----
+// ---- Message Encryption ----
 
 /**
  * Encrypt a message to a peer device with an established session.
  *
+ * Encrypts via the Double Ratchet and wraps the result in a
+ * SealedEnvelope so the server cannot identify the sender.
+ *
+ * @param senderUuid - Caller's user UUID (used to issue the sender certificate)
  * @throws If no session exists with the peer device
+ * @throws If the stored session has no peerIdentityDhKey (re-initiate session)
  */
 export async function encryptMessage(
   peerId: string,
   peerDeviceId: string,
-  plaintext: string
-): Promise<EncryptedMessage> {
+  plaintext: string,
+  senderUuid: string
+): Promise<SealedEnvelope> {
+  const identity = await ensureLocalIdentity()
   const session = await getSession(peerId, peerDeviceId)
   if (!session) {
     throw new Error(`No session with peer ${peerId} device ${peerDeviceId}`)
+  }
+
+  if (!session.peerIdentityDhKey) {
+    throw new Error(`Session with ${peerId}:${peerDeviceId} has no peerIdentityDhKey — re-initiate session`)
   }
 
   const ad = base64ToUint8(session.associatedData)
@@ -263,36 +213,124 @@ export async function encryptMessage(
     updatedAt: new Date().toISOString(),
   })
 
-  return message
+  return seal(
+    message as unknown as Record<string, unknown>,
+    senderUuid,
+    identity,
+    peerId,
+    session.peerIdentityDhKey
+  )
 }
 
+// ---- Unified Inbound Handler ----
+
 /**
- * Decrypt a message from a peer device with an established session.
+ * Process any incoming sealed envelope (initial, message, sync, etc.).
+ * Unseals the envelope, determines inner type (X3DH or ratchet),
+ * and decrypts accordingly.
  *
- * Handles out-of-order delivery automatically via skipped message keys.
- *
- * @throws If no session exists, or decryption/authentication fails
+ * @param senderDeviceId - from row.sender_device_id (or 'unknown' for legacy)
+ * @param envelope - the SealedEnvelope from the DB row payload
+ * @param myUuid - this device's user UUID (recipient)
+ * @returns Decrypted plaintext + verified sender UUID
  */
-export async function decryptMessage(
-  peerId: string,
-  peerDeviceId: string,
-  message: EncryptedMessage
-): Promise<string> {
-  const session = await getSession(peerId, peerDeviceId)
-  if (!session) {
-    throw new Error(`No session with peer ${peerId} device ${peerDeviceId}`)
+export async function processIncomingMessage(
+  senderDeviceId: string,
+  envelope: SealedEnvelope,
+  myUuid: string
+): Promise<{ plaintext: string; senderUuid: string }> {
+  const identity = await ensureLocalIdentity()
+
+  // Unseal: decrypt and verify sender cert
+  const { inner, senderUuid, cert } = await unseal(
+    envelope,
+    myUuid,
+    identity.dhPrivateKey,
+    identity.dhPublicKeyBase64
+  )
+
+  // Store peer's identity keys for future trust verification
+  await storePeerIdentity(
+    senderUuid,
+    senderDeviceId,
+    cert.senderIdentitySigningKey,
+    cert.senderIdentityDhKey
+  )
+
+  // Dispatch based on inner payload type
+  if ('identitySigningKey' in inner) {
+    // X3DH initial message (first contact)
+    const initial = inner as unknown as InitialMessage
+
+    // Load signed pre-key
+    const signedPreKey = await store.loadSignedPreKey(initial.signedPreKeyId)
+    if (!signedPreKey) {
+      throw new Error(`Signed pre-key ${initial.signedPreKeyId} not found`)
+    }
+
+    // Load and consume one-time pre-key if used
+    let oneTimePreKeyPair = null
+    if (initial.oneTimePreKeyId !== null) {
+      const otpk = await consumePreKey(initial.oneTimePreKeyId)
+      if (otpk) oneTimePreKeyPair = { publicKey: otpk.publicKey, privateKey: otpk.privateKey }
+    }
+
+    // X3DH responder
+    const x3dh = await x3dhRespond(
+      identity,
+      { publicKey: signedPreKey.publicKey, privateKey: signedPreKey.privateKey },
+      oneTimePreKeyPair,
+      initial.identityDhKey,
+      initial.ephemeralKey
+    )
+
+    // Initialize receiver ratchet
+    const ratchetState = await initReceiver(x3dh.sharedSecret, {
+      publicKey: signedPreKey.publicKey,
+      privateKey: signedPreKey.privateKey,
+      publicKeyBase64: signedPreKey.publicKeyBase64,
+    })
+
+    // Decrypt first message
+    const { state, plaintext } = await ratchetDecrypt(ratchetState, initial.message, x3dh.associatedData)
+
+    // Persist session WITH peerIdentityDhKey
+    const sessionKey = makeSessionKey(senderUuid, senderDeviceId)
+    const session: StoredSession = {
+      peerId: senderUuid,
+      peerDeviceId: senderDeviceId,
+      sessionKey,
+      state,
+      associatedData: uint8ToBase64(x3dh.associatedData),
+      peerIdentityDhKey: initial.identityDhKey,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    await persistSession(session)
+
+    logger.info(`Inbound session created with peer ${senderUuid} device ${senderDeviceId}`)
+    return { plaintext: new TextDecoder().decode(plaintext), senderUuid }
+
+  } else {
+    // Double Ratchet message (established session)
+    const encMsg = inner as unknown as EncryptedMessage
+
+    const session = await getSession(senderUuid, senderDeviceId)
+    if (!session) {
+      throw new Error(`No session with ${senderUuid}:${senderDeviceId}`)
+    }
+
+    const ad = base64ToUint8(session.associatedData)
+    const { state, plaintext } = await ratchetDecrypt(session.state, encMsg, ad)
+
+    await persistSession({
+      ...session,
+      state,
+      updatedAt: new Date().toISOString(),
+    })
+
+    return { plaintext: new TextDecoder().decode(plaintext), senderUuid }
   }
-
-  const ad = base64ToUint8(session.associatedData)
-  const { state, plaintext } = await ratchetDecrypt(session.state, message, ad)
-
-  await persistSession({
-    ...session,
-    state,
-    updatedAt: new Date().toISOString(),
-  })
-
-  return new TextDecoder().decode(plaintext)
 }
 
 // ---- Session Queries ----

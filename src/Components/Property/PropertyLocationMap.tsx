@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Plus, Camera, Image, Edit3, Check, Trash2, MoreVertical, X } from 'lucide-react'
+import { Plus, Camera, Image, Edit3, Check, Trash2, MoreVertical, X, Package, CheckCircle2, CirclePlus, ChevronDown, ChevronUp } from 'lucide-react'
+import { clamp } from '../../Utilities/GestureUtils'
 import { LocationBreadcrumb } from './LocationBreadcrumb'
 import { LocationTagPhoto } from './LocationTagPhoto'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -44,15 +45,29 @@ export function PropertyLocationMap({
   const [overflowMenuId, setOverflowMenuId] = useState<string | null>(null)
   const editPhotoInputRef = useRef<HTMLInputElement>(null)
 
+  // Item tray state
+  const [isTrayExpanded, setIsTrayExpanded] = useState(false)
+
   // Child locations of current level
   const childLocations = useMemo(() => {
     const parentId = currentLocation?.id ?? null
     return locations.filter((l) => l.parent_id === parentId)
   }, [locations, currentLocation])
 
+  // Items assigned to this location and which ones are already tagged on canvas
+  const assignedItems = useMemo(() => {
+    if (!currentLocation) return []
+    return items.filter((i) => i.location_id === currentLocation.id)
+  }, [items, currentLocation])
+
+  const taggedItemIds = useMemo(() => {
+    return new Set(tags.filter((t) => t.target_type === 'item').map((t) => t.target_id))
+  }, [tags])
+
   // Load tags for current location
   useEffect(() => {
     if (!currentLocation?.id) { setTags([]); return }
+    setIsTrayExpanded(false)
     fetchLocationTags(currentLocation.id).then(setTags)
   }, [currentLocation?.id])
 
@@ -84,6 +99,29 @@ export function PropertyLocationMap({
     )
     setIsEditMode(false)
   }, [currentLocation, tags])
+
+  const handleAddItemTag = useCallback((item: LocalPropertyItem) => {
+    if (tags.some((t) => t.target_type === 'item' && t.target_id === item.id)) return
+    const existingCount = tags.length
+    const col = existingCount % 3
+    const row = Math.floor(existingCount / 3)
+    const newTag: LocationTag = {
+      id: crypto.randomUUID(),
+      location_id: currentLocation!.id,
+      target_type: 'item',
+      target_id: item.id,
+      x: clamp(0.2 + col * 0.3, 0, 0.85),
+      y: clamp(0.2 + row * 0.15, 0, 0.85),
+      label: item.name,
+    }
+    setTags((prev) => [...prev, newTag])
+    if (!isEditMode) setIsEditMode(true)
+  }, [tags, currentLocation, isEditMode])
+
+  const handleRemoveItemTag = useCallback((itemId: string) => {
+    setTags((prev) => prev.filter((t) => !(t.target_type === 'item' && t.target_id === itemId)))
+    if (!isEditMode) setIsEditMode(true)
+  }, [isEditMode])
 
   const handlePhotoSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -201,6 +239,73 @@ export function PropertyLocationMap({
                 </button>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assigned items tray */}
+      {currentLocation && assignedItems.length > 0 && (
+        <div className="px-4 mb-3">
+          <div className="rounded-lg border border-tertiary/10 overflow-hidden">
+            {/* Summary bar */}
+            <button
+              className="w-full flex items-center justify-between px-3 py-2 bg-secondary/5 hover:bg-secondary/10 transition-colors"
+              onClick={() => setIsTrayExpanded((prev) => !prev)}
+            >
+              <div className="flex items-center gap-2">
+                <Package size={14} className="text-tertiary" />
+                <span className="text-xs font-medium text-primary">
+                  {assignedItems.length} item{assignedItems.length !== 1 ? 's' : ''} assigned
+                </span>
+                {assignedItems.length - taggedItemIds.size > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
+                    {assignedItems.length - taggedItemIds.size} not on schematic
+                  </span>
+                )}
+              </div>
+              {isTrayExpanded ? <ChevronUp size={14} className="text-tertiary" /> : <ChevronDown size={14} className="text-tertiary" />}
+            </button>
+
+            {/* Expanded list */}
+            {isTrayExpanded && (
+              <div className="max-h-[200px] overflow-y-auto divide-y divide-tertiary/5">
+                {assignedItems.map((item) => {
+                  const isPlaced = taggedItemIds.has(item.id)
+                  return (
+                    <div key={item.id} className="flex items-center gap-2 px-3 py-2">
+                      {isPlaced ? (
+                        <CheckCircle2 size={14} className="text-green-500 shrink-0" />
+                      ) : (
+                        <CirclePlus size={14} className="text-tertiary shrink-0" />
+                      )}
+                      <button
+                        className="flex-1 text-left text-xs text-primary truncate hover:text-themeblue3"
+                        onClick={() => onSelectItem(item)}
+                      >
+                        {item.name}
+                      </button>
+                      {isPlaced ? (
+                        isEditMode && (
+                          <button
+                            className="p-1 rounded-full hover:bg-red-50 text-tertiary hover:text-red-500 transition-colors"
+                            onClick={() => handleRemoveItemTag(item.id)}
+                          >
+                            <X size={12} />
+                          </button>
+                        )
+                      ) : (
+                        <button
+                          className="flex items-center gap-1 px-2 py-1 rounded-full bg-themeblue3/10 text-themeblue3 text-[10px] font-medium hover:bg-themeblue3/20 transition-colors"
+                          onClick={() => handleAddItemTag(item)}
+                        >
+                          <Plus size={10} /> Place
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}

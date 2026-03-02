@@ -24,8 +24,6 @@ import {
   fetchGroupConversation,
   markMessagesRead,
   deleteMessages as deleteMessagesFromSupabase,
-  softDeleteMessages,
-  fetchDeletedMessages,
 } from '../lib/signal/signalService'
 import {
   fetchMyGroups as fetchMyGroupsRpc,
@@ -107,11 +105,13 @@ function rpcResultToBundle(rpc: PeerBundleRpcResult): PublicKeyBundle {
  * Returns FanOutMessageInput[] ready for sendMessageFanOut.
  *
  * `serialized` should already be the output of serializeContent().
+ * `senderUuid` is the current user's UUID — required for sealed sender envelope.
  */
 async function encryptForAllDevices(
   peerId: string,
   peerDevices: PeerDevice[],
-  serialized: string
+  serialized: string,
+  senderUuid: string
 ): Promise<FanOutMessageInput[]> {
   const results: FanOutMessageInput[] = []
 
@@ -128,18 +128,18 @@ async function encryptForAllDevices(
         }
 
         const bundle = rpcResultToBundle(bundleResult.data)
-        const initialMessage = await createOutboundSession(peerId, device.deviceId, bundle, serialized)
+        const sealedEnvelope = await createOutboundSession(peerId, device.deviceId, bundle, serialized, senderUuid)
         results.push({
           recipientDeviceId: device.deviceId,
-          payload: initialMessage as unknown as Record<string, unknown>,
+          payload: sealedEnvelope as unknown as Record<string, unknown>,
           messageType: 'initial',
         })
       } else {
         // Existing session — encrypt
-        const encrypted = await encryptMessage(peerId, device.deviceId, serialized)
+        const sealedEnvelope = await encryptMessage(peerId, device.deviceId, serialized, senderUuid)
         results.push({
           recipientDeviceId: device.deviceId,
-          payload: encrypted as unknown as Record<string, unknown>,
+          payload: sealedEnvelope as unknown as Record<string, unknown>,
           messageType: 'message',
         })
       }
@@ -171,7 +171,7 @@ async function sendSyncToOwnDevices(
   if (otherDevices.length === 0) return
 
   const serialized = JSON.stringify(syncPayload)
-  const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized)
+  const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized, userId)
 
   // Tag all as sync
   for (const input of fanOutInputs) {
@@ -200,7 +200,7 @@ async function encryptAndSendToPeer(
   const peerDevices = devicesResult.ok ? devicesResult.data : []
 
   if (peerDevices.length > 0) {
-    const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized)
+    const fanOutInputs = await encryptForAllDevices(peerId, peerDevices, serialized, userId)
     // Tag as 'request' if needed (X3DH creates 'initial' type, but requests need the tag)
     if (messageType === 'request') {
       for (const input of fanOutInputs) input.messageType = 'request'
@@ -220,12 +220,12 @@ async function encryptAndSendToPeer(
     if (!bundleResult.ok) return errResult(bundleResult.error)
     const bundle = rpcResultToBundle(bundleResult.data)
     const peerDeviceId = bundle.deviceId || 'unknown'
-    const initialMessage = await createOutboundSession(peerId, peerDeviceId, bundle, serialized)
+    const initialMessage = await createOutboundSession(peerId, peerDeviceId, bundle, serialized, userId)
     const legacyType = messageType === 'request' ? 'request' : 'initial'
     return sendSignalMessage(userId, peerId, initialMessage, legacyType, localDeviceId, peerDeviceId, groupId, originId)
   }
 
-  const encrypted = await encryptMessage(peerId, 'unknown', serialized)
+  const encrypted = await encryptMessage(peerId, 'unknown', serialized, userId)
   return sendSignalMessage(userId, peerId, encrypted, 'message', localDeviceId, undefined, groupId, originId)
 }
 
@@ -249,7 +249,7 @@ async function encryptAndSendToGroupMembers(
     const peerDevices = devicesResult.ok ? devicesResult.data : []
 
     if (peerDevices.length > 0) {
-      const fanOutInputs = await encryptForAllDevices(member.userId, peerDevices, serialized)
+      const fanOutInputs = await encryptForAllDevices(member.userId, peerDevices, serialized, userId)
       if (fanOutInputs.length === 0) {
         logger.warn(`Could not encrypt group message for ${member.userId}`)
         continue
@@ -299,7 +299,7 @@ export interface UseMessagesReturn {
   markAsRead: (peerId: string) => void
   /** Edit a message's plaintext (local-only). */
   editMessage: (peerId: string, messageId: string, newText: string) => void
-  /** Delete messages (state + IndexedDB + Supabase). */
+  /** Delete messages (state + IndexedDB + protocol-level delete to peer and own devices). */
   deleteMessages: (peerId: string, messageIds: string[]) => Promise<void>
   /** Whether a send is currently in progress. */
   sending: boolean
@@ -430,7 +430,7 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [userId, addMessage])
 
-  /** Remove messages by IDs from all conversations (tombstone cleanup callback). */
+  /** Remove messages by IDs from all conversations (delete callback). */
   const removeMessagesByIds = useCallback((messageIds: string[]) => {
     const idSet = new Set(messageIds)
     setConversations(prev => {
@@ -601,7 +601,7 @@ export function useMessages(): UseMessagesReturn {
           : []
 
         if (otherDevices.length > 0) {
-          const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized)
+          const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized, userId)
           if (fanOutInputs.length > 0) {
             const sendResult = await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, undefined, originId)
             if (!sendResult.ok) {
@@ -958,8 +958,10 @@ export function useMessages(): UseMessagesReturn {
     updateMessageText(messageId, newText).catch(() => {})
   }, [])
 
-  /** Delete messages for everyone (state + IndexedDB + soft-delete RPC). */
+  /** Delete messages via protocol-level 'delete' messages (state + IndexedDB + peer notification). */
   const deleteMessages = useCallback(async (peerId: string, messageIds: string[]) => {
+    if (!userId || !localDeviceId) return
+
     // 1. Collect originIds from the messages being deleted
     const msgs = conversationsRef.current[peerId] ?? []
     const originIds = messageIds
@@ -985,14 +987,54 @@ export function useMessages(): UseMessagesReturn {
       logger.warn('Failed to delete messages from IDB:', e instanceof Error ? e.message : e)
     )
 
-    // 4. Soft-delete all copies via RPC (sender-only, tags all fan-out rows)
-    if (originIds.length > 0) {
-      const result = await softDeleteMessages(originIds)
-      if (!result.ok) {
-        logger.error('Soft delete failed:', result.error)
+    if (originIds.length === 0) return
+
+    const deletePayload = JSON.stringify({ originIds })
+
+    // 4. Send protocol-level 'delete' to peer's devices
+    try {
+      const devicesResult = await fetchPeerDevices(peerId)
+      if (devicesResult.ok && devicesResult.data.length > 0) {
+        const fanOutInputs = await encryptForAllDevices(peerId, devicesResult.data, deletePayload, userId)
+        for (const input of fanOutInputs) {
+          input.messageType = 'delete'
+        }
+        if (fanOutInputs.length > 0) {
+          await sendMessageFanOut(userId, localDeviceId, peerId, fanOutInputs).catch(e =>
+            logger.warn('Failed to send delete to peer devices:', e instanceof Error ? e.message : e)
+          )
+        }
       }
+    } catch (e) {
+      logger.warn('Failed to send delete to peer:', e instanceof Error ? e.message : e)
     }
-  }, [])
+
+    // 5. Send 'delete' to own other devices (sync)
+    try {
+      const ownDevicesResult = await fetchOwnDevices(userId)
+      if (ownDevicesResult.ok) {
+        const otherDevices = ownDevicesResult.data.filter(d => d.deviceId !== localDeviceId)
+        if (otherDevices.length > 0) {
+          const syncInputs = await encryptForAllDevices(userId, otherDevices, deletePayload, userId)
+          for (const input of syncInputs) {
+            input.messageType = 'delete'
+          }
+          if (syncInputs.length > 0) {
+            await sendMessageFanOut(userId, localDeviceId, userId, syncInputs).catch(e =>
+              logger.warn('Failed to sync delete to own devices:', e instanceof Error ? e.message : e)
+            )
+          }
+        }
+      }
+    } catch (e) {
+      logger.warn('Failed to sync delete to own devices:', e instanceof Error ? e.message : e)
+    }
+
+    // 6. Hard-delete own received rows from Supabase (RLS allows: recipient_id = auth.uid())
+    deleteMessagesFromSupabase(messageIds).catch(e =>
+      logger.warn('Failed to hard-delete from Supabase:', e instanceof Error ? e.message : e)
+    )
+  }, [userId, localDeviceId])
 
   // ── Group messaging ────────────────────────────────────────────────────
 

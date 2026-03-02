@@ -20,12 +20,12 @@ const logger = createLogger('OutboundQueue')
 
 export interface OutboundQueueEntry {
   id: string              // crypto.randomUUID() — client-generated
-  senderId: string
+  senderId?: string       // optional (used only for notification skip check)
   recipientId: string
   senderDeviceId: string | null
   recipientDeviceId: string | null
   groupId: string | null  // set for group messages
-  messageType: 'initial' | 'message' | 'request' | 'request-accepted'
+  messageType: 'initial' | 'message' | 'request' | 'request-accepted' | 'sync' | 'delete'
   payload: string         // encrypted via encryptString()
   createdAt: string       // ISO timestamp
   status: 'pending' | 'sending' | 'failed'
