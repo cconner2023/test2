@@ -5,7 +5,7 @@ import { clamp } from '../../Utilities/GestureUtils'
 import type { LocationTag } from '../../Types/PropertyTypes'
 
 interface LocationTagPhotoProps {
-  photoData: string
+  photoData?: string | null
   tags: LocationTag[]
   isEditMode: boolean
   onTagTap?: (tag: LocationTag) => void
@@ -23,12 +23,25 @@ export function LocationTagPhoto({
 
   return (
     <div ref={containerRef} className="relative w-full select-none touch-none">
-      <img
-        src={photoData}
-        alt="Location"
-        className="w-full rounded-lg"
-        draggable={false}
-      />
+      {photoData ? (
+        <img
+          src={photoData}
+          alt="Location"
+          className="w-full rounded-lg"
+          draggable={false}
+        />
+      ) : (
+        <div
+          className="w-full rounded-lg"
+          style={{
+            aspectRatio: '1 / 1',
+            backgroundColor: '#f0f0f0',
+            backgroundImage:
+              'linear-gradient(to right, #e0e0e0 1px, transparent 1px), linear-gradient(to bottom, #e0e0e0 1px, transparent 1px)',
+            backgroundSize: '10% 10%',
+          }}
+        />
+      )}
 
       {tags.map((tag) =>
         isEditMode ? (

@@ -35,6 +35,7 @@ export interface PropertyItem {
   nsn: string | null
   lin: string | null
   serial_number: string | null
+  quantity: number
   condition_code: PropertyCondition
   parent_item_id: string | null   // self-FK for sub-items / components
   location_id: string | null      // FK to property_locations for placement

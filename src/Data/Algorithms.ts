@@ -3215,10 +3215,6 @@ export const Algorithm: AlgorithmType[] = [
                                 text: 'If the Soldier presents with any of the red flags, immediately disposition the Soldier as “Provider Now”. Start the Soldier on oxygen with non-rebreather mask at 10 Liters/ minute, start an IV and IVF at TKO and obtain EKG if available. They can be signs of significant underlying medical problems.',
                                 ancillaryFind: [
                                     {
-                                        type: 'med',
-                                        modifier: 'aspirin'
-                                    },
-                                    {
                                         type: 'protocol',
                                         modifier: 'EKG'
                                     },
@@ -3235,16 +3231,10 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "No",
                         disposition: [],
-                        next: [2, 3],
+                        next: 2,
                         selectAll: false
                     }
                 ]
-            },
-            {
-                text: "EKG",
-                type: "action",
-                questionOptions: [],
-                answerOptions: []
             },
             {
                 text: "Do any of the following apply?",
@@ -3291,7 +3281,7 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "No",
                         disposition: [],
-                        next: 4,
+                        next: 3,
                         selectAll: false
                     }
                 ]
@@ -3322,7 +3312,7 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "No",
                         disposition: [],
-                        next: 5,
+                        next: 4,
                         selectAll: false
                     }
                 ]
@@ -3340,6 +3330,10 @@ export const Algorithm: AlgorithmType[] = [
                         text: "Yes",
                         disposition: [Disposition[2]],
                         decisionMaking: [
+                            {
+                                type: 'dmp',
+                                text: 'Identifies conditions that are self-limited or can be treated with a minor-care protocol.'
+                            },
                             {
                                 type: 'dmp',
                                 ddx: ['cold'],
@@ -3375,12 +3369,6 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        decisionMaking: [
-                            {
-                                type: 'dmp',
-                                text: 'Identifies conditions that are self-limited or can be treated with a minor-care protocol.'
-                            }
-                        ],
                         disposition: [Disposition[1]],
                         next: null,
                         selectAll: false

@@ -34,6 +34,11 @@ export function PropertyItemRow({ item, holderName, subItemCount, onTap }: Prope
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
+        {(item.quantity ?? 1) > 1 && (
+          <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">
+            x{item.quantity}
+          </span>
+        )}
         {subItemCount != null && subItemCount > 0 && (
           <span className="text-[10px] bg-themeblue3/10 text-themeblue3 px-1.5 py-0.5 rounded-full font-medium">
             {subItemCount}

@@ -245,6 +245,7 @@ export function PropertyPanel() {
             clinicId={property.clinicId || ''}
             onAddLocation={property.addLocation}
             onUpdateLocation={property.editLocation}
+            onDeleteLocation={property.removeLocation}
             onSelectItem={handleSelectItem}
             userId={user?.id || ''}
           />

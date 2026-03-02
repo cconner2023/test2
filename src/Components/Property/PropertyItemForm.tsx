@@ -47,6 +47,7 @@ export function PropertyItemForm({
   const [nsn, setNsn] = useState(editingItem?.nsn ?? '')
   const [lin, setLin] = useState(editingItem?.lin ?? '')
   const [serialNumber, setSerialNumber] = useState(editingItem?.serial_number ?? '')
+  const [quantity, setQuantity] = useState(editingItem?.quantity ?? 1)
   const [placement, setPlacement] = useState(encodePlacement(editingItem ?? null))
   const [photoUrl, setPhotoUrl] = useState<string | null>(editingItem?.photo_url ?? null)
   const [notes, setNotes] = useState(editingItem?.notes ?? '')
@@ -102,6 +103,7 @@ export function PropertyItemForm({
           nsn: nsn.trim() || null,
           lin: lin.trim() || null,
           serial_number: serialNumber.trim() || null,
+          quantity,
           parent_item_id: parentItemId,
           location_id: locationId,
           photo_url: photoUrl,
@@ -115,6 +117,7 @@ export function PropertyItemForm({
           nsn: nsn.trim() || null,
           lin: lin.trim() || null,
           serial_number: serialNumber.trim() || null,
+          quantity,
           condition_code: 'serviceable',
           parent_item_id: parentItemId,
           location_id: locationId,
@@ -130,7 +133,7 @@ export function PropertyItemForm({
     } finally {
       setIsSaving(false)
     }
-  }, [name, nomenclature, nsn, lin, serialNumber, placement, photoUrl, notes, isEdit, editingItem, onSave, onUpdate, onClose, clinicId])
+  }, [name, nomenclature, nsn, lin, serialNumber, quantity, placement, photoUrl, notes, isEdit, editingItem, onSave, onUpdate, onClose, clinicId])
 
   return (
     <div className="flex flex-col h-full">
@@ -172,6 +175,12 @@ export function PropertyItemForm({
           <div>
             <label className={labelClass}>Serial Number</label>
             <input className={inputClass} value={serialNumber} onChange={(e) => setSerialNumber(e.target.value)} placeholder="Serial number" />
+          </div>
+
+          {/* Quantity */}
+          <div>
+            <label className={labelClass}>Quantity</label>
+            <input className={inputClass} type="number" min={1} value={quantity} onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))} />
           </div>
 
           {/* Placement — combined location + parent item picker */}

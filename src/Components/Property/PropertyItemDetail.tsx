@@ -82,6 +82,7 @@ export function PropertyItemDetail({
         <Field label="NSN" value={item.nsn} />
         <Field label="LIN" value={item.lin} />
         <Field label="Serial #" value={item.serial_number} />
+        <Field label="Quantity" value={String(item.quantity ?? 1)} />
         <Field label="Location" value={locationName} />
         <Field label="Condition" value={conditionLabel[item.condition_code]} className={conditionColor[item.condition_code]} />
         <Field label="Holder" value={holderName || 'Unassigned'} />
