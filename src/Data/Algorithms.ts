@@ -3235,7 +3235,7 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "No",
                         disposition: [],
-                        next: 2,
+                        next: [2, 3],
                         selectAll: false
                     }
                 ]
@@ -3291,7 +3291,7 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "No",
                         disposition: [],
-                        next: 3,
+                        next: 4,
                         selectAll: false
                     }
                 ]
@@ -3322,7 +3322,7 @@ export const Algorithm: AlgorithmType[] = [
                     {
                         text: "No",
                         disposition: [],
-                        next: 4,
+                        next: 5,
                         selectAll: false
                     }
                 ]
