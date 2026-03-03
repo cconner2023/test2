@@ -28,6 +28,11 @@ const logger = createLogger('BackupService')
 /** Non-extractable AES-256-GCM key derived from the user's password at sign-in. */
 let _backupKey: CryptoKey | null = null
 
+/** Promise that resolves when the key derivation is complete.
+ *  restoreBackup awaits this so it doesn't race with the PBKDF2 derivation
+ *  that runs fire-and-forget from signIn(). */
+let _backupKeyReady: Promise<void> | null = null
+
 /** Fixed app-level salt for deriving the cached backup master key.
  *  This is NOT the per-backup salt (that is random each time). */
 const BACKUP_MASTER_SALT = new Uint8Array([
@@ -45,32 +50,36 @@ let _backupTimer: ReturnType<typeof setTimeout> | null = null
  * Derive a non-extractable AES-256-GCM CryptoKey from the password and cache it.
  * The plaintext password is never stored; it goes out of scope in the caller.
  */
-export async function deriveAndStoreBackupKey(password: string): Promise<void> {
-  const enc = new TextEncoder()
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    enc.encode(password),
-    'PBKDF2',
-    false,
-    ['deriveKey'],
-  )
-  _backupKey = await crypto.subtle.deriveKey(
-    {
-      name: 'PBKDF2',
-      salt: BACKUP_MASTER_SALT,
-      iterations: SIGNAL.BACKUP_PBKDF2_ITERATIONS,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    { name: 'AES-GCM', length: 256 },
-    false,                // non-extractable
-    ['encrypt', 'decrypt'],
-  )
+export function deriveAndStoreBackupKey(password: string): Promise<void> {
+  _backupKeyReady = (async () => {
+    const enc = new TextEncoder()
+    const keyMaterial = await crypto.subtle.importKey(
+      'raw',
+      enc.encode(password),
+      'PBKDF2',
+      false,
+      ['deriveKey'],
+    )
+    _backupKey = await crypto.subtle.deriveKey(
+      {
+        name: 'PBKDF2',
+        salt: BACKUP_MASTER_SALT,
+        iterations: SIGNAL.BACKUP_PBKDF2_ITERATIONS,
+        hash: 'SHA-256',
+      },
+      keyMaterial,
+      { name: 'AES-GCM', length: 256 },
+      false,                // non-extractable
+      ['encrypt', 'decrypt'],
+    )
+  })()
+  return _backupKeyReady
 }
 
 /** Wipe cached key (called on sign-out). */
 export function clearBackupKey(): void {
   _backupKey = null
+  _backupKeyReady = null
   if (_backupTimer) {
     clearTimeout(_backupTimer)
     _backupTimer = null
@@ -185,6 +194,7 @@ async function loadRawMessages(): Promise<StoredMessage[]> {
 
 /** Create an encrypted backup and upsert to Supabase. */
 export async function createBackup(userId: string): Promise<void> {
+  if (_backupKeyReady) await _backupKeyReady
   if (!_backupKey) {
     logger.warn('No backup key cached, skipping backup')
     return
@@ -236,6 +246,7 @@ export async function createBackup(userId: string): Promise<void> {
 
 /** Restore messages from an encrypted backup on Supabase. */
 export async function restoreBackup(userId: string): Promise<void> {
+  if (_backupKeyReady) await _backupKeyReady
   if (!_backupKey) {
     logger.warn('No backup key cached, skipping restore')
     return

@@ -519,22 +519,20 @@ export function useMessages(): UseMessagesReturn {
     setConversations(prev => {
       const msgs = prev[peerId]
       if (!msgs) return prev
-      const updated = msgs.map(m =>
-        m.id === localId ? { ...m, id: serverId, status: undefined } : m
-      )
+      const updated = msgs.map(m => {
+        if (m.id === localId) {
+          const confirmed = { ...m, id: serverId, status: undefined }
+          // Persist confirmed message to IDB directly from the updater where we
+          // have the data. db.put is idempotent so harmless if called twice.
+          if (userId) {
+            saveMessage(confirmed, userId).catch(() => {})
+          }
+          return confirmed
+        }
+        return m
+      })
       return { ...prev, [peerId]: updated }
     })
-
-    // Now persist the confirmed message to IDB
-    if (userId) {
-      setTimeout(() => {
-        const msgs = conversationsRef.current[peerId]
-        const confirmed = msgs?.find(m => m.id === serverId)
-        if (confirmed) {
-          saveMessage({ ...confirmed, status: undefined }, userId!).catch(() => {})
-        }
-      }, 0)
-    }
   }, [userId])
 
   /** Remove an optimistic message from state (on send failure). */
@@ -1095,7 +1093,7 @@ export function useMessages(): UseMessagesReturn {
     addMessage({
       id: localId,
       senderId: userId,
-      recipientId: userId,
+      recipientId: groupId,
       plaintext: text,
       content: textContent,
       messageType: 'message',
@@ -1157,7 +1155,7 @@ export function useMessages(): UseMessagesReturn {
       addMessage({
         id: localId,
         senderId: userId,
-        recipientId: userId,
+        recipientId: groupId,
         plaintext: '\u{1F4F7} Photo',
         content: placeholderContent,
         messageType: 'message',
