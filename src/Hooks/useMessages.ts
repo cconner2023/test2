@@ -613,6 +613,22 @@ export function useMessages(): UseMessagesReturn {
         // Confirm optimistic message (local-only, no server row targets this device)
         const confirmedId = crypto.randomUUID()
         updateMessageStatus(userId, localId, confirmedId)
+
+        // Persist directly to IDB — updateMessageStatus relies on a setTimeout
+        // that reads conversationsRef, which may not have flushed yet (race condition).
+        saveMessage({
+          id: confirmedId,
+          senderId: userId,
+          recipientId: userId,
+          plaintext: text,
+          content: { type: 'text', text, ...(replyTo && { replyTo }) },
+          messageType: 'message',
+          createdAt: now,
+          readAt: now,
+          originId,
+          ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
+        }, userId).catch(() => {})
+
         return true
       } catch (e) {
         logger.error('Self-note error:', e instanceof Error ? e.message : e)
@@ -1110,7 +1126,7 @@ export function useMessages(): UseMessagesReturn {
 
       updateMessageStatus(groupId, localId, result.data)
       sendSyncToOwnDevices(userId, localDeviceId, {
-        forPeerId: userId, serialized, originalMessageType: 'message',
+        forPeerId: groupId, serialized, originalMessageType: 'message',
         originalTimestamp: now, originalMessageId: result.data,
       }, groupId, originId).catch(() => {})
       return true
@@ -1191,7 +1207,7 @@ export function useMessages(): UseMessagesReturn {
 
       updateMessageStatus(groupId, localId, result.data)
       sendSyncToOwnDevices(userId, localDeviceId, {
-        forPeerId: userId, serialized, originalMessageType: 'message',
+        forPeerId: groupId, serialized, originalMessageType: 'message',
         originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
       }, groupId, originId).catch(() => {})
       return true
