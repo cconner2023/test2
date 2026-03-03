@@ -27,6 +27,7 @@ import { unregisterDevice, deleteKeyBundle, primaryLogoutAll } from '../lib/sign
 import { secureSet, secureGet, secureRemove, persistSupabaseAuth, destroySecureStore } from '../lib/secureStorage'
 import { clearOutboundQueue, destroyOutboundQueue } from '../lib/signal/outboundQueue'
 import { clearBackupKey, deleteBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
+import { unsubscribeFromPush } from '../lib/pushNotificationService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { registerSessionCleanup, updateCleanupToken, updateCleanupDeviceId, updateCleanupIsPrimary } from '../lib/sessionCleanup'
 import type { User } from '@supabase/supabase-js'
@@ -119,7 +120,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   // Fetch core profile + clinic name.
   // Try with needs_password_setup first (available after migration).
   // Fall back to the query without it if the column doesn't exist yet.
-  const BASE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, notify_messages, note_include_hpi, note_include_pe, pe_depth, text_expanders, text_expander_enabled'
+  const BASE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, note_include_hpi, note_include_pe, pe_depth, text_expanders, text_expander_enabled'
   let { data, error: fetchError } = await supabase
     .from('profiles')
     .select(`${BASE_SELECT}, needs_password_setup`)
@@ -160,7 +161,6 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     }
 
     if (sec.notify_dev_alerts != null) profile.notifyDevAlerts = sec.notify_dev_alerts as boolean
-    if (sec.notify_messages != null) profile.notifyMessages = sec.notify_messages as boolean
     if (sec.note_include_hpi != null) profile.noteIncludeHPI = sec.note_include_hpi as boolean
     if (sec.note_include_pe != null) profile.noteIncludePE = sec.note_include_pe as boolean
     if (sec.pe_depth != null) {
@@ -309,6 +309,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
     const role = get().deviceRole
     if (userId) {
       try {
+        // Remove this device's push subscription (browser + Supabase row)
+        await unsubscribeFromPush().catch(() => {})
+
         if (role === 'primary') {
           // Primary logout: destroy all linked devices + sessions first
           await primaryLogoutAll()

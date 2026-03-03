@@ -18,7 +18,6 @@ export const NotificationSettingsPanel = () => {
   const [error, setError] = useState('')
 
   const devAlerts = profile.notifyDevAlerts ?? false
-  const messageNotifs = profile.notifyMessages ?? true
   const [soundsEnabled, setSoundsEnabled] = useState(isMessageSoundsEnabled)
 
   useEffect(() => {
@@ -35,12 +34,31 @@ export const NotificationSettingsPanel = () => {
     setTimeout(() => setError(''), UI_TIMING.SAVE_ERROR_DURATION)
   }, [])
 
-  /** Persist a notification preference optimistically */
-  const handleToggle = useCallback(async (
-    field: 'notifyDevAlerts' | 'notifyMessages',
-    dbColumn: string,
-    newValue: boolean,
-  ) => {
+  /** Toggle message notifications — controls device push subscription directly */
+  const handleMessageToggle = useCallback(async () => {
+    setError('')
+
+    if (isSubscribed) {
+      // Unsubscribe: removes browser subscription + deletes push_subscriptions row
+      const ok = await unsubscribe()
+      if (!ok) {
+        showError(pushError || 'Could not disable notifications')
+        return
+      }
+      showSuccess('Notifications disabled')
+    } else {
+      // Subscribe: triggers OS/browser permission prompt, saves subscription row
+      const ok = await subscribe()
+      if (!ok) {
+        showError(pushError || 'Could not enable notifications')
+        return
+      }
+      showSuccess('Notifications enabled')
+    }
+  }, [isSubscribed, subscribe, unsubscribe, pushError, showSuccess, showError])
+
+  /** Toggle dev alerts — global profile preference */
+  const handleDevAlertToggle = useCallback(async (newValue: boolean) => {
     setError('')
 
     // If enabling, ensure push subscription exists (device permission — must await)
@@ -53,12 +71,12 @@ export const NotificationSettingsPanel = () => {
     }
 
     // Immediate local update
-    updateProfile({ [field]: newValue })
+    updateProfile({ notifyDevAlerts: newValue })
 
     // Fire-and-forget Supabase sync
-    syncProfileField({ [dbColumn]: newValue })
+    syncProfileField({ notify_dev_alerts: newValue })
 
-    showSuccess(newValue ? 'Notifications enabled' : 'Notifications updated')
+    showSuccess(newValue ? 'Dev alerts enabled' : 'Dev alerts disabled')
   }, [isSubscribed, subscribe, pushError, updateProfile, syncProfileField, showSuccess, showError])
 
   return (
@@ -66,8 +84,8 @@ export const NotificationSettingsPanel = () => {
       <div className="px-5 py-4 space-y-5">
         {/* Description */}
         <p className="text-xs text-tertiary leading-relaxed">
-          Choose which notifications you'd like to receive. Your preferences sync across devices —
-          each device still needs its own browser permission.
+          Choose which notifications you'd like to receive. Message notifications are per-device —
+          enable or disable them independently on each device.
         </p>
 
         {/* Success banner */}
@@ -93,28 +111,28 @@ export const NotificationSettingsPanel = () => {
         {/* Messages toggle — visible to all authenticated users */}
         {isSupported && isAuthenticated && (
           <div className={`rounded-xl border overflow-hidden transition-all
-            ${messageNotifs ? 'border-themeblue2/25 bg-themeblue2/10' : 'border-tertiary/15 bg-themewhite2'}
+            ${isSubscribed ? 'border-themeblue2/25 bg-themeblue2/10' : 'border-tertiary/15 bg-themewhite2'}
             ${loading ? 'opacity-50 pointer-events-none' : ''}`}
           >
             <div
               className="flex items-center gap-3 px-4 py-3.5 cursor-pointer"
-              onClick={() => handleToggle('notifyMessages', 'notify_messages', !messageNotifs)}
+              onClick={handleMessageToggle}
               role="button"
               tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggle('notifyMessages', 'notify_messages', !messageNotifs); } }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleMessageToggle(); } }}
             >
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${messageNotifs ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                <Mail size={18} className={messageNotifs ? 'text-themeblue2' : 'text-tertiary/50'} />
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isSubscribed ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                <Mail size={18} className={isSubscribed ? 'text-themeblue2' : 'text-tertiary/50'} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${messageNotifs ? 'text-primary' : 'text-tertiary'}`}>Messages</p>
+                <p className={`text-sm font-medium ${isSubscribed ? 'text-primary' : 'text-tertiary'}`}>Messages</p>
                 <p className="text-[11px] text-tertiary/70 mt-0.5">New messages, requests, and accepted requests</p>
               </div>
-              <ToggleSwitch checked={messageNotifs} />
+              <ToggleSwitch checked={isSubscribed} />
             </div>
 
             {/* Nested: Message Sounds */}
-            {messageNotifs && (
+            {isSubscribed && (
               <div className="border-t border-tertiary/10 px-4 py-3">
                 <div
                   onClick={() => {
@@ -156,10 +174,10 @@ export const NotificationSettingsPanel = () => {
                 ? 'border-themeblue2/25 bg-themeblue2/10'
                 : 'border-tertiary/15 bg-themewhite2'
               } ${loading ? 'opacity-50 pointer-events-none' : ''}`}
-            onClick={() => handleToggle('notifyDevAlerts', 'notify_dev_alerts', !devAlerts)}
+            onClick={() => handleDevAlertToggle(!devAlerts)}
             role="button"
             tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleToggle('notifyDevAlerts', 'notify_dev_alerts', !devAlerts); } }}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleDevAlertToggle(!devAlerts); } }}
           >
             <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${devAlerts ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
               <Code size={18} className={devAlerts ? 'text-themeblue2' : 'text-tertiary/50'} />

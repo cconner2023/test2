@@ -45,8 +45,6 @@ export interface UserTypes {
     clinicName?: string;
     /** Dev-only: login alerts, account requests, feedback */
     notifyDevAlerts?: boolean;
-    /** Notify on incoming encrypted messages */
-    notifyMessages?: boolean;
     /** Default: include HPI section when writing notes */
     noteIncludeHPI?: boolean;
     /** Default: include Physical Exam section when writing notes */
