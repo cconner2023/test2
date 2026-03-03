@@ -12,7 +12,8 @@ import {
     WRAPPER_BEFORE_COUNT,
 } from '../Data/PhysicalExamData';
 import type { CategoryLetter, Laterality, SpineRegion, PECategoryDef, PEItem, AbnormalOption, GeneralFinding } from '../Data/PhysicalExamData';
-import type { CustomPEBlock } from '../Data/User';
+import type { CustomPEBlock, TextExpander } from '../Data/User';
+import { ExpandableInput } from './ExpandableInput';
 
 type SystemStatus = 'not-examined' | 'normal' | 'abnormal';
 
@@ -31,6 +32,8 @@ interface PhysicalExamProps {
     symptomCode: string;
     depth?: PEDepth;
     customBlocks?: CustomPEBlock[];
+    expanders?: TextExpander[];
+    expanderEnabled?: boolean;
 }
 
 // ── Old-format body systems (for backward-compat parsing) ─────
@@ -446,7 +449,7 @@ function generateCustomText(
 
 // ── Shared item row renderer ─────────────────────────────────
 
-function ExamItemRow({ label, normalText, abnormalOptions, state, onCycleStatus, onToggleAbnormal, onSetFindings }: {
+function ExamItemRow({ label, normalText, abnormalOptions, state, onCycleStatus, onToggleAbnormal, onSetFindings, expanders = [], expanderEnabled = false }: {
     label: string;
     normalText?: string;
     abnormalOptions?: AbnormalOption[];
@@ -454,6 +457,8 @@ function ExamItemRow({ label, normalText, abnormalOptions, state, onCycleStatus,
     onCycleStatus: () => void;
     onToggleAbnormal: (optKey: string) => void;
     onSetFindings: (findings: string) => void;
+    expanders?: TextExpander[];
+    expanderEnabled?: boolean;
 }) {
     const findingsWarnings = useMemo(() => detectPII(state.findings), [state.findings]);
 
@@ -499,10 +504,11 @@ function ExamItemRow({ label, normalText, abnormalOptions, state, onCycleStatus,
                             ))}
                         </div>
                     )}
-                    <input
-                        type="text"
+                    <ExpandableInput
                         value={state.findings}
-                        onChange={(e) => onSetFindings(e.target.value)}
+                        onChange={onSetFindings}
+                        expanders={expanders}
+                        expanderEnabled={expanderEnabled}
                         placeholder="Describe findings..."
                         className="w-full text-xs px-3 py-1.5 rounded border border-themeredred/20 bg-themewhite text-tertiary outline-none focus:border-themeredred/40"
                         onClick={(e) => e.stopPropagation()}
@@ -518,7 +524,7 @@ function ExamItemRow({ label, normalText, abnormalOptions, state, onCycleStatus,
 
 const EMPTY_CUSTOM_BLOCKS: CustomPEBlock[] = [];
 
-export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, depth = 'minimal', customBlocks = EMPTY_CUSTOM_BLOCKS }: PhysicalExamProps) {
+export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, depth = 'minimal', customBlocks = EMPTY_CUSTOM_BLOCKS, expanders = [], expanderEnabled = false }: PhysicalExamProps) {
     const categoryLetter = getCategoryFromSymptomCode(symptomCode) || 'A';
     const categoryDef = getPECategory(categoryLetter);
     const bodyPart = useMemo(
@@ -744,9 +750,12 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
             {depth === 'minimal' && !isCustom ? (
                 <div>
                     <label className="text-xs text-secondary font-medium block mb-1">Additional Findings</label>
-                    <textarea
+                    <ExpandableInput
+                        multiline
                         value={additional}
-                        onChange={(e) => setAdditional(e.target.value)}
+                        onChange={setAdditional}
+                        expanders={expanders}
+                        expanderEnabled={expanderEnabled}
                         placeholder="Enter additional findings..."
                         className="w-full text-xs px-3 py-2 rounded border border-themegray1/20 bg-themewhite text-tertiary outline-none focus:border-themeblue1/30 resize-none min-h-3rem"
                     />
@@ -813,6 +822,8 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
                                     onCycleStatus={() => cycleStatus(g.key, setGeneralStates)}
                                     onToggleAbnormal={(optKey) => toggleAbnormal(g.key, optKey, setGeneralStates)}
                                     onSetFindings={(findings) => setFindings(g.key, findings, setGeneralStates)}
+                                    expanders={expanders}
+                                    expanderEnabled={expanderEnabled}
                                 />
                             );
                         })}
@@ -830,6 +841,8 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
                                         onCycleStatus={() => cycleStatus(block.id, setCustomStates)}
                                         onToggleAbnormal={(optKey) => toggleAbnormal(block.id, optKey, setCustomStates)}
                                         onSetFindings={(findings) => setFindings(block.id, findings, setCustomStates)}
+                                        expanders={expanders}
+                                        expanderEnabled={expanderEnabled}
                                     />
                                 );
                             })
@@ -846,6 +859,8 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
                                         onCycleStatus={() => cycleStatus(item.key, setItemStates)}
                                         onToggleAbnormal={(optKey) => toggleAbnormal(item.key, optKey, setItemStates)}
                                         onSetFindings={(findings) => setFindings(item.key, findings, setItemStates)}
+                                        expanders={expanders}
+                                        expanderEnabled={expanderEnabled}
                                     />
                                 );
                             })
@@ -862,6 +877,8 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
                                     onCycleStatus={() => cycleStatus(g.key, setGeneralStates)}
                                     onToggleAbnormal={(optKey) => toggleAbnormal(g.key, optKey, setGeneralStates)}
                                     onSetFindings={(findings) => setFindings(g.key, findings, setGeneralStates)}
+                                    expanders={expanders}
+                                    expanderEnabled={expanderEnabled}
                                 />
                             );
                         })}
@@ -870,9 +887,12 @@ export function PhysicalExam({ initialText = '', onChange, colors, symptomCode, 
                     {/* Additional Findings */}
                     <div>
                         <label className="text-xs text-secondary font-medium block mb-1">Additional Findings</label>
-                        <textarea
+                        <ExpandableInput
+                            multiline
                             value={additional}
-                            onChange={(e) => setAdditional(e.target.value)}
+                            onChange={setAdditional}
+                            expanders={expanders}
+                            expanderEnabled={expanderEnabled}
                             placeholder="Enter additional findings..."
                             className="w-full text-xs px-3 py-2 rounded border border-themegray1/20 bg-themewhite text-tertiary outline-none focus:border-themeblue1/30 resize-none min-h-[3rem]"
                         />

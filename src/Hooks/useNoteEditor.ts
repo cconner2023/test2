@@ -54,6 +54,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
     const authUserId = useAuthStore(s => s.user?.id);
     const defaultHPI = profile.noteIncludeHPI ?? true;
     const defaultPE = profile.noteIncludePE ?? false;
+    const defaultPlan = profile.noteIncludePlan ?? false;
 
     // --- Note content state ---
     const [note, setNote] = useState('');
@@ -61,6 +62,8 @@ export function useNoteEditor(config: NoteEditorConfig) {
     const [includeHPI, setIncludeHPI] = useState(defaultHPI);
     const [peNote, setPeNote] = useState('');
     const [includePhysicalExam, setIncludePhysicalExam] = useState(defaultPE);
+    const [planNote, setPlanNote] = useState('');
+    const [includePlan, setIncludePlan] = useState(defaultPlan);
     const [encodedValue, setEncodedValue] = useState('');
     const [copiedTarget, setCopiedTarget] = useState<'preview' | 'encoded' | null>(null);
 
@@ -132,13 +135,13 @@ export function useNoteEditor(config: NoteEditorConfig) {
     // --- Preview note generation ---
     useEffect(() => {
         const result = generateNote(
-            { includeAlgorithm, includeDecisionMaking, customNote: includeHPI ? note : '', physicalExamNote: includePhysicalExam ? peNote : '', signature },
+            { includeAlgorithm, includeDecisionMaking, customNote: includeHPI ? note : '', physicalExamNote: includePhysicalExam ? peNote : '', planNote: includePlan ? planNote : '', signature },
             dispositionType,
             dispositionText,
             selectedSymptom,
         );
         setPreviewNote(result.fullNote);
-    }, [note, includeDecisionMaking, includeHPI, peNote, includePhysicalExam, generateNote, dispositionType, dispositionText, selectedSymptom, signature, includeAlgorithm]);
+    }, [note, includeDecisionMaking, includeHPI, peNote, includePhysicalExam, planNote, includePlan, generateNote, dispositionType, dispositionText, selectedSymptom, signature, includeAlgorithm]);
 
     // --- Copy handler ---
     const handleCopy = useCallback((text: string, target: 'preview' | 'encoded') => {
@@ -256,8 +259,10 @@ export function useNoteEditor(config: NoteEditorConfig) {
         // Note state
         note, setNote, previewNote,
         peNote, setPeNote,
+        planNote, setPlanNote,
         includeHPI, setIncludeHPI,
         includePhysicalExam, setIncludePhysicalExam,
+        includePlan, setIncludePlan,
         encodedValue, setEncodedValue,
         copiedTarget, setCopiedTarget,
 
@@ -294,6 +299,6 @@ export function useNoteEditor(config: NoteEditorConfig) {
         inputRef, currentPageRef,
 
         // Profile / auth data (for barcode)
-        profile, authUserId, defaultHPI, defaultPE, signature, colors: _colors,
+        profile, authUserId, defaultHPI, defaultPE, defaultPlan, signature, colors: _colors,
     };
 }

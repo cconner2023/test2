@@ -30,7 +30,8 @@ export interface ParsedNote {
     actionEntries: { index: number; status: 'performed' | 'deferred' }[];
     hpiText: string;
     peText: string;
-    flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean; includePhysicalExam: boolean };
+    planText: string;
+    flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean; includePhysicalExam: boolean; includePlan: boolean };
     user: UserTypes | null;
     userId: string | null;
 }
@@ -40,6 +41,7 @@ export interface NoteEncodeOptions {
     includeDecisionMaking: boolean;
     customNote: string;
     physicalExamNote?: string;
+    planNote?: string;
     user?: UserTypes;
     userId?: string;
 }
@@ -89,7 +91,8 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         actionEntries: [],
         hpiText: '',
         peText: '',
-        flags: { includeAlgorithm: true, includeDecisionMaking: true, includeHPI: false, includePhysicalExam: false },
+        planText: '',
+        flags: { includeAlgorithm: true, includeDecisionMaking: true, includeHPI: false, includePhysicalExam: false, includePlan: false },
         user: null,
         userId: null,
     };
@@ -120,6 +123,8 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                 // Compressed or legacy base64 text format
                 result.peText = decompressText(value);
             }
+        } else if (prefix === 'N') {
+            result.planText = decompressText(value);
         } else if (prefix === 'F') {
             const flagsNum = parseInt(value, 10);
             result.flags = {
@@ -127,6 +132,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
                 includeDecisionMaking: !!(flagsNum & 2),
                 includeHPI: !!(flagsNum & 4),
                 includePhysicalExam: !!(flagsNum & 8),
+                includePlan: !!(flagsNum & 16),
             };
         } else if (prefix === 'T') {
             // Legacy timestamp segment — ignored (no longer used)
@@ -201,7 +207,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
             selections: legacySelections,
             answerIndex: -1,
         }];
-        result.flags = { includeAlgorithm: true, includeDecisionMaking: false, includeHPI: false, includePhysicalExam: false };
+        result.flags = { includeAlgorithm: true, includeDecisionMaking: false, includeHPI: false, includePhysicalExam: false, includePlan: false };
     }
 
     // Require a symptomCode for a valid note
@@ -305,12 +311,19 @@ export function encodeNoteState(
         }
     }
 
-    // 5. Flags: bit0=includeAlgorithm, bit1=includeDM, bit2=includeHPI, bit3=includePE
+    // 4c. Plan (compressed text, prefix 'N')
+    const planNoteText = noteOptions.planNote?.trim();
+    if (planNoteText) {
+        parts.push(`N${compressText(planNoteText)}`);
+    }
+
+    // 5. Flags: bit0=includeAlgorithm, bit1=includeDM, bit2=includeHPI, bit3=includePE, bit4=includePlan
     let flags = 0;
     if (noteOptions.includeAlgorithm) flags |= 1;
     if (noteOptions.includeDecisionMaking) flags |= 2;
     if (customNote) flags |= 4;
     if (peNote) flags |= 8;
+    if (planNoteText) flags |= 16;
     parts.push(`F${flags}`);
 
     // 6. User profile (indexed enums + base64 name)

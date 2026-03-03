@@ -61,6 +61,7 @@ interface NoteBarcodeGeneratorProps {
         includeDecisionMaking: boolean;
         customNote: string;
         physicalExamNote?: string;
+        planNote?: string;
         user?: UserTypes;
         userId?: string;
     };
@@ -82,7 +83,7 @@ export function NoteBarcodeGenerator({
 
     const compactString = useMemo(() =>
         encodeNoteState(algorithmOptions, cardStates, noteOptions, symptomCode),
-        [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.includeDecisionMaking, noteOptions.customNote, noteOptions.physicalExamNote, noteOptions.user, noteOptions.userId, symptomCode]
+        [algorithmOptions, cardStates, noteOptions.includeAlgorithm, noteOptions.includeDecisionMaking, noteOptions.customNote, noteOptions.physicalExamNote, noteOptions.planNote, noteOptions.user, noteOptions.userId, symptomCode]
     );
 
     // Encrypt (pack + deflate + AES-GCM + base64); skip for guests, fall back to plain ASCII if no key

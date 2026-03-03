@@ -32,6 +32,33 @@ export interface CustomPEBlock {
     abnormalTags: string[];
 }
 
+export interface PlanOrderTags {
+    referral: string[];
+    meds: string[];
+    radiology: string[];
+    lab: string[];
+}
+
+export const PLAN_ORDER_CATEGORIES = ['referral', 'meds', 'radiology', 'lab'] as const;
+export type PlanOrderCategory = typeof PLAN_ORDER_CATEGORIES[number];
+
+export const PLAN_ORDER_LABELS: Record<PlanOrderCategory, string> = {
+    referral: 'Referral',
+    meds: 'Medications',
+    radiology: 'Radiology',
+    lab: 'Lab',
+};
+
+/** A block key used by Plan: one of the 4 order categories or 'instructions' */
+export type PlanBlockKey = PlanOrderCategory | 'instructions';
+
+export interface PlanOrderSet {
+    id: string;
+    name: string;
+    /** Which tags to activate per block when this order set is applied */
+    presets: Partial<Record<PlanBlockKey, string[]>>;
+}
+
 export interface UserTypes {
     firstName?: string;
     lastName?: string;
@@ -57,6 +84,14 @@ export interface UserTypes {
     textExpanders?: TextExpander[];
     /** Whether text expander is active in the HPI field */
     textExpanderEnabled?: boolean;
+    /** Default: include Plan section when writing notes */
+    noteIncludePlan?: boolean;
+    /** User-defined order tags per category */
+    planOrderTags?: PlanOrderTags;
+    /** User-defined instruction tags */
+    planInstructionTags?: string[];
+    /** User-defined order sets (preset tag combinations) */
+    planOrderSets?: PlanOrderSet[];
 }
 
 export const credentials: Credential[] = ['EMT-B', 'EMT-A', 'EMT-P', 'PA-C', 'NP', 'MD', 'DO'];

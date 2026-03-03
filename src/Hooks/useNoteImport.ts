@@ -54,6 +54,7 @@ export const useNoteImport = () => {
                 includeDecisionMaking: parsed.flags.includeDecisionMaking,
                 customNote: parsed.flags.includeHPI ? parsed.hpiText : '',
                 physicalExamNote: parsed.flags.includePhysicalExam ? parsed.peText : '',
+                planNote: parsed.flags.includePlan ? parsed.planText : '',
                 signature: parsed.user ? formatSignature(parsed.user) : undefined,
             },
             algorithmOptions ?? [],

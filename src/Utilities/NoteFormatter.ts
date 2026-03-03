@@ -288,6 +288,7 @@ export interface NoteAssemblyOptions {
     includeDecisionMaking: boolean;
     customNote: string;
     physicalExamNote?: string;
+    planNote?: string;
     signature?: string;
 }
 
@@ -296,6 +297,7 @@ export interface AssembledNote {
         algorithm?: string;
         decisionMaking?: string;
         physicalExam?: string;
+        plan?: string;
         customNote: string;
     };
     fullNote: string;
@@ -364,6 +366,14 @@ export function assembleNote(
         }
     }
 
+    // Plan (after decision making, before signature)
+    const planNote = options.planNote?.trim();
+    if (planNote) {
+        fullNoteParts.push('PLAN:');
+        fullNoteParts.push(planNote);
+        fullNoteParts.push('');
+    }
+
     // Signature
     if (options.signature) {
         fullNoteParts.push(options.signature);
@@ -374,6 +384,7 @@ export function assembleNote(
             algorithm: algorithmContent,
             decisionMaking: decisionMakingContent,
             physicalExam: physicalExamNote || undefined,
+            plan: planNote || undefined,
             customNote,
         },
         fullNote: fullNoteParts.join('\n').trim(),

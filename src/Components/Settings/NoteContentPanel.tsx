@@ -1,7 +1,8 @@
 import { useState, useCallback } from 'react';
-import { FileText, Stethoscope, TextCursorInput, Plus, Pencil, Trash2, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { FileText, Stethoscope, ClipboardList, TextCursorInput, Plus, Pencil, Trash2, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
-import type { UserTypes, TextExpander, CustomPEBlock } from '../../Data/User';
+import type { UserTypes, TextExpander, CustomPEBlock, PlanOrderTags, PlanOrderCategory, PlanOrderSet, PlanBlockKey } from '../../Data/User';
+import { PLAN_ORDER_CATEGORIES, PLAN_ORDER_LABELS } from '../../Data/User';
 import { ToggleSwitch } from './ToggleSwitch';
 import { TextExpanderManager } from './TextExpanderManager';
 
@@ -270,6 +271,333 @@ const CustomPEBlockManager = ({ blocks, onChange }: CustomPEBlockManagerProps) =
     );
 };
 
+// ── Plan Tag Manager ────────────────────────────────────────
+
+interface PlanTagListProps {
+    label: string;
+    tags: string[];
+    onChange: (tags: string[]) => void;
+}
+
+const PlanTagList = ({ label, tags, onChange }: PlanTagListProps) => {
+    const [input, setInput] = useState('');
+
+    const addTag = () => {
+        const trimmed = input.trim();
+        if (!trimmed || tags.includes(trimmed)) { setInput(''); return; }
+        onChange([...tags, trimmed]);
+        setInput('');
+    };
+
+    const removeTag = (index: number) => {
+        onChange(tags.filter((_, i) => i !== index));
+    };
+
+    return (
+        <div className="space-y-1.5">
+            <p className="text-[11px] font-medium text-tertiary/70">{label}</p>
+            {tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                    {tags.map((tag, i) => (
+                        <span
+                            key={i}
+                            className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] rounded-full border border-themeblue2/20 bg-themeblue2/5 text-tertiary"
+                        >
+                            {tag}
+                            <button
+                                onClick={() => removeTag(i)}
+                                className="ml-0.5 hover:text-themeredred transition-colors"
+                                aria-label={`Remove ${tag}`}
+                            >
+                                <X size={10} />
+                            </button>
+                        </span>
+                    ))}
+                </div>
+            )}
+            <div className="flex gap-1">
+                <input
+                    type="text"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addTag(); } }}
+                    placeholder="Type tag and press Enter"
+                    className="flex-1 text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
+                />
+                <button
+                    onClick={addTag}
+                    className="text-[11px] px-2 py-1 rounded-md bg-tertiary/10 text-tertiary hover:bg-tertiary/20 transition-colors shrink-0"
+                >
+                    Add
+                </button>
+            </div>
+        </div>
+    );
+};
+
+interface PlanTagManagerProps {
+    orderTags: PlanOrderTags;
+    instructionTags: string[];
+    onOrderTagsChange: (tags: PlanOrderTags) => void;
+    onInstructionTagsChange: (tags: string[]) => void;
+}
+
+const PlanTagManager = ({ orderTags, instructionTags, onOrderTagsChange, onInstructionTagsChange }: PlanTagManagerProps) => {
+    const handleOrderCategoryChange = (cat: PlanOrderCategory, tags: string[]) => {
+        onOrderTagsChange({ ...orderTags, [cat]: tags });
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="space-y-3">
+                <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Order Tags</p>
+                {PLAN_ORDER_CATEGORIES.map(cat => (
+                    <PlanTagList
+                        key={cat}
+                        label={PLAN_ORDER_LABELS[cat]}
+                        tags={orderTags[cat]}
+                        onChange={(tags) => handleOrderCategoryChange(cat, tags)}
+                    />
+                ))}
+            </div>
+            <div>
+                <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">Instruction Tags</p>
+                <PlanTagList
+                    label="Instructions"
+                    tags={instructionTags}
+                    onChange={onInstructionTagsChange}
+                />
+            </div>
+        </div>
+    );
+};
+
+// ── Order Set Manager ───────────────────────────────────────
+
+const ALL_PLAN_BLOCK_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
+const ALL_PLAN_BLOCK_LABELS: Record<PlanBlockKey, string> = {
+    ...PLAN_ORDER_LABELS,
+    instructions: 'Instructions',
+};
+
+interface OrderSetManagerProps {
+    orderSets: PlanOrderSet[];
+    orderTags: PlanOrderTags;
+    instructionTags: string[];
+    onChange: (sets: PlanOrderSet[]) => void;
+}
+
+const OrderSetManager = ({ orderSets, orderTags, instructionTags, onChange }: OrderSetManagerProps) => {
+    const [isAdding, setIsAdding] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [expandedId, setExpandedId] = useState<string | null>(null);
+    const [name, setName] = useState('');
+    const [presets, setPresets] = useState<Partial<Record<PlanBlockKey, string[]>>>({});
+    const [error, setError] = useState('');
+
+    const allTags: Record<PlanBlockKey, string[]> = {
+        ...orderTags,
+        instructions: instructionTags,
+    };
+
+    // Only show block categories that have tags configured
+    const availableBlocks = ALL_PLAN_BLOCK_KEYS.filter(k => allTags[k].length > 0);
+
+    const validate = (n: string, skipId?: string): string => {
+        if (!n.trim()) return 'Name is required';
+        if (orderSets.some(s => s.id !== skipId && s.name.toLowerCase() === n.trim().toLowerCase()))
+            return 'Name already exists';
+        return '';
+    };
+
+    const startAdd = () => {
+        setEditingId(null);
+        setName('');
+        setPresets({});
+        setError('');
+        setIsAdding(true);
+    };
+
+    const startEdit = (os: PlanOrderSet) => {
+        setIsAdding(false);
+        setEditingId(os.id);
+        setName(os.name);
+        setPresets(JSON.parse(JSON.stringify(os.presets)));
+        setError('');
+    };
+
+    const cancel = () => {
+        setIsAdding(false);
+        setEditingId(null);
+        setName('');
+        setPresets({});
+        setError('');
+    };
+
+    const togglePresetTag = (key: PlanBlockKey, tag: string) => {
+        setPresets(prev => {
+            const current = prev[key] ?? [];
+            const next = current.includes(tag)
+                ? current.filter(t => t !== tag)
+                : [...current, tag];
+            return { ...prev, [key]: next };
+        });
+    };
+
+    const save = () => {
+        const err = validate(name, editingId ?? undefined);
+        if (err) { setError(err); return; }
+
+        // Strip empty arrays from presets
+        const cleaned: Partial<Record<PlanBlockKey, string[]>> = {};
+        for (const key of ALL_PLAN_BLOCK_KEYS) {
+            const tags = presets[key];
+            if (tags && tags.length > 0) cleaned[key] = tags;
+        }
+
+        if (editingId) {
+            onChange(orderSets.map(s =>
+                s.id === editingId ? { ...s, name: name.trim(), presets: cleaned } : s,
+            ));
+        } else {
+            onChange([...orderSets, { id: crypto.randomUUID(), name: name.trim(), presets: cleaned }]);
+        }
+        cancel();
+    };
+
+    const handleDelete = (id: string) => {
+        onChange(orderSets.filter(s => s.id !== id));
+        if (editingId === id) cancel();
+    };
+
+    const isFormOpen = isAdding || editingId !== null;
+
+    // Count total preset tags across all blocks
+    const countPresetTags = (os: PlanOrderSet) =>
+        ALL_PLAN_BLOCK_KEYS.reduce((sum, k) => sum + (os.presets[k]?.length ?? 0), 0);
+
+    return (
+        <div className="space-y-2">
+            <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Order Sets</p>
+
+            {/* Existing sets */}
+            {orderSets.length > 0 && (
+                <div className="space-y-1">
+                    {orderSets.map(os => (
+                        <div key={os.id} className="rounded-lg bg-themewhite3 border border-tertiary/10 overflow-hidden">
+                            <div
+                                className="flex items-center gap-2 px-3 py-2 cursor-pointer"
+                                onClick={() => setExpandedId(prev => prev === os.id ? null : os.id)}
+                            >
+                                {expandedId === os.id
+                                    ? <ChevronDown size={13} className="text-tertiary/50 shrink-0" />
+                                    : <ChevronRight size={13} className="text-tertiary/50 shrink-0" />
+                                }
+                                <span className="text-xs font-medium text-primary truncate flex-1 min-w-0">
+                                    {os.name}
+                                </span>
+                                <span className="text-[10px] text-tertiary/50 shrink-0">
+                                    {countPresetTags(os)} tag{countPresetTags(os) !== 1 ? 's' : ''}
+                                </span>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); startEdit(os); }}
+                                    className="shrink-0 p-1 rounded hover:bg-tertiary/10 transition-colors"
+                                    aria-label={`Edit ${os.name}`}
+                                >
+                                    <Pencil size={13} className="text-tertiary/50" />
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); handleDelete(os.id); }}
+                                    className="shrink-0 p-1 rounded hover:bg-themeredred/10 transition-colors"
+                                    aria-label={`Delete ${os.name}`}
+                                >
+                                    <Trash2 size={13} className="text-themeredred/50" />
+                                </button>
+                            </div>
+                            {expandedId === os.id && (
+                                <div className="px-3 pb-2 space-y-1">
+                                    {ALL_PLAN_BLOCK_KEYS.map(key => {
+                                        const tags = os.presets[key];
+                                        if (!tags || tags.length === 0) return null;
+                                        return (
+                                            <div key={key}>
+                                                <p className="text-[10px] text-tertiary/60 font-medium">{ALL_PLAN_BLOCK_LABELS[key]}</p>
+                                                <div className="flex flex-wrap gap-1 mt-0.5">
+                                                    {tags.map((tag, i) => (
+                                                        <span key={i} className="px-1.5 py-0.5 text-[10px] rounded-full border border-themeblue2/20 bg-themeblue2/5 text-tertiary">
+                                                            {tag}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Add/edit form */}
+            {isFormOpen && (
+                <div className="space-y-3 px-3 py-3 rounded-lg border border-themeblue2/20 bg-themeblue2/5">
+                    <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => { setName(e.target.value); setError(''); }}
+                        placeholder="Order set name (e.g. MSK, URI)"
+                        className="w-full text-base px-2 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue2/40 text-tertiary"
+                        autoFocus
+                    />
+                    {availableBlocks.map(key => (
+                        <div key={key} className="space-y-1">
+                            <p className="text-[10px] text-tertiary/60 font-medium">{ALL_PLAN_BLOCK_LABELS[key]}</p>
+                            <div className="flex flex-wrap gap-1">
+                                {allTags[key].map(tag => {
+                                    const selected = presets[key]?.includes(tag) ?? false;
+                                    return (
+                                        <button
+                                            key={tag}
+                                            onClick={() => togglePresetTag(key, tag)}
+                                            className={`px-1.5 py-0.5 text-[10px] rounded-full border transition-colors ${
+                                                selected
+                                                    ? 'bg-themeblue2/20 border-themeblue2/40 text-primary font-medium'
+                                                    : 'border-tertiary/20 bg-themewhite text-tertiary hover:bg-tertiary/5'
+                                            }`}
+                                        >
+                                            {tag}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    ))}
+                    {error && <p className="text-[10px] text-themeredred">{error}</p>}
+                    <div className="flex gap-2 justify-end">
+                        <button onClick={cancel} className="text-[11px] px-3 py-1 rounded-md text-tertiary hover:bg-tertiary/10 transition-colors">
+                            Cancel
+                        </button>
+                        <button onClick={save} className="text-[11px] px-3 py-1 rounded-md bg-themeblue2 text-white hover:bg-themeblue2/90 transition-colors">
+                            {editingId ? 'Update' : 'Add'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {!isFormOpen && (
+                <button
+                    onClick={startAdd}
+                    className="flex items-center gap-1.5 text-[11px] text-themeblue2 hover:text-themeblue2/80 transition-colors px-1 py-1"
+                >
+                    <Plus size={14} />
+                    <span>Add Order Set</span>
+                </button>
+            )}
+        </div>
+    );
+};
+
 export const NoteContentPanel = () => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
 
@@ -277,6 +605,10 @@ export const NoteContentPanel = () => {
     const includePE = profile.noteIncludePE ?? false;
     const peDepth = profile.peDepth ?? 'minimal';
     const customPEBlocks = profile.customPEBlocks ?? [];
+    const includePlan = profile.noteIncludePlan ?? false;
+    const planOrderTags = profile.planOrderTags ?? { referral: [], meds: [], radiology: [], lab: [] };
+    const planInstructionTags = profile.planInstructionTags ?? [];
+    const planOrderSets = profile.planOrderSets ?? [];
     const textExpanderEnabled = profile.textExpanderEnabled ?? true;
     const textExpanders = profile.textExpanders ?? [];
 
@@ -291,6 +623,10 @@ export const NoteContentPanel = () => {
         if (fields.textExpanderEnabled !== undefined) dbFields.text_expander_enabled = fields.textExpanderEnabled;
         if (fields.textExpanders !== undefined) dbFields.text_expanders = fields.textExpanders;
         if (fields.customPEBlocks !== undefined) dbFields.custom_pe_blocks = fields.customPEBlocks;
+        if (fields.noteIncludePlan !== undefined) dbFields.note_include_plan = fields.noteIncludePlan;
+        if (fields.planOrderTags !== undefined) dbFields.plan_order_tags = fields.planOrderTags;
+        if (fields.planInstructionTags !== undefined) dbFields.plan_instruction_tags = fields.planInstructionTags;
+        if (fields.planOrderSets !== undefined) dbFields.plan_order_sets = fields.planOrderSets;
 
         syncProfileField(dbFields);
     }, [updateProfile, syncProfileField]);
@@ -378,6 +714,50 @@ export const NoteContentPanel = () => {
                             <CustomPEBlockManager
                                 blocks={customPEBlocks}
                                 onChange={(next: CustomPEBlock[]) => handleUpdate({ customPEBlocks: next })}
+                            />
+                        </div>
+                    )}
+                </div>
+
+                {/* Plan */}
+                <div className="rounded-xl border border-tertiary/15 bg-themewhite2 overflow-hidden">
+                    <div
+                        className="flex items-center gap-3 px-4 py-3.5 cursor-pointer"
+                        onClick={() => handleUpdate({ noteIncludePlan: !includePlan })}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleUpdate({ noteIncludePlan: !includePlan }); } }}
+                    >
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${includePlan ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                            <ClipboardList size={18} className={includePlan ? 'text-themeblue2' : 'text-tertiary/50'} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium ${includePlan ? 'text-primary' : 'text-tertiary'}`}>Plan</p>
+                            <p className="text-[11px] text-tertiary/70 mt-0.5">Orders and patient instructions</p>
+                        </div>
+                        <ToggleSwitch checked={includePlan} />
+                    </div>
+
+                    {/* Plan tag managers — shown when enabled */}
+                    {includePlan && (
+                        <div className="border-t border-tertiary/10 px-4 py-3">
+                            <PlanTagManager
+                                orderTags={planOrderTags}
+                                instructionTags={planInstructionTags}
+                                onOrderTagsChange={(tags) => handleUpdate({ planOrderTags: tags })}
+                                onInstructionTagsChange={(tags) => handleUpdate({ planInstructionTags: tags })}
+                            />
+                        </div>
+                    )}
+
+                    {/* Order sets — shown when plan enabled and at least one tag exists */}
+                    {includePlan && (
+                        <div className="border-t border-tertiary/10 px-4 py-3">
+                            <OrderSetManager
+                                orderSets={planOrderSets}
+                                orderTags={planOrderTags}
+                                instructionTags={planInstructionTags}
+                                onChange={(sets) => handleUpdate({ planOrderSets: sets })}
                             />
                         </div>
                     )}

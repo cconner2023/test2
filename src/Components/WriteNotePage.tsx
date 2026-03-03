@@ -8,17 +8,18 @@ import { PIIWarningBanner } from './PIIWarningBanner';
 import { NoteBarcodeGenerator } from './Barcode';
 import { DecisionMaking } from './DecisionMaking';
 import { PhysicalExam } from './PhysicalExam';
+import { Plan } from './Plan';
 import { BaseDrawer } from './BaseDrawer';
 import {
     ActionIconButton, SlideWrapper, ToggleOption,
     NoteWizardHeader, NoteHPIEditor, NoteWizardFooter,
     shareStatusToIconStatus, exportStatusToIconStatus,
 } from './WriteNoteHelpers';
-import { BrainCircuit, FileText, Stethoscope } from 'lucide-react';
+import { BrainCircuit, FileText, Stethoscope, ClipboardList } from 'lucide-react';
 
 type DispositionType = dispositionType['type'];
 
-type PageId = 'decision' | 'hpi' | 'pe' | 'fullnote';
+type PageId = 'decision' | 'hpi' | 'pe' | 'plan' | 'fullnote';
 
 interface WriteNoteProps {
     isVisible: boolean;
@@ -52,15 +53,17 @@ export const WriteNotePage = ({
     const colors = getColorClasses(disposition.type);
     const defaultHPI = profile.noteIncludeHPI ?? true;
     const defaultPE = profile.noteIncludePE ?? false;
+    const defaultPlan = profile.noteIncludePlan ?? false;
 
-    // Build visible wizard pages — hide HPI/PE when disabled in settings
+    // Build visible wizard pages — hide HPI/PE/Plan when disabled in settings
     const visiblePages = useMemo(() => {
         const pages: { id: PageId; label: string }[] = [{ id: 'decision', label: 'Decision Making' }];
         if (defaultHPI) pages.push({ id: 'hpi', label: 'HPI' });
         if (defaultPE) pages.push({ id: 'pe', label: 'Physical Exam' });
+        if (defaultPlan) pages.push({ id: 'plan', label: 'Plan' });
         pages.push({ id: 'fullnote', label: 'Full Note' });
         return pages;
-    }, [defaultHPI, defaultPE]);
+    }, [defaultHPI, defaultPE, defaultPlan]);
 
     // WriteNotePage-unique state: includeDecisionMaking
     const [includeDecisionMaking, setIncludeDecisionMaking] = useState<boolean>(false);
@@ -82,8 +85,10 @@ export const WriteNotePage = ({
     const {
         note, setNote, previewNote,
         peNote, setPeNote,
+        planNote, setPlanNote,
         includeHPI, setIncludeHPI,
         includePhysicalExam, setIncludePhysicalExam,
+        includePlan, setIncludePlan,
         encodedValue, setEncodedValue,
         copiedTarget,
         currentPage, currentPageId, slideDirection,
@@ -204,6 +209,42 @@ export const WriteNotePage = ({
                                                 symptomCode={selectedSymptom?.icon || 'A-1'}
                                                 depth={profile.peDepth ?? 'minimal'}
                                                 customBlocks={profile.peDepth === 'custom' ? profile.customPEBlocks : undefined}
+                                                expanders={profile.textExpanders ?? []}
+                                                expanderEnabled={profile.textExpanderEnabled ?? false}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Plan */}
+                    {defaultPlan && (
+                        <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'plan' ? 'hidden' : ''}`}>
+                            <div className="space-y-3">
+                                <div className="mx-2 mt-2">
+                                    <ToggleOption
+                                        checked={includePlan}
+                                        onChange={() => setIncludePlan(!includePlan)}
+                                        label="Include Plan in note"
+                                        onDescription="Plan will be added to your note"
+                                        offDescription="Plan will not be included"
+                                        icon={<ClipboardList size={18} />}
+                                        colors={colors}
+                                    />
+                                </div>
+                                {includePlan && (
+                                    <div className="mx-2">
+                                        <div className="rounded-md border border-themegray1/15 overflow-hidden">
+                                            <Plan
+                                                orderTags={profile.planOrderTags ?? { referral: [], meds: [], radiology: [], lab: [] }}
+                                                instructionTags={profile.planInstructionTags ?? []}
+                                                orderSets={profile.planOrderSets}
+                                                initialText={planNote}
+                                                onChange={setPlanNote}
+                                                expanders={profile.textExpanders ?? []}
+                                                expanderEnabled={profile.textExpanderEnabled ?? false}
                                             />
                                         </div>
                                     </div>
@@ -268,6 +309,7 @@ export const WriteNotePage = ({
                                                 includeDecisionMaking,
                                                 customNote: includeHPI ? note : '',
                                                 physicalExamNote: includePhysicalExam ? peNote : '',
+                                                planNote: includePlan ? planNote : '',
                                                 user: profile,
                                                 userId: authUserId,
                                             }}
