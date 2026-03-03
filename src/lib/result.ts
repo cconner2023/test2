@@ -1,3 +1,5 @@
+import { getErrorMessage } from '../Utilities/errorUtils'
+
 export type Result<T, E = string> =
   | { ok: true; data: T }
   | { ok: false; error: E; code?: string }
@@ -25,10 +27,7 @@ export function fromSupabase<T>(response: {
 
 // ─── Shared error helpers ────────────────────────────────────
 
-/** Safely extract a message from an unknown thrown value. */
-export function getErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : 'Unknown error'
-}
+export { getErrorMessage }
 
 /**
  * Generic wrapper for Supabase RPC / query calls.

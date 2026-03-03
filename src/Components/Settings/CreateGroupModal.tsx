@@ -2,22 +2,12 @@ import { useState, useCallback } from 'react'
 import { X, Check } from 'lucide-react'
 import { UserAvatar } from './UserAvatar'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
+import { getDisplayName } from '../../Utilities/nameUtils'
 
 interface CreateGroupModalProps {
   medics: ClinicMedic[]
   onClose: () => void
   onCreate: (name: string, memberIds: string[]) => Promise<string | null>
-}
-
-function getDisplayName(medic: ClinicMedic): string {
-  const parts: string[] = []
-  if (medic.rank) parts.push(medic.rank)
-  if (medic.lastName) {
-    let name = medic.lastName
-    if (medic.firstName) name += `, ${medic.firstName.charAt(0)}.`
-    parts.push(name)
-  }
-  return parts.join(' ') || 'Unknown'
 }
 
 export function CreateGroupModal({ medics, onClose, onCreate }: CreateGroupModalProps) {

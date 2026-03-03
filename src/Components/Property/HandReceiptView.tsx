@@ -14,7 +14,6 @@ interface HandReceiptViewProps {
 export function HandReceiptView({ items, holders, currentUserId, onSelectItem }: HandReceiptViewProps) {
   const { exportDA2062, status: exportStatus } = useDA2062Export()
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set())
-  const [hrNumber, setHrNumber] = useState('')
   const [exportingHolder, setExportingHolder] = useState<string | null>(null)
 
   // Group items by current_holder_id
@@ -75,26 +74,14 @@ export function HandReceiptView({ items, holders, currentUserId, onSelectItem }:
       items: holderItems.filter((i) => !i.parent_item_id), // top-level only
       fromHolder,
       toHolder,
-      handReceiptNumber: hrNumber || 'N/A',
+      handReceiptNumber: 'N/A',
       date: new Date().toLocaleDateString(),
     })
     setExportingHolder(null)
-  }, [holders, hrNumber, exportDA2062])
+  }, [holders, exportDA2062])
 
   return (
     <div className="flex flex-col">
-      {/* HR Number input */}
-      <div className="px-4 py-2 flex items-center gap-2">
-        <label className="text-xs font-medium text-tertiary shrink-0">HR#</label>
-        <input
-          type="text"
-          value={hrNumber}
-          onChange={(e) => setHrNumber(e.target.value)}
-          placeholder="Hand receipt number"
-          className="flex-1 px-2 py-1 text-sm rounded border border-tertiary/20 bg-themewhite text-primary placeholder:text-tertiary/50 focus:outline-none focus:border-themeblue3/50"
-        />
-      </div>
-
       {grouped.map(([holderId, holderItems]) => {
         const holder = holders.get(holderId)
         const holderName = holderId === 'unassigned' ? 'Unassigned' : holder?.displayName ?? 'Unknown'

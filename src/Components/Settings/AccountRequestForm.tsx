@@ -138,13 +138,13 @@ export const AccountRequestForm = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'pending':
-        return 'text-yellow-600 bg-yellow-50 border-yellow-200'
+        return 'text-themeyellow bg-themeyellow/10 border-themeyellow/20'
       case 'approved':
-        return 'text-green-600 bg-green-50 border-green-200'
+        return 'text-themegreen bg-themegreen/10 border-themegreen/20'
       case 'rejected':
-        return 'text-red-600 bg-red-50 border-red-200'
+        return 'text-themeredred bg-themeredred/10 border-themeredred/20'
       default:
-        return 'text-gray-600 bg-gray-50 border-gray-200'
+        return 'text-tertiary bg-tertiary/10 border-tertiary/20'
     }
   }
 
@@ -233,14 +233,14 @@ export const AccountRequestForm = () => {
             </p>
 
             {statusCheckToken && (
-              <div className="mb-6 p-4 rounded-lg bg-blue-50 border border-blue-200 text-left">
-                <p className="text-sm font-medium text-blue-800 mb-2">
+              <div className="mb-6 p-4 rounded-lg bg-themeblue2/10 border border-themeblue2/20 text-left">
+                <p className="text-sm font-medium text-themeblue3 mb-2">
                   Save your status check token:
                 </p>
-                <code className="block p-2 bg-white rounded border border-blue-200 text-xs font-mono text-blue-900 break-all select-all">
+                <code className="block p-2 bg-themewhite rounded border border-themeblue2/20 text-xs font-mono text-themeblue3 break-all select-all">
                   {statusCheckToken}
                 </code>
-                <p className="text-xs text-blue-600 mt-2">
+                <p className="text-xs text-themeblue2 mt-2">
                   You will need this token along with your email to check your request status.
                   It has been saved to your browser, but you should copy it somewhere safe in case
                   you clear your browser data.
@@ -270,7 +270,7 @@ export const AccountRequestForm = () => {
         </p>
 
         {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          <div className="mb-4 p-3 rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred text-sm">
             {error}
           </div>
         )}

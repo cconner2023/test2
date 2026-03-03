@@ -1,6 +1,5 @@
 import { useState, useMemo, useRef } from 'react'
 import { Search, X, Users } from 'lucide-react'
-import { useIsMobile } from '../../../Hooks/useIsMobile'
 import { SwipeableRosterCard } from './SwipeableRosterCard'
 import { formatMedicName } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
@@ -27,9 +26,9 @@ export function PersonnelRoster({
   onView,
   onModify,
 }: PersonnelRosterProps) {
-  const isMobile = useIsMobile()
   const [searchQuery, setSearchQuery] = useState('')
   const [openCardId, setOpenCardId] = useState<string | null>(null)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const filteredMedics = useMemo(() => {
@@ -41,11 +40,6 @@ export function PersonnelRoster({
       return name.includes(q) || cred.includes(q)
     })
   }, [medics, searchQuery])
-
-  const handleSelect = (soldierId: string) => {
-    onSelectSoldier(selectedSoldierId === soldierId ? null : soldierId)
-    setOpenCardId(null)
-  }
 
   if (medics.length === 0) {
     return (
@@ -90,23 +84,31 @@ export function PersonnelRoster({
         <p className="text-sm text-tertiary/40 text-center py-8">No personnel match your search.</p>
       ) : (
         <div className="space-y-2">
-          {filteredMedics.map((soldier) => (
-            <SwipeableRosterCard
-              key={soldier.id}
-              soldier={soldier}
-              certs={certsForSoldier(soldier.id)}
-              overdueCount={overdueCount(soldier.id)}
-              isMobile={isMobile}
-              isOpen={openCardId === soldier.id}
-              isSelected={selectedSoldierId === soldier.id}
-              onOpen={() => { setOpenCardId(soldier.id); onSelectSoldier(soldier.id) }}
-              onClose={() => setOpenCardId(prev => prev === soldier.id ? null : prev)}
-              onSelect={() => handleSelect(soldier.id)}
-              onEvaluate={() => onEvaluate(soldier)}
-              onView={() => onView(soldier)}
-              onModify={() => onModify(soldier)}
-            />
-          ))}
+          {filteredMedics.map((soldier) => {
+            const menuOpen = openMenuId === soldier.id
+            return (
+              <SwipeableRosterCard
+                key={soldier.id}
+                soldier={soldier}
+                certs={certsForSoldier(soldier.id)}
+                overdueCount={overdueCount(soldier.id)}
+                isOpen={openCardId === soldier.id}
+                isSelected={selectedSoldierId === soldier.id}
+                menuOpen={menuOpen}
+                onOpen={() => { setOpenMenuId(null); setOpenCardId(soldier.id); onSelectSoldier(soldier.id) }}
+                onClose={() => setOpenCardId(prev => prev === soldier.id ? null : prev)}
+                onTap={() => {
+                  setOpenCardId(null)
+                  const isTogglingOff = menuOpen
+                  setOpenMenuId(isTogglingOff ? null : soldier.id)
+                  onSelectSoldier(isTogglingOff ? null : soldier.id)
+                }}
+                onEvaluate={() => { setOpenMenuId(null); onEvaluate(soldier) }}
+                onView={() => { setOpenMenuId(null); onView(soldier) }}
+                onModify={() => { setOpenMenuId(null); onModify(soldier) }}
+              />
+            )
+          })}
         </div>
       )}
 

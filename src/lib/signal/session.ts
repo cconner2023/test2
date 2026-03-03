@@ -111,19 +111,29 @@ export async function createOutboundSession(
   peerBundle: PublicKeyBundle,
   firstMessage: string,
   senderUuid: string
-): Promise<SealedEnvelope> {
+): Promise<SealedEnvelope & { identityKeyChanged?: boolean }> {
   const identity = await ensureLocalIdentity()
 
   // X3DH key agreement
   const x3dh = await x3dhInitiate(identity, peerBundle)
 
   // Store peer's identity for future trust verification
-  await storePeerIdentity(
+  const trustStatus = await storePeerIdentity(
     peerId,
     peerDeviceId,
     peerBundle.identitySigningKey,
     peerBundle.identityDhKey
   )
+
+  let identityKeyChanged = false
+  if (trustStatus === 'changed') {
+    logger.warn(
+      `WARNING: Identity key changed for peer ${peerId} device ${peerDeviceId} ` +
+      `during outbound session creation. The peer may have reinstalled or this ` +
+      `could indicate a security issue.`
+    )
+    identityKeyChanged = true
+  }
 
   // Initialize sender ratchet
   const peerSpk = await importDhPublicKey(peerBundle.signedPreKey.publicKey)
@@ -166,13 +176,15 @@ export async function createOutboundSession(
   logger.info(`Outbound session created with peer ${peerId} device ${peerDeviceId}`)
 
   // Seal the InitialMessage for the recipient
-  return seal(
+  const envelope = await seal(
     initialMessage as unknown as Record<string, unknown>,
     senderUuid,
     identity,
     peerId,
     peerBundle.identityDhKey
   )
+
+  return { ...envelope, identityKeyChanged }
 }
 
 // ---- Message Encryption ----
@@ -238,7 +250,7 @@ export async function processIncomingMessage(
   senderDeviceId: string,
   envelope: SealedEnvelope,
   myUuid: string
-): Promise<{ plaintext: string; senderUuid: string }> {
+): Promise<{ plaintext: string; senderUuid: string; identityKeyChanged?: boolean }> {
   const identity = await ensureLocalIdentity()
 
   // Unseal: decrypt and verify sender cert
@@ -250,12 +262,22 @@ export async function processIncomingMessage(
   )
 
   // Store peer's identity keys for future trust verification
-  await storePeerIdentity(
+  const trustStatus = await storePeerIdentity(
     senderUuid,
     senderDeviceId,
     cert.senderIdentitySigningKey,
     cert.senderIdentityDhKey
   )
+
+  let identityKeyChanged = false
+  if (trustStatus === 'changed') {
+    logger.warn(
+      `WARNING: Identity key changed for peer ${senderUuid} device ${senderDeviceId} ` +
+      `during incoming message processing. The peer may have reinstalled or this ` +
+      `could indicate a security issue.`
+    )
+    identityKeyChanged = true
+  }
 
   // Dispatch based on inner payload type
   if ('identitySigningKey' in inner) {
@@ -309,7 +331,7 @@ export async function processIncomingMessage(
     await persistSession(session)
 
     logger.info(`Inbound session created with peer ${senderUuid} device ${senderDeviceId}`)
-    return { plaintext: new TextDecoder().decode(plaintext), senderUuid }
+    return { plaintext: new TextDecoder().decode(plaintext), senderUuid, identityKeyChanged }
 
   } else {
     // Double Ratchet message (established session)
@@ -329,7 +351,7 @@ export async function processIncomingMessage(
       updatedAt: new Date().toISOString(),
     })
 
-    return { plaintext: new TextDecoder().decode(plaintext), senderUuid }
+    return { plaintext: new TextDecoder().decode(plaintext), senderUuid, identityKeyChanged }
   }
 }
 

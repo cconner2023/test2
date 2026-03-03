@@ -36,8 +36,9 @@ import { MainSettingsPanel } from './MainSettingsPanel';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
 import { ContentWrapper } from './ContentWrapper';
 import { useMessagesContext } from '../../Hooks/MessagesContext';
-import { PropertyPanel } from '../Property/PropertyPanel';
+import { PropertyPanel, type PropertyView } from '../Property/PropertyPanel';
 import { LoRaPanel } from './LoRaPanel';
+import { SessionsDevicesPanel } from './SessionsDevicesPanel';
 import { PROPERTY_MANAGEMENT_ENABLED, LORA_MESH_ENABLED } from '../../lib/featureFlags';
 
 interface SettingsDrawerProps {
@@ -68,13 +69,14 @@ export const Settings = ({
     initialPeerName,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'property' | 'lora' | TrainingView | MessagesView>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'lora' | 'sessions-devices' | TrainingView | MessagesView | PropertyView>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const [selectedTask, setSelectedTask] = useState<subjectAreaArrayOptions | null>(null);
     const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
     const [selectedPeerName, setSelectedPeerName] = useState<string | null>(null);
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+    const [selectedPropertyItemName, setSelectedPropertyItemName] = useState<string | null>(null);
     const prevVisibleRef = useRef(false);
     const supervisorBackRef = useRef<(() => void) | null>(null);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
@@ -221,8 +223,8 @@ export const Settings = ({
         items.push(
             { type: 'header', label: 'Preferences' },
             opt(PANEL.TOGGLE_THEME, isDarkMode ? <Sun size={20} /> : <Moon size={20} />, 'Toggle Theme', { action: onToggleTheme }),
-            opt(PANEL.PIN_SETUP, <Lock size={20} />, 'Security'),
             opt(PANEL.NOTE_CONTENT, <Stethoscope size={20} />, 'Note Content'),
+            opt(PANEL.PIN_SETUP, <Lock size={20} />, 'Security'),
             opt(PANEL.NOTIFICATION_SETTINGS, <Bell size={20} />, 'Notifications'),
         );
 
@@ -292,6 +294,36 @@ export const Settings = ({
         }
     }, [activePanel, handleSlideAnimation]);
 
+    // Property panel navigation helpers
+    const handlePropertySelectItem = useCallback((item: import('../../Types/PropertyTypes').LocalPropertyItem) => {
+        setSelectedPropertyItemName(item.name);
+        handleSlideAnimation('left');
+        setActivePanel('property-detail');
+    }, [handleSlideAnimation]);
+
+    const handlePropertyAddItem = useCallback(() => {
+        setSelectedPropertyItemName(null);
+        handleSlideAnimation('left');
+        setActivePanel('property-form');
+    }, [handleSlideAnimation]);
+
+    const handlePropertyEditItem = useCallback((item: import('../../Types/PropertyTypes').LocalPropertyItem) => {
+        setSelectedPropertyItemName(item.name);
+        handleSlideAnimation('left');
+        setActivePanel('property-form');
+    }, [handleSlideAnimation]);
+
+    const handlePropertyBack = useCallback(() => {
+        if (activePanel === 'property-detail' || activePanel === 'property-form') {
+            handleSlideAnimation('right');
+            setActivePanel('property');
+            setSelectedPropertyItemName(null);
+        } else if (activePanel === 'property') {
+            handleSlideAnimation('right');
+            setActivePanel('main');
+        }
+    }, [activePanel, handleSlideAnimation]);
+
     // Swipe-back for sub-panels (mobile touch only)
     const swipeHandlers = useSwipeBack(
         useMemo(() => {
@@ -302,6 +334,9 @@ export const Settings = ({
             if (activePanel === 'messages-chat' || activePanel === 'messages-group-chat' || activePanel === 'messages') {
                 return handleMessagesBack;
             }
+            if (activePanel === 'property' || activePanel === 'property-detail' || activePanel === 'property-form') {
+                return handlePropertyBack;
+            }
             // Sub-panels of the profile hub go back to user-profile
             if (activePanel === 'user-profile-details' || activePanel === 'change-password' || activePanel === 'certifications') {
                 return () => { handleSlideAnimation('right'); setActivePanel('user-profile'); };
@@ -309,8 +344,12 @@ export const Settings = ({
             if (activePanel === 'profile-change-request') {
                 return () => { handleSlideAnimation('right'); setActivePanel('user-profile-details'); };
             }
+            // Sessions/Devices is nested under Security
+            if (activePanel === 'sessions-devices') {
+                return () => { handleSlideAnimation('right'); setActivePanel('pin-setup'); };
+            }
             return () => { handleSlideAnimation('right'); setActivePanel('main'); };
-        }, [activePanel, handleSlideAnimation, handleTrainingBack, handleMessagesBack]),
+        }, [activePanel, handleSlideAnimation, handleTrainingBack, handleMessagesBack, handlePropertyBack]),
         activePanel !== 'main',
     );
 
@@ -345,23 +384,26 @@ export const Settings = ({
             case 'messages-group-chat': return { title: selectedPeerName ?? 'Group', showBack: true, onBack: handleMessagesBack };
             case 'training':            return { title: 'My Training', ...backTo() };
             case 'property':            return { title: 'Property Book', ...backTo() };
+            case 'property-detail':     return { title: selectedPropertyItemName ?? 'Item', showBack: true, onBack: handlePropertyBack };
+            case 'property-form':       return { title: selectedPropertyItemName ? 'Edit Item' : 'Add Item', showBack: true, onBack: handlePropertyBack };
             case 'lora':                return { title: 'LoRa Mesh', ...backTo() };
+            case 'sessions-devices':    return { title: 'Sessions & Devices', ...backTo('pin-setup') };
             case 'admin':               return { title: 'Admin Panel', ...backTo() };
             case 'guest-options':       return { title: 'Sign In', ...backTo() };
-            case 'pin-setup':           return { title: 'App Lock', ...backTo() };
+            case 'pin-setup':           return { title: 'Security', ...backTo() };
             case 'notification-settings': return { title: 'Notifications', ...backTo() };
             case 'feedback':            return { title: 'Feedback', ...backTo() };
             case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
             case 'note-content':        return { title: 'Note Content', ...backTo() };
         }
-    }, [activePanel, backTo, selectedTask, selectedPeerName, handleTrainingBack, handleMessagesBack]);
+    }, [activePanel, backTo, selectedTask, selectedPeerName, selectedPropertyItemName, handleTrainingBack, handleMessagesBack, handlePropertyBack]);
 
     const isConversationView = activePanel === 'messages-chat' || activePanel === 'messages-group-chat';
 
     return (
         <BaseDrawer
             isVisible={isVisible}
-            onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedTask(null); setSelectedPeerId(null); setSelectedPeerName(null); setSelectedGroupId(null); if (messagesCtx) messagesCtx.activePeerRef.current = null; onClose(); }}
+            onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedTask(null); setSelectedPeerId(null); setSelectedPeerName(null); setSelectedGroupId(null); setSelectedPropertyItemName(null); if (messagesCtx) messagesCtx.activePeerRef.current = null; onClose(); }}
             fullHeight="90dvh"
             disableDrag={false}
             header={headerConfig}
@@ -480,8 +522,15 @@ export const Settings = ({
                         <NoteContentPanel />
                     ) : activePanel === 'notification-settings' ? (
                         <NotificationSettingsPanel />
+                    ) : activePanel === 'sessions-devices' ? (
+                        <SessionsDevicesPanel />
                     ) : activePanel === 'pin-setup' ? (
-                        <PinSetupPanel />
+                        <PinSetupPanel
+                            onNavigateToDevices={isAuthenticated ? () => {
+                                handleSlideAnimation('left');
+                                setActivePanel('sessions-devices');
+                            } : undefined}
+                        />
                     ) : (activePanel === 'training' || activePanel === 'training-detail') ? (
                         <TrainingPanel
                             view={activePanel}
@@ -517,8 +566,14 @@ export const Settings = ({
                         </div>
                     )}
                     {isAuthenticated && PROPERTY_MANAGEMENT_ENABLED && (
-                        <div className="h-full relative" style={{ display: activePanel === 'property' ? undefined : 'none' }}>
-                            <PropertyPanel />
+                        <div className="h-full relative" style={{ display: activePanel === 'property' || activePanel === 'property-detail' || activePanel === 'property-form' ? undefined : 'none' }}>
+                            <PropertyPanel
+                                view={(activePanel === 'property' || activePanel === 'property-detail' || activePanel === 'property-form') ? activePanel as PropertyView : 'property'}
+                                onSelectItem={handlePropertySelectItem}
+                                onAddItem={handlePropertyAddItem}
+                                onEditItem={handlePropertyEditItem}
+                                onBack={handlePropertyBack}
+                            />
                         </div>
                     )}
                     {isAuthenticated && LORA_MESH_ENABLED && (

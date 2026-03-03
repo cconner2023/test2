@@ -57,7 +57,15 @@ export async function initSignalBundle(userId: string): Promise<SignalInitResult
   const identity = await ensureLocalIdentity()
 
   // 2. Register device with role
-  const regResult = await registerDeviceWithRole(identity.deviceId, getDeviceLabel(), isPWA)
+  let regResult = await registerDeviceWithRole(identity.deviceId, getDeviceLabel(), isPWA)
+
+  // If registration was rejected (e.g., another device is already primary),
+  // retry as a non-primary device so we still get registered in user_devices.
+  if (regResult.ok && !regResult.data.registered && isPWA) {
+    logger.info('Primary registration rejected — retrying as linked device')
+    regResult = await registerDeviceWithRole(identity.deviceId, getDeviceLabel(), false)
+  }
+
   if (!regResult.ok || !regResult.data.registered) {
     const reason = regResult.ok ? regResult.data.error : regResult.error
     logger.warn('Device registration failed:', reason)

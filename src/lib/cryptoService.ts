@@ -24,6 +24,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import { supabase } from './supabase'
 import { createLogger } from '../Utilities/Logger'
 import { uint8ToBase64, base64ToUint8 } from '../Utilities/textCodec'
+import { aesGcmEncrypt, aesGcmDecrypt } from './aesGcm'
 import { succeed, fail, type ServiceResult } from './result'
 import { getErrorMessage } from '../Utilities/errorUtils'
 import type { LocalNote } from './offlineDb'
@@ -285,20 +286,8 @@ function isEncrypted(value: string): boolean {
 
 /** Encrypt a single string field. Returns `enc.v1:<base64(IV + ciphertext)>`. */
 async function encryptField(key: CryptoKey, plaintext: string): Promise<string> {
-  const iv = crypto.getRandomValues(new Uint8Array(12)) // 96-bit IV for AES-GCM
   const encoded = new TextEncoder().encode(plaintext)
-
-  const cipherBuffer = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    encoded
-  )
-
-  // Concatenate IV (12 bytes) + ciphertext for self-contained storage
-  const combined = new Uint8Array(iv.length + cipherBuffer.byteLength)
-  combined.set(iv)
-  combined.set(new Uint8Array(cipherBuffer), iv.length)
-
+  const combined = await aesGcmEncrypt(key, encoded)
   return ENCRYPTED_PREFIX + uint8ToBase64(combined)
 }
 
@@ -312,17 +301,8 @@ async function decryptField(key: CryptoKey, value: string): Promise<string> {
   const payload = value.slice(ENCRYPTED_PREFIX.length)
   const combined = base64ToUint8(payload)
 
-  // First 12 bytes are the IV, rest is ciphertext
-  const iv = combined.slice(0, 12)
-  const ciphertext = combined.slice(12)
-
-  const plainBuffer = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv },
-    key,
-    ciphertext
-  )
-
-  return new TextDecoder().decode(plainBuffer)
+  const plainBytes = await aesGcmDecrypt(key, combined)
+  return new TextDecoder().decode(plainBytes)
 }
 
 // ---- Note-Level Encrypt/Decrypt ----

@@ -106,26 +106,19 @@ export interface Discrepancy {
 
 export type SyncStatus = 'pending' | 'synced' | 'error'
 
-export interface LocalPropertyItem extends PropertyItem {
+/** Shared sync-tracking fields for all offline-first local types. */
+export interface SyncMetadata {
   _sync_status: SyncStatus
   _sync_retry_count: number
   _last_sync_error: string | null
   _last_sync_error_message: string | null
 }
 
-export interface LocalPropertyLocation extends PropertyLocation {
-  _sync_status: SyncStatus
-  _sync_retry_count: number
-  _last_sync_error: string | null
-  _last_sync_error_message: string | null
-}
+export interface LocalPropertyItem extends PropertyItem, SyncMetadata {}
 
-export interface LocalDiscrepancy extends Discrepancy {
-  _sync_status: SyncStatus
-  _sync_retry_count: number
-  _last_sync_error: string | null
-  _last_sync_error_message: string | null
-}
+export interface LocalPropertyLocation extends PropertyLocation, SyncMetadata {}
+
+export interface LocalDiscrepancy extends Discrepancy, SyncMetadata {}
 
 // ── UI / workflow types ──────────────────────────────────────
 

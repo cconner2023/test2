@@ -8,7 +8,7 @@
  * Also wires up message notifications (toast + sound) for incoming messages.
  */
 
-import { createContext, useContext, useEffect, useMemo } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef } from 'react'
 import { useMessages, type UseMessagesReturn } from './useMessages'
 import { useAuth } from './useAuth'
 import { useClinicMedics } from './useClinicMedics'
@@ -71,10 +71,18 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
     return () => { messages.onIncomingRef.current = null }
   }, [isAuthenticated, user?.id, nameMap, messages.onIncomingRef, messages.activePeerRef, messages.groups, notify])
 
+  // Hold messages via ref so we always spread the latest value without
+  // depending on the (unstable) messages object identity itself.
+  const messagesRef = useRef(messages)
+  messagesRef.current = messages
+
+  // Memoize context value using fine-grained deps that actually change —
+  // conversations, unreadCounts, sending, and groups are the mutable parts.
+  // Functions and refs from useMessages are stable (useCallback / useRef).
   const value = useMemo<MessagesContextValue | null>(() => {
     if (!isAuthenticated) return null
-    return { ...messages, notification, dismissNotification: dismiss }
-  }, [isAuthenticated, messages, notification, dismiss])
+    return { ...messagesRef.current, notification, dismissNotification: dismiss }
+  }, [isAuthenticated, messages.conversations, messages.unreadCounts, messages.sending, messages.groups, notification, dismiss])
 
   return (
     <MessagesContext.Provider value={value}>

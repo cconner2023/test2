@@ -1,33 +1,23 @@
-import { useAuthStore, selectIsAuthenticated } from '../stores/useAuthStore'
+import { useShallow } from 'zustand/react/shallow'
+import { useAuthStore } from '../stores/useAuthStore'
 
 /**
  * Thin wrapper around the Zustand auth store.
- * Preserves the identical return interface so no consumers need changes.
+ * Uses useShallow for a single subscription with shallow equality,
+ * so consumers only re-render when a selected field actually changes.
  */
 export function useAuth() {
-  const user = useAuthStore((s) => s.user)
-  const loading = useAuthStore((s) => s.loading)
-  const isGuest = useAuthStore((s) => s.isGuest)
-  const isAuthenticated = useAuthStore(selectIsAuthenticated)
-  const continueAsGuest = useAuthStore((s) => s.continueAsGuest)
-  const signOut = useAuthStore((s) => s.signOut)
-  const profile = useAuthStore((s) => s.profile)
-  const roles = useAuthStore((s) => s.roles)
-  const isDevRole = useAuthStore((s) => s.isDevRole)
-  const isSupervisorRole = useAuthStore((s) => s.isSupervisorRole)
-  const refreshProfile = useAuthStore((s) => s.refreshProfile)
-
-  return {
-    user,
-    loading,
-    isGuest,
-    isAuthenticated,
-    continueAsGuest,
-    signOut,
-    profile,
-    roles,
-    isDevRole,
-    isSupervisorRole,
-    refreshProfile,
-  }
+  return useAuthStore(useShallow((s) => ({
+    user: s.user,
+    loading: s.loading,
+    isGuest: s.isGuest,
+    isAuthenticated: !!s.user,
+    continueAsGuest: s.continueAsGuest,
+    signOut: s.signOut,
+    profile: s.profile,
+    roles: s.roles,
+    isDevRole: s.isDevRole,
+    isSupervisorRole: s.isSupervisorRole,
+    refreshProfile: s.refreshProfile,
+  })))
 }

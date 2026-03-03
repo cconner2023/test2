@@ -22,10 +22,10 @@ const conditionLabel: Record<string, string> = {
 }
 
 const conditionColor: Record<string, string> = {
-  serviceable: 'text-green-600',
-  unserviceable: 'text-red-600',
-  damaged: 'text-amber-600',
-  missing: 'text-red-600',
+  serviceable: 'text-themegreen',
+  unserviceable: 'text-themeredred',
+  damaged: 'text-themeyellow',
+  missing: 'text-themeredred',
 }
 
 const actionLabel: Record<string, string> = {
@@ -110,7 +110,7 @@ export function PropertyItemDetail({
           <Edit3 size={16} /> Edit
         </button>
         <button
-          className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-red-200 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+          className="flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg border border-themeredred/20 text-sm font-medium text-themeredred hover:bg-themeredred/10 transition-colors"
           onClick={onDelete}
         >
           <Trash2 size={16} />

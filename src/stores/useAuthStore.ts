@@ -26,7 +26,7 @@ import { useCallStore } from './useCallStore'
 import { unregisterDevice, deleteKeyBundle, primaryLogoutAll } from '../lib/signal/signalService'
 import { secureSet, secureGet, secureRemove, persistSupabaseAuth } from '../lib/secureStorage'
 import { clearOutboundQueue } from '../lib/signal/outboundQueue'
-import { clearBackupPassword, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
+import { clearBackupKey, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { registerSessionCleanup, updateCleanupToken, updateCleanupDeviceId, updateCleanupIsPrimary } from '../lib/sessionCleanup'
 import type { User } from '@supabase/supabase-js'
@@ -235,7 +235,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         clearAllSessions().catch(() => {})
         clearMessageStore().catch(() => {})
         clearOutboundQueue().catch(() => {})
-        clearBackupPassword()
+        clearBackupKey()
         if (LORA_MESH_ENABLED) {
           import('../lib/lora/loraDb').then(m => m.clearLoraDb()).catch(() => {})
         }

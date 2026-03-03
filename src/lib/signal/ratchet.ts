@@ -22,7 +22,87 @@ import type { RatchetState, RatchetKeyPair, MessageHeader, EncryptedMessage } fr
 
 const logger = createLogger('SignalRatchet')
 
+// ---- Skipped Key Limits ----
+
+/** Maximum total skipped message keys stored across all chains.
+ *  Prevents unbounded memory/storage growth from adversarial headers. */
+const MAX_TOTAL_SKIPPED = 1024
+
+/** Time-to-live for skipped message keys (7 days in milliseconds).
+ *  Keys older than this are evicted on the next decrypt operation. */
+const SKIPPED_KEY_TTL_MS = 7 * 24 * 60 * 60 * 1000
+
 // ---- Helpers ----
+
+/**
+ * Extract the message key from a skipped key entry, handling both
+ * old format (bare string) and new format ({ key, ts }).
+ * Returns null if the entry has expired per SKIPPED_KEY_TTL_MS.
+ */
+function resolveSkippedKey(entry: string | { key: string; ts: number }): string | null {
+  if (typeof entry === 'string') {
+    // Old format (no timestamp): treat as valid (no TTL info)
+    return entry
+  }
+  // New format: check TTL
+  if (Date.now() - entry.ts > SKIPPED_KEY_TTL_MS) {
+    return null // expired
+  }
+  return entry.key
+}
+
+/**
+ * Evict expired skipped keys and enforce global cap (MAX_TOTAL_SKIPPED).
+ * When over the cap, evicts oldest entries first (by timestamp).
+ * Old-format entries without timestamps are evicted first since they
+ * predate the TTL system and are assumed oldest.
+ */
+function pruneSkippedKeys(
+  skipped: Record<string, string | { key: string; ts: number }>
+): Record<string, string | { key: string; ts: number }> {
+  const pruned: Record<string, string | { key: string; ts: number }> = {}
+  const now = Date.now()
+
+  // First pass: copy non-expired entries
+  for (const [k, v] of Object.entries(skipped)) {
+    if (typeof v === 'string') {
+      // Old format: keep (no TTL info to check)
+      pruned[k] = v
+    } else if (now - v.ts <= SKIPPED_KEY_TTL_MS) {
+      pruned[k] = v
+    }
+    // else: expired, skip
+  }
+
+  // Second pass: enforce global cap by evicting oldest
+  const keys = Object.keys(pruned)
+  if (keys.length <= MAX_TOTAL_SKIPPED) {
+    return pruned
+  }
+
+  // Sort entries: old-format (no ts) first (evict first), then by ascending ts
+  const sorted = keys.sort((a, b) => {
+    const va = pruned[a]
+    const vb = pruned[b]
+    const tsA = typeof va === 'string' ? 0 : va.ts
+    const tsB = typeof vb === 'string' ? 0 : vb.ts
+    return tsA - tsB
+  })
+
+  // Keep only the newest MAX_TOTAL_SKIPPED entries
+  const toKeep = new Set(sorted.slice(sorted.length - MAX_TOTAL_SKIPPED))
+  const capped: Record<string, string | { key: string; ts: number }> = {}
+  for (const k of toKeep) {
+    capped[k] = pruned[k]
+  }
+
+  const evicted = keys.length - MAX_TOTAL_SKIPPED
+  if (evicted > 0) {
+    logger.warn(`Evicted ${evicted} skipped message key(s) to enforce global cap of ${MAX_TOTAL_SKIPPED}`)
+  }
+
+  return capped
+}
 
 function concat(...arrays: Uint8Array[]): Uint8Array {
   const total = arrays.reduce((sum, a) => sum + a.length, 0)
@@ -200,20 +280,27 @@ async function skipMessageKeys(
 
   let ck = state.receivingChainKey
   let nr = state.receivingCount
-  const newSkipped = { ...state.skippedKeys }
+  const newSkipped: Record<string, string | { key: string; ts: number }> = { ...state.skippedKeys }
+  const now = Date.now()
 
   while (nr < until) {
     const result = await kdfChainKey(ck)
     ck = result.chainKey
-    newSkipped[`${state.dhReceivingBase64}:${nr}`] = uint8ToBase64(result.messageKey)
+    newSkipped[`${state.dhReceivingBase64}:${nr}`] = {
+      key: uint8ToBase64(result.messageKey),
+      ts: now,
+    }
     nr++
   }
+
+  // Prune expired keys and enforce global cap
+  const prunedSkipped = pruneSkippedKeys(newSkipped)
 
   return {
     ...state,
     receivingChainKey: ck,
     receivingCount: nr,
-    skippedKeys: newSkipped,
+    skippedKeys: prunedSkipped as RatchetState['skippedKeys'],
   }
 }
 
@@ -332,20 +419,29 @@ export async function ratchetDecrypt(
 
   // 1. Try skipped message keys (out-of-order delivery)
   const skipKey = `${header.dh}:${header.n}`
-  const skippedMk = state.skippedKeys[skipKey]
-  if (skippedMk) {
-    const headerBytes = encodeHeader(header)
-    const fullAd = concat(ad, headerBytes)
-    const mk = base64ToUint8(skippedMk)
-    const plaintext = await aeadDecrypt(mk, ciphertext, fullAd)
+  const skippedEntry = state.skippedKeys[skipKey]
+  if (skippedEntry !== undefined) {
+    // Resolve the key, handling both old format (string) and new format ({ key, ts })
+    const resolvedMk = resolveSkippedKey(skippedEntry as string | { key: string; ts: number })
+    if (resolvedMk) {
+      const headerBytes = encodeHeader(header)
+      const fullAd = concat(ad, headerBytes)
+      const mk = base64ToUint8(resolvedMk)
+      const plaintext = await aeadDecrypt(mk, ciphertext, fullAd)
 
+      const newSkipped = { ...state.skippedKeys }
+      delete newSkipped[skipKey]
+
+      return {
+        state: { ...state, skippedKeys: newSkipped },
+        plaintext,
+      }
+    }
+    // Key was expired; remove it and fall through to normal decrypt path
     const newSkipped = { ...state.skippedKeys }
     delete newSkipped[skipKey]
-
-    return {
-      state: { ...state, skippedKeys: newSkipped },
-      plaintext,
-    }
+    // Continue with updated skipped keys
+    state = { ...state, skippedKeys: newSkipped }
   }
 
   let newState = { ...state, skippedKeys: { ...state.skippedKeys } }

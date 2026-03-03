@@ -11,7 +11,7 @@
  * Follows the same pattern as useRealtimeTrainingCompletions.
  */
 
-import { useEffect, useRef, useCallback, useMemo } from 'react'
+import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { createLogger } from '../Utilities/Logger'
 import { useSupabaseSubscription } from './useSupabaseSubscription'
@@ -178,11 +178,15 @@ export function useSignalMessages({
   // Track whether catch-up has already run to avoid re-fetching on re-subscribe
   const catchUpDone = useRef(false)
 
+  // Counter to trigger catch-up re-run when visibility restores
+  const [catchUpTrigger, setCatchUpTrigger] = useState(0)
+
   // Reset catch-up when page visibility restores (messages may have been missed while hidden)
   const prevVisibleRef = useRef(isPageVisible)
   useEffect(() => {
     if (isPageVisible && !prevVisibleRef.current) {
       catchUpDone.current = false
+      setCatchUpTrigger(t => t + 1)
     }
     prevVisibleRef.current = isPageVisible
   }, [isPageVisible])
@@ -219,7 +223,7 @@ export function useSignalMessages({
         }
       }
     })()
-  }, [isAuthenticated, userId, localDeviceId])
+  }, [isAuthenticated, userId, localDeviceId, catchUpTrigger])
 
   // LoRa push subscription — process messages arriving via LoRa mesh
   useEffect(() => {

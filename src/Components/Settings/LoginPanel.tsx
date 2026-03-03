@@ -70,7 +70,7 @@ export const LoginPanel = ({
 
         {error && (
           <div className={`mb-4 p-3 text-sm ${variant === 'modal'
-            ? 'rounded-lg bg-red-50 border border-red-200 text-red-700'
+            ? 'rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred'
             : 'text-themeredred'
             }`}>
             {error}

@@ -14,6 +14,8 @@
  */
 
 import { createLogger } from '../../Utilities/Logger'
+import { aesGcmEncrypt, aesGcmDecrypt } from '../aesGcm'
+import { bytesToBase64, base64ToBytes } from '../base64Utils'
 
 const logger = createLogger('SignalingCrypto')
 
@@ -41,7 +43,7 @@ export async function createSignalingCrypto(): Promise<SignalingCrypto> {
 
   // Export public key as base64 (raw format)
   const pubKeyRaw = await crypto.subtle.exportKey('raw', keyPair.publicKey)
-  const pubKeyBase64 = btoa(String.fromCharCode(...new Uint8Array(pubKeyRaw)))
+  const pubKeyBase64 = bytesToBase64(new Uint8Array(pubKeyRaw))
 
   let sharedKey: CryptoKey | null = null
 
@@ -49,7 +51,7 @@ export async function createSignalingCrypto(): Promise<SignalingCrypto> {
 
   const setPeerKey = async (peerKeyBase64: string) => {
     try {
-      const peerKeyBytes = Uint8Array.from(atob(peerKeyBase64), c => c.charCodeAt(0))
+      const peerKeyBytes = base64ToBytes(peerKeyBase64)
       const peerPubKey = await crypto.subtle.importKey(
         'raw',
         peerKeyBytes,
@@ -87,21 +89,15 @@ export async function createSignalingCrypto(): Promise<SignalingCrypto> {
 
   const encrypt = async (payload: unknown): Promise<string> => {
     if (!sharedKey) throw new Error('Shared key not derived')
-    const iv = crypto.getRandomValues(new Uint8Array(12))
     const encoded = new TextEncoder().encode(JSON.stringify(payload))
-    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, sharedKey, encoded)
-    const combined = new Uint8Array(iv.length + ciphertext.byteLength)
-    combined.set(iv)
-    combined.set(new Uint8Array(ciphertext), iv.length)
-    return btoa(String.fromCharCode(...combined))
+    const combined = await aesGcmEncrypt(sharedKey, encoded)
+    return bytesToBase64(combined)
   }
 
   const decrypt = async (ciphertext: string): Promise<unknown> => {
     if (!sharedKey) throw new Error('Shared key not derived')
-    const combined = Uint8Array.from(atob(ciphertext), c => c.charCodeAt(0))
-    const iv = combined.slice(0, 12)
-    const ct = combined.slice(12)
-    const plainBuffer = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, sharedKey, ct)
+    const combined = base64ToBytes(ciphertext)
+    const plainBuffer = await aesGcmDecrypt(sharedKey, combined)
     return JSON.parse(new TextDecoder().decode(plainBuffer))
   }
 

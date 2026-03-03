@@ -18,6 +18,7 @@ import { deflateRaw, inflateRaw } from 'pako'
 import bwipjs from 'bwip-js'
 import { getBarcodeKey } from '../lib/cryptoService'
 import { uint8ToBase64, base64ToUint8 } from './textCodec'
+import { aesGcmEncrypt, aesGcmDecrypt } from '../lib/aesGcm'
 import { logError } from './ErrorHandler'
 
 // ---- Constants ----
@@ -241,17 +242,7 @@ export async function encryptBarcode(asciiPayload: string): Promise<string | nul
     const packed = packToMixedBinary(asciiPayload)
     const compressed = deflateRaw(packed)
 
-    const iv = crypto.getRandomValues(new Uint8Array(12))
-    const cipherBuffer = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      compressed
-    )
-
-    const cipher = new Uint8Array(cipherBuffer)
-    const binary = new Uint8Array(iv.length + cipher.length)
-    binary.set(iv, 0)
-    binary.set(cipher, iv.length)
+    const binary = await aesGcmEncrypt(key, compressed)
 
     return ENCRYPTED_PREFIX + uint8ToBase64(binary)
   } catch (err) {
@@ -276,16 +267,9 @@ export async function decryptBarcode(text: string): Promise<string | null> {
   try {
     const binary = base64ToUint8(text.slice(ENCRYPTED_PREFIX.length))
 
-    const iv = binary.slice(0, 12)
-    const ciphertext = binary.slice(12)
+    const plainBytes = await aesGcmDecrypt(key, binary)
 
-    const plainBuffer = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      ciphertext
-    )
-
-    const inflated = inflateRaw(new Uint8Array(plainBuffer))
+    const inflated = inflateRaw(plainBytes)
     return unpackFromMixedBinary(inflated)
   } catch (err) {
     logError('barcodeCodec.decrypt', err)

@@ -9,10 +9,10 @@ interface PropertyItemRowProps {
 }
 
 const conditionBadge: Record<string, { bg: string; text: string; label: string }> = {
-  serviceable: { bg: 'bg-green-100', text: 'text-green-800', label: 'SVC' },
-  unserviceable: { bg: 'bg-red-100', text: 'text-red-800', label: 'UNSVC' },
-  damaged: { bg: 'bg-amber-100', text: 'text-amber-800', label: 'DMG' },
-  missing: { bg: 'bg-red-100', text: 'text-red-800', label: 'MIS' },
+  serviceable: { bg: 'bg-themegreen/10', text: 'text-themegreen', label: 'SVC' },
+  unserviceable: { bg: 'bg-themeredred/10', text: 'text-themeredred', label: 'UNSVC' },
+  damaged: { bg: 'bg-themeyellow/10', text: 'text-themeyellow', label: 'DMG' },
+  missing: { bg: 'bg-themeredred/10', text: 'text-themeredred', label: 'MIS' },
 }
 
 export function PropertyItemRow({ item, holderName, subItemCount, onTap }: PropertyItemRowProps) {
@@ -35,7 +35,7 @@ export function PropertyItemRow({ item, holderName, subItemCount, onTap }: Prope
 
       <div className="flex items-center gap-2 shrink-0">
         {(item.quantity ?? 1) > 1 && (
-          <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">
+          <span className="text-[10px] bg-themeblue3/10 text-themeblue3 px-1.5 py-0.5 rounded-full font-medium">
             x{item.quantity}
           </span>
         )}

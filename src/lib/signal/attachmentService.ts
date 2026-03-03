@@ -10,6 +10,7 @@
 
 import { createLogger } from '../../Utilities/Logger'
 import { bytesToBase64, base64ToBytes } from '../base64Utils'
+import { aesGcmEncrypt, aesGcmDecrypt } from '../aesGcm'
 import { supabase } from '../supabase'
 import { ok, err, type Result } from '../result'
 
@@ -36,26 +37,16 @@ export async function uploadEncryptedAttachment(
   imageBlob: Blob,
 ): Promise<Result<UploadResult>> {
   try {
-    // Generate random AES-256-GCM key + IV
+    // Generate random AES-256-GCM key
     const key = await crypto.subtle.generateKey(
       { name: 'AES-GCM', length: 256 },
       true,
       ['encrypt', 'decrypt'],
     )
-    const iv = crypto.getRandomValues(new Uint8Array(IV_LENGTH))
 
-    // Encrypt the image bytes
+    // Encrypt the image bytes (aesGcmEncrypt prepends the 12-byte IV)
     const plainBytes = new Uint8Array(await imageBlob.arrayBuffer())
-    const cipherBuffer = await crypto.subtle.encrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      plainBytes,
-    )
-
-    // Combine IV + ciphertext into a single blob
-    const combined = new Uint8Array(IV_LENGTH + cipherBuffer.byteLength)
-    combined.set(iv, 0)
-    combined.set(new Uint8Array(cipherBuffer), IV_LENGTH)
+    const combined = await aesGcmEncrypt(key, plainBytes)
 
     const encBlob = new Blob([combined], { type: 'application/octet-stream' })
 
@@ -105,12 +96,8 @@ export async function downloadDecryptedAttachment(
       return err(msg)
     }
 
-    // Split IV and ciphertext
+    // Import the key and decrypt (aesGcmDecrypt splits IV + ciphertext)
     const combined = new Uint8Array(await data.arrayBuffer())
-    const iv = combined.slice(0, IV_LENGTH)
-    const ciphertext = combined.slice(IV_LENGTH)
-
-    // Import the key
     const rawKey = base64ToBytes(keyBase64)
     const key = await crypto.subtle.importKey(
       'raw',
@@ -120,12 +107,7 @@ export async function downloadDecryptedAttachment(
       ['decrypt'],
     )
 
-    // Decrypt
-    const plainBuffer = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv },
-      key,
-      ciphertext,
-    )
+    const plainBuffer = await aesGcmDecrypt(key, combined)
 
     logger.info(`Decrypted attachment: ${path} (${plainBuffer.byteLength} bytes)`)
     return ok(new Blob([plainBuffer]))

@@ -1,29 +1,14 @@
 import { create } from 'zustand'
 import type { PropertyItem, PropertyLocation } from '../Types/PropertyTypes'
 
-export type PropertyView =
-  | 'list'
-  | 'item-detail'
-  | 'item-form'
-  | 'transfer'
-  | 'location-map'
-  | 'discrepancies'
-  | 'search'
-
 interface PropertyState {
-  // Navigation
-  view: PropertyView
-  setView: (view: PropertyView) => void
-
-  // Item selection
+  // Item selection (view navigation is managed by parent Settings panel)
   selectedItem: PropertyItem | null
   editingItem: PropertyItem | null
   selectItem: (item: PropertyItem | null) => void
-  openAddForm: () => void
-  openEditForm: (item: PropertyItem) => void
-  closeForm: () => void
+  setEditingItem: (item: PropertyItem | null) => void
 
-  // Transfer
+  // Transfer overlay
   isTransferOpen: boolean
   openTransfer: () => void
   closeTransfer: () => void
@@ -36,29 +21,21 @@ interface PropertyState {
   resetLocationPath: () => void
 
   // Filters
-  searchQuery: string
   holderFilter: string | null
-  setSearchQuery: (query: string) => void
   setHolderFilter: (holderId: string | null) => void
 }
 
 export const usePropertyStore = create<PropertyState>((set) => ({
-  // Navigation
-  view: 'list',
-  setView: (view) => set({ view }),
-
   // Item selection
   selectedItem: null,
   editingItem: null,
-  selectItem: (item) => set({ selectedItem: item, view: item ? 'item-detail' : 'list' }),
-  openAddForm: () => set({ editingItem: null, view: 'item-form' }),
-  openEditForm: (item) => set({ editingItem: item, view: 'item-form' }),
-  closeForm: () => set({ editingItem: null, view: 'list' }),
+  selectItem: (item) => set({ selectedItem: item }),
+  setEditingItem: (item) => set({ editingItem: item }),
 
-  // Transfer
+  // Transfer overlay
   isTransferOpen: false,
-  openTransfer: () => set({ isTransferOpen: true, view: 'transfer' }),
-  closeTransfer: () => set({ isTransferOpen: false, view: 'item-detail' }),
+  openTransfer: () => set({ isTransferOpen: true }),
+  closeTransfer: () => set({ isTransferOpen: false }),
 
   // Location breadcrumb
   locationPath: [],
@@ -79,8 +56,6 @@ export const usePropertyStore = create<PropertyState>((set) => ({
   resetLocationPath: () => set({ locationPath: [], selectedLocation: null }),
 
   // Filters
-  searchQuery: '',
   holderFilter: null,
-  setSearchQuery: (query) => set({ searchQuery: query }),
   setHolderFilter: (holderId) => set({ holderFilter: holderId }),
 }))

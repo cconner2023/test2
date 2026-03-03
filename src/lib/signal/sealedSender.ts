@@ -288,11 +288,21 @@ export async function unseal(
     throw new Error('Sealed sender: invalid cert signature')
   }
 
-  // 8. Verify the cert was addressed to us (prevents re-targeting attacks)
+  // 8. Check sender certificate expiration
+  if (new Date(cert.expires).getTime() < Date.now()) {
+    throw new Error('Sealed sender: sender certificate has expired')
+  }
+
+  // 9. Verify the cert sender is not ourselves (prevents reflection attacks)
+  if (cert.senderUuid === myUuid) {
+    throw new Error('Sealed sender: message appears to be sent by ourselves (reflection attack)')
+  }
+
+  // 10. Verify the cert was addressed to us (prevents re-targeting attacks)
   if (cert.recipientIdentityDhKey !== myDhPubKeyBase64) {
     throw new Error('Sealed sender: cert recipient mismatch')
   }
 
-  // 9. Return the authenticated payload
+  // 11. Return the authenticated payload
   return { inner, senderUuid: cert.senderUuid, cert }
 }

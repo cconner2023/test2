@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import {
     useNavigationStore,
     selectShowQuestionCard,
@@ -12,7 +13,8 @@ export type { WriteNoteData } from '../stores/useNavigationStore'
 
 /**
  * Thin wrapper around the Zustand navigation store.
- * Preserves the identical return interface so no consumers need changes.
+ * Uses useShallow for a single subscription with shallow equality,
+ * so consumers only re-render when a selected field actually changes.
  *
  * Local helper functions (shouldShowBackButton, shouldShowMenuButton,
  * getDynamicTitle, getMedicationButtonText) remain here because they
@@ -22,123 +24,81 @@ export function useNavigation() {
     // ── Initialise media query listener (once per mount) ─────
     useEffect(() => useNavigationStore.getState().init(), [])
 
-    // ── Subscribe to store slices ────────────────────────────
-    const viewState = useNavigationStore((s) => s.viewState)
-    const selectedCategory = useNavigationStore((s) => s.selectedCategory)
-    const selectedSymptom = useNavigationStore((s) => s.selectedSymptom)
-    const selectedMedication = useNavigationStore((s) => s.selectedMedication)
-    const selectedGuideline = useNavigationStore((s) => s.selectedGuideline)
-    const isMobile = useNavigationStore((s) => s.isMobile)
+    // ── Single shallow subscription to all needed store slices ──
+    const store = useNavigationStore(useShallow((s) => ({
+        // Navigation State
+        viewState: s.viewState,
+        selectedCategory: s.selectedCategory,
+        selectedSymptom: s.selectedSymptom,
+        selectedMedication: s.selectedMedication,
+        selectedGuideline: s.selectedGuideline,
+        isMobile: s.isMobile,
 
-    const isMenuOpen = useNavigationStore((s) => s.isMenuOpen)
-    const showNoteImport = useNavigationStore((s) => s.showNoteImport)
-    const showSettings = useNavigationStore((s) => s.showSettings)
-    const isSearchExpanded = useNavigationStore((s) => s.isSearchExpanded)
-    const showSymptomInfo = useNavigationStore((s) => s.showSymptomInfo)
-    const showMedications = useNavigationStore((s) => s.showMedications)
-    const isWriteNoteVisible = useNavigationStore((s) => s.isWriteNoteVisible)
-    const writeNoteData = useNavigationStore((s) => s.writeNoteData)
-    const showTrainingDrawer = useNavigationStore((s) => s.showTrainingDrawer)
-    const trainingDrawerTaskId = useNavigationStore((s) => s.trainingDrawerTaskId)
+        // UI State
+        isMenuOpen: s.isMenuOpen,
+        showNoteImport: s.showNoteImport,
+        showSettings: s.showSettings,
+        isSearchExpanded: s.isSearchExpanded,
+        showSymptomInfo: s.showSymptomInfo,
+        showMedications: s.showMedications,
+        isWriteNoteVisible: s.isWriteNoteVisible,
+        writeNoteData: s.writeNoteData,
+        showTrainingDrawer: s.showTrainingDrawer,
+        trainingDrawerTaskId: s.trainingDrawerTaskId,
 
-    // Derived selectors
-    const showQuestionCard = useNavigationStore(selectShowQuestionCard)
-    const mobileGridClass = useNavigationStore(selectMobileGridClass)
-    const columnAPanel = useNavigationStore(selectColumnAPanel)
-    const isMobileColumnB = useNavigationStore(selectIsMobileColumnB)
+        // Derived selectors
+        showQuestionCard: selectShowQuestionCard(s),
+        mobileGridClass: selectMobileGridClass(s),
+        columnAPanel: selectColumnAPanel(s),
+        isMobileColumnB: selectIsMobileColumnB(s),
 
-    // Actions (stable references from Zustand — no useCallback needed)
-    const handleNavigation = useNavigationStore((s) => s.handleNavigation)
-    const handleMedicationSelect = useNavigationStore((s) => s.handleMedicationSelect)
-    const handleShowMedications = useNavigationStore((s) => s.handleShowMedications)
-    const handleBackClick = useNavigationStore((s) => s.handleBackClick)
-    const toggleMenu = useNavigationStore((s) => s.toggleMenu)
-    const closeMenu = useNavigationStore((s) => s.closeMenu)
-    const setShowNoteImport = useNavigationStore((s) => s.setShowNoteImport)
-    const setShowSettings = useNavigationStore((s) => s.setShowSettings)
-    const setShowMedications = useNavigationStore((s) => s.setShowMedications)
-    const toggleSearchExpanded = useNavigationStore((s) => s.toggleSearchExpanded)
-    const setSearchExpanded = useNavigationStore((s) => s.setSearchExpanded)
-    const expandSearchOnMobile = useNavigationStore((s) => s.expandSearchOnMobile)
-    const toggleSymptomInfo = useNavigationStore((s) => s.toggleSymptomInfo)
-    const setShowSymptomInfo = useNavigationStore((s) => s.setShowSymptomInfo)
-    const setShowTrainingDrawer = useNavigationStore((s) => s.setShowTrainingDrawer)
-    const showWriteNote = useNavigationStore((s) => s.openWriteNote)
-    const closeWriteNote = useNavigationStore((s) => s.closeWriteNote)
-    const resetToMain = useNavigationStore((s) => s.resetToMain)
+        // Actions (stable references from Zustand)
+        handleNavigation: s.handleNavigation,
+        handleMedicationSelect: s.handleMedicationSelect,
+        handleShowMedications: s.handleShowMedications,
+        handleBackClick: s.handleBackClick,
+        toggleMenu: s.toggleMenu,
+        closeMenu: s.closeMenu,
+        setShowNoteImport: s.setShowNoteImport,
+        setShowSettings: s.setShowSettings,
+        setShowMedications: s.setShowMedications,
+        toggleSearchExpanded: s.toggleSearchExpanded,
+        setSearchExpanded: s.setSearchExpanded,
+        expandSearchOnMobile: s.expandSearchOnMobile,
+        toggleSymptomInfo: s.toggleSymptomInfo,
+        setShowSymptomInfo: s.setShowSymptomInfo,
+        setShowTrainingDrawer: s.setShowTrainingDrawer,
+        showWriteNote: s.openWriteNote,
+        closeWriteNote: s.closeWriteNote,
+        resetToMain: s.resetToMain,
+    })))
 
     // ── Local helper functions ────────────────────────────────
 
     const getDynamicTitle = (): string => {
-        if (viewState === 'questions' && selectedSymptom) {
-            return selectedSymptom.text
+        if (store.viewState === 'questions' && store.selectedSymptom) {
+            return store.selectedSymptom.text
         }
-        if (viewState === 'subcategory' && selectedCategory) {
-            return selectedCategory.text
+        if (store.viewState === 'subcategory' && store.selectedCategory) {
+            return store.selectedCategory.text
         }
         return ""
     }
 
     const shouldShowBackButton = (hasSearchInput: boolean) => {
         if (hasSearchInput) return false
-        return Boolean(selectedCategory || selectedSymptom)
+        return Boolean(store.selectedCategory || store.selectedSymptom)
     }
 
     const shouldShowMenuButton = (hasSearchInput: boolean) => {
         if (hasSearchInput) return false
-        return !Boolean(selectedCategory || selectedSymptom)
+        return !Boolean(store.selectedCategory || store.selectedSymptom)
     }
 
     const getMedicationButtonText = () => "Medications" as const
 
     return {
-        // Navigation State
-        viewState,
-        selectedCategory,
-        selectedSymptom,
-        selectedMedication,
-        selectedGuideline,
-        isMobile,
-
-        // UI State
-        isMenuOpen,
-        showNoteImport,
-        showSettings,
-        isSearchExpanded,
-        showSymptomInfo,
-        showMedications,
-        isWriteNoteVisible,
-        writeNoteData,
-        showTrainingDrawer,
-        trainingDrawerTaskId,
-
-        // Navigation handlers
-        handleNavigation,
-        handleMedicationSelect,
-        handleShowMedications,
-        handleBackClick,
-
-        // UI State handlers
-        toggleMenu,
-        closeMenu,
-        setShowNoteImport,
-        setShowSettings,
-        setShowMedications,
-        toggleSearchExpanded,
-        setSearchExpanded,
-        expandSearchOnMobile,
-        toggleSymptomInfo,
-        setShowSymptomInfo,
-        setShowTrainingDrawer,
-        showWriteNote,
-        closeWriteNote,
-        resetToMain,
-
-        // Layout computation
-        showQuestionCard,
-        mobileGridClass,
-        columnAPanel,
-        isMobileColumnB,
+        ...store,
         dynamicTitle: getDynamicTitle(),
 
         // Back button logic (needs external state)

@@ -1,11 +1,12 @@
 import { useState, useCallback, useRef, useMemo } from 'react'
-import { Camera, Image, X, ArrowLeft } from 'lucide-react'
-import type { PropertyItem, LocalPropertyItem, LocalPropertyLocation } from '../../Types/PropertyTypes'
+import { Camera, Image, X } from 'lucide-react'
+import type { PropertyItem, LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 
 interface PropertyItemFormProps {
   editingItem?: LocalPropertyItem | null
   parentItems: LocalPropertyItem[]
   locations: LocalPropertyLocation[]
+  clinicMembers: HolderInfo[]
   onSave: (data: Omit<PropertyItem, 'id' | 'created_at' | 'updated_at'>) => Promise<unknown>
   onUpdate: (id: string, updates: Partial<PropertyItem>) => Promise<unknown>
   onClose: () => void
@@ -35,6 +36,7 @@ export function PropertyItemForm({
   editingItem,
   parentItems,
   locations,
+  clinicMembers,
   onSave,
   onUpdate,
   onClose,
@@ -49,6 +51,7 @@ export function PropertyItemForm({
   const [serialNumber, setSerialNumber] = useState(editingItem?.serial_number ?? '')
   const [quantity, setQuantity] = useState(editingItem?.quantity ?? 1)
   const [placement, setPlacement] = useState(encodePlacement(editingItem ?? null))
+  const [holderId, setHolderId] = useState(editingItem?.current_holder_id ?? '')
   const [photoUrl, setPhotoUrl] = useState<string | null>(editingItem?.photo_url ?? null)
   const [notes, setNotes] = useState(editingItem?.notes ?? '')
   const [isSaving, setIsSaving] = useState(false)
@@ -106,6 +109,7 @@ export function PropertyItemForm({
           quantity,
           parent_item_id: parentItemId,
           location_id: locationId,
+          current_holder_id: holderId || null,
           photo_url: photoUrl,
           notes: notes.trim() || null,
         })
@@ -121,7 +125,7 @@ export function PropertyItemForm({
           condition_code: 'serviceable',
           parent_item_id: parentItemId,
           location_id: locationId,
-          current_holder_id: null,
+          current_holder_id: holderId || null,
           location_tag_id: null,
           photo_url: photoUrl,
           notes: notes.trim() || null,
@@ -133,18 +137,10 @@ export function PropertyItemForm({
     } finally {
       setIsSaving(false)
     }
-  }, [name, nomenclature, nsn, lin, serialNumber, quantity, placement, photoUrl, notes, isEdit, editingItem, onSave, onUpdate, onClose, clinicId])
+  }, [name, nomenclature, nsn, lin, serialNumber, quantity, placement, holderId, photoUrl, notes, isEdit, editingItem, onSave, onUpdate, onClose, clinicId])
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <button
-        className="flex items-center gap-2 px-4 py-2 text-sm text-themeblue3 hover:text-themeblue3/80 shrink-0"
-        onClick={onClose}
-      >
-        <ArrowLeft size={16} /> Back
-      </button>
-
       <div className="flex-1 overflow-y-auto">
         <div className="flex flex-col gap-4 px-4 py-3">
           {/* Name */}
@@ -207,6 +203,19 @@ export function PropertyItemForm({
                     ))}
                 </optgroup>
               )}
+            </select>
+          </div>
+
+          {/* Assigned To */}
+          <div>
+            <label className={labelClass}>Assigned To</label>
+            <select className={inputClass} value={holderId} onChange={(e) => setHolderId(e.target.value)}>
+              <option value="">Unassigned</option>
+              {clinicMembers
+                .sort((a, b) => a.displayName.localeCompare(b.displayName))
+                .map((m) => (
+                  <option key={m.id} value={m.id}>{m.displayName}</option>
+                ))}
             </select>
           </div>
 

@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Lock, KeyRound, ScanFace, Timer, Activity } from 'lucide-react'
+import { Lock, KeyRound, ScanFace, Timer, Activity, Smartphone, ChevronRight } from 'lucide-react'
 import { StatusBanner } from './StatusBanner'
 import { ToggleSwitch } from './ToggleSwitch'
 import { PinKeypad } from '../PinKeypad'
@@ -34,7 +34,11 @@ type PinView = 'status' | 'set-new' | 'confirm-new' | 'verify-current' | 'change
 
 const TIMEOUT_20_MIN = 20 * 60 * 1000
 
-export const PinSetupPanel = () => {
+interface PinSetupPanelProps {
+  onNavigateToDevices?: () => void
+}
+
+export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
   const [view, setView] = useState<PinView>('status')
   const [pinEnabled, setPinEnabled] = useState(isPinEnabled())
   const [timeoutMs, setTimeoutMs] = useState(getInactivityTimeoutMs)
@@ -335,6 +339,26 @@ export const PinSetupPanel = () => {
                 <ToggleSwitch checked={activityTracking} />
               </div>
             </>
+          )}
+
+          {/* Sessions & Devices — nested under Security */}
+          {onNavigateToDevices && (
+            <div
+              className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-tertiary/15 bg-themewhite2 cursor-pointer active:scale-[0.98] transition-all"
+              onClick={onNavigateToDevices}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigateToDevices(); } }}
+            >
+              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                <Smartphone size={18} className="text-tertiary/50" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-primary">Sessions & Devices</p>
+                <p className="text-[11px] text-tertiary/70 mt-0.5">View and manage registered devices</p>
+              </div>
+              <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+            </div>
           )}
         </div>
       </div>

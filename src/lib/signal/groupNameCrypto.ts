@@ -1,3 +1,6 @@
+import { aesGcmEncrypt, aesGcmDecrypt } from '../aesGcm'
+import { bytesToBase64, base64ToBytes } from '../base64Utils'
+
 const ENC_PREFIX = 'genc:'
 const enc = new TextEncoder()
 
@@ -25,24 +28,16 @@ async function deriveKey(groupId: string): Promise<CryptoKey> {
 
 export async function encryptGroupName(groupId: string, name: string): Promise<string> {
   const key = await deriveKey(groupId)
-  const iv = crypto.getRandomValues(new Uint8Array(12))
-  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, enc.encode(name))
-  const combined = new Uint8Array(12 + ciphertext.byteLength)
-  combined.set(iv)
-  combined.set(new Uint8Array(ciphertext), 12)
-  return ENC_PREFIX + btoa(String.fromCharCode(...combined))
+  const combined = await aesGcmEncrypt(key, enc.encode(name))
+  return ENC_PREFIX + bytesToBase64(combined)
 }
 
 export async function decryptGroupName(groupId: string, encryptedName: string): Promise<string> {
   if (!encryptedName.startsWith(ENC_PREFIX)) return encryptedName
   try {
-    const combined = Uint8Array.from(atob(encryptedName.slice(ENC_PREFIX.length)), c => c.charCodeAt(0))
+    const combined = base64ToBytes(encryptedName.slice(ENC_PREFIX.length))
     const key = await deriveKey(groupId)
-    const plain = await crypto.subtle.decrypt(
-      { name: 'AES-GCM', iv: combined.slice(0, 12) },
-      key,
-      combined.slice(12),
-    )
+    const plain = await aesGcmDecrypt(key, combined)
     return new TextDecoder().decode(plain)
   } catch {
     return encryptedName

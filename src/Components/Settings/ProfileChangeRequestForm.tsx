@@ -158,13 +158,13 @@ export const ProfileChangeRequestForm = () => {
         </p>
 
         {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          <div className="mb-4 p-3 rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred text-sm">
             {error}
           </div>
         )}
 
         {!hasChanges && (
-          <div className="mb-4 p-3 rounded-lg bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm">
+          <div className="mb-4 p-3 rounded-lg bg-themeyellow/10 border border-themeyellow/20 text-themeyellow text-sm">
             Make changes to the fields below to submit a request
           </div>
         )}

@@ -1,4 +1,4 @@
-import { base64ToBytes } from './base64Utils'
+import { base64ToBytes, bytesToBase64 } from './base64Utils'
 import { createLogger } from '../Utilities/Logger'
 
 const logger = createLogger('SecureStorage')
@@ -13,53 +13,110 @@ let useLocalStorageFallback = false
 /** True when Web Crypto is missing — we cannot encrypt at all. */
 let cryptoUnavailable = false
 
-async function getFingerprint(): Promise<ArrayBuffer> {
-  const raw = [
-    navigator.userAgent,
-    screen.width.toString(),
-    screen.height.toString(),
-    screen.colorDepth.toString(),
-    Intl.DateTimeFormat().resolvedOptions().timeZone,
-  ].join('|')
-  return crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw))
-}
+// ---- IDB key names ----
+/** Legacy key name for raw bytes (kept for SW compatibility). */
+const IDB_KEY_RAW = '__enc_key_raw'
+/** New key name for the non-extractable CryptoKey object. */
+const IDB_KEY_CRYPTO = '__enc_cryptokey'
 
-async function getEncryptionKey(): Promise<CryptoKey> {
-  if (encKey) return encKey
+// ---- Key management ----
 
-  // 1. Load persisted key from IDB if available (stable across browser updates)
-  try {
-    const db = await getDb()
-    const rawBytes = await idbGet(db, '__enc_key_raw')
-    if (rawBytes) {
-      encKey = await crypto.subtle.importKey(
-        'raw', rawBytes, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
-      )
-      return encKey
-    }
-  } catch { /* IDB unavailable or key not yet stored — fall through to fingerprint */ }
-
-  // 2. Derive from device fingerprint (first run or fallback)
-  const fingerprint = await getFingerprint()
-  encKey = await crypto.subtle.importKey(
-    'raw', fingerprint, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+/**
+ * Generate a cryptographically random 256-bit key.
+ * Returns both the raw bytes (for SW persistence) and the non-extractable CryptoKey.
+ */
+async function generateRandomKey(): Promise<{ raw: Uint8Array; key: CryptoKey }> {
+  const raw = crypto.getRandomValues(new Uint8Array(32))
+  const key = await crypto.subtle.importKey(
+    'raw', raw, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
   )
-
-  // 3. Persist raw key bytes to IDB for future loads and service worker access
-  persistKeyToIdb(new Uint8Array(fingerprint)).catch(() => {})
-
-  return encKey
+  return { raw, key }
 }
 
-/** Persist raw encryption key bytes into adtmc-secure-store IDB for SW access. */
-async function persistKeyToIdb(rawBytes: Uint8Array): Promise<void> {
+/**
+ * Try to load a CryptoKey from IDB.
+ *
+ * Migration path:
+ *   1. Try the new CryptoKey slot first (__enc_cryptokey).
+ *   2. Fall back to the legacy raw-bytes slot (__enc_key_raw) — import the
+ *      bytes as a non-extractable CryptoKey, then store it in the new slot
+ *      so future loads are fast.
+ */
+async function loadKeyFromIdb(db: IDBDatabase): Promise<CryptoKey | null> {
+  // 1. Try the new CryptoKey slot
+  try {
+    const stored = await idbGetAny(db, IDB_KEY_CRYPTO)
+    if (stored && (stored as CryptoKey).type === 'secret') {
+      return stored as CryptoKey
+    }
+  } catch { /* slot missing or corrupt — try legacy */ }
+
+  // 2. Try legacy raw bytes slot (migration from old code or SW-written key)
+  try {
+    const rawBytes = await idbGetAny(db, IDB_KEY_RAW)
+    if (rawBytes) {
+      const key = await crypto.subtle.importKey(
+        'raw', rawBytes as ArrayBuffer, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+      )
+      // Upgrade: persist the CryptoKey in the new slot for future loads
+      await idbPutAny(db, IDB_KEY_CRYPTO, key).catch(() => {})
+      return key
+    }
+  } catch { /* no legacy key either */ }
+
+  return null
+}
+
+/**
+ * Persist the encryption key into IDB.
+ *   - Stores a non-extractable CryptoKey under __enc_cryptokey (for the main app).
+ *   - Also stores raw bytes under __enc_key_raw (for SW access via importKey).
+ */
+async function persistKeyToIdb(raw: Uint8Array, key: CryptoKey): Promise<void> {
   try {
     const db = await getDb()
-    await idbPut(db, '__enc_key_raw', rawBytes.buffer as ArrayBuffer)
+    // Store the CryptoKey object (non-extractable)
+    await idbPutAny(db, IDB_KEY_CRYPTO, key)
+    // Store raw bytes for service-worker compatibility (SW cannot use CryptoKey
+    // objects from a different global scope and imports raw bytes itself).
+    await idbPut(db, IDB_KEY_RAW, raw.buffer as ArrayBuffer)
   } catch {
     logger.warn('Failed to persist encryption key to IDB for SW')
   }
 }
+
+/**
+ * Get or create the AES-GCM encryption key.
+ *
+ * Strategy:
+ *   1. Return cached CryptoKey if already loaded.
+ *   2. Try to load from IDB (handles both new CryptoKey and legacy raw bytes).
+ *   3. Generate a cryptographically random 256-bit key and persist it.
+ */
+async function getEncryptionKey(): Promise<CryptoKey> {
+  if (encKey) return encKey
+
+  // 1. Load persisted key from IDB if available
+  try {
+    const db = await getDb()
+    const loaded = await loadKeyFromIdb(db)
+    if (loaded) {
+      encKey = loaded
+      return encKey
+    }
+  } catch { /* IDB unavailable — fall through to generation */ }
+
+  // 2. Generate a new cryptographically random key
+  const { raw, key } = await generateRandomKey()
+  encKey = key
+
+  // 3. Persist both forms to IDB
+  persistKeyToIdb(raw, key).catch(() => {})
+
+  return encKey
+}
+
+// ---- IDB helpers ----
 
 function getDb(): Promise<IDBDatabase> {
   if (dbInstance) return Promise.resolve(dbInstance)
@@ -89,11 +146,31 @@ function idbPut(db: IDBDatabase, key: string, value: ArrayBuffer): Promise<void>
   })
 }
 
+/** Generic put that can store any structured-cloneable value (including CryptoKey). */
+function idbPutAny(db: IDBDatabase, key: string, value: unknown): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite')
+    tx.objectStore(STORE_NAME).put(value, key)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+}
+
 function idbGet(db: IDBDatabase, key: string): Promise<ArrayBuffer | undefined> {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readonly')
     const req = tx.objectStore(STORE_NAME).get(key)
     req.onsuccess = () => resolve(req.result as ArrayBuffer | undefined)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+/** Generic get that returns any stored value (CryptoKey, ArrayBuffer, etc.). */
+function idbGetAny(db: IDBDatabase, key: string): Promise<unknown> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readonly')
+    const req = tx.objectStore(STORE_NAME).get(key)
+    req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
   })
 }
@@ -149,7 +226,7 @@ async function lsEncryptedSet(key: string, value: string): Promise<void> {
   combined.set(iv)
   combined.set(new Uint8Array(ciphertext), iv.length)
   // Store as base64 with prefix so we can identify encrypted entries
-  const b64 = btoa(String.fromCharCode(...combined))
+  const b64 = bytesToBase64(combined)
   localStorage.setItem(key, LS_ENC_PREFIX + b64)
 }
 
@@ -258,25 +335,23 @@ export async function secureClear(): Promise<void> {
 const STR_ENC_PREFIX = 'senc:'
 
 /** Encrypt a plaintext string. Returns a prefixed base64 ciphertext.
- *  Returns the original string if Web Crypto is unavailable. */
+ *  Throws if encryption fails (never returns plaintext silently). */
 export async function encryptString(plaintext: string): Promise<string> {
-  if (cryptoUnavailable) return plaintext
-  try {
-    const ek = await getEncryptionKey()
-    const iv = crypto.getRandomValues(new Uint8Array(12))
-    const encoded = new TextEncoder().encode(plaintext)
-    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, ek, encoded)
-    const combined = new Uint8Array(iv.length + ciphertext.byteLength)
-    combined.set(iv)
-    combined.set(new Uint8Array(ciphertext), iv.length)
-    return STR_ENC_PREFIX + btoa(String.fromCharCode(...combined))
-  } catch {
-    return plaintext
+  if (cryptoUnavailable) {
+    throw new Error('encryptString: Web Crypto is unavailable — cannot encrypt')
   }
+  const ek = await getEncryptionKey()
+  const iv = crypto.getRandomValues(new Uint8Array(12))
+  const encoded = new TextEncoder().encode(plaintext)
+  const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, ek, encoded)
+  const combined = new Uint8Array(iv.length + ciphertext.byteLength)
+  combined.set(iv)
+  combined.set(new Uint8Array(ciphertext), iv.length)
+  return STR_ENC_PREFIX + bytesToBase64(combined)
 }
 
 /** Decrypt a string previously encrypted with encryptString().
- *  Handles plaintext transparently (returns as-is if no senc: prefix). */
+ *  Handles legacy plaintext transparently (returns as-is if no senc: prefix). */
 export async function decryptString(value: string): Promise<string> {
   if (!value.startsWith(STR_ENC_PREFIX)) return value
   if (cryptoUnavailable) return value

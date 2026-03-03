@@ -13,10 +13,16 @@
  * - One-time pre-keys (ECDH P-256): ephemeral, consumed on contact
  *
  * Security model:
- * - Key pairs generated with extractable=true so public components
- *   can be exported for server upload. Private keys never leave the
- *   device — they're stored in IndexedDB (same-origin protected) and
- *   only used via crypto.subtle operations.
+ * - Key pairs are generated with extractable=true because:
+ *   (a) Public keys must be exported for server upload, and
+ *   (b) IndexedDB structured-clone serialization requires extractable keys.
+ *   When keys are loaded FROM storage for operational use (e.g., in-memory
+ *   cache), they retain extractable=true due to this IDB constraint.
+ *   IMPORTANT: Private keys never leave the device — they are stored in
+ *   IndexedDB (same-origin protected) and only used via crypto.subtle
+ *   operations. If a future migration moves to a non-IDB store (e.g.,
+ *   WebAuthn PRF or opaque key wrapping), keys should be re-imported
+ *   with extractable=false.
  * - Memory cache for hot-path identity key access.
  * - IndexedDB for offline persistence (adtmc-signal-store).
  */
@@ -47,12 +53,24 @@ const ECDSA_SIGN_PARAMS: EcdsaParams = { name: 'ECDSA', hash: 'SHA-256' }
 
 // ---- Key Generation Primitives ----
 
-/** Generate an ECDH P-256 key pair for Diffie-Hellman key agreement. */
+/**
+ * Generate an ECDH P-256 key pair for Diffie-Hellman key agreement.
+ *
+ * NOTE: Keys are generated with extractable=true because IndexedDB
+ * structured-clone requires it for persistence. See module-level
+ * security model comment for details.
+ */
 async function generateDhKeyPair(): Promise<CryptoKeyPair> {
   return crypto.subtle.generateKey(ECDH_PARAMS, true, ['deriveKey', 'deriveBits'])
 }
 
-/** Generate an ECDSA P-256 key pair for digital signatures. */
+/**
+ * Generate an ECDSA P-256 key pair for digital signatures.
+ *
+ * NOTE: Keys are generated with extractable=true because IndexedDB
+ * structured-clone requires it for persistence. See module-level
+ * security model comment for details.
+ */
 async function generateSigningKeyPair(): Promise<CryptoKeyPair> {
   return crypto.subtle.generateKey(ECDSA_PARAMS, true, ['sign', 'verify'])
 }

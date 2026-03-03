@@ -2,7 +2,7 @@
 // provides biometric as an alternative to 4-digit PIN
 // Uses platform authenticator (secure enclave) for local-only verification
 
-import { bytesToBase64url, base64urlToBytes } from './base64Utils'
+import { bytesToBase64, bytesToBase64url, base64urlToBytes } from './base64Utils'
 
 const STORAGE_KEY = 'adtmc_webauthn_credential'
 const BIOMETRIC_ENABLED_KEY = 'adtmc_biometric_enabled'
@@ -65,7 +65,7 @@ export async function enrollBiometric(): Promise<boolean> {
 
     const stored: StoredCredential = {
       credentialId: bytesToBase64url(new Uint8Array(credential.rawId)),
-      publicKeySpki: pk ? btoa(String.fromCharCode(...new Uint8Array(pk))) : '',
+      publicKeySpki: pk ? bytesToBase64(new Uint8Array(pk)) : '',
       createdAt: Date.now(),
     }
 

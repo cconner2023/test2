@@ -112,8 +112,8 @@ describe('getErrorMessage', () => {
     expect(getErrorMessage(new TypeError('bad type'))).toBe('bad type')
   })
 
-  it('returns "Unknown error" for string', () => {
-    expect(getErrorMessage('some string')).toBe('Unknown error')
+  it('returns string directly when given a string', () => {
+    expect(getErrorMessage('some string')).toBe('some string')
   })
 
   it('returns "Unknown error" for number', () => {
@@ -181,11 +181,11 @@ describe('callRpc', () => {
     expect(mockLogger.error).toHaveBeenCalledWith('testOp exception:', 'network down')
   })
 
-  it('returns err with "Unknown error" on thrown non-Error', async () => {
+  it('returns err with string message on thrown non-Error string', async () => {
     const operation = async () => { throw 'string error' }
     const result = await callRpc(operation, 'testOp', mockLogger)
     expect(result.ok).toBe(false)
-    if (!result.ok) expect(result.error).toBe('Unknown error')
+    if (!result.ok) expect(result.error).toBe('string error')
   })
 
   it('error object without code omits code in result', async () => {

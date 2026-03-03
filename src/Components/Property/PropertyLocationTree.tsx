@@ -27,10 +27,10 @@ interface DragState {
 }
 
 const conditionColors: Record<string, string> = {
-  serviceable: 'bg-green-100 text-green-800',
-  unserviceable: 'bg-yellow-100 text-yellow-800',
-  damaged: 'bg-red-100 text-red-800',
-  missing: 'bg-gray-100 text-gray-800',
+  serviceable: 'bg-themegreen/10 text-themegreen',
+  unserviceable: 'bg-themeredred/10 text-themeredred',
+  damaged: 'bg-themeyellow/10 text-themeyellow',
+  missing: 'bg-tertiary/10 text-tertiary',
 }
 
 const conditionLabels: Record<string, string> = {
@@ -326,7 +326,7 @@ export function PropertyLocationTree({
                   <Package size={12} className="text-tertiary shrink-0" />
                   <span className="text-xs text-primary truncate flex-1">{item.name}</span>
                   {item.condition_code && (
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${conditionColors[item.condition_code] ?? 'bg-gray-100 text-gray-600'}`}>
+                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${conditionColors[item.condition_code] ?? 'bg-tertiary/10 text-tertiary'}`}>
                       {conditionLabels[item.condition_code] ?? item.condition_code}
                     </span>
                   )}
@@ -367,7 +367,7 @@ export function PropertyLocationTree({
           <div
             className={`flex items-center gap-1.5 py-1.5 pr-3 transition-colors ${
               isUnassignedDropTarget
-                ? 'bg-amber-100/50 ring-1 ring-amber-400/30'
+                ? 'bg-themeyellow/10 ring-1 ring-themeyellow/30'
                 : 'hover:bg-secondary/5'
             }`}
             style={{ paddingLeft: '12px' }}
@@ -380,7 +380,7 @@ export function PropertyLocationTree({
               {collapsed.has('__unassigned__') ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
             </button>
             <span className="text-xs font-medium text-tertiary italic flex-1">Unassigned</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium shrink-0">
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-themeyellow/10 text-themeyellow font-medium shrink-0">
               {unassignedItems.length}
             </span>
           </div>
@@ -407,7 +407,7 @@ export function PropertyLocationTree({
                     <Package size={12} className="text-tertiary shrink-0" />
                     <span className="text-xs text-primary truncate flex-1">{item.name}</span>
                     {item.condition_code && (
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${conditionColors[item.condition_code] ?? 'bg-gray-100 text-gray-600'}`}>
+                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${conditionColors[item.condition_code] ?? 'bg-tertiary/10 text-tertiary'}`}>
                         {item.condition_code}
                       </span>
                     )}

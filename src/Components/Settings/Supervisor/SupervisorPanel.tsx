@@ -1,13 +1,11 @@
 import { useState, useEffect, useCallback, type MutableRefObject } from 'react'
-import { Ban, ClipboardCheck, Eye, Pencil } from 'lucide-react'
-import { UserAvatar } from '../UserAvatar'
+import { Ban } from 'lucide-react'
 import { useTrainingCompletions } from '../../../Hooks/useTrainingCompletions'
 import { useSupervisorData } from './useSupervisorData'
 import { PersonnelRoster } from './PersonnelRoster'
 import { SoldierProfile } from './SoldierProfile'
 import { SoldierCertsEditor } from './SoldierCertsEditor'
 import { EvaluateFlow } from './EvaluateFlow'
-import { formatMedicName } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { StepResult } from '../../../Types/SupervisorTestTypes'
 
@@ -136,107 +134,57 @@ export function SupervisorPanel({
     )
   }
 
-  // ─── Derived ────────────────────────────────────────────────────────────
-
-  const selectedSoldier = selectedSoldierId
-    ? medics.find(m => m.id === selectedSoldierId) ?? null
-    : null
-
   // ─── Screen Routing ─────────────────────────────────────────────────────
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex-1 overflow-y-auto min-h-0">
-        <div className="px-4 py-3 md:p-5">
-          {view.screen === 'roster' && (
-            <PersonnelRoster
-              medics={medics}
-              certsForSoldier={certsForSoldier}
-              overdueCount={getOverdueCount}
-              selectedSoldierId={selectedSoldierId}
-              onSelectSoldier={setSelectedSoldierId}
-              onEvaluate={handleEvaluate}
-              onView={handleViewProfile}
-              onModify={handleModifyCerts}
-            />
-          )}
+    <div className="h-full overflow-y-auto">
+      <div className="px-4 py-3 md:p-5">
+        {view.screen === 'roster' && (
+          <PersonnelRoster
+            medics={medics}
+            certsForSoldier={certsForSoldier}
+            overdueCount={getOverdueCount}
+            selectedSoldierId={selectedSoldierId}
+            onSelectSoldier={setSelectedSoldierId}
+            onEvaluate={handleEvaluate}
+            onView={handleViewProfile}
+            onModify={handleModifyCerts}
+          />
+        )}
 
-          {view.screen === 'soldier-profile' && currentUserId && (
-            <SoldierProfile
-              soldier={view.soldier}
-              certs={certsForSoldier(view.soldier.id)}
-              tests={testsForSoldier(view.soldier.id)}
-              overdueItems={overdueItems(view.soldier.id)}
-              currentUserId={currentUserId}
-              resolveName={resolveName}
-              onUpdateCert={updateCert}
-              onRemoveTest={removeTest}
-            />
-          )}
+        {view.screen === 'soldier-profile' && currentUserId && (
+          <SoldierProfile
+            soldier={view.soldier}
+            certs={certsForSoldier(view.soldier.id)}
+            tests={testsForSoldier(view.soldier.id)}
+            overdueItems={overdueItems(view.soldier.id)}
+            currentUserId={currentUserId}
+            resolveName={resolveName}
+            onUpdateCert={updateCert}
+            onRemoveTest={removeTest}
+          />
+        )}
 
-          {view.screen === 'soldier-certs' && currentUserId && (
-            <SoldierCertsEditor
-              soldier={view.soldier}
-              certs={certsForSoldier(view.soldier.id)}
-              currentUserId={currentUserId}
-              resolveName={resolveName}
-              onUpdateCert={updateCert}
-            />
-          )}
+        {view.screen === 'soldier-certs' && currentUserId && (
+          <SoldierCertsEditor
+            soldier={view.soldier}
+            certs={certsForSoldier(view.soldier.id)}
+            currentUserId={currentUserId}
+            resolveName={resolveName}
+            onUpdateCert={updateCert}
+          />
+        )}
 
-          {(view.screen === 'evaluate-select-task' || view.screen === 'evaluate-go-nogo') && (
-            <EvaluateFlow
-              soldier={view.screen === 'evaluate-select-task' ? view.soldier : view.soldier}
-              taskNumber={view.screen === 'evaluate-go-nogo' ? view.taskNumber : null}
-              taskTitle={view.screen === 'evaluate-go-nogo' ? view.taskTitle : null}
-              onSelectTask={handleSelectTask}
-              onSubmit={handleSubmitEvaluation}
-            />
-          )}
-        </div>
+        {(view.screen === 'evaluate-select-task' || view.screen === 'evaluate-go-nogo') && (
+          <EvaluateFlow
+            soldier={view.screen === 'evaluate-select-task' ? view.soldier : view.soldier}
+            taskNumber={view.screen === 'evaluate-go-nogo' ? view.taskNumber : null}
+            taskTitle={view.screen === 'evaluate-go-nogo' ? view.taskTitle : null}
+            onSelectTask={handleSelectTask}
+            onSubmit={handleSubmitEvaluation}
+          />
+        )}
       </div>
-
-      {/* Bottom action menu — pinned to panel bottom, outside scroll */}
-      {view.screen === 'roster' && selectedSoldier && (
-        <div className="shrink-0 px-4 md:px-5 py-3 border-t border-tertiary/10
-                        bg-themewhite2/95 backdrop-blur-sm shadow-[0_-2px_8px_rgba(0,0,0,0.06)]">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <UserAvatar avatarId={selectedSoldier.avatarId} firstName={selectedSoldier.firstName} lastName={selectedSoldier.lastName} className="w-8 h-8" />
-            <p className="text-[10px] text-tertiary/50 truncate">
-              {formatMedicName(selectedSoldier)}
-            </p>
-          </div>
-          <div className="flex items-center justify-center gap-6">
-            <button
-              onClick={() => handleEvaluate(selectedSoldier)}
-              className="flex flex-col items-center gap-1 active:scale-95 transition-transform"
-            >
-              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-themeblue2/15 hover:bg-themeblue2/25 transition-colors">
-                <ClipboardCheck size={18} className="text-themeblue2" />
-              </div>
-              <span className="text-[9px] font-medium text-tertiary/60">Evaluate</span>
-            </button>
-            <button
-              onClick={() => handleViewProfile(selectedSoldier)}
-              className="flex flex-col items-center gap-1 active:scale-95 transition-transform"
-            >
-              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-themegreen/15 hover:bg-themegreen/25 transition-colors">
-                <Eye size={18} className="text-themegreen" />
-              </div>
-              <span className="text-[9px] font-medium text-tertiary/60">View</span>
-            </button>
-            <button
-              onClick={() => handleModifyCerts(selectedSoldier)}
-              className="flex flex-col items-center gap-1 active:scale-95 transition-transform"
-            >
-              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-themeyellow/15 hover:bg-themeyellow/25 transition-colors">
-                <Pencil size={16} className="text-themeyellow" />
-              </div>
-              <span className="text-[9px] font-medium text-tertiary/60">Modify</span>
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

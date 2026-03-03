@@ -96,18 +96,18 @@ export function LoginScreen() {
         <div className="text-center mb-15">
           <svg className="w-14 h-14 mx-auto mb-3" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
             <g transform="translate(20,20)">
-              <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-[rgba(0,66,92,1)]" />
-              <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-[rgba(0,66,92,1)]" transform="rotate(60)" />
-              <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-[rgba(0,66,92,1)]" transform="rotate(120)" />
+              <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" />
+              <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" transform="rotate(60)" />
+              <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" transform="rotate(120)" />
             </g>
           </svg>
-          <h1 className="text-xl font-semibold tracking-[2px] text-[rgba(0,66,92,1)] dark:text-[rgba(129,161,181,1)]">
+          <h1 className="text-xl font-semibold tracking-[2px] text-themeblue3 dark:text-themeblue1">
             ADTMC <div className='text-[10pt]'>Medical Knowledge Repository and Operational Network</div>
           </h1>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 text-sm rounded-lg bg-themeredred border text-white">
+          <div className="mb-4 p-3 text-sm rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred">
             {error}
           </div>
         )}
@@ -294,7 +294,7 @@ export function LoginScreen() {
           <>
             {resetSent ? (
               <div className="text-sm text-center">
-                <p className="font-medium text-green-700 dark:text-green-400">Reset email sent!</p>
+                <p className="font-medium text-themegreen">Reset email sent!</p>
                 <p className="text-xs mt-1 text-tertiary/60">Check your inbox for a link to reset your password.</p>
               </div>
             ) : (

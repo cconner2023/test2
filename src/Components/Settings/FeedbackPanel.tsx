@@ -63,7 +63,7 @@ export const FeedbackPanel = () => {
         </p>
 
         {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          <div className="mb-4 p-3 rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred text-sm">
             {error}
           </div>
         )}

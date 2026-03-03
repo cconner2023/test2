@@ -1,4 +1,5 @@
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
+import { getDisplayName } from '../../Utilities/nameUtils'
 import { UserAvatar } from './UserAvatar'
 
 interface ContactListItemProps {
@@ -6,18 +7,6 @@ interface ContactListItemProps {
   lastMessage?: string
   unreadCount?: number
   onClick: () => void
-}
-
-/** Display name: "Rank Last, F." or just "Last" or "Unknown". */
-function getDisplayName(medic: ClinicMedic): string {
-  const parts: string[] = []
-  if (medic.rank) parts.push(medic.rank)
-  if (medic.lastName) {
-    let name = medic.lastName
-    if (medic.firstName) name += `, ${medic.firstName.charAt(0)}.`
-    parts.push(name)
-  }
-  return parts.join(' ') || 'Unknown'
 }
 
 export function ContactListItem({ medic, lastMessage, unreadCount, onClick }: ContactListItemProps) {

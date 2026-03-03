@@ -13,6 +13,9 @@
  * 5. Mark entries as sent or failed
  */
 
+import { base64ToBytes } from '../base64Utils'
+import { aesGcmDecrypt } from '../aesGcm'
+
 const QUEUE_DB = 'adtmc-outbound-queue'
 const QUEUE_VERSION = 1
 const SECURE_DB = 'adtmc-secure-store'
@@ -78,17 +81,8 @@ function idbPut(db: IDBDatabase, storeName: string, value: unknown): Promise<voi
 
 // ---- Crypto helpers ----
 
-function base64ToBytes(b64: string): Uint8Array {
-  const binary = atob(b64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
-  return bytes
-}
-
-async function decryptAesGcm(key: CryptoKey, combined: Uint8Array): Promise<string> {
-  const iv = combined.slice(0, 12)
-  const ciphertext = combined.slice(12)
-  const plain = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext)
+async function decryptAesGcmToString(key: CryptoKey, combined: Uint8Array): Promise<string> {
+  const plain = await aesGcmDecrypt(key, combined)
   return new TextDecoder().decode(plain)
 }
 
@@ -96,7 +90,7 @@ async function decryptSencString(encKey: CryptoKey, value: string): Promise<stri
   if (!value.startsWith(SENC_PREFIX)) return value
   const b64 = value.slice(SENC_PREFIX.length)
   const combined = base64ToBytes(b64)
-  return decryptAesGcm(encKey, combined)
+  return decryptAesGcmToString(encKey, combined)
 }
 
 // ---- Queue entry shape (matches outboundQueue.ts) ----

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { KeyRound } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/useAuthStore'
-import { setBackupPassword, createBackup } from '../lib/signal/backupService'
+import { deriveAndStoreBackupKey, createBackup } from '../lib/signal/backupService'
 import { PasswordInput } from './FormInputs'
 import { ErrorMessage } from './ErrorMessage'
 
@@ -39,8 +39,8 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
       return
     }
 
-    // Update backup encryption key with new password
-    setBackupPassword(password)
+    // Derive non-extractable backup CryptoKey from new password
+    await deriveAndStoreBackupKey(password)
     if (user) {
       const deviceRole = useAuthStore.getState().deviceRole
       if (deviceRole === 'primary') {

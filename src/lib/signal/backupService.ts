@@ -2,8 +2,12 @@
  * Server-side encrypted message backup.
  *
  * Crypto flow:
- *   password + random salt --> PBKDF2(600k, SHA-256) --> AES-256-GCM key
- *   messages --> JSON --> pako.deflateRaw --> AES-256-GCM encrypt --> Supabase
+ *   password --> PBKDF2(600k, SHA-256) --> master CryptoKey (non-extractable)
+ *   export:  master key wraps per-backup AES-256-GCM key (random salt + IV)
+ *   import:  password re-derives key at restore time
+ *
+ * The plaintext password is NEVER stored. Only a non-extractable CryptoKey
+ * lives in module scope for the duration of the session.
  *
  * One backup row per user. Primary device creates/updates.
  * Non-primary devices restore from it on login.
@@ -13,6 +17,7 @@ import { deflateRaw, inflateRaw } from 'pako'
 import { supabase } from '../supabase'
 import { SIGNAL } from '../constants'
 import { createLogger } from '../../Utilities/Logger'
+import { base64ToBytes, bytesToBase64 } from '../base64Utils'
 import { saveMessage, setOnMessageSaved, loadAllConversations } from './messageStore'
 import type { StoredMessage } from './messageStore'
 
@@ -20,41 +25,68 @@ const logger = createLogger('BackupService')
 
 // ---- Module-level state ----
 
-let _backupPassword: string | null = null
+/** Non-extractable AES-256-GCM key derived from the user's password at sign-in. */
+let _backupKey: CryptoKey | null = null
+
+/** Fixed app-level salt for deriving the cached backup master key.
+ *  This is NOT the per-backup salt (that is random each time). */
+const BACKUP_MASTER_SALT = new Uint8Array([
+  0x41, 0x44, 0x54, 0x4d, 0x43, 0x2d, 0x42, 0x4b,
+  0x55, 0x50, 0x2d, 0x4d, 0x41, 0x53, 0x54, 0x45,
+  0x52, 0x2d, 0x4b, 0x45, 0x59, 0x2d, 0x53, 0x41,
+  0x4c, 0x54, 0x2d, 0x56, 0x31, 0x2d, 0x30, 0x30,
+])
+
 let _backupTimer: ReturnType<typeof setTimeout> | null = null
 
-// ---- Password management ----
+// ---- Key management ----
 
-/** Cache the raw password in JS heap for backup encryption (never persisted). */
-export function setBackupPassword(pw: string): void {
-  _backupPassword = pw
+/**
+ * Derive a non-extractable AES-256-GCM CryptoKey from the password and cache it.
+ * The plaintext password is never stored; it goes out of scope in the caller.
+ */
+export async function deriveAndStoreBackupKey(password: string): Promise<void> {
+  const enc = new TextEncoder()
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(password),
+    'PBKDF2',
+    false,
+    ['deriveKey'],
+  )
+  _backupKey = await crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: BACKUP_MASTER_SALT,
+      iterations: SIGNAL.BACKUP_PBKDF2_ITERATIONS,
+      hash: 'SHA-256',
+    },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,                // non-extractable
+    ['encrypt', 'decrypt'],
+  )
 }
 
-/** Wipe cached password (called on sign-out). */
-export function clearBackupPassword(): void {
-  _backupPassword = null
+/** Wipe cached key (called on sign-out). */
+export function clearBackupKey(): void {
+  _backupKey = null
   if (_backupTimer) {
     clearTimeout(_backupTimer)
     _backupTimer = null
   }
 }
 
+/** @deprecated Use clearBackupKey(). Alias kept for backward compatibility. */
+export const clearBackupPassword = clearBackupKey
+
 // ---- Crypto helpers ----
 
-function base64ToBytes(b64: string): Uint8Array {
-  const bin = atob(b64)
-  const bytes = new Uint8Array(bin.length)
-  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
-  return bytes
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-  let bin = ''
-  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
-  return btoa(bin)
-}
-
-async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey> {
+/**
+ * Derive a key from a raw password and a per-backup salt.
+ * Used only during importBackup where the user provides their password directly.
+ */
+async function deriveKeyFromPassword(password: string, salt: Uint8Array): Promise<CryptoKey> {
   const enc = new TextEncoder()
   const keyMaterial = await crypto.subtle.importKey(
     'raw',
@@ -77,9 +109,11 @@ async function deriveKey(password: string, salt: Uint8Array): Promise<CryptoKey>
   )
 }
 
-async function encrypt(data: Uint8Array, password: string): Promise<{ salt: string; ciphertext: string }> {
+/** Encrypt data using the cached backup CryptoKey. */
+async function encryptWithKey(data: Uint8Array, key: CryptoKey): Promise<{ salt: string; ciphertext: string }> {
+  // We still store a random "salt" per backup for the DB schema compat,
+  // but the actual encryption uses the pre-derived master key directly.
   const salt = crypto.getRandomValues(new Uint8Array(32))
-  const key = await deriveKey(password, salt)
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const encrypted = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
@@ -96,12 +130,26 @@ async function encrypt(data: Uint8Array, password: string): Promise<{ salt: stri
   }
 }
 
-async function decrypt(ciphertextB64: string, saltB64: string, password: string): Promise<Uint8Array> {
+/** Decrypt data using the cached backup CryptoKey. */
+async function decryptWithKey(ciphertextB64: string, key: CryptoKey): Promise<Uint8Array> {
+  const combined = base64ToBytes(ciphertextB64)
+  const iv = combined.slice(0, 12)
+  const ciphertext = combined.slice(12)
+  const decrypted = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv },
+    key,
+    ciphertext,
+  )
+  return new Uint8Array(decrypted)
+}
+
+/** Decrypt data using a password string (for import/restore where user provides the password). */
+async function decryptWithPassword(ciphertextB64: string, saltB64: string, password: string): Promise<Uint8Array> {
   const salt = base64ToBytes(saltB64)
   const combined = base64ToBytes(ciphertextB64)
   const iv = combined.slice(0, 12)
   const ciphertext = combined.slice(12)
-  const key = await deriveKey(password, salt)
+  const key = await deriveKeyFromPassword(password, salt)
   const decrypted = await crypto.subtle.decrypt(
     { name: 'AES-GCM', iv },
     key,
@@ -137,8 +185,8 @@ async function loadRawMessages(): Promise<StoredMessage[]> {
 
 /** Create an encrypted backup and upsert to Supabase. */
 export async function createBackup(userId: string): Promise<void> {
-  if (!_backupPassword) {
-    logger.warn('No backup password cached, skipping backup')
+  if (!_backupKey) {
+    logger.warn('No backup key cached, skipping backup')
     return
   }
 
@@ -163,7 +211,7 @@ export async function createBackup(userId: string): Promise<void> {
       compressed = deflateRaw(new TextEncoder().encode(JSON.stringify(payload)))
     }
 
-    const { salt, ciphertext } = await encrypt(compressed, _backupPassword)
+    const { salt, ciphertext } = await encryptWithKey(compressed, _backupKey)
 
     const { error } = await supabase
       .from('signal_backups')
@@ -188,8 +236,8 @@ export async function createBackup(userId: string): Promise<void> {
 
 /** Restore messages from an encrypted backup on Supabase. */
 export async function restoreBackup(userId: string): Promise<void> {
-  if (!_backupPassword) {
-    logger.warn('No backup password cached, skipping restore')
+  if (!_backupKey) {
+    logger.warn('No backup key cached, skipping restore')
     return
   }
 
@@ -205,7 +253,7 @@ export async function restoreBackup(userId: string): Promise<void> {
       return
     }
 
-    const compressed = await decrypt(data.ciphertext, data.salt, _backupPassword)
+    const compressed = await decryptWithKey(data.ciphertext, _backupKey)
     const json = new TextDecoder().decode(inflateRaw(compressed))
     const payload: BackupPayload = JSON.parse(json)
 
