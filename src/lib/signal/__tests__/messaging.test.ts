@@ -9,7 +9,6 @@
 
 import { describe, it, expect } from 'vitest'
 import { getRequestStatus } from '../../../Hooks/useMessages'
-import type { RequestStatus } from '../../../Hooks/useMessages'
 import type { DecryptedSignalMessage } from '../transportTypes'
 import type { SignalMessageRow } from '../transportTypes'
 import { serializeContent, parseMessageContent } from '../messageContent'
@@ -37,10 +36,13 @@ function makeRow(overrides: Partial<SignalMessageRow> = {}): SignalMessageRow {
     recipient_id: 'bob',
     sender_device_id: 'alice-device-1',
     recipient_device_id: 'bob-device-1',
+    group_id: null,
+    origin_id: null,
     message_type: 'message',
     payload: {},
     created_at: new Date().toISOString(),
     read_at: null,
+    deleted_at: null,
     ...overrides,
   }
 }

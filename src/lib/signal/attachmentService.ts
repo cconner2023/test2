@@ -17,7 +17,6 @@ import { ok, err, type Result } from '../result'
 const logger = createLogger('Attachments')
 
 const BUCKET = 'message-attachments'
-const IV_LENGTH = 12
 
 // ---- Upload (encrypt + store) ----
 
@@ -48,7 +47,7 @@ export async function uploadEncryptedAttachment(
     const plainBytes = new Uint8Array(await imageBlob.arrayBuffer())
     const combined = await aesGcmEncrypt(key, plainBytes)
 
-    const encBlob = new Blob([combined], { type: 'application/octet-stream' })
+    const encBlob = new Blob([combined as BlobPart], { type: 'application/octet-stream' })
 
     // Upload to Storage
     const fileName = `${userId}/${crypto.randomUUID()}.enc`
@@ -101,7 +100,7 @@ export async function downloadDecryptedAttachment(
     const rawKey = base64ToBytes(keyBase64)
     const key = await crypto.subtle.importKey(
       'raw',
-      rawKey,
+      rawKey as BufferSource,
       { name: 'AES-GCM', length: 256 },
       false,
       ['decrypt'],
@@ -110,7 +109,7 @@ export async function downloadDecryptedAttachment(
     const plainBuffer = await aesGcmDecrypt(key, combined)
 
     logger.info(`Decrypted attachment: ${path} (${plainBuffer.byteLength} bytes)`)
-    return ok(new Blob([plainBuffer]))
+    return ok(new Blob([plainBuffer as BlobPart]))
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown decrypt error'
     logger.warn('downloadDecryptedAttachment error:', msg)

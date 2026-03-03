@@ -116,7 +116,7 @@ export async function importSigningPublicKey(base64: string): Promise<CryptoKey>
 
 /** Sign data with an ECDSA private key. Returns base64 signature. */
 async function signBytes(privateKey: CryptoKey, data: Uint8Array): Promise<string> {
-  const signature = await crypto.subtle.sign(ECDSA_SIGN_PARAMS, privateKey, data)
+  const signature = await crypto.subtle.sign(ECDSA_SIGN_PARAMS, privateKey, data as BufferSource)
   return uint8ToBase64(new Uint8Array(signature))
 }
 
@@ -127,7 +127,7 @@ export async function verifySignature(
   data: Uint8Array
 ): Promise<boolean> {
   const sigBytes = base64ToUint8(signatureBase64)
-  return crypto.subtle.verify(ECDSA_SIGN_PARAMS, publicKey, sigBytes, data)
+  return crypto.subtle.verify(ECDSA_SIGN_PARAMS, publicKey, sigBytes as BufferSource, data as BufferSource)
 }
 
 // ---- Identity Key Management ----

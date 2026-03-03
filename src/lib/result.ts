@@ -36,7 +36,7 @@ export { getErrorMessage }
  * Pass a `fallback` (e.g. `[]`) for operations that may return null data.
  */
 export async function callRpc<T = void>(
-  operation: () => Promise<{ data: unknown; error: { message: string; code?: string } | null }>,
+  operation: () => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>,
   label: string,
   logger: { error: (...args: unknown[]) => void },
   fallback?: T,

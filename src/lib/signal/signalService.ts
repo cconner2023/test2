@@ -9,7 +9,7 @@
  */
 
 import { supabase } from '../supabase'
-import { ok, err, callRpc, getErrorMessage, type Result } from '../result'
+import { ok, err, callRpc, type Result } from '../result'
 import { createLogger } from '../../Utilities/Logger'
 import { TransportManager } from './transport'
 import { SupabaseTransport } from './supabaseTransport'

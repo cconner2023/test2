@@ -63,7 +63,7 @@ export function deriveAndStoreBackupKey(password: string): Promise<void> {
     _backupKey = await crypto.subtle.deriveKey(
       {
         name: 'PBKDF2',
-        salt: BACKUP_MASTER_SALT,
+        salt: BACKUP_MASTER_SALT as BufferSource,
         iterations: SIGNAL.BACKUP_PBKDF2_ITERATIONS,
         hash: 'SHA-256',
       },
@@ -109,7 +109,7 @@ async function deriveKeyFromPassword(password: string, salt: Uint8Array): Promis
   return crypto.subtle.deriveKey(
     {
       name: 'PBKDF2',
-      salt,
+      salt: salt as BufferSource,
       iterations: SIGNAL.BACKUP_PBKDF2_ITERATIONS,
       hash: 'SHA-256',
     },
@@ -129,7 +129,7 @@ async function encryptWithKey(data: Uint8Array, key: CryptoKey): Promise<{ salt:
   const encrypted = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv },
     key,
-    data,
+    data as BufferSource,
   )
   // Prepend IV to ciphertext
   const combined = new Uint8Array(iv.length + encrypted.byteLength)
@@ -155,7 +155,7 @@ async function decryptWithKey(ciphertextB64: string, key: CryptoKey): Promise<Ui
 }
 
 /** Decrypt data using a password string (for import/restore where user provides the password). */
-async function decryptWithPassword(ciphertextB64: string, saltB64: string, password: string): Promise<Uint8Array> {
+export async function decryptWithPassword(ciphertextB64: string, saltB64: string, password: string): Promise<Uint8Array> {
   const salt = base64ToBytes(saltB64)
   const combined = base64ToBytes(ciphertextB64)
   const iv = combined.slice(0, 12)

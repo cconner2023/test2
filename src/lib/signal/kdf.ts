@@ -35,7 +35,7 @@ async function hkdf(
     'raw', ikm, 'HKDF', false, ['deriveBits']
   )
   const derived = await crypto.subtle.deriveBits(
-    { name: 'HKDF', hash: 'SHA-256', salt, info },
+    { name: 'HKDF', hash: 'SHA-256', salt: salt as BufferSource, info: info as BufferSource },
     key,
     lengthBytes * 8
   )
@@ -82,7 +82,7 @@ export async function kdfChainKey(
 ): Promise<{ chainKey: string; messageKey: Uint8Array }> {
   const ckBytes = base64ToUint8(chainKey)
   const hmacKey = await crypto.subtle.importKey(
-    'raw', ckBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+    'raw', ckBytes as BufferSource, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
   )
 
   const [mkBuffer, ckBuffer] = await Promise.all([
@@ -109,5 +109,5 @@ export async function kdfChainKey(
  */
 export async function kdfX3dh(dhOutputs: Uint8Array): Promise<Uint8Array> {
   const zeroSalt = new Uint8Array(32)
-  return hkdf(dhOutputs, zeroSalt, X3DH_INFO, 32)
+  return hkdf(dhOutputs as BufferSource, zeroSalt, X3DH_INFO, 32)
 }

@@ -153,13 +153,13 @@ async function aeadEncrypt(
   associatedData: Uint8Array
 ): Promise<string> {
   const aesKey = await crypto.subtle.importKey(
-    'raw', messageKey, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
+    'raw', messageKey as BufferSource, { name: 'AES-GCM', length: 256 }, false, ['encrypt']
   )
   const iv = crypto.getRandomValues(new Uint8Array(12))
   const ciphertext = await crypto.subtle.encrypt(
-    { name: 'AES-GCM', iv, additionalData: associatedData },
+    { name: 'AES-GCM', iv, additionalData: associatedData as BufferSource },
     aesKey,
-    plaintext
+    plaintext as BufferSource
   )
   const combined = new Uint8Array(iv.length + ciphertext.byteLength)
   combined.set(iv)
@@ -177,12 +177,12 @@ async function aeadDecrypt(
   const iv = combined.slice(0, 12)
   const ciphertext = combined.slice(12)
   const aesKey = await crypto.subtle.importKey(
-    'raw', messageKey, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
+    'raw', messageKey as BufferSource, { name: 'AES-GCM', length: 256 }, false, ['decrypt']
   )
   const plaintext = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv, additionalData: associatedData },
+    { name: 'AES-GCM', iv, additionalData: associatedData as BufferSource },
     aesKey,
-    ciphertext
+    ciphertext as BufferSource
   )
   return new Uint8Array(plaintext)
 }

@@ -417,6 +417,138 @@ export type Database = {
         }
         Relationships: []
       }
+      signal_backups: {
+        Row: {
+          user_id: string
+          salt: string
+          ciphertext: string
+          message_count: number
+          backup_version: number
+          created_at: string
+        }
+        Insert: {
+          user_id: string
+          salt: string
+          ciphertext: string
+          message_count?: number
+          backup_version?: number
+          created_at?: string
+        }
+        Update: {
+          user_id?: string
+          salt?: string
+          ciphertext?: string
+          message_count?: number
+          backup_version?: number
+          created_at?: string
+        }
+        Relationships: []
+      }
+      signal_key_bundles: {
+        Row: {
+          user_id: string
+          device_id: string
+          identity_signing_key: string
+          identity_dh_key: string
+          signed_pre_key_id: number
+          signed_pre_key: string
+          signed_pre_key_sig: string
+          one_time_pre_keys: Json
+          updated_at: string
+        }
+        Insert: {
+          user_id: string
+          device_id: string
+          identity_signing_key: string
+          identity_dh_key: string
+          signed_pre_key_id: number
+          signed_pre_key: string
+          signed_pre_key_sig: string
+          one_time_pre_keys: Json
+          updated_at?: string
+        }
+        Update: {
+          user_id?: string
+          device_id?: string
+          identity_signing_key?: string
+          identity_dh_key?: string
+          signed_pre_key_id?: number
+          signed_pre_key?: string
+          signed_pre_key_sig?: string
+          one_time_pre_keys?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      signal_messages: {
+        Row: {
+          id: string
+          sender_id: string | null
+          recipient_id: string
+          sender_device_id: string | null
+          recipient_device_id: string | null
+          group_id: string | null
+          origin_id: string | null
+          message_type: string
+          payload: Json
+          created_at: string
+          read_at: string | null
+          deleted_at: string | null
+        }
+        Insert: {
+          id?: string
+          sender_id?: string | null
+          recipient_id: string
+          sender_device_id?: string | null
+          recipient_device_id?: string | null
+          group_id?: string | null
+          origin_id?: string | null
+          message_type: string
+          payload: Json
+          created_at?: string
+          read_at?: string | null
+          deleted_at?: string | null
+        }
+        Update: {
+          id?: string
+          sender_id?: string | null
+          recipient_id?: string
+          sender_device_id?: string | null
+          recipient_device_id?: string | null
+          group_id?: string | null
+          origin_id?: string | null
+          message_type?: string
+          payload?: Json
+          created_at?: string
+          read_at?: string | null
+          deleted_at?: string | null
+        }
+        Relationships: []
+      }
+      user_devices: {
+        Row: {
+          user_id: string
+          device_id: string
+          device_label: string | null
+          last_active_at: string
+          is_primary: boolean
+        }
+        Insert: {
+          user_id: string
+          device_id: string
+          device_label?: string | null
+          last_active_at?: string
+          is_primary?: boolean
+        }
+        Update: {
+          user_id?: string
+          device_id?: string
+          device_label?: string | null
+          last_active_at?: string
+          is_primary?: boolean
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -479,7 +611,32 @@ export type Database = {
         Args: { p_email: string; p_token: string }
         Returns: Json
       }
+      cleanup_stale_linked_devices: {
+        Args: { p_stale_minutes: number }
+        Returns: Json
+      }
       clear_own_pin: { Args: never; Returns: undefined }
+      consume_peer_bundle: {
+        Args: { p_peer_id: string }
+        Returns: Json
+      }
+      consume_peer_bundle_for_device: {
+        Args: { p_peer_id: string; p_device_id: string }
+        Returns: Json
+      }
+      create_message_group: {
+        Args: { p_name: string; p_member_ids: string[] }
+        Returns: Json
+      }
+      fetch_group_members: {
+        Args: { p_group_id: string }
+        Returns: Json
+      }
+      fetch_my_groups: { Args: never; Returns: Json }
+      fetch_peer_devices: {
+        Args: { p_peer_id: string }
+        Returns: Json
+      }
       get_clinic_by_uic: {
         Args: { lookup_uic: string }
         Returns: {
@@ -537,6 +694,44 @@ export type Database = {
           p_pin_salt?: string
         }
         Returns: undefined
+      }
+      add_group_member: {
+        Args: { p_group_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      leave_message_group: {
+        Args: { p_group_id: string }
+        Returns: undefined
+      }
+      primary_logout_all: { Args: never; Returns: Json }
+      register_device_with_role: {
+        Args: { p_device_id: string; p_device_label: string; p_is_primary: boolean }
+        Returns: Json
+      }
+      remove_group_member: {
+        Args: { p_group_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      rename_message_group: {
+        Args: { p_group_id: string; p_name: string }
+        Returns: undefined
+      }
+      send_signal_message: {
+        Args: {
+          p_id: string
+          p_recipient_id: string
+          p_sender_device_id: string | null
+          p_recipient_device_id: string | null
+          p_message_type: string
+          p_payload: Json
+          p_group_id: string | null
+          p_origin_id: string | null
+        }
+        Returns: string
+      }
+      send_signal_messages_batch: {
+        Args: { p_messages: Json }
+        Returns: Json
       }
       validate_uics: { Args: { arr: string[] }; Returns: boolean }
     }

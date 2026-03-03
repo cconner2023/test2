@@ -10,6 +10,7 @@ import { supabase } from '../supabase'
 import { ok, err, getErrorMessage, type Result } from '../result'
 import { fireNotification } from '../notifyDispatcher'
 import { createLogger } from '../../Utilities/Logger'
+import type { Json } from '../../Types/database.types.generated'
 import type { SignalTransport, SendMessageParams, SendBatchParams } from './transport'
 import type { SignalMessageRow } from './transportTypes'
 
@@ -23,7 +24,7 @@ export class SupabaseTransport implements SignalTransport {
    * Wraps try-catch + error check + logging.
    */
   private async runQuery<T>(
-    query: () => Promise<{ data: T | null; error: { message: string; code?: string } | null }>,
+    query: () => PromiseLike<{ data: unknown; error: { message: string; code?: string } | null }>,
     label: string,
     fallback?: T,
   ): Promise<Result<T>> {
@@ -49,7 +50,7 @@ export class SupabaseTransport implements SignalTransport {
         p_sender_device_id: params.senderDeviceId ?? null,
         p_recipient_device_id: params.recipientDeviceId ?? null,
         p_message_type: params.messageType,
-        p_payload: params.payload,
+        p_payload: params.payload as Json,
         p_group_id: params.groupId ?? null,
         p_origin_id: params.originId ?? null,
       }),
@@ -87,7 +88,7 @@ export class SupabaseTransport implements SignalTransport {
     })
 
     const result = await this.runQuery<string[]>(
-      () => supabase.rpc('send_signal_messages_batch', { p_messages: rows }),
+      () => supabase.rpc('send_signal_messages_batch', { p_messages: rows as unknown as Json }),
       'sendMessageBatch', [],
     )
     if (!result.ok) return result
@@ -132,7 +133,7 @@ export class SupabaseTransport implements SignalTransport {
 
   async deleteMessages(messageIds: string[]): Promise<Result<void>> {
     if (messageIds.length === 0) return ok(undefined)
-    const result = await this.runQuery(
+    const result = await this.runQuery<void>(
       () => supabase.from('signal_messages').delete().in('id', messageIds),
       'deleteMessages',
     )

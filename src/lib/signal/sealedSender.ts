@@ -58,7 +58,7 @@ async function hkdf(rawSecret: ArrayBuffer, info: string, length = 32): Promise<
  */
 async function aesGcmEncrypt(key: CryptoKey, plaintext: Uint8Array): Promise<Uint8Array> {
   const iv = crypto.getRandomValues(new Uint8Array(12))
-  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext)
+  const ct = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, plaintext as BufferSource)
   return new Uint8Array([...iv, ...new Uint8Array(ct)])
 }
 
@@ -239,7 +239,7 @@ export async function seal(
  */
 export async function unseal(
   envelope: SealedEnvelope,
-  myUuid: string,
+  _myUuid: string,
   myDhPrivKey: CryptoKey,
   myDhPubKeyBase64: string
 ): Promise<{ inner: Record<string, unknown>; senderUuid: string; cert: SenderCertificate }> {

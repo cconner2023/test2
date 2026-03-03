@@ -99,11 +99,10 @@ export {
 export {
   // Session lifecycle
   createOutboundSession,
-  receiveInitialMessage,
+  processIncomingMessage,
 
   // Messaging
   encryptMessage,
-  decryptMessage,
 
   // Session queries
   hasSession,

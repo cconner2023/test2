@@ -78,11 +78,13 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
 
   // Memoize context value using fine-grained deps that actually change —
   // conversations, unreadCounts, sending, and groups are the mutable parts.
-  // Functions and refs from useMessages are stable (useCallback / useRef).
+  // Also track sendMessage identity: it changes when localDeviceId loads
+  // (null → real ID), which is critical for sends to work. Without this,
+  // the context can hold a stale sendMessage that silently returns false.
   const value = useMemo<MessagesContextValue | null>(() => {
     if (!isAuthenticated) return null
     return { ...messagesRef.current, notification, dismissNotification: dismiss }
-  }, [isAuthenticated, messages.conversations, messages.unreadCounts, messages.sending, messages.groups, notification, dismiss])
+  }, [isAuthenticated, messages.conversations, messages.unreadCounts, messages.sending, messages.groups, messages.sendMessage, notification, dismiss])
 
   return (
     <MessagesContext.Provider value={value}>
