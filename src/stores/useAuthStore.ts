@@ -18,15 +18,15 @@ import { isDevUser } from '../lib/adminService'
 import { prefetchBarcodeKey } from '../lib/cryptoService'
 import { startHeartbeat, stopHeartbeat } from '../lib/activityHeartbeat'
 import { initSignalBundle } from '../lib/signal/signalInit'
-import { clearSignalKeys, getLocalDeviceId } from '../lib/signal/keyManager'
+import { clearSignalKeys, destroySignalKeys, getLocalDeviceId } from '../lib/signal/keyManager'
 import { clearAllSessions } from '../lib/signal/session'
-import { clearMessageStore } from '../lib/signal/messageStore'
+import { clearMessageStore, destroyMessageStore } from '../lib/signal/messageStore'
 import { clearClinicUsersCache } from '../lib/clinicUsersCache'
 import { useCallStore } from './useCallStore'
 import { unregisterDevice, deleteKeyBundle, primaryLogoutAll } from '../lib/signal/signalService'
-import { secureSet, secureGet, secureRemove, persistSupabaseAuth } from '../lib/secureStorage'
-import { clearOutboundQueue } from '../lib/signal/outboundQueue'
-import { clearBackupKey, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
+import { secureSet, secureGet, secureRemove, persistSupabaseAuth, destroySecureStore } from '../lib/secureStorage'
+import { clearOutboundQueue, destroyOutboundQueue } from '../lib/signal/outboundQueue'
+import { clearBackupKey, deleteBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { registerSessionCleanup, updateCleanupToken, updateCleanupDeviceId, updateCleanupIsPrimary } from '../lib/sessionCleanup'
 import type { User } from '@supabase/supabase-js'
@@ -210,6 +210,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
+        // Capture role BEFORE clearing state (set() below nulls it)
+        const wasPrimary = get().deviceRole === 'primary'
+
         stopHeartbeat()
 
         // NOTE: Supabase key cleanup (unregisterDevice + deleteKeyBundle) is done
@@ -231,16 +234,37 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         removeBiometric()
         clearPasswordVerification().catch(() => {})
         clearServiceWorkerCaches().catch(() => {})
-        clearSignalKeys().catch(() => {})
-        clearAllSessions().catch(() => {})
-        clearMessageStore().catch(() => {})
-        clearOutboundQueue().catch(() => {})
+
+        // Aggressively clear backup state first (detaches onMessageSaved callback)
         clearBackupKey()
+        // Clear in-memory session cache
+        clearAllSessions()
+
+        if (wasPrimary) {
+          // Primary logout: destroy entire IDB databases (nuke containers + encryption key).
+          // This ensures no residual data survives — a full clean slate.
+          destroySignalKeys().catch(() => {})
+          destroyMessageStore().catch(() => {})
+          destroyOutboundQueue().catch(() => {})
+          destroySecureStore().catch(() => {})
+        } else {
+          // Linked/provisional logout: purge data from stores but keep
+          // database containers and the device encryption key intact so
+          // the device can re-authenticate cleanly on next login.
+          clearSignalKeys().catch(() => {})
+          clearMessageStore().catch(() => {})
+          clearOutboundQueue().catch(() => {})
+        }
+
         if (LORA_MESH_ENABLED) {
           import('../lib/lora/loraDb').then(m => m.clearLoraDb()).catch(() => {})
         }
         clearClinicUsersCache().catch(() => {})
         useCallStore.getState().reset()
+
+        // Aggressively wipe browser storage
+        try { localStorage.clear() } catch { /* ignore */ }
+        try { sessionStorage.clear() } catch { /* ignore */ }
       } else if (session?.user) {
         set({ user: session.user, isGuest: false })
         // Detect password recovery flow (user clicked reset-password email link)
@@ -288,6 +312,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         if (role === 'primary') {
           // Primary logout: destroy all linked devices + sessions first
           await primaryLogoutAll()
+          // Delete server-side encrypted backup
+          await deleteBackup(userId).catch(() => {})
         }
         // Then clean up own device (both primary and linked)
         const deviceId = await getLocalDeviceId()

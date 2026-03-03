@@ -502,3 +502,13 @@ export async function clearSignalKeys(): Promise<void> {
   await store.clearSignalStore()
   logger.info('Cleared all signal key material')
 }
+
+/**
+ * Aggressively destroy all Signal Protocol key material and the database.
+ * Call on primary logout for a complete clean slate.
+ */
+export async function destroySignalKeys(): Promise<void> {
+  cachedIdentity = null
+  await store.destroySignalStore()
+  logger.info('Destroyed all signal key material')
+}

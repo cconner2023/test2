@@ -53,10 +53,12 @@ async function getDb(): Promise<IDBPDatabase<MessageDB>> {
   if (dbInstance) return dbInstance
 
   dbInstance = await openDB<MessageDB>(MESSAGE_DB_NAME, MESSAGE_DB_VERSION, {
-    upgrade(db) {
-      const store = db.createObjectStore('messages', { keyPath: 'id' })
-      store.createIndex('by-peer', 'peerId')
-      store.createIndex('by-peer-time', ['peerId', 'createdAt'])
+    upgrade(db, oldVersion) {
+      if (oldVersion < 2) {
+        const store = db.createObjectStore('messages', { keyPath: 'id' })
+        store.createIndex('by-peer', 'peerId')
+        store.createIndex('by-peer-time', ['peerId', 'createdAt'])
+      }
     },
   })
 
@@ -102,8 +104,9 @@ async function decryptMessage(msg: StoredMessage): Promise<StoredMessage> {
 
 let _onMessageSaved: ((localUserId: string) => void) | null = null
 
-/** Register a callback invoked after every message save (e.g. to schedule backup). */
-export function setOnMessageSaved(cb: (localUserId: string) => void): void {
+/** Register a callback invoked after every message save (e.g. to schedule backup).
+ *  Pass null to detach (e.g. on sign-out). */
+export function setOnMessageSaved(cb: ((localUserId: string) => void) | null): void {
   _onMessageSaved = cb
 }
 
@@ -259,5 +262,28 @@ export async function clearMessageStore(): Promise<void> {
     logger.info('Cleared message store')
   } catch (err) {
     logger.warn('Failed to clear message store:', err)
+  }
+}
+
+/**
+ * Aggressively destroy the entire message store database.
+ * Closes the connection, deletes the DB, and resets module state.
+ */
+export async function destroyMessageStore(): Promise<void> {
+  try {
+    _onMessageSaved = null
+    if (dbInstance) {
+      dbInstance.close()
+      dbInstance = null
+    }
+    await new Promise<void>((resolve) => {
+      const req = indexedDB.deleteDatabase(MESSAGE_DB_NAME)
+      req.onsuccess = () => resolve()
+      req.onerror = () => resolve()
+      req.onblocked = () => resolve()
+    })
+    logger.info('Destroyed message store database')
+  } catch (err) {
+    logger.warn('Failed to destroy message store:', err)
   }
 }

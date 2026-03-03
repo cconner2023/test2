@@ -293,16 +293,14 @@ export async function unseal(
     throw new Error('Sealed sender: sender certificate has expired')
   }
 
-  // 9. Verify the cert sender is not ourselves (prevents reflection attacks)
-  if (cert.senderUuid === myUuid) {
-    throw new Error('Sealed sender: message appears to be sent by ourselves (reflection attack)')
-  }
-
-  // 10. Verify the cert was addressed to us (prevents re-targeting attacks)
+  // 9. Verify the cert was addressed to us (prevents re-targeting AND reflection attacks).
+  //    This single check suffices: a reflected message would have a different recipient DH key
+  //    than ours, so it would fail here. We intentionally allow senderUuid === myUuid because
+  //    multi-device sync messages and self-notes are sent between devices of the same user.
   if (cert.recipientIdentityDhKey !== myDhPubKeyBase64) {
     throw new Error('Sealed sender: cert recipient mismatch')
   }
 
-  // 11. Return the authenticated payload
+  // 10. Return the authenticated payload
   return { inner, senderUuid: cert.senderUuid, cert }
 }

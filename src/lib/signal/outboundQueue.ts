@@ -214,3 +214,25 @@ export async function clearOutboundQueue(): Promise<void> {
     logger.warn('Failed to clear outbound queue:', e)
   }
 }
+
+/**
+ * Aggressively destroy the entire outbound queue database.
+ * Closes the connection, deletes the DB, and resets module state.
+ */
+export async function destroyOutboundQueue(): Promise<void> {
+  try {
+    if (dbInstance) {
+      dbInstance.close()
+      dbInstance = null
+    }
+    await new Promise<void>((resolve) => {
+      const req = indexedDB.deleteDatabase(DB_NAME)
+      req.onsuccess = () => resolve()
+      req.onerror = () => resolve()
+      req.onblocked = () => resolve()
+    })
+    logger.info('Destroyed outbound queue database')
+  } catch (e) {
+    logger.warn('Failed to destroy outbound queue:', e)
+  }
+}

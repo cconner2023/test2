@@ -308,3 +308,26 @@ export async function clearSignalStore(): Promise<void> {
     logger.warn('Failed to clear signal key store:', err)
   }
 }
+
+/**
+ * Aggressively destroy the entire signal key store database.
+ * Closes the connection, deletes the DB, and resets module state.
+ * Called on primary logout for a clean slate.
+ */
+export async function destroySignalStore(): Promise<void> {
+  try {
+    if (dbInstance) {
+      dbInstance.close()
+      dbInstance = null
+    }
+    await new Promise<void>((resolve) => {
+      const req = indexedDB.deleteDatabase(SIGNAL_DB_NAME)
+      req.onsuccess = () => resolve()
+      req.onerror = () => resolve() // best effort
+      req.onblocked = () => resolve()
+    })
+    logger.info('Destroyed signal key store database')
+  } catch (err) {
+    logger.warn('Failed to destroy signal key store:', err)
+  }
+}

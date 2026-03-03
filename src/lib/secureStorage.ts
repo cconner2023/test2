@@ -327,6 +327,29 @@ export async function secureClear(): Promise<void> {
   } catch { /* best effort */ }
 }
 
+/**
+ * Aggressively destroy the secure store database and reset all module state.
+ * This wipes the encryption key — after calling this, any previously encrypted
+ * data (in IDB or localStorage) becomes unrecoverable. Call on logout for a clean slate.
+ */
+export async function destroySecureStore(): Promise<void> {
+  encKey = null
+  useLocalStorageFallback = false
+  cryptoUnavailable = false
+  try {
+    if (dbInstance) {
+      dbInstance.close()
+      dbInstance = null
+    }
+    await new Promise<void>((resolve) => {
+      const req = indexedDB.deleteDatabase(DB_NAME)
+      req.onsuccess = () => resolve()
+      req.onerror = () => resolve()
+      req.onblocked = () => resolve()
+    })
+  } catch { /* best effort */ }
+}
+
 // ---- Exported encrypt/decrypt string helpers ----
 // Used by offlineDb, messageStore, and other modules for at-rest encryption
 // of data stored in IndexedDB. Uses the same device-local AES-GCM key.

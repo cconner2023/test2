@@ -76,7 +76,7 @@ export function deriveAndStoreBackupKey(password: string): Promise<void> {
   return _backupKeyReady
 }
 
-/** Wipe cached key (called on sign-out). */
+/** Wipe cached key and detach the save callback (called on sign-out). */
 export function clearBackupKey(): void {
   _backupKey = null
   _backupKeyReady = null
@@ -84,6 +84,8 @@ export function clearBackupKey(): void {
     clearTimeout(_backupTimer)
     _backupTimer = null
   }
+  // Detach the onMessageSaved callback to prevent stale backup triggers
+  setOnMessageSaved(null)
 }
 
 /** @deprecated Use clearBackupKey(). Alias kept for backward compatibility. */
