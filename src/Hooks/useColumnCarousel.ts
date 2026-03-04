@@ -159,8 +159,6 @@ export function useColumnCarousel({
 
         api.start({ x: clampedX, immediate: true })
       } else {
-        setIsSwiping(false)
-
         // Determine if we should navigate
         const absDrag = Math.abs(mx)
         const fraction = absDrag / containerWidth
@@ -179,20 +177,24 @@ export function useColumnCarousel({
 
           if (targetPanel !== panel) {
             const pct = 100 / panelCount
+            // Fire navigation callback immediately so NavTop updates in sync
+            // (previously deferred to onRest, causing visible lag in title/buttons)
+            if (goingBack) onSwipeBack?.()
+            else onSwipeForward?.()
+            // Keep isSwiping true until animation finishes to prevent
+            // the sync effect from restarting the spring
             api.start({
               x: -targetPanel * pct,
               immediate: false,
               config: SPRING_CONFIGS.fling,
-              onRest: () => {
-                if (goingBack) onSwipeBack?.()
-                else onSwipeForward?.()
-              },
+              onRest: () => setIsSwiping(false),
             })
             return
           }
         }
 
-        // Snap back to current panel
+        // Not navigating — snap back and clear swipe state
+        setIsSwiping(false)
         api.start({
           x: currentBase,
           immediate: false,

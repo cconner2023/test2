@@ -241,30 +241,30 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onBac
             )}
           </button>
         </div>
-        <div className="flex items-center gap-0.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {property.isSyncing && (
             <span className="text-[10px] text-tertiary animate-pulse mr-1">Syncing...</span>
           )}
           <button
             title="Import CSV"
-            className="p-1 text-tertiary hover:text-themeblue3 transition-colors"
+            className="h-8 flex items-center justify-center px-3 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
             onClick={() => fileInputRef.current?.click()}
           >
-            <Upload size={14} />
+            <Upload className="w-4 h-4 stroke-themeblue1" />
           </button>
           <button
             title="Export CSV"
-            className="p-1 text-tertiary hover:text-themeblue3 transition-colors"
+            className="h-8 flex items-center justify-center px-3 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
             onClick={() => exportPropertyCSV(property.items, property.locations)}
           >
-            <Download size={14} />
+            <Download className="w-4 h-4 stroke-themeblue1" />
           </button>
           <button
             title="Download Template"
-            className="p-1 text-tertiary hover:text-themeblue3 transition-colors"
+            className="h-8 flex items-center justify-center px-3 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
             onClick={downloadCSVTemplate}
           >
-            <FileSpreadsheet size={14} />
+            <FileSpreadsheet className="w-4 h-4 stroke-themeblue1" />
           </button>
         </div>
         <input
