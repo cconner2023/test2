@@ -17,6 +17,9 @@ import { Settings } from './Components/Settings'
 import { SymptomInfoDrawer } from './Components/SymptomInfoDrawer'
 import { MedicationsDrawer } from './Components/MedicationsDrawer'
 import { ColumnA } from './Components/ColumnA'
+import { TC3SectionList } from './Components/TC3/TC3SectionList'
+import { TC3FormPage } from './Components/TC3/TC3FormPage'
+import { useTC3Store } from './stores/useTC3Store'
 import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useAuth } from './Hooks/useAuth'
 import { useAuthStore } from './stores/useAuthStore'
@@ -60,6 +63,8 @@ function AppContent() {
   const search = useSearch()
   const { user } = useAuth()
   const avatarState = useProfileAvatar(user?.id)
+  const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
+  const setTC3Section = useTC3Store((s) => s.setSelectedSection)
 
   // ── Settings/training targeting state (lightweight replacement for useActiveNote) ──
   const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'training' | 'messages'>('main')
@@ -219,8 +224,8 @@ function AppContent() {
     search.handleSearchChange(value)
   }
 
-  // Title: empty when searching (hides dynamic title), otherwise from navigation
-  const title = search.searchInput ? "" : navigation.dynamicTitle
+  // Title: empty when searching, "TC3" when in TC3 mode on mobile, otherwise from navigation
+  const title = search.searchInput ? "" : (tc3Mode && navigation.isMobile ? "TC3" : navigation.dynamicTitle)
 
   // Content key — drives fade-in animation on content change.
   // On mobile, search is handled by a separate overlay so the key stays stable
@@ -279,18 +284,24 @@ function AppContent() {
         {/* Content area — Unified 2-column grid (A: Navigation | B: Content) */}
         <div className="md:h-[94%] h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
           <div
-            className={`h-full grid gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${navigation.mobileGridClass} md:grid-cols-[0.45fr_0.55fr]`}
-            {...(navigation.isMobile && navigation.isMobileColumnB ? swipe.touchHandlers : {})}
+            className={`h-full grid gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${tc3Mode ? 'grid-cols-[0.45fr_0.55fr]' : navigation.mobileGridClass} md:grid-cols-[0.45fr_0.55fr]`}
+            {...(!tc3Mode && navigation.isMobile && navigation.isMobileColumnB ? swipe.touchHandlers : {})}
           >
-            {/* Column A: Navigation carousel */}
+            {/* Column A: Navigation carousel (ADTMC) or TC3 Section List */}
             <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
-              <ColumnA onNavigate={handleNavigationClick} />
+              {tc3Mode ? (
+                <TC3SectionList onSelectSection={setTC3Section} />
+              ) : (
+                <ColumnA onNavigate={handleNavigationClick} />
+              )}
             </div>
 
-            {/* Column B: Content (algorithm / search / empty) */}
+            {/* Column B: Content — TC3 form, algorithm, search, or empty */}
             <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
-              <div key={desktopContentKey} className="h-full animate-desktopContentIn md:pt-3">
-                {!navigation.isMobile && search.searchInput ? (
+              <div key={tc3Mode ? 'tc3' : desktopContentKey} className="h-full animate-desktopContentIn md:pt-3">
+                {tc3Mode ? (
+                  <TC3FormPage />
+                ) : !navigation.isMobile && search.searchInput ? (
                   <div className="h-full overflow-y-auto">
                     <div className="px-2 min-h-full">
                       <SearchResults

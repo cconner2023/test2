@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
-import { FileText, Stethoscope, ClipboardList, TextCursorInput, Plus, Pencil, Trash2, ChevronDown, ChevronRight, X } from 'lucide-react';
+import { FileText, Stethoscope, ClipboardList, TextCursorInput, Plus, Pencil, Trash2, ChevronDown, ChevronRight, X, Shield } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
+import { useAuthStore } from '../../stores/useAuthStore';
 import type { UserTypes, TextExpander, CustomPEBlock, PlanOrderTags, PlanOrderCategory, PlanOrderSet, PlanBlockKey } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES, PLAN_ORDER_LABELS } from '../../Data/User';
 import { ToggleSwitch } from './ToggleSwitch';
@@ -600,7 +601,9 @@ const OrderSetManager = ({ orderSets, orderTags, instructionTags, onChange }: Or
 
 export const NoteContentPanel = () => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
+    const isDevRole = useAuthStore((s) => s.isDevRole);
 
+    const tc3Mode = profile.tc3Mode ?? false;
     const includeHPI = profile.noteIncludeHPI ?? true;
     const includePE = profile.noteIncludePE ?? false;
     const peDepth = profile.peDepth ?? 'minimal';
@@ -627,6 +630,7 @@ export const NoteContentPanel = () => {
         if (fields.planOrderTags !== undefined) dbFields.plan_order_tags = fields.planOrderTags;
         if (fields.planInstructionTags !== undefined) dbFields.plan_instruction_tags = fields.planInstructionTags;
         if (fields.planOrderSets !== undefined) dbFields.plan_order_sets = fields.planOrderSets;
+        if (fields.tc3Mode !== undefined) dbFields.tc3_mode = fields.tc3Mode;
 
         syncProfileField(dbFields);
     }, [updateProfile, syncProfileField]);
@@ -638,6 +642,31 @@ export const NoteContentPanel = () => {
                 <p className="text-xs text-tertiary leading-relaxed">
                     Customize how you write your notes. Enabled sections can still be toggled per note.
                 </p>
+
+                {/* TC3 Mode Toggle — dev-only */}
+                {isDevRole && (
+                    <div
+                        className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-tertiary/15 bg-themewhite2 cursor-pointer"
+                        onClick={() => handleUpdate({ tc3Mode: !tc3Mode })}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleUpdate({ tc3Mode: !tc3Mode }); } }}
+                    >
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${tc3Mode ? 'bg-themeredred/15' : 'bg-tertiary/10'}`}>
+                            <Shield size={18} className={tc3Mode ? 'text-themeredred' : 'text-tertiary/50'} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-medium ${tc3Mode ? 'text-primary' : 'text-tertiary'}`}>TC3 / Battle Injury</p>
+                            <p className="text-[11px] text-tertiary/70 mt-0.5">
+                                {tc3Mode
+                                    ? 'Main content shows TC3 Card (DD 1380) for battle injury documentation.'
+                                    : 'Switch to TCCC Casualty Card mode for battle injuries.'
+                                }
+                            </p>
+                        </div>
+                        <ToggleSwitch checked={tc3Mode} />
+                    </div>
+                )}
 
                 {/* HPI */}
                 <div

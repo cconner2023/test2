@@ -4,3 +4,5 @@ export { encodePECompact, decodePECompact } from './peCodec';
 export { parseNoteEncoding, encodeNoteState, encodedContentEquals, reconstructCardStates, findAlgorithmByCode, findSymptomByCode } from './noteParser';
 export type { ScreenerEntry, ParsedNote, NoteEncodeOptions } from './noteParser';
 export { encryptBarcode, decryptBarcode, isEncryptedBarcode, renderBarcodeToCanvas } from './barcodeCodec';
+export { encodeTC3Card, parseTC3Encoding, isTC3Encoding } from './tc3Codec';
+export type { ParsedTC3 } from './tc3Codec';

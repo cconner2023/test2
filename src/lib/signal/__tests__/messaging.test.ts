@@ -152,7 +152,7 @@ describe('messageContent serialization', () => {
     const serialized = serializeContent(content)
     const parsed = parseMessageContent(serialized)
 
-    expect(parsed.plaintext).toBe('\u{1F4F7} Photo')
+    expect(parsed.plaintext).toBe('Photo')
     expect(parsed.content.type).toBe('image')
     if (parsed.content.type === 'image') {
       expect(parsed.content.mime).toBe('image/jpeg')

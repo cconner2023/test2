@@ -4,6 +4,8 @@ import { MedicationPage } from './MedicationPage';
 import { BaseDrawer } from './BaseDrawer';
 import { medList, type medListTypes } from '../Data/MedData';
 import { useSwipeBack } from '../Hooks/useSwipeBack';
+import { useAuthStore } from '../stores/useAuthStore';
+import { MedicationsForm } from './TC3/MedicationsForm';
 
 interface MedicationsDrawerProps {
     isVisible: boolean;
@@ -37,6 +39,7 @@ export function MedicationsDrawer({
     selectedMedication,
     onMedicationSelect,
 }: MedicationsDrawerProps) {
+    const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false;
     const handleSwipeBack = useCallback(() => onMedicationSelect(null), [onMedicationSelect]);
     const swipeHandlers = useSwipeBack(selectedMedication ? handleSwipeBack : undefined, !!selectedMedication);
 
@@ -50,26 +53,30 @@ export function MedicationsDrawer({
         >
             {(handleClose) => (
                 <>
-                    {/* Drag Handle + Close — consolidated with SymptomInfoDrawer */}
+                    {/* Drag Handle + Close */}
                     <div className="flex items-center justify-between px-4 pt-3 pb-2" data-drag-zone style={{ touchAction: 'none' }}>
                         <div className="flex-1 flex items-center gap-2">
-                            <div
-                                className="shrink-0 overflow-hidden transition-all duration-200"
-                                style={{
-                                    width: selectedMedication ? 36 : 0,
-                                    opacity: selectedMedication ? 1 : 0,
-                                }}
-                            >
-                                <button
-                                    onClick={() => onMedicationSelect(null)}
-                                    className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
-                                    aria-label="Go back"
+                            {!tc3Mode && (
+                                <div
+                                    className="shrink-0 overflow-hidden transition-all duration-200"
+                                    style={{
+                                        width: selectedMedication ? 36 : 0,
+                                        opacity: selectedMedication ? 1 : 0,
+                                    }}
                                 >
-                                    <ChevronLeft size={20} className="text-tertiary" />
-                                </button>
-                            </div>
+                                    <button
+                                        onClick={() => onMedicationSelect(null)}
+                                        className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
+                                        aria-label="Go back"
+                                    >
+                                        <ChevronLeft size={20} className="text-tertiary" />
+                                    </button>
+                                </div>
+                            )}
                             <h2 className="hidden md:block text-lg font-normal text-primary truncate">
-                                {selectedMedication ? selectedMedication.text : 'Medications'}
+                                {tc3Mode
+                                    ? 'TC3 Medications'
+                                    : selectedMedication ? selectedMedication.text : 'Medications'}
                             </h2>
                         </div>
                         <div className="w-14 h-1.5 rounded-full bg-tertiary/30 md:hidden" />
@@ -85,19 +92,25 @@ export function MedicationsDrawer({
                     </div>
 
                     {/* Content */}
-                    <div className="overflow-y-auto flex-1 px-4 pb-4" {...(selectedMedication ? swipeHandlers : {})}>
-                        {selectedMedication ? (
-                            <MedicationPage medication={selectedMedication} />
-                        ) : (
-                            medList.map((medication, index) => (
-                                <MedicationListItem
-                                    key={`med-${index}`}
-                                    medication={medication}
-                                    onClick={() => onMedicationSelect(medication)}
-                                />
-                            ))
-                        )}
-                    </div>
+                    {tc3Mode ? (
+                        <div className="overflow-y-auto flex-1 px-4 pb-4">
+                            <MedicationsForm />
+                        </div>
+                    ) : (
+                        <div className="overflow-y-auto flex-1 px-4 pb-4" {...(selectedMedication ? swipeHandlers : {})}>
+                            {selectedMedication ? (
+                                <MedicationPage medication={selectedMedication} />
+                            ) : (
+                                medList.map((medication, index) => (
+                                    <MedicationListItem
+                                        key={`med-${index}`}
+                                        medication={medication}
+                                        onClick={() => onMedicationSelect(medication)}
+                                    />
+                                ))
+                            )}
+                        </div>
+                    )}
                 </>
             )}
         </BaseDrawer>

@@ -247,7 +247,7 @@ export function MessageBubble({
     }
 
     if (isImage && imageContent) {
-      const maxW = 240
+      const maxW = 180
       const scale = Math.min(1, maxW / imageContent.width)
       const displayW = Math.round(imageContent.width * scale)
       const displayH = Math.round(imageContent.height * scale)
@@ -421,14 +421,14 @@ export function MessageBubble({
         >
           <button
             onClick={() => setShowFullImage(false)}
-            className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors"
+            className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
           >
-            <X size={24} className="text-white" />
+            <X size={18} className="text-themewhite" />
           </button>
           <img
             src={fullImageUrl}
             alt=""
-            className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg"
+            className="max-w-full max-h-[85vh] object-contain rounded-lg px-4"
             onClick={e => e.stopPropagation()}
           />
         </div>

@@ -122,9 +122,7 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "0-2 CENTOR",
-                        disposition: [
-                            Disposition[2]
-                        ],
+                        disposition: [{ ...Disposition[2], modifier: 'Screen Cold Sx Ear pain if present' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -193,9 +191,7 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "Negative",
-                        disposition: [
-                            Disposition[2]
-                        ],
+                        disposition: [{ ...Disposition[2], modifier: 'Screen Cold Sx, Ear Pain if present' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -403,7 +399,7 @@ export const Algorithm: AlgorithmType[] = [
                 answerOptions: [
                     {
                         text: "Yes",
-                        disposition: [Disposition[2]],
+                        disposition: [{ ...Disposition[2], modifier: 'screen cold sx, sore throat if present' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
@@ -456,17 +452,57 @@ export const Algorithm: AlgorithmType[] = [
                     },
                     {
                         text: "No",
-                        disposition: [{ ...Disposition[4], modifier: 'Screen Cold Sx. Sore Throat if Present' }],
+                        disposition: [{ ...Disposition[2], modifier: 'screen cold sx, sore throat if present' }],
                         decisionMaking: [
                             {
                                 type: 'dmp',
-                                ddx: [],
-                                text: ''
+                                text: 'Mild otitis externa, temporal-mandibular joint (TMJ) dysfunction, and ear pain with normal exam should be treated with minor-care.'
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['Mild Otitis Externa'],
+                                text: 'Soak wick of a cotton ball wick with OTC ear drops. Place in the ear for 24 hours while using the drops. Remove the cotton wick and continue drops for 1 week (3 days after the symptoms have resolved). Keep the ear canal dry. Use OTC ibuprofen as needed for pain. Return to clinic if not resolved in 1 week or worsening symptoms to include pain or fever.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Soak wick of a cotton ball with ear drops. pleace in the ear for 24 hours while using the drops. Remove the cotton wick and continue drops for 1 week (3 days after the symptoms have resolved). Keep the ear canal dry. Return if not improving in 3 days, worsening symptoms, dizziness, loss of hearing, stiff neck',
+                                    specLim: [
+                                        'Avoidance of situations requiring utilization of ear plugs',
+                                        'No swimming'
+                                    ],
+                                    ancillaryFind: [
+                                        {
+                                            type: 'med',
+                                            modifier: 'hydrocortisone ear drops'
+                                        }
+                                    ],
+                                    medFind: [medList[0], medList[23]]
+                                }
+                            },
+                            {
+                                type: 'dmp',
+                                ddx: ['TMJ'],
+                                text: 'another common cause of pain around the ear. Evaluation includes seeing if the pain increases with opening and closing the jaw while placing the finger on the anterior inside of the ear to feel the joint. Ensure pain is not related to the heart. Use OTC ibuprofen for inflammation and pain. Refer to dental if history of teeth grinding. Instruct on avoidance of triggers (excessive chewing, chewing gum). Home therapy is jaw isometric exercises: jaw is open 1 inch and jaw is pushed 1) down against a loosely fisted hand and 2) forward against a hand for 5 seconds each, each set is repeated 5 times per session with 3 sessions per day. Return if not improving within three days.',
+                                assocMcp: {
+                                    type: 'mcp',
+                                    text: 'Refer to dental if history of teeth grinding, ibuprofen as needed for pain, instruct on avoidance of triggers and home jaw exercises. Return if not improving in 3 days, worsening symptoms, dizziness, loss of hearing, stiff neck.',
+                                    medFind: [medList[23]],
+                                    ancillaryFind: [
+                                        {
+                                            type: 'refer',
+                                            modifier: 'Dental if history of teeth grinding'
+                                        }
+                                    ]
+                                }
+                            },
+                            {
+                                type: 'lim',
+                                ddx: ['Eustachian Tube Dysfunction'],
+                                text: 'No scuba diving'
                             }
                         ],
                         next: null,
                         selectAll: false
-                    },
+                    }
                 ]
             }
         ]

@@ -387,11 +387,6 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
                 let newDisposition: dispositionType | null = null;
                 for (let i = lastAnsweredIndex - 1; i >= 0; i--) {
                     if (rfCardIndices.includes(i)) continue;
-                    // Check for deferred action cards
-                    if (newCardStates[i].actionStatus === 'deferred') {
-                        newDisposition = { type: "OTHER", text: "defer to AEM" };
-                        break;
-                    }
                     const cardAnswer = newCardStates[i].answer;
                     if (cardAnswer?.disposition?.[0]) {
                         newDisposition = cardAnswer.disposition[0];
@@ -447,9 +442,6 @@ export const useAlgorithm = (algorithmOptions: AlgorithmOptions[], initialCardSt
             pendingRevealsRef.current = revealWithPause(newStates, pending, algorithmOptions);
             return newStates;
         });
-        if (status === 'deferred') {
-            setCurrentDisposition({ type: "OTHER", text: "defer to AEM" });
-        }
     }, [algorithmOptions]);
 
     return {

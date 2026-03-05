@@ -89,6 +89,9 @@ interface BaseDrawerProps {
     mobileClassName?: string;
     /** z-index class for mobile backdrop and drawer. Default 'z-60' */
     zIndex?: string;
+    /** Override the desktop panel width class (e.g. 'w-[70%]'). When omitted,
+     *  width is derived from desktopPosition (left=45%, right=55%). */
+    desktopWidth?: string;
     /** Optional header config. When provided, BaseDrawer renders a standardized
      *  header with drag handle (mobile), title, back button (optional), and
      *  close button (always). Children render below the header. */
@@ -109,6 +112,7 @@ export function BaseDrawer({
     mobileOnly = false,
     mobileClassName = '',
     zIndex = 'z-60',
+    desktopWidth,
     header,
     mobileFullScreen = false,
 }: BaseDrawerProps) {
@@ -258,7 +262,7 @@ export function BaseDrawer({
 
     // Desktop column overlay — position and width based on target column
     const desktopAlignClass = desktopPosition === 'left' ? 'left-0' : 'right-0';
-    const desktopWidthClass = desktopPosition === 'left' ? 'w-[45%]' : 'w-[55%]';
+    const desktopWidthClass = desktopWidth ?? (desktopPosition === 'left' ? 'w-[45%]' : 'w-[55%]');
 
     // Resolve children ONCE — single React tree, no duplicate component instances
     const resolvedChildren = typeof children === 'function'

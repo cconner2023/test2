@@ -1,15 +1,18 @@
 // hooks/useNoteImport.ts
 // Reconstructs a full readable note from a barcode string.
 // Uses shared codec (parsing/reconstruction) and formatter (text generation).
+// Supports both ADTMC notes and TC3 cards via prefix detection.
 
 import { useCallback } from 'react';
 import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../Utilities/NoteCodec';
+import { isTC3Encoding, parseTC3Encoding } from '../Utilities/tc3Codec';
+import { formatTC3Note } from '../Utilities/TC3Formatter';
 import type { ParsedNote } from '../Utilities/NoteCodec';
 import { assembleNote, formatSignature } from '../Utilities/NoteFormatter';
 
 export interface ImportPreview {
     fullNote: string;
-    parsed: ParsedNote;
+    parsed: ParsedNote | null;
     symptomText: string;
     symptomIcon: string;
     dispositionType: string;
@@ -17,11 +20,35 @@ export interface ImportPreview {
     authorLabel: string;
     userId: string | null;
     encodedText: string;
+    isTC3?: boolean;
 }
 
 /** Provides importFromBarcode: decodes a barcode string, reconstructs algorithm state, and returns an ImportPreview. */
 export const useNoteImport = () => {
     const importFromBarcode = useCallback((barcodeString: string): ImportPreview => {
+        // ── TC3 path ──────────────────────────────────────────
+        if (isTC3Encoding(barcodeString)) {
+            const result = parseTC3Encoding(barcodeString);
+            if (!result) throw new Error('Could not parse TC3 barcode string');
+
+            const noteText = formatTC3Note(result.card);
+            const name = [result.card.casualty.lastName, result.card.casualty.firstName].filter(Boolean).join(', ');
+
+            return {
+                fullNote: noteText,
+                parsed: null,
+                symptomText: 'TC3 Casualty Card',
+                symptomIcon: 'TC3',
+                dispositionType: result.card.evacuation.priority || '',
+                dispositionText: 'Battle Injury',
+                authorLabel: name || 'Unknown',
+                userId: result.userId,
+                encodedText: barcodeString,
+                isTC3: true,
+            };
+        }
+
+        // ── ADTMC path ───────────────────────────────────────
         // 1. Parse barcode
         const parsed = parseNoteEncoding(barcodeString);
         if (!parsed) throw new Error('Could not parse barcode string');

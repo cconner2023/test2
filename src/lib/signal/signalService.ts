@@ -285,6 +285,12 @@ export async function deleteMessages(
   return transportManager.deleteMessages(messageIds)
 }
 
+export async function hardDeleteByOriginId(
+  originIds: string[]
+): Promise<Result<void>> {
+  return transportManager.hardDeleteByOriginId(originIds)
+}
+
 export async function fetchConversation(
   userId: string,
   peerId: string,

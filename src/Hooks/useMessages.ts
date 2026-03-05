@@ -23,7 +23,7 @@ import {
   fetchConversation,
   fetchGroupConversation,
   markMessagesRead,
-  deleteMessages as deleteMessagesFromSupabase,
+  hardDeleteByOriginId,
 } from '../lib/signal/signalService'
 import {
   fetchMyGroups as fetchMyGroupsRpc,
@@ -50,6 +50,7 @@ import {
   updateReadAt,
   updateMessageText,
   deleteMessages as deleteMessagesFromDb,
+  deleteConversation as deleteConversationFromDb,
 } from '../lib/signal/messageStore'
 import {
   serializeContent,
@@ -301,6 +302,8 @@ export interface UseMessagesReturn {
   editMessage: (peerId: string, messageId: string, newText: string) => void
   /** Delete messages (state + IndexedDB + protocol-level delete to peer and own devices). */
   deleteMessages: (peerId: string, messageIds: string[]) => Promise<void>
+  /** Delete an entire conversation (state + unread + IndexedDB). */
+  deleteConversation: (conversationKey: string) => void
   /** Whether a send is currently in progress. */
   sending: boolean
   /** Group metadata keyed by groupId. */
@@ -555,7 +558,7 @@ export function useMessages(): UseMessagesReturn {
     const msgs = conversationsRef.current[peerId]
     const root = msgs?.find(m => m.id === threadId)
     if (!root) return undefined
-    const preview = (root.plaintext || '\u{1F4F7} Photo').slice(0, 50)
+    const preview = (root.plaintext || 'Photo').slice(0, 50)
     return { messageId: threadId, preview }
   }, [])
 
@@ -732,6 +735,95 @@ export function useMessages(): UseMessagesReturn {
   const sendImage = useCallback(async (peerId: string, file: File): Promise<boolean> => {
     if (!userId || !localDeviceId) return false
 
+    // Self-notes: encrypt to own devices (E2EE even for notes to self)
+    if (peerId === userId) {
+      const localId = crypto.randomUUID()
+      const originId = crypto.randomUUID()
+      const now = new Date().toISOString()
+      setSending(true)
+      try {
+        const { resizedDataUrl, width, height, thumbnail } = await resizeAndThumbnail(file)
+
+        const placeholderContent: ImageContent = {
+          type: 'image', mime: 'image/jpeg', key: '', path: '', width, height, thumbnail,
+        }
+        addMessage({
+          id: localId,
+          senderId: userId,
+          recipientId: userId,
+          plaintext: 'Photo',
+          content: placeholderContent,
+          messageType: 'message',
+          createdAt: now,
+          readAt: now,
+          status: 'sending',
+          originId,
+        })
+
+        const imageBlob = dataUrlToBlob(resizedDataUrl)
+        const uploadResult = await uploadEncryptedAttachment(userId, imageBlob)
+        if (!uploadResult.ok) {
+          logger.error('Self-note image upload failed:', uploadResult.error)
+          removeOptimisticMessage(userId, localId)
+          return false
+        }
+
+        const { path, key } = uploadResult.data
+        const imageContent: ImageContent = {
+          type: 'image', mime: 'image/jpeg', key, path, width, height, thumbnail,
+        }
+
+        // Update optimistic message with real path/key
+        setConversations(prev => {
+          const msgs = prev[userId]
+          if (!msgs) return prev
+          return { ...prev, [userId]: msgs.map(m => m.id === localId ? { ...m, content: imageContent } : m) }
+        })
+
+        // Fan out to OTHER own devices only
+        const serialized = serializeContent(imageContent)
+        const devicesResult = await fetchOwnDevices(userId)
+        const otherDevices = devicesResult.ok
+          ? devicesResult.data.filter(d => d.deviceId !== localDeviceId)
+          : []
+
+        if (otherDevices.length > 0) {
+          const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized, userId)
+          if (fanOutInputs.length > 0) {
+            const sendResult = await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, undefined, originId)
+            if (!sendResult.ok) {
+              logger.error('Self-note image fan-out failed:', sendResult.error)
+            }
+          }
+        }
+
+        // Confirm optimistic message
+        const confirmedId = crypto.randomUUID()
+        updateMessageStatus(userId, localId, confirmedId)
+
+        // Persist directly to IDB
+        saveMessage({
+          id: confirmedId,
+          senderId: userId,
+          recipientId: userId,
+          plaintext: 'Photo',
+          content: imageContent,
+          messageType: 'message',
+          createdAt: now,
+          readAt: now,
+          originId,
+        }, userId).catch(() => {})
+
+        return true
+      } catch (e) {
+        logger.error('Self-note image error:', e instanceof Error ? e.message : e)
+        removeOptimisticMessage(userId, localId)
+        return false
+      } finally {
+        setSending(false)
+      }
+    }
+
     // Images require an accepted conversation (not allowed in requests)
     const status = getRequestStatus(conversationsRef.current[peerId], userId)
     if (status !== 'accepted' && status !== 'received') {
@@ -754,7 +846,7 @@ export function useMessages(): UseMessagesReturn {
         id: localId,
         senderId: userId,
         recipientId: peerId,
-        plaintext: '\u{1F4F7} Photo',
+        plaintext: 'Photo',
         content: placeholderContent,
         messageType: 'message',
         createdAt: new Date().toISOString(),
@@ -1071,11 +1163,30 @@ export function useMessages(): UseMessagesReturn {
       logger.warn('Failed to sync delete to own devices:', e instanceof Error ? e.message : e)
     }
 
-    // 6. Hard-delete own received rows from Supabase (RLS allows: recipient_id = auth.uid())
-    deleteMessagesFromSupabase(messageIds).catch(e =>
+    // 6. Hard-delete both sent and received rows from Supabase by origin_id
+    hardDeleteByOriginId(originIds).catch(e =>
       logger.warn('Failed to hard-delete from Supabase:', e instanceof Error ? e.message : e)
     )
   }, [userId, localDeviceId])
+
+  /** Delete an entire conversation from state, unread counts, and IndexedDB. */
+  const deleteConversation = useCallback((conversationKey: string) => {
+    setConversations(prev => {
+      if (!prev[conversationKey]) return prev
+      const next = { ...prev }
+      delete next[conversationKey]
+      return next
+    })
+    setUnreadCounts(prev => {
+      if (!prev[conversationKey]) return prev
+      const next = { ...prev }
+      delete next[conversationKey]
+      return next
+    })
+    deleteConversationFromDb(conversationKey).catch(e =>
+      logger.warn('Failed to delete conversation from IDB:', e instanceof Error ? e.message : e)
+    )
+  }, [])
 
   // ── Group messaging ────────────────────────────────────────────────────
 
@@ -1156,7 +1267,7 @@ export function useMessages(): UseMessagesReturn {
         id: localId,
         senderId: userId,
         recipientId: groupId,
-        plaintext: '\u{1F4F7} Photo',
+        plaintext: 'Photo',
         content: placeholderContent,
         messageType: 'message',
         createdAt: new Date().toISOString(),
@@ -1324,6 +1435,7 @@ export function useMessages(): UseMessagesReturn {
     markAsRead,
     editMessage,
     deleteMessages,
+    deleteConversation,
     sending,
     groups,
     sendGroupMessage,

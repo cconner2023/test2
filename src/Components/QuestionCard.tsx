@@ -124,9 +124,9 @@ export const QuestionCard = ({
 
                     return (
                         <div key={card.index} className={`flex flex-col items-center ${idx > 0 ? 'animate-cardAppearIn' : ''}`}>
-                            <div className={`flex flex-col rounded-md w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed ${isDeferred ? 'border-themeredred/30' : 'border-themeblue2/30'}`}>
+                            <div className={`flex flex-col rounded-md w-full overflow-hidden shadow-sm bg-themewhite2 border-3 border-dashed ${isDeferred ? 'border-themered/30' : 'border-themeblue2/30'}`}>
                                 <div className="px-4 py-3 text-center">
-                                    <div className={`text-[9pt] font-semibold mb-1 uppercase tracking-wider ${isDeferred ? 'text-themeredred' : 'text-themeblue2'}`}>
+                                    <div className={`text-[9pt] font-semibold mb-1 uppercase tracking-wider ${isDeferred ? 'text-themered' : 'text-themeblue2'}`}>
                                         Action Required
                                     </div>
                                     <div className="text-[10pt] font-normal text-primary/80">
@@ -161,14 +161,9 @@ export const QuestionCard = ({
                                                 <span className="text-xs font-medium text-themegreen">Performed</span>
                                             </div>
                                         ) : (
-                                            <div className="flex flex-col gap-2">
-                                                <div className="flex items-center justify-center gap-2 bg-themeredred/10 rounded-md px-3 py-2.5">
-                                                    <X size={14} className="text-themeredred" />
-                                                    <span className="text-xs font-medium text-themeredred">Deferred</span>
-                                                </div>
-                                                <div className="text-[9px] text-center text-tertiary uppercase tracking-wider">
-                                                    defer to AEM
-                                                </div>
+                                            <div className="flex items-center justify-center gap-2 bg-themered/10 rounded-md px-3 py-2.5">
+                                                <X size={14} className="text-themered" />
+                                                <span className="text-xs font-medium text-themered">Deferred/Not Indicated</span>
                                             </div>
                                         )}
                                     </div>
@@ -184,9 +179,9 @@ export const QuestionCard = ({
                                         <button
                                             onClick={() => onActionStatus?.(card.index, 'deferred')}
                                             disabled={isTransitioning}
-                                            className="flex-1 py-2.5 text-xs text-themeredred border border-themeredred rounded-md font-medium active:scale-[0.98] transition-all"
+                                            className="flex-1 py-2.5 text-xs text-themered border border-themered rounded-md font-medium active:scale-[0.98] transition-all"
                                         >
-                                            Deferred
+                                            Deferred/Not Indicated
                                         </button>
                                     </div>
                                 )}

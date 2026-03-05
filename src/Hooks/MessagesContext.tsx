@@ -56,7 +56,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
       const senderName = nameMap.get(msg.senderId) ?? 'Unknown'
       const isGroup = !!msg.groupId
       const groupName = isGroup ? (messages.groups[msg.groupId!]?.name ?? 'Group') : undefined
-      const preview = msg.plaintext || '\u{1F4F7} Photo'
+      const preview = msg.plaintext || 'Photo'
 
       notify({
         peerId: msg.senderId,

@@ -15,7 +15,7 @@ import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { createLogger } from '../Utilities/Logger'
 import { useSupabaseSubscription } from './useSupabaseSubscription'
-import { fetchUnreadMessages, deleteMessages as hardDeleteMessages, onLoRaMessage } from '../lib/signal/signalService'
+import { fetchUnreadMessages, deleteMessages as hardDeleteMessages, hardDeleteByOriginId, onLoRaMessage } from '../lib/signal/signalService'
 import { deleteMessages as deleteMessagesFromDb } from '../lib/signal/messageStore'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { processIncomingMessage } from '../lib/signal/session'
@@ -215,6 +215,7 @@ export function useSignalMessages({
               const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
               await deleteMessagesFromDb(originIds).catch(() => {})
               onDeleteRef.current?.(originIds)
+              hardDeleteByOriginId(originIds).catch(() => {})
               await hardDeleteMessages([decrypted.id]).catch(() => {})
             } catch { /* ignore parse errors */ }
           } else {
@@ -245,6 +246,7 @@ export function useSignalMessages({
             const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
             deleteMessagesFromDb(originIds).catch(() => {})
             onDeleteRef.current?.(originIds)
+            hardDeleteByOriginId(originIds).catch(() => {})
             hardDeleteMessages([decrypted.id]).catch(() => {})
           } catch { /* ignore parse errors */ }
           return
@@ -281,6 +283,7 @@ export function useSignalMessages({
             const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
             deleteMessagesFromDb(originIds).catch(() => {})
             onDeleteRef.current?.(originIds)
+            hardDeleteByOriginId(originIds).catch(() => {})
             hardDeleteMessages([decrypted.id]).catch(() => {})
           } catch { /* ignore parse errors */ }
           return

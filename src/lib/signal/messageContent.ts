@@ -133,7 +133,7 @@ export function parseMessageContent(raw: string): ParsedContent {
 
     if (wire.t === 'i') {
       return {
-        plaintext: '\u{1F4F7} Photo',
+        plaintext: 'Photo',
         content: {
           type: 'image',
           mime: wire.mime,

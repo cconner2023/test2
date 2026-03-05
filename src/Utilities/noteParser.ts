@@ -443,9 +443,6 @@ export function reconstructCardStates(
     for (const entry of parsed.actionEntries) {
         if (entry.index >= 0 && entry.index < cardStates.length) {
             cardStates[entry.index].actionStatus = entry.status;
-            if (entry.status === 'deferred') {
-                lastDisposition = { type: "OTHER", text: "defer to AEM" };
-            }
         }
     }
 

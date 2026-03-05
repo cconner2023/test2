@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import { User, Award, KeyRound, LogOut, ChevronRight } from 'lucide-react';
 import { useAuth } from '../../Hooks/useAuth';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { getInitials } from '../../Utilities/nameUtils';
 
@@ -16,6 +18,8 @@ export const ProfilePage = ({
 }: ProfilePageProps) => {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
     const { profile } = useAuth();
+    const deviceRole = useAuthStore(s => s.deviceRole);
+    const [confirmSignOut, setConfirmSignOut] = useState(false);
 
     const displayName = profile.lastName
         ? `${profile.rank ? profile.rank + ' ' : ''}${profile.firstName || ''} ${profile.lastName}`
@@ -97,18 +101,41 @@ export const ProfilePage = ({
                     ))}
 
                     {/* Sign Out */}
-                    <button
-                        onClick={onSignOut}
-                        className="flex items-center w-full px-5 py-3.5 hover:bg-themeredred/5 active:scale-[0.98]
-                                   transition-all rounded-xl group mt-2"
-                    >
-                        <div className="mr-4 text-themeredred group-hover:scale-110 transition-transform">
-                            <LogOut size={20} />
+                    {confirmSignOut ? (
+                        <div className="mt-2 px-5">
+                            <p className="text-sm text-themeredred/80 mb-3">
+                                This will sign out all linked devices and delete your message backup.
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={onSignOut}
+                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-themeredred/10 text-themeredred text-sm font-medium active:scale-[0.98] transition-all"
+                                >
+                                    <LogOut size={16} />
+                                    Confirm Sign Out
+                                </button>
+                                <button
+                                    onClick={() => setConfirmSignOut(false)}
+                                    className="px-4 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary text-sm font-medium active:scale-[0.98] transition-all"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
                         </div>
-                        <span className="flex-1 text-left text-base text-themeredred font-medium">
-                            Sign Out
-                        </span>
-                    </button>
+                    ) : (
+                        <button
+                            onClick={deviceRole === 'primary' ? () => setConfirmSignOut(true) : onSignOut}
+                            className="flex items-center w-full px-5 py-3.5 hover:bg-themeredred/5 active:scale-[0.98]
+                                       transition-all rounded-xl group mt-2"
+                        >
+                            <div className="mr-4 text-themeredred group-hover:scale-110 transition-transform">
+                                <LogOut size={20} />
+                            </div>
+                            <span className="flex-1 text-left text-base text-themeredred font-medium">
+                                Sign Out
+                            </span>
+                        </button>
+                    )}
                 </div>
             </div>
         </div>

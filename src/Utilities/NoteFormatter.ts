@@ -105,7 +105,7 @@ export function formatAlgorithmContent(
         if (card.type === 'action' && state.actionStatus) {
             const statusText = state.actionStatus === 'performed'
                 ? '[PERFORMED]'
-                : '[DEFERRED - defer to AEM]';
+                : '[DEFERRED/NOT INDICATED]';
             const actionLines: string[] = [`${card.text} ${statusText}`];
             if (card.questionOptions && card.questionOptions.length > 0) {
                 card.questionOptions.forEach((option) => {

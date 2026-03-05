@@ -240,35 +240,32 @@ export const Settings = ({
     }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isSupervisorRole, isAuthenticated, totalUnread]);
 
     // Messages panel navigation helpers
+    // Intra-messages transitions skip ContentWrapper animation —
+    // MessagesPanel animates only its right content area so the sidebar stays put.
     const handleMessagesSelectPeer = useCallback((medic: import('../../Types/SupervisorTestTypes').ClinicMedic) => {
         setSelectedPeerId(medic.id);
         setSelectedGroupId(null);
-        // Build header name — use own profile name when messaging self
         const isSelf = medic.id === user?.id;
         const name = isSelf
             ? [profile.rank, profile.lastName].filter(Boolean).join(' ') || profile.firstName || 'Notes'
             : [medic.rank, medic.lastName].filter(Boolean).join(' ') || medic.firstName || 'Chat';
         setSelectedPeerName(name);
-        handleSlideAnimation('left');
         setActivePanel('messages-chat');
-    }, [handleSlideAnimation, user?.id, profile.rank, profile.lastName, profile.firstName]);
+    }, [user?.id, profile.rank, profile.lastName, profile.firstName]);
 
     const handleMessagesSelectGroup = useCallback((group: import('../../lib/signal/groupTypes').GroupInfo) => {
         setSelectedGroupId(group.groupId);
         setSelectedPeerId(null);
         setSelectedPeerName(group.name);
-        handleSlideAnimation('left');
         setActivePanel('messages-group-chat');
-    }, [handleSlideAnimation]);
+    }, []);
 
     const handleMessagesBack = useCallback(() => {
         if (activePanel === 'messages-chat' || activePanel === 'messages-group-chat') {
-            handleSlideAnimation('right');
             setActivePanel('messages');
             setSelectedPeerId(null);
             setSelectedPeerName(null);
             setSelectedGroupId(null);
-            // Clear active peer so notifications resume for this conversation
             if (messagesCtx) messagesCtx.activePeerRef.current = null;
         } else if (activePanel === 'messages') {
             handleSlideAnimation('right');
@@ -380,8 +377,8 @@ export const Settings = ({
             case 'avatar-picker':       return { title: 'Choose Avatar', ...backTo() };
             case 'user-profile':        return { title: 'Profile', ...backTo() };
             case 'messages':            return { title: 'Messages', ...backTo() };
-            case 'messages-chat':       return { title: selectedPeerName ?? 'Chat', showBack: true, onBack: handleMessagesBack };
-            case 'messages-group-chat': return { title: selectedPeerName ?? 'Group', showBack: true, onBack: handleMessagesBack };
+            case 'messages-chat':       return { title: 'Messages', showBack: true, onBack: handleMessagesBack };
+            case 'messages-group-chat': return { title: 'Messages', showBack: true, onBack: handleMessagesBack };
             case 'training':            return { title: 'My Training', ...backTo() };
             case 'property':            return { title: 'Property Book', ...backTo() };
             case 'property-detail':     return { title: selectedPropertyItemName ?? 'Item', showBack: true, onBack: handlePropertyBack };
@@ -399,6 +396,7 @@ export const Settings = ({
     }, [activePanel, backTo, selectedTask, selectedPeerName, selectedPropertyItemName, handleTrainingBack, handleMessagesBack, handlePropertyBack]);
 
     const isConversationView = activePanel === 'messages-chat' || activePanel === 'messages-group-chat';
+    const isMessagesActive = activePanel === 'messages' || isConversationView;
 
     return (
         <BaseDrawer
@@ -408,6 +406,7 @@ export const Settings = ({
             disableDrag={false}
             header={headerConfig}
             mobileFullScreen={isConversationView}
+            desktopWidth={isMessagesActive ? 'w-[70%]' : undefined}
         >
             {(handleClose) => (
                 <ContentWrapper slideDirection={slideDirection} swipeHandlers={activePanel !== 'main' ? swipeHandlers : undefined}>

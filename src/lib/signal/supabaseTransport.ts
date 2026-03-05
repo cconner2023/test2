@@ -141,6 +141,27 @@ export class SupabaseTransport implements SignalTransport {
     return result
   }
 
+  async hardDeleteByOriginId(originIds: string[]): Promise<Result<void>> {
+    if (originIds.length === 0) return ok(undefined)
+
+    // 1. Delete sender's own rows via SECURITY DEFINER RPC (bypasses RLS)
+    const rpcResult = await this.runQuery<number>(
+      () => supabase.rpc('hard_delete_by_origin_id', { p_origin_ids: originIds }),
+      'hardDeleteByOriginId:rpc',
+    )
+    if (!rpcResult.ok) logger.warn('hardDeleteByOriginId RPC error:', rpcResult.error)
+
+    // 2. Delete received copies (RLS: recipient_id = auth.uid())
+    const directResult = await this.runQuery<void>(
+      () => supabase.from('signal_messages').delete().in('origin_id', originIds),
+      'hardDeleteByOriginId:direct',
+    )
+    if (!directResult.ok) logger.warn('hardDeleteByOriginId direct error:', directResult.error)
+
+    logger.info(`Hard-deleted by origin_id: ${originIds.length} origin IDs`)
+    return ok(undefined)
+  }
+
   async fetchConversation(userId: string, peerId: string, limit: number = 50): Promise<Result<SignalMessageRow[]>> {
     return this.runQuery<SignalMessageRow[]>(
       () => supabase

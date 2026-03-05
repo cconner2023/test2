@@ -136,6 +136,11 @@ export class LoRaTransport implements SignalTransport {
     return ok(undefined)
   }
 
+  /** No-op — hard-delete by origin_id is handled via Supabase. */
+  async hardDeleteByOriginId(_originIds: string[]): Promise<Result<void>> {
+    return ok(undefined)
+  }
+
   /** No-op — soft-delete is handled via Supabase RPC. */
   async softDeleteMessages(_originIds: string[]): Promise<Result<number>> {
     return ok(0)

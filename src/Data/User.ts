@@ -92,6 +92,8 @@ export interface UserTypes {
     planInstructionTags?: string[];
     /** User-defined order sets (preset tag combinations) */
     planOrderSets?: PlanOrderSet[];
+    /** TC3 (Battle Injury) mode — switches main content to DD 1380 card */
+    tc3Mode?: boolean;
 }
 
 export const credentials: Credential[] = ['EMT-B', 'EMT-A', 'EMT-P', 'PA-C', 'NP', 'MD', 'DO'];
