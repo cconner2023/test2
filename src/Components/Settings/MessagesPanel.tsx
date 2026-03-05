@@ -68,13 +68,19 @@ function ConversationList({
       return (a.lastName ?? '').localeCompare(b.lastName ?? '')
     })
 
-  // Split medics into own clinic vs nearby clinics
+  // Split medics into own clinic vs nearby clinics.
+  // If userClinicId isn't loaded yet, treat everyone as own-clinic to avoid
+  // hiding contacts while auth is still hydrating.
+  const canSplit = !!userClinicId
   const ownClinicMedics = sortMedics(
-    medics.filter(m => !m.clinicId || m.clinicId === userClinicId)
+    canSplit
+      ? medics.filter(m => !m.clinicId || m.clinicId === userClinicId)
+      : medics
   )
 
   // Group nearby medics by clinicName
   const nearbyByClinic = useMemo(() => {
+    if (!canSplit) return {} as Record<string, ClinicMedic[]>
     const nearby = medics.filter(m => m.clinicId && m.clinicId !== userClinicId)
     const grouped: Record<string, ClinicMedic[]> = {}
     for (const m of nearby) {
@@ -86,7 +92,7 @@ function ConversationList({
       grouped[key] = sortMedics(grouped[key])
     }
     return grouped
-  }, [medics, userClinicId, conversations])
+  }, [medics, userClinicId, conversations, canSplit])
 
   const nearbyClinicNames = Object.keys(nearbyByClinic).sort()
 
