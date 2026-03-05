@@ -104,6 +104,7 @@ export type Database = {
       clinics: {
         Row: {
           additional_user_ids: string[]
+          associated_clinic_ids: string[]
           child_clinic_ids: string[]
           created_at: string
           encryption_key: string | null
@@ -115,6 +116,7 @@ export type Database = {
         }
         Insert: {
           additional_user_ids?: string[]
+          associated_clinic_ids?: string[]
           child_clinic_ids?: string[]
           created_at?: string
           encryption_key?: string | null
@@ -126,6 +128,7 @@ export type Database = {
         }
         Update: {
           additional_user_ids?: string[]
+          associated_clinic_ids?: string[]
           child_clinic_ids?: string[]
           created_at?: string
           encryption_key?: string | null
@@ -649,6 +652,20 @@ export type Database = {
       get_clinic_notes_by_hierarchy: {
         Args: { p_exclude_user_id?: string }
         Returns: Database["public"]["Tables"]["notes"]["Row"][]
+      }
+      get_location_medics: {
+        Args: never
+        Returns: {
+          id: string
+          first_name: string
+          last_name: string
+          middle_initial: string
+          rank: string
+          credential: string
+          avatar_id: string
+          clinic_id: string
+          clinic_name: string
+        }[]
       }
       get_my_clinic_id: { Args: never; Returns: string }
       get_my_roles: { Args: never; Returns: string[] }

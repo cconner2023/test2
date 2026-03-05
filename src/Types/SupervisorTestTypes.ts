@@ -25,4 +25,6 @@ export interface ClinicMedic {
   rank: string | null
   credential: string | null
   avatarId: string | null
+  clinicId?: string
+  clinicName?: string
 }

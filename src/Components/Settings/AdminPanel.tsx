@@ -1563,6 +1563,7 @@ const CreateClinicForm = ({ allUsers, allClinics, onBack, onCreated }: {
   const [location, setLocation] = useState('')
   const [uics, setUics] = useState<string[]>([])
   const [childClinicIds, setChildClinicIds] = useState<string[]>([])
+  const [associatedClinicIds, setAssociatedClinicIds] = useState<string[]>([])
   const [additionalUserIds, setAdditionalUserIds] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1582,6 +1583,7 @@ const CreateClinicForm = ({ allUsers, allClinics, onBack, onCreated }: {
       location: location.trim() || undefined,
       uics,
       child_clinic_ids: childClinicIds,
+      associated_clinic_ids: associatedClinicIds,
       additional_user_ids: additionalUserIds,
     })
     setSubmitting(false)
@@ -1621,6 +1623,12 @@ const CreateClinicForm = ({ allUsers, allClinics, onBack, onCreated }: {
           allClinics={allClinics}
           onChange={setChildClinicIds}
         />
+        <ClinicPicker
+          label="Associated Clinics"
+          selectedIds={associatedClinicIds}
+          allClinics={allClinics}
+          onChange={setAssociatedClinicIds}
+        />
         <UserPicker
           label="Additional Users"
           selectedIds={additionalUserIds}
@@ -1646,6 +1654,7 @@ const EditClinicForm = ({ clinic, allUsers, allClinics, onBack, onSaved }: {
   const [location, setLocation] = useState(clinic.location || '')
   const [uics, setUics] = useState<string[]>(clinic.uics)
   const [childClinicIds, setChildClinicIds] = useState<string[]>(clinic.child_clinic_ids)
+  const [associatedClinicIds, setAssociatedClinicIds] = useState<string[]>(clinic.associated_clinic_ids)
   const [additionalUserIds, setAdditionalUserIds] = useState<string[]>(clinic.additional_user_ids)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -1663,6 +1672,7 @@ const EditClinicForm = ({ clinic, allUsers, allClinics, onBack, onSaved }: {
       name: name.trim(),
       location: location.trim() || null,
       uics,
+      associated_clinic_ids: associatedClinicIds,
       child_clinic_ids: childClinicIds,
       additional_user_ids: additionalUserIds,
     })
@@ -1703,6 +1713,13 @@ const EditClinicForm = ({ clinic, allUsers, allClinics, onBack, onSaved }: {
           allClinics={allClinics}
           excludeId={clinic.id}
           onChange={setChildClinicIds}
+        />
+        <ClinicPicker
+          label="Associated Clinics"
+          selectedIds={associatedClinicIds}
+          allClinics={allClinics}
+          excludeId={clinic.id}
+          onChange={setAssociatedClinicIds}
         />
         <UserPicker
           label="Additional Users"

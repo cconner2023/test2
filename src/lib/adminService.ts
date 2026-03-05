@@ -418,6 +418,7 @@ export interface AdminClinic {
   name: string
   uics: string[]
   child_clinic_ids: string[]
+  associated_clinic_ids: string[]
   location: string | null
   additional_user_ids: string[]
 }
@@ -429,7 +430,7 @@ export async function listClinics(): Promise<AdminClinic[]> {
   try {
     const { data, error } = await supabase
       .from('clinics')
-      .select('id, name, uics, child_clinic_ids, location, additional_user_ids, encryption_key')
+      .select('id, name, uics, child_clinic_ids, associated_clinic_ids, location, additional_user_ids, encryption_key')
       .order('name')
 
     if (error) throw error
@@ -442,6 +443,7 @@ export async function listClinics(): Promise<AdminClinic[]> {
         uics: row.uics || [],
         child_clinic_ids: row.child_clinic_ids || [],
         additional_user_ids: row.additional_user_ids || [],
+        associated_clinic_ids: row.associated_clinic_ids || [],
         location: row.encryption_key
           ? await decryptWithRawKey(row.encryption_key, row.location)
           : row.location,
@@ -463,6 +465,7 @@ export async function createClinic(data: {
   location?: string
   uics?: string[]
   child_clinic_ids?: string[]
+  associated_clinic_ids?: string[]
   additional_user_ids?: string[]
 }): Promise<ServiceResult<{ id?: string }>> {
   try {
@@ -478,6 +481,7 @@ export async function createClinic(data: {
         location: encryptedLocation,
         uics: data.uics || [],
         child_clinic_ids: data.child_clinic_ids || [],
+        associated_clinic_ids: data.associated_clinic_ids || [],
         additional_user_ids: data.additional_user_ids || [],
         encryption_key: rawKey,
       })
@@ -485,10 +489,51 @@ export async function createClinic(data: {
       .single()
 
     if (error) return fail(error.message)
-    return succeed({ id: result.id })
+
+    // Reciprocal: add new clinic to each associated clinic's array
+    const newId = result.id
+    const associated = data.associated_clinic_ids || []
+    if (newId && associated.length > 0) {
+      await syncAssociatedClinics(newId, [], associated)
+    }
+
+    return succeed({ id: newId })
   } catch (error) {
     logger.error('Failed to create clinic:', error)
     return fail(getErrorMessage(error))
+  }
+}
+
+/**
+ * Sync associated_clinic_ids reciprocally.
+ * Adds `clinicId` to every clinic in `added`, removes it from every clinic in `removed`.
+ */
+async function syncAssociatedClinics(clinicId: string, removed: string[], added: string[]) {
+  // Remove this clinic from clinics that were un-associated
+  for (const peerId of removed) {
+    const { data: peer } = await supabase
+      .from('clinics')
+      .select('associated_clinic_ids')
+      .eq('id', peerId)
+      .single()
+    if (peer) {
+      const updated = (peer.associated_clinic_ids || []).filter((id: string) => id !== clinicId)
+      await supabase.from('clinics').update({ associated_clinic_ids: updated }).eq('id', peerId)
+    }
+  }
+  // Add this clinic to newly associated clinics
+  for (const peerId of added) {
+    const { data: peer } = await supabase
+      .from('clinics')
+      .select('associated_clinic_ids')
+      .eq('id', peerId)
+      .single()
+    if (peer) {
+      const existing: string[] = peer.associated_clinic_ids || []
+      if (!existing.includes(clinicId)) {
+        await supabase.from('clinics').update({ associated_clinic_ids: [...existing, clinicId] }).eq('id', peerId)
+      }
+    }
   }
 }
 
@@ -501,6 +546,7 @@ export async function updateClinic(
     name?: string
     location?: string | null
     uics?: string[]
+    associated_clinic_ids?: string[]
     additional_user_ids?: string[]
   }
 ): Promise<ServiceResult> {
@@ -509,6 +555,20 @@ export async function updateClinic(
     const payload: Record<string, unknown> = { ...updates }
     if (updates.location !== undefined && updates.location !== null) {
       payload.location = await encryptClinicField(id, updates.location)
+    }
+
+    // Reciprocal sync: diff old vs new associated_clinic_ids
+    if (updates.associated_clinic_ids !== undefined) {
+      const { data: current } = await supabase
+        .from('clinics')
+        .select('associated_clinic_ids')
+        .eq('id', id)
+        .single()
+      const oldIds: string[] = current?.associated_clinic_ids || []
+      const newIds = updates.associated_clinic_ids
+      const added = newIds.filter(cid => !oldIds.includes(cid))
+      const removed = oldIds.filter(cid => !newIds.includes(cid))
+      await syncAssociatedClinics(id, removed, added)
     }
 
     const { error } = await supabase

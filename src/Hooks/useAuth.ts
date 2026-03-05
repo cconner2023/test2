@@ -19,5 +19,6 @@ export function useAuth() {
     isDevRole: s.isDevRole,
     isSupervisorRole: s.isSupervisorRole,
     refreshProfile: s.refreshProfile,
+    clinicId: s.clinicId,
   })))
 }

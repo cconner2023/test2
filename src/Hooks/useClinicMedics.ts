@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase'
 import { loadCachedClinicUsers, saveCachedClinicUsers } from '../lib/clinicUsersCache'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 
-/** Fetches the list of medics in the current user's clinic (excluding the current user). */
+/** Fetches medics from the same location (via RPC), falling back to same-clinic query. */
 export function useClinicMedics() {
   const [medics, setMedics] = useState<ClinicMedic[]>([])
   const [loading, setLoading] = useState(true)
@@ -21,7 +21,31 @@ export function useClinicMedics() {
         return
       }
 
-      // Get current user's clinic_id
+      // Try the location-based RPC first
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_location_medics')
+
+      if (!rpcError && rpcData && rpcData.length > 0) {
+        const medicProfiles: ClinicMedic[] = rpcData.map((p: {
+          id: string; first_name: string; last_name: string; middle_initial: string;
+          rank: string; credential: string; avatar_id: string; clinic_id: string; clinic_name: string
+        }) => ({
+          id: p.id,
+          firstName: p.first_name,
+          lastName: p.last_name,
+          middleInitial: p.middle_initial,
+          rank: p.rank,
+          credential: p.credential,
+          avatarId: p.avatar_id ?? null,
+          clinicId: p.clinic_id,
+          clinicName: p.clinic_name,
+        }))
+
+        setMedics(medicProfiles)
+        saveCachedClinicUsers(medicProfiles).catch(() => {})
+        return
+      }
+
+      // Fallback: same-clinic query (RPC not available or location_group not set)
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('clinic_id')
@@ -35,7 +59,6 @@ export function useClinicMedics() {
         return
       }
 
-      // Fetch all profiles in the same clinic with medic role
       const { data: clinicProfiles, error: clinicError } = await supabase
         .from('profiles')
         .select('id, first_name, last_name, middle_initial, rank, credential, roles, avatar_id')
@@ -47,7 +70,6 @@ export function useClinicMedics() {
         return
       }
 
-      // Return all clinic members except the current user
       const medicProfiles: ClinicMedic[] = (clinicProfiles || [])
         .filter(p => p.id !== user.id)
         .map(p => ({

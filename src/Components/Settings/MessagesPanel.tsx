@@ -53,19 +53,42 @@ function ConversationList({
   loading: boolean
   onCreateGroup: () => void
 }) {
-  const { user } = useAuth()
+  const { user, clinicId: userClinicId } = useAuth()
   const userId = user?.id ?? null
   const { currentAvatar } = useAvatar()
 
-  // Sort medics: those with messages first (by recency), then alphabetical
-  const sortedMedics = [...medics].sort((a, b) => {
-    const aLast = conversations[a.id]?.at(-1)?.createdAt ?? ''
-    const bLast = conversations[b.id]?.at(-1)?.createdAt ?? ''
-    if (aLast && bLast) return bLast.localeCompare(aLast)
-    if (aLast) return -1
-    if (bLast) return 1
-    return (a.lastName ?? '').localeCompare(b.lastName ?? '')
-  })
+  // Sort helper: messages first (by recency), then alphabetical by lastName
+  const sortMedics = (list: ClinicMedic[]) =>
+    [...list].sort((a, b) => {
+      const aLast = conversations[a.id]?.at(-1)?.createdAt ?? ''
+      const bLast = conversations[b.id]?.at(-1)?.createdAt ?? ''
+      if (aLast && bLast) return bLast.localeCompare(aLast)
+      if (aLast) return -1
+      if (bLast) return 1
+      return (a.lastName ?? '').localeCompare(b.lastName ?? '')
+    })
+
+  // Split medics into own clinic vs nearby clinics
+  const ownClinicMedics = sortMedics(
+    medics.filter(m => !m.clinicId || m.clinicId === userClinicId)
+  )
+
+  // Group nearby medics by clinicName
+  const nearbyByClinic = useMemo(() => {
+    const nearby = medics.filter(m => m.clinicId && m.clinicId !== userClinicId)
+    const grouped: Record<string, ClinicMedic[]> = {}
+    for (const m of nearby) {
+      const key = m.clinicName ?? 'Other'
+      ;(grouped[key] ??= []).push(m)
+    }
+    // Sort each group internally
+    for (const key of Object.keys(grouped)) {
+      grouped[key] = sortMedics(grouped[key])
+    }
+    return grouped
+  }, [medics, userClinicId, conversations])
+
+  const nearbyClinicNames = Object.keys(nearbyByClinic).sort()
 
   // Sort groups by recency of last message
   const sortedGroups = Object.values(groups).sort((a, b) => {
@@ -100,6 +123,22 @@ function ConversationList({
     ? { id: userId, firstName: null, lastName: 'Notes', middleInitial: null, rank: null, credential: null, avatarId: currentAvatar.id }
     : null
 
+  // Render a list of medics with ContactListItem
+  const renderMedicList = (list: ClinicMedic[]) =>
+    list.map(medic => {
+      const msgs = conversations[medic.id]
+      const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
+      return (
+        <ContactListItem
+          key={medic.id}
+          medic={medic}
+          lastMessage={lastMsg?.plaintext}
+          unreadCount={unreadCounts[medic.id] ?? 0}
+          onClick={() => onSelectPeer(medic)}
+        />
+      )
+    })
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="px-2 py-3">
@@ -107,7 +146,7 @@ function ConversationList({
           <>
             <ContactListItem
               medic={selfMedic}
-              lastMessage={conversations[userId!]?.at(-1)?.plaintext}
+              lastMessage={conversations[userId!]?.filter(m => !m.threadId).at(-1)?.plaintext}
               unreadCount={0}
               onClick={() => onSelectPeer(selfMedic)}
             />
@@ -130,7 +169,7 @@ function ConversationList({
             </div>
             {sortedGroups.map(group => {
               const msgs = conversations[group.groupId]
-              const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted').at(-1)
+              const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
               return (
                 <GroupListItem
                   key={group.groupId}
@@ -148,22 +187,21 @@ function ConversationList({
           </>
         )}
 
+        {/* Own clinic members */}
         <p className="text-xs text-tertiary/60 px-4 mb-2">Clinic Members</p>
-        {sortedMedics.map(medic => {
-          const msgs = conversations[medic.id]
-          // Filter out request-accepted from preview — it's an invisible signal
-          const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted').at(-1)
+        {ownClinicMedics.length > 0
+          ? renderMedicList(ownClinicMedics)
+          : <p className="text-xs text-tertiary/30 px-4 mb-2">No clinic members</p>
+        }
 
-          return (
-            <ContactListItem
-              key={medic.id}
-              medic={medic}
-              lastMessage={lastMsg?.plaintext}
-              unreadCount={unreadCounts[medic.id] ?? 0}
-              onClick={() => onSelectPeer(medic)}
-            />
-          )
-        })}
+        {/* Nearby clinic sections */}
+        {nearbyClinicNames.map(clinicName => (
+          <div key={clinicName}>
+            <div className="mx-4 my-1 border-b border-primary/10" />
+            <p className="text-xs text-tertiary/60 px-4 mb-2 mt-2">{clinicName}</p>
+            {renderMedicList(nearbyByClinic[clinicName])}
+          </div>
+        ))}
       </div>
     </div>
   )
@@ -309,6 +347,9 @@ function ChatDetail({
     return messages.filter(m => m.id === activeThreadId || m.threadId === activeThreadId)
   }, [activeThreadId, messages])
 
+  // Main view: hide thread replies (they only appear inside thread view)
+  const mainViewMessages = useMemo(() => messages.filter(m => !m.threadId), [messages])
+
   // Find the message being context-menued
   const contextMsg = contextMenu ? messages.find(m => m.id === contextMenu.messageId) : null
 
@@ -316,7 +357,7 @@ function ChatDetail({
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-  }, [messages.length])
+  }, [activeThreadId ? messages.length : mainViewMessages.length])
 
   // Mark as read when chat opens and fetch history
   useEffect(() => {
@@ -758,7 +799,7 @@ function ChatDetail({
       </div>
 
       {renderMessageList(
-        messages,
+        mainViewMessages,
         peerId === userId ? 'Write a note...' : 'No messages yet. Say hello!',
       )}
 
@@ -870,6 +911,9 @@ function GroupChatDetail({
     return messages.filter(m => m.id === activeThreadId || m.threadId === activeThreadId)
   }, [activeThreadId, messages])
 
+  // Main view: hide thread replies (they only appear inside thread view)
+  const mainViewMessages = useMemo(() => messages.filter(m => !m.threadId), [messages])
+
   const contextMsg = contextMenu ? messages.find(m => m.id === contextMenu.messageId) : null
 
   // Build sender name lookup from cached members
@@ -887,7 +931,7 @@ function GroupChatDetail({
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-  }, [messages.length])
+  }, [activeThreadId ? messages.length : mainViewMessages.length])
 
   useEffect(() => {
     markAsRead(groupId)
@@ -1225,7 +1269,7 @@ function GroupChatDetail({
         </button>
       </div>
 
-      {renderMessageList(messages, 'No messages yet. Start the conversation!')}
+      {renderMessageList(mainViewMessages, 'No messages yet. Start the conversation!')}
 
       {contextMenu && contextMsg && (
         <MessageContextMenu

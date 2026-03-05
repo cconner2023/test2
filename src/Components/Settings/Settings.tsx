@@ -207,7 +207,7 @@ export const Settings = ({
             if (PROPERTY_MANAGEMENT_ENABLED) {
                 items.push(opt(PANEL.PROPERTY, <Package size={20} />, 'Property Book'));
             }
-            if (LORA_MESH_ENABLED) {
+            if (LORA_MESH_ENABLED || isDevRole) {
                 items.push(opt(PANEL.LORA, <Radio size={20} />, 'LoRa Mesh'));
             }
         }
@@ -576,7 +576,7 @@ export const Settings = ({
                             />
                         </div>
                     )}
-                    {isAuthenticated && LORA_MESH_ENABLED && (
+                    {isAuthenticated && (LORA_MESH_ENABLED || isDevRole) && (
                         <div className="h-full" style={{ display: activePanel === 'lora' ? undefined : 'none' }}>
                             <LoRaPanel />
                         </div>
