@@ -151,7 +151,6 @@ export interface TC3Card {
   // Section 8: Evacuation
   evacuation: {
     priority: EvacPriority
-    precedence: string
   }
 
   // Free-text notes
@@ -167,7 +166,6 @@ export type TC3Section =
   | 'medications'
   | 'vitals'
   | 'evacuation'
-  | 'review'
 
 export const TC3_SECTIONS: { id: TC3Section; label: string; icon: string }[] = [
   { id: 'casualty', label: 'Casualty Info', icon: 'user' },
@@ -177,7 +175,6 @@ export const TC3_SECTIONS: { id: TC3Section; label: string; icon: string }[] = [
   { id: 'medications', label: 'Medications', icon: 'pill' },
   { id: 'vitals', label: 'Vital Signs', icon: 'heart-pulse' },
   { id: 'evacuation', label: 'Evacuation', icon: 'truck' },
-  { id: 'review', label: 'Review & Export', icon: 'file-check' },
 ]
 
 /** Mobile wizard page order */
@@ -189,5 +186,4 @@ export const TC3_WIZARD_PAGES: { id: string; label: string }[] = [
   { id: 'march', label: 'Treatments' },
   { id: 'medications', label: 'Medications' },
   { id: 'evacuation', label: 'Evacuation' },
-  { id: 'review', label: 'Review & Export' },
 ]

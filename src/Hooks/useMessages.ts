@@ -464,6 +464,7 @@ export function useMessages(): UseMessagesReturn {
   })
 
   // Hydrate conversations and unread counts from IndexedDB on mount
+  // and re-hydrate when a backup restore completes
   useEffect(() => {
     if (!userId) return
 
@@ -487,7 +488,15 @@ export function useMessages(): UseMessagesReturn {
 
     hydrate().catch(err => logger.warn('IDB hydration failed:', err))
 
-    return () => { cancelled = true }
+    const onBackupRestored = () => {
+      hydrate().catch(err => logger.warn('Post-backup IDB hydration failed:', err))
+    }
+    window.addEventListener('backup-restored', onBackupRestored)
+
+    return () => {
+      cancelled = true
+      window.removeEventListener('backup-restored', onBackupRestored)
+    }
   }, [userId])
 
   // Hydrate groups from Supabase on mount

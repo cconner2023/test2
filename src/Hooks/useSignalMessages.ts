@@ -191,11 +191,21 @@ export function useSignalMessages({
     prevVisibleRef.current = isPageVisible
   }, [isPageVisible])
 
+  // Re-trigger catch-up after backup restore (backup may have established sessions
+  // needed for decryption, and new messages may have arrived since the backup)
+  useEffect(() => {
+    const onBackupRestored = () => {
+      catchUpDone.current = false
+      setCatchUpTrigger(t => t + 1)
+    }
+    window.addEventListener('backup-restored', onBackupRestored)
+    return () => window.removeEventListener('backup-restored', onBackupRestored)
+  }, [])
+
   // Offline catch-up: fetch unread messages on mount (filtered by device)
   // Gated on localDeviceId to prevent unfiltered queries
   useEffect(() => {
     if (!isAuthenticated || !userId || !localDeviceId || catchUpDone.current) return
-    catchUpDone.current = true
 
     ;(async () => {
       const result = await fetchUnreadMessages(userId, localDeviceId)
@@ -203,6 +213,9 @@ export function useSignalMessages({
         logger.warn('Offline catch-up failed:', result.error)
         return
       }
+
+      // Mark done only after a successful fetch so transient failures retry
+      catchUpDone.current = true
 
       logger.info(`Catch-up: ${result.data.length} unread messages`)
 

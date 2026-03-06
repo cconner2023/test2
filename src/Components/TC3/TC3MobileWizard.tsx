@@ -1,5 +1,5 @@
 import { memo, useState, useCallback } from 'react'
-import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, FileText } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3_WIZARD_PAGES } from '../../Types/TC3Types'
 import { SlideWrapper } from '../WriteNoteHelpers'
@@ -12,7 +12,7 @@ import { MedicationsForm } from './MedicationsForm'
 import { FluidsPanel } from './FluidsPanel'
 import { NotesPanel } from './NotesPanel'
 import { EvacuationForm } from './EvacuationForm'
-import { TC3ReviewExport } from './TC3ReviewExport'
+import { TC3WriteNote } from './TC3WriteNote'
 
 const PAGES = TC3_WIZARD_PAGES
 
@@ -26,6 +26,9 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
   const setWizardStep = useTC3Store((s) => s.setWizardStep)
 
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
+  const [showWriteNote, setShowWriteNote] = useState(false)
+
+  const isLastStep = wizardStep === PAGES.length - 1
 
   const handleNext = useCallback(() => {
     if (wizardStep < PAGES.length - 1) {
@@ -108,17 +111,25 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
                 <NotesPanel />
               </div>
             )}
-            {wizardStep === 7 && <TC3ReviewExport />}
           </div>
         </SlideWrapper>
       </div>
 
-      {/* Footer — Next button */}
-      {wizardStep < PAGES.length - 1 && (
-        <div
-          className="flex items-center justify-end px-6 pt-3 pb-4 shrink-0"
-          style={{ paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem))' }}
-        >
+      {/* Footer — Next / Export button */}
+      <div
+        className="flex items-center justify-end px-6 pt-3 pb-4 shrink-0"
+        style={{ paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem))' }}
+      >
+        {isLastStep ? (
+          <button
+            onClick={() => setShowWriteNote(true)}
+            className="flex items-center gap-2 px-5 h-11 rounded-full bg-themeredred text-white active:scale-95 transition-all shadow-sm text-sm font-medium"
+            aria-label="Export"
+          >
+            <FileText className="w-4 h-4" />
+            Export
+          </button>
+        ) : (
           <button
             onClick={handleNext}
             className="w-11 h-11 rounded-full flex items-center justify-center bg-themeredred text-white active:scale-95 transition-all shadow-sm"
@@ -126,8 +137,14 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
           >
             <ChevronRight className="w-6 h-6" />
           </button>
-        </div>
-      )}
+        )}
+      </div>
+
+      {/* Export drawer */}
+      <TC3WriteNote
+        isVisible={showWriteNote}
+        onClose={() => setShowWriteNote(false)}
+      />
     </div>
   )
 })

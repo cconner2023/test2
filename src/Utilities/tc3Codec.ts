@@ -141,10 +141,8 @@ export function encodeTC3Card(card: TC3Card, userId?: string): string {
   }
 
   // E: Evacuation
-  if (card.evacuation.priority || card.evacuation.precedence) {
-    let seg = `E${card.evacuation.priority || '-'}`
-    if (card.evacuation.precedence) seg += `~${compressText(card.evacuation.precedence)}`
-    parts.push(seg)
+  if (card.evacuation.priority) {
+    parts.push(`E${card.evacuation.priority}`)
   }
 
   // N: Notes
@@ -196,7 +194,7 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
     vitals: [],
     avpu: '',
     gcs: null,
-    evacuation: { priority: '', precedence: '' },
+    evacuation: { priority: '' },
     notes: '',
   }
   let userId: string | null = null
@@ -351,9 +349,8 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         break
       }
       case 'E': {
-        const [prio, precCompressed] = value.split('~')
+        const prio = value.split('~')[0]
         card.evacuation.priority = (prio === '-' ? '' : prio) as EvacPriority
-        if (precCompressed) card.evacuation.precedence = decompressText(precCompressed)
         break
       }
       case 'N':

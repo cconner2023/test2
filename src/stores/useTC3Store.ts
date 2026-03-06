@@ -77,7 +77,6 @@ function createEmptyCard(): TC3Card {
     gcs: null,
     evacuation: {
       priority: '',
-      precedence: '',
     },
     notes: '',
   }

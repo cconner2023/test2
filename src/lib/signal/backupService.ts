@@ -44,11 +44,65 @@ const BACKUP_MASTER_SALT = new Uint8Array([
 
 let _backupTimer: ReturnType<typeof setTimeout> | null = null
 
+// ---- IDB persistence for the non-extractable CryptoKey ----
+
+const BACKUP_KEY_DB = 'adtmc-backup-key'
+const BACKUP_KEY_STORE = 'keys'
+const BACKUP_KEY_ID = 'master'
+
+function openKeyDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(BACKUP_KEY_DB, 1)
+    req.onupgradeneeded = () => {
+      if (!req.result.objectStoreNames.contains(BACKUP_KEY_STORE)) {
+        req.result.createObjectStore(BACKUP_KEY_STORE)
+      }
+    }
+    req.onsuccess = () => resolve(req.result)
+    req.onerror = () => reject(req.error)
+  })
+}
+
+async function persistKeyToIdb(key: CryptoKey): Promise<void> {
+  const db = await openKeyDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(BACKUP_KEY_STORE, 'readwrite')
+    tx.objectStore(BACKUP_KEY_STORE).put(key, BACKUP_KEY_ID)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
+}
+
+async function loadKeyFromIdb(): Promise<CryptoKey | null> {
+  const db = await openKeyDb()
+  const key = await new Promise<CryptoKey | null>((resolve, reject) => {
+    const tx = db.transaction(BACKUP_KEY_STORE, 'readonly')
+    const req = tx.objectStore(BACKUP_KEY_STORE).get(BACKUP_KEY_ID)
+    req.onsuccess = () => resolve((req.result as CryptoKey) ?? null)
+    req.onerror = () => reject(req.error)
+  })
+  db.close()
+  return key
+}
+
+async function clearKeyFromIdb(): Promise<void> {
+  const db = await openKeyDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(BACKUP_KEY_STORE, 'readwrite')
+    tx.objectStore(BACKUP_KEY_STORE).delete(BACKUP_KEY_ID)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
+}
+
 // ---- Key management ----
 
 /**
  * Derive a non-extractable AES-256-GCM CryptoKey from the password and cache it.
  * The plaintext password is never stored; it goes out of scope in the caller.
+ * The derived CryptoKey is persisted to IndexedDB so it survives page refreshes.
  */
 export function deriveAndStoreBackupKey(password: string): Promise<void> {
   _backupKeyReady = (async () => {
@@ -72,6 +126,9 @@ export function deriveAndStoreBackupKey(password: string): Promise<void> {
       false,                // non-extractable
       ['encrypt', 'decrypt'],
     )
+    persistKeyToIdb(_backupKey).catch(() =>
+      logger.warn('Failed to persist backup key to IDB')
+    )
   })()
   return _backupKeyReady
 }
@@ -86,6 +143,7 @@ export function clearBackupKey(): void {
   }
   // Detach the onMessageSaved callback to prevent stale backup triggers
   setOnMessageSaved(null)
+  clearKeyFromIdb().catch(() => {})
 }
 
 /** @deprecated Use clearBackupKey(). Alias kept for backward compatibility. */
@@ -198,6 +256,12 @@ async function loadRawMessages(): Promise<StoredMessage[]> {
 export async function createBackup(userId: string): Promise<void> {
   if (_backupKeyReady) await _backupKeyReady
   if (!_backupKey) {
+    // Session restored without password (e.g. PWA reopen) — try IDB
+    try {
+      _backupKey = await loadKeyFromIdb()
+    } catch { /* IDB unavailable */ }
+  }
+  if (!_backupKey) {
     logger.warn('No backup key cached, skipping backup')
     return
   }
@@ -250,6 +314,12 @@ export async function createBackup(userId: string): Promise<void> {
 export async function restoreBackup(userId: string): Promise<void> {
   if (_backupKeyReady) await _backupKeyReady
   if (!_backupKey) {
+    // Session restored without password (e.g. page refresh) — try IDB
+    try {
+      _backupKey = await loadKeyFromIdb()
+    } catch { /* IDB unavailable */ }
+  }
+  if (!_backupKey) {
     logger.warn('No backup key cached, skipping restore')
     return
   }
@@ -282,6 +352,10 @@ export async function restoreBackup(userId: string): Promise<void> {
     }
 
     logger.info(`Restored ${restored} messages from backup`)
+
+    if (restored > 0) {
+      window.dispatchEvent(new CustomEvent('backup-restored'))
+    }
   } catch (err) {
     logger.warn('Backup restore failed:', err)
   }

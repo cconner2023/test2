@@ -50,18 +50,6 @@ export const EvacuationForm = memo(function EvacuationForm() {
         })}
       </div>
 
-      {/* Precedence / additional info */}
-      <div className="space-y-1">
-        <label className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Precedence / Transport Info</label>
-        <input
-          type="text"
-          value={evacuation.precedence}
-          onChange={(e) => updateEvacuation({ precedence: e.target.value })}
-          placeholder="MEDEVAC request info, 9-line details..."
-          className="w-full text-base px-3 py-2 rounded-lg border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
-        />
-      </div>
-
     </div>
   )
 })

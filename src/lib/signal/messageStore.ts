@@ -53,10 +53,10 @@ async function getDb(): Promise<IDBPDatabase<MessageDB>> {
   if (dbInstance) return dbInstance
 
   dbInstance = await openDB<MessageDB>(MESSAGE_DB_NAME, MESSAGE_DB_VERSION, {
-    upgrade(db, oldVersion) {
+    upgrade(db, oldVersion, _newVersion, transaction) {
       if (oldVersion < 2) {
         const store = db.objectStoreNames.contains('messages')
-          ? db.transaction.objectStore('messages')
+          ? transaction.objectStore('messages')
           : db.createObjectStore('messages', { keyPath: 'id' })
         if (!store.indexNames.contains('by-peer')) {
           store.createIndex('by-peer', 'peerId')
