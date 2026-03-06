@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from 'react'
 import { Lock, Lightbulb } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import { verifyPasswordLocally, storePasswordHash } from '../lib/authService'
+import { deriveAndStoreBackupKey } from '../lib/signal/backupService'
 import { PasswordInput } from './FormInputs'
 import { ErrorMessage } from './ErrorMessage'
 
@@ -91,6 +92,7 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
       if (!authError) {
         // Success — update local hash for future offline use
         storePasswordHash(password).catch(() => { })
+        deriveAndStoreBackupKey(password).catch(() => { })
         setFailures(0)
         onUnlock()
         return

@@ -254,7 +254,7 @@ async function loadRawMessages(): Promise<StoredMessage[]> {
 
 /** Create an encrypted backup and upsert to Supabase. */
 export async function createBackup(userId: string): Promise<void> {
-  if (_backupKeyReady) await _backupKeyReady
+  try { if (_backupKeyReady) await _backupKeyReady } catch { /* fall through to IDB */ }
   if (!_backupKey) {
     // Session restored without password (e.g. PWA reopen) — try IDB
     try {
@@ -268,6 +268,10 @@ export async function createBackup(userId: string): Promise<void> {
 
   try {
     let messages = await loadRawMessages()
+    if (messages.length === 0) {
+      logger.info('No local messages, skipping backup to avoid overwriting existing data')
+      return
+    }
     // Cap at max messages
     if (messages.length > SIGNAL.BACKUP_MAX_MESSAGES) {
       messages = messages.slice(0, SIGNAL.BACKUP_MAX_MESSAGES)
@@ -312,7 +316,7 @@ export async function createBackup(userId: string): Promise<void> {
 
 /** Restore messages from an encrypted backup on Supabase. */
 export async function restoreBackup(userId: string): Promise<void> {
-  if (_backupKeyReady) await _backupKeyReady
+  try { if (_backupKeyReady) await _backupKeyReady } catch { /* fall through to IDB */ }
   if (!_backupKey) {
     // Session restored without password (e.g. page refresh) — try IDB
     try {
