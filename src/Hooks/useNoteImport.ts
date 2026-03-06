@@ -8,6 +8,7 @@ import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructC
 import { isTC3Encoding, parseTC3Encoding } from '../Utilities/tc3Codec';
 import { formatTC3Note } from '../Utilities/TC3Formatter';
 import type { ParsedNote } from '../Utilities/NoteCodec';
+import type { TC3Card } from '../Types/TC3Types';
 import { assembleNote, formatSignature } from '../Utilities/NoteFormatter';
 
 export interface ImportPreview {
@@ -21,6 +22,7 @@ export interface ImportPreview {
     userId: string | null;
     encodedText: string;
     isTC3?: boolean;
+    tc3Card?: TC3Card;
 }
 
 /** Provides importFromBarcode: decodes a barcode string, reconstructs algorithm state, and returns an ImportPreview. */
@@ -45,6 +47,7 @@ export const useNoteImport = () => {
                 userId: result.userId,
                 encodedText: barcodeString,
                 isTC3: true,
+                tc3Card: result.card,
             };
         }
 

@@ -1,7 +1,8 @@
 import { memo, useState } from 'react'
 import { Plus, X } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
-import type { TC3Tourniquet, TC3IVAccess, TourniquetType, IVType, NeedleDecompSide } from '../../Types/TC3Types'
+import type { TC3Tourniquet, TC3Hemostatic, TC3IVAccess, TourniquetType, IVType, NeedleDecompSide } from '../../Types/TC3Types'
+import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 
 type MARCHTab = 'M' | 'A' | 'R' | 'C' | 'H'
 
@@ -35,6 +36,20 @@ const CheckField = ({ label, checked, onChange }: { label: string; checked: bool
     <span className={`text-xs font-medium ${checked ? 'text-primary' : 'text-tertiary'}`}>{label}</span>
   </button>
 )
+
+// ── Linked-injury badge ───────────────────────
+function InjuryBadge({ injuryId }: { injuryId?: string }) {
+  const injuries = useTC3Store((s) => s.card.injuries)
+  if (!injuryId) return null
+  const inj = injuries.find(i => i.id === injuryId)
+  if (!inj) return null
+  const label = inj.bodyRegion ? getRegionLabel(inj.bodyRegion) : inj.type
+  return (
+    <span className="text-[8px] px-1.5 py-0.5 rounded-full bg-themeredred/10 text-themeredred font-medium whitespace-nowrap">
+      {label}
+    </span>
+  )
+}
 
 // ── M: Massive Hemorrhage ─────────────────────
 const MassiveHemorrhagePanel = memo(function MassiveHemorrhagePanel() {
@@ -83,6 +98,7 @@ const MassiveHemorrhagePanel = memo(function MassiveHemorrhagePanel() {
               placeholder="Time"
               className="w-16 text-xs px-2 py-1 rounded border border-tertiary/20 bg-themewhite outline-none text-tertiary"
             />
+            <InjuryBadge injuryId={tq.injuryId} />
             <button onClick={() => removeTourniquet(tq.id)} className="p-1 hover:bg-themeredred/10 rounded transition-colors">
               <X size={14} className="text-themeredred/60" />
             </button>
@@ -99,16 +115,17 @@ const MassiveHemorrhagePanel = memo(function MassiveHemorrhagePanel() {
       {/* Hemostatics */}
       <div className="space-y-2">
         <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Hemostatic Agents</p>
-        {hemostatics.map((h, i) => (
-          <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-tertiary/15 bg-themewhite2">
+        {hemostatics.map((h) => (
+          <div key={h.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-tertiary/15 bg-themewhite2">
             <span className="text-xs text-tertiary">{h.type || 'Hemostatic'} — {h.location || 'N/A'}</span>
-            <button onClick={() => removeHemostatic(i)} className="ml-auto p-1 hover:bg-themeredred/10 rounded transition-colors">
+            <InjuryBadge injuryId={h.injuryId} />
+            <button onClick={() => removeHemostatic(h.id)} className="ml-auto p-1 hover:bg-themeredred/10 rounded transition-colors">
               <X size={14} className="text-themeredred/60" />
             </button>
           </div>
         ))}
         <button
-          onClick={() => addHemostatic({ applied: true, type: 'Combat Gauze', location: '' })}
+          onClick={() => addHemostatic({ id: crypto.randomUUID(), applied: true, type: 'Combat Gauze', location: '' })}
           className="flex items-center gap-1.5 text-[11px] text-themeredred hover:text-themeredred/80 transition-colors px-1 py-1"
         >
           <Plus size={14} /> <span>Add Hemostatic</span>
@@ -224,10 +241,6 @@ const CirculationPanel = memo(function CirculationPanel() {
   const circulation = useTC3Store((s) => s.card.march.circulation)
   const addIVAccess = useTC3Store((s) => s.addIVAccess)
   const removeIVAccess = useTC3Store((s) => s.removeIVAccess)
-  const addFluid = useTC3Store((s) => s.addFluid)
-  const removeFluid = useTC3Store((s) => s.removeFluid)
-  const addBloodProduct = useTC3Store((s) => s.addBloodProduct)
-  const removeBloodProduct = useTC3Store((s) => s.removeBloodProduct)
 
   const handleAddIV = () => {
     const iv: TC3IVAccess = { id: crypto.randomUUID(), type: 'IV', site: '', gauge: '18g' }
@@ -251,7 +264,7 @@ const CirculationPanel = memo(function CirculationPanel() {
             <input
               type="text"
               value={iv.site}
-              onChange={() => {}} // read-only display for now; editing handled via store
+              onChange={() => {}}
               placeholder="Site"
               className="flex-1 text-xs px-2 py-1 rounded border border-tertiary/20 bg-themewhite outline-none text-tertiary"
             />
@@ -263,38 +276,6 @@ const CirculationPanel = memo(function CirculationPanel() {
         ))}
         <button onClick={handleAddIV} className="flex items-center gap-1.5 text-[11px] text-themeredred hover:text-themeredred/80 transition-colors px-1 py-1">
           <Plus size={14} /> <span>Add IV/IO</span>
-        </button>
-      </div>
-
-      {/* Fluids */}
-      <div className="space-y-2">
-        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Fluids</p>
-        {circulation.fluids.map((f, i) => (
-          <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-tertiary/15 bg-themewhite2">
-            <span className="text-xs text-tertiary">{f.type} — {f.volume}</span>
-            <button onClick={() => removeFluid(i)} className="ml-auto p-1 hover:bg-themeredred/10 rounded transition-colors">
-              <X size={14} className="text-themeredred/60" />
-            </button>
-          </div>
-        ))}
-        <button onClick={() => addFluid({ type: 'Normal Saline', volume: '1000mL' })} className="flex items-center gap-1.5 text-[11px] text-themeredred hover:text-themeredred/80 transition-colors px-1 py-1">
-          <Plus size={14} /> <span>Add Fluid</span>
-        </button>
-      </div>
-
-      {/* Blood Products */}
-      <div className="space-y-2">
-        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Blood Products</p>
-        {circulation.bloodProducts.map((b, i) => (
-          <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-tertiary/15 bg-themewhite2">
-            <span className="text-xs text-tertiary">{b.type} — {b.volume}</span>
-            <button onClick={() => removeBloodProduct(i)} className="ml-auto p-1 hover:bg-themeredred/10 rounded transition-colors">
-              <X size={14} className="text-themeredred/60" />
-            </button>
-          </div>
-        ))}
-        <button onClick={() => addBloodProduct({ type: 'Whole Blood', volume: '1 unit' })} className="flex items-center gap-1.5 text-[11px] text-themeredred hover:text-themeredred/80 transition-colors px-1 py-1">
-          <Plus size={14} /> <span>Add Blood Product</span>
         </button>
       </div>
     </div>

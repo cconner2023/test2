@@ -4,6 +4,7 @@
 import type { TC3Card } from '../Types/TC3Types'
 import type { UserTypes } from '../Data/User'
 import { formatSignature } from './NoteFormatter'
+import { getRegionLabel } from './bodyRegionMap'
 
 function fmt(label: string, value: string): string {
   return value ? `${label}: ${value}` : ''
@@ -47,8 +48,14 @@ function formatInjuries(card: TC3Card): string {
   if (card.injuries.length === 0) return ''
   const lines: string[] = ['INJURIES:']
   card.injuries.forEach((inj, i) => {
+    const region = inj.bodyRegion ? getRegionLabel(inj.bodyRegion) : inj.side
     const desc = inj.description ? ` — ${inj.description}` : ''
-    lines.push(`  ${i + 1}. ${inj.type} (${inj.side})${desc}`)
+    lines.push(`  ${i + 1}. ${inj.type} (${region})${desc}`)
+    if (inj.treatmentLinks && inj.treatmentLinks.length > 0) {
+      inj.treatmentLinks.forEach(link => {
+        lines.push(`     → ${link.description}`)
+      })
+    }
   })
   return lines.join('\n')
 }

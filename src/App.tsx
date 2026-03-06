@@ -17,9 +17,9 @@ import { Settings } from './Components/Settings'
 import { SymptomInfoDrawer } from './Components/SymptomInfoDrawer'
 import { MedicationsDrawer } from './Components/MedicationsDrawer'
 import { ColumnA } from './Components/ColumnA'
-import { TC3SectionList } from './Components/TC3/TC3SectionList'
-import { TC3FormPage } from './Components/TC3/TC3FormPage'
-import { useTC3Store } from './stores/useTC3Store'
+import { TC3DesktopLayout } from './Components/TC3/TC3DesktopLayout'
+import { TC3MobileWizard } from './Components/TC3/TC3MobileWizard'
+
 import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useAuth } from './Hooks/useAuth'
 import { useAuthStore } from './stores/useAuthStore'
@@ -64,7 +64,6 @@ function AppContent() {
   const { user } = useAuth()
   const avatarState = useProfileAvatar(user?.id)
   const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
-  const setTC3Section = useTC3Store((s) => s.setSelectedSection)
 
   // ── Settings/training targeting state (lightweight replacement for useActiveNote) ──
   const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'training' | 'messages'>('main')
@@ -281,27 +280,29 @@ function AppContent() {
           />
         </div>
 
-        {/* Content area — Unified 2-column grid (A: Navigation | B: Content) */}
+        {/* Content area — TC3 mode uses dedicated layouts; normal mode uses 2-column grid */}
         <div className="md:h-[94%] h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
+          {tc3Mode ? (
+            // TC3 mode: mobile wizard or desktop 2-column front/back layout
+            navigation.isMobile ? (
+              <TC3MobileWizard />
+            ) : (
+              <TC3DesktopLayout />
+            )
+          ) : (
           <div
-            className={`h-full grid gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${tc3Mode ? 'grid-cols-[0.45fr_0.55fr]' : navigation.mobileGridClass} md:grid-cols-[0.45fr_0.55fr]`}
-            {...(!tc3Mode && navigation.isMobile && navigation.isMobileColumnB ? swipe.touchHandlers : {})}
+            className={`h-full grid gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${navigation.mobileGridClass} md:grid-cols-[0.45fr_0.55fr]`}
+            {...(navigation.isMobile && navigation.isMobileColumnB ? swipe.touchHandlers : {})}
           >
-            {/* Column A: Navigation carousel (ADTMC) or TC3 Section List */}
+            {/* Column A: Navigation carousel (ADTMC) */}
             <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
-              {tc3Mode ? (
-                <TC3SectionList onSelectSection={setTC3Section} />
-              ) : (
-                <ColumnA onNavigate={handleNavigationClick} />
-              )}
+              <ColumnA onNavigate={handleNavigationClick} />
             </div>
 
-            {/* Column B: Content — TC3 form, algorithm, search, or empty */}
+            {/* Column B: Content — algorithm, search, or empty */}
             <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
-              <div key={tc3Mode ? 'tc3' : desktopContentKey} className="h-full animate-desktopContentIn md:pt-3">
-                {tc3Mode ? (
-                  <TC3FormPage />
-                ) : !navigation.isMobile && search.searchInput ? (
+              <div key={desktopContentKey} className="h-full animate-desktopContentIn md:pt-3">
+                {!navigation.isMobile && search.searchInput ? (
                   <div className="h-full overflow-y-auto">
                     <div className="px-2 min-h-full">
                       <SearchResults
@@ -328,6 +329,7 @@ function AppContent() {
               </div>
             </div>
           </div>
+          )}
 
           {/* Mobile search overlay — rendered on top of grid when searching */}
           {navigation.isMobile && search.searchInput && (

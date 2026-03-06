@@ -12,14 +12,17 @@ import type {
   TC3Section,
   TC3Injury,
   TC3Tourniquet,
+  TC3Hemostatic,
   TC3IVAccess,
   TC3Medication,
   TC3VitalSet,
+  TC3InjuryTreatmentLink,
   MechanismType,
   AVPU,
   EvacPriority,
   NeedleDecompSide,
 } from '../Types/TC3Types'
+import { getBodyRegion } from '../Utilities/bodyRegionMap'
 
 function createEmptyCard(): TC3Card {
   return {
@@ -83,11 +86,17 @@ function createEmptyCard(): TC3Card {
 interface TC3State {
   card: TC3Card
   selectedSection: TC3Section
+  wizardStep: number
 }
 
 interface TC3Actions {
   // Section navigation
   setSelectedSection: (section: TC3Section) => void
+
+  // Wizard navigation
+  nextWizardStep: () => void
+  prevWizardStep: () => void
+  setWizardStep: (step: number) => void
 
   // Card lifecycle
   resetCard: () => void
@@ -100,16 +109,21 @@ interface TC3Actions {
   setMechanismOther: (description: string) => void
 
   // Injuries
-  addInjury: (injury: TC3Injury) => void
+  addInjury: (injury: Omit<TC3Injury, 'bodyRegion' | 'treatmentLinks'> & { bodyRegion?: TC3Injury['bodyRegion']; treatmentLinks?: TC3Injury['treatmentLinks'] }) => void
   updateInjury: (id: string, fields: Partial<TC3Injury>) => void
   removeInjury: (id: string) => void
+
+  // Injury-treatment linking
+  linkTreatmentToInjury: (injuryId: string, link: TC3InjuryTreatmentLink) => void
+  unlinkTreatmentFromInjury: (injuryId: string, treatmentId: string) => void
 
   // MARCH — Massive Hemorrhage
   addTourniquet: (tq: TC3Tourniquet) => void
   updateTourniquet: (id: string, fields: Partial<TC3Tourniquet>) => void
   removeTourniquet: (id: string) => void
-  addHemostatic: (h: { applied: boolean; type: string; location: string }) => void
-  removeHemostatic: (index: number) => void
+  addHemostatic: (h: TC3Hemostatic) => void
+  updateHemostatic: (id: string, fields: Partial<TC3Hemostatic>) => void
+  removeHemostatic: (id: string) => void
 
   // MARCH — Airway
   updateAirway: (fields: Partial<TC3Card['march']['airway']>) => void
@@ -153,15 +167,23 @@ interface TC3Actions {
 
 export type TC3Store = TC3State & TC3Actions
 
+const WIZARD_PAGE_COUNT = 8 // matches TC3_WIZARD_PAGES length
+
 export const useTC3Store = create<TC3Store>()((set) => ({
   card: createEmptyCard(),
   selectedSection: 'casualty',
+  wizardStep: 0,
 
   // Section navigation
   setSelectedSection: (section) => set({ selectedSection: section }),
 
+  // Wizard navigation
+  nextWizardStep: () => set((s) => ({ wizardStep: Math.min(s.wizardStep + 1, WIZARD_PAGE_COUNT - 1) })),
+  prevWizardStep: () => set((s) => ({ wizardStep: Math.max(s.wizardStep - 1, 0) })),
+  setWizardStep: (step) => set({ wizardStep: step }),
+
   // Card lifecycle
-  resetCard: () => set({ card: createEmptyCard(), selectedSection: 'casualty' }),
+  resetCard: () => set({ card: createEmptyCard(), selectedSection: 'casualty', wizardStep: 0 }),
 
   // Casualty info
   updateCasualty: (fields) => set((s) => ({
@@ -179,18 +201,61 @@ export const useTC3Store = create<TC3Store>()((set) => ({
     card: { ...s.card, mechanism: { ...s.card.mechanism, otherDescription: description } },
   })),
 
-  // Injuries
-  addInjury: (injury) => set((s) => ({
-    card: { ...s.card, injuries: [...s.card.injuries, injury] },
-  })),
+  // Injuries — auto-detect bodyRegion from coordinates
+  addInjury: (injury) => set((s) => {
+    const fullInjury: TC3Injury = {
+      ...injury,
+      bodyRegion: injury.bodyRegion ?? getBodyRegion(injury.x, injury.y, injury.side),
+      treatmentLinks: injury.treatmentLinks ?? [],
+    }
+    return { card: { ...s.card, injuries: [...s.card.injuries, fullInjury] } }
+  }),
   updateInjury: (id, fields) => set((s) => ({
     card: {
       ...s.card,
       injuries: s.card.injuries.map(inj => inj.id === id ? { ...inj, ...fields } : inj),
     },
   })),
-  removeInjury: (id) => set((s) => ({
-    card: { ...s.card, injuries: s.card.injuries.filter(inj => inj.id !== id) },
+  removeInjury: (id) => set((s) => {
+    // Clean up treatment injuryId references pointing to this injury
+    const tourniquets = s.card.march.massiveHemorrhage.tourniquets.map(tq =>
+      tq.injuryId === id ? { ...tq, injuryId: undefined } : tq
+    )
+    const hemostatics = s.card.march.massiveHemorrhage.hemostatics.map(h =>
+      h.injuryId === id ? { ...h, injuryId: undefined } : h
+    )
+    return {
+      card: {
+        ...s.card,
+        injuries: s.card.injuries.filter(inj => inj.id !== id),
+        march: {
+          ...s.card.march,
+          massiveHemorrhage: { ...s.card.march.massiveHemorrhage, tourniquets, hemostatics },
+        },
+      },
+    }
+  }),
+
+  // Injury-treatment linking
+  linkTreatmentToInjury: (injuryId, link) => set((s) => ({
+    card: {
+      ...s.card,
+      injuries: s.card.injuries.map(inj =>
+        inj.id === injuryId
+          ? { ...inj, treatmentLinks: [...inj.treatmentLinks, link] }
+          : inj
+      ),
+    },
+  })),
+  unlinkTreatmentFromInjury: (injuryId, treatmentId) => set((s) => ({
+    card: {
+      ...s.card,
+      injuries: s.card.injuries.map(inj =>
+        inj.id === injuryId
+          ? { ...inj, treatmentLinks: inj.treatmentLinks.filter(l => l.treatmentId !== treatmentId) }
+          : inj
+      ),
+    },
   })),
 
   // MARCH — Massive Hemorrhage
@@ -244,14 +309,28 @@ export const useTC3Store = create<TC3Store>()((set) => ({
       },
     },
   })),
-  removeHemostatic: (index) => set((s) => ({
+  updateHemostatic: (id, fields) => set((s) => ({
     card: {
       ...s.card,
       march: {
         ...s.card.march,
         massiveHemorrhage: {
           ...s.card.march.massiveHemorrhage,
-          hemostatics: s.card.march.massiveHemorrhage.hemostatics.filter((_, i) => i !== index),
+          hemostatics: s.card.march.massiveHemorrhage.hemostatics.map(
+            h => h.id === id ? { ...h, ...fields } : h,
+          ),
+        },
+      },
+    },
+  })),
+  removeHemostatic: (id) => set((s) => ({
+    card: {
+      ...s.card,
+      march: {
+        ...s.card.march,
+        massiveHemorrhage: {
+          ...s.card.march.massiveHemorrhage,
+          hemostatics: s.card.march.massiveHemorrhage.hemostatics.filter(h => h.id !== id),
         },
       },
     },

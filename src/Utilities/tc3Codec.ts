@@ -4,7 +4,8 @@
 
 import { compressText, decompressText } from './textCodec'
 import type {
-  TC3Card, MechanismType, InjuryType, BodySide, TourniquetType,
+  TC3Card, MechanismType, InjuryType, BodySide, BodyRegion, TourniquetType,
+  TreatmentCategory, TC3InjuryTreatmentLink,
   AVPU, EvacPriority, MedRoute, IVType, NeedleDecompSide,
 } from '../Types/TC3Types'
 
@@ -27,10 +28,28 @@ export function encodeTC3Card(card: TC3Card, userId?: string): string {
   }
 
   // J: Injuries (id not needed for encoding — positional)
+  // Format: x,y,F|B,type[,desc[,bodyRegion[,links]]]
+  // links = cat:id:desc&cat:id:desc (& separated)
   if (card.injuries.length > 0) {
-    const injStrs = card.injuries.map(inj =>
-      `${Math.round(inj.x)},${Math.round(inj.y)},${inj.side === 'front' ? 'F' : 'B'},${inj.type}${inj.description ? ',' + compressText(inj.description) : ''}`
-    )
+    const injStrs = card.injuries.map(inj => {
+      let s = `${Math.round(inj.x)},${Math.round(inj.y)},${inj.side === 'front' ? 'F' : 'B'},${inj.type}`
+      const hasDesc = !!inj.description
+      const hasRegion = !!inj.bodyRegion
+      const hasLinks = inj.treatmentLinks && inj.treatmentLinks.length > 0
+      if (hasDesc || hasRegion || hasLinks) {
+        s += ',' + (inj.description ? compressText(inj.description) : '')
+      }
+      if (hasRegion || hasLinks) {
+        s += ',' + (inj.bodyRegion || '')
+      }
+      if (hasLinks) {
+        const linkStr = inj.treatmentLinks.map(l =>
+          `${l.treatmentCategory}:${l.treatmentId}:${compressText(l.description)}`
+        ).join('&')
+        s += ',' + linkStr
+      }
+      return s
+    })
     parts.push(`J${injStrs.join(';')}`)
   }
 
@@ -210,6 +229,18 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         const injStrs = value.split(';')
         card.injuries = injStrs.map(s => {
           const segs = s.split(',')
+          // Parse treatment links if present (7th field onwards, & separated)
+          let treatmentLinks: TC3InjuryTreatmentLink[] = []
+          if (segs[6]) {
+            treatmentLinks = segs.slice(6).join(',').split('&').map(linkStr => {
+              const [cat, tid, descComp] = linkStr.split(':')
+              return {
+                treatmentCategory: (cat || 'other') as TreatmentCategory,
+                treatmentId: tid || '',
+                description: descComp ? decompressText(descComp) : '',
+              }
+            }).filter(l => l.treatmentId)
+          }
           return {
             id: crypto.randomUUID(),
             x: parseInt(segs[0], 10),
@@ -217,6 +248,8 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
             side: (segs[2] === 'F' ? 'front' : 'back') as BodySide,
             type: segs[3] as InjuryType,
             description: segs[4] ? decompressText(segs[4]) : '',
+            bodyRegion: (segs[5] || '') as BodyRegion | '',
+            treatmentLinks,
           }
         })
         break
@@ -233,7 +266,7 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         const hStrs = value.split(';')
         card.march.massiveHemorrhage.hemostatics = hStrs.map(s => {
           const segs = s.split(',')
-          return { applied: true, type: segs[0] ?? '', location: segs[1] ?? '' }
+          return { id: crypto.randomUUID(), applied: true, type: segs[0] ?? '', location: segs[1] ?? '' }
         })
         break
       }

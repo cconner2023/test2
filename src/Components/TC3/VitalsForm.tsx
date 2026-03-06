@@ -44,8 +44,8 @@ export const VitalsForm = memo(function VitalsForm() {
   return (
     <div className="space-y-5">
       <div>
-        <h3 className="text-sm font-semibold text-primary mb-1">Vital Signs</h3>
-        <p className="text-[11px] text-tertiary/70">DD 1380 Section 6 & 7 — Time-series vitals and mental status</p>
+        <h3 className="text-sm font-semibold text-primary mb-1">Signs & Symptoms</h3>
+        <p className="text-[11px] text-tertiary/70">DD 1380 Section 6 & 7 — Vitals, mental status, and assessment</p>
       </div>
 
       {/* Mental Status — AVPU */}

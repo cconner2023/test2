@@ -11,6 +11,25 @@ export type BodySide = 'front' | 'back'
 export type NeedleDecompSide = 'left' | 'right' | 'bilateral' | 'none'
 export type EvacPriority = '' | 'Urgent' | 'Urgent-Surgical' | 'Priority' | 'Routine' | 'Convenience'
 
+export type BodyRegion =
+  | 'head' | 'neck'
+  | 'chest-left' | 'chest-right' | 'abdomen'
+  | 'upper-arm-left' | 'upper-arm-right'
+  | 'forearm-left' | 'forearm-right'
+  | 'hand-left' | 'hand-right'
+  | 'upper-leg-left' | 'upper-leg-right'
+  | 'lower-leg-left' | 'lower-leg-right'
+  | 'foot-left' | 'foot-right'
+  | 'back-upper' | 'back-lower'
+
+export type TreatmentCategory = 'tourniquet' | 'hemostatic' | 'chestSeal' | 'needleDecomp' | 'other'
+
+export interface TC3InjuryTreatmentLink {
+  treatmentCategory: TreatmentCategory
+  treatmentId: string
+  description: string
+}
+
 export interface TC3Injury {
   id: string
   x: number        // % position on body diagram
@@ -18,6 +37,8 @@ export interface TC3Injury {
   side: BodySide
   type: InjuryType
   description: string
+  bodyRegion: BodyRegion | ''
+  treatmentLinks: TC3InjuryTreatmentLink[]
 }
 
 export interface TC3Tourniquet {
@@ -25,6 +46,15 @@ export interface TC3Tourniquet {
   location: string
   time: string      // time applied
   type: TourniquetType
+  injuryId?: string
+}
+
+export interface TC3Hemostatic {
+  id: string
+  applied: boolean
+  type: string
+  location: string
+  injuryId?: string
 }
 
 export interface TC3IVAccess {
@@ -81,7 +111,7 @@ export interface TC3Card {
   march: {
     massiveHemorrhage: {
       tourniquets: TC3Tourniquet[]
-      hemostatics: { applied: boolean; type: string; location: string }[]
+      hemostatics: TC3Hemostatic[]
     }
     airway: {
       intact: boolean
@@ -148,4 +178,16 @@ export const TC3_SECTIONS: { id: TC3Section; label: string; icon: string }[] = [
   { id: 'vitals', label: 'Vital Signs', icon: 'heart-pulse' },
   { id: 'evacuation', label: 'Evacuation', icon: 'truck' },
   { id: 'review', label: 'Review & Export', icon: 'file-check' },
+]
+
+/** Mobile wizard page order */
+export const TC3_WIZARD_PAGES: { id: string; label: string }[] = [
+  { id: 'casualty', label: 'Casualty Info' },
+  { id: 'mechanism', label: 'Mechanism of Injury' },
+  { id: 'injuries', label: 'Injuries' },
+  { id: 'vitals', label: 'Signs & Symptoms' },
+  { id: 'march', label: 'Treatments' },
+  { id: 'medications', label: 'Medications' },
+  { id: 'evacuation', label: 'Evacuation' },
+  { id: 'review', label: 'Review & Export' },
 ]

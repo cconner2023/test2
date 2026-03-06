@@ -12,9 +12,7 @@ const EVAC_PRIORITIES: { value: EvacPriority; label: string; description: string
 
 export const EvacuationForm = memo(function EvacuationForm() {
   const evacuation = useTC3Store((s) => s.card.evacuation)
-  const notes = useTC3Store((s) => s.card.notes)
   const updateEvacuation = useTC3Store((s) => s.updateEvacuation)
-  const setNotes = useTC3Store((s) => s.setNotes)
 
   return (
     <div className="space-y-5">
@@ -64,17 +62,6 @@ export const EvacuationForm = memo(function EvacuationForm() {
         />
       </div>
 
-      {/* Free-text notes */}
-      <div className="space-y-1">
-        <label className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Additional Notes</label>
-        <textarea
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="Any additional documentation, handoff notes, mechanism details..."
-          rows={4}
-          className="w-full text-base px-3 py-2 rounded-lg border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary resize-none leading-5"
-        />
-      </div>
     </div>
   )
 })

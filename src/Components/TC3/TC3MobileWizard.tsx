@@ -1,0 +1,133 @@
+import { memo, useState, useCallback } from 'react'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { useTC3Store } from '../../stores/useTC3Store'
+import { TC3_WIZARD_PAGES } from '../../Types/TC3Types'
+import { SlideWrapper } from '../WriteNoteHelpers'
+import { CasualtyInfoForm } from './CasualtyInfoForm'
+import { MechanismForm } from './MechanismForm'
+import { BodyDiagram } from './BodyDiagram'
+import { VitalsForm } from './VitalsForm'
+import { MARCHForm } from './MARCHForm'
+import { MedicationsForm } from './MedicationsForm'
+import { FluidsPanel } from './FluidsPanel'
+import { NotesPanel } from './NotesPanel'
+import { EvacuationForm } from './EvacuationForm'
+import { TC3ReviewExport } from './TC3ReviewExport'
+
+const PAGES = TC3_WIZARD_PAGES
+
+/**
+ * Full-screen mobile wizard for the TC3 card.
+ * Mirrors the NoteWizard pattern: header with progress dots, slide transitions,
+ * next/back navigation footer.
+ */
+export const TC3MobileWizard = memo(function TC3MobileWizard() {
+  const wizardStep = useTC3Store((s) => s.wizardStep)
+  const setWizardStep = useTC3Store((s) => s.setWizardStep)
+
+  const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
+
+  const handleNext = useCallback(() => {
+    if (wizardStep < PAGES.length - 1) {
+      setSlideDirection('left')
+      setWizardStep(wizardStep + 1)
+    }
+  }, [wizardStep, setWizardStep])
+
+  const handleBack = useCallback(() => {
+    if (wizardStep > 0) {
+      setSlideDirection('right')
+      setWizardStep(wizardStep - 1)
+    }
+  }, [wizardStep, setWizardStep])
+
+  const currentPage = PAGES[wizardStep]
+
+  return (
+    <div
+      className="h-full flex flex-col bg-themewhite"
+      style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 3.4375rem)' }}
+    >
+      {/* Header — TC3 red theme */}
+      <div className="px-4 border-b border-themeredred/10 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 min-w-0">
+            {wizardStep > 0 && (
+              <button
+                onClick={handleBack}
+                className="p-2 rounded-full hover:bg-themeredred/5 active:scale-95 transition-all"
+                aria-label="Go back"
+              >
+                <ChevronLeft className="w-5 h-5 text-themeredred" />
+              </button>
+            )}
+            <h2 className="text-sm font-semibold text-primary truncate">
+              {currentPage?.label}
+            </h2>
+          </div>
+        </div>
+        {/* Progress dots */}
+        <div className="flex gap-1.5 mt-2">
+          {PAGES.map((_, idx) => (
+            <div
+              key={idx}
+              className={`h-1 rounded-full transition-all duration-300 ${
+                idx === wizardStep
+                  ? 'w-4 bg-themeredred'
+                  : idx < wizardStep
+                    ? 'w-1.5 bg-themeredred/40'
+                    : 'w-1.5 bg-tertiary/20'
+              }`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Page content */}
+      <div className="flex-1 overflow-y-auto">
+        <SlideWrapper slideDirection={slideDirection}>
+          <div className="px-4 py-4 min-h-full">
+            {wizardStep === 0 && <CasualtyInfoForm />}
+            {wizardStep === 1 && <MechanismForm />}
+            {wizardStep === 2 && (
+              <div className="space-y-4">
+                <BodyDiagram />
+              </div>
+            )}
+            {wizardStep === 3 && <VitalsForm />}
+            {wizardStep === 4 && (
+              <div className="space-y-6">
+                <MARCHForm />
+                <FluidsPanel />
+              </div>
+            )}
+            {wizardStep === 5 && <MedicationsForm />}
+            {wizardStep === 6 && (
+              <div className="space-y-6">
+                <EvacuationForm />
+                <NotesPanel />
+              </div>
+            )}
+            {wizardStep === 7 && <TC3ReviewExport />}
+          </div>
+        </SlideWrapper>
+      </div>
+
+      {/* Footer — Next button */}
+      {wizardStep < PAGES.length - 1 && (
+        <div
+          className="flex items-center justify-end px-6 pt-3 pb-4 shrink-0"
+          style={{ paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem))' }}
+        >
+          <button
+            onClick={handleNext}
+            className="w-11 h-11 rounded-full flex items-center justify-center bg-themeredred text-white active:scale-95 transition-all shadow-sm"
+            aria-label="Next"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+})

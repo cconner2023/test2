@@ -1,8 +1,7 @@
-import { memo, useState, useCallback, useRef } from 'react'
-import { X } from 'lucide-react'
+import { memo, useState, useCallback } from 'react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { InjuryMarker } from './InjuryMarker'
-import type { BodySide, TC3Injury, InjuryType } from '../../Types/TC3Types'
+import type { BodySide, TC3Injury } from '../../Types/TC3Types'
 
 /** Simple body outline SVG path — front view */
 const BodyFrontSVG = () => (
@@ -50,70 +49,38 @@ const BodyBackSVG = () => (
   </svg>
 )
 
-export const BodyDiagram = memo(function BodyDiagram() {
+/** A clickable body panel — one side (front or back). */
+function BodyPanel({ side, label, editingInjury, setEditingInjury }: {
+  side: BodySide
+  label: string
+  editingInjury: string | null
+  setEditingInjury: (id: string | null) => void
+}) {
   const injuries = useTC3Store((s) => s.card.injuries)
   const addInjury = useTC3Store((s) => s.addInjury)
   const removeInjury = useTC3Store((s) => s.removeInjury)
 
-  const [activeSide, setActiveSide] = useState<BodySide>('front')
-  const [editingInjury, setEditingInjury] = useState<string | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const sideInjuries = injuries.filter(inj => inj.side === side)
 
-  const handleBodyClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+  const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect()
     const x = ((e.clientX - rect.left) / rect.width) * 100
     const y = ((e.clientY - rect.top) / rect.height) * 100
-
-    const newInjury: TC3Injury = {
-      id: crypto.randomUUID(),
-      x,
-      y,
-      side: activeSide,
-      type: 'GSW',
-      description: '',
-    }
-    addInjury(newInjury)
-    setEditingInjury(newInjury.id)
-  }, [activeSide, addInjury])
-
-  const sideInjuries = injuries.filter(inj => inj.side === activeSide)
+    const id = crypto.randomUUID()
+    addInjury({ id, x, y, side, type: 'GSW', description: '' })
+    setEditingInjury(id)
+  }, [side, addInjury, setEditingInjury])
 
   return (
-    <div className="space-y-4">
-      <div>
-        <h3 className="text-sm font-semibold text-primary mb-1">Injury Locations</h3>
-        <p className="text-[11px] text-tertiary/70">DD 1380 Section 3 — Tap on the body to mark injuries</p>
-      </div>
-
-      {/* Front/Back toggle */}
-      <div className="flex gap-1 bg-tertiary/5 rounded-xl p-1">
-        <button
-          onClick={() => setActiveSide('front')}
-          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all
-            ${activeSide === 'front' ? 'bg-themeredred text-white shadow-sm' : 'text-tertiary hover:bg-tertiary/10'}`}
-        >
-          Front
-        </button>
-        <button
-          onClick={() => setActiveSide('back')}
-          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all
-            ${activeSide === 'back' ? 'bg-themeredred text-white shadow-sm' : 'text-tertiary hover:bg-tertiary/10'}`}
-        >
-          Back
-        </button>
-      </div>
-
-      {/* Body diagram with injury markers */}
+    <div className="flex-1 min-w-0">
+      <p className="text-[9px] font-semibold text-tertiary/40 tracking-widest uppercase text-center mb-0.5">{label}</p>
       <div
-        ref={containerRef}
-        className="relative mx-auto cursor-crosshair text-tertiary/30"
-        style={{ maxWidth: '250px', aspectRatio: '200/400' }}
-        onClick={handleBodyClick}
+        className="relative cursor-crosshair text-tertiary/25 mx-auto"
+        style={{ maxWidth: '140px', aspectRatio: '200/400' }}
+        onClick={handleClick}
       >
-        {activeSide === 'front' ? <BodyFrontSVG /> : <BodyBackSVG />}
-
-        {/* Injury markers overlaid */}
-        {sideInjuries.map((inj) => (
+        {side === 'front' ? <BodyFrontSVG /> : <BodyBackSVG />}
+        {sideInjuries.map(inj => (
           <InjuryMarker
             key={inj.id}
             injury={inj}
@@ -123,29 +90,43 @@ export const BodyDiagram = memo(function BodyDiagram() {
           />
         ))}
       </div>
+    </div>
+  )
+}
 
-      {/* Injury list summary */}
-      {injuries.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Marked Injuries ({injuries.length})</p>
-          {injuries.map((inj) => (
-            <div key={inj.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-tertiary/15 bg-themewhite2">
-              <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
-                inj.side === 'front' ? 'bg-themeblue2/10 text-themeblue2' : 'bg-tertiary/10 text-tertiary'
-              }`}>
-                {inj.side}
-              </span>
-              <span className="text-xs font-medium text-primary">{inj.type}</span>
-              {inj.description && <span className="text-[10px] text-tertiary/60 truncate">{inj.description}</span>}
-              <button
-                onClick={() => removeInjury(inj.id)}
-                className="ml-auto p-1 hover:bg-themeredred/10 rounded transition-colors shrink-0"
-              >
-                <X size={12} className="text-themeredred/60" />
-              </button>
-            </div>
-          ))}
-        </div>
+/**
+ * Body diagram — always shows front + back side by side (desktop layout).
+ * Tap on body to mark injuries; each marker opens an InjuryPopover with
+ * type selection, description, and treatment quick-add.
+ */
+export const BodyDiagram = memo(function BodyDiagram() {
+  const injuries = useTC3Store((s) => s.card.injuries)
+  const [editingInjury, setEditingInjury] = useState<string | null>(null)
+
+  const injuryCount = injuries.length
+
+  return (
+    <div className="space-y-2">
+      <div>
+        <h3 className="text-sm font-semibold text-primary mb-1">Injury Locations</h3>
+        <p className="text-[11px] text-tertiary/70">DD 1380 Section 3 — Tap on the body to mark injuries</p>
+      </div>
+
+      {/* Front + Back side by side */}
+      <div className="flex gap-1 px-1 py-2">
+        <BodyPanel side="front" label="Front" editingInjury={editingInjury} setEditingInjury={setEditingInjury} />
+        <BodyPanel side="back" label="Back" editingInjury={editingInjury} setEditingInjury={setEditingInjury} />
+      </div>
+
+      {injuryCount > 0 && (
+        <p className="text-[9px] text-tertiary/50 text-center">
+          {injuryCount} injur{injuryCount === 1 ? 'y' : 'ies'} marked — tap body to add
+        </p>
+      )}
+      {injuryCount === 0 && (
+        <p className="text-[9px] text-tertiary/30 text-center">
+          Tap body to mark injuries
+        </p>
       )}
     </div>
   )
