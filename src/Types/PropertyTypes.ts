@@ -135,6 +135,8 @@ export interface TransferPayload {
   from_holder_id: string
   to_holder_id: string
   condition_code: PropertyCondition
+  quantity: number
+  unitOfIssue: string
   checklist: TransferChecklistItem[]
   notes: string | null
 }

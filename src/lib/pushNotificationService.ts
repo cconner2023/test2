@@ -56,6 +56,30 @@ export async function subscribeToPush(): Promise<ServiceResult> {
   }
 }
 
+/**
+ * Re-sync an existing browser push subscription to the database for the
+ * current authenticated user.  Called on login so that stale / orphaned
+ * browser subscriptions are re-associated with the logged-in user and
+ * the backend can deliver pushes again.
+ */
+export async function resyncPushSubscription(): Promise<void> {
+  try {
+    const subscription = await getExistingSubscription()
+    if (!subscription) return
+
+    const subJson = subscription.toJSON()
+    if (!subJson.endpoint || !subJson.keys?.auth || !subJson.keys?.p256dh) return
+
+    await supabase.rpc('save_push_subscription', {
+      p_endpoint: subJson.endpoint,
+      p_auth_key: subJson.keys.auth,
+      p_p256dh_key: subJson.keys.p256dh,
+    })
+  } catch {
+    // Best-effort — don't block login if sync fails
+  }
+}
+
 export async function unsubscribeFromPush(): Promise<ServiceResult> {
   try {
     const subscription = await getExistingSubscription()

@@ -27,7 +27,7 @@ import { unregisterDevice, deleteKeyBundle, primaryLogoutAll } from '../lib/sign
 import { secureSet, secureGet, secureRemove, persistSupabaseAuth, destroySecureStore } from '../lib/secureStorage'
 import { clearOutboundQueue, destroyOutboundQueue } from '../lib/signal/outboundQueue'
 import { clearBackupKey, deleteBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
-import { unsubscribeFromPush } from '../lib/pushNotificationService'
+import { unsubscribeFromPush, resyncPushSubscription } from '../lib/pushNotificationService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { registerSessionCleanup, updateCleanupToken, updateCleanupDeviceId, updateCleanupIsPrimary } from '../lib/sessionCleanup'
 import type { User } from '@supabase/supabase-js'
@@ -378,6 +378,11 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
       // Prefetch barcode encryption key for offline use (fire-and-forget)
       prefetchBarcodeKey().catch(() => {})
 
+      // Re-sync any existing browser push subscription to the DB so the
+      // backend can deliver pushes even if a prior logout left the browser
+      // subscription orphaned (browser sub alive, DB row deleted).
+      resyncPushSubscription()
+
       // Initialize Signal Protocol key bundle with device role classification
       initSignalBundle(user.id).then(initResult => {
         if (initResult) {
@@ -386,11 +391,14 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
           updateCleanupDeviceId(initResult.deviceId)
           updateCleanupIsPrimary(initResult.role === 'primary')
 
-          // Server-side encrypted backup: create on primary, restore on linked
-          if (initResult.role === 'primary') {
+          // Server-side encrypted backup: restore first on non-primary, then
+          // all devices schedule ongoing backups so the server row stays fresh.
+          if (initResult.role === 'linked' || initResult.role === 'provisional') {
+            restoreBackup(user.id)
+              .then(() => scheduleBackup(user.id))
+              .catch(() => scheduleBackup(user.id))
+          } else {
             scheduleBackup(user.id)
-          } else if (initResult.role === 'linked' || initResult.role === 'provisional') {
-            restoreBackup(user.id).catch(() => {})
           }
         }
       }).catch(() => {})

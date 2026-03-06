@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMemo } from 'react'
-import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, ArrowLeft, MessageSquare, Users, Plus, Info, ChevronLeft, UserPlus } from 'lucide-react'
+import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, ArrowLeft, MessageSquare, Users, Plus, Info, ChevronLeft, UserPlus, Pin } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
-import { GESTURE_THRESHOLDS, SPRING_CONFIGS } from '../../Utilities/GestureUtils'
+import { SPRING_CONFIGS } from '../../Utilities/GestureUtils'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import type { RequestStatus } from '../../Hooks/useMessages'
@@ -18,6 +18,8 @@ import { useAuth } from '../../Hooks/useAuth'
 import { useCallActions } from '../../Hooks/CallContext'
 import { useAvatar } from '../../Utilities/AvatarContext'
 import { useImagePaste } from '../../Hooks/useImagePaste'
+import { CardContextMenu } from '../CardContextMenu'
+import { SwipeableCard, type SwipeAction as SwipeCardAction } from '../SwipeableCard'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
@@ -32,148 +34,6 @@ interface MessagesPanelProps {
   onSelectPeer: (medic: ClinicMedic) => void
   onSelectGroup: (group: GroupInfo) => void
   onBack?: () => void
-}
-
-// ── Swipeable Conversation Row ────────────────────────────────────────────
-
-const CONV_ACTION_WIDTH = 72
-const CONV_OPEN_THRESHOLD = CONV_ACTION_WIDTH * 0.3
-
-function SwipeableConversationRow({
-  children,
-  onDelete,
-  onClick,
-}: {
-  children: React.ReactNode
-  onDelete: () => void
-  onClick: () => void
-}) {
-  const rowRef = useRef<HTMLDivElement>(null)
-  const touchRef = useRef<{
-    startX: number
-    startY: number
-    swiping: boolean
-    dirDecided: boolean
-  } | null>(null)
-  const [isOpen, setIsOpen] = useState(false)
-  const wasTouchRef = useRef(false)
-
-  const snapTo = useCallback((x: number) => {
-    const el = rowRef.current
-    if (!el) return
-    el.style.transition = 'transform 200ms ease-out'
-    el.style.transform = `translateX(${x}px)`
-  }, [])
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    wasTouchRef.current = true
-    const t = e.touches[0]
-    touchRef.current = { startX: t.clientX, startY: t.clientY, swiping: false, dirDecided: false }
-  }, [])
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    const state = touchRef.current
-    if (!state) return
-    const t = e.touches[0]
-    const dx = t.clientX - state.startX
-    const dy = t.clientY - state.startY
-
-    if (!state.dirDecided) {
-      if (Math.abs(dx) < GESTURE_THRESHOLDS.DIRECTION_LOCK && Math.abs(dy) < GESTURE_THRESHOLDS.DIRECTION_LOCK) return
-      state.dirDecided = true
-      if (Math.abs(dy) > Math.abs(dx)) { touchRef.current = null; return }
-      state.swiping = true
-    }
-    if (!state.swiping) return
-
-    const base = isOpen ? -CONV_ACTION_WIDTH : 0
-    const offset = Math.max(-CONV_ACTION_WIDTH, Math.min(0, base + dx))
-    const el = rowRef.current
-    if (el) {
-      el.style.transition = 'none'
-      el.style.transform = `translateX(${offset}px)`
-    }
-  }, [isOpen])
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    const state = touchRef.current
-    if (!state) return
-    touchRef.current = null
-
-    if (state.swiping) {
-      const dx = e.changedTouches[0].clientX - state.startX
-      const base = isOpen ? -CONV_ACTION_WIDTH : 0
-      const shouldOpen = Math.abs(base + dx) > CONV_OPEN_THRESHOLD
-      snapTo(shouldOpen ? -CONV_ACTION_WIDTH : 0)
-      setIsOpen(shouldOpen)
-      return
-    }
-
-    // Tap — close if swiped open, otherwise navigate
-    if (!state.dirDecided) {
-      if (isOpen) {
-        snapTo(0)
-        setIsOpen(false)
-      } else {
-        onClick()
-      }
-    }
-  }, [isOpen, snapTo, onClick])
-
-  const handleTouchCancel = useCallback(() => {
-    touchRef.current = null
-    snapTo(isOpen ? -CONV_ACTION_WIDTH : 0)
-  }, [isOpen, snapTo])
-
-  const handleClick = useCallback(() => {
-    if (wasTouchRef.current) { wasTouchRef.current = false; return }
-    onClick()
-  }, [onClick])
-
-  const handleDeleteClick = useCallback(() => {
-    snapTo(0)
-    setIsOpen(false)
-    onDelete()
-  }, [snapTo, onDelete])
-
-  return (
-    <div className="relative overflow-hidden rounded-xl group">
-      {/* Delete action behind the row (mobile swipe) */}
-      <div className="absolute inset-y-0 right-0 flex items-center justify-center" style={{ width: CONV_ACTION_WIDTH }}>
-        <button
-          onClick={handleDeleteClick}
-          className="flex flex-col items-center gap-1 active:scale-95 transition-transform"
-        >
-          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-themeredred/15">
-            <Trash2 size={18} className="text-themeredred" />
-          </div>
-        </button>
-      </div>
-
-      {/* Swipeable foreground layer */}
-      <div
-        ref={rowRef}
-        onClick={handleClick}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchCancel}
-        className="relative bg-themewhite3"
-        style={{ touchAction: 'pan-y', cursor: 'pointer' }}
-      >
-        {children}
-        {/* Desktop hover delete icon */}
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete() }}
-          className="hidden md:flex absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full
-                     items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-themeredred/10
-                     active:scale-95 transition-all"
-        >
-          <Trash2 size={14} className="text-themeredred/60" />
-        </button>
-      </div>
-    </div>
-  )
 }
 
 // ── Contacts Panel (overlay) ──────────────────────────────────────────────
@@ -475,6 +335,9 @@ function ConversationList({
   const userId = user?.id ?? null
   const { currentAvatar } = useAvatar()
   const [showContacts, setShowContacts] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{ conversationKey: string; x: number; y: number } | null>(null)
+  const [pinnedKeys, setPinnedKeys] = useState<Set<string>>(new Set())
+  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
 
   // Build a unified flat list of conversations sorted by last message time
   const recentEntries = useMemo(() => {
@@ -500,10 +363,15 @@ function ConversationList({
       }
     }
 
-    // Sort most recent first
-    entries.sort((a, b) => b.lastMessageTime.localeCompare(a.lastMessageTime))
+    // Sort: pinned first, then most recent
+    entries.sort((a, b) => {
+      const aPin = pinnedKeys.has(a.key) ? 1 : 0
+      const bPin = pinnedKeys.has(b.key) ? 1 : 0
+      if (aPin !== bPin) return bPin - aPin
+      return b.lastMessageTime.localeCompare(a.lastMessageTime)
+    })
     return entries
-  }, [conversations, medics, groups, userId])
+  }, [conversations, medics, groups, userId, pinnedKeys])
 
   // Synthetic medic for self-notes entry
   const selfMedic: ClinicMedic | null = userId
@@ -552,38 +420,84 @@ function ConversationList({
         {recentEntries.map(entry => {
           const msgs = conversations[entry.key]
           const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
+          const isPinned = pinnedKeys.has(entry.key)
+
+          const swipeActions: SwipeCardAction[] = [
+            {
+              key: 'pin',
+              label: isPinned ? 'Unpin' : 'Pin',
+              icon: Pin,
+              iconBg: 'bg-themeblue2/15',
+              iconColor: 'text-themeblue2',
+              onAction: () => {
+                setPinnedKeys(prev => {
+                  const next = new Set(prev)
+                  if (next.has(entry.key)) next.delete(entry.key)
+                  else next.add(entry.key)
+                  return next
+                })
+              },
+            },
+            {
+              key: 'delete',
+              label: 'Delete',
+              icon: Trash2,
+              iconBg: 'bg-themeredred/15',
+              iconColor: 'text-themeredred',
+              onAction: () => deleteConversation(entry.key),
+            },
+          ]
+
+          const handleTap = () => {
+            if (entry.type === 'group' && entry.group) onSelectGroup(entry.group)
+            else if (entry.type === 'contact' && entry.medic) onSelectPeer(entry.medic)
+          }
 
           if (entry.type === 'group' && entry.group) {
             return (
-              <SwipeableConversationRow
+              <SwipeableCard
                 key={entry.key}
-                onClick={() => onSelectGroup(entry.group!)}
-                onDelete={() => deleteConversation(entry.key)}
+                actions={swipeActions}
+                isOpen={openSwipeId === entry.key}
+                enabled
+                onOpen={() => setOpenSwipeId(entry.key)}
+                onClose={() => setOpenSwipeId(prev => prev === entry.key ? null : prev)}
+                onTap={handleTap}
+                onContextMenu={(e) => { e.preventDefault(); setContextMenu({ conversationKey: entry.key, x: e.clientX, y: e.clientY }) }}
               >
-                <GroupListItem
-                  group={entry.group}
-                  lastMessage={lastMsg?.plaintext}
-                  unreadCount={unreadCounts[entry.key] ?? 0}
-                  onClick={() => {}}
-                />
-              </SwipeableConversationRow>
+                <div className="bg-themewhite3">
+                  <GroupListItem
+                    group={entry.group}
+                    lastMessage={lastMsg?.plaintext}
+                    unreadCount={unreadCounts[entry.key] ?? 0}
+                    onClick={() => {}}
+                  />
+                </div>
+              </SwipeableCard>
             )
           }
 
           if (entry.type === 'contact' && entry.medic) {
             return (
-              <SwipeableConversationRow
+              <SwipeableCard
                 key={entry.key}
-                onClick={() => onSelectPeer(entry.medic!)}
-                onDelete={() => deleteConversation(entry.key)}
+                actions={swipeActions}
+                isOpen={openSwipeId === entry.key}
+                enabled
+                onOpen={() => setOpenSwipeId(entry.key)}
+                onClose={() => setOpenSwipeId(prev => prev === entry.key ? null : prev)}
+                onTap={handleTap}
+                onContextMenu={(e) => { e.preventDefault(); setContextMenu({ conversationKey: entry.key, x: e.clientX, y: e.clientY }) }}
               >
-                <ContactListItem
-                  medic={entry.medic}
-                  lastMessage={lastMsg?.plaintext}
-                  unreadCount={unreadCounts[entry.key] ?? 0}
-                  onClick={() => {}}
-                />
-              </SwipeableConversationRow>
+                <div className="bg-themewhite3">
+                  <ContactListItem
+                    medic={entry.medic}
+                    lastMessage={lastMsg?.plaintext}
+                    unreadCount={unreadCounts[entry.key] ?? 0}
+                    onClick={() => {}}
+                  />
+                </div>
+              </SwipeableCard>
             )
           }
 
@@ -608,6 +522,38 @@ function ConversationList({
           onSelectGroup={onSelectGroup}
           onCreateGroup={onCreateGroup}
           onClose={() => setShowContacts(false)}
+        />
+      )}
+
+      {/* Right-click context menu */}
+      {contextMenu && (
+        <CardContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          items={[
+            {
+              key: 'pin',
+              label: pinnedKeys.has(contextMenu.conversationKey) ? 'Unpin' : 'Pin',
+              icon: Pin,
+              onAction: () => {
+                const key = contextMenu.conversationKey
+                setPinnedKeys(prev => {
+                  const next = new Set(prev)
+                  if (next.has(key)) next.delete(key)
+                  else next.add(key)
+                  return next
+                })
+              },
+            },
+            {
+              key: 'delete',
+              label: 'Delete',
+              icon: Trash2,
+              destructive: true,
+              onAction: () => deleteConversation(contextMenu.conversationKey),
+            },
+          ]}
         />
       )}
     </div>

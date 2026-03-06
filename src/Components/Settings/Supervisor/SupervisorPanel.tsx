@@ -28,7 +28,7 @@ export function SupervisorPanel({
   onBackToMain?: () => void
 }) {
   const [view, setView] = useState<SupervisorView>({ screen: 'roster' })
-  const [selectedSoldierId, setSelectedSoldierId] = useState<string | null>(null)
+  const [selectedSoldierIds, setSelectedSoldierIds] = useState<Set<string>>(new Set())
   const { submitTestEvaluation } = useTrainingCompletions()
 
   const {
@@ -71,17 +71,17 @@ export function SupervisorPanel({
   // ─── Actions ────────────────────────────────────────────────────────────
 
   const handleEvaluate = useCallback((soldier: ClinicMedic) => {
-    setSelectedSoldierId(null)
+    setSelectedSoldierIds(new Set())
     setView({ screen: 'evaluate-select-task', soldier })
   }, [])
 
   const handleViewProfile = useCallback((soldier: ClinicMedic) => {
-    setSelectedSoldierId(null)
+    setSelectedSoldierIds(new Set())
     setView({ screen: 'soldier-profile', soldier })
   }, [])
 
   const handleModifyCerts = useCallback((soldier: ClinicMedic) => {
-    setSelectedSoldierId(null)
+    setSelectedSoldierIds(new Set())
     setView({ screen: 'soldier-certs', soldier })
   }, [])
 
@@ -144,8 +144,8 @@ export function SupervisorPanel({
             medics={medics}
             certsForSoldier={certsForSoldier}
             overdueCount={getOverdueCount}
-            selectedSoldierId={selectedSoldierId}
-            onSelectSoldier={setSelectedSoldierId}
+            selectedSoldierIds={selectedSoldierIds}
+            onSelectSoldiers={setSelectedSoldierIds}
             onEvaluate={handleEvaluate}
             onView={handleViewProfile}
             onModify={handleModifyCerts}

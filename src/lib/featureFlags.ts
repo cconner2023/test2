@@ -21,4 +21,4 @@ export const PROPERTY_MANAGEMENT_ENABLED = true;
  * is active. Enables BLE pairing to a LoRa radio module and mesh relay
  * of Signal Protocol messages when Supabase is unreachable.
  */
-export const LORA_MESH_ENABLED = false;
+export const LORA_MESH_ENABLED = true;

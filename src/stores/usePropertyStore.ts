@@ -8,11 +8,6 @@ interface PropertyState {
   selectItem: (item: PropertyItem | null) => void
   setEditingItem: (item: PropertyItem | null) => void
 
-  // Transfer overlay
-  isTransferOpen: boolean
-  openTransfer: () => void
-  closeTransfer: () => void
-
   // Location breadcrumb stack
   locationPath: PropertyLocation[]
   selectedLocation: PropertyLocation | null
@@ -31,11 +26,6 @@ export const usePropertyStore = create<PropertyState>((set) => ({
   editingItem: null,
   selectItem: (item) => set({ selectedItem: item }),
   setEditingItem: (item) => set({ editingItem: item }),
-
-  // Transfer overlay
-  isTransferOpen: false,
-  openTransfer: () => set({ isTransferOpen: true }),
-  closeTransfer: () => set({ isTransferOpen: false }),
 
   // Location breadcrumb
   locationPath: [],

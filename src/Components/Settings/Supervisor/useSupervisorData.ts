@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../../../lib/supabase'
 import { useClinicMedics } from '../../../Hooks/useClinicMedics'
+import { useAuth } from '../../../Hooks/useAuth'
 import { fetchClinicCertifications } from '../../../lib/certificationService'
 import { fetchClinicTestHistory, type TrainingCompletionUI } from '../../../lib/trainingService'
 import { createLogger } from '../../../Utilities/Logger'
@@ -51,7 +52,14 @@ export function useSupervisorData(): SupervisorData {
   const [certs, setCerts] = useState<Certification[]>([])
   const [tests, setTests] = useState<TrainingCompletionUI[]>([])
 
-  const { medics, loading: medicsLoading } = useClinicMedics()
+  const { medics: allLocationMedics, loading: medicsLoading } = useClinicMedics()
+  const { clinicId: userClinicId } = useAuth()
+
+  // Filter to own clinic only – supervisor view should not include nearby clinics
+  const medics = useMemo(() => {
+    if (!userClinicId) return allLocationMedics
+    return allLocationMedics.filter(m => !m.clinicId || m.clinicId === userClinicId)
+  }, [allLocationMedics, userClinicId])
 
   // Auth check + profile fetch (runs once)
   useEffect(() => {

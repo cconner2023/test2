@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Plus, List, MapPin, AlertTriangle, Search as SearchIcon, X, Upload, Download, FileSpreadsheet } from 'lucide-react'
+import { Plus, List, MapPin, AlertTriangle, Search as SearchIcon, X, Upload, Download, FileSpreadsheet, Eye, ArrowRightLeft, Trash2 } from 'lucide-react'
 import { useProperty } from '../../Hooks/useProperty'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuth } from '../../Hooks/useAuth'
 import { supabase } from '../../lib/supabase'
+import { CardContextMenu } from '../CardContextMenu'
+import { CardActionBar, type ActionBarAction } from '../CardActionBar'
 import { PropertyItemRow } from './PropertyItemRow'
 import { PropertyItemDetail } from './PropertyItemDetail'
 import { PropertyItemForm } from './PropertyItemForm'
@@ -17,7 +19,7 @@ import { exportPropertyCSV, parsePropertyCSV, downloadCSVTemplate } from '../../
 import type { ParsedRow } from '../../Utilities/PropertyCSV'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 
-export type PropertyView = 'property' | 'property-detail' | 'property-form'
+export type PropertyView = 'property' | 'property-detail' | 'property-form' | 'property-transfer'
 
 type Tab = 'list' | 'hand-receipt' | 'location-map' | 'discrepancies'
 
@@ -26,10 +28,11 @@ interface PropertyPanelProps {
   onSelectItem: (item: LocalPropertyItem) => void
   onAddItem: () => void
   onEditItem: (item: LocalPropertyItem) => void
+  onTransferItem: () => void
   onBack: () => void
 }
 
-export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onBack }: PropertyPanelProps) {
+export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTransferItem, onBack }: PropertyPanelProps) {
   const { user } = useAuth()
   const property = useProperty()
   const store = usePropertyStore()
@@ -40,6 +43,17 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onBac
   const [locationViewMode, setLocationViewMode] = useState<'map' | 'tree'>('map')
   const [csvImport, setCsvImport] = useState<{ rows: ParsedRow[]; errors: string[] } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // ── Selection state ──
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [transferItems, setTransferItems] = useState<LocalPropertyItem[]>([])
+  const [openCardId, setOpenCardId] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ itemId: string; x: number; y: number } | null>(null)
+  const hasSelection = selectedIds.size > 0
+  const multiSelectMode = hasSelection
+
+  // Clear selection when switching tabs
+  useEffect(() => { setSelectedIds(new Set()); setOpenCardId(null); setContextMenu(null) }, [activeTab])
 
   // Load clinic members for holder display names and transfer picker
   useEffect(() => {
@@ -110,6 +124,38 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onBac
     return map
   }, [holders])
 
+  // ── Selection handlers ──
+
+  const handleToggleSelect = useCallback((item: LocalPropertyItem) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(item.id)) next.delete(item.id)
+      else next.add(item.id)
+      return next
+    })
+  }, [])
+
+  const handleViewItem = useCallback((item: LocalPropertyItem) => {
+    setOpenCardId(null)
+    store.selectItem(item)
+    onSelectItem(item)
+  }, [store, onSelectItem])
+
+  const handleTransferSingle = useCallback((item: LocalPropertyItem) => {
+    setOpenCardId(null)
+    setTransferItems([item])
+    onTransferItem()
+  }, [onTransferItem])
+
+  const handleDeleteSingle = useCallback(async (item: LocalPropertyItem) => {
+    setOpenCardId(null)
+    if (!confirm('Delete this item? This cannot be undone.')) return
+    await property.removeItem(item.id)
+  }, [property])
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
+
+  // Navigate to detail from sub-panels (hand-receipt, locations, etc.)
   const handleSelectItem = useCallback((item: LocalPropertyItem) => {
     store.selectItem(item)
     onSelectItem(item)
@@ -144,10 +190,49 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onBac
     if (fileInputRef.current) fileInputRef.current.value = ''
   }, [])
 
+  // ── Action bar handlers ──
+
+  const selectedItems = useMemo(() => {
+    return filteredItems.filter((i) => selectedIds.has(i.id))
+  }, [filteredItems, selectedIds])
+
+  const handleActionTransfer = useCallback(() => {
+    if (selectedItems.length === 0) return
+    setTransferItems(selectedItems)
+    clearSelection()
+    onTransferItem()
+  }, [selectedItems, clearSelection, onTransferItem])
+
+  const handleActionDelete = useCallback(async () => {
+    if (selectedItems.length === 0) return
+    const count = selectedItems.length
+    if (!confirm(`Delete ${count} item${count > 1 ? 's' : ''}? This cannot be undone.`)) return
+    for (const item of selectedItems) {
+      await property.removeItem(item.id)
+    }
+    clearSelection()
+  }, [selectedItems, property, clearSelection])
+
   if (property.isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="animate-spin rounded-full h-6 w-6 border-2 border-themeblue3 border-t-transparent" />
+      </div>
+    )
+  }
+
+  // Transfer custody view
+  if (view === 'property-transfer' && transferItems.length > 0) {
+    return (
+      <div className="flex flex-col h-full overflow-y-auto">
+        <CustodyTransferForm
+          items={transferItems}
+          clinicMembers={clinicMembers}
+          holders={holders}
+          getSubItems={property.getSubItems}
+          onTransfer={property.doTransfer}
+          onBack={() => { setTransferItems([]); onBack() }}
+        />
       </div>
     )
   }
@@ -164,26 +249,14 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onBac
             store.setEditingItem(store.selectedItem!)
             onEditItem(store.selectedItem!)
           }}
-          onTransfer={() => store.openTransfer()}
+          onTransfer={() => {
+            setTransferItems([store.selectedItem!])
+            onTransferItem()
+          }}
           onDelete={handleDeleteItem}
           getSubItems={property.getSubItems}
           getLedger={property.getLedger}
           onSelectSubItem={handleSelectItem}
-        />
-
-        {/* Transfer overlay */}
-        <CustodyTransferForm
-          isVisible={store.isTransferOpen}
-          onClose={() => store.closeTransfer()}
-          item={store.selectedItem}
-          clinicMembers={clinicMembers}
-          currentHolderName={
-            store.selectedItem.current_holder_id
-              ? holders.get(store.selectedItem.current_holder_id)?.displayName ?? 'Unknown'
-              : 'Unassigned'
-          }
-          getSubItems={property.getSubItems}
-          onTransfer={property.doTransfer}
         />
       </div>
     )
@@ -286,7 +359,24 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onBac
                 item={item}
                 holderName={item.current_holder_id ? holders.get(item.current_holder_id)?.displayName : undefined}
                 subItemCount={subItemCounts.get(item.id)}
-                onTap={handleSelectItem}
+                isSelected={selectedIds.has(item.id)}
+                isOpen={openCardId === item.id}
+                multiSelectMode={multiSelectMode}
+                onOpen={() => { setOpenCardId(item.id) }}
+                onClose={() => setOpenCardId(prev => prev === item.id ? null : prev)}
+                onTap={() => {
+                  setOpenCardId(null)
+                  // Single-tap selects (shows bottom bar)
+                  if (!multiSelectMode) {
+                    const isTogglingOff = selectedIds.has(item.id)
+                    setSelectedIds(isTogglingOff ? new Set() : new Set([item.id]))
+                  }
+                }}
+                onView={() => handleViewItem(item)}
+                onTransfer={() => handleTransferSingle(item)}
+                onDelete={() => handleDeleteSingle(item)}
+                onContextMenu={(e) => { e.preventDefault(); setContextMenu({ itemId: item.id, x: e.clientX, y: e.clientY }) }}
+                onToggleSelect={() => handleToggleSelect(item)}
               />
             ))}
             {filteredItems.length === 0 && (
@@ -366,8 +456,70 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onBac
         )}
       </div>
 
-      {/* FAB for adding items */}
-      {(activeTab === 'list' || activeTab === 'hand-receipt') && (
+      {/* Bottom action bar — shown when items are selected */}
+      {hasSelection && activeTab === 'list' && (() => {
+        const singleSelected = selectedIds.size === 1
+        const barActions: ActionBarAction[] = []
+        if (singleSelected) {
+          const item = filteredItems.find(i => selectedIds.has(i.id))
+          if (item) {
+            barActions.push(
+              { key: 'view', label: 'View', icon: Eye, iconBg: 'bg-themegreen/15', iconColor: 'text-themegreen', onAction: () => handleViewItem(item) },
+              { key: 'transfer', label: 'Transfer', icon: ArrowRightLeft, iconBg: 'bg-themeblue2/15', iconColor: 'text-themeblue2', onAction: () => handleTransferSingle(item) },
+              { key: 'delete', label: 'Delete', icon: Trash2, iconBg: 'bg-themeredred/15', iconColor: 'text-themeredred', onAction: () => handleDeleteSingle(item) },
+            )
+          }
+        } else {
+          barActions.push(
+            { key: 'transfer', label: 'Transfer', icon: ArrowRightLeft, iconBg: 'bg-themeblue2/15', iconColor: 'text-themeblue2', onAction: handleActionTransfer },
+            { key: 'delete', label: 'Delete', icon: Trash2, iconBg: 'bg-themeredred/15', iconColor: 'text-themeredred', onAction: handleActionDelete },
+          )
+        }
+        return (
+          <CardActionBar
+            selectedCount={selectedIds.size}
+            onClear={clearSelection}
+            actions={barActions}
+          />
+        )
+      })()}
+
+      {/* Right-click context menu */}
+      {contextMenu && (() => {
+        const item = filteredItems.find(i => i.id === contextMenu.itemId)
+        if (!item) return null
+        return (
+          <CardContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            onClose={() => setContextMenu(null)}
+            items={[
+              {
+                key: 'view',
+                label: 'View',
+                icon: Eye,
+                onAction: () => handleViewItem(item),
+              },
+              {
+                key: 'transfer',
+                label: 'Transfer',
+                icon: ArrowRightLeft,
+                onAction: () => handleTransferSingle(item),
+              },
+              {
+                key: 'delete',
+                label: 'Delete',
+                icon: Trash2,
+                destructive: true,
+                onAction: () => handleDeleteSingle(item),
+              },
+            ]}
+          />
+        )
+      })()}
+
+      {/* FAB for adding items — hidden when selection active */}
+      {!hasSelection && (activeTab === 'list' || activeTab === 'hand-receipt') && (
         <button
           className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-themeblue3 text-white shadow-lg flex items-center justify-center hover:bg-themeblue3/90 transition-colors"
           onClick={() => {

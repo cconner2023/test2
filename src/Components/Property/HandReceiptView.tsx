@@ -120,7 +120,7 @@ export function HandReceiptView({ items, holders, currentUserId, onSelectItem }:
                     item={item}
                     holderName={holderName}
                     subItemCount={subItemCounts.get(item.id)}
-                    onTap={onSelectItem}
+                    onTap={() => onSelectItem(item)}
                   />
                 ))}
               </div>

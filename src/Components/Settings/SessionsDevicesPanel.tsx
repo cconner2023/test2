@@ -6,19 +6,18 @@
  * or signing out all other sessions (primary device only).
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { Crown, Trash2, Smartphone, LogOut, Info, Loader2 } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { Crown, Trash2, Smartphone, LogOut, Info, Loader2, Check } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { getLocalDeviceId } from '../../lib/signal/keyManager'
 import { unregisterDevice, deleteKeyBundle, primaryLogoutAll } from '../../lib/signal/signalService'
 import { fetchOwnDevicesWithRole, type DeviceWithRole } from '../../lib/signal/deviceService'
+import { CardContextMenu } from '../CardContextMenu'
+import { CardActionBar } from '../CardActionBar'
+import { SwipeableCard } from '../SwipeableCard'
 import { StatusBanner } from './StatusBanner'
 import { UI_TIMING } from '../../Utilities/constants'
-import { GESTURE_THRESHOLDS } from '../../Utilities/GestureUtils'
-
-const ACTION_WIDTH = 72
-const OPEN_THRESHOLD = ACTION_WIDTH * 0.3
 
 export function SessionsDevicesPanel() {
   const { user } = useAuth()
@@ -31,7 +30,9 @@ export function SessionsDevicesPanel() {
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [confirmLogoutAll, setConfirmLogoutAll] = useState(false)
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<string>>(new Set())
+  const [contextMenu, setContextMenu] = useState<{ deviceId: string; x: number; y: number } | null>(null)
+  const multiSelectMode = selectedDeviceIds.size > 0
 
   // Clear status banner after a delay
   useEffect(() => {
@@ -169,40 +170,61 @@ export function SessionsDevicesPanel() {
           const activity = activityInfo(device.lastActiveAt)
           const shortId = device.deviceId.slice(0, 8)
           const canSwipe = !isCurrent
-
-          const menuOpen = openMenuId === device.deviceId
+          const isDeviceSelected = selectedDeviceIds.has(device.deviceId)
 
           return (
-            <SwipeableDeviceCard
+            <SwipeableCard
               key={device.deviceId}
               isOpen={openSwipeId === device.deviceId}
-              swipeEnabled={canSwipe}
-              onOpen={() => { setOpenMenuId(null); setOpenSwipeId(device.deviceId) }}
+              enabled={canSwipe && !multiSelectMode}
+              actions={canSwipe ? [
+                { key: 'remove', label: 'Remove', icon: Trash2, iconBg: 'bg-themeredred/15', iconColor: 'text-themeredred', onAction: () => handleRemove(device.deviceId) },
+              ] : []}
+              onOpen={() => { setOpenSwipeId(device.deviceId) }}
               onClose={() => { if (openSwipeId === device.deviceId) setOpenSwipeId(null) }}
-              onDelete={() => handleRemove(device.deviceId)}
+              onContextMenu={canSwipe ? (e) => { e.preventDefault(); setContextMenu({ deviceId: device.deviceId, x: e.clientX, y: e.clientY }) } : undefined}
               onTap={canSwipe ? () => {
+                if (multiSelectMode) {
+                  setSelectedDeviceIds(prev => {
+                    const next = new Set(prev)
+                    if (next.has(device.deviceId)) next.delete(device.deviceId)
+                    else next.add(device.deviceId)
+                    return next
+                  })
+                  return
+                }
                 setOpenSwipeId(null)
-                setOpenMenuId(menuOpen ? null : device.deviceId)
+                // Single-tap selects (shows bottom bar)
+                const isTogglingOff = selectedDeviceIds.has(device.deviceId)
+                setSelectedDeviceIds(isTogglingOff ? new Set() : new Set([device.deviceId]))
               } : undefined}
             >
               <div
                 className={`rounded-xl border px-4 py-3.5 transition-colors ${
                   isCurrent
                     ? 'border-themeblue2/25 bg-themeblue2/10'
-                    : 'border-tertiary/15 bg-themewhite2'
+                    : isDeviceSelected
+                      ? 'border-themeblue2/30 bg-themeblue2/5'
+                      : 'border-tertiary/15 bg-themewhite2'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  {/* Icon */}
-                  <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                    isCurrent ? 'bg-themeblue2/15' : device.isPrimary ? 'bg-themeyellow/15' : 'bg-tertiary/10'
-                  }`}>
-                    {device.isPrimary ? (
-                      <Crown size={18} className={isCurrent ? 'text-themeblue2' : 'text-themeyellow'} />
-                    ) : (
-                      <Smartphone size={18} className={isCurrent ? 'text-themeblue2' : 'text-tertiary/50'} />
-                    )}
-                  </div>
+                  {/* Icon — show checkmark when selected in multi-select */}
+                  {isDeviceSelected ? (
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2">
+                      <Check size={16} className="text-white" />
+                    </div>
+                  ) : (
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
+                      isCurrent ? 'bg-themeblue2/15' : device.isPrimary ? 'bg-themeyellow/15' : 'bg-tertiary/10'
+                    }`}>
+                      {device.isPrimary ? (
+                        <Crown size={18} className={isCurrent ? 'text-themeblue2' : 'text-themeyellow'} />
+                      ) : (
+                        <Smartphone size={18} className={isCurrent ? 'text-themeblue2' : 'text-tertiary/50'} />
+                      )}
+                    </div>
+                  )}
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
@@ -211,12 +233,12 @@ export function SessionsDevicesPanel() {
                         {device.deviceLabel || 'Unknown'}
                       </span>
                       {isCurrent && (
-                        <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-themeblue2/15 text-themeblue2">
+                        <span className="text-[9pt] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-themeblue2/15 text-themeblue2">
                           This device
                         </span>
                       )}
                       {device.isPrimary && (
-                        <span className="text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-themeyellow/15 text-themeyellow">
+                        <span className="text-[9pt] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-themeyellow/15 text-themeyellow">
                           Primary
                         </span>
                       )}
@@ -228,19 +250,9 @@ export function SessionsDevicesPanel() {
                       <span className="text-[11px] text-tertiary/30 font-mono">{shortId}</span>
                     </div>
                   </div>
-
-                  {/* Inline delete action (tap to reveal) */}
-                  {menuOpen && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); handleRemove(device.deviceId) }}
-                      className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeredred/15 active:scale-90 transition-all"
-                    >
-                      <Trash2 size={16} className="text-themeredred" />
-                    </button>
-                  )}
                 </div>
               </div>
-            </SwipeableDeviceCard>
+            </SwipeableCard>
           )
         })}
 
@@ -286,155 +298,46 @@ export function SessionsDevicesPanel() {
           </div>
         )}
       </div>
-    </div>
-  )
-}
 
-// ── Swipe-to-delete wrapper ───────────────────────────────────────
+      {/* Bottom action bar for multi-select */}
+      {multiSelectMode && (
+        <CardActionBar
+          selectedCount={selectedDeviceIds.size}
+          onClear={() => setSelectedDeviceIds(new Set())}
+          actions={[
+            {
+              key: 'delete',
+              label: 'Delete',
+              icon: Trash2,
+              iconBg: 'bg-themeredred/15',
+              iconColor: 'text-themeredred',
+              onAction: async () => {
+                const ids = [...selectedDeviceIds]
+                setSelectedDeviceIds(new Set())
+                for (const id of ids) await handleRemove(id)
+              },
+            },
+          ]}
+        />
+      )}
 
-function SwipeableDeviceCard({
-  children,
-  isOpen,
-  swipeEnabled,
-  onOpen,
-  onClose,
-  onDelete,
-  onTap,
-}: {
-  children: React.ReactNode
-  isOpen: boolean
-  swipeEnabled: boolean
-  onOpen: () => void
-  onClose: () => void
-  onDelete: () => void
-  onTap?: () => void
-}) {
-  const rowRef = useRef<HTMLDivElement>(null)
-  const touchRef = useRef<{
-    startX: number
-    startY: number
-    swiping: boolean
-    dirDecided: boolean
-  } | null>(null)
-
-  const snapTo = useCallback((x: number) => {
-    const el = rowRef.current
-    if (!el) return
-    el.style.transition = 'transform 200ms ease-out'
-    el.style.transform = `translateX(${x}px)`
-  }, [])
-
-  // Sync with external isOpen state
-  useEffect(() => {
-    snapTo(isOpen ? -ACTION_WIDTH : 0)
-  }, [isOpen, snapTo])
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const t = e.touches[0]
-    touchRef.current = { startX: t.clientX, startY: t.clientY, swiping: false, dirDecided: false }
-  }, [])
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    const state = touchRef.current
-    if (!state) return
-    const t = e.touches[0]
-    const dx = t.clientX - state.startX
-    const dy = t.clientY - state.startY
-
-    if (!state.dirDecided) {
-      if (Math.abs(dx) < GESTURE_THRESHOLDS.DIRECTION_LOCK && Math.abs(dy) < GESTURE_THRESHOLDS.DIRECTION_LOCK) return
-      state.dirDecided = true
-      if (Math.abs(dy) > Math.abs(dx)) { touchRef.current = null; return }
-      if (!swipeEnabled) { touchRef.current = null; return }
-      state.swiping = true
-    }
-    if (!state.swiping) return
-
-    const base = isOpen ? -ACTION_WIDTH : 0
-    const offset = Math.max(-ACTION_WIDTH, Math.min(0, base + dx))
-    const el = rowRef.current
-    if (el) {
-      el.style.transition = 'none'
-      el.style.transform = `translateX(${offset}px)`
-    }
-  }, [swipeEnabled, isOpen])
-
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    const state = touchRef.current
-    if (!state) return
-    touchRef.current = null
-
-    if (state.swiping) {
-      const dx = e.changedTouches[0].clientX - state.startX
-      const base = isOpen ? -ACTION_WIDTH : 0
-      const shouldOpen = Math.abs(base + dx) > OPEN_THRESHOLD
-      snapTo(shouldOpen ? -ACTION_WIDTH : 0)
-      if (shouldOpen && !isOpen) onOpen()
-      else if (!shouldOpen && isOpen) onClose()
-      return
-    }
-
-    // Tap — close if swiped open, otherwise toggle action menu
-    if (!state.dirDecided) {
-      if (isOpen) {
-        snapTo(0)
-        onClose()
-      } else {
-        onTap?.()
-      }
-    }
-  }, [isOpen, snapTo, onOpen, onClose, onTap])
-
-  const handleTouchCancel = useCallback(() => {
-    touchRef.current = null
-    snapTo(isOpen ? -ACTION_WIDTH : 0)
-  }, [isOpen, snapTo])
-
-  // Click handler for desktop — touch devices use the touch handlers instead
-  const wasTouchRef = useRef(false)
-
-  const handleClick = useCallback(() => {
-    if (wasTouchRef.current) { wasTouchRef.current = false; return }
-    if (isOpen) { snapTo(0); onClose() }
-    else { onTap?.() }
-  }, [isOpen, snapTo, onClose, onTap])
-
-  const handleTouchStartWrapper = useCallback((e: React.TouchEvent) => {
-    wasTouchRef.current = true
-    handleTouchStart(e)
-  }, [handleTouchStart])
-
-  if (!swipeEnabled) {
-    return <div>{children}</div>
-  }
-
-  return (
-    <div className="relative overflow-hidden rounded-xl">
-      {/* Delete action behind card */}
-      <div className="absolute inset-y-0 right-0 flex items-center justify-center" style={{ width: ACTION_WIDTH }}>
-        <button
-          onClick={onDelete}
-          className="flex flex-col items-center gap-1 active:scale-95 transition-transform"
-        >
-          <div className="w-10 h-10 rounded-full flex items-center justify-center bg-themeredred/15">
-            <Trash2 size={18} className="text-themeredred" />
-          </div>
-          <span className="text-[8px] font-medium text-tertiary/60">Remove</span>
-        </button>
-      </div>
-
-      {/* Swipeable card layer */}
-      <div
-        ref={rowRef}
-        onClick={handleClick}
-        onTouchStart={handleTouchStartWrapper}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onTouchCancel={handleTouchCancel}
-        style={{ touchAction: 'pan-y', cursor: swipeEnabled ? 'pointer' : undefined }}
-      >
-        {children}
-      </div>
+      {/* Right-click context menu */}
+      {contextMenu && (
+        <CardContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          items={[
+            {
+              key: 'delete',
+              label: 'Delete',
+              icon: Trash2,
+              destructive: true,
+              onAction: () => handleRemove(contextMenu.deviceId),
+            },
+          ]}
+        />
+      )}
     </div>
   )
 }

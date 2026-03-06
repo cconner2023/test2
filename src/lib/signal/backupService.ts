@@ -9,8 +9,7 @@
  * The plaintext password is NEVER stored. Only a non-extractable CryptoKey
  * lives in module scope for the duration of the session.
  *
- * One backup row per user. Primary device creates/updates.
- * Non-primary devices restore from it on login.
+ * Any device creates/updates backups. All devices restore on login.
  */
 
 import { deflateRaw, inflateRaw } from 'pako'
@@ -43,6 +42,20 @@ const BACKUP_MASTER_SALT = new Uint8Array([
 ])
 
 let _backupTimer: ReturnType<typeof setTimeout> | null = null
+/** Timestamp of the first dirty event since last successful backup.
+ *  Caps the debounce so active conversations don't postpone backups forever. */
+let _firstDirtyAt: number | null = null
+/** Periodic interval that fires backups independently of message saves. */
+let _periodicTimer: ReturnType<typeof setInterval> | null = null
+/** The userId bound to the current backup scheduler. */
+let _scheduledUserId: string | null = null
+/** Whether the pagehide listener has been registered. */
+let _pagehideRegistered = false
+
+/** Max time (ms) from first unsaved change before a backup is forced. */
+const BACKUP_MAX_WAIT_MS = 10_000
+/** Periodic backup interval (ms). */
+const BACKUP_PERIODIC_MS = 60_000
 
 // ---- IDB persistence for the non-extractable CryptoKey ----
 
@@ -133,13 +146,19 @@ export function deriveAndStoreBackupKey(password: string): Promise<void> {
   return _backupKeyReady
 }
 
-/** Wipe cached key and detach the save callback (called on sign-out). */
+/** Wipe cached key, detach callbacks, stop all timers (called on sign-out). */
 export function clearBackupKey(): void {
   _backupKey = null
   _backupKeyReady = null
+  _firstDirtyAt = null
+  _scheduledUserId = null
   if (_backupTimer) {
     clearTimeout(_backupTimer)
     _backupTimer = null
+  }
+  if (_periodicTimer) {
+    clearInterval(_periodicTimer)
+    _periodicTimer = null
   }
   // Detach the onMessageSaved callback to prevent stale backup triggers
   setOnMessageSaved(null)
@@ -248,6 +267,18 @@ async function loadRawMessages(): Promise<StoredMessage[]> {
   // Sort newest-first for truncation
   all.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   return all
+}
+
+// ---- Internal flush helper ----
+
+/** Run createBackup immediately, reset dirty tracking. */
+async function flushBackup(userId: string): Promise<void> {
+  _firstDirtyAt = null
+  if (_backupTimer) {
+    clearTimeout(_backupTimer)
+    _backupTimer = null
+  }
+  await createBackup(userId)
 }
 
 // ---- Public API ----
@@ -381,16 +412,62 @@ export async function deleteBackup(userId: string): Promise<void> {
   }
 }
 
-/** Debounced trigger for createBackup. Resets the timer on each call.
- *  On first call, also registers itself as the onMessageSaved callback
- *  so future message saves auto-trigger backup scheduling. */
+/**
+ * Schedule a backup with capped debounce + periodic fallback + pagehide flush.
+ *
+ * - Debounce: each message save resets a short timer, but a max-wait cap
+ *   ensures a backup fires within BACKUP_MAX_WAIT_MS of the first change.
+ * - Periodic: an interval fires every BACKUP_PERIODIC_MS regardless of
+ *   message activity, so idle sessions still get fresh backups.
+ * - Pagehide: best-effort flush before the page goes away.
+ *
+ * Any device can call this — not gated on primary role.
+ */
 export function scheduleBackup(userId: string): void {
+  _scheduledUserId = userId
+
   // Register so every future saveMessage() triggers a debounced backup
   setOnMessageSaved(scheduleBackup)
 
+  // Track when the first unsaved change happened
+  if (_firstDirtyAt === null) {
+    _firstDirtyAt = Date.now()
+  }
+
+  // If we've exceeded the max-wait cap, flush immediately
+  const elapsed = Date.now() - _firstDirtyAt
+  if (elapsed >= BACKUP_MAX_WAIT_MS) {
+    flushBackup(userId).catch(err => logger.warn('Max-wait backup failed:', err))
+    return
+  }
+
+  // Otherwise reset the debounce timer (capped to remaining max-wait time)
   if (_backupTimer) clearTimeout(_backupTimer)
+  const delay = Math.min(SIGNAL.BACKUP_DEBOUNCE_MS, BACKUP_MAX_WAIT_MS - elapsed)
   _backupTimer = setTimeout(() => {
     _backupTimer = null
-    createBackup(userId).catch(err => logger.warn('Scheduled backup failed:', err))
-  }, SIGNAL.BACKUP_DEBOUNCE_MS)
+    flushBackup(userId).catch(err => logger.warn('Scheduled backup failed:', err))
+  }, delay)
+
+  // Start periodic interval (once per scheduleBackup lifecycle)
+  if (!_periodicTimer) {
+    _periodicTimer = setInterval(() => {
+      if (_scheduledUserId) {
+        createBackup(_scheduledUserId).catch(err => logger.warn('Periodic backup failed:', err))
+      }
+    }, BACKUP_PERIODIC_MS)
+  }
+
+  // Register pagehide listener (once) to flush before the page goes away
+  if (!_pagehideRegistered && typeof window !== 'undefined') {
+    _pagehideRegistered = true
+    window.addEventListener('pagehide', () => {
+      if (_scheduledUserId) {
+        // Best-effort synchronous-ish flush — createBackup is async but the
+        // browser gives pagehide handlers a brief window to fire keepalive fetches.
+        // We kick it off; if the page survives long enough it completes.
+        flushBackup(_scheduledUserId).catch(() => {})
+      }
+    })
+  }
 }

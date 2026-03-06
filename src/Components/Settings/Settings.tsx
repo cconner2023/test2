@@ -310,8 +310,16 @@ export const Settings = ({
         setActivePanel('property-form');
     }, [handleSlideAnimation]);
 
+    const handlePropertyTransfer = useCallback(() => {
+        handleSlideAnimation('left');
+        setActivePanel('property-transfer');
+    }, [handleSlideAnimation]);
+
     const handlePropertyBack = useCallback(() => {
-        if (activePanel === 'property-detail' || activePanel === 'property-form') {
+        if (activePanel === 'property-transfer') {
+            handleSlideAnimation('right');
+            setActivePanel('property-detail');
+        } else if (activePanel === 'property-detail' || activePanel === 'property-form') {
             handleSlideAnimation('right');
             setActivePanel('property');
             setSelectedPropertyItemName(null);
@@ -331,7 +339,7 @@ export const Settings = ({
             if (activePanel === 'messages-chat' || activePanel === 'messages-group-chat' || activePanel === 'messages') {
                 return handleMessagesBack;
             }
-            if (activePanel === 'property' || activePanel === 'property-detail' || activePanel === 'property-form') {
+            if (activePanel === 'property' || activePanel === 'property-detail' || activePanel === 'property-form' || activePanel === 'property-transfer') {
                 return handlePropertyBack;
             }
             // Sub-panels of the profile hub go back to user-profile
@@ -382,6 +390,7 @@ export const Settings = ({
             case 'training':            return { title: 'My Training', ...backTo() };
             case 'property':            return { title: 'Property Book', ...backTo() };
             case 'property-detail':     return { title: selectedPropertyItemName ?? 'Item', showBack: true, onBack: handlePropertyBack };
+            case 'property-transfer':   return { title: 'Transfer Custody', showBack: true, onBack: handlePropertyBack };
             case 'property-form':       return { title: selectedPropertyItemName ? 'Edit Item' : 'Add Item', showBack: true, onBack: handlePropertyBack };
             case 'lora':                return { title: 'LoRa Mesh', ...backTo() };
             case 'sessions-devices':    return { title: 'Sessions & Devices', ...backTo('pin-setup') };
@@ -565,12 +574,13 @@ export const Settings = ({
                         </div>
                     )}
                     {isAuthenticated && PROPERTY_MANAGEMENT_ENABLED && (
-                        <div className="h-full relative" style={{ display: activePanel === 'property' || activePanel === 'property-detail' || activePanel === 'property-form' ? undefined : 'none' }}>
+                        <div className="h-full relative" style={{ display: activePanel === 'property' || activePanel === 'property-detail' || activePanel === 'property-form' || activePanel === 'property-transfer' ? undefined : 'none' }}>
                             <PropertyPanel
-                                view={(activePanel === 'property' || activePanel === 'property-detail' || activePanel === 'property-form') ? activePanel as PropertyView : 'property'}
+                                view={(activePanel === 'property' || activePanel === 'property-detail' || activePanel === 'property-form' || activePanel === 'property-transfer') ? activePanel as PropertyView : 'property'}
                                 onSelectItem={handlePropertySelectItem}
                                 onAddItem={handlePropertyAddItem}
                                 onEditItem={handlePropertyEditItem}
+                                onTransferItem={handlePropertyTransfer}
                                 onBack={handlePropertyBack}
                             />
                         </div>
