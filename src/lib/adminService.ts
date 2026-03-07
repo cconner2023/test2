@@ -146,11 +146,13 @@ export async function approveAccountRequest(
     }>(data, ['user_id'], 'approveAccountRequest')
 
     if (validated.ok) {
-      // Trigger the Supabase confirm signup email template (customized to
-      // show "account approved" notification — no token displayed).
-      await supabase.auth.resend({
-        type: 'signup',
+      // Trigger the Supabase Magic Link email template (customized to show
+      // "account approved" notification). Uses signInWithOtp which sends
+      // the email regardless of confirmation status without affecting the
+      // admin's session.
+      await supabase.auth.signInWithOtp({
         email: validated.data.email,
+        options: { shouldCreateUser: false },
       })
     }
 
