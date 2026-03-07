@@ -3,6 +3,8 @@ import { Check, X, UserPlus, Clock, Ban, Search, ChevronLeft, KeyRound, Pencil, 
 import type { Component, Certification } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import { UserAvatar } from './UserAvatar'
+import { LoadingSpinner } from '../LoadingSpinner'
+import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import {
   getAllAccountRequests,
   approveAccountRequest,
@@ -84,6 +86,7 @@ const RoleBadge = ({ role }: { role: string }) => {
 const RequestsTab = () => {
   const [requests, setRequests] = useState<AccountRequest[]>([])
   const [loading, setLoading] = useState(true)
+  const showLoading = useMinLoadTime(loading)
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending')
   const [processingId, setProcessingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
@@ -137,8 +140,8 @@ const RequestsTab = () => {
     }
   }
 
-  if (loading) {
-    return <div className="flex items-center justify-center py-12"><div className="text-tertiary/60">Loading...</div></div>
+  if (showLoading) {
+    return <LoadingSpinner className="py-12 text-tertiary" />
   }
 
   return (
@@ -257,9 +260,9 @@ const RequestsTab = () => {
               {request.status === 'approved' && (
                 <div className="p-3 bg-themegreen/10 rounded-lg text-sm">
                   <div className="flex items-center gap-2 text-themegreen">
-                    <UserPlus size={16} /><span className="font-medium">Account created — setup email sent</span>
+                    <UserPlus size={16} /><span className="font-medium">Account created</span>
                   </div>
-                  <p className="text-themegreen text-xs mt-1">User will receive an email to set their password.</p>
+                  <p className="text-themegreen text-xs mt-1">User can now sign in with the password they set during registration.</p>
                 </div>
               )}
 
@@ -287,6 +290,7 @@ const UsersTab = () => {
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [allCerts, setAllCerts] = useState<Certification[]>([])
   const [loading, setLoading] = useState(true)
+  const showLoading = useMinLoadTime(loading)
   const [searchQuery, setSearchQuery] = useState('')
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null)
   const [detailUser, setDetailUser] = useState<AdminUser | null>(null)
@@ -652,8 +656,8 @@ const UsersTab = () => {
         />
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-12"><div className="text-tertiary/60">Loading users...</div></div>
+      {showLoading ? (
+        <LoadingSpinner label="Loading users..." className="py-12 text-tertiary" />
       ) : filteredUsers.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-tertiary/60">{searchQuery ? 'No users match your search' : 'No users found'}</p>
@@ -1241,6 +1245,7 @@ const ClinicsTab = () => {
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
+  const showLoading = useMinLoadTime(loading)
   const [searchQuery, setSearchQuery] = useState('')
   const [editingClinic, setEditingClinic] = useState<AdminClinic | null>(null)
   const [detailClinic, setDetailClinic] = useState<AdminClinic | null>(null)
@@ -1501,8 +1506,8 @@ const ClinicsTab = () => {
         />
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-12"><div className="text-tertiary/60">Loading clinics...</div></div>
+      {showLoading ? (
+        <LoadingSpinner label="Loading clinics..." className="py-12 text-tertiary" />
       ) : filteredClinics.length === 0 ? (
         <div className="text-center py-12">
           <Building2 size={28} className="mx-auto mb-3 text-tertiary/30" />
@@ -2031,6 +2036,7 @@ const UserCertsSection = ({
 export const AdminPanel = () => {
   const [isAdmin, setIsAdmin] = useState(false)
   const [loading, setLoading] = useState(true)
+  const showLoading = useMinLoadTime(loading)
   const [activeTab, setActiveTab] = useState<'requests' | 'users' | 'clinics'>('requests')
   useEffect(() => {
     const check = async () => {
@@ -2041,11 +2047,9 @@ export const AdminPanel = () => {
     check()
   }, [])
 
-  if (loading) {
+  if (showLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-tertiary/60">Loading...</div>
-      </div>
+      <LoadingSpinner className="h-full text-tertiary" />
     )
   }
 

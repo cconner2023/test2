@@ -7,6 +7,8 @@ import { SoldierProfile } from './SoldierProfile'
 import { SoldierCertsEditor } from './SoldierCertsEditor'
 import { EvaluateFlow } from './EvaluateFlow'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
+import { LoadingSpinner } from '../../LoadingSpinner'
+import { useMinLoadTime } from '../../../Hooks/useMinLoadTime'
 import type { StepResult } from '../../../Types/SupervisorTestTypes'
 
 // ─── State Machine ───────────────────────────────────────────────────────────
@@ -32,7 +34,7 @@ export function SupervisorPanel({
   const { submitTestEvaluation } = useTrainingCompletions()
 
   const {
-    loading,
+    loading: _loading,
     isSupervisor,
     currentUserId,
     medics,
@@ -46,6 +48,7 @@ export function SupervisorPanel({
     removeTest,
     refreshData,
   } = useSupervisorData()
+  const loading = useMinLoadTime(_loading)
 
   // ─── Back Navigation (backRef sync) ─────────────────────────────────────
 
@@ -116,9 +119,7 @@ export function SupervisorPanel({
 
   if (loading) {
     return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-tertiary/60">Loading...</div>
-      </div>
+      <LoadingSpinner className="h-full text-tertiary" />
     )
   }
 

@@ -13,6 +13,8 @@ import { GroupInfoPanel } from './GroupInfoPanel'
 import { MessageBubble, type SwipeAction } from './MessageBubble'
 import { MessageContextMenu } from './MessageContextMenu'
 import { UserAvatar } from './UserAvatar'
+import { LoadingSpinner } from '../LoadingSpinner'
+import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { ProvisionalDeviceModal } from './ProvisionalDeviceModal'
 import { useAuth } from '../../Hooks/useAuth'
 import { useCallActions } from '../../Hooks/CallContext'
@@ -334,6 +336,7 @@ function ConversationList({
   const { user } = useAuth()
   const userId = user?.id ?? null
   const { currentAvatar } = useAvatar()
+  const showLoading = useMinLoadTime(loading)
   const [showContacts, setShowContacts] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ conversationKey: string; x: number; y: number } | null>(null)
   const [pinnedKeys, setPinnedKeys] = useState<Set<string>>(new Set())
@@ -378,11 +381,9 @@ function ConversationList({
     ? { id: userId, firstName: null, lastName: 'Notes', middleInitial: null, rank: null, credential: null, avatarId: currentAvatar.id }
     : null
 
-  if (loading) {
+  if (showLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <p className="text-sm text-tertiary/50">Loading contacts...</p>
-      </div>
+      <LoadingSpinner label="Loading contacts..." className="py-12 text-tertiary" />
     )
   }
 

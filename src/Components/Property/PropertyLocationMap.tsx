@@ -16,6 +16,7 @@ interface PropertyLocationMapProps {
   onUpdateLocation: (id: string, updates: Partial<PropertyLocation>) => Promise<unknown>
   onDeleteLocation: (id: string) => Promise<unknown>
   onSelectItem: (item: LocalPropertyItem) => void
+  onUnassignItem?: (itemId: string) => void
   userId: string
 }
 
@@ -27,6 +28,7 @@ export function PropertyLocationMap({
   onUpdateLocation,
   onDeleteLocation,
   onSelectItem,
+  onUnassignItem,
   userId,
 }: PropertyLocationMapProps) {
   const { locationPath, pushLocation, popLocation, resetLocationPath } = usePropertyStore()
@@ -317,6 +319,7 @@ export function PropertyLocationMap({
                           <button
                             className="p-1 rounded-full hover:bg-red-50 text-tertiary hover:text-red-500 transition-colors"
                             onClick={() => handleRemoveItemTag(item.id)}
+                            title="Remove from schematic"
                           >
                             <X size={12} />
                           </button>
@@ -327,6 +330,15 @@ export function PropertyLocationMap({
                           onClick={() => handleAddItemTag(item)}
                         >
                           <Plus size={10} /> Place
+                        </button>
+                      )}
+                      {onUnassignItem && (
+                        <button
+                          className="p-1 rounded-full hover:bg-red-50 text-tertiary/40 hover:text-red-500 transition-colors"
+                          onClick={() => { handleRemoveItemTag(item.id); onUnassignItem(item.id) }}
+                          title="Unassign from location"
+                        >
+                          <X size={12} />
                         </button>
                       )}
                     </div>

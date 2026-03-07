@@ -7,7 +7,9 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { Crown, Trash2, Smartphone, LogOut, Info, Loader2, Check } from 'lucide-react'
+import { Crown, Trash2, Smartphone, LogOut, Info, Check } from 'lucide-react'
+import { LoadingSpinner } from '../LoadingSpinner'
+import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useAuth } from '../../Hooks/useAuth'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { getLocalDeviceId } from '../../lib/signal/keyManager'
@@ -26,6 +28,7 @@ export function SessionsDevicesPanel() {
   const [devices, setDevices] = useState<DeviceWithRole[]>([])
   const [localDeviceId, setLocalDeviceId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const showLoading = useMinLoadTime(loading)
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [confirmLogoutAll, setConfirmLogoutAll] = useState(false)
@@ -127,10 +130,10 @@ export function SessionsDevicesPanel() {
   const otherDevicesExist = devices.some((d) => d.deviceId !== localDeviceId)
 
   // --- Loading state ---
-  if (loading) {
+  if (showLoading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <Loader2 size={24} className="text-tertiary animate-spin" />
+        <LoadingSpinner className="text-tertiary" />
       </div>
     )
   }

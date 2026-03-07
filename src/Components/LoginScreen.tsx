@@ -6,7 +6,7 @@ import { signIn } from '../lib/authService'
 import { supabase } from '../lib/supabase'
 import { PinKeypad } from './PinKeypad'
 
-type View = 'main' | 'token' | 'reset' | 'pin'
+type View = 'main' | 'reset' | 'resetToken' | 'pin'
 
 export function LoginScreen() {
   const continueAsGuest = useAuthStore(s => s.continueAsGuest)
@@ -14,10 +14,8 @@ export function LoginScreen() {
   const [view, setView] = useState<View>('main')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [tokenEmail, setTokenEmail] = useState('')
-  const [loginToken, setLoginToken] = useState('')
   const [resetEmail, setResetEmail] = useState('')
-  const [resetSent, setResetSent] = useState(false)
+  const [resetToken, setResetToken] = useState('')
   const [pinEmail, setPinEmail] = useState('')
   const [pinEmailConfirmed, setPinEmailConfirmed] = useState(false)
   const [pinError, setPinError] = useState('')
@@ -34,24 +32,31 @@ export function LoginScreen() {
     setLoading(false)
   }
 
-  const handleTokenLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    const { error: otpError } = await supabase.auth.verifyOtp({
-      email: tokenEmail, token: loginToken, type: 'recovery',
-    })
-    if (otpError) setError(otpError.message)
-    setLoading(false)
-  }
-
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
     const { error: resetError } = await supabase.auth.resetPasswordForEmail(resetEmail)
-    if (resetError) setError(resetError.message)
-    else setResetSent(true)
+    if (resetError) {
+      setError(resetError.message)
+    } else {
+      // Move to token entry view
+      setView('resetToken')
+      setError(null)
+    }
+    setLoading(false)
+  }
+
+  const handleResetTokenLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    const { error: otpError } = await supabase.auth.verifyOtp({
+      email: resetEmail,
+      token: resetToken,
+      type: 'recovery',
+    })
+    if (otpError) setError(otpError.message)
     setLoading(false)
   }
 
@@ -68,7 +73,6 @@ export function LoginScreen() {
         setPinLoading(false)
         return
       }
-      // Use the OTP to establish a session
       const { error: otpError } = await supabase.auth.verifyOtp({
         email: pinEmail, token: data.token, type: 'magiclink',
       })
@@ -84,7 +88,7 @@ export function LoginScreen() {
   const switchView = (next: View) => {
     setView(next)
     setError(null)
-    setResetSent(false)
+    setResetToken('')
     setPinError('')
     setPinEmailConfirmed(false)
   }
@@ -149,8 +153,8 @@ export function LoginScreen() {
               <button onClick={() => switchView('pin')} className="text-xs text-themeblue2 hover:underline">
                 Sign in with PIN
               </button>
-              <button onClick={() => switchView('token')} className="text-xs text-themeblue2 hover:underline">
-                Sign in with token
+              <button onClick={() => switchView('resetToken')} className="text-xs text-themeblue2 hover:underline">
+                Sign in with reset token
               </button>
               <button onClick={() => switchView('reset')} className="text-xs text-themeblue2 hover:underline">
                 Forgot password?
@@ -196,7 +200,6 @@ export function LoginScreen() {
         {view === 'pin' && (
           <>
             {!pinEmailConfirmed ? (
-              /* Step 1: enter email */
               <form onSubmit={e => { e.preventDefault(); if (pinEmail.trim()) setPinEmailConfirmed(true) }} className="space-y-3">
                 <p className="text-xs text-tertiary/60">
                   Enter your email, then unlock with your PIN.
@@ -220,7 +223,6 @@ export function LoginScreen() {
                 </button>
               </form>
             ) : (
-              /* Step 2: PIN keypad */
               <div className="flex flex-col items-center">
                 <div className="w-14 h-14 rounded-full bg-themeblue2/10 flex items-center justify-center mb-2">
                   <Lock size={24} className="text-themeblue2" />
@@ -248,17 +250,49 @@ export function LoginScreen() {
           </>
         )}
 
-        {/* ── Token Login ── */}
-        {view === 'token' && (
+        {/* ── Password Reset (request) ── */}
+        {view === 'reset' && (
           <>
-            <form onSubmit={handleTokenLogin} className="space-y-3">
+            <form onSubmit={handleResetPassword} className="space-y-3">
               <p className="text-xs text-tertiary/60">
-                Enter the email and token from your account approval email.
+                Enter your email and we'll send a reset token.
               </p>
               <input
                 type="email"
-                value={tokenEmail}
-                onChange={e => setTokenEmail(e.target.value)}
+                value={resetEmail}
+                onChange={e => setResetEmail(e.target.value)}
+                placeholder="your.email@mail.mil"
+                required
+                className="w-full px-4 py-3 rounded-lg bg-themewhite2 border border-tertiary/10
+                         focus:border-themeblue2 focus:outline-none text-primary placeholder:text-tertiary/30"
+              />
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
+                         bg-themeblue2 text-white font-medium disabled:opacity-50 transition-colors"
+              >
+                <KeyRound size={18} />
+                {loading ? 'Sending...' : 'Send Reset Token'}
+              </button>
+            </form>
+            <button onClick={() => switchView('main')} className="w-full text-xs text-themeblue2 hover:underline mt-3">
+              Back to sign in
+            </button>
+          </>
+        )}
+
+        {/* ── Reset Token Login ── */}
+        {view === 'resetToken' && (
+          <>
+            <form onSubmit={handleResetTokenLogin} className="space-y-3">
+              <p className="text-xs text-tertiary/60">
+                Enter your email and the reset token from your email. You will be prompted to set a new password.
+              </p>
+              <input
+                type="email"
+                value={resetEmail}
+                onChange={e => setResetEmail(e.target.value)}
                 placeholder="your.email@mail.mil"
                 required
                 className="w-full px-4 py-3 rounded-lg bg-themewhite2 border border-tertiary/10
@@ -266,9 +300,9 @@ export function LoginScreen() {
               />
               <input
                 type="text"
-                value={loginToken}
-                onChange={e => setLoginToken(e.target.value)}
-                placeholder="Login token"
+                value={resetToken}
+                onChange={e => setResetToken(e.target.value)}
+                placeholder="Reset token (from your email)"
                 required
                 className="w-full px-4 py-3 rounded-lg bg-themewhite2 border border-tertiary/10
                          focus:border-themeblue2 focus:outline-none text-primary placeholder:text-tertiary/30 font-mono"
@@ -279,52 +313,18 @@ export function LoginScreen() {
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
                          bg-themeblue2 text-white font-medium disabled:opacity-50 transition-colors"
               >
-                <LogIn size={18} />
-                {loading ? 'Verifying...' : 'Verify Token'}
+                <KeyRound size={18} />
+                {loading ? 'Verifying...' : 'Verify & Reset'}
               </button>
             </form>
-            <button onClick={() => switchView('main')} className="w-full text-xs text-themeblue2 hover:underline mt-3">
-              Back to sign in
-            </button>
-          </>
-        )}
-
-        {/* ── Password Reset ── */}
-        {view === 'reset' && (
-          <>
-            {resetSent ? (
-              <div className="text-sm text-center">
-                <p className="font-medium text-themegreen">Reset email sent!</p>
-                <p className="text-xs mt-1 text-tertiary/60">Check your inbox for a link to reset your password.</p>
-              </div>
-            ) : (
-              <form onSubmit={handleResetPassword} className="space-y-3">
-                <p className="text-xs text-tertiary/60">
-                  Enter your email and we'll send a password reset link.
-                </p>
-                <input
-                  type="email"
-                  value={resetEmail}
-                  onChange={e => setResetEmail(e.target.value)}
-                  placeholder="your.email@mail.mil"
-                  required
-                  className="w-full px-4 py-3 rounded-lg bg-themewhite2 border border-tertiary/10
-                           focus:border-themeblue2 focus:outline-none text-primary placeholder:text-tertiary/30"
-                />
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                           bg-themeblue2 text-white font-medium disabled:opacity-50 transition-colors"
-                >
-                  <KeyRound size={18} />
-                  {loading ? 'Sending...' : 'Send Reset Link'}
-                </button>
-              </form>
-            )}
-            <button onClick={() => switchView('main')} className="w-full text-xs text-themeblue2 hover:underline mt-3">
-              Back to sign in
-            </button>
+            <div className="flex items-center justify-between mt-3 px-1">
+              <button onClick={() => switchView('reset')} className="text-xs text-themeblue2 hover:underline">
+                Request a new token
+              </button>
+              <button onClick={() => switchView('main')} className="text-xs text-themeblue2 hover:underline">
+                Back to sign in
+              </button>
+            </div>
           </>
         )}
       </div>

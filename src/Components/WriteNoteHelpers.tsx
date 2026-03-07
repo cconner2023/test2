@@ -163,9 +163,12 @@ export const ActionIconButton = ({
             title={title}
         >
             {status === 'busy' ? (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                <svg className="w-4 h-4 animate-spin" style={{ animationDuration: '2s' }} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="translate(20,20)">
+                        <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" />
+                        <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" transform="rotate(60)" />
+                        <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" transform="rotate(120)" />
+                    </g>
                 </svg>
             ) : status === 'done' ? (
                 <Check className="w-4 h-4" />

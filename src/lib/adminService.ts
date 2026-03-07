@@ -113,12 +113,9 @@ export async function getAllAccountRequests(
 /**
  * Approve an account request and create the user account.
  *
- * The RPC creates the auth user with a random temporary password and sets
- * needs_password_setup=TRUE on the profile. Supabase then sends a
- * password-recovery email ({{ .AuthToken }}) via the configured SMTP.
- * The user enters that token in the app's "Login with Token" section, which
- * calls verifyOtp({ type: 'recovery' }), signs them in, and prompts them to
- * set a permanent password via SetPasswordScreen.
+ * The user already set their password when submitting the request.
+ * The RPC creates the auth user using the stored password hash.
+ * The user can immediately log in with their email and password.
  */
 export async function approveAccountRequest(
   requestId: string,
@@ -145,15 +142,15 @@ export async function approveAccountRequest(
       email: string
       first_name: string
       last_name: string
-      login_token: string
       message: string
-    }>(data, ['user_id', 'login_token'], 'approveAccountRequest')
+    }>(data, ['user_id'], 'approveAccountRequest')
 
     if (validated.ok) {
-      // Send Supabase password-recovery email. The user's email template uses
-      // {{ .AuthToken }} — the user copies that token and enters it in the app.
-      await supabase.auth.resetPasswordForEmail(validated.data.email, {
-        redirectTo: window.location.origin,
+      // Trigger the Supabase confirm signup email template (customized to
+      // show "account approved" notification — no token displayed).
+      await supabase.auth.resend({
+        type: 'signup',
+        email: validated.data.email,
       })
     }
 

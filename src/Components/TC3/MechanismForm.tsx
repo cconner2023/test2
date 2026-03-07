@@ -3,12 +3,17 @@ import { useTC3Store } from '../../stores/useTC3Store'
 import type { MechanismType } from '../../Types/TC3Types'
 
 const MECHANISM_OPTIONS: { type: MechanismType; label: string }[] = [
-  { type: 'blast', label: 'Blast / IED' },
-  { type: 'gunshot', label: 'Gunshot Wound' },
-  { type: 'vehicle', label: 'Motor Vehicle' },
-  { type: 'fall', label: 'Fall' },
-  { type: 'burn', label: 'Burn' },
-  { type: 'other', label: 'Other' },
+  { type: 'Artillery', label: 'Artillery' },
+  { type: 'Blunt', label: 'Blunt' },
+  { type: 'Burn', label: 'Burn' },
+  { type: 'Fall', label: 'Fall' },
+  { type: 'Grenade', label: 'Grenade' },
+  { type: 'GSW', label: 'GSW' },
+  { type: 'IED', label: 'IED' },
+  { type: 'Landmine', label: 'Landmine' },
+  { type: 'MVC', label: 'MVC' },
+  { type: 'RPG', label: 'RPG' },
+  { type: 'Other', label: 'Other' },
 ]
 
 export const MechanismForm = memo(function MechanismForm() {
@@ -20,7 +25,7 @@ export const MechanismForm = memo(function MechanismForm() {
     <div className="space-y-5">
       <div>
         <h3 className="text-sm font-semibold text-primary mb-1">Mechanism of Injury</h3>
-        <p className="text-[11px] text-tertiary/70">DD 1380 Section 2 — Select all that apply</p>
+        <p className="text-[11px] text-tertiary/70">DD 1380 — Select all that apply</p>
       </div>
 
       <div className="space-y-2">
@@ -54,7 +59,7 @@ export const MechanismForm = memo(function MechanismForm() {
       </div>
 
       {/* Other description */}
-      {mechanism.types.includes('other') && (
+      {mechanism.types.includes('Other') && (
         <div className="space-y-1">
           <label className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Describe Other</label>
           <input

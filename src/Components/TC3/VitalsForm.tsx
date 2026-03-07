@@ -28,6 +28,7 @@ export const VitalsForm = memo(function VitalsForm() {
       id: crypto.randomUUID(),
       time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
       pulse: '',
+      pulseLocation: '',
       bp: '',
       rr: '',
       spo2: '',
@@ -45,7 +46,7 @@ export const VitalsForm = memo(function VitalsForm() {
     <div className="space-y-5">
       <div>
         <h3 className="text-sm font-semibold text-primary mb-1">Signs & Symptoms</h3>
-        <p className="text-[11px] text-tertiary/70">DD 1380 Section 6 & 7 — Vitals, mental status, and assessment</p>
+        <p className="text-[11px] text-tertiary/70">DD 1380 — Vitals, mental status, and assessment</p>
       </div>
 
       {/* Mental Status — AVPU */}
@@ -141,6 +142,11 @@ export const VitalsForm = memo(function VitalsForm() {
                 <label className="text-[9px] text-tertiary/50">Pulse</label>
                 <input type="text" value={vs.pulse} onChange={(e) => handleFieldChange(vs.id, 'pulse', e.target.value)}
                   placeholder="HR" className="w-full text-xs px-2 py-1 rounded border border-tertiary/20 bg-themewhite outline-none text-tertiary" />
+              </div>
+              <div className="space-y-0.5">
+                <label className="text-[9px] text-tertiary/50">Pulse Location</label>
+                <input type="text" value={vs.pulseLocation} onChange={(e) => handleFieldChange(vs.id, 'pulseLocation', e.target.value)}
+                  placeholder="Radial, Carotid..." className="w-full text-xs px-2 py-1 rounded border border-tertiary/20 bg-themewhite outline-none text-tertiary" />
               </div>
               <div className="space-y-0.5">
                 <label className="text-[9px] text-tertiary/50">BP</label>

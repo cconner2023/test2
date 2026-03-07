@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, AlertCircle, CheckCircle, Loader2 } from 'lucide-react'
+import { X, AlertCircle, CheckCircle } from 'lucide-react'
 import type { ParsedRow } from '../../Utilities/PropertyCSV'
 import type { LocalPropertyLocation, PropertyItem } from '../../Types/PropertyTypes'
 
@@ -158,7 +158,7 @@ export function PropertyCSVImport({ rows, errors, locations, clinicId, onImport,
               disabled={importing}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-themeblue3 text-white hover:bg-themeblue3/90 disabled:opacity-50 transition-colors"
             >
-              {importing && <Loader2 size={12} className="animate-spin" />}
+              {importing && <svg className="w-3 h-3 animate-spin" style={{ animationDuration: '2s' }} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><g transform="translate(20,20)"><rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" /><rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" transform="rotate(60)" /><rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" transform="rotate(120)" /></g></svg>}
               {importing ? 'Importing...' : `Import ${rows.length} Item${rows.length !== 1 ? 's' : ''}`}
             </button>
           )}

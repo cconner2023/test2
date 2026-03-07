@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Award, Plus, Star, Trash2, ChevronDown, ChevronUp, CheckCircle, AlertCircle, Clock, Minus } from 'lucide-react';
 import { useCertifications } from '../../Hooks/useCertifications';
 import { credentials } from '../../Data/User';
+import { LoadingSpinner } from '../LoadingSpinner';
+import { useMinLoadTime } from '../../Hooks/useMinLoadTime';
 import type { Certification } from '../../Data/User';
 
 type ExpirationStatus = 'valid' | 'expiring' | 'expired' | 'none';
@@ -286,6 +288,7 @@ function AddCertForm({ onAdd }: { onAdd: (input: {
 
 export const CertificationsPanel = () => {
     const { certs, loading, addCert, removeCert, togglePrimaryCert } = useCertifications();
+    const showLoading = useMinLoadTime(loading);
 
     return (
         <div className="h-full overflow-y-auto">
@@ -297,10 +300,8 @@ export const CertificationsPanel = () => {
                     </p>
                 </div>
 
-                {loading ? (
-                    <div className="flex items-center justify-center py-12">
-                        <div className="text-tertiary/60">Loading certifications...</div>
-                    </div>
+                {showLoading ? (
+                    <LoadingSpinner label="Loading certifications..." className="py-12 text-tertiary" />
                 ) : (
                     <div className="space-y-3">
                         {/* Cert list */}

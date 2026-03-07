@@ -51,6 +51,7 @@ export const InjuryPopover = memo(function InjuryPopover({ injury, onClose, onRe
           location,
           time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
           type: 'CAT',
+          tqCategory: 'Extremity',
           injuryId: injury.id,
         }
         addTourniquet(tq)
@@ -62,6 +63,7 @@ export const InjuryPopover = memo(function InjuryPopover({ injury, onClose, onRe
           applied: true,
           type: 'Combat Gauze',
           location,
+          dressingType: 'Hemostatic',
           injuryId: injury.id,
         }
         addHemostatic(h)

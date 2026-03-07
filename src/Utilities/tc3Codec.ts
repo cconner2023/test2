@@ -6,7 +6,8 @@ import { compressText, decompressText } from './textCodec'
 import type {
   TC3Card, MechanismType, InjuryType, BodySide, BodyRegion, TourniquetType,
   TreatmentCategory, TC3InjuryTreatmentLink,
-  AVPU, EvacPriority, MedRoute, IVType, NeedleDecompSide,
+  AVPU, EvacPriority, MedRoute, MedCategory, IVType, NeedleDecompSide,
+  TQCategory, DressingType,
 } from '../Types/TC3Types'
 
 // ── Encoding ──────────────────────────────────────────────────
@@ -15,9 +16,9 @@ import type {
 export function encodeTC3Card(card: TC3Card, userId?: string): string {
   const parts: string[] = ['TC3']
 
-  // C: Casualty info (compressed)
+  // C: Casualty info (compressed) — now includes sex, service, allergies
   const c = card.casualty
-  const casualtyStr = [c.battleRosterNo, c.lastName, c.firstName, c.last4, c.unit, c.dateTimeOfInjury, c.dateTimeOfTreatment].join('~')
+  const casualtyStr = [c.battleRosterNo, c.lastName, c.firstName, c.last4, c.unit, c.dateTimeOfInjury, c.dateTimeOfTreatment, c.sex, c.service, c.allergies].join('~')
   if (casualtyStr.replace(/~/g, '')) parts.push(`C${compressText(casualtyStr)}`)
 
   // M: Mechanism types + other
@@ -28,8 +29,6 @@ export function encodeTC3Card(card: TC3Card, userId?: string): string {
   }
 
   // J: Injuries (id not needed for encoding — positional)
-  // Format: x,y,F|B,type[,desc[,bodyRegion[,links]]]
-  // links = cat:id:desc&cat:id:desc (& separated)
   if (card.injuries.length > 0) {
     const injStrs = card.injuries.map(inj => {
       let s = `${Math.round(inj.x)},${Math.round(inj.y)},${inj.side === 'front' ? 'F' : 'B'},${inj.type}`
@@ -53,23 +52,24 @@ export function encodeTC3Card(card: TC3Card, userId?: string): string {
     parts.push(`J${injStrs.join(';')}`)
   }
 
-  // T: Tourniquets
+  // T: Tourniquets — now includes tqCategory
   if (card.march.massiveHemorrhage.tourniquets.length > 0) {
     const tqStrs = card.march.massiveHemorrhage.tourniquets.map(tq =>
-      `${tq.type},${tq.location},${tq.time}`
+      `${tq.type},${tq.location},${tq.time},${tq.tqCategory}`
     )
     parts.push(`T${tqStrs.join(';')}`)
   }
 
-  // K: Hemostatics
+  // K: Hemostatics / Dressings — now includes dressingType
   if (card.march.massiveHemorrhage.hemostatics.length > 0) {
     const hStrs = card.march.massiveHemorrhage.hemostatics.map(h =>
-      `${h.type},${h.location}`
+      `${h.type},${h.location},${h.dressingType}`
     )
     parts.push(`K${hStrs.join(';')}`)
   }
 
   // A: Airway (bitmask: intact=1, npa=2, cric=4, ett=8, supraglottic=16, chinLift=32)
+  // + airwayType
   {
     const a = card.march.airway
     let mask = 0
@@ -79,16 +79,21 @@ export function encodeTC3Card(card: TC3Card, userId?: string): string {
     if (a.ett) mask |= 8
     if (a.supraglottic) mask |= 16
     if (a.chinLift) mask |= 32
-    if (mask) parts.push(`A${mask.toString(36)}`)
+    if (mask || a.airwayType) {
+      let seg = `A${mask.toString(36)}`
+      if (a.airwayType) seg += `~${compressText(a.airwayType)}`
+      parts.push(seg)
+    }
   }
 
-  // R: Respiration
+  // R: Respiration — now includes chestTube
   {
     const r = card.march.respiration
     const rParts: string[] = []
     if (r.needleDecomp.performed) rParts.push(`N${encodeSide(r.needleDecomp.side)}`)
     if (r.chestSeal.applied) rParts.push(`S${encodeSide(r.chestSeal.side)}`)
     if (r.o2) rParts.push(`O${compressText(r.o2Method)}`)
+    if (r.chestTube) rParts.push('CT')
     if (rParts.length) parts.push(`R${rParts.join(',')}`)
   }
 
@@ -100,35 +105,30 @@ export function encodeTC3Card(card: TC3Card, userId?: string): string {
     parts.push(`V${ivStrs.join(';')}`)
   }
 
-  // L: Fluids
+  // L: Fluids — now includes route, time
   if (card.march.circulation.fluids.length > 0) {
-    const fStrs = card.march.circulation.fluids.map(f => `${f.type},${f.volume}`)
+    const fStrs = card.march.circulation.fluids.map(f => `${f.type},${f.volume},${f.route},${f.time}`)
     parts.push(`L${fStrs.join(';')}`)
   }
 
-  // B: Blood products
+  // B: Blood products — now includes route, time
   if (card.march.circulation.bloodProducts.length > 0) {
-    const bStrs = card.march.circulation.bloodProducts.map(b => `${b.type},${b.volume}`)
+    const bStrs = card.march.circulation.bloodProducts.map(b => `${b.type},${b.volume},${b.route},${b.time}`)
     parts.push(`B${bStrs.join(';')}`)
   }
 
-  // H: Hypothermia
-  if (card.march.hypothermia.prevention) {
-    parts.push(`H${compressText(card.march.hypothermia.method)}`)
-  }
-
-  // D: Medications administered
+  // D: Medications administered — now includes category
   if (card.medications.length > 0) {
     const mStrs = card.medications.map(m =>
-      `${m.name},${m.dose},${m.route},${m.time}`
+      `${m.name},${m.dose},${m.route},${m.time},${m.category}`
     )
     parts.push(`D${compressText(mStrs.join(';'))}`)
   }
 
-  // W: Vitals
+  // W: Vitals — now includes pulseLocation
   if (card.vitals.length > 0) {
     const vStrs = card.vitals.map(v =>
-      `${v.time},${v.pulse},${v.bp},${v.rr},${v.spo2},${v.avpu},${v.painScale}`
+      `${v.time},${v.pulse},${v.bp},${v.rr},${v.spo2},${v.avpu},${v.painScale},${v.pulseLocation}`
     )
     parts.push(`W${compressText(vStrs.join(';'))}`)
   }
@@ -148,6 +148,25 @@ export function encodeTC3Card(card: TC3Card, userId?: string): string {
   // N: Notes
   if (card.notes.trim()) {
     parts.push(`N${compressText(card.notes.trim())}`)
+  }
+
+  // O: Other section
+  {
+    const o = card.other
+    const oParts: string[] = []
+    if (o.combatPillPack) oParts.push('P')
+    if (o.eyeShield.applied) oParts.push(`E${o.eyeShield.side || '-'}`)
+    if (o.splint) oParts.push('S')
+    if (o.hypothermiaPrevention.applied) oParts.push(`H${compressText(o.hypothermiaPrevention.type)}`)
+    if (oParts.length) parts.push(`O${oParts.join(',')}`)
+  }
+
+  // F: First Responder
+  {
+    const fr = card.firstResponder
+    if (fr.lastName || fr.firstName || fr.last4) {
+      parts.push(`F${compressText([fr.lastName, fr.firstName, fr.last4].join('~'))}`)
+    }
   }
 
   // I: User ID
@@ -180,21 +199,27 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
   const card: TC3Card = {
     id: crypto.randomUUID(),
     createdAt: new Date().toISOString(),
-    casualty: { battleRosterNo: '', lastName: '', firstName: '', last4: '', unit: '', dateTimeOfInjury: '', dateTimeOfTreatment: '' },
+    casualty: { battleRosterNo: '', lastName: '', firstName: '', last4: '', unit: '', sex: '', service: '', allergies: '', dateTimeOfInjury: '', dateTimeOfTreatment: '' },
     mechanism: { types: [], otherDescription: '' },
     injuries: [],
     march: {
       massiveHemorrhage: { tourniquets: [], hemostatics: [] },
-      airway: { intact: false, npa: false, cric: false, ett: false, supraglottic: false, chinLift: false },
-      respiration: { needleDecomp: { performed: false, side: 'none' }, chestSeal: { applied: false, side: 'none' }, o2: false, o2Method: '' },
+      airway: { intact: false, npa: false, cric: false, ett: false, supraglottic: false, chinLift: false, airwayType: '' },
+      respiration: { needleDecomp: { performed: false, side: 'none' }, chestSeal: { applied: false, side: 'none' }, chestTube: false, o2: false, o2Method: '' },
       circulation: { ivAccess: [], fluids: [], bloodProducts: [] },
-      hypothermia: { prevention: false, method: '' },
     },
     medications: [],
     vitals: [],
     avpu: '',
     gcs: null,
     evacuation: { priority: '' },
+    other: {
+      combatPillPack: false,
+      eyeShield: { applied: false, side: '' },
+      splint: false,
+      hypothermiaPrevention: { applied: false, type: '' },
+    },
+    firstResponder: { lastName: '', firstName: '', last4: '' },
     notes: '',
   }
   let userId: string | null = null
@@ -215,6 +240,9 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         card.casualty.unit = segs[4] ?? ''
         card.casualty.dateTimeOfInjury = segs[5] ?? ''
         card.casualty.dateTimeOfTreatment = segs[6] ?? ''
+        card.casualty.sex = (segs[7] ?? '') as '' | 'M' | 'F'
+        card.casualty.service = segs[8] ?? ''
+        card.casualty.allergies = segs[9] ?? ''
         break
       }
       case 'M': {
@@ -227,7 +255,6 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         const injStrs = value.split(';')
         card.injuries = injStrs.map(s => {
           const segs = s.split(',')
-          // Parse treatment links if present (7th field onwards, & separated)
           let treatmentLinks: TC3InjuryTreatmentLink[] = []
           if (segs[6]) {
             treatmentLinks = segs.slice(6).join(',').split('&').map(linkStr => {
@@ -256,7 +283,13 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         const tqStrs = value.split(';')
         card.march.massiveHemorrhage.tourniquets = tqStrs.map(s => {
           const segs = s.split(',')
-          return { id: crypto.randomUUID(), type: segs[0] as TourniquetType, location: segs[1] ?? '', time: segs[2] ?? '' }
+          return {
+            id: crypto.randomUUID(),
+            type: segs[0] as TourniquetType,
+            location: segs[1] ?? '',
+            time: segs[2] ?? '',
+            tqCategory: (segs[3] ?? 'Extremity') as TQCategory,
+          }
         })
         break
       }
@@ -264,24 +297,34 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         const hStrs = value.split(';')
         card.march.massiveHemorrhage.hemostatics = hStrs.map(s => {
           const segs = s.split(',')
-          return { id: crypto.randomUUID(), applied: true, type: segs[0] ?? '', location: segs[1] ?? '' }
+          return {
+            id: crypto.randomUUID(),
+            applied: true,
+            type: segs[0] ?? '',
+            location: segs[1] ?? '',
+            dressingType: (segs[2] ?? 'Hemostatic') as DressingType,
+          }
         })
         break
       }
       case 'A': {
-        const mask = parseInt(value, 36)
+        const [maskStr, typeCompressed] = value.split('~')
+        const mask = parseInt(maskStr, 36)
         card.march.airway.intact = !!(mask & 1)
         card.march.airway.npa = !!(mask & 2)
         card.march.airway.cric = !!(mask & 4)
         card.march.airway.ett = !!(mask & 8)
         card.march.airway.supraglottic = !!(mask & 16)
         card.march.airway.chinLift = !!(mask & 32)
+        if (typeCompressed) card.march.airway.airwayType = decompressText(typeCompressed)
         break
       }
       case 'R': {
         const rParts = value.split(',')
         for (const rp of rParts) {
-          if (rp.startsWith('N')) {
+          if (rp === 'CT') {
+            card.march.respiration.chestTube = true
+          } else if (rp.startsWith('N')) {
             card.march.respiration.needleDecomp = { performed: true, side: decodeSide(rp[1]) }
           } else if (rp.startsWith('S')) {
             card.march.respiration.chestSeal = { applied: true, side: decodeSide(rp[1]) }
@@ -304,7 +347,7 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         const fStrs = value.split(';')
         card.march.circulation.fluids = fStrs.map(s => {
           const segs = s.split(',')
-          return { type: segs[0] ?? '', volume: segs[1] ?? '' }
+          return { type: segs[0] ?? '', volume: segs[1] ?? '', route: (segs[2] ?? 'IV') as MedRoute, time: segs[3] ?? '' }
         })
         break
       }
@@ -312,20 +355,22 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         const bStrs = value.split(';')
         card.march.circulation.bloodProducts = bStrs.map(s => {
           const segs = s.split(',')
-          return { type: segs[0] ?? '', volume: segs[1] ?? '' }
+          return { type: segs[0] ?? '', volume: segs[1] ?? '', route: (segs[2] ?? 'IV') as MedRoute, time: segs[3] ?? '' }
         })
-        break
-      }
-      case 'H': {
-        card.march.hypothermia.prevention = true
-        card.march.hypothermia.method = decompressText(value)
         break
       }
       case 'D': {
         const mStrs = decompressText(value).split(';')
         card.medications = mStrs.map(s => {
           const segs = s.split(',')
-          return { id: crypto.randomUUID(), name: segs[0] ?? '', dose: segs[1] ?? '', route: (segs[2] ?? 'IV') as MedRoute, time: segs[3] ?? '' }
+          return {
+            id: crypto.randomUUID(),
+            name: segs[0] ?? '',
+            dose: segs[1] ?? '',
+            route: (segs[2] ?? 'IV') as MedRoute,
+            time: segs[3] ?? '',
+            category: (segs[4] ?? 'Other') as MedCategory,
+          }
         })
         break
       }
@@ -334,8 +379,15 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
         card.vitals = vStrs.map(s => {
           const segs = s.split(',')
           return {
-            id: crypto.randomUUID(), time: segs[0] ?? '', pulse: segs[1] ?? '', bp: segs[2] ?? '',
-            rr: segs[3] ?? '', spo2: segs[4] ?? '', avpu: (segs[5] || 'A') as AVPU, painScale: segs[6] ?? '',
+            id: crypto.randomUUID(),
+            time: segs[0] ?? '',
+            pulse: segs[1] ?? '',
+            bp: segs[2] ?? '',
+            rr: segs[3] ?? '',
+            spo2: segs[4] ?? '',
+            avpu: (segs[5] || 'A') as AVPU,
+            painScale: segs[6] ?? '',
+            pulseLocation: segs[7] ?? '',
           }
         })
         break
@@ -356,6 +408,29 @@ export function parseTC3Encoding(encoded: string): ParsedTC3 | null {
       case 'N':
         card.notes = decompressText(value)
         break
+      case 'O': {
+        const oParts = value.split(',')
+        for (const op of oParts) {
+          if (op === 'P') card.other.combatPillPack = true
+          else if (op === 'S') card.other.splint = true
+          else if (op.startsWith('E')) {
+            card.other.eyeShield.applied = true
+            card.other.eyeShield.side = (op.substring(1) === '-' ? '' : op.substring(1)) as '' | 'R' | 'L' | 'both'
+          }
+          else if (op.startsWith('H')) {
+            card.other.hypothermiaPrevention.applied = true
+            card.other.hypothermiaPrevention.type = decompressText(op.substring(1))
+          }
+        }
+        break
+      }
+      case 'F': {
+        const frSegs = decompressText(value).split('~')
+        card.firstResponder.lastName = frSegs[0] ?? ''
+        card.firstResponder.firstName = frSegs[1] ?? ''
+        card.firstResponder.last4 = frSegs[2] ?? ''
+        break
+      }
       case 'I':
         if (value.length === 32) {
           userId = `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`

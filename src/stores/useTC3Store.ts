@@ -21,6 +21,7 @@ import type {
   AVPU,
   EvacPriority,
   NeedleDecompSide,
+  MedRoute,
 } from '../Types/TC3Types'
 import { getBodyRegion } from '../Utilities/bodyRegionMap'
 
@@ -34,6 +35,9 @@ function createEmptyCard(): TC3Card {
       firstName: '',
       last4: '',
       unit: '',
+      sex: '',
+      service: '',
+      allergies: '',
       dateTimeOfInjury: '',
       dateTimeOfTreatment: '',
     },
@@ -54,10 +58,12 @@ function createEmptyCard(): TC3Card {
         ett: false,
         supraglottic: false,
         chinLift: false,
+        airwayType: '',
       },
       respiration: {
         needleDecomp: { performed: false, side: 'none' },
         chestSeal: { applied: false, side: 'none' },
+        chestTube: false,
         o2: false,
         o2Method: '',
       },
@@ -66,10 +72,6 @@ function createEmptyCard(): TC3Card {
         fluids: [],
         bloodProducts: [],
       },
-      hypothermia: {
-        prevention: false,
-        method: '',
-      },
     },
     medications: [],
     vitals: [],
@@ -77,6 +79,17 @@ function createEmptyCard(): TC3Card {
     gcs: null,
     evacuation: {
       priority: '',
+    },
+    other: {
+      combatPillPack: false,
+      eyeShield: { applied: false, side: '' },
+      splint: false,
+      hypothermiaPrevention: { applied: false, type: '' },
+    },
+    firstResponder: {
+      lastName: '',
+      firstName: '',
+      last4: '',
     },
     notes: '',
   }
@@ -116,7 +129,7 @@ interface TC3Actions {
   linkTreatmentToInjury: (injuryId: string, link: TC3InjuryTreatmentLink) => void
   unlinkTreatmentFromInjury: (injuryId: string, treatmentId: string) => void
 
-  // MARCH — Massive Hemorrhage
+  // Treatments — Massive Hemorrhage
   addTourniquet: (tq: TC3Tourniquet) => void
   updateTourniquet: (id: string, fields: Partial<TC3Tourniquet>) => void
   removeTourniquet: (id: string) => void
@@ -124,24 +137,22 @@ interface TC3Actions {
   updateHemostatic: (id: string, fields: Partial<TC3Hemostatic>) => void
   removeHemostatic: (id: string) => void
 
-  // MARCH — Airway
+  // Treatments — Airway
   updateAirway: (fields: Partial<TC3Card['march']['airway']>) => void
 
-  // MARCH — Respiration
+  // Treatments — Respiration
   updateNeedleDecomp: (fields: { performed?: boolean; side?: NeedleDecompSide }) => void
   updateChestSeal: (fields: { applied?: boolean; side?: NeedleDecompSide }) => void
+  updateChestTube: (v: boolean) => void
   updateRespirationO2: (o2: boolean, method?: string) => void
 
-  // MARCH — Circulation
+  // Treatments — Circulation
   addIVAccess: (iv: TC3IVAccess) => void
   removeIVAccess: (id: string) => void
-  addFluid: (fluid: { type: string; volume: string }) => void
+  addFluid: (fluid: { type: string; volume: string; route: MedRoute; time: string }) => void
   removeFluid: (index: number) => void
-  addBloodProduct: (product: { type: string; volume: string }) => void
+  addBloodProduct: (product: { type: string; volume: string; route: MedRoute; time: string }) => void
   removeBloodProduct: (index: number) => void
-
-  // MARCH — Hypothermia
-  updateHypothermia: (fields: Partial<TC3Card['march']['hypothermia']>) => void
 
   // Medications
   addMedication: (med: TC3Medication) => void
@@ -160,13 +171,19 @@ interface TC3Actions {
   // Evacuation
   updateEvacuation: (fields: Partial<TC3Card['evacuation']>) => void
 
+  // OTHER section
+  updateOther: (fields: Partial<TC3Card['other']>) => void
+
+  // First Responder
+  updateFirstResponder: (fields: Partial<TC3Card['firstResponder']>) => void
+
   // Notes
   setNotes: (notes: string) => void
 }
 
 export type TC3Store = TC3State & TC3Actions
 
-const WIZARD_PAGE_COUNT = 8 // matches TC3_WIZARD_PAGES length
+const WIZARD_PAGE_COUNT = 7 // matches TC3_WIZARD_PAGES length
 
 export const useTC3Store = create<TC3Store>()((set) => ({
   card: createEmptyCard(),
@@ -257,7 +274,7 @@ export const useTC3Store = create<TC3Store>()((set) => ({
     },
   })),
 
-  // MARCH — Massive Hemorrhage
+  // Treatments — Massive Hemorrhage
   addTourniquet: (tq) => set((s) => ({
     card: {
       ...s.card,
@@ -335,7 +352,7 @@ export const useTC3Store = create<TC3Store>()((set) => ({
     },
   })),
 
-  // MARCH — Airway
+  // Treatments — Airway
   updateAirway: (fields) => set((s) => ({
     card: {
       ...s.card,
@@ -346,7 +363,7 @@ export const useTC3Store = create<TC3Store>()((set) => ({
     },
   })),
 
-  // MARCH — Respiration
+  // Treatments — Respiration
   updateNeedleDecomp: (fields) => set((s) => ({
     card: {
       ...s.card,
@@ -371,6 +388,15 @@ export const useTC3Store = create<TC3Store>()((set) => ({
       },
     },
   })),
+  updateChestTube: (v) => set((s) => ({
+    card: {
+      ...s.card,
+      march: {
+        ...s.card.march,
+        respiration: { ...s.card.march.respiration, chestTube: v },
+      },
+    },
+  })),
   updateRespirationO2: (o2, method) => set((s) => ({
     card: {
       ...s.card,
@@ -385,7 +411,7 @@ export const useTC3Store = create<TC3Store>()((set) => ({
     },
   })),
 
-  // MARCH — Circulation
+  // Treatments — Circulation
   addIVAccess: (iv) => set((s) => ({
     card: {
       ...s.card,
@@ -459,17 +485,6 @@ export const useTC3Store = create<TC3Store>()((set) => ({
     },
   })),
 
-  // MARCH — Hypothermia
-  updateHypothermia: (fields) => set((s) => ({
-    card: {
-      ...s.card,
-      march: {
-        ...s.card.march,
-        hypothermia: { ...s.card.march.hypothermia, ...fields },
-      },
-    },
-  })),
-
   // Medications
   addMedication: (med) => set((s) => ({
     card: { ...s.card, medications: [...s.card.medications, med] },
@@ -505,6 +520,16 @@ export const useTC3Store = create<TC3Store>()((set) => ({
   // Evacuation
   updateEvacuation: (fields) => set((s) => ({
     card: { ...s.card, evacuation: { ...s.card.evacuation, ...fields } },
+  })),
+
+  // OTHER section
+  updateOther: (fields) => set((s) => ({
+    card: { ...s.card, other: { ...s.card.other, ...fields } },
+  })),
+
+  // First Responder
+  updateFirstResponder: (fields) => set((s) => ({
+    card: { ...s.card, firstResponder: { ...s.card.firstResponder, ...fields } },
   })),
 
   // Notes

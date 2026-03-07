@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Plus, List, MapPin, AlertTriangle, Search as SearchIcon, X, Upload, Download, FileSpreadsheet, Eye, ArrowRightLeft, Trash2 } from 'lucide-react'
+import { Plus, List, MapPin, Search as SearchIcon, X, Upload, Download, FileSpreadsheet, Eye, ArrowRightLeft, Trash2 } from 'lucide-react'
 import { useProperty } from '../../Hooks/useProperty'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuth } from '../../Hooks/useAuth'
@@ -9,11 +9,11 @@ import { CardActionBar, type ActionBarAction } from '../CardActionBar'
 import { PropertyItemRow } from './PropertyItemRow'
 import { PropertyItemDetail } from './PropertyItemDetail'
 import { PropertyItemForm } from './PropertyItemForm'
-import { HandReceiptView } from './HandReceiptView'
 import { PropertyLocationMap } from './PropertyLocationMap'
 import { PropertyLocationTree } from './PropertyLocationTree'
 import { CustodyTransferForm } from './CustodyTransferForm'
-import { DiscrepancyList } from './DiscrepancyList'
+import { LoadingSpinner } from '../LoadingSpinner'
+import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { PropertyCSVImport } from './PropertyCSVImport'
 import { exportPropertyCSV, parsePropertyCSV, downloadCSVTemplate } from '../../Utilities/PropertyCSV'
 import type { ParsedRow } from '../../Utilities/PropertyCSV'
@@ -21,7 +21,7 @@ import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../..
 
 export type PropertyView = 'property' | 'property-detail' | 'property-form' | 'property-transfer'
 
-type Tab = 'list' | 'hand-receipt' | 'location-map' | 'discrepancies'
+type MobileTab = 'list' | 'location-map'
 
 interface PropertyPanelProps {
   view: PropertyView
@@ -36,17 +36,18 @@ interface PropertyPanelProps {
 export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true }: PropertyPanelProps) {
   const { user } = useAuth()
   const property = useProperty()
+  const showLoading = useMinLoadTime(property.isLoading)
   const store = usePropertyStore()
-  const [activeTab, setActiveTab] = useState<Tab>('list')
+  const [activeTab, setActiveTab] = useState<MobileTab>('list')
   const [holders, setHolders] = useState<Map<string, HolderInfo>>(new Map())
   const [clinicMembers, setClinicMembers] = useState<HolderInfo[]>([])
   const [filterQuery, setFilterQuery] = useState('')
   const [locationViewMode, setLocationViewMode] = useState<'map' | 'tree'>('map')
   const [desktopLocationId, setDesktopLocationId] = useState<string | null>(null)
-  const [isAddingSidebarLocation, setIsAddingSidebarLocation] = useState(false)
-  const [newSidebarLocationName, setNewSidebarLocationName] = useState('')
   const [csvImport, setCsvImport] = useState<{ rows: ParsedRow[]; errors: string[] } | null>(null)
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   // ── Selection state ──
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -123,19 +124,6 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     return list.sort((a, b) => a.name.localeCompare(b.name))
   }, [property.items, store.holderFilter, filterQuery, isMobile, desktopLocationId])
 
-  // Item names + holder names maps for discrepancy display
-  const itemNames = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const item of property.items) map.set(item.id, item.name)
-    return map
-  }, [property.items])
-
-  const holderNames = useMemo(() => {
-    const map = new Map<string, string>()
-    for (const [id, info] of holders) map.set(id, info.displayName)
-    return map
-  }, [holders])
-
   // ── Selection handlers ──
 
   const handleToggleSelect = useCallback((item: LocalPropertyItem) => {
@@ -197,19 +185,6 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     }
   }, [desktopLocationId, store])
 
-  const handleAddSidebarLocation = useCallback(async () => {
-    if (!newSidebarLocationName.trim()) return
-    await property.addLocation({
-      clinic_id: property.clinicId || '',
-      parent_id: desktopLocationId,
-      name: newSidebarLocationName.trim(),
-      photo_data: null,
-      created_by: user?.id || '',
-    })
-    setNewSidebarLocationName('')
-    setIsAddingSidebarLocation(false)
-  }, [newSidebarLocationName, property, desktopLocationId, user?.id])
-
   const handleDeleteItem = useCallback(async () => {
     if (!store.selectedItem) return
     if (!confirm('Delete this item? This cannot be undone.')) return
@@ -249,10 +224,10 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     clearSelection()
   }, [selectedItems, property, clearSelection])
 
-  if (property.isLoading) {
+  if (showLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="animate-spin rounded-full h-6 w-6 border-2 border-themeblue3 border-t-transparent" />
+        <LoadingSpinner className="text-tertiary" />
       </div>
     )
   }
@@ -330,6 +305,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
           onUpdateLocation={property.editLocation}
           onDeleteLocation={property.removeLocation}
           onSelectItem={handleSelectItem}
+          onUnassignItem={(id) => property.editItem(id, { location_id: null })}
           userId={user?.id || ''}
         />
       </div>
@@ -339,62 +315,102 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
   // Main panel with tabs
   return (
     <div className="flex flex-col h-full">
-      {/* Tab bar */}
-      <div className="flex border-b border-tertiary/10 px-2">
-        <TabButton icon={<List size={14} />} label="Items" active={activeTab === 'list'} onClick={() => setActiveTab('list')} />
-        <TabButton icon={<List size={14} />} label="Hand Receipt" active={activeTab === 'hand-receipt'} onClick={() => setActiveTab('hand-receipt')} />
-        {isMobile && <TabButton icon={<MapPin size={14} />} label="Locations" active={activeTab === 'location-map'} onClick={() => setActiveTab('location-map')} />}
-        <TabButton icon={<AlertTriangle size={14} />} label="Discrepancies" active={activeTab === 'discrepancies'} onClick={() => setActiveTab('discrepancies')} badge={property.discrepancies.filter((d) => d.status === 'open').length || undefined} />
-      </div>
+      {/* Mobile segmented toggle */}
+      {isMobile && (
+        <div className="flex gap-1 px-3 py-2 border-b border-tertiary/10">
+          <button
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              activeTab === 'list'
+                ? 'bg-themeblue3 text-white'
+                : 'bg-secondary/10 text-tertiary hover:text-primary'
+            }`}
+            onClick={() => setActiveTab('list')}
+          >
+            <List size={14} />
+            Items
+          </button>
+          <button
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              activeTab === 'location-map'
+                ? 'bg-themeblue3 text-white'
+                : 'bg-secondary/10 text-tertiary hover:text-primary'
+            }`}
+            onClick={() => setActiveTab('location-map')}
+          >
+            <MapPin size={14} />
+            Locations
+          </button>
+        </div>
+      )}
 
       {/* Search + CSV toolbar */}
       <div className="flex items-center gap-2 px-3 py-2">
-        <div className="flex items-center flex-1 min-w-0 bg-themewhite text-tertiary rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
-          <input
-            type="search"
-            placeholder="search"
-            value={filterQuery}
-            onChange={(e) => setFilterQuery(e.target.value)}
-            className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
-          />
-          <button
-            type="button"
-            className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full transition-all duration-300 hover:bg-themewhite shrink-0"
-            onClick={filterQuery ? () => setFilterQuery('') : undefined}
-          >
-            {filterQuery ? (
+        {isSearchExpanded ? (
+          <div className="flex items-center flex-1 min-w-0 bg-themewhite text-tertiary rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
+            <input
+              ref={searchInputRef}
+              autoFocus
+              type="search"
+              placeholder="search"
+              value={filterQuery}
+              onChange={(e) => setFilterQuery(e.target.value)}
+              onBlur={() => { if (!filterQuery) setIsSearchExpanded(false) }}
+              className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
+            />
+            <button
+              type="button"
+              className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full transition-all duration-300 hover:bg-themewhite shrink-0"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                if (filterQuery) {
+                  setFilterQuery('')
+                  searchInputRef.current?.focus()
+                } else {
+                  setIsSearchExpanded(false)
+                }
+              }}
+            >
               <X className="w-5 h-5 stroke-themeblue1" />
-            ) : (
-              <SearchIcon className="w-5 h-5 stroke-themeblue1 opacity-50" />
-            )}
-          </button>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {property.isSyncing && (
-            <span className="text-[10px] text-tertiary animate-pulse mr-1">Syncing...</span>
-          )}
-          <button
-            title="Import CSV"
-            className="h-8 flex items-center justify-center px-3 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Upload className="w-4 h-4 stroke-themeblue1" />
-          </button>
-          <button
-            title="Export CSV"
-            className="h-8 flex items-center justify-center px-3 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
-            onClick={() => exportPropertyCSV(property.items, property.locations)}
-          >
-            <Download className="w-4 h-4 stroke-themeblue1" />
-          </button>
-          <button
-            title="Download Template"
-            className="h-8 flex items-center justify-center px-3 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
-            onClick={downloadCSVTemplate}
-          >
-            <FileSpreadsheet className="w-4 h-4 stroke-themeblue1" />
-          </button>
-        </div>
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-1.5 shrink-0">
+              {property.isSyncing && (
+                <span className="text-[10px] text-tertiary animate-pulse mr-1">Syncing...</span>
+              )}
+              <button
+                title="Import CSV"
+                className="h-8 flex items-center justify-center px-3 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="w-4 h-4 stroke-themeblue1" />
+              </button>
+              <button
+                title="Export CSV"
+                className="h-8 flex items-center justify-center px-3 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
+                onClick={() => exportPropertyCSV(property.items, property.locations)}
+              >
+                <Download className="w-4 h-4 stroke-themeblue1" />
+              </button>
+              <button
+                title="Download Template"
+                className="h-8 flex items-center justify-center px-3 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
+                onClick={downloadCSVTemplate}
+              >
+                <FileSpreadsheet className="w-4 h-4 stroke-themeblue1" />
+              </button>
+            </div>
+            <div className="flex-1" />
+            <button
+              title="Search"
+              className="h-8 w-8 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300 shrink-0"
+              onClick={() => setIsSearchExpanded(true)}
+            >
+              <SearchIcon className="w-4 h-4 stroke-themeblue1 opacity-50" />
+            </button>
+          </>
+        )}
         <input
           ref={fileInputRef}
           type="file"
@@ -442,15 +458,6 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
           </>
         )}
 
-        {activeTab === 'hand-receipt' && (
-          <HandReceiptView
-            items={property.items}
-            holders={holders}
-            currentUserId={user?.id ?? null}
-            onSelectItem={handleSelectItem}
-          />
-        )}
-
         {activeTab === 'location-map' && isMobile && (
           <div className="flex flex-col">
             {/* Map / Tree toggle */}
@@ -486,6 +493,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
                 onUpdateLocation={property.editLocation}
                 onDeleteLocation={property.removeLocation}
                 onSelectItem={handleSelectItem}
+                onUnassignItem={(id) => property.editItem(id, { location_id: null })}
                 userId={user?.id || ''}
               />
             ) : (
@@ -501,14 +509,6 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
           </div>
         )}
 
-        {activeTab === 'discrepancies' && (
-          <DiscrepancyList
-            discrepancies={property.discrepancies}
-            onRectify={property.doRectifyDiscrepancy}
-            itemNames={itemNames}
-            holderNames={holderNames}
-          />
-        )}
       </div>
 
       {/* Bottom action bar — shown when items are selected */}
@@ -574,7 +574,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
       })()}
 
       {/* FAB for adding items — hidden when selection active */}
-      {!hasSelection && (activeTab === 'list' || activeTab === 'hand-receipt') && (
+      {!hasSelection && activeTab === 'list' && (
         <button
           className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-themeblue3 text-white shadow-lg flex items-center justify-center hover:bg-themeblue3/90 transition-colors"
           onClick={() => {
@@ -606,17 +606,8 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     return (
       <div className="flex h-full">
         <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
-          <div className="px-3 py-2 border-b border-tertiary/10">
-            <button
-              onClick={() => { setDesktopLocationId(null); store.resetLocationPath() }}
-              className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
-                !desktopLocationId
-                  ? 'bg-themeblue3/10 text-themeblue3'
-                  : 'text-tertiary hover:text-primary hover:bg-secondary/5'
-              }`}
-            >
-              All Locations
-            </button>
+          <div className="shrink-0 px-4 py-3 border-b border-primary/10">
+            <p className="text-xs font-medium text-tertiary/70 uppercase tracking-wide">Locations</p>
           </div>
           <div className="flex-1 overflow-y-auto">
             <PropertyLocationTree
@@ -627,43 +618,9 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
               onSelectItem={handleSelectItem}
               onMoveLocation={handleMoveLocation}
               onMoveItem={handleMoveItem}
+              onSelectAll={() => { setDesktopLocationId(null); store.resetLocationPath() }}
+              allSelected={!desktopLocationId}
             />
-          </div>
-          <div className="shrink-0 border-t border-tertiary/10 px-3 py-2">
-            {isAddingSidebarLocation ? (
-              <div className="flex items-center gap-1.5">
-                <input
-                  autoFocus
-                  type="text"
-                  placeholder="Location name"
-                  value={newSidebarLocationName}
-                  onChange={(e) => setNewSidebarLocationName(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddSidebarLocation(); if (e.key === 'Escape') { setIsAddingSidebarLocation(false); setNewSidebarLocationName('') } }}
-                  className="flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue3/40"
-                />
-                <button
-                  onClick={handleAddSidebarLocation}
-                  disabled={!newSidebarLocationName.trim()}
-                  className="px-2 py-1.5 rounded-md text-xs font-medium bg-themeblue3 text-white disabled:opacity-40 hover:bg-themeblue3/90 transition-colors"
-                >
-                  Add
-                </button>
-                <button
-                  onClick={() => { setIsAddingSidebarLocation(false); setNewSidebarLocationName('') }}
-                  className="p-1.5 rounded-md text-tertiary hover:text-primary hover:bg-secondary/5 transition-colors"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setIsAddingSidebarLocation(true)}
-                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-tertiary hover:text-primary hover:bg-secondary/5 transition-colors"
-              >
-                <Plus size={14} />
-                New Location
-              </button>
-            )}
           </div>
         </div>
         <div className="flex-1 flex flex-col min-w-0 relative">
@@ -676,29 +633,3 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
   return renderViewContent()
 }
 
-function TabButton({ icon, label, active, onClick, badge }: {
-  icon: React.ReactNode
-  label: string
-  active: boolean
-  onClick: () => void
-  badge?: number
-}) {
-  return (
-    <button
-      className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-medium border-b-2 transition-colors ${
-        active
-          ? 'border-themeblue3 text-themeblue3'
-          : 'border-transparent text-tertiary hover:text-primary'
-      }`}
-      onClick={onClick}
-    >
-      {icon}
-      {label}
-      {badge != null && badge > 0 && (
-        <span className="ml-1 px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[9px] font-medium">
-          {badge}
-        </span>
-      )}
-    </button>
-  )
-}

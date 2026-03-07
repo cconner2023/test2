@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { LogIn, ChevronDown } from 'lucide-react'
+import { LogIn } from 'lucide-react'
 import { signIn } from '../../lib/authService'
-import { supabase } from '../../lib/supabase'
 
 interface LoginPanelProps {
   onSuccess: () => void
@@ -19,49 +18,20 @@ export const LoginPanel = ({
 }: LoginPanelProps) => {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [tokenEmail, setTokenEmail] = useState('')
-  const [loginToken, setLoginToken] = useState('')
-  const [showTokenSection, setShowTokenSection] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const handleSignIn = async (email: string, pass: string) => {
+  const handlePasswordLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
     setLoading(true)
     setError(null)
-    const result = await signIn(email, pass)
+    const result = await signIn(username, password)
     if (result.error) {
       setError(result.error.message)
     } else {
       onSuccess()
     }
     setLoading(false)
-  }
-
-  const handlePasswordLogin = (e: React.FormEvent) => {
-    e.preventDefault()
-    handleSignIn(username, password)
-  }
-
-  const handleTokenLogin = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
-    const { error: otpError } = await supabase.auth.verifyOtp({
-      email: tokenEmail,
-      token: loginToken,
-      type: 'recovery',
-    })
-    if (otpError) {
-      setError(otpError.message)
-    } else {
-      onSuccess()
-    }
-    setLoading(false)
-  }
-
-  const toggleTokenSection = () => {
-    setShowTokenSection((prev) => !prev)
-    setError(null)
   }
 
   return (
@@ -122,65 +92,6 @@ export const LoginPanel = ({
             {loading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
-
-        {/* ── Token login (new account first login) ── */}
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={toggleTokenSection}
-            className="flex items-center gap-2 w-full px-4 py-3 rounded-lg bg-tertiary/10
-                     text-primary font-medium hover:bg-tertiary/20 transition-colors text-sm"
-          >
-            <ChevronDown
-              size={16}
-              className={`transition-transform ${showTokenSection ? 'rotate-180' : ''}`}
-            />
-            {showTokenSection ? 'Sign in with password instead' : 'New account? Enter your login token'}
-          </button>
-
-          {showTokenSection && (
-            <form
-              onSubmit={handleTokenLogin}
-              className="mt-3 space-y-3 p-4 rounded-lg bg-themewhite2 border border-tertiary/10"
-            >
-              <p className="text-xs text-tertiary/60">
-                Enter the username and login token from your approval email. You will be prompted to set a password after signing in.
-              </p>
-
-              <input
-                type="email"
-                value={tokenEmail}
-                onChange={(e) => setTokenEmail(e.target.value)}
-                placeholder="Username (your email)"
-                required
-                className="w-full px-3 py-2 rounded-lg bg-themewhite border border-tertiary/10
-                         focus:border-themeblue2 focus:outline-none text-primary placeholder:text-tertiary/30"
-              />
-
-              <input
-                type="text"
-                value={loginToken}
-                onChange={(e) => setLoginToken(e.target.value)}
-                placeholder="Login token (from your email)"
-                required
-                className="w-full px-3 py-2 rounded-lg bg-themewhite border border-tertiary/10
-                         focus:border-themeblue2 focus:outline-none text-primary placeholder:text-tertiary/30
-                         font-mono"
-              />
-
-              <button
-                type="submit"
-                disabled={loading}
-                className={`w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg
-                         text-white font-medium disabled:opacity-50 transition-colors text-sm
-                         ${variant === 'modal' ? 'bg-themeblue2 hover:bg-themeblue2/90' : 'bg-themeblue3 hover:bg-themeblue2/90'}`}
-              >
-                <LogIn size={16} />
-                {loading ? 'Verifying...' : 'Verify Token'}
-              </button>
-            </form>
-          )}
-        </div>
 
         {variant === 'modal' ? (
           <>

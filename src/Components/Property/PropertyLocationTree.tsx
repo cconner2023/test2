@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, MapPin, Package } from 'lucide-react'
+import { ChevronRight, ChevronDown, MapPin, Package, Layers } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
 import type { LocalPropertyLocation, LocalPropertyItem } from '../../Types/PropertyTypes'
 
@@ -12,6 +12,8 @@ interface PropertyLocationTreeProps {
   onMoveLocation?: (locationId: string, newParentId: string | null) => void
   onMoveItem?: (itemId: string, newLocationId: string | null) => void
   activeLocationId?: string | null
+  onSelectAll?: () => void
+  allSelected?: boolean
 }
 
 interface TreeNode {
@@ -49,6 +51,8 @@ export function PropertyLocationTree({
   onMoveLocation,
   onMoveItem,
   activeLocationId,
+  onSelectAll,
+  allSelected,
 }: PropertyLocationTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [dragState, setDragState] = useState<DragState | null>(null)
@@ -350,6 +354,26 @@ export function PropertyLocationTree({
 
   return (
     <div {...bindDrag()} className="flex flex-col py-1" style={{ touchAction: 'none' }}>
+      {/* All Locations node */}
+      {onSelectAll && (
+        <div
+          role="button"
+          tabIndex={0}
+          className={`flex items-center gap-1.5 py-1.5 pr-3 transition-colors cursor-pointer ${
+            allSelected
+              ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+              : 'hover:bg-secondary/5'
+          }`}
+          style={{ paddingLeft: '12px' }}
+          onClick={onSelectAll}
+          onKeyDown={(e) => { if (e.key === 'Enter') onSelectAll() }}
+        >
+          <span className="w-[18px] shrink-0" />
+          <Layers size={13} className="text-themeblue3 shrink-0" />
+          <span className="text-xs font-medium text-primary truncate">All Locations</span>
+        </div>
+      )}
+
       {roots.map((node) => renderNode(node, 0))}
 
       {/* Root drop zone — only visible when dragging a location */}

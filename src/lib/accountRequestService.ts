@@ -54,6 +54,7 @@ export interface AccountRequestSubmission {
   component?: string
   uic: string
   notes?: string
+  password?: string
 }
 
 export type SubmitResult = ServiceResult<{
@@ -81,6 +82,7 @@ export async function submitAccountRequest(
       p_uic: request.uic.toUpperCase().trim(),
       p_notes: request.notes?.trim() || null,
       p_request_type: 'new_account',
+      p_password: request.password || null,
     })
 
     if (error) {

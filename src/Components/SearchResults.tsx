@@ -1,5 +1,7 @@
 // Components/SearchResults.tsx - COMPLETE WORKING VERSION
 import type { SearchResultType } from "../Types/CatTypes";
+import { LoadingSpinner } from './LoadingSpinner';
+import { useMinLoadTime } from '../Hooks/useMinLoadTime';
 
 export interface SearchResultsProps {
     results: SearchResultType[]
@@ -56,6 +58,8 @@ export function SearchResults({
     onResultClick,
     isSearching = false
 }: SearchResultsProps) {
+    const showLoading = useMinLoadTime(isSearching)
+
     if (!searchTerm.trim()) {
         return (
             <div className="h-full w-full mx-5 py-2 flex items-center justify-center text-tertiary">
@@ -65,14 +69,9 @@ export function SearchResults({
     }
 
     // Searching state
-    if (isSearching) {
+    if (showLoading) {
         return (
-            <div className="h-full w-full flex items-center justify-center text-themeblue1">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-themeblue3 mx-auto mb-3"></div>
-                    <p>Searching for "{searchTerm}"...</p>
-                </div>
-            </div>
+            <LoadingSpinner size="md" label={`Searching for "${searchTerm}"...`} className="h-full w-full text-tertiary" />
         )
     }
 

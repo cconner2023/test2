@@ -1,21 +1,12 @@
-import { memo, useState } from 'react'
+import { memo } from 'react'
 import { Plus, X } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
-import type { TC3Tourniquet, TC3Hemostatic, TC3IVAccess, TourniquetType, IVType, NeedleDecompSide } from '../../Types/TC3Types'
+import type { TC3Tourniquet, TC3Hemostatic, TourniquetType, TQCategory, DressingType, NeedleDecompSide } from '../../Types/TC3Types'
 import { getRegionLabel } from '../../Utilities/bodyRegionMap'
 
-type MARCHTab = 'M' | 'A' | 'R' | 'C' | 'H'
-
-const TAB_LABELS: { key: MARCHTab; label: string; full: string }[] = [
-  { key: 'M', label: 'M', full: 'Massive Hemorrhage' },
-  { key: 'A', label: 'A', full: 'Airway' },
-  { key: 'R', label: 'R', full: 'Respiration' },
-  { key: 'C', label: 'C', full: 'Circulation' },
-  { key: 'H', label: 'H', full: 'Hypothermia' },
-]
-
 const TOURNIQUET_TYPES: TourniquetType[] = ['CAT', 'SOFT-T', 'other']
-const IV_TYPES: IVType[] = ['IV', 'IO']
+const TQ_CATEGORIES: TQCategory[] = ['Extremity', 'Junctional', 'Truncal']
+const DRESSING_TYPES: DressingType[] = ['Hemostatic', 'Pressure', 'Other']
 const SIDE_OPTIONS: NeedleDecompSide[] = ['none', 'left', 'right', 'bilateral']
 
 const CheckField = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
@@ -51,8 +42,8 @@ function InjuryBadge({ injuryId }: { injuryId?: string }) {
   )
 }
 
-// ── M: Massive Hemorrhage ─────────────────────
-const MassiveHemorrhagePanel = memo(function MassiveHemorrhagePanel() {
+// ── C: Hemorrhage Control ─────────────────────
+const HemorrhagePanel = memo(function HemorrhagePanel() {
   const tourniquets = useTC3Store((s) => s.card.march.massiveHemorrhage.tourniquets)
   const hemostatics = useTC3Store((s) => s.card.march.massiveHemorrhage.hemostatics)
   const addTourniquet = useTC3Store((s) => s.addTourniquet)
@@ -66,42 +57,74 @@ const MassiveHemorrhagePanel = memo(function MassiveHemorrhagePanel() {
       location: '',
       time: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }),
       type: 'CAT',
+      tqCategory: 'Extremity',
     }
     addTourniquet(tq)
   }
 
+  const handleAddDressing = () => {
+    const h: TC3Hemostatic = {
+      id: crypto.randomUUID(),
+      applied: true,
+      type: 'Combat Gauze',
+      location: '',
+      dressingType: 'Hemostatic',
+    }
+    addHemostatic(h)
+  }
+
   return (
     <div className="space-y-4">
-      {/* Tourniquets */}
+      {/* TQ Section */}
       <div className="space-y-2">
-        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Tourniquets</p>
+        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">C: TQ (Tourniquets)</p>
         {tourniquets.map((tq) => (
-          <div key={tq.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-tertiary/15 bg-themewhite2">
-            <select
-              value={tq.type}
-              onChange={(e) => useTC3Store.getState().updateTourniquet(tq.id, { type: e.target.value as TourniquetType })}
-              className="text-xs bg-transparent border-none outline-none text-tertiary"
-            >
-              {TOURNIQUET_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <input
-              type="text"
-              value={tq.location}
-              onChange={(e) => useTC3Store.getState().updateTourniquet(tq.id, { location: e.target.value })}
-              placeholder="Location"
-              className="flex-1 text-xs px-2 py-1 rounded border border-tertiary/20 bg-themewhite outline-none text-tertiary"
-            />
-            <input
-              type="text"
-              value={tq.time}
-              onChange={(e) => useTC3Store.getState().updateTourniquet(tq.id, { time: e.target.value })}
-              placeholder="Time"
-              className="w-16 text-xs px-2 py-1 rounded border border-tertiary/20 bg-themewhite outline-none text-tertiary"
-            />
-            <InjuryBadge injuryId={tq.injuryId} />
-            <button onClick={() => removeTourniquet(tq.id)} className="p-1 hover:bg-themeredred/10 rounded transition-colors">
-              <X size={14} className="text-themeredred/60" />
-            </button>
+          <div key={tq.id} className="space-y-2 px-3 py-2 rounded-lg border border-tertiary/15 bg-themewhite2">
+            <div className="flex items-center gap-2">
+              {/* Category */}
+              <div className="flex gap-1">
+                {TQ_CATEGORIES.map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => useTC3Store.getState().updateTourniquet(tq.id, { tqCategory: cat })}
+                    className={`px-2 py-1 rounded text-[10px] font-medium border transition-all
+                      ${tq.tqCategory === cat
+                        ? 'border-themeredred/25 bg-themeredred/10 text-primary'
+                        : 'border-tertiary/15 text-tertiary/60'
+                      }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+              <InjuryBadge injuryId={tq.injuryId} />
+              <button onClick={() => removeTourniquet(tq.id)} className="ml-auto p-1 hover:bg-themeredred/10 rounded transition-colors">
+                <X size={14} className="text-themeredred/60" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={tq.type}
+                onChange={(e) => useTC3Store.getState().updateTourniquet(tq.id, { type: e.target.value as TourniquetType })}
+                className="text-xs bg-transparent border border-tertiary/20 rounded px-1.5 py-1 outline-none text-tertiary"
+              >
+                {TOURNIQUET_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              <input
+                type="text"
+                value={tq.location}
+                onChange={(e) => useTC3Store.getState().updateTourniquet(tq.id, { location: e.target.value })}
+                placeholder="Location"
+                className="flex-1 text-xs px-2 py-1 rounded border border-tertiary/20 bg-themewhite outline-none text-tertiary"
+              />
+              <input
+                type="text"
+                value={tq.time}
+                onChange={(e) => useTC3Store.getState().updateTourniquet(tq.id, { time: e.target.value })}
+                placeholder="Time"
+                className="w-16 text-xs px-2 py-1 rounded border border-tertiary/20 bg-themewhite outline-none text-tertiary"
+              />
+            </div>
           </div>
         ))}
         <button
@@ -112,23 +135,55 @@ const MassiveHemorrhagePanel = memo(function MassiveHemorrhagePanel() {
         </button>
       </div>
 
-      {/* Hemostatics */}
+      {/* Dressing Section */}
       <div className="space-y-2">
-        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Hemostatic Agents</p>
+        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Dressing</p>
         {hemostatics.map((h) => (
-          <div key={h.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-tertiary/15 bg-themewhite2">
-            <span className="text-xs text-tertiary">{h.type || 'Hemostatic'} — {h.location || 'N/A'}</span>
-            <InjuryBadge injuryId={h.injuryId} />
-            <button onClick={() => removeHemostatic(h.id)} className="ml-auto p-1 hover:bg-themeredred/10 rounded transition-colors">
-              <X size={14} className="text-themeredred/60" />
-            </button>
+          <div key={h.id} className="space-y-2 px-3 py-2 rounded-lg border border-tertiary/15 bg-themewhite2">
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1">
+                {DRESSING_TYPES.map(dt => (
+                  <button
+                    key={dt}
+                    onClick={() => useTC3Store.getState().updateHemostatic(h.id, { dressingType: dt })}
+                    className={`px-2 py-1 rounded text-[10px] font-medium border transition-all
+                      ${h.dressingType === dt
+                        ? 'border-themeredred/25 bg-themeredred/10 text-primary'
+                        : 'border-tertiary/15 text-tertiary/60'
+                      }`}
+                  >
+                    {dt}
+                  </button>
+                ))}
+              </div>
+              <InjuryBadge injuryId={h.injuryId} />
+              <button onClick={() => removeHemostatic(h.id)} className="ml-auto p-1 hover:bg-themeredred/10 rounded transition-colors">
+                <X size={14} className="text-themeredred/60" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                value={h.type}
+                onChange={(e) => useTC3Store.getState().updateHemostatic(h.id, { type: e.target.value })}
+                placeholder="Type (Combat Gauze, etc.)"
+                className="flex-1 text-xs px-2 py-1 rounded border border-tertiary/20 bg-themewhite outline-none text-tertiary"
+              />
+              <input
+                type="text"
+                value={h.location}
+                onChange={(e) => useTC3Store.getState().updateHemostatic(h.id, { location: e.target.value })}
+                placeholder="Location"
+                className="flex-1 text-xs px-2 py-1 rounded border border-tertiary/20 bg-themewhite outline-none text-tertiary"
+              />
+            </div>
           </div>
         ))}
         <button
-          onClick={() => addHemostatic({ id: crypto.randomUUID(), applied: true, type: 'Combat Gauze', location: '' })}
+          onClick={handleAddDressing}
           className="flex items-center gap-1.5 text-[11px] text-themeredred hover:text-themeredred/80 transition-colors px-1 py-1"
         >
-          <Plus size={14} /> <span>Add Hemostatic</span>
+          <Plus size={14} /> <span>Add Dressing</span>
         </button>
       </div>
     </div>
@@ -141,30 +196,63 @@ const AirwayPanel = memo(function AirwayPanel() {
   const updateAirway = useTC3Store((s) => s.updateAirway)
 
   return (
-    <div className="space-y-2">
-      <CheckField label="Intact / No intervention" checked={airway.intact} onChange={(v) => updateAirway({ intact: v })} />
-      <CheckField label="NPA (Nasopharyngeal Airway)" checked={airway.npa} onChange={(v) => updateAirway({ npa: v })} />
-      <CheckField label="Cricothyrotomy (Cric)" checked={airway.cric} onChange={(v) => updateAirway({ cric: v })} />
-      <CheckField label="ETT (Endotracheal Tube)" checked={airway.ett} onChange={(v) => updateAirway({ ett: v })} />
-      <CheckField label="Supraglottic Airway" checked={airway.supraglottic} onChange={(v) => updateAirway({ supraglottic: v })} />
-      <CheckField label="Chin Lift / Jaw Thrust" checked={airway.chinLift} onChange={(v) => updateAirway({ chinLift: v })} />
+    <div className="space-y-3">
+      <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">A: Airway</p>
+      <div className="space-y-2">
+        <CheckField label="Intact / No intervention" checked={airway.intact} onChange={(v) => updateAirway({ intact: v })} />
+        <CheckField label="NPA (Nasopharyngeal Airway)" checked={airway.npa} onChange={(v) => updateAirway({ npa: v })} />
+        <CheckField label="CRIC (Cricothyrotomy)" checked={airway.cric} onChange={(v) => updateAirway({ cric: v })} />
+        <CheckField label="ET-Tube (Endotracheal)" checked={airway.ett} onChange={(v) => updateAirway({ ett: v })} />
+        <CheckField label="SGA (Supraglottic Airway)" checked={airway.supraglottic} onChange={(v) => updateAirway({ supraglottic: v })} />
+      </div>
+      {/* Airway Type field */}
+      <div className="space-y-1">
+        <label className="text-[10px] text-tertiary/50">Type</label>
+        <input
+          type="text"
+          value={airway.airwayType}
+          onChange={(e) => updateAirway({ airwayType: e.target.value })}
+          placeholder="Airway type / size..."
+          className="w-full text-xs px-3 py-2 rounded-lg border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+        />
+      </div>
     </div>
   )
 })
 
-// ── R: Respiration ────────────────────────────
-const RespirationPanel = memo(function RespirationPanel() {
+// ── B: Breathing / Respiration ────────────────
+const BreathingPanel = memo(function BreathingPanel() {
   const respiration = useTC3Store((s) => s.card.march.respiration)
   const updateNeedleDecomp = useTC3Store((s) => s.updateNeedleDecomp)
   const updateChestSeal = useTC3Store((s) => s.updateChestSeal)
+  const updateChestTube = useTC3Store((s) => s.updateChestTube)
   const updateRespirationO2 = useTC3Store((s) => s.updateRespirationO2)
 
   return (
-    <div className="space-y-4">
-      {/* Needle Decompression */}
+    <div className="space-y-3">
+      <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">B: Breathing</p>
       <div className="space-y-2">
+        {/* O2 */}
         <CheckField
-          label="Needle Decompression"
+          label="O2 (Supplemental Oxygen)"
+          checked={respiration.o2}
+          onChange={(v) => updateRespirationO2(v)}
+        />
+        {respiration.o2 && (
+          <div className="pl-6">
+            <input
+              type="text"
+              value={respiration.o2Method}
+              onChange={(e) => updateRespirationO2(true, e.target.value)}
+              placeholder="Method (NRB, NC, BVM...)"
+              className="w-full text-xs px-3 py-2 rounded-lg border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
+            />
+          </div>
+        )}
+
+        {/* Needle-D */}
+        <CheckField
+          label="Needle-D (Needle Decompression)"
           checked={respiration.needleDecomp.performed}
           onChange={(v) => updateNeedleDecomp({ performed: v })}
         />
@@ -185,12 +273,17 @@ const RespirationPanel = memo(function RespirationPanel() {
             ))}
           </div>
         )}
-      </div>
 
-      {/* Chest Seal */}
-      <div className="space-y-2">
+        {/* Chest-Tube */}
         <CheckField
-          label="Chest Seal"
+          label="Chest-Tube"
+          checked={respiration.chestTube}
+          onChange={(v) => updateChestTube(v)}
+        />
+
+        {/* Chest-Seal */}
+        <CheckField
+          label="Chest-Seal"
           checked={respiration.chestSeal.applied}
           onChange={(v) => updateChestSeal({ applied: v })}
         />
@@ -212,142 +305,27 @@ const RespirationPanel = memo(function RespirationPanel() {
           </div>
         )}
       </div>
-
-      {/* O2 */}
-      <div className="space-y-2">
-        <CheckField
-          label="Supplemental O2"
-          checked={respiration.o2}
-          onChange={(v) => updateRespirationO2(v)}
-        />
-        {respiration.o2 && (
-          <div className="pl-6">
-            <input
-              type="text"
-              value={respiration.o2Method}
-              onChange={(e) => updateRespirationO2(true, e.target.value)}
-              placeholder="Method (NRB, NC, BVM...)"
-              className="w-full text-xs px-3 py-2 rounded-lg border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
-            />
-          </div>
-        )}
-      </div>
     </div>
   )
 })
 
-// ── C: Circulation ────────────────────────────
-const CirculationPanel = memo(function CirculationPanel() {
-  const circulation = useTC3Store((s) => s.card.march.circulation)
-  const addIVAccess = useTC3Store((s) => s.addIVAccess)
-  const removeIVAccess = useTC3Store((s) => s.removeIVAccess)
-
-  const handleAddIV = () => {
-    const iv: TC3IVAccess = { id: crypto.randomUUID(), type: 'IV', site: '', gauge: '18g' }
-    addIVAccess(iv)
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* IV/IO Access */}
-      <div className="space-y-2">
-        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">IV/IO Access</p>
-        {circulation.ivAccess.map((iv) => (
-          <div key={iv.id} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-tertiary/15 bg-themewhite2">
-            <select
-              value={iv.type}
-              onChange={(e) => useTC3Store.getState().removeIVAccess(iv.id) || addIVAccess({ ...iv, type: e.target.value as IVType })}
-              className="text-xs bg-transparent border-none outline-none text-tertiary"
-            >
-              {IV_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-            </select>
-            <input
-              type="text"
-              value={iv.site}
-              onChange={() => {}}
-              placeholder="Site"
-              className="flex-1 text-xs px-2 py-1 rounded border border-tertiary/20 bg-themewhite outline-none text-tertiary"
-            />
-            <span className="text-xs text-tertiary/60">{iv.gauge}</span>
-            <button onClick={() => removeIVAccess(iv.id)} className="p-1 hover:bg-themeredred/10 rounded transition-colors">
-              <X size={14} className="text-themeredred/60" />
-            </button>
-          </div>
-        ))}
-        <button onClick={handleAddIV} className="flex items-center gap-1.5 text-[11px] text-themeredred hover:text-themeredred/80 transition-colors px-1 py-1">
-          <Plus size={14} /> <span>Add IV/IO</span>
-        </button>
-      </div>
-    </div>
-  )
-})
-
-// ── H: Hypothermia ────────────────────────────
-const HypothermiaPanel = memo(function HypothermiaPanel() {
-  const hypothermia = useTC3Store((s) => s.card.march.hypothermia)
-  const updateHypothermia = useTC3Store((s) => s.updateHypothermia)
-
-  return (
-    <div className="space-y-3">
-      <CheckField
-        label="Hypothermia Prevention Measures"
-        checked={hypothermia.prevention}
-        onChange={(v) => updateHypothermia({ prevention: v })}
-      />
-      {hypothermia.prevention && (
-        <div className="pl-6">
-          <input
-            type="text"
-            value={hypothermia.method}
-            onChange={(e) => updateHypothermia({ method: e.target.value })}
-            placeholder="Method (Blanket, HPMK, Ready-Heat...)"
-            className="w-full text-xs px-3 py-2 rounded-lg border border-tertiary/20 bg-themewhite outline-none focus:border-themeredred/40 text-tertiary"
-          />
-        </div>
-      )}
-    </div>
-  )
-})
-
-// ── Main MARCH Form ───────────────────────────
+// ── Main Treatments Form (replaces MARCH tabs) ──
 export const MARCHForm = memo(function MARCHForm() {
-  const [activeTab, setActiveTab] = useState<MARCHTab>('M')
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <div>
-        <h3 className="text-sm font-semibold text-primary mb-1">MARCH Protocol</h3>
-        <p className="text-[11px] text-tertiary/70">DD 1380 Section 4 — Tactical treatment</p>
+        <h3 className="text-sm font-semibold text-primary mb-1">Treatments</h3>
+        <p className="text-[11px] text-tertiary/70">DD 1380 — Tactical treatment (C / A / B)</p>
       </div>
 
-      {/* MARCH tabs */}
-      <div className="flex gap-1 bg-tertiary/5 rounded-xl p-1">
-        {TAB_LABELS.map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
-            className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all
-              ${activeTab === tab.key
-                ? 'bg-themeredred text-white shadow-sm'
-                : 'text-tertiary hover:bg-tertiary/10'
-              }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {/* C: Hemorrhage Control */}
+      <HemorrhagePanel />
 
-      {/* Tab subtitle */}
-      <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">
-        {TAB_LABELS.find(t => t.key === activeTab)?.full}
-      </p>
+      {/* A: Airway */}
+      <AirwayPanel />
 
-      {/* Tab content */}
-      {activeTab === 'M' && <MassiveHemorrhagePanel />}
-      {activeTab === 'A' && <AirwayPanel />}
-      {activeTab === 'R' && <RespirationPanel />}
-      {activeTab === 'C' && <CirculationPanel />}
-      {activeTab === 'H' && <HypothermiaPanel />}
+      {/* B: Breathing */}
+      <BreathingPanel />
     </div>
   )
 })

@@ -8,6 +8,7 @@ import { PasswordLockScreen } from './PasswordLockScreen'
 import { SetPasswordScreen } from './SetPasswordScreen'
 import { UserAcknowledgment, hasAcceptedAcknowledgment, recordAcknowledgment } from './UserAcknowledgment'
 import { LoginScreen } from './LoginScreen'
+import { LoadingSpinner } from './LoadingSpinner'
 
 const INITIAL_PW_UNLOCKED_KEY = 'adtmc_initial_pw_unlocked'
 
@@ -15,13 +16,7 @@ const INITIAL_PW_UNLOCKED_KEY = 'adtmc_initial_pw_unlocked'
 function LoadingScreen() {
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-themewhite dark:bg-[rgba(25,35,45,1)]">
-      <svg className="w-16 h-16 animate-spin" style={{ animationDuration: '2s' }} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <g transform="translate(20,20)">
-          <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-[rgba(0,66,92,1)]" />
-          <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-[rgba(0,66,92,1)]" transform="rotate(60)" />
-          <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-[rgba(0,66,92,1)]" transform="rotate(120)" />
-        </g>
-      </svg>
+      <LoadingSpinner size="lg" className="text-[rgba(0,66,92,1)]" />
       <div className="mt-4 font-semibold text-lg tracking-[2px] text-[rgba(0,66,92,1)] dark:text-[rgba(129,161,181,1)]">
         ADTMC
       </div>

@@ -3,6 +3,7 @@ import type { Component } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import { submitAccountRequest, checkRequestStatus, type AccountRequest } from '../../lib/accountRequestService'
 import { TextInput, SelectInput } from '../FormInputs'
+import { validatePasswordComplexity } from '../../lib/constants'
 
 const LOCAL_STORAGE_TOKEN_KEY = 'account_request_token'
 const LOCAL_STORAGE_EMAIL_KEY = 'account_request_email'
@@ -41,6 +42,8 @@ export const AccountRequestForm = () => {
   const [rank, setRank] = useState('')
   const [uic, setUic] = useState('')
   const [notes, setNotes] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
   // Token for status checks (returned after submission)
   const [statusCheckToken, setStatusCheckToken] = useState('')
@@ -90,8 +93,13 @@ export const AccountRequestForm = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSubmitting(true)
     setError(null)
+
+    const pwError = validatePasswordComplexity(password)
+    if (pwError) { setError(pwError); return }
+    if (password !== confirmPassword) { setError('Passwords do not match'); return }
+
+    setSubmitting(true)
 
     const result = await submitAccountRequest({
       email,
@@ -103,6 +111,7 @@ export const AccountRequestForm = () => {
       rank: rank || undefined,
       uic,
       notes: notes || undefined,
+      password,
     })
 
     setSubmitting(false)
@@ -195,7 +204,7 @@ export const AccountRequestForm = () => {
 
             {requestStatus.status === 'approved' && (
               <p className="text-sm mt-3 italic">
-                Your request has been approved! Check your email for your username and one-time login token.
+                Your account has been approved! You can now sign in with your email and the password you set when you submitted your request.
               </p>
             )}
 
@@ -297,6 +306,13 @@ export const AccountRequestForm = () => {
 
           <div className={component ? '' : 'md:col-span-2'}>
             <TextInput label="Notes (optional)" value={notes} onChange={setNotes} placeholder="Anything else we should know?" />
+          </div>
+
+          <div className="md:col-span-2">
+            <TextInput label="Password" value={password} onChange={setPassword} type="password" placeholder="Min 12 chars, upper, lower, digit, special" required />
+          </div>
+          <div className="md:col-span-2">
+            <TextInput label="Confirm Password" value={confirmPassword} onChange={setConfirmPassword} type="password" placeholder="Re-enter password" required />
           </div>
 
           <button

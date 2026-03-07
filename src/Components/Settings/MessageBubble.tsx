@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
-import { Check, X, Loader2, CheckCircle2, Circle, Copy, Pencil, Reply, Trash2, Clock, MessageSquare } from 'lucide-react'
+import { Check, X, CheckCircle2, Circle, Copy, Pencil, Reply, Trash2, Clock, MessageSquare } from 'lucide-react'
 import { GESTURE_THRESHOLDS } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
@@ -274,7 +274,13 @@ export function MessageBubble({
             />
           ) : imageLoading ? (
             <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-              <Loader2 size={20} className="animate-spin text-white/70" />
+              <svg className="w-5 h-5 animate-spin text-white/70" style={{ animationDuration: '2s' }} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <g transform="translate(20,20)">
+                  <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" />
+                  <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" transform="rotate(60)" />
+                  <rect x="-3" y="-11" width="6" height="22" rx="1.5" fill="currentColor" transform="rotate(120)" />
+                </g>
+              </svg>
             </div>
           ) : null}
         </div>

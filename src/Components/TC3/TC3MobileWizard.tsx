@@ -11,8 +11,8 @@ import { MARCHForm } from './MARCHForm'
 import { MedicationsForm } from './MedicationsForm'
 import { FluidsPanel } from './FluidsPanel'
 import { NotesPanel } from './NotesPanel'
-import { EvacuationForm } from './EvacuationForm'
 import { TC3WriteNote } from './TC3WriteNote'
+import { OtherSectionMobile, FirstResponderMobile } from './TC3OtherMobile'
 
 const PAGES = TC3_WIZARD_PAGES
 
@@ -107,8 +107,9 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
             {wizardStep === 5 && <MedicationsForm />}
             {wizardStep === 6 && (
               <div className="space-y-6">
-                <EvacuationForm />
+                <OtherSectionMobile />
                 <NotesPanel />
+                <FirstResponderMobile />
               </div>
             )}
           </div>

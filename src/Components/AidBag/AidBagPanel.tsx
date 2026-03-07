@@ -10,6 +10,8 @@ import { isExpired, isExpiringSoon, isLowStock } from '../../Types/AidBagTypes'
 import { aidBagCategories } from '../../Data/AidBagCategories'
 import { useAidBagStore } from '../../stores/useAidBagStore'
 import { AidBagCategoryGroup } from './AidBagCategoryGroup'
+import { LoadingSpinner } from '../LoadingSpinner'
+import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 
 interface AidBagPanelProps {
   items: AidBagItem[]
@@ -19,6 +21,7 @@ interface AidBagPanelProps {
 }
 
 export const AidBagPanel = memo(function AidBagPanel({ items, isLoading, bagLayouts, bagLayoutsLoading }: AidBagPanelProps) {
+  const showLoading = useMinLoadTime(isLoading)
   const openAddForm = useAidBagStore(s => s.openAddForm)
   const openEditForm = useAidBagStore(s => s.openEditForm)
   const collapsedCategories = useAidBagStore(s => s.collapsedCategories)
@@ -59,11 +62,9 @@ export const AidBagPanel = memo(function AidBagPanel({ items, isLoading, bagLayo
   // Show layouts section when there are layouts, or when there are items (potential to create layouts)
   const showLayouts = bagLayouts.length > 0 || items.length > 0
 
-  if (isLoading) {
+  if (showLoading) {
     return (
-      <div className="flex items-center justify-center py-20 text-tertiary text-sm">
-        Loading inventory...
-      </div>
+      <LoadingSpinner label="Loading inventory..." className="py-20 text-tertiary" />
     )
   }
 

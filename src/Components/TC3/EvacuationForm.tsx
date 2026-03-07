@@ -4,10 +4,8 @@ import type { EvacPriority } from '../../Types/TC3Types'
 
 const EVAC_PRIORITIES: { value: EvacPriority; label: string; description: string }[] = [
   { value: 'Urgent', label: 'Urgent', description: 'Within 2 hours to save life, limb, or eyesight' },
-  { value: 'Urgent-Surgical', label: 'Urgent Surgical', description: 'Requires surgical intervention within 2 hours' },
   { value: 'Priority', label: 'Priority', description: 'Within 4 hours to prevent deterioration' },
   { value: 'Routine', label: 'Routine', description: 'Within 24 hours, no expected deterioration' },
-  { value: 'Convenience', label: 'Convenience', description: 'Next available transport' },
 ]
 
 export const EvacuationForm = memo(function EvacuationForm() {
@@ -18,7 +16,7 @@ export const EvacuationForm = memo(function EvacuationForm() {
     <div className="space-y-5">
       <div>
         <h3 className="text-sm font-semibold text-primary mb-1">Evacuation</h3>
-        <p className="text-[11px] text-tertiary/70">DD 1380 Section 8 — Evacuation priority and additional notes</p>
+        <p className="text-[11px] text-tertiary/70">DD 1380 — Evacuation priority</p>
       </div>
 
       {/* Evacuation Priority */}
