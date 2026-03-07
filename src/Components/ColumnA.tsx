@@ -66,7 +66,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate }: ColumnAProps) {
         {/* Panel 0: Main categories */}
         <div className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
           <div
-            className="px-2 min-h-full"
+            className="px-2 md:px-0 min-h-full"
             style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' } : undefined}
           >
             <CategoryList
@@ -83,7 +83,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate }: ColumnAProps) {
           style={{ flex: `0 0 ${panelWidth}` }}
         >
           <div
-            className="px-2 min-h-full"
+            className="px-2 md:px-0 min-h-full"
             style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' } : undefined}
           >
             <CategoryList
@@ -96,7 +96,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate }: ColumnAProps) {
         {/* Panel 2: Symptom info (desktop only) */}
         {!isMobile && (
           <div className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
-            <div className="px-2 min-h-full">
+            <div className="px-2 md:px-0 min-h-full">
               <CategoryList
                 mobilePanel="guidelines"
                 onNavigate={onNavigate}

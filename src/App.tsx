@@ -24,6 +24,9 @@ import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useAuth } from './Hooks/useAuth'
 import { useAuthStore } from './stores/useAuthStore'
 import { TrainingDrawer } from './Components/TrainingDrawer'
+import { TrainingFullDrawer } from './Components/TrainingFullDrawer'
+import { MessagesDrawer } from './Components/MessagesDrawer'
+import { PropertyDrawer } from './Components/PropertyDrawer'
 import { getTaskData } from './Data/TrainingData'
 import { LockGate } from './Components/LockGate'
 import { ErrorBoundary } from './Components/ErrorBoundary'
@@ -66,7 +69,7 @@ function AppContent() {
   const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
 
   // ── Settings/training targeting state (lightweight replacement for useActiveNote) ──
-  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'training' | 'messages'>('main')
+  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes'>('main')
   const [initialTrainingTaskId, setInitialTrainingTaskId] = useState<string | null>(null)
   const [initialPeerId, setInitialPeerId] = useState<string | null>(null)
   const [initialGroupId, setInitialGroupId] = useState<string | null>(null)
@@ -85,8 +88,7 @@ function AppContent() {
     } else if (_initialViewParam === 'import') {
       navigation.setShowNoteImport(true)
     } else if (_initialViewParam === 'training') {
-      setSettingsInitialPanel('training')
-      navigation.setShowSettings(true)
+      navigation.setShowTrainingPanel(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -101,19 +103,31 @@ function AppContent() {
   }, [navigation.showNoteImport, importInitialView])
 
   const openTrainingTask = useCallback((taskId: string) => {
-    setSettingsInitialPanel('training')
     setInitialTrainingTaskId(taskId)
-  }, [])
+    navigation.setShowTrainingPanel(true)
+  }, [navigation.setShowTrainingPanel])
 
   const resetSettingsPanel = useCallback(() => {
     setSettingsInitialPanel('main')
+  }, [])
+
+  const handleTrainingClick = useCallback(() => {
     setInitialTrainingTaskId(null)
+    navigation.setShowTrainingPanel(true)
+  }, [navigation.setShowTrainingPanel])
+
+  const handleMessagesClick = useCallback(() => {
     setInitialPeerId(null)
     setInitialGroupId(null)
     setInitialPeerName(null)
-  }, [])
+    navigation.setShowMessagesDrawer(true)
+  }, [navigation.setShowMessagesDrawer])
 
-  // Callback for notification toast tap — opens Settings to the target conversation
+  const handlePropertyClick = useCallback(() => {
+    navigation.setShowPropertyDrawer(true)
+  }, [navigation.setShowPropertyDrawer])
+
+  // Callback for notification toast tap — opens MessagesDrawer to the target conversation
   const handleNotificationTap = useCallback((n: MessageNotification) => {
     if (n.isGroup && n.groupId) {
       setInitialGroupId(n.groupId)
@@ -124,9 +138,8 @@ function AppContent() {
       setInitialGroupId(null)
       setInitialPeerName(n.senderName)
     }
-    setSettingsInitialPanel('messages')
-    navigation.setShowSettings(true)
-  }, [navigation])
+    navigation.setShowMessagesDrawer(true)
+  }, [navigation.setShowMessagesDrawer])
 
   // Cross-column swipe: swipe back from Column B (algorithm) to Column A
   const swipe = useSwipeNavigation({
@@ -153,7 +166,6 @@ function AppContent() {
           navigation.setShowTrainingDrawer(taskId)
         } else {
           openTrainingTask(taskId)
-          navigation.setShowSettings(true)
         }
       }
 
@@ -196,11 +208,11 @@ function AppContent() {
     // Navigation state change drives the grid column transition and Column A carousel
     navigation.handleNavigation(result)
     search.clearSearch()
-  }, [navigation.handleNavigation, search.clearSearch, navigation.setShowTrainingDrawer, navigation.isMobile, navigation.setShowSettings, openTrainingTask])
+  }, [navigation.handleNavigation, search.clearSearch, navigation.setShowTrainingDrawer, navigation.isMobile, openTrainingTask])
 
   const clearSearchAndCollapse = useCallback(() => {
     search.clearSearch()
-    if (navigation.isMobile && navigation.isSearchExpanded) {
+    if (navigation.isSearchExpanded) {
       navigation.setSearchExpanded(false)
     }
   }, [search, navigation])
@@ -241,7 +253,7 @@ function AppContent() {
     <MessagesProvider>
     <CallProvider>
     <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
-      <div id="app-drawer-root" className="max-w-315 shrink flex-col w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1 relative md:bg-themewhite md:pb-10">
+      <div id="app-drawer-root" className="flex max-w-315 shrink flex-col w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1 relative md:bg-themewhite md:pb-10">
         {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
         <div className={`${navigation.isMobile
           ? 'absolute top-0 left-0 right-0 z-30 pt-[env(safe-area-inset-top)] backdrop-blur-xs bg-themewhite/10'
@@ -267,6 +279,9 @@ function AppContent() {
               onMedicationClick: navigation.handleShowMedications,
               onSettingsClick: () => navigation.setShowSettings(true),
               onInfoClick: navigation.toggleSymptomInfo,
+              onTrainingClick: handleTrainingClick,
+              onMessagesClick: handleMessagesClick,
+              onPropertyClick: handlePropertyClick,
             }}
             ui={{
               showBack: navigation.shouldShowBackButton(!!search.searchInput.trim()),
@@ -281,7 +296,7 @@ function AppContent() {
         </div>
 
         {/* Content area — TC3 mode uses dedicated layouts; normal mode uses 2-column grid */}
-        <div className="md:h-[94%] h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
+        <div className="md:flex-1 h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
           {tc3Mode ? (
             // TC3 mode: mobile wizard or desktop 2-column front/back layout
             navigation.isMobile ? (
@@ -370,10 +385,6 @@ function AppContent() {
           isDarkMode={theme === 'dark'}
           onToggleTheme={toggleTheme}
           initialPanel={settingsInitialPanel}
-          initialTrainingTaskId={initialTrainingTaskId}
-          initialPeerId={initialPeerId}
-          initialGroupId={initialGroupId}
-          initialPeerName={initialPeerName}
         />
         </ErrorBoundary>
         <ErrorBoundary>
@@ -398,6 +409,28 @@ function AppContent() {
           isVisible={navigation.showTrainingDrawer}
           onClose={() => navigation.setShowTrainingDrawer(null)}
           taskId={navigation.trainingDrawerTaskId}
+        />
+        </ErrorBoundary>
+        <ErrorBoundary>
+        <TrainingFullDrawer
+          isVisible={navigation.showTrainingPanel}
+          onClose={() => { navigation.setShowTrainingPanel(false); setInitialTrainingTaskId(null) }}
+          initialTaskId={initialTrainingTaskId}
+        />
+        </ErrorBoundary>
+        <ErrorBoundary>
+        <MessagesDrawer
+          isVisible={navigation.showMessagesDrawer}
+          onClose={() => { navigation.setShowMessagesDrawer(false); setInitialPeerId(null); setInitialGroupId(null); setInitialPeerName(null) }}
+          initialPeerId={initialPeerId}
+          initialGroupId={initialGroupId}
+          initialPeerName={initialPeerName}
+        />
+        </ErrorBoundary>
+        <ErrorBoundary>
+        <PropertyDrawer
+          isVisible={navigation.showPropertyDrawer}
+          onClose={() => navigation.setShowPropertyDrawer(false)}
         />
         </ErrorBoundary>
         {/* WriteNotePage — BaseDrawer handles mobile/desktop positioning */}

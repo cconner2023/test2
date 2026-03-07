@@ -3,14 +3,25 @@ import { stp68wTraining } from './TrainingTaskList';
 
 export const menuData: sideMenuDataType[] = [
     {
+        text: "Import Note",
+        icon: 'import',
+        action: 'import'
+    },
+    {
         text: "Medications",
         icon: 'pill',
         action: 'medications'
     },
     {
-        text: "Import New Note",
-        icon: 'import',
-        action: 'import'
+        text: "Property Book",
+        icon: 'property',
+        action: 'property',
+        gateKey: 'property'
+    },
+    {
+        text: "Training",
+        icon: 'training',
+        action: 'training'
     },
     {
         text: 'Settings',

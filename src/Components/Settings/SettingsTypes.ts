@@ -11,7 +11,6 @@ export const PANEL = {
     RELEASE_NOTES: 4,
     AVATAR_PICKER: 5,
     USER_PROFILE: 6,
-    TRAINING: 7,
     ADMIN: 8,
     SUPERVISOR: 9,
     GUEST_OPTIONS: 11,
@@ -24,8 +23,6 @@ export const PANEL = {
     PRIVACY_POLICY: 21,
     CHANGE_PASSWORD: 22,
     CERTIFICATIONS: 23,
-    MESSAGES: 24,
-    PROPERTY: 25,
     LORA: 26,
     SESSIONS_DEVICES: 27,
 } as const;
@@ -37,7 +34,6 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.RELEASE_NOTES]: 'release-notes',
     [PANEL.AVATAR_PICKER]: 'avatar-picker',
     [PANEL.USER_PROFILE]: 'user-profile',
-    [PANEL.TRAINING]: 'training',
     [PANEL.ADMIN]: 'admin',
     [PANEL.SUPERVISOR]: 'supervisor',
     [PANEL.GUEST_OPTIONS]: 'guest-options',
@@ -50,8 +46,6 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.PRIVACY_POLICY]: 'privacy-policy',
     [PANEL.CHANGE_PASSWORD]: 'change-password',
     [PANEL.CERTIFICATIONS]: 'certifications',
-    [PANEL.MESSAGES]: 'messages',
-    [PANEL.PROPERTY]: 'property',
     [PANEL.LORA]: 'lora',
     [PANEL.SESSIONS_DEVICES]: 'sessions-devices',
 };

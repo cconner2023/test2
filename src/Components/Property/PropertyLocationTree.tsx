@@ -11,6 +11,7 @@ interface PropertyLocationTreeProps {
   onSelectItem: (item: LocalPropertyItem) => void
   onMoveLocation?: (locationId: string, newParentId: string | null) => void
   onMoveItem?: (itemId: string, newLocationId: string | null) => void
+  activeLocationId?: string | null
 }
 
 interface TreeNode {
@@ -47,6 +48,7 @@ export function PropertyLocationTree({
   onSelectItem,
   onMoveLocation,
   onMoveItem,
+  activeLocationId,
 }: PropertyLocationTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [dragState, setDragState] = useState<DragState | null>(null)
@@ -252,6 +254,7 @@ export function PropertyLocationTree({
     const totalItems = countAllItems(node)
     const isDragSource = dragState?.id === node.location.id
     const isDropTarget = dropTargetId === node.location.id
+    const isActive = activeLocationId === node.location.id
 
     return (
       <div key={node.location.id}>
@@ -262,7 +265,9 @@ export function PropertyLocationTree({
           } ${
             isDropTarget
               ? 'bg-themeblue3/10 ring-1 ring-themeblue3/30'
-              : 'hover:bg-secondary/5'
+              : isActive
+                ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
+                : 'hover:bg-secondary/5'
           }`}
           style={{ paddingLeft: `${12 + depth * 20}px` }}
           data-drag-id={node.location.id}

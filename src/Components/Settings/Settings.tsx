@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, BookOpen, UserCog, Lock, MessageSquare, Mail, Bell, Stethoscope, ClipboardCheck, Scale, Package, Radio } from 'lucide-react';
+import { Moon, Sun, Shield, UserCog, Lock, MessageSquare, Bell, Stethoscope, ClipboardCheck, Scale, Radio } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -13,8 +13,6 @@ import { AdminPanel } from './AdminPanel';
 import { SupervisorPanel } from './SupervisorPanel';
 import { GuestOptionsPanel } from './GuestOptionsPanel';
 import { LoginPanel } from './LoginPanel';
-import { TrainingPanel, type TrainingView } from './TrainingPanel';
-import { MessagesPanel, type MessagesView } from './MessagesPanel';
 import { PinSetupPanel } from './PinSetupPanel';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { FeedbackPanel } from './FeedbackPanel';
@@ -23,9 +21,6 @@ import { NoteContentPanel } from './NoteContentPanel';
 import { ProfilePage } from './ProfilePage';
 import { ChangePasswordPanel } from './ChangePasswordPanel';
 import { CertificationsPanel } from './CertificationsPanel';
-import type { subjectAreaArrayOptions } from '../../Types/CatTypes';
-import { stp68wTraining } from '../../Data/TrainingTaskList';
-import { getTaskData } from '../../Data/TrainingData';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../Hooks/useAuth';
 import { clearAllUserData } from '../../lib/offlineDb';
@@ -35,26 +30,16 @@ import { UI_TIMING } from '../../Utilities/constants';
 import { MainSettingsPanel } from './MainSettingsPanel';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
 import { ContentWrapper } from './ContentWrapper';
-import { useMessagesContext } from '../../Hooks/MessagesContext';
-import { PropertyPanel, type PropertyView } from '../Property/PropertyPanel';
 import { LoRaPanel } from './LoRaPanel';
 import { SessionsDevicesPanel } from './SessionsDevicesPanel';
-import { PROPERTY_MANAGEMENT_ENABLED, LORA_MESH_ENABLED } from '../../lib/featureFlags';
+import { LORA_MESH_ENABLED } from '../../lib/featureFlags';
 
 interface SettingsDrawerProps {
     isVisible: boolean;
     onClose: () => void;
     isDarkMode: boolean;
     onToggleTheme: () => void;
-    initialPanel?: 'main' | 'release-notes' | 'training' | 'messages';
-    /** When set alongside initialPanel='training', deep-links to a specific training task */
-    initialTrainingTaskId?: string | null;
-    /** Deep-link to a specific 1:1 conversation (requires initialPanel='messages') */
-    initialPeerId?: string | null;
-    /** Deep-link to a specific group conversation (requires initialPanel='messages') */
-    initialGroupId?: string | null;
-    /** Display name for the deep-linked conversation */
-    initialPeerName?: string | null;
+    initialPanel?: 'main' | 'release-notes';
 }
 
 export const Settings = ({
@@ -63,29 +48,15 @@ export const Settings = ({
     isDarkMode,
     onToggleTheme,
     initialPanel,
-    initialTrainingTaskId,
-    initialPeerId,
-    initialGroupId,
-    initialPeerName,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'lora' | 'sessions-devices' | TrainingView | MessagesView | PropertyView>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'lora' | 'sessions-devices'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
-    const [selectedTask, setSelectedTask] = useState<subjectAreaArrayOptions | null>(null);
-    const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null);
-    const [selectedPeerName, setSelectedPeerName] = useState<string | null>(null);
-    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
-    const [selectedPropertyItemName, setSelectedPropertyItemName] = useState<string | null>(null);
     const prevVisibleRef = useRef(false);
     const supervisorBackRef = useRef<(() => void) | null>(null);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
     const { user, signOut, isAuthenticated, isDevRole, isSupervisorRole } = useAuth();
-    const messagesCtx = useMessagesContext();
-    const totalUnread = useMemo(() => {
-        if (!messagesCtx) return 0;
-        return Object.values(messagesCtx.unreadCounts).reduce((sum, n) => sum + n, 0);
-    }, [messagesCtx?.unreadCounts]);
 
     // Supabase realtime WebSocket for device status — active only while settings is open
     useEffect(() => {
@@ -108,58 +79,11 @@ export const Settings = ({
     // Set initial panel when drawer opens
     useEffect(() => {
         if (isVisible && !prevVisibleRef.current) {
-            // Deep-link to a specific training task if requested
-            if (initialPanel === 'training' && initialTrainingTaskId && getTaskData(initialTrainingTaskId)) {
-                // Find the task across all skill levels for deep-linking
-                let foundTask: subjectAreaArrayOptions | null = null;
-
-                for (let levelIdx = 0; levelIdx < stp68wTraining.length && !foundTask; levelIdx++) {
-                    const level = stp68wTraining[levelIdx];
-                    for (let areaIdx = 0; areaIdx < level.subjectArea.length && !foundTask; areaIdx++) {
-                        const area = level.subjectArea[areaIdx];
-                        const taskIdx = area.tasks.findIndex(t => t.id === initialTrainingTaskId);
-                        if (taskIdx !== -1) {
-                            const task = area.tasks[taskIdx];
-                            foundTask = {
-                                id: taskIdx,
-                                icon: task.id,
-                                text: task.title,
-                                isParent: false,
-                                parentId: areaIdx,
-                            };
-                        }
-                    }
-                }
-
-                if (foundTask) {
-                    setSelectedTask(foundTask);
-                    setActivePanel('training-detail');
-                    setSlideDirection('');
-                } else {
-                    setActivePanel('training');
-                    setSlideDirection('');
-                }
-            } else if (initialPanel === 'messages' && (initialPeerId || initialGroupId)) {
-                // Deep-link to a specific conversation
-                if (initialGroupId) {
-                    setSelectedGroupId(initialGroupId);
-                    setSelectedPeerId(null);
-                    setSelectedPeerName(initialPeerName ?? 'Group');
-                    setActivePanel('messages-group-chat');
-                } else if (initialPeerId) {
-                    setSelectedPeerId(initialPeerId);
-                    setSelectedGroupId(null);
-                    setSelectedPeerName(initialPeerName ?? 'Chat');
-                    setActivePanel('messages-chat');
-                }
-                setSlideDirection('');
-            } else {
-                setActivePanel(initialPanel || 'main');
-                setSlideDirection('');
-            }
+            setActivePanel(initialPanel || 'main');
+            setSlideDirection('');
         }
         prevVisibleRef.current = isVisible;
-    }, [isVisible, initialPanel, initialTrainingTaskId, initialPeerId, initialGroupId, initialPeerName]);
+    }, [isVisible, initialPanel]);
 
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
         setSlideDirection(direction);
@@ -172,10 +96,6 @@ export const Settings = ({
 
         // Toggle theme has no panel navigation
         if (id === PANEL.TOGGLE_THEME) return;
-
-        // Training / Messages need extra reset
-        if (id === PANEL.TRAINING) setSelectedTask(null);
-        if (id === PANEL.MESSAGES) setSelectedPeerId(null);
 
         // Look up the target panel name from the constant map
         const target = PANEL_TARGET[id];
@@ -197,19 +117,10 @@ export const Settings = ({
             ...overrides,
         });
 
-        const items: SettingsItem[] = [
-            // Top section (no header)
-            opt(PANEL.TRAINING, <BookOpen size={20} />, 'My Training'),
-        ];
+        const items: SettingsItem[] = [];
 
-        if (isAuthenticated) {
-            items.push(opt(PANEL.MESSAGES, <Mail size={20} />, 'Messages', totalUnread > 0 ? { badge: totalUnread } : undefined));
-            if (PROPERTY_MANAGEMENT_ENABLED) {
-                items.push(opt(PANEL.PROPERTY, <Package size={20} />, 'Property Book'));
-            }
-            if (LORA_MESH_ENABLED || isDevRole) {
-                items.push(opt(PANEL.LORA, <Radio size={20} />, 'LoRa Mesh'));
-            }
+        if (isAuthenticated && (LORA_MESH_ENABLED || isDevRole)) {
+            items.push(opt(PANEL.LORA, <Radio size={20} />, 'LoRa Mesh'));
         }
 
         // ROLES section - only if user has supervisor or admin roles
@@ -237,111 +148,12 @@ export const Settings = ({
         );
 
         return items;
-    }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isSupervisorRole, isAuthenticated, totalUnread]);
-
-    // Messages panel navigation helpers
-    // Intra-messages transitions skip ContentWrapper animation —
-    // MessagesPanel animates only its right content area so the sidebar stays put.
-    const handleMessagesSelectPeer = useCallback((medic: import('../../Types/SupervisorTestTypes').ClinicMedic) => {
-        setSelectedPeerId(medic.id);
-        setSelectedGroupId(null);
-        const isSelf = medic.id === user?.id;
-        const name = isSelf
-            ? [profile.rank, profile.lastName].filter(Boolean).join(' ') || profile.firstName || 'Notes'
-            : [medic.rank, medic.lastName].filter(Boolean).join(' ') || medic.firstName || 'Chat';
-        setSelectedPeerName(name);
-        setActivePanel('messages-chat');
-    }, [user?.id, profile.rank, profile.lastName, profile.firstName]);
-
-    const handleMessagesSelectGroup = useCallback((group: import('../../lib/signal/groupTypes').GroupInfo) => {
-        setSelectedGroupId(group.groupId);
-        setSelectedPeerId(null);
-        setSelectedPeerName(group.name);
-        setActivePanel('messages-group-chat');
-    }, []);
-
-    const handleMessagesBack = useCallback(() => {
-        if (activePanel === 'messages-chat' || activePanel === 'messages-group-chat') {
-            setActivePanel('messages');
-            setSelectedPeerId(null);
-            setSelectedPeerName(null);
-            setSelectedGroupId(null);
-            if (messagesCtx) messagesCtx.activePeerRef.current = null;
-        } else if (activePanel === 'messages') {
-            handleSlideAnimation('right');
-            setActivePanel('main');
-        }
-    }, [activePanel, handleSlideAnimation, messagesCtx]);
-
-    // Training panel navigation helpers
-    const handleTrainingSelectTask = useCallback((task: subjectAreaArrayOptions) => {
-        setSelectedTask(task);
-        handleSlideAnimation('left');
-        setActivePanel('training-detail');
-    }, [handleSlideAnimation]);
-
-    const handleTrainingBack = useCallback(() => {
-        if (activePanel === 'training-detail') {
-            handleSlideAnimation('right');
-            setActivePanel('training');
-            setSelectedTask(null);
-        } else if (activePanel === 'training') {
-            handleSlideAnimation('right');
-            setActivePanel('main');
-        }
-    }, [activePanel, handleSlideAnimation]);
-
-    // Property panel navigation helpers
-    const handlePropertySelectItem = useCallback((item: import('../../Types/PropertyTypes').LocalPropertyItem) => {
-        setSelectedPropertyItemName(item.name);
-        handleSlideAnimation('left');
-        setActivePanel('property-detail');
-    }, [handleSlideAnimation]);
-
-    const handlePropertyAddItem = useCallback(() => {
-        setSelectedPropertyItemName(null);
-        handleSlideAnimation('left');
-        setActivePanel('property-form');
-    }, [handleSlideAnimation]);
-
-    const handlePropertyEditItem = useCallback((item: import('../../Types/PropertyTypes').LocalPropertyItem) => {
-        setSelectedPropertyItemName(item.name);
-        handleSlideAnimation('left');
-        setActivePanel('property-form');
-    }, [handleSlideAnimation]);
-
-    const handlePropertyTransfer = useCallback(() => {
-        handleSlideAnimation('left');
-        setActivePanel('property-transfer');
-    }, [handleSlideAnimation]);
-
-    const handlePropertyBack = useCallback(() => {
-        if (activePanel === 'property-transfer') {
-            handleSlideAnimation('right');
-            setActivePanel('property-detail');
-        } else if (activePanel === 'property-detail' || activePanel === 'property-form') {
-            handleSlideAnimation('right');
-            setActivePanel('property');
-            setSelectedPropertyItemName(null);
-        } else if (activePanel === 'property') {
-            handleSlideAnimation('right');
-            setActivePanel('main');
-        }
-    }, [activePanel, handleSlideAnimation]);
+    }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isSupervisorRole, isAuthenticated]);
 
     // Swipe-back for sub-panels (mobile touch only)
     const swipeHandlers = useSwipeBack(
         useMemo(() => {
             if (activePanel === 'main') return undefined;
-            if (activePanel === 'training-detail' || activePanel === 'training') {
-                return handleTrainingBack;
-            }
-            if (activePanel === 'messages-chat' || activePanel === 'messages-group-chat' || activePanel === 'messages') {
-                return handleMessagesBack;
-            }
-            if (activePanel === 'property' || activePanel === 'property-detail' || activePanel === 'property-form' || activePanel === 'property-transfer') {
-                return handlePropertyBack;
-            }
             // Sub-panels of the profile hub go back to user-profile
             if (activePanel === 'user-profile-details' || activePanel === 'change-password' || activePanel === 'certifications') {
                 return () => { handleSlideAnimation('right'); setActivePanel('user-profile'); };
@@ -354,7 +166,7 @@ export const Settings = ({
                 return () => { handleSlideAnimation('right'); setActivePanel('pin-setup'); };
             }
             return () => { handleSlideAnimation('right'); setActivePanel('main'); };
-        }, [activePanel, handleSlideAnimation, handleTrainingBack, handleMessagesBack, handlePropertyBack]),
+        }, [activePanel, handleSlideAnimation]),
         activePanel !== 'main',
     );
 
@@ -368,8 +180,6 @@ export const Settings = ({
         switch (activePanel) {
             case 'main':
                 return { title: 'Settings' };
-            case 'training-detail':
-                return { title: selectedTask?.text || 'Task', showBack: true, onBack: handleTrainingBack };
             case 'supervisor':
                 return { title: 'Supervisor', showBack: true, onBack: () => { supervisorBackRef.current?.(); } };
             case 'profile-change-request':
@@ -384,14 +194,6 @@ export const Settings = ({
             case 'release-notes':       return { title: 'Release Notes', ...backTo() };
             case 'avatar-picker':       return { title: 'Choose Avatar', ...backTo() };
             case 'user-profile':        return { title: 'Profile', ...backTo() };
-            case 'messages':            return { title: 'Messages', ...backTo() };
-            case 'messages-chat':       return { title: 'Messages', showBack: true, onBack: handleMessagesBack };
-            case 'messages-group-chat': return { title: 'Messages', showBack: true, onBack: handleMessagesBack };
-            case 'training':            return { title: 'My Training', ...backTo() };
-            case 'property':            return { title: 'Property Book', ...backTo() };
-            case 'property-detail':     return { title: selectedPropertyItemName ?? 'Item', showBack: true, onBack: handlePropertyBack };
-            case 'property-transfer':   return { title: 'Transfer Custody', showBack: true, onBack: handlePropertyBack };
-            case 'property-form':       return { title: selectedPropertyItemName ? 'Edit Item' : 'Add Item', showBack: true, onBack: handlePropertyBack };
             case 'lora':                return { title: 'LoRa Mesh', ...backTo() };
             case 'sessions-devices':    return { title: 'Sessions & Devices', ...backTo('pin-setup') };
             case 'admin':               return { title: 'Admin Panel', ...backTo() };
@@ -402,20 +204,16 @@ export const Settings = ({
             case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
             case 'note-content':        return { title: 'Note Content', ...backTo() };
         }
-    }, [activePanel, backTo, selectedTask, selectedPeerName, selectedPropertyItemName, handleTrainingBack, handleMessagesBack, handlePropertyBack]);
-
-    const isConversationView = activePanel === 'messages-chat' || activePanel === 'messages-group-chat';
-    const isMessagesActive = activePanel === 'messages' || isConversationView;
+    }, [activePanel, backTo]);
 
     return (
         <BaseDrawer
             isVisible={isVisible}
-            onClose={() => { setActivePanel('main'); setSlideDirection(''); setSelectedTask(null); setSelectedPeerId(null); setSelectedPeerName(null); setSelectedGroupId(null); setSelectedPropertyItemName(null); if (messagesCtx) messagesCtx.activePeerRef.current = null; onClose(); }}
+            onClose={() => { setActivePanel('main'); setSlideDirection(''); onClose(); }}
             fullHeight="90dvh"
             disableDrag={false}
+            desktopPosition="left"
             header={headerConfig}
-            mobileFullScreen={isConversationView}
-            desktopWidth={isMessagesActive ? 'w-[70%]' : undefined}
         >
             {(handleClose) => (
                 <ContentWrapper slideDirection={slideDirection} swipeHandlers={activePanel !== 'main' ? swipeHandlers : undefined}>
@@ -539,27 +337,9 @@ export const Settings = ({
                                 setActivePanel('sessions-devices');
                             } : undefined}
                         />
-                    ) : (activePanel === 'training' || activePanel === 'training-detail') ? (
-                        <TrainingPanel
-                            view={activePanel}
-                            selectedTask={selectedTask}
-                            onSelectTask={handleTrainingSelectTask}
-                        />
                     ) : null}
 
                     {/* Pre-mounted panels — data loads when Settings opens, hidden until active */}
-                    {isAuthenticated && (
-                        <div className="h-full" style={{ display: activePanel === 'messages' || activePanel === 'messages-chat' || activePanel === 'messages-group-chat' ? undefined : 'none' }}>
-                            <MessagesPanel
-                                view={(activePanel === 'messages' || activePanel === 'messages-chat' || activePanel === 'messages-group-chat') ? activePanel : 'messages'}
-                                selectedPeerId={selectedPeerId}
-                                selectedGroupId={selectedGroupId}
-                                onSelectPeer={handleMessagesSelectPeer}
-                                onSelectGroup={handleMessagesSelectGroup}
-                                onBack={handleMessagesBack}
-                            />
-                        </div>
-                    )}
                     {isSupervisorRole && (
                         <div className="h-full" style={{ display: activePanel === 'supervisor' ? undefined : 'none' }}>
                             <SupervisorPanel
@@ -571,18 +351,6 @@ export const Settings = ({
                     {isDevRole && (
                         <div className="h-full" style={{ display: activePanel === 'admin' ? undefined : 'none' }}>
                             <AdminPanel />
-                        </div>
-                    )}
-                    {isAuthenticated && PROPERTY_MANAGEMENT_ENABLED && (
-                        <div className="h-full relative" style={{ display: activePanel === 'property' || activePanel === 'property-detail' || activePanel === 'property-form' || activePanel === 'property-transfer' ? undefined : 'none' }}>
-                            <PropertyPanel
-                                view={(activePanel === 'property' || activePanel === 'property-detail' || activePanel === 'property-form' || activePanel === 'property-transfer') ? activePanel as PropertyView : 'property'}
-                                onSelectItem={handlePropertySelectItem}
-                                onAddItem={handlePropertyAddItem}
-                                onEditItem={handlePropertyEditItem}
-                                onTransferItem={handlePropertyTransfer}
-                                onBack={handlePropertyBack}
-                            />
                         </div>
                     )}
                     {isAuthenticated && (LORA_MESH_ENABLED || isDevRole) && (

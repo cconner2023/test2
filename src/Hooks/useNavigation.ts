@@ -45,6 +45,9 @@ export function useNavigation() {
         writeNoteData: s.writeNoteData,
         showTrainingDrawer: s.showTrainingDrawer,
         trainingDrawerTaskId: s.trainingDrawerTaskId,
+        showMessagesDrawer: s.showMessagesDrawer,
+        showPropertyDrawer: s.showPropertyDrawer,
+        showTrainingPanel: s.showTrainingPanel,
 
         // Derived selectors
         showQuestionCard: selectShowQuestionCard(s),
@@ -68,6 +71,9 @@ export function useNavigation() {
         toggleSymptomInfo: s.toggleSymptomInfo,
         setShowSymptomInfo: s.setShowSymptomInfo,
         setShowTrainingDrawer: s.setShowTrainingDrawer,
+        setShowMessagesDrawer: s.setShowMessagesDrawer,
+        setShowPropertyDrawer: s.setShowPropertyDrawer,
+        setShowTrainingPanel: s.setShowTrainingPanel,
         showWriteNote: s.openWriteNote,
         closeWriteNote: s.closeWriteNote,
         resetToMain: s.resetToMain,

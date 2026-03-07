@@ -1,12 +1,14 @@
 // NavTop.tsx - Simplified version with grouped props
-import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, HelpCircle } from "lucide-react";
+import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, HelpCircle, BookOpen, Mail, Package } from "lucide-react";
 import { useRef, useEffect, useMemo } from "react";
 import { useSpring, useTrail, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { useAvatar } from "../Utilities/AvatarContext";
 import { useAuth } from "../Hooks/useAuth";
+import { useMessagesContext } from "../Hooks/MessagesContext";
 import { getInitials } from "../Utilities/nameUtils";
 import { createLogger } from "../Utilities/Logger";
+import { PROPERTY_MANAGEMENT_ENABLED } from "../lib/featureFlags";
 
 const logger = createLogger('NavTop');
 import { menuData as allMenuData } from "../Data/CatData";
@@ -15,12 +17,20 @@ import { menuData as allMenuData } from "../Data/CatData";
 const iconMap: Record<string, React.ReactNode> = {
     'import': <Upload size={16} className="text-primary/70" />,
     'medications': <Pill size={16} className="text-primary/70" />,
+    'training': <BookOpen size={16} className="text-primary/70" />,
+    'messages': <Mail size={16} className="text-primary/70" />,
+    'property': <Package size={16} className="text-primary/70" />,
     'settings': <Settings size={16} className="text-primary/70" />,
 };
 
 export function NavTop({ search, actions, ui }: NavTopProps) {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
-    const { profile } = useAuth()
+    const { profile, isAuthenticated } = useAuth()
+    const messagesCtx = useMessagesContext()
+    const totalUnread = useMemo(() => {
+        if (!messagesCtx) return 0
+        return Object.values(messagesCtx.unreadCounts).reduce((sum, n) => sum + n, 0)
+    }, [messagesCtx?.unreadCounts])
 
     // Destructure grouped props for cleaner usage
     const {
@@ -42,6 +52,9 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         onMedicationClick,
         onSettingsClick,
         onInfoClick,
+        onTrainingClick,
+        onMessagesClick,
+        onPropertyClick,
     } = actions
 
     const {
@@ -53,7 +66,12 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         isMenuOpen = false,
     } = ui
 
-    const menuData = useMemo(() => allMenuData, []);
+    const menuData = useMemo(() => allMenuData.filter(item => {
+        if (!item.gateKey) return true
+        if (item.gateKey === 'authenticated') return isAuthenticated
+        if (item.gateKey === 'property') return isAuthenticated && PROPERTY_MANAGEMENT_ENABLED
+        return true
+    }), [isAuthenticated]);
 
     // Refs and computed values
     const internalInputRef = useRef<HTMLInputElement>(null);
@@ -61,6 +79,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
     const hasSearchInput = searchInput.trim().length > 0;
 
     // Mobile-specific UI flags
+    const shouldShowMessagesButton = isMobile && isAuthenticated && !isSearchExpanded;
     const shouldShowInfoButton = isMobile && isAlgorithmView && !isSearchExpanded;
     // Menu spring: container expansion
     const containerSpring = useSpring({
@@ -99,6 +118,16 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         config: { tension: 260, friction: 24 },
     });
 
+    // Desktop search spring: animates spacer / container flex + overlay reveal
+    const desktopSearchSpring = useSpring({
+        spacerFlex: isSearchExpanded ? 0 : 1,
+        containerFlex: isSearchExpanded ? 1 : 0,
+        overlayOpacity: isSearchExpanded ? 1 : 0,
+        overlayScale: isSearchExpanded ? 1 : 0.97,
+        buttonsOpacity: isSearchExpanded ? 0 : 1,
+        config: { tension: 260, friction: 26 },
+    });
+
     // Menu spring: staggered item reveal
     const menuItemTrail = useTrail(menuData.length, {
         opacity: isMenuOpen ? 1 : 0,
@@ -115,6 +144,15 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                 break;
             case 'medications':
                 onMedicationClick?.();
+                break;
+            case 'training':
+                onTrainingClick?.();
+                break;
+            case 'messages':
+                onMessagesClick?.();
+                break;
+            case 'property':
+                onPropertyClick?.();
                 break;
             case 'settings':
                 onSettingsClick?.();
@@ -142,7 +180,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
     // Handle search input focus
     const handleSearchFocus = () => {
-        if (isMobile && !isSearchExpanded && onSearchExpandToggle) {
+        if (!isSearchExpanded && onSearchExpandToggle) {
             onSearchExpandToggle();
         }
         onSearchFocus?.();
@@ -150,7 +188,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
 
     // Handle search input blur
     const handleSearchBlur = () => {
-        if (isMobile && !hasSearchInput && isSearchExpanded) {
+        if (!hasSearchInput && isSearchExpanded) {
             onSearchCollapse?.();
         }
     };
@@ -175,7 +213,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
     };
 
     return (
-        <div className={`flex items-center h-full w-full px-2 transition-all duration-300 md:bg-themewhite bg-transparent`}>
+        <div className={`flex items-center h-full w-full px-2 md:pl-4 transition-all duration-300 md:bg-themewhite bg-transparent`}>
             {/* Left section: buttons - hidden when mobile search is expanded */}
             {(!isMobile || !isSearchExpanded) && (
                 <div className="flex items-center shrink-0">
@@ -272,8 +310,13 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                                 transform: style.y.to(y => `translateY(${y}px)`),
                                             }}
                                         >
-                                            <div className="mr-3">
+                                            <div className="mr-3 relative">
                                                 {iconMap[menuData[index].action] || <HelpCircle size={16} className="text-primary/70" />}
+                                                {menuData[index].badge && totalUnread > 0 && (
+                                                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                                                        {totalUnread > 99 ? '99+' : totalUnread}
+                                                    </span>
+                                                )}
                                             </div>
                                             <span className="tracking-wide text-sm text-primary/80 font-medium">
                                                 {menuData[index].text}
@@ -285,9 +328,30 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                         </div>
                     )}
 
-                    {/* Desktop buttons - no menu button */}
+                    {/* Desktop buttons - avatar + back + medications + training + property */}
                     {!isMobile && (
-                        <div className="flex justify-center items-center shrink-0">
+                        <div className="flex justify-center items-center shrink-0 gap-2">
+                            {/* Avatar — opens Settings */}
+                            <button
+                                onClick={onSettingsClick}
+                                className="w-8 h-8 rounded-full overflow-hidden shrink-0 active:scale-95 transition-transform"
+                                aria-label="Profile"
+                                title="Settings"
+                            >
+                                {isCustom && customImage ? (
+                                    <img src={customImage} alt="Profile" className="w-full h-full object-cover rounded-full" />
+                                ) : isInitials ? (
+                                    <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
+                                        <span className="text-xs font-semibold text-themeblue2">
+                                            {getInitials(profile.firstName, profile.lastName)}
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="w-full h-full rounded-full overflow-hidden">
+                                        {currentAvatar.svg}
+                                    </div>
+                                )}
+                            </button>
                             <animated.div
                                 className="overflow-hidden shrink-0"
                                 style={{
@@ -323,6 +387,32 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                     {medicationButtonText}
                                 </span>
                             </button>
+                            {/* Training */}
+                            <button
+                                onClick={onTrainingClick}
+                                className={BUTTON_CLASSES.desktop}
+                                aria-label="Training"
+                                title="Training"
+                            >
+                                <BookOpen className="w-4 h-4 stroke-themeblue1" />
+                                <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
+                                    Training
+                                </span>
+                            </button>
+                            {/* Property — gated on auth + feature flag */}
+                            {isAuthenticated && PROPERTY_MANAGEMENT_ENABLED && (
+                                <button
+                                    onClick={onPropertyClick}
+                                    className={BUTTON_CLASSES.desktop}
+                                    aria-label="Property Book"
+                                    title="Property Book"
+                                >
+                                    <Package className="w-4 h-4 stroke-themeblue1" />
+                                    <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
+                                        Property
+                                    </span>
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
@@ -339,98 +429,111 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                 </div>
             )}
 
-            {/* Search Container - shrink-0 on mobile (flex-1 when expanded), flex-1 on desktop */}
-            <div className={`flex items-center min-w-0 ${isMobile
-                ? (isSearchExpanded ? 'flex-1' : 'shrink-0 justify-end')
-                : 'flex-1 justify-center'
-                }`}>
-                {/* Shared search input — mobile (expanded) and desktop */}
-                {(isMobile ? isSearchExpanded : true) && (
-                    <div
-                        className={`flex items-center justify-center transition-all duration-300 bg-themewhite text-tertiary rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 w-full ${isMobile ? 'animate-expandSearch' : 'max-w-130'}`}
-                    >
-                        <input
-                            ref={inputRef}
-                            type="search"
-                            placeholder="search"
-                            value={searchInput}
-                            onChange={(e) => onSearchChange(e.target.value)}
-                            onFocus={handleSearchFocus}
-                            onBlur={handleSearchBlur}
-                            className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
-                        />
-
-                        {isMobile ? (
+            {/* Search Container - mobile only */}
+            {isMobile && (
+                <div className={`flex items-center min-w-0 ${isSearchExpanded ? 'flex-1' : 'shrink-0 justify-end'}`}>
+                    {/* Mobile search input */}
+                    {isSearchExpanded && (
+                        <div className="flex items-center justify-center transition-all duration-300 bg-themewhite text-tertiary rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 w-full animate-expandSearch">
+                            <input
+                                ref={inputRef}
+                                type="search"
+                                placeholder="search"
+                                value={searchInput}
+                                onChange={(e) => onSearchChange(e.target.value)}
+                                onFocus={handleSearchFocus}
+                                onBlur={handleSearchBlur}
+                                className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
+                            />
                             <div
                                 className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
                                 onClick={() => handleClearSearch(!hasSearchInput)}
                             >
                                 <X className="w-5 h-5 stroke-themeblue1" />
                             </div>
-                        ) : (
-                            <button
-                                type="button"
-                                className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full transition-all duration-300 hover:bg-themewhite shrink-0"
-                                onClick={hasSearchInput ? () => handleClearSearch(false) : undefined}
-                                aria-label={hasSearchInput ? "Clear search" : "Search"}
-                            >
-                                {hasSearchInput ? (
-                                    <X className="w-5 h-5 stroke-themeblue1" />
-                                ) : (
-                                    <Search className="w-5 h-5 stroke-themeblue1 opacity-50" />
-                                )}
-                            </button>
-                        )}
-                    </div>
-                )}
-
-                {isMobile && !isSearchExpanded && (
-                    <div className="flex items-center justify-end h-full">
-                        {/* Container with border - wider for better mobile feel */}
-                        <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center justify-center p-0.5">
-                            {/* Info button wrapper that animates width and opacity */}
-                            <div className={`
-                transition-all duration-300 ease-out overflow-hidden
-                ${shouldShowInfoButton ? 'w-11 opacity-100' : 'w-0 opacity-0'}
-                flex items-center justify-center
-            `}>
-                                {shouldShowInfoButton && (
-                                    <button
-                                        onClick={onInfoClick}
-                                        className="text-tertiary hover:text-primary transition-all duration-200"
-                                        aria-label="Info"
-                                        title="Info"
-                                    >
-                                        {/* No border on inner div since container has it */}
-                                        <div className="w-11 h-11 rounded-full flex items-center justify-center">
-                                            <Info className="w-6 h-6 stroke-current" />
-                                        </div>
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* Search button - always present */}
-                            <button
-                                onClick={handleMobileSearchClick}
-                                className="text-tertiary hover:text-primary transition-all duration-200"
-                                aria-label="Search"
-                                title="Search"
-                            >
-                                {/* No border on inner div since container has it */}
-                                <div className="w-11 h-11 rounded-full flex items-center justify-center">
-                                    <Search className="w-6 h-6 stroke-current" />
-                                </div>
-                            </button>
                         </div>
-                    </div>
-                )}
-            </div>
+                    )}
 
-            {/* Right container - Desktop only buttons (My Notes, Import, Settings) */}
+                    {/* Mobile collapsed: messages + info + search buttons */}
+                    {!isSearchExpanded && (
+                        <div className="flex items-center justify-end h-full">
+                            <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center justify-center p-0.5">
+                                <div className={`
+                    transition-all duration-300 ease-out overflow-hidden
+                    ${shouldShowMessagesButton ? 'w-11 opacity-100' : 'w-0 opacity-0'}
+                    flex items-center justify-center
+                `}>
+                                    {shouldShowMessagesButton && (
+                                        <button
+                                            onClick={onMessagesClick}
+                                            className="text-tertiary hover:text-primary transition-all duration-200 relative"
+                                            aria-label="Messages"
+                                            title="Messages"
+                                        >
+                                            <div className="w-11 h-11 rounded-full flex items-center justify-center">
+                                                <Mail className="w-6 h-6 stroke-current" />
+                                                {totalUnread > 0 && (
+                                                    <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                                                        {totalUnread > 99 ? '99+' : totalUnread}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className={`
+                    transition-all duration-300 ease-out overflow-hidden
+                    ${shouldShowInfoButton ? 'w-11 opacity-100' : 'w-0 opacity-0'}
+                    flex items-center justify-center
+                `}>
+                                    {shouldShowInfoButton && (
+                                        <button
+                                            onClick={onInfoClick}
+                                            className="text-tertiary hover:text-primary transition-all duration-200"
+                                            aria-label="Info"
+                                            title="Info"
+                                        >
+                                            <div className="w-11 h-11 rounded-full flex items-center justify-center">
+                                                <Info className="w-6 h-6 stroke-current" />
+                                            </div>
+                                        </button>
+                                    )}
+                                </div>
+
+                                <button
+                                    onClick={handleMobileSearchClick}
+                                    className="text-tertiary hover:text-primary transition-all duration-200"
+                                    aria-label="Search"
+                                    title="Search"
+                                >
+                                    <div className="w-11 h-11 rounded-full flex items-center justify-center">
+                                        <Search className="w-6 h-6 stroke-current" />
+                                    </div>
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Desktop spacer — spring-animated to collapse when search expands */}
             {!isMobile && (
-                <div className="flex items-center justify-center transition-all duration-300 w-max opacity-100">
-                    <div className="w-max h-full flex items-center justify-center gap-2">
-                        {/* Import button - with text on large screens */}
+                <animated.div className="min-w-0" style={{ flexGrow: desktopSearchSpring.spacerFlex }} />
+            )}
+
+            {/* Right container - Desktop only (Import, Messages, Search) */}
+            {!isMobile && (
+                <animated.div
+                    className="relative flex items-center min-w-0 ml-3"
+                    style={{ flexGrow: desktopSearchSpring.containerFlex, flexShrink: 0 }}
+                >
+                    {/* Buttons row — always laid out for stable width, fades out when search expands */}
+                    <animated.div
+                        className="flex items-center gap-2"
+                        style={{ opacity: desktopSearchSpring.buttonsOpacity }}
+                    >
+                        {/* Import button */}
                         <button
                             onClick={onImportClick}
                             className={BUTTON_CLASSES.desktop}
@@ -443,22 +546,63 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                             </span>
                         </button>
 
-                        {/* Settings button - with text on large screens */}
-                        {onSettingsClick && (
+                        {/* Messages — icon only, gated on auth, with unread badge */}
+                        {isAuthenticated && (
                             <button
-                                onClick={onSettingsClick}
-                                className={BUTTON_CLASSES.desktop}
-                                aria-label="Settings"
-                                title="Settings"
+                                onClick={onMessagesClick}
+                                className={`${BUTTON_CLASSES.desktop} relative`}
+                                aria-label="Messages"
+                                title="Messages"
                             >
-                                <Settings className="w-4 h-4 stroke-themeblue1" />
-                                <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
-                                    Settings
-                                </span>
+                                <Mail className="w-4 h-4 stroke-themeblue1" />
+                                {totalUnread > 0 && (
+                                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                                        {totalUnread > 99 ? '99+' : totalUnread}
+                                    </span>
+                                )}
                             </button>
                         )}
-                    </div>
-                </div>
+
+                        {/* Search toggle */}
+                        <button
+                            onClick={() => { onSearchExpandToggle?.(); onSearchFocus?.(); }}
+                            className={BUTTON_CLASSES.desktop}
+                            aria-label="Search"
+                            title="Search"
+                        >
+                            <Search className="w-4 h-4 stroke-themeblue1" />
+                        </button>
+                    </animated.div>
+
+                    {/* Search overlay — spring-animated over sibling buttons */}
+                    <animated.div
+                        className="absolute inset-0 z-10 flex items-center bg-themewhite"
+                        style={{
+                            opacity: desktopSearchSpring.overlayOpacity,
+                            transform: desktopSearchSpring.overlayScale.to(s => `scale(${s})`),
+                            pointerEvents: isSearchExpanded ? 'auto' : 'none',
+                        }}
+                    >
+                        <div className="flex items-center w-full rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite">
+                            <input
+                                ref={inputRef}
+                                type="search"
+                                placeholder="search"
+                                value={searchInput}
+                                onChange={(e) => onSearchChange(e.target.value)}
+                                onFocus={handleSearchFocus}
+                                onBlur={handleSearchBlur}
+                                className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
+                            />
+                            <div
+                                className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
+                                onClick={() => handleClearSearch(!hasSearchInput)}
+                            >
+                                <X className="w-5 h-5 stroke-themeblue1" />
+                            </div>
+                        </div>
+                    </animated.div>
+                </animated.div>
             )}
         </div>
     );

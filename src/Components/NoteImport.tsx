@@ -455,6 +455,7 @@ export function NoteImport({ isVisible, onClose, initialViewState, isMobile }: N
             isVisible={isVisible}
             onClose={onClose}
             fullHeight="90dvh"
+            desktopPosition="right"
             header={{
                 title,
                 showBack: isDecoded,

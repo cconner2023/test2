@@ -39,6 +39,9 @@ const CLOSE_ALL_DRAWERS = {
     showSymptomInfo: false,
     showTrainingDrawer: false,
     trainingDrawerTaskId: null as string | null,
+    showMessagesDrawer: false,
+    showPropertyDrawer: false,
+    showTrainingPanel: false,
     isMenuOpen: false,
 } as const
 
@@ -58,6 +61,9 @@ interface NavigationState {
     writeNoteData: WriteNoteData | null
     showTrainingDrawer: boolean
     trainingDrawerTaskId: string | null
+    showMessagesDrawer: boolean
+    showPropertyDrawer: boolean
+    showTrainingPanel: boolean
     isMobile: boolean
 }
 
@@ -83,6 +89,9 @@ interface NavigationActions {
     setShowSymptomInfo: (show: boolean) => void
     setShowMedications: (show: boolean) => void
     setShowTrainingDrawer: (taskId: string | null) => void
+    setShowMessagesDrawer: (show: boolean) => void
+    setShowPropertyDrawer: (show: boolean) => void
+    setShowTrainingPanel: (show: boolean) => void
     openWriteNote: (data: WriteNoteData) => void
     closeWriteNote: () => void
     resetToMain: () => void
@@ -107,6 +116,9 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     writeNoteData: null,
     showTrainingDrawer: false,
     trainingDrawerTaskId: null,
+    showMessagesDrawer: false,
+    showPropertyDrawer: false,
+    showTrainingPanel: false,
     isMobile: typeof window !== 'undefined'
         ? window.matchMedia('(max-width: 767px)').matches
         : false,
@@ -284,6 +296,24 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         ...PRESERVED_FIELDS(s),
         showTrainingDrawer: !!taskId,
         trainingDrawerTaskId: taskId,
+    })),
+
+    setShowMessagesDrawer: (show) => set((s) => ({
+        ...(show ? CLOSE_ALL_DRAWERS : {}),
+        ...PRESERVED_FIELDS(s),
+        showMessagesDrawer: show,
+    })),
+
+    setShowPropertyDrawer: (show) => set((s) => ({
+        ...(show ? CLOSE_ALL_DRAWERS : {}),
+        ...PRESERVED_FIELDS(s),
+        showPropertyDrawer: show,
+    })),
+
+    setShowTrainingPanel: (show) => set((s) => ({
+        ...(show ? CLOSE_ALL_DRAWERS : {}),
+        ...PRESERVED_FIELDS(s),
+        showTrainingPanel: show,
     })),
 
     openWriteNote: (data) => set({ isWriteNoteVisible: true, writeNoteData: data }),

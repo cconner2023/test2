@@ -88,5 +88,7 @@ export type SearchResultType = {
 export interface sideMenuDataType {
     text: string,
     icon: string,
-    action: string
+    action: string,
+    gateKey?: 'authenticated' | 'property',
+    badge?: boolean
 }

@@ -25,6 +25,9 @@ interface NavigationActions {
   onMedicationClick?: () => void
   onSettingsClick?: () => void
   onInfoClick?: () => void
+  onTrainingClick?: () => void
+  onMessagesClick?: () => void
+  onPropertyClick?: () => void
 }
 
 /**

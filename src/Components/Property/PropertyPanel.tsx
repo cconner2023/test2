@@ -30,9 +30,10 @@ interface PropertyPanelProps {
   onEditItem: (item: LocalPropertyItem) => void
   onTransferItem: () => void
   onBack: () => void
+  isMobile?: boolean
 }
 
-export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTransferItem, onBack }: PropertyPanelProps) {
+export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true }: PropertyPanelProps) {
   const { user } = useAuth()
   const property = useProperty()
   const store = usePropertyStore()
@@ -41,6 +42,9 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
   const [clinicMembers, setClinicMembers] = useState<HolderInfo[]>([])
   const [filterQuery, setFilterQuery] = useState('')
   const [locationViewMode, setLocationViewMode] = useState<'map' | 'tree'>('map')
+  const [desktopLocationId, setDesktopLocationId] = useState<string | null>(null)
+  const [isAddingSidebarLocation, setIsAddingSidebarLocation] = useState(false)
+  const [newSidebarLocationName, setNewSidebarLocationName] = useState('')
   const [csvImport, setCsvImport] = useState<{ rows: ParsedRow[]; errors: string[] } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -54,6 +58,11 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
 
   // Clear selection when switching tabs
   useEffect(() => { setSelectedIds(new Set()); setOpenCardId(null); setContextMenu(null) }, [activeTab])
+
+  // Reset to list tab if on Locations tab when switching to desktop (sidebar replaces tab)
+  useEffect(() => {
+    if (!isMobile && activeTab === 'location-map') setActiveTab('list')
+  }, [isMobile, activeTab])
 
   // Load clinic members for holder display names and transfer picker
   useEffect(() => {
@@ -99,6 +108,9 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     if (store.holderFilter) {
       list = list.filter((i) => i.current_holder_id === store.holderFilter)
     }
+    if (!isMobile && desktopLocationId) {
+      list = list.filter((i) => i.location_id === desktopLocationId)
+    }
     if (filterQuery.trim()) {
       const q = filterQuery.toLowerCase()
       list = list.filter((i) =>
@@ -109,7 +121,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
       )
     }
     return list.sort((a, b) => a.name.localeCompare(b.name))
-  }, [property.items, store.holderFilter, filterQuery])
+  }, [property.items, store.holderFilter, filterQuery, isMobile, desktopLocationId])
 
   // Item names + holder names maps for discrepancy display
   const itemNames = useMemo(() => {
@@ -174,6 +186,30 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     await property.editItem(itemId, { location_id: newLocationId })
   }, [property])
 
+  const handleDesktopLocationSelect = useCallback((loc: LocalPropertyLocation) => {
+    if (desktopLocationId === loc.id) {
+      setDesktopLocationId(null)
+      store.resetLocationPath()
+    } else {
+      setDesktopLocationId(loc.id)
+      store.resetLocationPath()
+      store.pushLocation(loc)
+    }
+  }, [desktopLocationId, store])
+
+  const handleAddSidebarLocation = useCallback(async () => {
+    if (!newSidebarLocationName.trim()) return
+    await property.addLocation({
+      clinic_id: property.clinicId || '',
+      parent_id: desktopLocationId,
+      name: newSidebarLocationName.trim(),
+      photo_data: null,
+      created_by: user?.id || '',
+    })
+    setNewSidebarLocationName('')
+    setIsAddingSidebarLocation(false)
+  }, [newSidebarLocationName, property, desktopLocationId, user?.id])
+
   const handleDeleteItem = useCallback(async () => {
     if (!store.selectedItem) return
     if (!confirm('Delete this item? This cannot be undone.')) return
@@ -221,6 +257,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     )
   }
 
+  const renderViewContent = () => {
   // Transfer custody view
   if (view === 'property-transfer' && transferItems.length > 0) {
     return (
@@ -281,6 +318,24 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     )
   }
 
+  // Desktop: show location map when a location is selected in sidebar
+  if (!isMobile && desktopLocationId) {
+    return (
+      <div className="flex flex-col h-full">
+        <PropertyLocationMap
+          locations={property.locations}
+          items={property.items}
+          clinicId={property.clinicId || ''}
+          onAddLocation={property.addLocation}
+          onUpdateLocation={property.editLocation}
+          onDeleteLocation={property.removeLocation}
+          onSelectItem={handleSelectItem}
+          userId={user?.id || ''}
+        />
+      </div>
+    )
+  }
+
   // Main panel with tabs
   return (
     <div className="flex flex-col h-full">
@@ -288,7 +343,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
       <div className="flex border-b border-tertiary/10 px-2">
         <TabButton icon={<List size={14} />} label="Items" active={activeTab === 'list'} onClick={() => setActiveTab('list')} />
         <TabButton icon={<List size={14} />} label="Hand Receipt" active={activeTab === 'hand-receipt'} onClick={() => setActiveTab('hand-receipt')} />
-        <TabButton icon={<MapPin size={14} />} label="Locations" active={activeTab === 'location-map'} onClick={() => setActiveTab('location-map')} />
+        {isMobile && <TabButton icon={<MapPin size={14} />} label="Locations" active={activeTab === 'location-map'} onClick={() => setActiveTab('location-map')} />}
         <TabButton icon={<AlertTriangle size={14} />} label="Discrepancies" active={activeTab === 'discrepancies'} onClick={() => setActiveTab('discrepancies')} badge={property.discrepancies.filter((d) => d.status === 'open').length || undefined} />
       </div>
 
@@ -381,7 +436,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
             ))}
             {filteredItems.length === 0 && (
               <div className="px-4 py-8 text-center text-sm text-tertiary">
-                {filterQuery ? 'No items match your filter' : 'No items in property book'}
+                {filterQuery ? 'No items match your filter' : !isMobile && desktopLocationId ? 'No items at this location' : 'No items in property book'}
               </div>
             )}
           </>
@@ -396,7 +451,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
           />
         )}
 
-        {activeTab === 'location-map' && (
+        {activeTab === 'location-map' && isMobile && (
           <div className="flex flex-col">
             {/* Map / Tree toggle */}
             <div className="flex gap-1 px-4 py-2">
@@ -543,7 +598,82 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
         />
       )}
     </div>
-  )
+    )
+  }
+
+  // Desktop: split layout with locations sidebar
+  if (!isMobile) {
+    return (
+      <div className="flex h-full">
+        <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
+          <div className="px-3 py-2 border-b border-tertiary/10">
+            <button
+              onClick={() => { setDesktopLocationId(null); store.resetLocationPath() }}
+              className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+                !desktopLocationId
+                  ? 'bg-themeblue3/10 text-themeblue3'
+                  : 'text-tertiary hover:text-primary hover:bg-secondary/5'
+              }`}
+            >
+              All Locations
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto">
+            <PropertyLocationTree
+              locations={property.locations}
+              items={property.items}
+              activeLocationId={desktopLocationId}
+              onSelectLocation={handleDesktopLocationSelect}
+              onSelectItem={handleSelectItem}
+              onMoveLocation={handleMoveLocation}
+              onMoveItem={handleMoveItem}
+            />
+          </div>
+          <div className="shrink-0 border-t border-tertiary/10 px-3 py-2">
+            {isAddingSidebarLocation ? (
+              <div className="flex items-center gap-1.5">
+                <input
+                  autoFocus
+                  type="text"
+                  placeholder="Location name"
+                  value={newSidebarLocationName}
+                  onChange={(e) => setNewSidebarLocationName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleAddSidebarLocation(); if (e.key === 'Escape') { setIsAddingSidebarLocation(false); setNewSidebarLocationName('') } }}
+                  className="flex-1 min-w-0 text-xs px-2.5 py-1.5 rounded-md border border-tertiary/20 bg-themewhite outline-none focus:border-themeblue3/40"
+                />
+                <button
+                  onClick={handleAddSidebarLocation}
+                  disabled={!newSidebarLocationName.trim()}
+                  className="px-2 py-1.5 rounded-md text-xs font-medium bg-themeblue3 text-white disabled:opacity-40 hover:bg-themeblue3/90 transition-colors"
+                >
+                  Add
+                </button>
+                <button
+                  onClick={() => { setIsAddingSidebarLocation(false); setNewSidebarLocationName('') }}
+                  className="p-1.5 rounded-md text-tertiary hover:text-primary hover:bg-secondary/5 transition-colors"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsAddingSidebarLocation(true)}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-tertiary hover:text-primary hover:bg-secondary/5 transition-colors"
+              >
+                <Plus size={14} />
+                New Location
+              </button>
+            )}
+          </div>
+        </div>
+        <div className="flex-1 flex flex-col min-w-0 relative">
+          {renderViewContent()}
+        </div>
+      </div>
+    )
+  }
+
+  return renderViewContent()
 }
 
 function TabButton({ icon, label, active, onClick, badge }: {
