@@ -14,6 +14,8 @@ export interface DrawerHeaderConfig {
     showBack?: boolean;
     onBack?: () => void;
     badge?: string;
+    /** Optional content rendered on the right side of the header (before the close button) */
+    rightContent?: ReactNode;
 }
 
 /** Private header component rendered by BaseDrawer when header config is provided */
@@ -22,6 +24,7 @@ function DrawerHeader({
     showBack = false,
     onBack,
     badge,
+    rightContent,
     onClose,
     isMobile,
 }: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean }) {
@@ -59,13 +62,16 @@ function DrawerHeader({
                             </span>
                         )}
                     </div>
-                    <button
-                        onClick={onClose}
-                        className="p-2 rounded-full hover:bg-themewhite2 md:hover:bg-themewhite active:scale-95 transition-all shrink-0"
-                        aria-label="Close"
-                    >
-                        <X size={24} className="text-tertiary" />
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                        {rightContent}
+                        <button
+                            onClick={onClose}
+                            className="p-2 rounded-full hover:bg-themewhite2 md:hover:bg-themewhite active:scale-95 transition-all shrink-0"
+                            aria-label="Close"
+                        >
+                            <X size={24} className="text-tertiary" />
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -330,6 +336,7 @@ export function BaseDrawer({
                                     showBack={header.showBack}
                                     onBack={header.onBack}
                                     badge={header.badge}
+                                    rightContent={header.rightContent}
                                     onClose={handleClose}
                                     isMobile={useMobileLayout}
                                 />

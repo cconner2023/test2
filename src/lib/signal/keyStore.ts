@@ -17,8 +17,9 @@
  * - Transactional batch writes
  */
 
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { type DBSchema } from 'idb'
 import { createLogger } from '../../Utilities/Logger'
+import { createIdbSingleton } from '../idbFactory'
 import type {
   StoredLocalIdentity,
   StoredPreKey,
@@ -58,12 +59,10 @@ const SIGNAL_DB_NAME = 'adtmc-signal-store'
 const SIGNAL_DB_VERSION = 2
 const LOCAL_IDENTITY_KEY = 'self'
 
-let dbInstance: IDBPDatabase<SignalDB> | null = null
-
-async function getDb(): Promise<IDBPDatabase<SignalDB>> {
-  if (dbInstance) return dbInstance
-
-  dbInstance = await openDB<SignalDB>(SIGNAL_DB_NAME, SIGNAL_DB_VERSION, {
+const { getDb, destroy: destroySignalDb } = createIdbSingleton<SignalDB>(
+  SIGNAL_DB_NAME,
+  SIGNAL_DB_VERSION,
+  {
     upgrade(db, oldVersion) {
       // v1: Core key stores
       if (oldVersion < 1) {
@@ -79,10 +78,8 @@ async function getDb(): Promise<IDBPDatabase<SignalDB>> {
         }
       }
     },
-  })
-
-  return dbInstance
-}
+  },
+)
 
 // ---- Local Identity ----
 
@@ -315,19 +312,6 @@ export async function clearSignalStore(): Promise<void> {
  * Called on primary logout for a clean slate.
  */
 export async function destroySignalStore(): Promise<void> {
-  try {
-    if (dbInstance) {
-      dbInstance.close()
-      dbInstance = null
-    }
-    await new Promise<void>((resolve) => {
-      const req = indexedDB.deleteDatabase(SIGNAL_DB_NAME)
-      req.onsuccess = () => resolve()
-      req.onerror = () => resolve() // best effort
-      req.onblocked = () => resolve()
-    })
-    logger.info('Destroyed signal key store database')
-  } catch (err) {
-    logger.warn('Failed to destroy signal key store:', err)
-  }
+  logger.info('Destroyed signal key store database')
+  await destroySignalDb()
 }

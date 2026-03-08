@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Plus, List, MapPin, Search as SearchIcon, X, Upload, Download, FileSpreadsheet, Eye, ArrowRightLeft, Trash2 } from 'lucide-react'
+import { Plus, Search as SearchIcon, X, Upload, Download, FileSpreadsheet, Eye, ArrowRightLeft, Trash2 } from 'lucide-react'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { useProperty } from '../../Hooks/useProperty'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuth } from '../../Hooks/useAuth'
@@ -21,7 +22,11 @@ import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../..
 
 export type PropertyView = 'property' | 'property-detail' | 'property-form' | 'property-transfer'
 
-type MobileTab = 'list' | 'location-map'
+export interface DetailActions {
+  onEdit: () => void
+  onTransfer: () => void
+  onDelete: () => void
+}
 
 interface PropertyPanelProps {
   view: PropertyView
@@ -31,39 +36,36 @@ interface PropertyPanelProps {
   onTransferItem: () => void
   onBack: () => void
   isMobile?: boolean
+  mobileLocationView?: boolean
+  onMobileLocationViewChange?: (active: boolean) => void
+  onRegisterDetailActions?: (actions: DetailActions | null) => void
 }
 
-export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true }: PropertyPanelProps) {
+export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions }: PropertyPanelProps) {
   const { user } = useAuth()
   const property = useProperty()
   const showLoading = useMinLoadTime(property.isLoading)
   const store = usePropertyStore()
-  const [activeTab, setActiveTab] = useState<MobileTab>('list')
   const [holders, setHolders] = useState<Map<string, HolderInfo>>(new Map())
   const [clinicMembers, setClinicMembers] = useState<HolderInfo[]>([])
   const [filterQuery, setFilterQuery] = useState('')
-  const [locationViewMode, setLocationViewMode] = useState<'map' | 'tree'>('map')
   const [desktopLocationId, setDesktopLocationId] = useState<string | null>(null)
   const [csvImport, setCsvImport] = useState<{ rows: ParsedRow[]; errors: string[] } | null>(null)
   const [isSearchExpanded, setIsSearchExpanded] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
+  const [showNewLocation, setShowNewLocation] = useState(false)
+  const [newLocationName, setNewLocationName] = useState('')
+  const [renamingLocation, setRenamingLocation] = useState<{ id: string; name: string } | null>(null)
 
   // ── Selection state ──
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [transferItems, setTransferItems] = useState<LocalPropertyItem[]>([])
   const [openCardId, setOpenCardId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ itemId: string; x: number; y: number } | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<{ kind: 'single'; item: LocalPropertyItem } | { kind: 'detail' } | { kind: 'batch'; items: LocalPropertyItem[] } | null>(null)
   const hasSelection = selectedIds.size > 0
   const multiSelectMode = hasSelection
-
-  // Clear selection when switching tabs
-  useEffect(() => { setSelectedIds(new Set()); setOpenCardId(null); setContextMenu(null) }, [activeTab])
-
-  // Reset to list tab if on Locations tab when switching to desktop (sidebar replaces tab)
-  useEffect(() => {
-    if (!isMobile && activeTab === 'location-map') setActiveTab('list')
-  }, [isMobile, activeTab])
 
   // Load clinic members for holder display names and transfer picker
   useEffect(() => {
@@ -147,11 +149,10 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     onTransferItem()
   }, [onTransferItem])
 
-  const handleDeleteSingle = useCallback(async (item: LocalPropertyItem) => {
+  const handleDeleteSingle = useCallback((item: LocalPropertyItem) => {
     setOpenCardId(null)
-    if (!confirm('Delete this item? This cannot be undone.')) return
-    await property.removeItem(item.id)
-  }, [property])
+    setPendingDelete({ kind: 'single', item })
+  }, [])
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
 
@@ -163,8 +164,10 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
 
   const handleTreeSelectLocation = useCallback((loc: LocalPropertyLocation) => {
     store.pushLocation(loc)
-    setLocationViewMode('map')
-  }, [store])
+    if (isMobile) {
+      onMobileLocationViewChange?.(true)
+    }
+  }, [store, isMobile, onMobileLocationViewChange])
 
   const handleMoveLocation = useCallback(async (locationId: string, newParentId: string | null) => {
     await property.editLocation(locationId, { parent_id: newParentId })
@@ -173,6 +176,20 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
   const handleMoveItem = useCallback(async (itemId: string, newLocationId: string | null) => {
     await property.editItem(itemId, { location_id: newLocationId })
   }, [property])
+
+  const handleCreateLocation = useCallback(async () => {
+    const trimmed = newLocationName.trim()
+    if (!trimmed || !property.clinicId) return
+    await property.addLocation({
+      clinic_id: property.clinicId,
+      parent_id: null,
+      name: trimmed,
+      photo_data: null,
+      created_by: user?.id || '',
+    })
+    setNewLocationName('')
+    setShowNewLocation(false)
+  }, [newLocationName, property, user?.id])
 
   const handleDesktopLocationSelect = useCallback((loc: LocalPropertyLocation) => {
     if (desktopLocationId === loc.id) {
@@ -185,13 +202,29 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     }
   }, [desktopLocationId, store])
 
-  const handleDeleteItem = useCallback(async () => {
+  const handleDeleteItem = useCallback(() => {
     if (!store.selectedItem) return
-    if (!confirm('Delete this item? This cannot be undone.')) return
-    await property.removeItem(store.selectedItem.id)
-    store.selectItem(null)
-    onBack()
-  }, [store, property, onBack])
+    setPendingDelete({ kind: 'detail' })
+  }, [store.selectedItem])
+
+  // Register detail-view actions for the drawer header
+  useEffect(() => {
+    if (view === 'property-detail' && store.selectedItem) {
+      onRegisterDetailActions?.({
+        onEdit: () => {
+          store.setEditingItem(store.selectedItem!)
+          onEditItem(store.selectedItem!)
+        },
+        onTransfer: () => {
+          setTransferItems([store.selectedItem!])
+          onTransferItem()
+        },
+        onDelete: handleDeleteItem,
+      })
+    } else {
+      onRegisterDetailActions?.(null)
+    }
+  }, [view, store.selectedItem, onRegisterDetailActions, store, onEditItem, onTransferItem, handleDeleteItem])
 
   const handleCSVFile = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -214,15 +247,27 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     onTransferItem()
   }, [selectedItems, clearSelection, onTransferItem])
 
-  const handleActionDelete = useCallback(async () => {
+  const handleActionDelete = useCallback(() => {
     if (selectedItems.length === 0) return
-    const count = selectedItems.length
-    if (!confirm(`Delete ${count} item${count > 1 ? 's' : ''}? This cannot be undone.`)) return
-    for (const item of selectedItems) {
-      await property.removeItem(item.id)
+    setPendingDelete({ kind: 'batch', items: selectedItems })
+  }, [selectedItems])
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!pendingDelete) return
+    if (pendingDelete.kind === 'single') {
+      await property.removeItem(pendingDelete.item.id)
+    } else if (pendingDelete.kind === 'detail' && store.selectedItem) {
+      await property.removeItem(store.selectedItem.id)
+      store.selectItem(null)
+      onBack()
+    } else if (pendingDelete.kind === 'batch') {
+      for (const item of pendingDelete.items) {
+        await property.removeItem(item.id)
+      }
+      clearSelection()
     }
-    clearSelection()
-  }, [selectedItems, property, clearSelection])
+    setPendingDelete(null)
+  }, [pendingDelete, property, store, onBack, clearSelection])
 
   if (showLoading) {
     return (
@@ -257,15 +302,6 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
           item={store.selectedItem}
           holderName={store.selectedItem.current_holder_id ? holders.get(store.selectedItem.current_holder_id)?.displayName : undefined}
           locationName={store.selectedItem.location_id ? property.locations.find((l) => l.id === store.selectedItem!.location_id)?.name : undefined}
-          onEdit={() => {
-            store.setEditingItem(store.selectedItem!)
-            onEditItem(store.selectedItem!)
-          }}
-          onTransfer={() => {
-            setTransferItems([store.selectedItem!])
-            onTransferItem()
-          }}
-          onDelete={handleDeleteItem}
           getSubItems={property.getSubItems}
           getLedger={property.getLedger}
           onSelectSubItem={handleSelectItem}
@@ -296,7 +332,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
   // Desktop: show location map when a location is selected in sidebar
   if (!isMobile && desktopLocationId) {
     return (
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full relative">
         <PropertyLocationMap
           locations={property.locations}
           items={property.items}
@@ -308,43 +344,55 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
           onUnassignItem={(id) => property.editItem(id, { location_id: null })}
           userId={user?.id || ''}
         />
+        <button
+          className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-themeblue3 text-white shadow-lg flex items-center justify-center hover:bg-themeblue3/90 transition-colors"
+          onClick={() => {
+            const path = store.locationPath
+            store.setDefaultLocationId(path[path.length - 1]?.id ?? null)
+            store.setEditingItem(null)
+            onAddItem()
+          }}
+        >
+          <Plus size={24} />
+        </button>
       </div>
     )
   }
 
-  // Main panel with tabs
+  // Mobile: location map view (back button is in the drawer header)
+  if (isMobile && mobileLocationView) {
+    return (
+      <div className="flex flex-col h-full relative">
+        <PropertyLocationMap
+          locations={property.locations}
+          items={property.items}
+          clinicId={property.clinicId || ''}
+          onAddLocation={property.addLocation}
+          onUpdateLocation={property.editLocation}
+          onDeleteLocation={property.removeLocation}
+          onSelectItem={handleSelectItem}
+          onUnassignItem={(id) => property.editItem(id, { location_id: null })}
+          userId={user?.id || ''}
+        />
+        <button
+          className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-themeblue3 text-white shadow-lg flex items-center justify-center hover:bg-themeblue3/90 transition-colors"
+          onClick={() => {
+            const path = store.locationPath
+            store.setDefaultLocationId(path[path.length - 1]?.id ?? null)
+            store.setEditingItem(null)
+            onAddItem()
+          }}
+        >
+          <Plus size={24} />
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col h-full">
-      {/* Mobile segmented toggle */}
-      {isMobile && (
-        <div className="flex gap-1 px-3 py-2 border-b border-tertiary/10">
-          <button
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              activeTab === 'list'
-                ? 'bg-themeblue3 text-white'
-                : 'bg-secondary/10 text-tertiary hover:text-primary'
-            }`}
-            onClick={() => setActiveTab('list')}
-          >
-            <List size={14} />
-            Items
-          </button>
-          <button
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-              activeTab === 'location-map'
-                ? 'bg-themeblue3 text-white'
-                : 'bg-secondary/10 text-tertiary hover:text-primary'
-            }`}
-            onClick={() => setActiveTab('location-map')}
-          >
-            <MapPin size={14} />
-            Locations
-          </button>
-        </div>
-      )}
-
       {/* Search + CSV toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div className="flex items-center gap-2 px-6 py-3">
         {isSearchExpanded ? (
           <div className="flex items-center flex-1 min-w-0 bg-themewhite text-tertiary rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
             <input
@@ -375,39 +423,39 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-2 shrink-0">
               {property.isSyncing && (
-                <span className="text-[10px] text-tertiary animate-pulse mr-1">Syncing...</span>
+                <span className="text-[10pt] text-tertiary animate-pulse mr-1">Syncing...</span>
               )}
               <button
                 title="Import CSV"
-                className="h-8 flex items-center justify-center px-3 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
+                className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <Upload className="w-4 h-4 stroke-themeblue1" />
+                <Upload className="w-5 h-5 stroke-themeblue1" />
               </button>
               <button
                 title="Export CSV"
-                className="h-8 flex items-center justify-center px-3 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
+                className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
                 onClick={() => exportPropertyCSV(property.items, property.locations)}
               >
-                <Download className="w-4 h-4 stroke-themeblue1" />
+                <Download className="w-5 h-5 stroke-themeblue1" />
               </button>
               <button
                 title="Download Template"
-                className="h-8 flex items-center justify-center px-3 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
+                className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
                 onClick={downloadCSVTemplate}
               >
-                <FileSpreadsheet className="w-4 h-4 stroke-themeblue1" />
+                <FileSpreadsheet className="w-5 h-5 stroke-themeblue1" />
               </button>
             </div>
             <div className="flex-1" />
             <button
               title="Search"
-              className="h-8 w-8 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300 shrink-0"
+              className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300 shrink-0"
               onClick={() => setIsSearchExpanded(true)}
             >
-              <SearchIcon className="w-4 h-4 stroke-themeblue1 opacity-50" />
+              <SearchIcon className="w-5 h-5 stroke-themeblue1 opacity-50" />
             </button>
           </>
         )}
@@ -420,9 +468,21 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
         />
       </div>
 
-      {/* Tab content */}
+      {/* Content area */}
       <div className="flex-1 overflow-y-auto">
-        {activeTab === 'list' && (
+        {isMobile ? (
+          <PropertyLocationTree
+            locations={property.locations}
+            items={property.items}
+            onSelectLocation={handleTreeSelectLocation}
+            onSelectItem={handleSelectItem}
+            onMoveLocation={handleMoveLocation}
+            onMoveItem={handleMoveItem}
+            onEditLocation={(loc) => { setRenamingLocation({ id: loc.id, name: loc.name }) }}
+            onDeleteLocation={(locId) => property.removeLocation(locId)}
+            onDeleteItem={(item) => setPendingDelete({ kind: 'single', item })}
+          />
+        ) : (
           <>
             {filteredItems.map((item) => (
               <PropertyItemRow
@@ -437,7 +497,6 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
                 onClose={() => setOpenCardId(prev => prev === item.id ? null : prev)}
                 onTap={() => {
                   setOpenCardId(null)
-                  // Single-tap selects (shows bottom bar)
                   if (!multiSelectMode) {
                     const isTogglingOff = selectedIds.has(item.id)
                     setSelectedIds(isTogglingOff ? new Set() : new Set([item.id]))
@@ -451,68 +510,16 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
               />
             ))}
             {filteredItems.length === 0 && (
-              <div className="px-4 py-8 text-center text-sm text-tertiary">
-                {filterQuery ? 'No items match your filter' : !isMobile && desktopLocationId ? 'No items at this location' : 'No items in property book'}
+              <div className="px-6 py-8 text-center text-[10pt] text-tertiary">
+                {filterQuery ? 'No items match your filter' : desktopLocationId ? 'No items at this location' : 'No items in property book'}
               </div>
             )}
           </>
         )}
-
-        {activeTab === 'location-map' && isMobile && (
-          <div className="flex flex-col">
-            {/* Map / Tree toggle */}
-            <div className="flex gap-1 px-4 py-2">
-              <button
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                  locationViewMode === 'map'
-                    ? 'bg-themeblue3 text-white'
-                    : 'bg-secondary/10 text-tertiary hover:text-primary'
-                }`}
-                onClick={() => setLocationViewMode('map')}
-              >
-                Map
-              </button>
-              <button
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                  locationViewMode === 'tree'
-                    ? 'bg-themeblue3 text-white'
-                    : 'bg-secondary/10 text-tertiary hover:text-primary'
-                }`}
-                onClick={() => setLocationViewMode('tree')}
-              >
-                Tree
-              </button>
-            </div>
-
-            {locationViewMode === 'map' ? (
-              <PropertyLocationMap
-                locations={property.locations}
-                items={property.items}
-                clinicId={property.clinicId || ''}
-                onAddLocation={property.addLocation}
-                onUpdateLocation={property.editLocation}
-                onDeleteLocation={property.removeLocation}
-                onSelectItem={handleSelectItem}
-                onUnassignItem={(id) => property.editItem(id, { location_id: null })}
-                userId={user?.id || ''}
-              />
-            ) : (
-              <PropertyLocationTree
-                locations={property.locations}
-                items={property.items}
-                onSelectLocation={handleTreeSelectLocation}
-                onSelectItem={handleSelectItem}
-                onMoveLocation={handleMoveLocation}
-                onMoveItem={handleMoveItem}
-              />
-            )}
-          </div>
-        )}
-
       </div>
 
       {/* Bottom action bar — shown when items are selected */}
-      {hasSelection && activeTab === 'list' && (() => {
+      {hasSelection && (() => {
         const singleSelected = selectedIds.size === 1
         const barActions: ActionBarAction[] = []
         if (singleSelected) {
@@ -574,10 +581,11 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
       })()}
 
       {/* FAB for adding items — hidden when selection active */}
-      {!hasSelection && activeTab === 'list' && (
+      {!hasSelection && (
         <button
           className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-themeblue3 text-white shadow-lg flex items-center justify-center hover:bg-themeblue3/90 transition-colors"
           onClick={() => {
+            store.setDefaultLocationId(null)
             store.setEditingItem(null)
             onAddItem()
           }}
@@ -601,14 +609,101 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     )
   }
 
+  const deleteDialogTitle = pendingDelete?.kind === 'batch'
+    ? `Delete ${pendingDelete.items.length} item${pendingDelete.items.length > 1 ? 's' : ''}? This cannot be undone.`
+    : 'Delete this item? This cannot be undone.'
+
   // Desktop: split layout with locations sidebar
   if (!isMobile) {
     return (
+      <>
       <div className="flex h-full">
         <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
-          <div className="shrink-0 px-4 py-3 border-b border-primary/10">
-            <p className="text-xs font-medium text-tertiary/70 uppercase tracking-wide">Locations</p>
+          <div className="shrink-0 px-6 py-3 border-b border-primary/10">
+            <div className="flex items-center justify-between">
+              <p className="text-[10pt] font-medium text-tertiary/70 uppercase tracking-wide">Locations</p>
+              <button
+                onClick={() => {
+                  setNewLocationName('')
+                  setShowNewLocation(true)
+                }}
+                className="flex items-center gap-1 text-[10pt] text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
+              >
+                <Plus size={12} />
+                Location
+              </button>
+            </div>
           </div>
+          {showNewLocation && (
+            <div className="shrink-0 px-6 py-3 border-b border-primary/10">
+              <input
+                type="text"
+                value={newLocationName}
+                onChange={(e) => setNewLocationName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleCreateLocation()
+                  if (e.key === 'Escape') setShowNewLocation(false)
+                }}
+                placeholder="Location name"
+                autoFocus
+                className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
+              />
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  onClick={() => setShowNewLocation(false)}
+                  className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateLocation}
+                  disabled={!newLocationName.trim()}
+                  className="flex-1 py-1.5 rounded-lg bg-themeblue2 text-[10pt] text-white disabled:opacity-30 active:scale-[0.98] transition-all"
+                >
+                  Create
+                </button>
+              </div>
+            </div>
+          )}
+          {renamingLocation && (
+            <div className="shrink-0 px-6 py-3 border-b border-primary/10">
+              <input
+                type="text"
+                value={renamingLocation.name}
+                onChange={(e) => setRenamingLocation(prev => prev ? { ...prev, name: e.target.value } : null)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && renamingLocation.name.trim()) {
+                    property.editLocation(renamingLocation.id, { name: renamingLocation.name.trim() })
+                    setRenamingLocation(null)
+                  }
+                  if (e.key === 'Escape') setRenamingLocation(null)
+                }}
+                placeholder="Location name"
+                autoFocus
+                className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
+              />
+              <div className="flex items-center gap-2 mt-2">
+                <button
+                  onClick={() => setRenamingLocation(null)}
+                  className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (renamingLocation.name.trim()) {
+                      property.editLocation(renamingLocation.id, { name: renamingLocation.name.trim() })
+                      setRenamingLocation(null)
+                    }
+                  }}
+                  disabled={!renamingLocation.name.trim()}
+                  className="flex-1 py-1.5 rounded-lg bg-themeblue2 text-[10pt] text-white disabled:opacity-30 active:scale-[0.98] transition-all"
+                >
+                  Rename
+                </button>
+              </div>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto">
             <PropertyLocationTree
               locations={property.locations}
@@ -620,16 +715,45 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
               onMoveItem={handleMoveItem}
               onSelectAll={() => { setDesktopLocationId(null); store.resetLocationPath() }}
               allSelected={!desktopLocationId}
+              onEditLocation={(loc) => { setRenamingLocation({ id: loc.id, name: loc.name }) }}
+              onDeleteLocation={(locId) => property.removeLocation(locId)}
+              onDeleteItem={(item) => setPendingDelete({ kind: 'single', item })}
             />
           </div>
         </div>
         <div className="flex-1 flex flex-col min-w-0 relative">
+          <div className="shrink-0 px-6 py-3 border-b border-primary/10">
+            <p className="text-[10pt] font-medium text-tertiary/70 uppercase tracking-wide">
+              {desktopLocationId ? (property.locations.find(l => l.id === desktopLocationId)?.name ?? 'Items') : 'All Items'}
+            </p>
+          </div>
           {renderViewContent()}
         </div>
       </div>
+      <ConfirmDialog
+        visible={!!pendingDelete}
+        title={deleteDialogTitle}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+      </>
     )
   }
 
-  return renderViewContent()
+  return (
+    <>
+      {renderViewContent()}
+      <ConfirmDialog
+        visible={!!pendingDelete}
+        title={deleteDialogTitle}
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
+    </>
+  )
 }
 

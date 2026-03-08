@@ -27,6 +27,7 @@ import { TrainingDrawer } from './Components/TrainingDrawer'
 import { TrainingFullDrawer } from './Components/TrainingFullDrawer'
 import { MessagesDrawer } from './Components/MessagesDrawer'
 import { PropertyDrawer } from './Components/PropertyDrawer'
+import { AdminDrawer } from './Components/AdminDrawer'
 import { getTaskData } from './Data/TrainingData'
 import { LockGate } from './Components/LockGate'
 import { ErrorBoundary } from './Components/ErrorBoundary'
@@ -126,6 +127,10 @@ function AppContent() {
   const handlePropertyClick = useCallback(() => {
     navigation.setShowPropertyDrawer(true)
   }, [navigation.setShowPropertyDrawer])
+
+  const handleAdminClick = useCallback(() => {
+    navigation.setShowAdminDrawer(true)
+  }, [navigation.setShowAdminDrawer])
 
   // Callback for notification toast tap — opens MessagesDrawer to the target conversation
   const handleNotificationTap = useCallback((n: MessageNotification) => {
@@ -385,6 +390,7 @@ function AppContent() {
           isDarkMode={theme === 'dark'}
           onToggleTheme={toggleTheme}
           initialPanel={settingsInitialPanel}
+          onOpenAdmin={handleAdminClick}
         />
         </ErrorBoundary>
         <ErrorBoundary>
@@ -431,6 +437,12 @@ function AppContent() {
         <PropertyDrawer
           isVisible={navigation.showPropertyDrawer}
           onClose={() => navigation.setShowPropertyDrawer(false)}
+        />
+        </ErrorBoundary>
+        <ErrorBoundary>
+        <AdminDrawer
+          isVisible={navigation.showAdminDrawer}
+          onClose={() => navigation.setShowAdminDrawer(false)}
         />
         </ErrorBoundary>
         {/* WriteNotePage — BaseDrawer handles mobile/desktop positioning */}

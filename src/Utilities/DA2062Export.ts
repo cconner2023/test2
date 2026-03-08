@@ -7,6 +7,7 @@
  * Max 15 items per page; overflow items get additional template pages.
  */
 import type { PropertyItem, HolderInfo } from '../Types/PropertyTypes'
+export { downloadPdfBytes } from './downloadUtils'
 
 export interface DA2062Params {
   items: PropertyItem[]
@@ -139,15 +140,3 @@ export async function generateDA2062(params: DA2062Params): Promise<Uint8Array> 
   return pdfDoc.save()
 }
 
-/**
- * Trigger a browser download of raw PDF bytes.
- */
-export function downloadPdfBytes(bytes: Uint8Array, filename: string): void {
-  const blob = new Blob([bytes], { type: 'application/pdf' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(url)
-}

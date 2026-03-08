@@ -9,8 +9,9 @@
  * Store: queue (keyed by message id)
  */
 
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { type DBSchema } from 'idb'
 import { createLogger } from '../../Utilities/Logger'
+import { createIdbSingleton } from '../idbFactory'
 import { encryptString, decryptString } from '../secureStorage'
 import type { SendMessageParams, SendBatchParams } from './transport'
 
@@ -48,20 +49,16 @@ interface OutboundQueueDB extends DBSchema {
 const DB_NAME = 'adtmc-outbound-queue'
 const DB_VERSION = 1
 
-let dbInstance: IDBPDatabase<OutboundQueueDB> | null = null
-
-async function getDb(): Promise<IDBPDatabase<OutboundQueueDB>> {
-  if (dbInstance) return dbInstance
-
-  dbInstance = await openDB<OutboundQueueDB>(DB_NAME, DB_VERSION, {
+const { getDb, destroy: destroyQueueDb } = createIdbSingleton<OutboundQueueDB>(
+  DB_NAME,
+  DB_VERSION,
+  {
     upgrade(db) {
       const store = db.createObjectStore('queue', { keyPath: 'id' })
       store.createIndex('by-status', 'status')
     },
-  })
-
-  return dbInstance
-}
+  },
+)
 
 // ---- Enqueue ----
 
@@ -220,19 +217,6 @@ export async function clearOutboundQueue(): Promise<void> {
  * Closes the connection, deletes the DB, and resets module state.
  */
 export async function destroyOutboundQueue(): Promise<void> {
-  try {
-    if (dbInstance) {
-      dbInstance.close()
-      dbInstance = null
-    }
-    await new Promise<void>((resolve) => {
-      const req = indexedDB.deleteDatabase(DB_NAME)
-      req.onsuccess = () => resolve()
-      req.onerror = () => resolve()
-      req.onblocked = () => resolve()
-    })
-    logger.info('Destroyed outbound queue database')
-  } catch (e) {
-    logger.warn('Failed to destroy outbound queue:', e)
-  }
+  logger.info('Destroyed outbound queue database')
+  await destroyQueueDb()
 }

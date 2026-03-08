@@ -3,6 +3,7 @@
 import { renderBarcodeToCanvas } from './NoteCodec';
 import { logError } from './ErrorHandler';
 import { base64ToBytes } from '../lib/base64Utils';
+export { downloadPdfBytes } from './downloadUtils';
 
 // ── Layout constants (PDF points, origin = bottom-left) ──
 // Adjust these to calibrate placement on the DD689 template.
@@ -126,17 +127,3 @@ export async function generateDD689Pdf(params: DD689ExportParams): Promise<Uint8
     return pdfDoc.save();
 }
 
-/**
- * Trigger a browser download from raw PDF bytes.
- */
-export function downloadPdfBytes(bytes: Uint8Array, filename: string): void {
-    const blob = new Blob([bytes], { type: 'application/pdf' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-}

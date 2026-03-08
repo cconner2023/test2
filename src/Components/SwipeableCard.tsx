@@ -93,6 +93,7 @@ export function SwipeableCard({
         ref={rowRef}
         {...handlers}
         onContextMenu={onContextMenu}
+        className="relative"
         style={{ touchAction: 'pan-y', cursor: 'pointer' }}
       >
         {children}

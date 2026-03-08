@@ -17,8 +17,9 @@
  * - idb library
  */
 
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { type DBSchema } from 'idb'
 import { createLogger } from '../../Utilities/Logger'
+import { createIdbSingleton } from '../idbFactory'
 import { encryptString, decryptString } from '../secureStorage'
 import type { DecryptedSignalMessage } from './transportTypes'
 
@@ -47,12 +48,10 @@ interface MessageDB extends DBSchema {
 const MESSAGE_DB_NAME = 'adtmc-message-store'
 const MESSAGE_DB_VERSION = 2
 
-let dbInstance: IDBPDatabase<MessageDB> | null = null
-
-async function getDb(): Promise<IDBPDatabase<MessageDB>> {
-  if (dbInstance) return dbInstance
-
-  dbInstance = await openDB<MessageDB>(MESSAGE_DB_NAME, MESSAGE_DB_VERSION, {
+const { getDb, destroy: destroyMessageDb } = createIdbSingleton<MessageDB>(
+  MESSAGE_DB_NAME,
+  MESSAGE_DB_VERSION,
+  {
     upgrade(db, oldVersion, _newVersion, transaction) {
       if (oldVersion < 2) {
         const store = db.objectStoreNames.contains('messages')
@@ -66,10 +65,8 @@ async function getDb(): Promise<IDBPDatabase<MessageDB>> {
         }
       }
     },
-  })
-
-  return dbInstance
-}
+  },
+)
 
 // ---- At-rest encryption helpers ----
 
@@ -293,20 +290,7 @@ export async function clearMessageStore(): Promise<void> {
  * Closes the connection, deletes the DB, and resets module state.
  */
 export async function destroyMessageStore(): Promise<void> {
-  try {
-    _onMessageSaved = null
-    if (dbInstance) {
-      dbInstance.close()
-      dbInstance = null
-    }
-    await new Promise<void>((resolve) => {
-      const req = indexedDB.deleteDatabase(MESSAGE_DB_NAME)
-      req.onsuccess = () => resolve()
-      req.onerror = () => resolve()
-      req.onblocked = () => resolve()
-    })
-    logger.info('Destroyed message store database')
-  } catch (err) {
-    logger.warn('Failed to destroy message store:', err)
-  }
+  _onMessageSaved = null
+  logger.info('Destroyed message store database')
+  await destroyMessageDb()
 }

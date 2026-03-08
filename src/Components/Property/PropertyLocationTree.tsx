@@ -1,7 +1,8 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, MapPin, Package, Layers } from 'lucide-react'
+import { ChevronRight, ChevronDown, MapPin, Package, Layers, Edit3, Trash2, Eye } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
+import { CardContextMenu } from '../CardContextMenu'
 import type { LocalPropertyLocation, LocalPropertyItem } from '../../Types/PropertyTypes'
 
 interface PropertyLocationTreeProps {
@@ -14,6 +15,9 @@ interface PropertyLocationTreeProps {
   activeLocationId?: string | null
   onSelectAll?: () => void
   allSelected?: boolean
+  onEditLocation?: (loc: LocalPropertyLocation) => void
+  onDeleteLocation?: (locId: string) => void
+  onDeleteItem?: (item: LocalPropertyItem) => void
 }
 
 interface TreeNode {
@@ -29,20 +33,6 @@ interface DragState {
   invalidTargets: Set<string>
 }
 
-const conditionColors: Record<string, string> = {
-  serviceable: 'bg-themegreen/10 text-themegreen',
-  unserviceable: 'bg-themeredred/10 text-themeredred',
-  damaged: 'bg-themeyellow/10 text-themeyellow',
-  missing: 'bg-tertiary/10 text-tertiary',
-}
-
-const conditionLabels: Record<string, string> = {
-  serviceable: 'SVC',
-  unserviceable: 'UNSVC',
-  damaged: 'DMG',
-  missing: 'MIS',
-}
-
 export function PropertyLocationTree({
   locations,
   items,
@@ -53,6 +43,9 @@ export function PropertyLocationTree({
   activeLocationId,
   onSelectAll,
   allSelected,
+  onEditLocation,
+  onDeleteLocation,
+  onDeleteItem,
 }: PropertyLocationTreeProps) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const [dragState, setDragState] = useState<DragState | null>(null)
@@ -60,6 +53,7 @@ export function PropertyLocationTree({
   const [dropTargetId, setDropTargetId] = useState<string | null>(null)
   const dropTargetRef = useRef<string | null>(null)
   const ghostRef = useRef<HTMLDivElement>(null)
+  const [contextMenu, setContextMenu] = useState<{ type: 'location' | 'item'; id: string; x: number; y: number } | null>(null)
 
   const toggleCollapse = useCallback((id: string) => {
     setCollapsed((prev) => {
@@ -240,7 +234,7 @@ export function PropertyLocationTree({
 
   if (roots.length === 0 && unassignedItems.length === 0) {
     return (
-      <div className="px-4 py-8 text-center text-sm text-tertiary">
+      <div className="px-6 py-8 text-center text-[10pt] text-tertiary">
         No locations or items yet.
       </div>
     )
@@ -264,7 +258,7 @@ export function PropertyLocationTree({
       <div key={node.location.id}>
         {/* Location row */}
         <div
-          className={`flex items-center gap-1.5 py-1.5 pr-3 transition-colors ${
+          className={`flex items-center gap-2 py-2 pr-6 transition-colors ${
             isDragSource ? 'opacity-30' : ''
           } ${
             isDropTarget
@@ -273,11 +267,12 @@ export function PropertyLocationTree({
                 ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
                 : 'hover:bg-secondary/5'
           }`}
-          style={{ paddingLeft: `${12 + depth * 20}px` }}
+          style={{ paddingLeft: `${24 + depth * 20}px` }}
           data-drag-id={node.location.id}
           data-drag-type="location"
           data-drag-name={node.location.name}
           data-drop-id={node.location.id}
+          onContextMenu={(e) => { e.preventDefault(); if (onEditLocation || onDeleteLocation) setContextMenu({ type: 'location', id: node.location.id, x: e.clientX, y: e.clientY }) }}
         >
           {/* Chevron */}
           {hasChildren ? (
@@ -285,7 +280,7 @@ export function PropertyLocationTree({
               className="p-0.5 rounded hover:bg-secondary/10 text-tertiary shrink-0"
               onClick={(e) => { e.stopPropagation(); toggleCollapse(node.location.id) }}
             >
-              {isCollapsed ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+              {isCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
             </button>
           ) : (
             <span className="w-[18px] shrink-0" />
@@ -295,17 +290,17 @@ export function PropertyLocationTree({
           <div
             role="button"
             tabIndex={0}
-            className="flex items-center gap-1.5 flex-1 min-w-0 text-left cursor-pointer"
+            className="flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer"
             onClick={() => onSelectLocation(node.location)}
             onKeyDown={(e) => { if (e.key === 'Enter') onSelectLocation(node.location) }}
           >
-            <MapPin size={13} className="text-themeblue3 shrink-0" />
-            <span className="text-xs font-medium text-primary truncate">{node.location.name}</span>
+            <MapPin size={16} className="text-themeblue3 shrink-0" />
+            <span className="text-[10pt] font-medium text-primary truncate">{node.location.name}</span>
           </div>
 
           {/* Item count badge */}
           {totalItems > 0 && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium shrink-0">
+            <span className="text-[10pt] px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary font-medium shrink-0">
               {totalItems}
             </span>
           )}
@@ -322,21 +317,22 @@ export function PropertyLocationTree({
                   key={item.id}
                   role="button"
                   tabIndex={0}
-                  className={`flex items-center gap-1.5 w-full py-1.5 pr-3 transition-colors text-left cursor-pointer ${
+                  className={`flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer ${
                     isItemDragSource ? 'opacity-30' : 'hover:bg-secondary/5'
                   }`}
-                  style={{ paddingLeft: `${12 + (depth + 1) * 20 + 18}px` }}
+                  style={{ paddingLeft: `${24 + (depth + 1) * 20 + 18}px` }}
                   onClick={() => onSelectItem(item)}
                   onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
+                  onContextMenu={(e) => { e.preventDefault(); if (onDeleteItem) setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) }}
                   data-drag-id={item.id}
                   data-drag-type="item"
                   data-drag-name={item.name}
                 >
-                  <Package size={12} className="text-tertiary shrink-0" />
-                  <span className="text-xs text-primary truncate flex-1">{item.name}</span>
-                  {item.condition_code && (
-                    <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${conditionColors[item.condition_code] ?? 'bg-tertiary/10 text-tertiary'}`}>
-                      {conditionLabels[item.condition_code] ?? item.condition_code}
+                  <Package size={16} className="text-tertiary shrink-0" />
+                  <span className="text-[10pt] text-primary truncate flex-1">{item.name}</span>
+                  {item.quantity > 0 && (
+                    <span className="text-[10pt] px-2 py-0.5 rounded-full font-medium shrink-0 bg-themeblue3/10 text-themeblue3">
+                      {item.quantity}
                     </span>
                   )}
                 </div>
@@ -359,18 +355,18 @@ export function PropertyLocationTree({
         <div
           role="button"
           tabIndex={0}
-          className={`flex items-center gap-1.5 py-1.5 pr-3 transition-colors cursor-pointer ${
+          className={`flex items-center gap-2 py-2 pr-6 transition-colors cursor-pointer ${
             allSelected
               ? 'bg-themeblue3/8 border-l-2 border-l-themeblue3'
               : 'hover:bg-secondary/5'
           }`}
-          style={{ paddingLeft: '12px' }}
+          style={{ paddingLeft: '24px' }}
           onClick={onSelectAll}
           onKeyDown={(e) => { if (e.key === 'Enter') onSelectAll() }}
         >
           <span className="w-[18px] shrink-0" />
-          <Layers size={13} className="text-themeblue3 shrink-0" />
-          <span className="text-xs font-medium text-primary truncate">All Locations</span>
+          <Layers size={16} className="text-themeblue3 shrink-0" />
+          <span className="text-[10pt] font-medium text-primary truncate">All Locations</span>
         </div>
       )}
 
@@ -379,7 +375,7 @@ export function PropertyLocationTree({
       {/* Root drop zone — only visible when dragging a location */}
       {dragState?.type === 'location' && (
         <div
-          className={`mx-3 my-1 py-2 rounded-md border-2 border-dashed text-center text-[10px] font-medium transition-colors ${
+          className={`mx-3 my-1 py-2 rounded-md border-2 border-dashed text-center text-[10pt] font-medium transition-colors ${
             dropTargetId === '__root__'
               ? 'border-themeblue3/40 bg-themeblue3/10 text-themeblue3'
               : 'border-tertiary/20 text-tertiary'
@@ -394,22 +390,22 @@ export function PropertyLocationTree({
       {showUnassigned && (
         <div>
           <div
-            className={`flex items-center gap-1.5 py-1.5 pr-3 transition-colors ${
+            className={`flex items-center gap-2 py-2 pr-6 transition-colors ${
               isUnassignedDropTarget
                 ? 'bg-themeyellow/10 ring-1 ring-themeyellow/30'
                 : 'hover:bg-secondary/5'
             }`}
-            style={{ paddingLeft: '12px' }}
+            style={{ paddingLeft: '24px' }}
             data-drop-id="__unassigned__"
           >
             <button
               className="p-0.5 rounded hover:bg-secondary/10 text-tertiary shrink-0"
               onClick={(e) => { e.stopPropagation(); toggleCollapse('__unassigned__') }}
             >
-              {collapsed.has('__unassigned__') ? <ChevronRight size={14} /> : <ChevronDown size={14} />}
+              {collapsed.has('__unassigned__') ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
             </button>
-            <span className="text-xs font-medium text-tertiary italic flex-1">Unassigned</span>
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-themeyellow/10 text-themeyellow font-medium shrink-0">
+            <span className="text-[10pt] font-medium text-tertiary italic flex-1">Unassigned</span>
+            <span className="text-[10pt] px-2 py-0.5 rounded-full bg-themeyellow/10 text-themeyellow font-medium shrink-0">
               {unassignedItems.length}
             </span>
           </div>
@@ -423,21 +419,22 @@ export function PropertyLocationTree({
                     key={item.id}
                     role="button"
                     tabIndex={0}
-                    className={`flex items-center gap-1.5 w-full py-1.5 pr-3 transition-colors text-left cursor-pointer ${
+                    className={`flex items-center gap-2 w-full py-2 pr-6 transition-colors text-left cursor-pointer ${
                       isItemDragSource ? 'opacity-30' : 'hover:bg-secondary/5'
                     }`}
-                    style={{ paddingLeft: `${12 + 20 + 18}px` }}
+                    style={{ paddingLeft: `${24 + 20 + 18}px` }}
                     onClick={() => onSelectItem(item)}
                     onKeyDown={(e) => { if (e.key === 'Enter') onSelectItem(item) }}
+                    onContextMenu={(e) => { e.preventDefault(); if (onDeleteItem) setContextMenu({ type: 'item', id: item.id, x: e.clientX, y: e.clientY }) }}
                     data-drag-id={item.id}
                     data-drag-type="item"
                     data-drag-name={item.name}
                   >
-                    <Package size={12} className="text-tertiary shrink-0" />
-                    <span className="text-xs text-primary truncate flex-1">{item.name}</span>
-                    {item.condition_code && (
-                      <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ${conditionColors[item.condition_code] ?? 'bg-tertiary/10 text-tertiary'}`}>
-                        {item.condition_code}
+                    <Package size={16} className="text-tertiary shrink-0" />
+                    <span className="text-[10pt] text-primary truncate flex-1">{item.name}</span>
+                    {item.quantity > 0 && (
+                      <span className="text-[10pt] px-2 py-0.5 rounded-full font-medium shrink-0 bg-themeblue3/10 text-themeblue3">
+                        {item.quantity}
                       </span>
                     )}
                   </div>
@@ -448,6 +445,39 @@ export function PropertyLocationTree({
         </div>
       )}
 
+      {/* Right-click context menu */}
+      {contextMenu && (() => {
+        if (contextMenu.type === 'location') {
+          const loc = locations.find(l => l.id === contextMenu.id)
+          if (!loc) return null
+          return (
+            <CardContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              onClose={() => setContextMenu(null)}
+              items={[
+                ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Edit3, onAction: () => onEditLocation(loc) }] : []),
+                ...(onDeleteLocation ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),
+              ]}
+            />
+          )
+        } else {
+          const item = items.find(i => i.id === contextMenu.id)
+          if (!item) return null
+          return (
+            <CardContextMenu
+              x={contextMenu.x}
+              y={contextMenu.y}
+              onClose={() => setContextMenu(null)}
+              items={[
+                { key: 'view', label: 'View', icon: Eye, onAction: () => onSelectItem(item) },
+                ...(onDeleteItem ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteItem(item) }] : []),
+              ]}
+            />
+          )
+        }
+      })()}
+
       {/* Ghost element rendered via portal */}
       {dragState && createPortal(
         <div
@@ -455,12 +485,12 @@ export function PropertyLocationTree({
           className="fixed top-0 left-0 z-[9999] pointer-events-none"
           style={{ transform: 'translate(-9999px, -9999px)' }}
         >
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white shadow-lg border border-tertiary/20 max-w-[200px]">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-full bg-white shadow-lg border border-tertiary/20 max-w-[200px]">
             {dragState.type === 'location'
-              ? <MapPin size={12} className="text-themeblue3 shrink-0" />
-              : <Package size={12} className="text-tertiary shrink-0" />
+              ? <MapPin size={16} className="text-themeblue3 shrink-0" />
+              : <Package size={16} className="text-tertiary shrink-0" />
             }
-            <span className="text-xs font-medium text-primary truncate">{dragState.name}</span>
+            <span className="text-[10pt] font-medium text-primary truncate">{dragState.name}</span>
           </div>
         </div>,
         document.body

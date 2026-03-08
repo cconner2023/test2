@@ -19,13 +19,6 @@ interface PropertyItemRowProps {
   onToggleSelect?: () => void
 }
 
-const conditionBadge: Record<string, { bg: string; text: string; label: string }> = {
-  serviceable: { bg: 'bg-themegreen/10', text: 'text-themegreen', label: 'SVC' },
-  unserviceable: { bg: 'bg-themeredred/10', text: 'text-themeredred', label: 'UNSVC' },
-  damaged: { bg: 'bg-themeyellow/10', text: 'text-themeyellow', label: 'DMG' },
-  missing: { bg: 'bg-themeredred/10', text: 'text-themeredred', label: 'MIS' },
-}
-
 export function PropertyItemRow({
   item,
   holderName,
@@ -42,7 +35,6 @@ export function PropertyItemRow({
   onContextMenu,
   onToggleSelect,
 }: PropertyItemRowProps) {
-  const badge = conditionBadge[item.condition_code] ?? conditionBadge.serviceable
   const swipeEnabled = !!(onOpen && onClose)
 
   const actions: SwipeAction[] = (onView && onTransfer && onDelete) ? [
@@ -66,28 +58,23 @@ export function PropertyItemRow({
 
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-primary truncate">{item.name}</span>
+          <span className="text-[11pt] font-medium text-primary truncate">{item.name}</span>
         </div>
         <div className="flex items-center gap-2 mt-0.5">
-          {item.nsn && <span className="text-xs text-tertiary">{item.nsn}</span>}
-          {holderName && <span className="text-xs text-secondary truncate">{holderName}</span>}
+          {item.nsn && <span className="text-[10pt] text-tertiary">{item.nsn}</span>}
+          {holderName && <span className="text-[10pt] text-secondary truncate">{holderName}</span>}
         </div>
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
-        {(item.quantity ?? 1) > 1 && (
-          <span className="text-[9pt] bg-themeblue3/10 text-themeblue3 px-1.5 py-0.5 rounded-full font-medium">
-            x{item.quantity}
-          </span>
-        )}
-        {subItemCount != null && subItemCount > 0 && (
-          <span className="text-[9pt] bg-themeblue3/10 text-themeblue3 px-1.5 py-0.5 rounded-full font-medium">
-            {subItemCount}
-          </span>
-        )}
-        <span className={`text-[9pt] px-1.5 py-0.5 rounded-full font-medium ${badge.bg} ${badge.text}`}>
-          {badge.label}
+        <span className="text-[10pt] bg-themeblue3/10 text-themeblue3 px-2 py-0.5 rounded-full font-medium">
+          {item.quantity ?? 1}
         </span>
+        {subItemCount != null && subItemCount > 0 && (
+          <span className="text-[10pt] bg-tertiary/10 text-tertiary px-2 py-0.5 rounded-full font-medium">
+            +{subItemCount}
+          </span>
+        )}
       </div>
     </>
   )
@@ -97,7 +84,7 @@ export function PropertyItemRow({
     return (
       <div
         onClick={() => onTap?.()}
-        className={`flex items-center gap-3 px-4 py-3 text-left hover:bg-secondary/5 active:bg-secondary/10 transition-colors border-b border-tertiary/10 cursor-pointer
+        className={`flex items-center gap-3 px-6 py-3 text-left hover:bg-secondary/5 active:bg-secondary/10 transition-colors border-b border-tertiary/10 cursor-pointer
           ${isSelected ? 'ring-1 ring-inset ring-themeblue2/30 bg-themeblue2/5' : ''}`}
       >
         {cardContent}
@@ -117,7 +104,7 @@ export function PropertyItemRow({
       onContextMenu={onContextMenu}
     >
       <div
-        className={`flex items-center gap-3 px-4 py-3 text-left transition-colors border-b border-tertiary/10 bg-themewhite3
+        className={`flex items-center gap-3 px-6 py-3 text-left transition-colors border-b border-tertiary/10 bg-themewhite3
           ${isSelected ? 'ring-1 ring-inset ring-themeblue2/30 bg-themeblue2/5' : ''}`}
       >
         {cardContent}

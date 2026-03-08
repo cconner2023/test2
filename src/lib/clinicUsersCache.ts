@@ -14,8 +14,9 @@
  * - idb library
  */
 
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { type DBSchema } from 'idb'
 import { createLogger } from '../Utilities/Logger'
+import { createIdbSingleton } from './idbFactory'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 
 const logger = createLogger('ClinicUsersCache')
@@ -32,19 +33,11 @@ interface ClinicUsersDB extends DBSchema {
 const DB_NAME = 'adtmc-clinic-users'
 const DB_VERSION = 1
 
-let dbInstance: IDBPDatabase<ClinicUsersDB> | null = null
-
-async function getDb(): Promise<IDBPDatabase<ClinicUsersDB>> {
-  if (dbInstance) return dbInstance
-
-  dbInstance = await openDB<ClinicUsersDB>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      db.createObjectStore('users', { keyPath: 'id' })
-    },
-  })
-
-  return dbInstance
-}
+const { getDb } = createIdbSingleton<ClinicUsersDB>(DB_NAME, DB_VERSION, {
+  upgrade(db) {
+    db.createObjectStore('users', { keyPath: 'id' })
+  },
+})
 
 // ---- Load ----
 

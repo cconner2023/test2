@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Crown, Trash2, Smartphone, LogOut, Info, Check } from 'lucide-react'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useAuth } from '../../Hooks/useAuth'
@@ -262,31 +263,21 @@ export function SessionsDevicesPanel() {
         {/* Sign Out All Other Sessions (primary only) */}
         {isPrimary && otherDevicesExist && (
           <div className="pt-2">
-            {confirmLogoutAll ? (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={handleLogoutAll}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-themeredred/10 text-themeredred text-sm font-medium active:scale-[0.98] transition-all"
-                >
-                  <LogOut size={16} />
-                  Confirm Sign Out All
-                </button>
-                <button
-                  onClick={() => setConfirmLogoutAll(false)}
-                  className="px-4 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary text-sm font-medium active:scale-[0.98] transition-all"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setConfirmLogoutAll(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-themeredred/10 text-themeredred text-sm font-medium active:scale-[0.98] transition-all"
-              >
-                <LogOut size={16} />
-                Sign Out All Other Sessions
-              </button>
-            )}
+            <button
+              onClick={() => setConfirmLogoutAll(true)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-themeredred/10 text-themeredred text-sm font-medium active:scale-[0.98] transition-all"
+            >
+              <LogOut size={16} />
+              Sign Out All Other Sessions
+            </button>
+            <ConfirmDialog
+              visible={confirmLogoutAll}
+              title="Sign out all other sessions?"
+              confirmLabel="Sign Out All"
+              variant="danger"
+              onConfirm={handleLogoutAll}
+              onCancel={() => setConfirmLogoutAll(false)}
+            />
           </div>
         )}
 

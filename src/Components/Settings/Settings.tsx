@@ -9,7 +9,6 @@ import { ReleaseNotesPanel } from './ReleaseNotesPanel';
 import { UserProfileDisplay } from './UserProfileDisplay';
 import { ProfileChangeRequestForm } from './ProfileChangeRequestForm';
 import { AccountRequestForm } from './AccountRequestForm';
-import { AdminPanel } from './AdminPanel';
 import { SupervisorPanel } from './SupervisorPanel';
 import { GuestOptionsPanel } from './GuestOptionsPanel';
 import { LoginPanel } from './LoginPanel';
@@ -25,6 +24,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../Hooks/useAuth';
 import { clearAllUserData } from '../../lib/offlineDb';
 import { clearServiceWorkerCaches } from '../../lib/cacheService';
+import { deleteOwnAccount } from '../../lib/authService';
 import { PANEL, PANEL_TARGET, type PanelId, type SettingsItem } from './SettingsTypes';
 import { UI_TIMING } from '../../Utilities/constants';
 import { MainSettingsPanel } from './MainSettingsPanel';
@@ -40,6 +40,7 @@ interface SettingsDrawerProps {
     isDarkMode: boolean;
     onToggleTheme: () => void;
     initialPanel?: 'main' | 'release-notes';
+    onOpenAdmin?: () => void;
 }
 
 export const Settings = ({
@@ -48,9 +49,10 @@ export const Settings = ({
     isDarkMode,
     onToggleTheme,
     initialPanel,
+    onOpenAdmin,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'admin' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'lora' | 'sessions-devices'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'lora' | 'sessions-devices'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
@@ -97,13 +99,20 @@ export const Settings = ({
         // Toggle theme has no panel navigation
         if (id === PANEL.TOGGLE_THEME) return;
 
+        // Admin panel opens its own drawer
+        if (id === PANEL.ADMIN && onOpenAdmin) {
+            closeDrawer();
+            onOpenAdmin();
+            return;
+        }
+
         // Look up the target panel name from the constant map
         const target = PANEL_TARGET[id];
         if (target) {
             handleSlideAnimation('left');
             setActivePanel(target as typeof activePanel);
         }
-    }, [handleSlideAnimation]);
+    }, [handleSlideAnimation, onOpenAdmin]);
 
     const buildSettingsOptions = useCallback((closeDrawer: () => void): SettingsItem[] => {
         /** Shorthand for a standard menu option that navigates to a panel. */
@@ -196,7 +205,6 @@ export const Settings = ({
             case 'user-profile':        return { title: 'Profile', ...backTo() };
             case 'lora':                return { title: 'LoRa Mesh', ...backTo() };
             case 'sessions-devices':    return { title: 'Sessions & Devices', ...backTo('pin-setup') };
-            case 'admin':               return { title: 'Admin Panel', ...backTo() };
             case 'guest-options':       return { title: 'Sign In', ...backTo() };
             case 'pin-setup':           return { title: 'Security', ...backTo() };
             case 'notification-settings': return { title: 'Notifications', ...backTo() };
@@ -217,127 +225,140 @@ export const Settings = ({
         >
             {(handleClose) => (
                 <ContentWrapper slideDirection={slideDirection} swipeHandlers={activePanel !== 'main' ? swipeHandlers : undefined}>
-                    {activePanel === 'main' ? (
-                        <MainSettingsPanel
-                            settingsOptions={buildSettingsOptions(handleClose)}
-                            onItemClick={(id) => handleItemClick(id, handleClose)}
-                            displayName={
-                                isAuthenticated
-                                    ? (profile.lastName
-                                        ? `${profile.rank ? profile.rank + ' ' : ''}${profile.lastName}${profile.firstName ? ', ' + profile.firstName.charAt(0) + '.' : ''}`
-                                        : 'Set Up Profile')
-                                    : 'Guest'
-                            }
-                            displaySub={
-                                isAuthenticated
-                                    ? (profile.credential
-                                        ? `${profile.credential}${profile.component ? ' \u00b7 ' + profile.component : ''}`
-                                        : 'Tap to set up')
-                                    : 'Tap to sign in or request account'
-                            }
-                            displayClinic={
-                                isAuthenticated
-                                    ? (profile.clinicName
-                                        ? `${profile.clinicName}${profile.uic ? ' \u00b7 ' + profile.uic : ''}`
-                                        : profile.uic
-                                            ? `UIC: ${profile.uic}`
-                                            : undefined)
-                                    : undefined
-                            }
-                            onAvatarClick={() => handleItemClick(PANEL.AVATAR_PICKER, handleClose)}
-                            onProfileClick={() => {
-                                if (!isAuthenticated) {
-                                    handleItemClick(PANEL.GUEST_OPTIONS, handleClose);
-                                } else {
-                                    handleItemClick(PANEL.USER_PROFILE, handleClose);
-                                }
-                            }}
-                            isConnected={isSupabaseConnected}
-                        />
-                    ) : activePanel === 'user-profile' ? (
-                        isAuthenticated === false ? (
-                            <AccountRequestForm />
-                        ) : (
-                            <ProfilePage
-                                onAvatarClick={() => handleItemClick(PANEL.AVATAR_PICKER, handleClose)}
-                                onNavigate={(panel) => {
-                                    handleSlideAnimation('left');
-                                    setActivePanel(panel);
-                                }}
-                                onSignOut={async () => { await clearAllUserData(); await clearServiceWorkerCaches(); await signOut(); handleClose(); }}
-                            />
-                        )
-                    ) : activePanel === 'user-profile-details' ? (
-                        <UserProfileDisplay
-                            onRequestChange={() => handleItemClick(PANEL.PROFILE_CHANGE_REQUEST, handleClose)}
-                        />
-                    ) : activePanel === 'change-password' ? (
-                        <ChangePasswordPanel />
-                    ) : activePanel === 'certifications' ? (
-                        <CertificationsPanel />
-                    ) : activePanel === 'profile-change-request' ? (
-                        <ProfileChangeRequestForm />
-                    ) : activePanel === 'avatar-picker' ? (
-                        <AvatarPickerPanel
-                            onSelect={(id) => {
-                                if (id === 'custom') {
-                                    setAvatar('custom');
-                                } else {
-                                    setAvatar(id);
-                                }
-                                handleSlideAnimation('right');
-                                setActivePanel('main');
-                            }}
-                            onUpload={async (file) => {
-                                try {
-                                    const dataUrl = await resizeImage(file);
-                                    setCustomImage(dataUrl);
-                                    handleSlideAnimation('right');
-                                    setActivePanel('main');
-                                } catch {
-                                    // silently fail on unsupported image
-                                }
-                            }}
-                        />
-                    ) : activePanel === 'release-notes' ? (
-                        <ReleaseNotesPanel />
-                    ) : activePanel === 'guest-options' ? (
-                        <GuestOptionsPanel
-                            onSignIn={() => handleItemClick(PANEL.LOGIN, handleClose)}
-                            onRequestAccount={() => {
-                                handleSlideAnimation('left');
-                                setActivePanel('user-profile');
-                            }}
-                        />
-                    ) : activePanel === 'login' ? (
-                        <LoginPanel
-                            onSuccess={() => {
-                                handleSlideAnimation('right');
-                                setActivePanel('main');
-                            }}
-                            onRequestAccount={() => {
-                                handleSlideAnimation('left');
-                                setActivePanel('user-profile');
-                            }}
-                        />
-                    ) : activePanel === 'feedback' ? (
-                        <FeedbackPanel />
-                    ) : activePanel === 'privacy-policy' ? (
-                        <PrivacyPolicyPanel />
-                    ) : activePanel === 'note-content' ? (
-                        <NoteContentPanel />
-                    ) : activePanel === 'notification-settings' ? (
-                        <NotificationSettingsPanel />
-                    ) : activePanel === 'sessions-devices' ? (
-                        <SessionsDevicesPanel />
-                    ) : activePanel === 'pin-setup' ? (
-                        <PinSetupPanel
-                            onNavigateToDevices={isAuthenticated ? () => {
-                                handleSlideAnimation('left');
-                                setActivePanel('sessions-devices');
-                            } : undefined}
-                        />
-                    ) : null}
+                    {(() => {
+                        // Component lookup map — maps each panel name to its rendered JSX.
+                        // Replaces the previous 18-branch ternary chain.
+                        const panelMap: Partial<Record<typeof activePanel, React.ReactNode>> = {
+                            'main': (
+                                <MainSettingsPanel
+                                    settingsOptions={buildSettingsOptions(handleClose)}
+                                    onItemClick={(id) => handleItemClick(id, handleClose)}
+                                    displayName={
+                                        isAuthenticated
+                                            ? (profile.lastName
+                                                ? `${profile.rank ? profile.rank + ' ' : ''}${profile.lastName}${profile.firstName ? ', ' + profile.firstName.charAt(0) + '.' : ''}`
+                                                : 'Set Up Profile')
+                                            : 'Guest'
+                                    }
+                                    displaySub={
+                                        isAuthenticated
+                                            ? (profile.credential
+                                                ? `${profile.credential}${profile.component ? ' \u00b7 ' + profile.component : ''}`
+                                                : 'Tap to set up')
+                                            : 'Tap to sign in or request account'
+                                    }
+                                    displayClinic={
+                                        isAuthenticated
+                                            ? (profile.clinicName
+                                                ? `${profile.clinicName}${profile.uic ? ' \u00b7 ' + profile.uic : ''}`
+                                                : profile.uic
+                                                    ? `UIC: ${profile.uic}`
+                                                    : undefined)
+                                            : undefined
+                                    }
+                                    onAvatarClick={() => handleItemClick(PANEL.AVATAR_PICKER, handleClose)}
+                                    onProfileClick={() => {
+                                        if (!isAuthenticated) {
+                                            handleItemClick(PANEL.GUEST_OPTIONS, handleClose);
+                                        } else {
+                                            handleItemClick(PANEL.USER_PROFILE, handleClose);
+                                        }
+                                    }}
+                                    isConnected={isSupabaseConnected}
+                                />
+                            ),
+                            'user-profile': (
+                                isAuthenticated === false ? (
+                                    <AccountRequestForm />
+                                ) : (
+                                    <ProfilePage
+                                        onAvatarClick={() => handleItemClick(PANEL.AVATAR_PICKER, handleClose)}
+                                        onNavigate={(panel) => {
+                                            handleSlideAnimation('left');
+                                            setActivePanel(panel);
+                                        }}
+                                        onSignOut={async () => { await clearAllUserData(); await clearServiceWorkerCaches(); await signOut(); handleClose(); }}
+                                        onDeleteAccount={async () => {
+                                            const result = await deleteOwnAccount();
+                                            if (!result.success) return result;
+                                            await clearAllUserData();
+                                            await clearServiceWorkerCaches();
+                                            await signOut();
+                                            handleClose();
+                                            return { success: true };
+                                        }}
+                                    />
+                                )
+                            ),
+                            'user-profile-details': (
+                                <UserProfileDisplay
+                                    onRequestChange={() => handleItemClick(PANEL.PROFILE_CHANGE_REQUEST, handleClose)}
+                                />
+                            ),
+                            'change-password':      <ChangePasswordPanel />,
+                            'certifications':       <CertificationsPanel />,
+                            'profile-change-request': <ProfileChangeRequestForm />,
+                            'avatar-picker': (
+                                <AvatarPickerPanel
+                                    onSelect={(id) => {
+                                        if (id === 'custom') {
+                                            setAvatar('custom');
+                                        } else {
+                                            setAvatar(id);
+                                        }
+                                        handleSlideAnimation('right');
+                                        setActivePanel('main');
+                                    }}
+                                    onUpload={async (file) => {
+                                        try {
+                                            const dataUrl = await resizeImage(file);
+                                            setCustomImage(dataUrl);
+                                            handleSlideAnimation('right');
+                                            setActivePanel('main');
+                                        } catch {
+                                            // silently fail on unsupported image
+                                        }
+                                    }}
+                                />
+                            ),
+                            'release-notes':        <ReleaseNotesPanel />,
+                            'guest-options': (
+                                <GuestOptionsPanel
+                                    onSignIn={() => handleItemClick(PANEL.LOGIN, handleClose)}
+                                    onRequestAccount={() => {
+                                        handleSlideAnimation('left');
+                                        setActivePanel('user-profile');
+                                    }}
+                                />
+                            ),
+                            'login': (
+                                <LoginPanel
+                                    onSuccess={() => {
+                                        handleSlideAnimation('right');
+                                        setActivePanel('main');
+                                    }}
+                                    onRequestAccount={() => {
+                                        handleSlideAnimation('left');
+                                        setActivePanel('user-profile');
+                                    }}
+                                />
+                            ),
+                            'feedback':             <FeedbackPanel />,
+                            'privacy-policy':       <PrivacyPolicyPanel />,
+                            'note-content':         <NoteContentPanel />,
+                            'notification-settings': <NotificationSettingsPanel />,
+                            'sessions-devices':     <SessionsDevicesPanel />,
+                            'pin-setup': (
+                                <PinSetupPanel
+                                    onNavigateToDevices={isAuthenticated ? () => {
+                                        handleSlideAnimation('left');
+                                        setActivePanel('sessions-devices');
+                                    } : undefined}
+                                />
+                            ),
+                        };
+                        return panelMap[activePanel] ?? null;
+                    })()}
 
                     {/* Pre-mounted panels — data loads when Settings opens, hidden until active */}
                     {isSupervisorRole && (
@@ -346,11 +367,6 @@ export const Settings = ({
                                 backRef={supervisorBackRef}
                                 onBackToMain={() => { handleSlideAnimation('right'); setActivePanel('main'); }}
                             />
-                        </div>
-                    )}
-                    {isDevRole && (
-                        <div className="h-full" style={{ display: activePanel === 'admin' ? undefined : 'none' }}>
-                            <AdminPanel />
                         </div>
                     )}
                     {isAuthenticated && (LORA_MESH_ENABLED || isDevRole) && (

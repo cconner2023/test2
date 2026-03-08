@@ -1,5 +1,6 @@
 import { memo, useState } from 'react'
 import { ChevronRight, RotateCcw } from 'lucide-react'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { MARCHForm } from './MARCHForm'
 import { MedicationsForm } from './MedicationsForm'
@@ -176,10 +177,6 @@ export const TC3BackColumn = memo(function TC3BackColumn() {
   const [showConfirmReset, setShowConfirmReset] = useState(false)
 
   const handleReset = () => {
-    if (!showConfirmReset) {
-      setShowConfirmReset(true)
-      return
-    }
     resetCard()
     setShowConfirmReset(false)
   }
@@ -238,30 +235,20 @@ export const TC3BackColumn = memo(function TC3BackColumn() {
 
           {/* New Card */}
           <div className="pt-2 border-t border-tertiary/10">
-            {showConfirmReset ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-themeredred">Clear all data and start a new card?</span>
-                <button
-                  onClick={handleReset}
-                  className="text-[11px] px-3 py-1 rounded-md bg-themeredred text-white hover:bg-themeredred/90 transition-colors"
-                >
-                  Confirm
-                </button>
-                <button
-                  onClick={() => setShowConfirmReset(false)}
-                  className="text-[11px] px-3 py-1 rounded-md text-tertiary hover:bg-tertiary/10 transition-colors"
-                >
-                  Cancel
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={handleReset}
-                className="flex items-center gap-1.5 text-[11px] text-tertiary hover:text-themeredred transition-colors px-1 py-1"
-              >
-                <RotateCcw size={14} /> <span>New Card</span>
-              </button>
-            )}
+            <button
+              onClick={() => setShowConfirmReset(true)}
+              className="flex items-center gap-1.5 text-[11px] text-tertiary hover:text-themeredred transition-colors px-1 py-1"
+            >
+              <RotateCcw size={14} /> <span>New Card</span>
+            </button>
+            <ConfirmDialog
+              visible={showConfirmReset}
+              title="Clear all data and start a new card?"
+              confirmLabel="Clear"
+              variant="danger"
+              onConfirm={handleReset}
+              onCancel={() => setShowConfirmReset(false)}
+            />
           </div>
         </div>
 

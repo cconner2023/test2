@@ -545,6 +545,7 @@ export async function updateClinic(
     name?: string
     location?: string | null
     uics?: string[]
+    child_clinic_ids?: string[]
     associated_clinic_ids?: string[]
     additional_user_ids?: string[]
   }

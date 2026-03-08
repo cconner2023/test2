@@ -65,6 +65,8 @@ export interface LocationTag {
   target_id: string
   x: number  // 0..1 normalised
   y: number  // 0..1 normalised
+  width?: number | null   // 0..1, null/undefined = point badge
+  height?: number | null  // 0..1, null/undefined = point badge
   label: string
 }
 

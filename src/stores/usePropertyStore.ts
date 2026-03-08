@@ -15,6 +15,10 @@ interface PropertyState {
   popLocation: () => void
   resetLocationPath: () => void
 
+  // Default location for new items (set when adding from a location view)
+  defaultLocationId: string | null
+  setDefaultLocationId: (id: string | null) => void
+
   // Filters
   holderFilter: string | null
   setHolderFilter: (holderId: string | null) => void
@@ -44,6 +48,10 @@ export const usePropertyStore = create<PropertyState>((set) => ({
       }
     }),
   resetLocationPath: () => set({ locationPath: [], selectedLocation: null }),
+
+  // Default location
+  defaultLocationId: null,
+  setDefaultLocationId: (id) => set({ defaultLocationId: id }),
 
   // Filters
   holderFilter: null,

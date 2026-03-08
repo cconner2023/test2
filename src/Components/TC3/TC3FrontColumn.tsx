@@ -1,5 +1,6 @@
 import { memo, useState } from 'react'
 import { RotateCcw, X } from 'lucide-react'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { CasualtyInfoForm } from './CasualtyInfoForm'
 import { MechanismForm } from './MechanismForm'
@@ -15,7 +16,6 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
   const [showConfirmReset, setShowConfirmReset] = useState(false)
 
   const handleReset = () => {
-    if (!showConfirmReset) { setShowConfirmReset(true); return }
     resetCard()
     setShowConfirmReset(false)
   }
@@ -80,21 +80,17 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
 
         {/* Reset card */}
         <div className="pt-2 border-t border-tertiary/10 px-1">
-          {showConfirmReset ? (
-            <div className="flex items-center gap-2 py-1">
-              <span className="text-[10px] text-themeredred">Clear all data?</span>
-              <button onClick={handleReset} className="text-[10px] px-2.5 py-1 rounded-md bg-themeredred text-white hover:bg-themeredred/90 transition-colors">
-                Confirm
-              </button>
-              <button onClick={() => setShowConfirmReset(false)} className="text-[10px] px-2.5 py-1 rounded-md text-tertiary hover:bg-tertiary/10 transition-colors">
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <button onClick={handleReset} className="flex items-center gap-1.5 text-[10px] text-tertiary/50 hover:text-themeredred transition-colors py-1">
-              <RotateCcw size={12} /> <span>New Card</span>
-            </button>
-          )}
+          <button onClick={() => setShowConfirmReset(true)} className="flex items-center gap-1.5 text-[10px] text-tertiary/50 hover:text-themeredred transition-colors py-1">
+            <RotateCcw size={12} /> <span>New Card</span>
+          </button>
+          <ConfirmDialog
+            visible={showConfirmReset}
+            title="Clear all data and start a new card?"
+            confirmLabel="Clear"
+            variant="danger"
+            onConfirm={handleReset}
+            onCancel={() => setShowConfirmReset(false)}
+          />
         </div>
       </div>
     </div>

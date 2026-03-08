@@ -335,6 +335,11 @@ export async function deleteLocation(
   try {
     await deleteLocalPropertyLocation(id)
 
+    // Remove tags on parent locations that reference this child as a zone
+    if (isOnline()) {
+      await supabase.from('location_tags').delete().eq('target_id', id).eq('target_type', 'location')
+    }
+
     await addToSyncQueue({
       user_id: userId,
       action: 'delete',
@@ -384,6 +389,8 @@ export async function upsertLocationTags(
         target_id: t.target_id,
         x: t.x,
         y: t.y,
+        width: t.width ?? null,
+        height: t.height ?? null,
         label: t.label,
       }))
       const { error } = await supabase.from('location_tags').insert(rows)

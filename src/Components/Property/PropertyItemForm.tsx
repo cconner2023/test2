@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useMemo } from 'react'
 import { Camera, Image, X } from 'lucide-react'
+import { usePropertyStore } from '../../stores/usePropertyStore'
 import type { PropertyItem, LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
 
 interface PropertyItemFormProps {
@@ -43,6 +44,7 @@ export function PropertyItemForm({
   clinicId,
 }: PropertyItemFormProps) {
   const isEdit = !!editingItem
+  const { defaultLocationId } = usePropertyStore()
 
   const [name, setName] = useState(editingItem?.name ?? '')
   const [nomenclature, setNomenclature] = useState(editingItem?.nomenclature ?? '')
@@ -50,7 +52,9 @@ export function PropertyItemForm({
   const [lin, setLin] = useState(editingItem?.lin ?? '')
   const [serialNumber, setSerialNumber] = useState(editingItem?.serial_number ?? '')
   const [quantity, setQuantity] = useState(editingItem?.quantity ?? 1)
-  const [placement, setPlacement] = useState(encodePlacement(editingItem ?? null))
+  const [placement, setPlacement] = useState(
+    editingItem ? encodePlacement(editingItem) : defaultLocationId ? `location:${defaultLocationId}` : ''
+  )
   const [holderId, setHolderId] = useState(editingItem?.current_holder_id ?? '')
   const [photoUrl, setPhotoUrl] = useState<string | null>(editingItem?.photo_url ?? null)
   const [notes, setNotes] = useState(editingItem?.notes ?? '')

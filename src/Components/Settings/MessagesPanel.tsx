@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMemo } from 'react'
-import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, ArrowLeft, MessageSquare, Users, Plus, Info, ChevronLeft, UserPlus, Pin } from 'lucide-react'
+import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, ArrowLeft, MessageSquare, Users, Plus, Info, ChevronLeft, UserPlus, Pin, PenLine } from 'lucide-react'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { useSpring, animated } from '@react-spring/web'
 import { SPRING_CONFIGS } from '../../Utilities/GestureUtils'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
@@ -10,7 +11,7 @@ import { ContactListItem } from './ContactListItem'
 import { GroupListItem } from './GroupListItem'
 import { CreateGroupModal } from './CreateGroupModal'
 import { GroupInfoPanel } from './GroupInfoPanel'
-import { MessageBubble, type SwipeAction } from './MessageBubble'
+import { MessageBubble } from './MessageBubble'
 import { MessageContextMenu } from './MessageContextMenu'
 import { UserAvatar } from './UserAvatar'
 import { LoadingSpinner } from '../LoadingSpinner'
@@ -22,6 +23,8 @@ import { useAvatar } from '../../Utilities/AvatarContext'
 import { useImagePaste } from '../../Hooks/useImagePaste'
 import { CardContextMenu } from '../CardContextMenu'
 import { SwipeableCard, type SwipeAction as SwipeCardAction } from '../SwipeableCard'
+import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
+import { useChatInteractions } from '../../Hooks/useChatInteractions'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
@@ -59,110 +62,145 @@ function ContactsPanel({
   onCreateGroup: () => void
   onClose: () => void
 }) {
-  const { clinicId: userClinicId } = useAuth()
-
-  const canSplit = !!userClinicId
-  const ownClinicMedics = useMemo(() => {
-    const list = canSplit
-      ? medics.filter(m => !m.clinicId || m.clinicId === userClinicId)
-      : medics
-    return [...list].sort((a, b) => (a.lastName ?? '').localeCompare(b.lastName ?? ''))
-  }, [medics, userClinicId, canSplit])
-
-  const nearbyByClinic = useMemo(() => {
-    if (!canSplit) return {} as Record<string, ClinicMedic[]>
-    const nearby = medics.filter(m => m.clinicId && m.clinicId !== userClinicId)
-    const grouped: Record<string, ClinicMedic[]> = {}
-    for (const m of nearby) {
-      const key = m.clinicName ?? 'Other'
-      ;(grouped[key] ??= []).push(m)
-    }
-    for (const key of Object.keys(grouped)) {
-      grouped[key].sort((a, b) => (a.lastName ?? '').localeCompare(b.lastName ?? ''))
-    }
-    return grouped
-  }, [medics, userClinicId, canSplit])
-
-  const nearbyClinicNames = Object.keys(nearbyByClinic).sort()
+  const { ownClinicMedics, nearbyByClinic, nearbyClinicNames } = useClinicGroupedMedics(medics)
+  const [closing, setClosing] = useState(false)
 
   const sortedGroups = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name))
 
+  // Spring animation: slide up from bottom + backdrop fade
+  const [panelSpring] = useSpring(() => ({
+    from: { y: 100, opacity: 0 },
+    to: { y: 0, opacity: 1 },
+    config: { tension: 320, friction: 28 },
+  }), [])
+
+  const [backdropSpring] = useSpring(() => ({
+    from: { opacity: 0 },
+    to: { opacity: 1 },
+    config: { tension: 200, friction: 26 },
+  }), [])
+
+  const handleClose = useCallback(() => {
+    setClosing(true)
+    // Allow spring-out to play before unmounting
+    setTimeout(onClose, 200)
+  }, [onClose])
+
+  // Closing animation
+  const [closePanelSpring] = useSpring(() => ({
+    y: closing ? 100 : 0,
+    opacity: closing ? 0 : 1,
+    config: { tension: 380, friction: 26 },
+  }), [closing])
+
+  const [closeBackdropSpring] = useSpring(() => ({
+    opacity: closing ? 0 : 1,
+    config: { tension: 300, friction: 30 },
+  }), [closing])
+
   const handleSelectPeer = useCallback((medic: ClinicMedic) => {
-    onClose()
-    onSelectPeer(medic)
+    setClosing(true)
+    setTimeout(() => {
+      onClose()
+      onSelectPeer(medic)
+    }, 150)
   }, [onClose, onSelectPeer])
 
   const handleSelectGroup = useCallback((group: GroupInfo) => {
-    onClose()
-    onSelectGroup(group)
+    setClosing(true)
+    setTimeout(() => {
+      onClose()
+      onSelectGroup(group)
+    }, 150)
   }, [onClose, onSelectGroup])
 
   return (
-    <div className="absolute inset-0 z-10 bg-themewhite3 flex flex-col">
-      <div className="shrink-0 px-4 py-3 border-b border-primary/10 flex items-center justify-between">
-        <p className="text-sm font-medium text-primary">Contacts</p>
-        <button onClick={onClose} className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
-          <X size={18} className="text-tertiary" />
-        </button>
-      </div>
-      <div className="flex-1 overflow-y-auto px-2 py-2">
-        {/* Groups */}
-        <div className="flex items-center justify-between px-4 mb-2">
-          <p className="text-xs text-tertiary/60">Groups</p>
-          <button
-            onClick={onCreateGroup}
-            className="flex items-center gap-1 text-xs text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
-          >
-            <Plus size={12} />
-            New
+    <div className="absolute inset-0 z-10 flex flex-col">
+      {/* Backdrop */}
+      <animated.div
+        className="absolute inset-0 bg-black/20"
+        style={{ opacity: closing ? closeBackdropSpring.opacity : backdropSpring.opacity }}
+        onClick={handleClose}
+      />
+
+      {/* Panel - slides up from bottom */}
+      <animated.div
+        className="absolute inset-x-0 bottom-0 top-0 bg-themewhite3 flex flex-col rounded-t-2xl shadow-lg"
+        style={{
+          transform: (closing ? closePanelSpring.y : panelSpring.y).to(v => `translateY(${v}%)`),
+          opacity: closing ? closePanelSpring.opacity : panelSpring.opacity,
+        }}
+      >
+        {/* Drag handle */}
+        <div className="flex justify-center pt-2 pb-1">
+          <div className="w-8 h-1 rounded-full bg-tertiary/20" />
+        </div>
+
+        <div className="shrink-0 px-4 py-2 border-b border-primary/10 flex items-center justify-between">
+          <p className="text-sm font-medium text-primary">Contacts</p>
+          <button onClick={handleClose} className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
+            <X size={18} className="text-tertiary" />
           </button>
         </div>
-        {sortedGroups.map(group => {
-          const msgs = conversations[group.groupId]
-          const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
-          return (
-            <GroupListItem
-              key={group.groupId}
-              group={group}
-              lastMessage={lastMsg?.plaintext}
-              unreadCount={unreadCounts[group.groupId] ?? 0}
-              onClick={() => handleSelectGroup(group)}
-            />
-          )
-        })}
-        {sortedGroups.length === 0 && (
-          <p className="text-xs text-tertiary/30 px-4 mb-2">No groups yet</p>
-        )}
-        <div className="mx-4 my-1 border-b border-primary/10" />
+        <div className="flex-1 overflow-y-auto px-2 py-2">
+          {/* Groups */}
+          <div className="flex items-center justify-between px-4 mb-2">
+            <p className="text-xs text-tertiary/60">Groups</p>
+            <button
+              onClick={onCreateGroup}
+              className="flex items-center gap-1 text-xs text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
+            >
+              <Plus size={12} />
+              New
+            </button>
+          </div>
+          {sortedGroups.map(group => {
+            const msgs = conversations[group.groupId]
+            const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
+            return (
+              <GroupListItem
+                key={group.groupId}
+                group={group}
+                lastMessage={lastMsg?.plaintext}
+                unreadCount={unreadCounts[group.groupId] ?? 0}
+                onClick={() => handleSelectGroup(group)}
+              />
+            )
+          })}
+          {sortedGroups.length === 0 && (
+            <p className="text-xs text-tertiary/30 px-4 mb-2">No groups yet</p>
+          )}
+          <div className="mx-4 my-1 border-b border-primary/10" />
 
-        {/* Own clinic members */}
-        <p className="text-xs text-tertiary/60 px-4 mb-2">Clinic Members</p>
-        {ownClinicMedics.length > 0
-          ? ownClinicMedics.map(medic => (
-            <ContactListItem
-              key={medic.id}
-              medic={medic}
-              onClick={() => handleSelectPeer(medic)}
-            />
-          ))
-          : <p className="text-xs text-tertiary/30 px-4 mb-2">No clinic members</p>
-        }
-
-        {/* Nearby clinics */}
-        {nearbyClinicNames.map(clinicName => (
-          <div key={clinicName}>
-            <div className="mx-4 my-1 border-b border-primary/10" />
-            <p className="text-xs text-tertiary/60 px-4 mb-2 mt-2">{clinicName}</p>
-            {nearbyByClinic[clinicName].map(medic => (
+          {/* Own clinic members */}
+          <p className="text-xs text-tertiary/60 px-4 mb-2">Clinic Members</p>
+          {ownClinicMedics.length > 0
+            ? ownClinicMedics.map(medic => (
               <ContactListItem
                 key={medic.id}
                 medic={medic}
                 onClick={() => handleSelectPeer(medic)}
               />
-            ))}
-          </div>
-        ))}
-      </div>
+            ))
+            : <p className="text-xs text-tertiary/30 px-4 mb-2">No clinic members</p>
+          }
+
+          {/* Nearby clinics */}
+          {nearbyClinicNames.map(clinicName => (
+            <div key={clinicName}>
+              <div className="mx-4 my-1 border-b border-primary/10" />
+              <p className="text-xs text-tertiary/60 px-4 mb-2 mt-2">{clinicName}</p>
+              {nearbyByClinic[clinicName].map(medic => (
+                <ContactListItem
+                  key={medic.id}
+                  medic={medic}
+                  onClick={() => handleSelectPeer(medic)}
+                />
+              ))}
+            </div>
+          ))}
+        </div>
+      </animated.div>
     </div>
   )
 }
@@ -182,31 +220,8 @@ function ContactsSidebar({
   onSelectGroup: (group: GroupInfo) => void
   onCreateGroup: () => void
 }) {
-  const { clinicId: userClinicId } = useAuth()
+  const { ownClinicMedics, nearbyByClinic, nearbyClinicNames } = useClinicGroupedMedics(medics)
 
-  const canSplit = !!userClinicId
-  const ownClinicMedics = useMemo(() => {
-    const list = canSplit
-      ? medics.filter(m => !m.clinicId || m.clinicId === userClinicId)
-      : medics
-    return [...list].sort((a, b) => (a.lastName ?? '').localeCompare(b.lastName ?? ''))
-  }, [medics, userClinicId, canSplit])
-
-  const nearbyByClinic = useMemo(() => {
-    if (!canSplit) return {} as Record<string, ClinicMedic[]>
-    const nearby = medics.filter(m => m.clinicId && m.clinicId !== userClinicId)
-    const grouped: Record<string, ClinicMedic[]> = {}
-    for (const m of nearby) {
-      const key = m.clinicName ?? 'Other'
-      ;(grouped[key] ??= []).push(m)
-    }
-    for (const key of Object.keys(grouped)) {
-      grouped[key].sort((a, b) => (a.lastName ?? '').localeCompare(b.lastName ?? ''))
-    }
-    return grouped
-  }, [medics, userClinicId, canSplit])
-
-  const nearbyClinicNames = Object.keys(nearbyByClinic).sort()
   const sortedGroups = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name))
 
   return (
@@ -393,12 +408,28 @@ function ConversationList({
         {/* Header row (mobile only — desktop has the sidebar) */}
         <div className="flex items-center justify-between px-4 mb-3 md:hidden">
           <p className="text-sm font-medium text-primary">Messages</p>
-          <button
-            onClick={() => setShowContacts(true)}
-            className="p-2 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
-          >
-            <UserPlus size={18} className="text-themeblue2" />
-          </button>
+          {/* Double-icon pill — matches NavTop pattern */}
+          <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
+            <button
+              onClick={() => setShowContacts(true)}
+              className="w-10 h-10 rounded-full flex items-center justify-center
+                         text-tertiary hover:text-primary active:scale-95 transition-all"
+              aria-label="New message"
+              title="New message"
+            >
+              <PenLine className="w-[18px] h-[18px]" />
+            </button>
+            <div className="w-px h-5 bg-tertiary/15" />
+            <button
+              onClick={onCreateGroup}
+              className="w-10 h-10 rounded-full flex items-center justify-center
+                         text-tertiary hover:text-primary active:scale-95 transition-all"
+              aria-label="New group"
+              title="New group"
+            >
+              <Users className="w-[18px] h-[18px]" />
+            </button>
+          </div>
         </div>
 
         {/* Notes entry */}
@@ -663,51 +694,53 @@ function ChatDetail({
   const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Context menu state
-  const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null)
-  // Edit mode state
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
-  const [editText, setEditText] = useState('')
-  // Selection state
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  // Forward picker
-  const [showForwardPicker, setShowForwardPicker] = useState(false)
-  // Threading state
-  const [replyingTo, setReplyingTo] = useState<DecryptedSignalMessage | null>(null)
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
-  // Delete confirmation
-  const [pendingDelete, setPendingDelete] = useState<{ peerId: string; messageIds: string[] } | null>(null)
-
   const messages = conversations[peerId] ?? []
-  const hasSelection = selectedIds.size > 0
-  // Delete is only allowed for sent messages
-  const canDeleteSelection = hasSelection && [...selectedIds].every(id => {
-    const m = messages.find(msg => msg.id === id)
-    return m && m.senderId === userId
+
+  const {
+    contextMenu,
+    contextMsg,
+    handleLongPress,
+    handleCopy,
+    handleStartEdit,
+    handleSaveImage,
+    closeContextMenu,
+    editingMessageId,
+    editText,
+    setEditText,
+    handleSaveEdit,
+    handleCancelEdit,
+    selectedIds,
+    hasSelection,
+    canDeleteSelection,
+    handleTap,
+    clearSelection,
+    showForwardPicker,
+    handleForwardStart,
+    handleForwardSelect,
+    closeForwardPicker,
+    replyingTo,
+    setReplyingTo,
+    handleReply,
+    activeThreadId,
+    setActiveThreadId,
+    handleOpenThread,
+    pendingDelete,
+    handleDelete,
+    handleConfirmDelete,
+    closePendingDelete,
+    handleSwipeAction,
+    threadReplyCounts,
+    threadMessages,
+    mainViewMessages,
+  } = useChatInteractions({
+    conversationKey: peerId,
+    userId,
+    messages,
+    editMessage,
+    deleteMessages,
+    inputRef,
+    sendMessage,
   })
-
-  // Compute thread reply counts: how many messages reference each root
-  const threadReplyCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const m of messages) {
-      if (m.threadId) {
-        counts[m.threadId] = (counts[m.threadId] ?? 0) + 1
-      }
-    }
-    return counts
-  }, [messages])
-
-  // Thread view messages: root + all replies
-  const threadMessages = useMemo(() => {
-    if (!activeThreadId) return []
-    return messages.filter(m => m.id === activeThreadId || m.threadId === activeThreadId)
-  }, [activeThreadId, messages])
-
-  // Main view: hide thread replies (they only appear inside thread view)
-  const mainViewMessages = useMemo(() => messages.filter(m => !m.threadId), [messages])
-
-  // Find the message being context-menued
-  const contextMsg = contextMenu ? messages.find(m => m.id === contextMenu.messageId) : null
 
   // Auto-scroll to bottom when messages change (scoped to container only)
   useEffect(() => {
@@ -723,11 +756,11 @@ function ChatDetail({
 
   // Clear selection and threading state when switching peers
   useEffect(() => {
-    setSelectedIds(new Set())
-    setShowForwardPicker(false)
+    clearSelection()
+    closeForwardPicker()
     setReplyingTo(null)
     setActiveThreadId(null)
-  }, [peerId])
+  }, [peerId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Accept pasted images (disabled while a send is in progress)
   const handlePastedImage = useCallback(async (file: File) => {
@@ -770,139 +803,6 @@ function ChatDetail({
     // Reset so the same file can be re-selected
     e.target.value = ''
   }, [sendImage, peerId])
-
-  // ── Context menu handlers ────────────────────────────────────────────
-
-  const handleLongPress = useCallback((message: DecryptedSignalMessage, x: number, y: number) => {
-    setContextMenu({ messageId: message.id, x, y })
-  }, [])
-
-  const handleCopy = useCallback(() => {
-    if (!contextMsg) return
-    navigator.clipboard.writeText(contextMsg.plaintext).catch(() => {})
-    setContextMenu(null)
-  }, [contextMsg])
-
-  const handleStartEdit = useCallback(() => {
-    if (!contextMsg) return
-    setEditingMessageId(contextMsg.id)
-    setEditText(contextMsg.plaintext)
-    setContextMenu(null)
-  }, [contextMsg])
-
-  const handleSaveImage = useCallback(async () => {
-    if (!contextMsg || contextMsg.content?.type !== 'image') return
-    setContextMenu(null)
-    const { downloadDecryptedAttachment } = await import('../../lib/signal/attachmentService')
-    const result = await downloadDecryptedAttachment(contextMsg.content.path, contextMsg.content.key)
-    if (!result.ok) return
-    const url = URL.createObjectURL(result.data)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `photo-${Date.now()}.jpg`
-    a.click()
-    URL.revokeObjectURL(url)
-  }, [contextMsg])
-
-  const handleSaveEdit = useCallback(() => {
-    if (!editingMessageId) return
-    const trimmed = editText.trim()
-    if (trimmed) {
-      editMessage(peerId, editingMessageId, trimmed)
-    }
-    setEditingMessageId(null)
-    setEditText('')
-  }, [editingMessageId, editText, editMessage, peerId])
-
-  const handleCancelEdit = useCallback(() => {
-    setEditingMessageId(null)
-    setEditText('')
-  }, [])
-
-  // ── Selection handlers ───────────────────────────────────────────────
-
-  const handleTap = useCallback((message: DecryptedSignalMessage) => {
-    // Don't select while editing
-    if (editingMessageId) return
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(message.id)) {
-        next.delete(message.id)
-      } else {
-        next.add(message.id)
-      }
-      return next
-    })
-  }, [editingMessageId])
-
-  const clearSelection = useCallback(() => {
-    setSelectedIds(new Set())
-  }, [])
-
-  // ── Action bar handlers ──────────────────────────────────────────────
-
-  const handleDelete = useCallback(() => {
-    setPendingDelete({ peerId, messageIds: [...selectedIds] })
-  }, [peerId, selectedIds])
-
-  const handleConfirmDelete = useCallback(() => {
-    if (!pendingDelete) return
-    deleteMessages(pendingDelete.peerId, pendingDelete.messageIds)
-    setPendingDelete(null)
-    setSelectedIds(new Set())
-  }, [deleteMessages, pendingDelete])
-
-  const handleReply = useCallback(() => {
-    const firstSelected = messages.find(m => selectedIds.has(m.id))
-    if (firstSelected) {
-      setReplyingTo(firstSelected)
-      setSelectedIds(new Set())
-      inputRef.current?.focus()
-    }
-  }, [messages, selectedIds])
-
-  const handleForwardStart = useCallback(() => {
-    setShowForwardPicker(true)
-  }, [])
-
-  // ── Swipe action handler ─────────────────────────────────────────────
-
-  const handleSwipeAction = useCallback((msg: DecryptedSignalMessage, action: SwipeAction) => {
-    switch (action) {
-      case 'copy':
-        navigator.clipboard.writeText(msg.plaintext).catch(() => {})
-        break
-      case 'reply':
-        setReplyingTo(msg)
-        inputRef.current?.focus()
-        break
-      case 'edit':
-        setEditingMessageId(msg.id)
-        setEditText(msg.plaintext)
-        break
-      case 'delete':
-        // Only allow deleting own sent messages
-        if (msg.senderId === userId) {
-          setPendingDelete({ peerId, messageIds: [msg.id] })
-        }
-        break
-    }
-  }, [peerId, userId])
-
-  const handleOpenThread = useCallback((rootMessageId: string) => {
-    setActiveThreadId(rootMessageId)
-    setReplyingTo(null)
-  }, [])
-
-  const handleForwardSelect = useCallback(async (medic: ClinicMedic) => {
-    // Send each selected message's text to the chosen contact
-    const selectedMsgs = messages.filter(m => selectedIds.has(m.id))
-    for (const msg of selectedMsgs) {
-      await sendMessage(medic.id, msg.plaintext)
-    }
-    setShowForwardPicker(false)
-    setSelectedIds(new Set())
-  }, [messages, selectedIds, sendMessage])
 
   const inputDisabled = sending || requestStatus === 'sent'
 
@@ -1036,7 +936,7 @@ function ChatDetail({
   // Render message list (shared between main and thread views)
   const renderMessageList = (msgs: DecryptedSignalMessage[], emptyText: string) => (
     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3"
-      onScroll={() => setContextMenu(null)}
+      onScroll={closeContextMenu}
     >
       {msgs.length === 0 ? (
         <div className="flex items-center justify-center h-full">
@@ -1087,7 +987,7 @@ function ChatDetail({
     return (
       <div className="flex flex-col h-full relative">
         {/* Thread header */}
-        <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center gap-3 bg-themewhite3 md:bg-transparent">
+        <div className="sticky top-0 z-10 shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center gap-3 backdrop-blur-xl bg-themewhite3/80 md:backdrop-blur-none md:bg-transparent">
           <button
             onClick={() => setActiveThreadId(null)}
             className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
@@ -1112,7 +1012,7 @@ function ChatDetail({
             onCopy={handleCopy}
             onEdit={handleStartEdit}
             onSave={handleSaveImage}
-            onClose={() => setContextMenu(null)}
+            onClose={closeContextMenu}
           />
         )}
 
@@ -1125,7 +1025,7 @@ function ChatDetail({
   return (
     <div className="flex flex-col h-full relative">
       {/* Mobile conversation header — circle buttons matching NavTop */}
-      <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-primary/10 flex items-center bg-themewhite3">
+      <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-primary/10 flex items-center backdrop-blur-xl bg-themewhite3/80">
         <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
           <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
             <ChevronLeft className="w-6 h-6 text-tertiary" />
@@ -1175,36 +1075,21 @@ function ChatDetail({
           onCopy={handleCopy}
           onEdit={handleStartEdit}
           onSave={handleSaveImage}
-          onClose={() => setContextMenu(null)}
+          onClose={closeContextMenu}
         />
       )}
 
       {renderInputArea()}
 
       {/* Delete confirmation popup */}
-      {pendingDelete && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/20">
-          <div className="bg-themewhite rounded-2xl shadow-xl px-6 py-5 mx-6 max-w-sm w-full">
-            <p className="text-sm font-medium text-primary text-center mb-4">
-              Permanently delete? This cannot be undone.
-            </p>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setPendingDelete(null)}
-                className="flex-1 py-2.5 rounded-full border border-tertiary/15 text-sm font-medium text-tertiary active:scale-[0.98] transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmDelete}
-                className="flex-1 py-2.5 rounded-full bg-themeredred text-sm font-medium text-white active:scale-[0.98] transition-all"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        visible={!!pendingDelete}
+        title="Permanently delete? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={closePendingDelete}
+      />
 
       {/* Forward contact picker overlay */}
       {showForwardPicker && (
@@ -1213,7 +1098,7 @@ function ChatDetail({
           currentPeerId={peerId}
           medics={medics}
           onSelect={handleForwardSelect}
-          onCancel={() => setShowForwardPicker(false)}
+          onCancel={closeForwardPicker}
         />
       )}
     </div>
@@ -1267,43 +1152,52 @@ function GroupChatDetail({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [showGroupInfo, setShowGroupInfo] = useState(false)
 
-  // Context menu state
-  const [contextMenu, setContextMenu] = useState<{ messageId: string; x: number; y: number } | null>(null)
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
-  const [editText, setEditText] = useState('')
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const [replyingTo, setReplyingTo] = useState<DecryptedSignalMessage | null>(null)
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
-  // Delete confirmation
-  const [pendingDelete, setPendingDelete] = useState<{ peerId: string; messageIds: string[] } | null>(null)
-
   // Cache members for sender name resolution
   const [membersCache, setMembersCache] = useState<GroupMember[]>([])
 
   const messages = conversations[groupId] ?? []
-  const hasSelection = selectedIds.size > 0
-  const canDeleteSelection = hasSelection && [...selectedIds].every(id => {
-    const m = messages.find(msg => msg.id === id)
-    return m && m.senderId === userId
+
+  const {
+    contextMenu,
+    contextMsg,
+    handleLongPress,
+    handleCopy,
+    handleStartEdit,
+    handleSaveImage,
+    closeContextMenu,
+    editingMessageId,
+    editText,
+    setEditText,
+    handleSaveEdit,
+    handleCancelEdit,
+    selectedIds,
+    hasSelection,
+    canDeleteSelection,
+    handleTap,
+    clearSelection,
+    replyingTo,
+    setReplyingTo,
+    handleReply,
+    activeThreadId,
+    setActiveThreadId,
+    handleOpenThread,
+    pendingDelete,
+    handleDelete,
+    handleConfirmDelete,
+    closePendingDelete,
+    handleSwipeAction,
+    threadReplyCounts,
+    threadMessages,
+    mainViewMessages,
+  } = useChatInteractions({
+    conversationKey: groupId,
+    userId,
+    messages,
+    editMessage,
+    deleteMessages,
+    inputRef,
+    sendMessage: async (peerId, text) => sendGroupMessage(peerId, text),
   })
-
-  const threadReplyCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const m of messages) {
-      if (m.threadId) counts[m.threadId] = (counts[m.threadId] ?? 0) + 1
-    }
-    return counts
-  }, [messages])
-
-  const threadMessages = useMemo(() => {
-    if (!activeThreadId) return []
-    return messages.filter(m => m.id === activeThreadId || m.threadId === activeThreadId)
-  }, [activeThreadId, messages])
-
-  // Main view: hide thread replies (they only appear inside thread view)
-  const mainViewMessages = useMemo(() => messages.filter(m => !m.threadId), [messages])
-
-  const contextMsg = contextMenu ? messages.find(m => m.id === contextMenu.messageId) : null
 
   // Build sender name lookup from cached members
   const senderNameMap = useMemo(() => {
@@ -1330,10 +1224,10 @@ function GroupChatDetail({
   }, [groupId, markAsRead, fetchGroupHistory, fetchGroupMembers])
 
   useEffect(() => {
-    setSelectedIds(new Set())
+    clearSelection()
     setReplyingTo(null)
     setActiveThreadId(null)
-  }, [groupId])
+  }, [groupId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handlePastedImage = useCallback(async (file: File) => {
     const success = await sendGroupImage(groupId, file)
@@ -1368,98 +1262,6 @@ function GroupChatDetail({
     }
     e.target.value = ''
   }, [sendGroupImage, groupId])
-
-  const handleLongPress = useCallback((message: DecryptedSignalMessage, x: number, y: number) => {
-    setContextMenu({ messageId: message.id, x, y })
-  }, [])
-
-  const handleCopy = useCallback(() => {
-    if (!contextMsg) return
-    navigator.clipboard.writeText(contextMsg.plaintext).catch(() => {})
-    setContextMenu(null)
-  }, [contextMsg])
-
-  const handleStartEdit = useCallback(() => {
-    if (!contextMsg) return
-    setEditingMessageId(contextMsg.id)
-    setEditText(contextMsg.plaintext)
-    setContextMenu(null)
-  }, [contextMsg])
-
-  const handleSaveImage = useCallback(async () => {
-    if (!contextMsg || contextMsg.content?.type !== 'image') return
-    setContextMenu(null)
-    const { downloadDecryptedAttachment } = await import('../../lib/signal/attachmentService')
-    const result = await downloadDecryptedAttachment(contextMsg.content.path, contextMsg.content.key)
-    if (!result.ok) return
-    const url = URL.createObjectURL(result.data)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `photo-${Date.now()}.jpg`
-    a.click()
-    URL.revokeObjectURL(url)
-  }, [contextMsg])
-
-  const handleSaveEdit = useCallback(() => {
-    if (!editingMessageId) return
-    const trimmed = editText.trim()
-    if (trimmed) editMessage(groupId, editingMessageId, trimmed)
-    setEditingMessageId(null)
-    setEditText('')
-  }, [editingMessageId, editText, editMessage, groupId])
-
-  const handleCancelEdit = useCallback(() => {
-    setEditingMessageId(null)
-    setEditText('')
-  }, [])
-
-  const handleTap = useCallback((message: DecryptedSignalMessage) => {
-    if (editingMessageId) return
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(message.id)) next.delete(message.id)
-      else next.add(message.id)
-      return next
-    })
-  }, [editingMessageId])
-
-  const handleDelete = useCallback(() => {
-    setPendingDelete({ peerId: groupId, messageIds: [...selectedIds] })
-  }, [groupId, selectedIds])
-
-  const handleConfirmDelete = useCallback(() => {
-    if (!pendingDelete) return
-    deleteMessages(pendingDelete.peerId, pendingDelete.messageIds)
-    setPendingDelete(null)
-    setSelectedIds(new Set())
-  }, [deleteMessages, pendingDelete])
-
-  const handleReply = useCallback(() => {
-    const firstSelected = messages.find(m => selectedIds.has(m.id))
-    if (firstSelected) {
-      setReplyingTo(firstSelected)
-      setSelectedIds(new Set())
-      inputRef.current?.focus()
-    }
-  }, [messages, selectedIds])
-
-  const handleSwipeAction = useCallback((msg: DecryptedSignalMessage, action: SwipeAction) => {
-    switch (action) {
-      case 'copy': navigator.clipboard.writeText(msg.plaintext).catch(() => {}); break
-      case 'reply': setReplyingTo(msg); inputRef.current?.focus(); break
-      case 'edit': setEditingMessageId(msg.id); setEditText(msg.plaintext); break
-      case 'delete':
-        if (msg.senderId === userId) {
-          setPendingDelete({ peerId: groupId, messageIds: [msg.id] })
-        }
-        break
-    }
-  }, [groupId, userId])
-
-  const handleOpenThread = useCallback((rootMessageId: string) => {
-    setActiveThreadId(rootMessageId)
-    setReplyingTo(null)
-  }, [])
 
   const handleLeave = useCallback(async (gid: string) => {
     await leaveGroup(gid)
@@ -1541,7 +1343,7 @@ function GroupChatDetail({
   }
 
   const renderMessageList = (msgs: DecryptedSignalMessage[], emptyText: string) => (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3" onScroll={() => setContextMenu(null)}>
+    <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3" onScroll={closeContextMenu}>
       {msgs.length === 0 ? (
         <div className="flex items-center justify-center h-full">
           <p className="text-sm text-tertiary/40">{emptyText}</p>
@@ -1600,7 +1402,7 @@ function GroupChatDetail({
   if (activeThreadId) {
     return (
       <div className="flex flex-col h-full relative">
-        <div className="shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center gap-3 bg-themewhite3 md:bg-transparent">
+        <div className="sticky top-0 z-10 shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center gap-3 backdrop-blur-xl bg-themewhite3/80 md:backdrop-blur-none md:bg-transparent">
           <button onClick={() => setActiveThreadId(null)} className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
             <ArrowLeft size={18} className="text-tertiary" />
           </button>
@@ -1616,7 +1418,7 @@ function GroupChatDetail({
             isOwn={contextMsg.senderId === userId}
             isImage={contextMsg.content?.type === 'image'}
             onCopy={handleCopy} onEdit={handleStartEdit} onSave={handleSaveImage}
-            onClose={() => setContextMenu(null)}
+            onClose={closeContextMenu}
           />
         )}
         {renderInputArea()}
@@ -1628,7 +1430,7 @@ function GroupChatDetail({
   return (
     <div className="flex flex-col h-full relative">
       {/* Mobile group header — circle buttons matching NavTop */}
-      <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-primary/10 flex items-center bg-themewhite3">
+      <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-primary/10 flex items-center backdrop-blur-xl bg-themewhite3/80">
         <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
           <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
             <ChevronLeft className="w-6 h-6 text-tertiary" />
@@ -1672,36 +1474,21 @@ function GroupChatDetail({
           isOwn={contextMsg.senderId === userId}
           isImage={contextMsg.content?.type === 'image'}
           onCopy={handleCopy} onEdit={handleStartEdit} onSave={handleSaveImage}
-          onClose={() => setContextMenu(null)}
+          onClose={closeContextMenu}
         />
       )}
 
       {renderInputArea()}
 
       {/* Delete confirmation popup */}
-      {pendingDelete && (
-        <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/20">
-          <div className="bg-themewhite rounded-2xl shadow-xl px-6 py-5 mx-6 max-w-sm w-full">
-            <p className="text-sm font-medium text-primary text-center mb-4">
-              Permanently delete? This cannot be undone.
-            </p>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setPendingDelete(null)}
-                className="flex-1 py-2.5 rounded-full border border-tertiary/15 text-sm font-medium text-tertiary active:scale-[0.98] transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmDelete}
-                className="flex-1 py-2.5 rounded-full bg-themeredred text-sm font-medium text-white active:scale-[0.98] transition-all"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <ConfirmDialog
+        visible={!!pendingDelete}
+        title="Permanently delete? This cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleConfirmDelete}
+        onCancel={closePendingDelete}
+      />
 
       {/* Group info overlay */}
       {showGroupInfo && (

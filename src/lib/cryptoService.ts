@@ -20,9 +20,10 @@
  *   is fetched on next online session
  */
 
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { type DBSchema } from 'idb'
 import { supabase } from './supabase'
 import { createLogger } from '../Utilities/Logger'
+import { createIdbSingleton } from './idbFactory'
 import { uint8ToBase64, base64ToUint8 } from '../Utilities/textCodec'
 import { aesGcmEncrypt, aesGcmDecrypt } from './aesGcm'
 import { succeed, fail, type ServiceResult } from './result'
@@ -57,21 +58,13 @@ interface KeyStoreDB extends DBSchema {
 const KEY_DB_NAME = 'packagebackend-keystore'
 const KEY_DB_VERSION = 1
 
-let keyDbInstance: IDBPDatabase<KeyStoreDB> | null = null
-
-async function getKeyDb(): Promise<IDBPDatabase<KeyStoreDB>> {
-  if (keyDbInstance) return keyDbInstance
-
-  keyDbInstance = await openDB<KeyStoreDB>(KEY_DB_NAME, KEY_DB_VERSION, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains('keys')) {
-        db.createObjectStore('keys')
-      }
-    },
-  })
-
-  return keyDbInstance
-}
+const { getDb: getKeyDb } = createIdbSingleton<KeyStoreDB>(KEY_DB_NAME, KEY_DB_VERSION, {
+  upgrade(db) {
+    if (!db.objectStoreNames.contains('keys')) {
+      db.createObjectStore('keys')
+    }
+  },
+})
 
 // ---- In-Memory Key Cache ----
 

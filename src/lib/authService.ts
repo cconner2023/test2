@@ -12,6 +12,7 @@ import { hashWithSalt, verifyHash } from './cryptoUtils'
 import { secureSet, secureGet, secureRemove } from './secureStorage'
 import { fireNotification } from './notifyDispatcher'
 import { deriveAndStoreBackupKey } from './signal/backupService'
+import { succeed, fail, getErrorMessage as getErrMsg, type ServiceResult } from './result'
 
 const logger = createLogger('AuthService')
 
@@ -196,5 +197,25 @@ async function associateClinic(userId: string, uic: string): Promise<void> {
       .from('profiles')
       .update({ clinic_id: attachedClinic.id })
       .eq('id', userId)
+  }
+}
+
+/**
+ * Delete the current user's own account.
+ * Calls the delete_own_account RPC which purges all user data
+ * (notes, training, sync queue, account requests, profile, auth).
+ */
+export async function deleteOwnAccount(): Promise<ServiceResult> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return fail('Not authenticated')
+
+    // RPC may not yet exist in generated types — cast to bypass until migration runs
+    const { error } = await (supabase.rpc as (fn: string) => Promise<{ data: unknown; error: { message: string } | null }>)('delete_own_account')
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (e) {
+    logger.error('Failed to delete account:', e)
+    return fail(getErrMsg(e))
   }
 }

@@ -109,7 +109,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             header={headerConfig}
             mobileFullScreen={isConversationView}
             desktopPosition="right"
-            desktopWidth={isMessagesActive ? 'w-[70%]' : undefined}
+            desktopWidth={isMessagesActive ? 'w-full' : undefined}
         >
             <div className="h-full" {...(view !== 'messages' ? swipeHandlers : {})}>
                 <MessagesPanel

@@ -47,6 +47,7 @@ export function useNavigation() {
         trainingDrawerTaskId: s.trainingDrawerTaskId,
         showMessagesDrawer: s.showMessagesDrawer,
         showPropertyDrawer: s.showPropertyDrawer,
+        showAdminDrawer: s.showAdminDrawer,
         showTrainingPanel: s.showTrainingPanel,
 
         // Derived selectors
@@ -73,6 +74,7 @@ export function useNavigation() {
         setShowTrainingDrawer: s.setShowTrainingDrawer,
         setShowMessagesDrawer: s.setShowMessagesDrawer,
         setShowPropertyDrawer: s.setShowPropertyDrawer,
+        setShowAdminDrawer: s.setShowAdminDrawer,
         setShowTrainingPanel: s.setShowTrainingPanel,
         showWriteNote: s.openWriteNote,
         closeWriteNote: s.closeWriteNote,

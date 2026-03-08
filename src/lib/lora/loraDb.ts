@@ -12,8 +12,9 @@
  * - Graceful error handling with logger.warn
  */
 
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
+import { type DBSchema } from 'idb'
 import { createLogger } from '../../Utilities/Logger'
+import { createIdbSingleton } from '../idbFactory'
 import { encryptString, decryptString } from '../secureStorage'
 import type { WitnessRecord, RouteEntry } from './types'
 import {
@@ -49,26 +50,18 @@ interface LoRaDB extends DBSchema {
 const DB_NAME = 'adtmc-lora-mesh'
 const DB_VERSION = 1
 
-let dbInstance: IDBPDatabase<LoRaDB> | null = null
+const { getDb } = createIdbSingleton<LoRaDB>(DB_NAME, DB_VERSION, {
+  upgrade(db) {
+    // Witnesses store
+    const witnesses = db.createObjectStore('witnesses', { keyPath: 'messageId' })
+    witnesses.createIndex('by-confirmed', 'confirmed')
+    witnesses.createIndex('by-created', 'createdAt')
 
-async function getDb(): Promise<IDBPDatabase<LoRaDB>> {
-  if (dbInstance) return dbInstance
-
-  dbInstance = await openDB<LoRaDB>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      // Witnesses store
-      const witnesses = db.createObjectStore('witnesses', { keyPath: 'messageId' })
-      witnesses.createIndex('by-confirmed', 'confirmed')
-      witnesses.createIndex('by-created', 'createdAt')
-
-      // Routes store
-      const routes = db.createObjectStore('routes', { keyPath: 'destinationId' })
-      routes.createIndex('by-ttl', 'ttl')
-    },
-  })
-
-  return dbInstance
-}
+    // Routes store
+    const routes = db.createObjectStore('routes', { keyPath: 'destinationId' })
+    routes.createIndex('by-ttl', 'ttl')
+  },
+})
 
 // ---- Encrypt-at-rest helpers ----
 

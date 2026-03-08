@@ -1,8 +1,13 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import { useDrag } from '@use-gesture/react'
-import { MapPin, Package, ZoomIn, ZoomOut } from 'lucide-react'
+import { MapPin, Package, ZoomIn, ZoomOut, X, GripHorizontal } from 'lucide-react'
 import { clamp } from '../../Utilities/GestureUtils'
-import type { LocationTag } from '../../Types/PropertyTypes'
+import type { LocationTag, LocalPropertyItem } from '../../Types/PropertyTypes'
+
+/** Returns true if a tag should render as a zone rectangle rather than a point badge. */
+function isZoneTag(tag: LocationTag): boolean {
+  return tag.width != null && tag.height != null && tag.width > 0 && tag.height > 0
+}
 
 interface LocationTagPhotoProps {
   photoData?: string | null
@@ -10,6 +15,21 @@ interface LocationTagPhotoProps {
   isEditMode: boolean
   onTagTap?: (tag: LocationTag) => void
   onTagDrag?: (tagId: string, x: number, y: number) => void
+  items?: LocalPropertyItem[]
+  drawMode?: boolean
+  onZoneDrawn?: (x: number, y: number, w: number, h: number) => void
+  onZoneResize?: (tagId: string, w: number, h: number) => void
+  onZoneMove?: (tagId: string, x: number, y: number) => void
+  onTagRemove?: (tagId: string) => void
+  // In-canvas pending zone input
+  pendingZone?: { x: number; y: number; w: number; h: number } | null
+  pendingZoneName?: string
+  onPendingZoneNameChange?: (name: string) => void
+  onPendingZoneConfirm?: () => void
+  onPendingZoneCancel?: () => void
+  // Zone selection
+  selectedZoneIds?: Set<string>
+  onZoneSelect?: (tagId: string) => void
 }
 
 export function LocationTagPhoto({
@@ -18,16 +38,105 @@ export function LocationTagPhoto({
   isEditMode,
   onTagTap,
   onTagDrag,
+  items,
+  drawMode,
+  onZoneDrawn,
+  onZoneResize,
+  onZoneMove,
+  onTagRemove,
+  pendingZone,
+  pendingZoneName,
+  onPendingZoneNameChange,
+  onPendingZoneConfirm,
+  onPendingZoneCancel,
+  selectedZoneIds,
+  onZoneSelect,
 }: LocationTagPhotoProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState(1)
+
+  // Center viewport scroll on zoom change and initial content load
+  useEffect(() => {
+    const vp = viewportRef.current
+    if (!vp) return
+    requestAnimationFrame(() => {
+      vp.scrollLeft = (vp.scrollWidth - vp.clientWidth) / 2
+      vp.scrollTop = (vp.scrollHeight - vp.clientHeight) / 2
+    })
+  }, [zoom, photoData])
+
+  // Click-drag panning (mouse only; touch uses native overflow scroll)
+  useEffect(() => {
+    const vp = viewportRef.current
+    if (!vp) return
+
+    let panning = false
+    let didPan = false
+    let startX = 0
+    let startY = 0
+    let scrollX = 0
+    let scrollY = 0
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return
+      // Skip if starting on edit-mode draggable elements or inputs
+      if ((e.target as HTMLElement).closest('[data-no-pan], input')) return
+      panning = true
+      didPan = false
+      startX = e.clientX
+      startY = e.clientY
+      scrollX = vp.scrollLeft
+      scrollY = vp.scrollTop
+    }
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!panning) return
+      const dx = e.clientX - startX
+      const dy = e.clientY - startY
+      if (!didPan && Math.abs(dx) + Math.abs(dy) > 3) {
+        didPan = true
+        vp.style.cursor = 'grabbing'
+      }
+      if (didPan) {
+        vp.scrollLeft = scrollX - dx
+        vp.scrollTop = scrollY - dy
+      }
+    }
+
+    const onMouseUp = () => {
+      if (!panning) return
+      panning = false
+      vp.style.cursor = ''
+    }
+
+    // Block click after a pan drag so buttons/zones don't activate
+    const onClick = (e: MouseEvent) => {
+      if (didPan) {
+        e.stopPropagation()
+        e.preventDefault()
+        didPan = false
+      }
+    }
+
+    vp.addEventListener('mousedown', onMouseDown)
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+    vp.addEventListener('click', onClick, true) // capture phase
+    return () => {
+      vp.removeEventListener('mousedown', onMouseDown)
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+      vp.removeEventListener('click', onClick, true)
+    }
+  }, [])
 
   return (
     <div className="relative">
       {/* Scrollable viewport */}
       <div
-        className="max-h-[40vh] rounded-lg"
-        style={{ overflow: zoom > 1 ? 'auto' : 'hidden' }}
+        ref={viewportRef}
+        className="max-h-[40vh] rounded-lg overflow-auto cursor-grab"
       >
         {/* Zoomable content — width scales with zoom so native scroll handles panning */}
         <div
@@ -35,7 +144,7 @@ export function LocationTagPhoto({
           className="relative select-none"
           style={{
             width: `${zoom * 100}%`,
-            touchAction: isEditMode ? 'none' : 'auto',
+            touchAction: isEditMode || drawMode ? 'none' : 'auto',
           }}
         >
           {photoData ? (
@@ -58,13 +167,38 @@ export function LocationTagPhoto({
             />
           )}
 
-          {tags.map((tag) =>
+          {/* Render tags: zones first (below), then point badges (above) */}
+          {tags.filter(isZoneTag).map((tag) =>
+            isEditMode ? (
+              <DraggableZone
+                key={tag.id}
+                tag={tag}
+                containerRef={containerRef}
+                onMove={onZoneMove}
+                onResize={onZoneResize}
+                onRemove={onTagRemove}
+                items={items}
+                isSelected={selectedZoneIds?.has(tag.id) ?? false}
+                onSelect={onZoneSelect}
+              />
+            ) : (
+              <StaticZone
+                key={tag.id}
+                tag={tag}
+                onTap={onTagTap}
+                items={items}
+              />
+            )
+          )}
+
+          {tags.filter((t) => !isZoneTag(t)).map((tag) =>
             isEditMode ? (
               <DraggableTag
                 key={tag.id}
                 tag={tag}
                 containerRef={containerRef}
                 onDrag={onTagDrag}
+                onRemove={onTagRemove}
               />
             ) : (
               <StaticTag
@@ -73,6 +207,25 @@ export function LocationTagPhoto({
                 onTap={onTagTap}
               />
             )
+          )}
+
+          {/* Pending zone name input overlay */}
+          {pendingZone && (
+            <PendingZoneOverlay
+              zone={pendingZone}
+              name={pendingZoneName ?? ''}
+              onNameChange={onPendingZoneNameChange}
+              onConfirm={onPendingZoneConfirm}
+              onCancel={onPendingZoneCancel}
+            />
+          )}
+
+          {/* Draw zone overlay */}
+          {drawMode && (
+            <DrawZoneOverlay
+              containerRef={containerRef}
+              onZoneDrawn={onZoneDrawn}
+            />
           )}
         </div>
       </div>
@@ -93,9 +246,18 @@ export function LocationTagPhoto({
           <ZoomOut size={14} />
         </button>
       </div>
+
+      {/* Draw mode indicator */}
+      {drawMode && (
+        <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-themeblue3 text-white text-[10px] font-medium shadow-md z-10">
+          Draw a zone
+        </div>
+      )}
     </div>
   )
 }
+
+// ── Static Tag (point badge, browse mode) ───────────────────
 
 function StaticTag({ tag, onTap }: { tag: LocationTag; onTap?: (tag: LocationTag) => void }) {
   return (
@@ -114,14 +276,18 @@ function StaticTag({ tag, onTap }: { tag: LocationTag; onTap?: (tag: LocationTag
   )
 }
 
+// ── Draggable Tag (point badge, edit mode) ──────────────────
+
 function DraggableTag({
   tag,
   containerRef,
   onDrag,
+  onRemove,
 }: {
   tag: LocationTag
   containerRef: React.RefObject<HTMLDivElement | null>
   onDrag?: (tagId: string, x: number, y: number) => void
+  onRemove?: (tagId: string) => void
 }) {
   const labelRef = useRef<HTMLDivElement>(null)
 
@@ -154,6 +320,7 @@ function DraggableTag({
     <div
       ref={labelRef}
       {...bind()}
+      data-no-pan
       className="absolute flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-themeblue3/90 text-white text-[10px] font-medium shadow-md -translate-x-1/2 -translate-y-1/2 cursor-grab active:cursor-grabbing max-w-[120px] ring-2 ring-white/50"
       style={{ left: `${tag.x * 100}%`, top: `${tag.y * 100}%`, touchAction: 'none' }}
     >
@@ -163,6 +330,368 @@ function DraggableTag({
         <Package size={10} className="shrink-0" />
       )}
       <span className="truncate">{tag.label}</span>
+      {onRemove && (
+        <button
+          className="ml-0.5 p-0.5 rounded-full hover:bg-white/20 transition-colors"
+          onClick={(e) => { e.stopPropagation(); onRemove(tag.id) }}
+        >
+          <X size={8} />
+        </button>
+      )}
+    </div>
+  )
+}
+
+// ── Static Zone (rectangle, browse mode) ────────────────────
+
+function StaticZone({
+  tag,
+  onTap,
+  items,
+}: {
+  tag: LocationTag
+  onTap?: (tag: LocationTag) => void
+  items?: LocalPropertyItem[]
+}) {
+  const w = tag.width!
+  const h = tag.height!
+  const isLargeZone = w > 0.15 && h > 0.15
+
+  // Items assigned to the zone's linked sub-location
+  const zoneItems = items?.filter((i) => i.location_id === tag.target_id) ?? []
+
+  return (
+    <button
+      className="absolute rounded-md bg-themeblue3/15 border border-themeblue3/40 hover:bg-themeblue3/25 transition-colors cursor-pointer overflow-hidden"
+      style={{
+        left: `${tag.x * 100}%`,
+        top: `${tag.y * 100}%`,
+        width: `${w * 100}%`,
+        height: `${h * 100}%`,
+      }}
+      onClick={() => onTap?.(tag)}
+    >
+      {/* Label */}
+      <div className="absolute top-0.5 left-1 flex items-center gap-0.5 text-[10px] font-medium text-themeblue3 max-w-[90%]">
+        <MapPin size={9} className="shrink-0" />
+        <span className="truncate">{tag.label}</span>
+      </div>
+
+      {/* Items inside zone */}
+      {zoneItems.length > 0 && (
+        isLargeZone ? (
+          <div className="absolute inset-0 top-4 p-1 flex flex-wrap gap-0.5 content-start overflow-hidden">
+            {zoneItems.map((item) => (
+              <span
+                key={item.id}
+                className="px-1 py-0.5 rounded bg-black/60 text-white text-[9px] font-medium truncate max-w-full"
+              >
+                {item.name}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="absolute bottom-0.5 right-1 px-1.5 py-0.5 rounded-full bg-themeblue3/80 text-white text-[9px] font-medium">
+            {zoneItems.length}
+          </div>
+        )
+      )}
+    </button>
+  )
+}
+
+// ── Draggable Zone (rectangle, edit mode) ───────────────────
+
+function DraggableZone({
+  tag,
+  containerRef,
+  onMove,
+  onResize,
+  onRemove,
+  items,
+  isSelected,
+  onSelect,
+}: {
+  tag: LocationTag
+  containerRef: React.RefObject<HTMLDivElement | null>
+  onMove?: (tagId: string, x: number, y: number) => void
+  onResize?: (tagId: string, w: number, h: number) => void
+  onRemove?: (tagId: string) => void
+  items?: LocalPropertyItem[]
+  isSelected?: boolean
+  onSelect?: (tagId: string) => void
+}) {
+  const zoneRef = useRef<HTMLDivElement>(null)
+  const w = tag.width!
+  const h = tag.height!
+  const isLargeZone = w > 0.15 && h > 0.15
+  const zoneItems = items?.filter((i) => i.location_id === tag.target_id) ?? []
+
+  // Move the entire zone body
+  const moveBind = useDrag(
+    ({ active, tap, xy: [clientX, clientY], event }) => {
+      if (tap) return // tap → handled by onClick for selection, don't move
+      event?.preventDefault()
+      event?.stopPropagation()
+      const container = containerRef.current
+      const el = zoneRef.current
+      if (!container || !el) return
+
+      const rect = container.getBoundingClientRect()
+      const px = clientX - rect.left
+      const py = clientY - rect.top
+
+      // Clamp so zone stays within container bounds
+      const maxX = 1 - w
+      const maxY = 1 - h
+      const normalX = clamp(px / rect.width, 0, maxX)
+      const normalY = clamp(py / rect.height, 0, maxY)
+
+      if (active) {
+        el.style.left = `${normalX * 100}%`
+        el.style.top = `${normalY * 100}%`
+      } else {
+        onMove?.(tag.id, normalX, normalY)
+      }
+    },
+    { filterTaps: true },
+  )
+
+  // Resize handle at bottom-right
+  const resizeBind = useDrag(
+    ({ xy: [clientX, clientY], active, tap, event }) => {
+      if (tap) return
+      event?.preventDefault()
+      event?.stopPropagation()
+      const container = containerRef.current
+      if (!container) return
+
+      const rect = container.getBoundingClientRect()
+      const px = clientX - rect.left
+      const py = clientY - rect.top
+
+      const newW = clamp(px / rect.width - tag.x, 0.05, 1 - tag.x)
+      const newH = clamp(py / rect.height - tag.y, 0.05, 1 - tag.y)
+
+      if (active) {
+        const el = zoneRef.current
+        if (el) {
+          el.style.width = `${newW * 100}%`
+          el.style.height = `${newH * 100}%`
+        }
+      } else {
+        onResize?.(tag.id, newW, newH)
+      }
+    },
+    { filterTaps: true },
+  )
+
+  return (
+    <div
+      ref={zoneRef}
+      {...moveBind()}
+      data-no-pan
+      className={`absolute rounded-md bg-themeblue3/15 border border-themeblue3/40 ring-2 ${
+        isSelected ? 'ring-amber-400' : 'ring-themeblue3/50'
+      } cursor-grab active:cursor-grabbing overflow-hidden`}
+      style={{
+        left: `${tag.x * 100}%`,
+        top: `${tag.y * 100}%`,
+        width: `${w * 100}%`,
+        height: `${h * 100}%`,
+        touchAction: 'none',
+      }}
+      onClick={() => onSelect?.(tag.id)}
+    >
+      {/* Label */}
+      <div className="absolute top-0.5 left-1 flex items-center gap-0.5 text-[10px] font-medium text-themeblue3 max-w-[70%]">
+        <MapPin size={9} className="shrink-0" />
+        <span className="truncate">{tag.label}</span>
+      </div>
+
+      {/* Remove button */}
+      {onRemove && (
+        <button
+          className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-red-500/80 text-white hover:bg-red-600 transition-colors z-10"
+          onClick={(e) => { e.stopPropagation(); onRemove(tag.id) }}
+        >
+          <X size={10} />
+        </button>
+      )}
+
+      {/* Items inside zone */}
+      {zoneItems.length > 0 && (
+        isLargeZone ? (
+          <div className="absolute inset-0 top-4 p-1 flex flex-wrap gap-0.5 content-start overflow-hidden pointer-events-none">
+            {zoneItems.map((item) => (
+              <span
+                key={item.id}
+                className="px-1 py-0.5 rounded bg-black/60 text-white text-[9px] font-medium truncate max-w-full"
+              >
+                {item.name}
+              </span>
+            ))}
+          </div>
+        ) : (
+          <div className="absolute bottom-0.5 right-5 px-1.5 py-0.5 rounded-full bg-themeblue3/80 text-white text-[9px] font-medium pointer-events-none">
+            {zoneItems.length}
+          </div>
+        )
+      )}
+
+      {/* Resize handle */}
+      <div
+        {...resizeBind()}
+        className="absolute bottom-0 right-0 w-4 h-4 flex items-center justify-center cursor-nwse-resize z-10"
+        style={{ touchAction: 'none' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <GripHorizontal size={10} className="text-themeblue3/70 rotate-[-45deg]" />
+      </div>
+    </div>
+  )
+}
+
+// ── Pending Zone Overlay (in-canvas name input) ─────────────
+
+function PendingZoneOverlay({
+  zone,
+  name,
+  onNameChange,
+  onConfirm,
+  onCancel,
+}: {
+  zone: { x: number; y: number; w: number; h: number }
+  name: string
+  onNameChange?: (name: string) => void
+  onConfirm?: () => void
+  onCancel?: () => void
+}) {
+  // Position the input directly below the zone rect, or inside if tall enough
+  const inputTop = zone.y + zone.h
+  const fitsBelow = inputTop + 0.08 <= 1
+  const top = fitsBelow ? inputTop : Math.max(zone.y - 0.08, 0)
+
+  return (
+    <>
+      {/* Dashed zone outline */}
+      <div
+        className="absolute border-2 border-dashed border-themeblue3 bg-themeblue3/10 rounded-sm pointer-events-none z-20"
+        style={{
+          left: `${zone.x * 100}%`,
+          top: `${zone.y * 100}%`,
+          width: `${zone.w * 100}%`,
+          height: `${zone.h * 100}%`,
+        }}
+      />
+      {/* Input overlay */}
+      <div
+        className="absolute z-30 flex gap-1 items-center"
+        style={{
+          left: `${zone.x * 100}%`,
+          top: `${top * 100}%`,
+          width: `${Math.max(zone.w, 0.3) * 100}%`,
+        }}
+      >
+        <input
+          type="text"
+          value={name}
+          onChange={(e) => onNameChange?.(e.target.value)}
+          placeholder="Zone name..."
+          className="flex-1 min-w-0 px-2 py-1 text-[11px] rounded border border-themeblue3/40 bg-white text-primary placeholder:text-tertiary/50 focus:outline-none focus:border-themeblue3 shadow-md"
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onConfirm?.()
+            if (e.key === 'Escape') onCancel?.()
+          }}
+          onClick={(e) => e.stopPropagation()}
+        />
+        <button
+          className="px-2 py-1 rounded bg-themeblue3 text-white text-[10px] font-medium shadow-md disabled:opacity-50 shrink-0"
+          disabled={!name.trim()}
+          onClick={(e) => { e.stopPropagation(); onConfirm?.() }}
+        >
+          Create
+        </button>
+        <button
+          className="px-1.5 py-1 rounded border border-tertiary/20 bg-white text-[10px] text-tertiary shadow-md shrink-0"
+          onClick={(e) => { e.stopPropagation(); onCancel?.() }}
+        >
+          <X size={10} />
+        </button>
+      </div>
+    </>
+  )
+}
+
+// ── Draw Zone Overlay ───────────────────────────────────────
+
+function DrawZoneOverlay({
+  containerRef,
+  onZoneDrawn,
+}: {
+  containerRef: React.RefObject<HTMLDivElement | null>
+  onZoneDrawn?: (x: number, y: number, w: number, h: number) => void
+}) {
+  const [drawRect, setDrawRect] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+  const startRef = useRef<{ nx: number; ny: number } | null>(null)
+
+  const bind = useDrag(
+    ({ first, active, xy: [clientX, clientY], event }) => {
+      event?.preventDefault()
+      event?.stopPropagation()
+      const container = containerRef.current
+      if (!container) return
+
+      const rect = container.getBoundingClientRect()
+      const nx = clamp((clientX - rect.left) / rect.width, 0, 1)
+      const ny = clamp((clientY - rect.top) / rect.height, 0, 1)
+
+      if (first) {
+        startRef.current = { nx, ny }
+      }
+
+      const start = startRef.current
+      if (!start) return
+
+      // Compute rect from start → current (handle any drag direction)
+      const x = Math.min(start.nx, nx)
+      const y = Math.min(start.ny, ny)
+      const w = Math.abs(nx - start.nx)
+      const h = Math.abs(ny - start.ny)
+
+      if (active) {
+        setDrawRect({ x, y, w, h })
+      } else {
+        setDrawRect(null)
+        startRef.current = null
+        // Minimum size threshold: ignore draws smaller than 5% in either dimension
+        if (w >= 0.05 && h >= 0.05) {
+          onZoneDrawn?.(x, y, w, h)
+        }
+      }
+    },
+    { filterTaps: true },
+  )
+
+  return (
+    <div
+      {...bind()}
+      data-no-pan
+      className="absolute inset-0 z-20"
+      style={{ touchAction: 'none', cursor: 'crosshair' }}
+    >
+      {drawRect && (
+        <div
+          className="absolute border-2 border-dashed border-themeblue3 bg-themeblue3/10 rounded-sm pointer-events-none"
+          style={{
+            left: `${drawRect.x * 100}%`,
+            top: `${drawRect.y * 100}%`,
+            width: `${drawRect.w * 100}%`,
+            height: `${drawRect.h * 100}%`,
+          }}
+        />
+      )}
     </div>
   )
 }

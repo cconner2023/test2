@@ -23,7 +23,7 @@ import { clearAllSessions } from '../lib/signal/session'
 import { clearMessageStore, destroyMessageStore } from '../lib/signal/messageStore'
 import { clearClinicUsersCache } from '../lib/clinicUsersCache'
 import { useCallStore } from './useCallStore'
-import { unregisterDevice, deleteKeyBundle, primaryLogoutAll } from '../lib/signal/signalService'
+import { unregisterDevice, deleteKeyBundle, primaryLogoutAll, initLoRaMesh } from '../lib/signal/signalService'
 import { secureSet, secureGet, secureRemove, persistSupabaseAuth, destroySecureStore } from '../lib/secureStorage'
 import { clearOutboundQueue, destroyOutboundQueue } from '../lib/signal/outboundQueue'
 import { clearBackupKey, deleteBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
@@ -390,6 +390,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
           startHeartbeat(user.id, initResult.deviceId)
           updateCleanupDeviceId(initResult.deviceId)
           updateCleanupIsPrimary(initResult.role === 'primary')
+
+          // Initialize LoRa mesh subsystem (lazy — no-ops if flag is off)
+          initLoRaMesh(user.id).catch(() => {})
 
           // Server-side encrypted backup: restore first on non-primary, then
           // all devices schedule ongoing backups so the server row stays fresh.
