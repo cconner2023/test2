@@ -28,6 +28,11 @@ function LoadingScreen() {
  *  detect silent updates and reload before any content flashes. */
 const SW_SETTLE_MS = 3000
 
+/** Maximum time (ms) to wait for Supabase INITIAL_SESSION before releasing
+ *  the loading gate. Prevents an infinite loading screen on mobile PWA if
+ *  the auth event never fires (e.g. corrupted session, network stall). */
+const AUTH_TIMEOUT_MS = 6000
+
 export function LockGate({ children }: { children: ReactNode }) {
   const { user, isGuest } = useAuth()
   const loading = useAuthStore(s => s.loading)
@@ -36,6 +41,18 @@ export function LockGate({ children }: { children: ReactNode }) {
   // Release the hold after the settle window
   useEffect(() => {
     const id = setTimeout(() => setSwHold(false), SW_SETTLE_MS)
+    return () => clearTimeout(id)
+  }, [])
+
+  // Safety net: if Supabase auth never fires INITIAL_SESSION, force-release
+  // the loading gate so the app doesn't stay stuck on the loading screen.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      if (useAuthStore.getState().loading) {
+        console.warn('[LockGate] Auth did not resolve within timeout, releasing loading gate')
+        useAuthStore.setState({ loading: false })
+      }
+    }, AUTH_TIMEOUT_MS)
     return () => clearTimeout(id)
   }, [])
 

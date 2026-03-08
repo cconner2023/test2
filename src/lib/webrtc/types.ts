@@ -1,11 +1,12 @@
 /**
- * WebRTC voice call — shared types and constants.
+ * WebRTC call — shared types and constants.
  */
 
 // ── Call state ───────────────────────────────────────────────────────────────
 
 export type CallStatus = 'idle' | 'ringing' | 'connecting' | 'connected' | 'ended'
 export type CallDirection = 'outgoing' | 'incoming'
+export type CallMode = 'audio' | 'video'
 
 export interface CallPeer {
   userId: string
@@ -29,6 +30,8 @@ export interface CallOfferPayload {
   pairwiseChannel: string
   /** Caller's ephemeral ECDH public key (base64) for signaling encryption. */
   ephemeralKey?: string
+  /** Audio-only or video call. Defaults to 'audio' for backward compat. */
+  callMode?: CallMode
 }
 
 export interface CallAnswerPayload {

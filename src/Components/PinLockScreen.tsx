@@ -119,8 +119,9 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
   ) : undefined
 
   return (
-    <div className="fixed inset-0 z-[100] bg-themewhite flex flex-col items-center justify-center select-none"
+    <div className="fixed inset-0 z-[100] bg-themewhite overflow-y-auto select-none"
          style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
       {/* Header */}
       <div className="flex flex-col items-center mb-8">
         <div className="w-14 h-14 rounded-full bg-themeblue2/10 flex items-center justify-center mb-4">
@@ -141,6 +142,7 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
           onBiometric={handleBiometric}
           extraContent={passwordForm}
         />
+      </div>
       </div>
     </div>
   )

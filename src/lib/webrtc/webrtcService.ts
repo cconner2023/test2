@@ -16,14 +16,20 @@ export interface WebRTCCallbacks {
   onConnectionStateChange: (state: RTCPeerConnectionState) => void
 }
 
+export interface WebRTCInitOptions {
+  video?: boolean
+}
+
 export interface WebRTCService {
-  init: (callbacks: WebRTCCallbacks) => Promise<void>
+  init: (callbacks: WebRTCCallbacks, options?: WebRTCInitOptions) => Promise<MediaStream>
   createOffer: () => Promise<RTCSessionDescriptionInit>
   handleOffer: (sdp: RTCSessionDescriptionInit) => Promise<RTCSessionDescriptionInit>
   handleAnswer: (sdp: RTCSessionDescriptionInit) => Promise<void>
   addIceCandidate: (candidate: RTCIceCandidateInit) => Promise<void>
   setMuted: (muted: boolean) => void
   isMuted: () => boolean
+  setVideoEnabled: (enabled: boolean) => void
+  isVideoOff: () => boolean
   cleanup: () => void
 }
 
@@ -31,11 +37,14 @@ export function createWebRTCService(): WebRTCService {
   let pc: RTCPeerConnection | null = null
   let localStream: MediaStream | null = null
 
-  const init: WebRTCService['init'] = async (callbacks) => {
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  const init: WebRTCService['init'] = async (callbacks, options) => {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      audio: true,
+      video: options?.video ?? false,
+    })
     pc = new RTCPeerConnection(RTC_CONFIG)
 
-    // Add local audio tracks to the connection
+    // Add local tracks to the connection
     for (const track of localStream.getTracks()) {
       pc.addTrack(track, localStream)
     }
@@ -57,6 +66,8 @@ export function createWebRTCService(): WebRTCService {
         callbacks.onConnectionStateChange(pc.connectionState)
       }
     }
+
+    return localStream
   }
 
   const createOffer: WebRTCService['createOffer'] = async () => {
@@ -101,6 +112,19 @@ export function createWebRTCService(): WebRTCService {
     return track ? !track.enabled : false
   }
 
+  const setVideoEnabled: WebRTCService['setVideoEnabled'] = (enabled) => {
+    if (!localStream) return
+    for (const track of localStream.getVideoTracks()) {
+      track.enabled = enabled
+    }
+  }
+
+  const isVideoOff: WebRTCService['isVideoOff'] = () => {
+    if (!localStream) return true
+    const track = localStream.getVideoTracks()[0]
+    return track ? !track.enabled : true
+  }
+
   const cleanup: WebRTCService['cleanup'] = () => {
     if (localStream) {
       for (const track of localStream.getTracks()) {
@@ -117,5 +141,5 @@ export function createWebRTCService(): WebRTCService {
     }
   }
 
-  return { init, createOffer, handleOffer, handleAnswer, addIceCandidate, setMuted, isMuted, cleanup }
+  return { init, createOffer, handleOffer, handleAnswer, addIceCandidate, setMuted, isMuted, setVideoEnabled, isVideoOff, cleanup }
 }

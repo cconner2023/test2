@@ -331,7 +331,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             onClose={handleClose}
             fullHeight="90dvh"
             desktopPosition="left"
-            desktopWidth="w-full"
+            desktopWidth="w-[90%]"
             header={headerConfig}
         >
             <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'admin' ? swipeHandlers : undefined}>

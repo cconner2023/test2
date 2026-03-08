@@ -1,11 +1,11 @@
 /**
- * useCall — Orchestration hook for WebRTC voice calls.
+ * useCall — Orchestration hook for WebRTC calls (audio & video).
  *
  * Mounted once via CallProvider. Manages the full call lifecycle:
- * signaling subscription, WebRTC setup, audio playback, and cleanup.
+ * signaling subscription, WebRTC setup, media playback, and cleanup.
  */
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from './useAuth'
 import { useAuthStore } from '../stores/useAuthStore'
 import { useCallStore } from '../stores/useCallStore'
@@ -18,17 +18,21 @@ import {
   type CallSignaling,
 } from '../lib/webrtc/callSignaling'
 import { RING_TIMEOUT_MS } from '../lib/webrtc/types'
-import type { CallPeer, CallOfferPayload, SignalingPayload } from '../lib/webrtc/types'
+import type { CallMode, CallPeer, CallOfferPayload, SignalingPayload } from '../lib/webrtc/types'
 import { createLogger } from '../Utilities/Logger'
 
 const logger = createLogger('UseCall')
 
 export interface CallActions {
   startCall: (peer: CallPeer) => void
+  startVideoCall: (peer: CallPeer) => void
   acceptCall: () => void
   declineCall: () => void
   hangUp: () => void
   toggleMute: () => void
+  toggleVideo: () => void
+  localStream: MediaStream | null
+  remoteStream: MediaStream | null
 }
 
 export function useCall(): CallActions {
@@ -40,6 +44,8 @@ export function useCall(): CallActions {
   const ringTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const pendingOfferRef = useRef<CallOfferPayload | null>(null)
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null)
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null)
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null)
 
   // Keep a stable ref to profile display name for outgoing calls
   const profile = useAuthStore((s) => s.profile)
@@ -76,21 +82,24 @@ export function useCall(): CallActions {
     if (remoteAudioRef.current) {
       remoteAudioRef.current.srcObject = null
     }
+    setLocalStream(null)
+    setRemoteStream(null)
   }, [])
 
   // ── WebRTC init helper ──────────────────────────────────────────────────
 
-  const initWebRTC = useCallback(async () => {
+  const initWebRTC = useCallback(async (video: boolean) => {
     const svc = createWebRTCService()
     webrtcRef.current = svc
 
-    await svc.init({
+    const stream = await svc.init({
       onIceCandidate: (candidate) => {
         signalingRef.current?.sendIceCandidate(candidate)
       },
-      onTrack: (stream) => {
+      onTrack: (remote) => {
+        setRemoteStream(remote)
         if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = stream
+          remoteAudioRef.current.srcObject = remote
         }
       },
       onConnectionStateChange: (state) => {
@@ -101,8 +110,9 @@ export function useCall(): CallActions {
           cleanupCall()
         }
       },
-    })
+    }, { video })
 
+    setLocalStream(stream)
     return svc
   }, [cleanupCall])
 
@@ -163,7 +173,7 @@ export function useCall(): CallActions {
       store.startRinging('incoming', {
         userId: offerPayload.callerId,
         displayName: offerPayload.callerName,
-      })
+      }, offerPayload.callMode ?? 'audio')
 
       // Auto-decline after timeout
       ringTimeoutRef.current = setTimeout(() => {
@@ -192,9 +202,14 @@ export function useCall(): CallActions {
     webrtcRef.current?.setMuted(isMuted)
   }, [isMuted])
 
+  const isVideoOff = useCallStore((s) => s.isVideoOff)
+  useEffect(() => {
+    webrtcRef.current?.setVideoEnabled(!isVideoOff)
+  }, [isVideoOff])
+
   // ── Actions ─────────────────────────────────────────────────────────────
 
-  const startCall = useCallback((peer: CallPeer) => {
+  const startCallInternal = useCallback((peer: CallPeer, mode: CallMode) => {
     if (!userId) return
     const store = useCallStore.getState()
     if (store.status !== 'idle') {
@@ -202,9 +217,10 @@ export function useCall(): CallActions {
       return
     }
 
+    const video = mode === 'video'
     const pairwiseChannel = buildChannelName(userId, peer.userId)
 
-    store.startRinging('outgoing', peer)
+    store.startRinging('outgoing', peer, mode)
 
     // Join pairwise channel first so we can receive answer/ICE
     const sig = createCallSignaling(pairwiseChannel)
@@ -212,10 +228,10 @@ export function useCall(): CallActions {
     sig.join(handleSignalingMessage)
 
     // Init WebRTC, create offer, send to peer (with ephemeral key for encryption)
-    initWebRTC().then(async (svc) => {
+    initWebRTC(video).then(async (svc) => {
       const offer = await svc.createOffer()
       const ephemeralKey = await sig.getEphemeralKey()
-      await sendCallOffer(userId, callerNameRef.current, peer.userId, offer, pairwiseChannel, ephemeralKey)
+      await sendCallOffer(userId, callerNameRef.current, peer.userId, offer, pairwiseChannel, ephemeralKey, mode)
       logger.info('Outgoing call started to', peer.displayName)
 
       // Ring timeout
@@ -228,10 +244,18 @@ export function useCall(): CallActions {
       }, RING_TIMEOUT_MS)
     }).catch((err) => {
       logger.error('Failed to start call:', err)
-      store.endCall('Microphone access denied')
+      store.endCall(video ? 'Camera/microphone access denied' : 'Microphone access denied')
       cleanupCall()
     })
   }, [userId, initWebRTC, handleSignalingMessage, cleanupCall])
+
+  const startCall = useCallback((peer: CallPeer) => {
+    startCallInternal(peer, 'audio')
+  }, [startCallInternal])
+
+  const startVideoCall = useCallback((peer: CallPeer) => {
+    startCallInternal(peer, 'video')
+  }, [startCallInternal])
 
   const acceptCall = useCallback(() => {
     const offer = pendingOfferRef.current
@@ -239,6 +263,8 @@ export function useCall(): CallActions {
       logger.warn('No pending offer to accept')
       return
     }
+
+    const video = (offer.callMode ?? 'audio') === 'video'
 
     if (ringTimeoutRef.current) {
       clearTimeout(ringTimeoutRef.current)
@@ -257,14 +283,14 @@ export function useCall(): CallActions {
     sig.join(handleSignalingMessage)
 
     // Init WebRTC, handle the offer, send answer (with our ephemeral key)
-    initWebRTC().then(async (svc) => {
+    initWebRTC(video).then(async (svc) => {
       const answer = await svc.handleOffer(offer.offer)
       sig.sendAnswer(answer)
       pendingOfferRef.current = null
       logger.info('Call accepted')
     }).catch((err) => {
       logger.error('Failed to accept call:', err)
-      useCallStore.getState().endCall('Microphone access denied')
+      useCallStore.getState().endCall(video ? 'Camera/microphone access denied' : 'Microphone access denied')
       cleanupCall()
     })
   }, [initWebRTC, handleSignalingMessage, cleanupCall])
@@ -294,5 +320,9 @@ export function useCall(): CallActions {
     useCallStore.getState().toggleMute()
   }, [])
 
-  return { startCall, acceptCall, declineCall, hangUp, toggleMute }
+  const toggleVideo = useCallback(() => {
+    useCallStore.getState().toggleVideo()
+  }, [])
+
+  return { startCall, startVideoCall, acceptCall, declineCall, hangUp, toggleMute, toggleVideo, localStream, remoteStream }
 }

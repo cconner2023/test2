@@ -6,7 +6,7 @@
  */
 
 import { create } from 'zustand'
-import type { CallStatus, CallDirection, CallPeer } from '../lib/webrtc/types'
+import type { CallStatus, CallDirection, CallMode, CallPeer } from '../lib/webrtc/types'
 
 interface CallState {
   status: CallStatus
@@ -15,14 +15,17 @@ interface CallState {
   connectedAt: number | null
   endReason: string | null
   isMuted: boolean
+  callMode: CallMode
+  isVideoOff: boolean
 }
 
 interface CallActions {
-  startRinging: (direction: CallDirection, peer: CallPeer) => void
+  startRinging: (direction: CallDirection, peer: CallPeer, callMode?: CallMode) => void
   setConnecting: () => void
   setConnected: () => void
   endCall: (reason: string) => void
   toggleMute: () => void
+  toggleVideo: () => void
   reset: () => void
 }
 
@@ -33,13 +36,15 @@ const initialState: CallState = {
   connectedAt: null,
   endReason: null,
   isMuted: false,
+  callMode: 'audio',
+  isVideoOff: false,
 }
 
 export const useCallStore = create<CallState & CallActions>()((set) => ({
   ...initialState,
 
-  startRinging: (direction, peer) => {
-    set({ status: 'ringing', direction, peer, connectedAt: null, endReason: null, isMuted: false })
+  startRinging: (direction, peer, callMode) => {
+    set({ status: 'ringing', direction, peer, connectedAt: null, endReason: null, isMuted: false, callMode: callMode ?? 'audio', isVideoOff: false })
   },
 
   setConnecting: () => {
@@ -61,6 +66,10 @@ export const useCallStore = create<CallState & CallActions>()((set) => ({
 
   toggleMute: () => {
     set((state) => ({ isMuted: !state.isMuted }))
+  },
+
+  toggleVideo: () => {
+    set((state) => ({ isVideoOff: !state.isVideoOff }))
   },
 
   reset: () => {

@@ -200,7 +200,7 @@ export function AdminClinicsList({
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {filteredClinics.map((clinic) => {
               const assignedUsers = usersInClinic(clinic.id)
               const isSelected = selectedIds.has(clinic.id)

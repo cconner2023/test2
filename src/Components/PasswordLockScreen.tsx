@@ -149,9 +149,10 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-themewhite flex flex-col items-center justify-center select-none px-6"
+      className="fixed inset-0 z-[100] bg-themewhite overflow-y-auto select-none"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
+      <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
       <div className="w-full max-w-sm">
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
@@ -226,6 +227,7 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
             <span className="font-medium text-primary">Tip:</span> Enable App Lock in Settings &gt; Security for quicker re-entry with a PIN.
           </p>
         </div>
+      </div>
       </div>
     </div>
   )

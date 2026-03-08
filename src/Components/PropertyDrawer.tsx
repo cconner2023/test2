@@ -151,7 +151,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             onClose={handleClose}
             fullHeight="90dvh"
             desktopPosition="left"
-            desktopWidth="w-full"
+            desktopWidth="w-[90%]"
             header={headerConfig}
         >
             <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'property' ? swipeHandlers : undefined}>

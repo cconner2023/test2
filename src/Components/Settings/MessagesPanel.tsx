@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMemo } from 'react'
-import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, ArrowLeft, MessageSquare, Users, Plus, Info, ChevronLeft, UserPlus, Pin, PenLine } from 'lucide-react'
+import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, Video, ArrowLeft, MessageSquare, Users, Plus, Info, ChevronLeft, UserPlus, Pin, PenLine } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useSpring, animated } from '@react-spring/web'
 import { SPRING_CONFIGS } from '../../Utilities/GestureUtils'
@@ -25,6 +25,7 @@ import { CardContextMenu } from '../CardContextMenu'
 import { SwipeableCard, type SwipeAction as SwipeCardAction } from '../SwipeableCard'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { useChatInteractions } from '../../Hooks/useChatInteractions'
+import { usePeerAvailability } from '../../Hooks/usePeerAvailability'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
@@ -48,6 +49,7 @@ function ContactsPanel({
   groups,
   conversations,
   unreadCounts,
+  unavailableIds,
   onSelectPeer,
   onSelectGroup,
   onCreateGroup,
@@ -57,6 +59,7 @@ function ContactsPanel({
   groups: Record<string, GroupInfo>
   conversations: Record<string, DecryptedSignalMessage[]>
   unreadCounts: Record<string, number>
+  unavailableIds: Set<string>
   onSelectPeer: (medic: ClinicMedic) => void
   onSelectGroup: (group: GroupInfo) => void
   onCreateGroup: () => void
@@ -179,6 +182,7 @@ function ContactsPanel({
               <ContactListItem
                 key={medic.id}
                 medic={medic}
+                unavailable={unavailableIds.has(medic.id)}
                 onClick={() => handleSelectPeer(medic)}
               />
             ))
@@ -194,6 +198,7 @@ function ContactsPanel({
                 <ContactListItem
                   key={medic.id}
                   medic={medic}
+                  unavailable={unavailableIds.has(medic.id)}
                   onClick={() => handleSelectPeer(medic)}
                 />
               ))}
@@ -210,12 +215,14 @@ function ContactsPanel({
 function ContactsSidebar({
   medics,
   groups,
+  unavailableIds,
   onSelectPeer,
   onSelectGroup,
   onCreateGroup,
 }: {
   medics: ClinicMedic[]
   groups: Record<string, GroupInfo>
+  unavailableIds: Set<string>
   onSelectPeer: (medic: ClinicMedic) => void
   onSelectGroup: (group: GroupInfo) => void
   onCreateGroup: () => void
@@ -227,8 +234,8 @@ function ContactsSidebar({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="shrink-0 px-4 py-3 border-b border-primary/10">
-        <div className="flex items-center justify-between">
+      <div className="shrink-0 px-4 h-10 flex items-center border-b border-primary/10">
+        <div className="flex items-center justify-between w-full">
           <p className="text-xs font-medium text-tertiary/70 uppercase tracking-wide">Contacts</p>
           <button
             onClick={onCreateGroup}
@@ -268,48 +275,58 @@ function ContactsSidebar({
 
         {/* Own clinic */}
         <p className="text-[10px] text-tertiary/50 px-3 mb-1 uppercase tracking-wide">My Clinic</p>
-        {ownClinicMedics.map(medic => (
-          <button
-            key={medic.id}
-            onClick={() => onSelectPeer(medic)}
-            className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-left
-                       hover:bg-themewhite2 active:scale-[0.98] transition-all"
-          >
-            <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
-            <div className="min-w-0">
-              <p className="text-xs font-medium text-primary truncate">
-                {[medic.rank, medic.lastName].filter(Boolean).join(' ') || medic.firstName || 'Unknown'}
-              </p>
-              {medic.credential && (
-                <p className="text-[9px] text-tertiary/40">{medic.credential}</p>
-              )}
-            </div>
-          </button>
-        ))}
+        {ownClinicMedics.map(medic => {
+          const isUnavailable = unavailableIds.has(medic.id)
+          return (
+            <button
+              key={medic.id}
+              onClick={() => onSelectPeer(medic)}
+              className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-left
+                         hover:bg-themewhite2 active:scale-[0.98] transition-all${isUnavailable ? ' opacity-50' : ''}`}
+            >
+              <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-primary truncate">
+                  {[medic.rank, medic.lastName].filter(Boolean).join(' ') || medic.firstName || 'Unknown'}
+                </p>
+                {isUnavailable ? (
+                  <p className="text-[9px] text-amber-500/80">No active device</p>
+                ) : medic.credential ? (
+                  <p className="text-[9px] text-tertiary/40">{medic.credential}</p>
+                ) : null}
+              </div>
+            </button>
+          )
+        })}
 
         {/* Nearby clinics */}
         {nearbyClinicNames.map(clinicName => (
           <div key={clinicName}>
             <div className="mx-3 my-1.5 border-b border-primary/10" />
             <p className="text-[10px] text-tertiary/50 px-3 mb-1 uppercase tracking-wide">{clinicName}</p>
-            {nearbyByClinic[clinicName].map(medic => (
-              <button
-                key={medic.id}
-                onClick={() => onSelectPeer(medic)}
-                className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-left
-                           hover:bg-themewhite2 active:scale-[0.98] transition-all"
-              >
-                <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-primary truncate">
-                    {[medic.rank, medic.lastName].filter(Boolean).join(' ') || medic.firstName || 'Unknown'}
-                  </p>
-                  {medic.credential && (
-                    <p className="text-[9px] text-tertiary/40">{medic.credential}</p>
-                  )}
-                </div>
-              </button>
-            ))}
+            {nearbyByClinic[clinicName].map(medic => {
+              const isUnavailable = unavailableIds.has(medic.id)
+              return (
+                <button
+                  key={medic.id}
+                  onClick={() => onSelectPeer(medic)}
+                  className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-left
+                             hover:bg-themewhite2 active:scale-[0.98] transition-all${isUnavailable ? ' opacity-50' : ''}`}
+                >
+                  <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-primary truncate">
+                      {[medic.rank, medic.lastName].filter(Boolean).join(' ') || medic.firstName || 'Unknown'}
+                    </p>
+                    {isUnavailable ? (
+                      <p className="text-[9px] text-amber-500/80">No active device</p>
+                    ) : medic.credential ? (
+                      <p className="text-[9px] text-tertiary/40">{medic.credential}</p>
+                    ) : null}
+                  </div>
+                </button>
+              )
+            })}
           </div>
         ))}
       </div>
@@ -332,6 +349,7 @@ function ConversationList({
   onSelectGroup,
   conversations,
   unreadCounts,
+  unavailableIds,
   medics,
   groups,
   loading,
@@ -342,6 +360,7 @@ function ConversationList({
   onSelectGroup: (group: GroupInfo) => void
   conversations: Record<string, DecryptedSignalMessage[]>
   unreadCounts: Record<string, number>
+  unavailableIds: Set<string>
   medics: ClinicMedic[]
   groups: Record<string, GroupInfo>
   loading: boolean
@@ -526,6 +545,7 @@ function ConversationList({
                     medic={entry.medic}
                     lastMessage={lastMsg?.plaintext}
                     unreadCount={unreadCounts[entry.key] ?? 0}
+                    unavailable={unavailableIds.has(entry.key)}
                     onClick={() => {}}
                   />
                 </div>
@@ -550,6 +570,7 @@ function ConversationList({
           groups={groups}
           conversations={conversations}
           unreadCounts={unreadCounts}
+          unavailableIds={unavailableIds}
           onSelectPeer={onSelectPeer}
           onSelectGroup={onSelectGroup}
           onCreateGroup={onCreateGroup}
@@ -663,10 +684,12 @@ function ChatDetail({
   deleteMessages,
   onBack,
   onStartCall,
+  onStartVideoCall,
   peerName,
   peerAvatarId,
   peerFirstName,
   peerLastName,
+  peerUnavailable,
 }: {
   peerId: string
   conversations: Record<string, DecryptedSignalMessage[]>
@@ -682,10 +705,12 @@ function ChatDetail({
   deleteMessages: (peerId: string, messageIds: string[]) => void
   onBack?: () => void
   onStartCall?: () => void
+  onStartVideoCall?: () => void
   peerName?: string
   peerAvatarId?: string | null
   peerFirstName?: string | null
   peerLastName?: string | null
+  peerUnavailable?: boolean
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? ''
@@ -804,10 +829,9 @@ function ChatDetail({
     e.target.value = ''
   }, [sendImage, peerId])
 
-  const inputDisabled = sending || requestStatus === 'sent'
-
   const isSelf = peerId === userId
-  const canCall = !isSelf && requestStatus === 'accepted' && onStartCall
+  const inputDisabled = sending || requestStatus === 'sent' || (!!peerUnavailable && !isSelf)
+  const canCall = !isSelf && requestStatus === 'accepted' && (onStartCall || onStartVideoCall)
 
   // Shared input area renderer (used in both main view and thread view)
   const renderInputArea = () => {
@@ -829,6 +853,19 @@ function ChatDetail({
                 <span className="text-[10px] text-red-400">Delete</span>
               </button>
             )}
+          </div>
+        </div>
+      )
+    }
+
+    if (peerUnavailable && !isSelf) {
+      return (
+        <div className="shrink-0 px-4 py-3 border-t border-primary/10">
+          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10">
+            <div className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              {peerName ?? 'This user'} hasn't set up a device yet. Messages can't be delivered until they log in.
+            </p>
           </div>
         </div>
       )
@@ -1035,10 +1072,32 @@ function ChatDetail({
           {peerName ?? (isSelf ? 'Notes' : 'Chat')}
         </p>
         {canCall ? (
-          <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
-            <button onClick={onStartCall} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
-              <Phone className="w-5 h-5 text-themeblue2" />
-            </button>
+          <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5 shrink-0">
+            {onStartVideoCall && (
+              <>
+                <button
+                  onClick={onStartVideoCall}
+                  className="w-10 h-10 rounded-full flex items-center justify-center
+                             text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
+                  aria-label="Video call"
+                  title="Video call"
+                >
+                  <Video className="w-[18px] h-[18px]" />
+                </button>
+                {onStartCall && <div className="w-px h-5 bg-tertiary/15" />}
+              </>
+            )}
+            {onStartCall && (
+              <button
+                onClick={onStartCall}
+                className="w-10 h-10 rounded-full flex items-center justify-center
+                           text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
+                aria-label="Voice call"
+                title="Voice call"
+              >
+                <Phone className="w-[18px] h-[18px]" />
+              </button>
+            )}
           </div>
         ) : (
           <div className="w-12 shrink-0" />
@@ -1046,17 +1105,31 @@ function ChatDetail({
       </div>
 
       {/* Desktop header */}
-      <div className="hidden md:flex shrink-0 px-4 py-2.5 border-b border-primary/10 items-center justify-between">
+      <div className="hidden md:flex shrink-0 px-4 h-10 border-b border-primary/10 items-center justify-between">
         <p className="text-sm font-medium text-primary truncate">
           {peerName ?? (isSelf ? 'Notes' : 'Chat')}
         </p>
         {canCall && (
-          <button
-            onClick={onStartCall}
-            className="p-2 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
-          >
-            <Phone size={18} className="text-themeblue2" />
-          </button>
+          <div className="flex items-center gap-1">
+            {onStartVideoCall && (
+              <button
+                onClick={onStartVideoCall}
+                className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
+                title="Video call"
+              >
+                <Video size={16} className="text-themeblue2" />
+              </button>
+            )}
+            {onStartCall && (
+              <button
+                onClick={onStartCall}
+                className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
+                title="Voice call"
+              >
+                <Phone size={16} className="text-themeblue2" />
+              </button>
+            )}
+          </div>
         )}
       </div>
 
@@ -1448,7 +1521,7 @@ function GroupChatDetail({
       </div>
 
       {/* Desktop group header */}
-      <div className="hidden md:flex shrink-0 px-4 py-2.5 border-b border-primary/10 items-center justify-between">
+      <div className="hidden md:flex shrink-0 px-4 h-10 border-b border-primary/10 items-center justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <div className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
             <Users size={14} className="text-themeblue2" />
@@ -1515,6 +1588,10 @@ export function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectP
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
   const [showCreateGroup, setShowCreateGroup] = useState(false)
+
+  // Batch-check which contacts have active devices
+  const medicIds = useMemo(() => medics.map(m => m.id), [medics])
+  const unavailableIds = usePeerAvailability(medicIds)
 
   // Spring-animated slide for the right content area (sidebar stays put).
   // x=0 is the resting position. We kick it off-screen then spring back to 0.
@@ -1602,10 +1679,12 @@ export function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectP
         deleteMessages={deleteMessages}
         onBack={onBack}
         onStartCall={callActions ? () => callActions.startCall({ userId: selectedPeerId, displayName: peerName ?? 'Unknown' }) : undefined}
+        onStartVideoCall={callActions ? () => callActions.startVideoCall({ userId: selectedPeerId, displayName: peerName ?? 'Unknown' }) : undefined}
         peerName={peerName}
         peerAvatarId={peer?.avatarId}
         peerFirstName={peer?.firstName}
         peerLastName={peer?.lastName}
+        peerUnavailable={unavailableIds.has(selectedPeerId)}
       />
     )
   } else {
@@ -1615,6 +1694,7 @@ export function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectP
         onSelectGroup={onSelectGroup}
         conversations={conversations}
         unreadCounts={unreadCounts}
+        unavailableIds={unavailableIds}
         medics={medics}
         groups={groups}
         loading={loading}
@@ -1631,6 +1711,7 @@ export function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectP
         <ContactsSidebar
           medics={medics}
           groups={groups}
+          unavailableIds={unavailableIds}
           onSelectPeer={onSelectPeer}
           onSelectGroup={onSelectGroup}
           onCreateGroup={() => setShowCreateGroup(true)}

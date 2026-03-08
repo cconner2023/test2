@@ -69,9 +69,10 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-themewhite flex flex-col items-center justify-center select-none px-6"
+      className="fixed inset-0 z-[100] bg-themewhite overflow-y-auto select-none"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
+      <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
       <div className="w-full max-w-sm">
         {/* Header */}
         <div className="flex flex-col items-center mb-8">
@@ -120,6 +121,7 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
             {submitting ? 'Setting Password...' : isSetup ? 'Set Password' : 'Update Password'}
           </button>
         </form>
+      </div>
       </div>
     </div>
   )

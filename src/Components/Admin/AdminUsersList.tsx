@@ -433,7 +433,7 @@ export function AdminUsersList({
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {filteredUsers.map((user) => {
               const userCerts = certsByUser.get(user.id) || []
               const isSelected = selectedUserIds.has(user.id)
@@ -514,8 +514,19 @@ export function AdminUsersList({
                       </div>
                     </div>
 
-                    {/* Row 2: Cert badges */}
-                    {userCerts.length > 0 && <CertBadges certs={userCerts} />}
+                    {/* Row 2: Cert badges (non-primary only; primary is already shown as credential) */}
+                    {userCerts.filter(c => !c.is_primary).length > 0 && (
+                      <CertBadges certs={userCerts.filter(c => !c.is_primary)} />
+                    )}
+
+                    {/* UIC badge */}
+                    {user.uic && (
+                      <div className="flex items-center">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeyellow/10 text-themeyellow border-themeyellow/30">
+                          {user.uic}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Inline: Reset password form (shown under this card) */}
                     {resetPwUserId === user.id && (

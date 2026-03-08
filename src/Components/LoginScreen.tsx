@@ -94,8 +94,10 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="fixed inset-0 z-[90] flex flex-col items-center justify-start pt-[12vh] bg-themewhite dark:bg-[rgba(25,35,45,1)]">
-      <div className="w-full max-w-sm mx-auto px-4">
+    <div className="fixed inset-0 z-[90] bg-themewhite dark:bg-[rgba(25,35,45,1)] overflow-y-auto"
+         style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div className="min-h-full flex flex-col items-center justify-center py-8 px-4">
+      <div className="w-full max-w-sm">
         {/* Branding */}
         <div className="text-center mb-15">
           <svg className="w-14 h-14 mx-auto mb-3" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -327,6 +329,7 @@ export function LoginScreen() {
             </div>
           </>
         )}
+      </div>
       </div>
     </div>
   )

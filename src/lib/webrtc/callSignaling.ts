@@ -20,6 +20,7 @@ import { supabase } from '../supabase'
 import { createLogger } from '../../Utilities/Logger'
 import { createSignalingCrypto, type SignalingCrypto } from './signalingCrypto'
 import type {
+  CallMode,
   CallOfferPayload,
   CallAnswerPayload,
   IceCandidatePayload,
@@ -208,6 +209,7 @@ export async function sendCallOffer(
   offer: RTCSessionDescriptionInit,
   pairwiseChannel: string,
   ephemeralKey?: string,
+  callMode?: CallMode,
 ): Promise<void> {
   const channelName = `call-listen:${peerId}`
   const channel = supabase.channel(channelName)
@@ -222,6 +224,7 @@ export async function sendCallOffer(
           offer,
           pairwiseChannel,
           ephemeralKey,
+          callMode,
         }
         channel.send({ type: 'broadcast', event: 'call-offer', payload }).then(() => {
           logger.info('Call offer sent to', peerId)

@@ -1,5 +1,5 @@
 /**
- * WebRTC voice call — barrel export.
+ * WebRTC call — barrel export.
  */
 
 // ---- Types ----
@@ -7,6 +7,7 @@
 export type {
   CallStatus,
   CallDirection,
+  CallMode,
   CallPeer,
   SignalingEvent,
   CallOfferPayload,

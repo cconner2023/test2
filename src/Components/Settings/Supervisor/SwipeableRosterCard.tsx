@@ -1,4 +1,4 @@
-import { Star, CheckCircle, Check, ClipboardCheck, Eye, Pencil } from 'lucide-react'
+import { CheckCircle, Check, ClipboardCheck, Eye, Pencil } from 'lucide-react'
 import { SwipeableCard, type SwipeAction } from '../../SwipeableCard'
 import { formatMedicName, getExpirationStatus, certBadgeColors } from './supervisorHelpers'
 import { UserAvatar } from '../UserAvatar'
@@ -85,10 +85,10 @@ export function SwipeableRosterCard({
           )}
         </div>
 
-        {/* Cert badges */}
-        {certs.length > 0 && (
+        {/* Cert badges (non-primary only; primary is already shown as credential) */}
+        {certs.filter(c => !c.is_primary).length > 0 && (
           <div className="flex flex-wrap items-center gap-1 mt-2">
-            {certs.map((cert) => {
+            {certs.filter(c => !c.is_primary).map((cert) => {
               const status = getExpirationStatus(cert.exp_date)
               const color = certBadgeColors[status]
               return (
@@ -97,7 +97,6 @@ export function SwipeableRosterCard({
                   className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9pt] font-medium border ${color}`}
                 >
                   {cert.title}
-                  {cert.is_primary && <Star size={8} className="fill-current" />}
                   {cert.verified && <CheckCircle size={8} />}
                 </span>
               )

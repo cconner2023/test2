@@ -60,10 +60,11 @@ export const UserAcknowledgment = ({ onAccept, persistent }: UserAcknowledgmentP
 
   return (
     <div
-      className="fixed inset-0 z-[100] bg-themewhite flex flex-col items-center justify-center select-none"
+      className="fixed inset-0 z-[100] bg-themewhite overflow-y-auto select-none"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <div className="w-full max-w-md px-6 flex flex-col items-center">
+      <div className="min-h-full flex flex-col items-center justify-center py-8 px-6">
+      <div className="w-full max-w-md flex flex-col items-center">
         {/* Header */}
         <div className="flex flex-col items-center mb-6">
           <div className="w-14 h-14 rounded-full bg-themeblue2/10 flex items-center justify-center mb-3">
@@ -74,7 +75,7 @@ export const UserAcknowledgment = ({ onAccept, persistent }: UserAcknowledgmentP
         </div>
 
         {/* Content */}
-        <div className="w-full space-y-4 mb-6 max-h-[55vh] overflow-y-auto px-1">
+        <div className="w-full space-y-4 mb-6 px-1">
           <Section icon={<EyeOff size={14} className="text-themeblue2" />}>
             <p>
               <strong className="text-primary">No patient data is stored on our servers.</strong>{' '}
@@ -135,6 +136,7 @@ export const UserAcknowledgment = ({ onAccept, persistent }: UserAcknowledgmentP
         >
           Continue
         </button>
+      </div>
       </div>
     </div>
   )

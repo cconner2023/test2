@@ -6,8 +6,8 @@
  * and multi-select batch actions via CardActionBar.
  */
 
-import { useState, useEffect, useCallback } from 'react'
-import { Check, X, UserPlus, Clock, Search } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { Check, X, UserPlus, Clock, Search, Building2 } from 'lucide-react'
 
 import { SwipeableCard } from '../SwipeableCard'
 import { CardContextMenu } from '../CardContextMenu'
@@ -19,7 +19,9 @@ import {
   getAllAccountRequests,
   approveAccountRequest,
   rejectAccountRequest,
+  listClinics,
 } from '../../lib/adminService'
+import type { AdminClinic } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
 import { UI_TIMING } from '../../Utilities/constants'
 
@@ -41,6 +43,7 @@ function getStatusColor(status: string): string {
 export function AdminRequestsList() {
   // Data
   const [requests, setRequests] = useState<AccountRequest[]>([])
+  const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [loading, setLoading] = useState(true)
   const showLoading = useMinLoadTime(loading)
   const [filter, setFilter] = useState<FilterTab>('pending')
@@ -71,12 +74,27 @@ export function AdminRequestsList() {
   // ── Data loading ────────────────────────────────────────
   const loadRequests = useCallback(async () => {
     setLoading(true)
-    const data = await getAllAccountRequests(filter === 'all' ? undefined : filter)
-    setRequests(data)
+    const [reqData, clinicData] = await Promise.all([
+      getAllAccountRequests(filter === 'all' ? undefined : filter),
+      listClinics(),
+    ])
+    setRequests(reqData)
+    setClinics(clinicData)
     setLoading(false)
   }, [filter])
 
   useEffect(() => { loadRequests() }, [loadRequests])
+
+  // ── UIC → clinic lookup ────────────────────────────────
+  const uicToClinic = useMemo(() => {
+    const map = new Map<string, AdminClinic>()
+    for (const clinic of clinics) {
+      for (const uic of clinic.uics) {
+        map.set(uic.toUpperCase(), clinic)
+      }
+    }
+    return map
+  }, [clinics])
 
   // ── Search filtering ────────────────────────────────────
   const filteredRequests = searchQuery.trim()
@@ -217,10 +235,19 @@ export function AdminRequestsList() {
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className={`grid gap-3 ${
+            filteredRequests.length === 1
+              ? 'grid-cols-1'
+              : filteredRequests.length === 2
+                ? 'grid-cols-1 md:grid-cols-2'
+                : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
+          }`}>
             {filteredRequests.map((request) => {
               const isPending = request.status === 'pending'
               const isSelected = selectedIds.has(request.id)
+              const matchedClinic = request.uic
+                ? uicToClinic.get(request.uic.toUpperCase())
+                : undefined
 
               return (
                 <SwipeableCard
@@ -300,6 +327,22 @@ export function AdminRequestsList() {
                           {request.rank && (
                             <span className="text-[10pt] text-primary/80">{request.rank}</span>
                           )}
+                          {request.uic && (
+                            <>
+                              {(request.credential || request.rank) && (
+                                <span className="text-tertiary/30">&middot;</span>
+                              )}
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeyellow/10 text-themeyellow border-themeyellow/30">
+                                {request.uic}
+                              </span>
+                              {matchedClinic && (
+                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themegreen/10 text-themegreen border-themegreen/30">
+                                  <Building2 size={9} />
+                                  {matchedClinic.name}
+                                </span>
+                              )}
+                            </>
+                          )}
                         </div>
                       </div>
 
@@ -331,6 +374,26 @@ export function AdminRequestsList() {
                             <span className="text-primary font-medium">{request.uic}</span>
                           </div>
                         </div>
+
+                        {matchedClinic ? (
+                          <div className="flex items-center gap-2 p-2 bg-themegreen/10 rounded-lg text-[10pt]">
+                            <Building2 size={14} className="text-themegreen shrink-0" />
+                            <div>
+                              <span className="text-themegreen font-medium">Recommended Clinic</span>
+                              <p className="text-themegreen/80 text-[9pt]">
+                                {matchedClinic.name}
+                                {matchedClinic.location ? ` — ${matchedClinic.location}` : ''}
+                              </p>
+                            </div>
+                          </div>
+                        ) : request.uic ? (
+                          <div className="flex items-center gap-2 p-2 bg-themeyellow/10 rounded-lg text-[10pt]">
+                            <Building2 size={14} className="text-themeyellow shrink-0" />
+                            <span className="text-themeyellow/80">
+                              No clinic found for UIC {request.uic}
+                            </span>
+                          </div>
+                        ) : null}
 
                         {request.notes && (
                           <div className="p-2 bg-themewhite rounded-lg text-[10pt]">
