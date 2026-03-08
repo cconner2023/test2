@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
+import { PenLine, Users, X } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { MessagesPanel, type MessagesView } from './Settings/MessagesPanel'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
@@ -65,7 +66,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     }, [])
 
     const handleBack = useCallback(() => {
-        if (view === 'messages-chat' || view === 'messages-group-chat') {
+        if (view === 'messages-chat' || view === 'messages-group-chat' || view === 'messages-contacts') {
             setView('messages')
             setSelectedPeerId(null)
             setSelectedPeerName(null)
@@ -73,6 +74,10 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             if (messagesCtx) messagesCtx.activePeerRef.current = null
         }
     }, [view, messagesCtx])
+
+    const handleShowContacts = useCallback(() => {
+        setView('messages-contacts')
+    }, [])
 
     const handleClose = useCallback(() => {
         setView('messages')
@@ -91,15 +96,48 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         view !== 'messages',
     )
 
-    const isConversationView = view === 'messages-chat' || view === 'messages-group-chat'
+    const isConversationView = view === 'messages-chat' || view === 'messages-group-chat' || view === 'messages-contacts'
     const isMessagesActive = view === 'messages' || isConversationView
 
     const headerConfig = useMemo(() => {
         if (view === 'messages-chat' || view === 'messages-group-chat') {
             return { title: 'Messages', showBack: true, onBack: handleBack }
         }
-        return { title: 'Messages' }
-    }, [view, handleBack])
+        return {
+            title: 'Messages',
+            hideDefaultClose: true,
+            rightContent: (
+                <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
+                    <button
+                        onClick={handleShowContacts}
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                        aria-label="New message"
+                        title="New message"
+                    >
+                        <PenLine className="w-[18px] h-[18px]" />
+                    </button>
+                    <div className="w-px h-5 bg-tertiary/15" />
+                    <button
+                        onClick={handleShowContacts}
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                        aria-label="New group"
+                        title="New group"
+                    >
+                        <Users className="w-[18px] h-[18px]" />
+                    </button>
+                    <div className="w-px h-5 bg-tertiary/15" />
+                    <button
+                        onClick={handleClose}
+                        className="w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                        aria-label="Close"
+                        title="Close"
+                    >
+                        <X className="w-[18px] h-[18px]" />
+                    </button>
+                </div>
+            ),
+        }
+    }, [view, handleBack, handleShowContacts, handleClose])
 
     return (
         <BaseDrawer
@@ -119,6 +157,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                     onSelectPeer={handleSelectPeer}
                     onSelectGroup={handleSelectGroup}
                     onBack={handleBack}
+                    onCloseDrawer={handleClose}
                 />
             </div>
         </BaseDrawer>

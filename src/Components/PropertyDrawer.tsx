@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
-import { ArrowRightLeft, Edit3, Trash2 } from 'lucide-react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { ArrowRightLeft, Edit3, Trash2, Plus, FolderPlus, X } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
 import { ContentWrapper } from './Settings/ContentWrapper'
@@ -14,7 +14,7 @@ interface PropertyDrawerProps {
 }
 
 export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
-    const { resetLocationPath } = usePropertyStore()
+    const { resetLocationPath, setDefaultLocationId, setEditingItem } = usePropertyStore()
     const [view, setView] = useState<PropertyView>('property')
     const [selectedPropertyItemName, setSelectedPropertyItemName] = useState<string | null>(null)
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
@@ -37,6 +37,9 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         mql.addEventListener('change', handler)
         return () => mql.removeEventListener('change', handler)
     }, [])
+
+    // Ref to trigger the add-location form inside PropertyPanel from the header
+    const addLocationTriggerRef = useRef<(() => void) | null>(null)
 
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
         setSlideDirection(direction)
@@ -98,17 +101,23 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         if (!detailActions) return undefined
         const { onEdit, onTransfer, onDelete } = detailActions
         if (isMobile) {
-            // NavTop triple icon container pattern
+            // NavTop quadruple icon container: transfer + edit + delete + close
             return (
                 <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
-                    <button onClick={onTransfer} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200" aria-label="Transfer">
-                        <ArrowRightLeft className="w-6 h-6 stroke-current" />
+                    <button onClick={onTransfer} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Transfer">
+                        <ArrowRightLeft className="w-[18px] h-[18px]" />
                     </button>
-                    <button onClick={onEdit} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200" aria-label="Edit">
-                        <Edit3 className="w-6 h-6 stroke-current" />
+                    <div className="w-px h-5 bg-tertiary/15" />
+                    <button onClick={onEdit} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Edit">
+                        <Edit3 className="w-[18px] h-[18px]" />
                     </button>
-                    <button onClick={onDelete} className="w-11 h-11 rounded-full flex items-center justify-center text-themeredred hover:text-themeredred/80 transition-all duration-200" aria-label="Delete">
-                        <Trash2 className="w-6 h-6 stroke-current" />
+                    <div className="w-px h-5 bg-tertiary/15" />
+                    <button onClick={onDelete} className="w-11 h-11 rounded-full flex items-center justify-center text-themeredred hover:text-themeredred/80 active:scale-95 transition-all duration-200" aria-label="Delete">
+                        <Trash2 className="w-[18px] h-[18px]" />
+                    </button>
+                    <div className="w-px h-5 bg-tertiary/15" />
+                    <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
+                        <X className="w-[18px] h-[18px]" />
                     </button>
                 </div>
             )
@@ -127,7 +136,43 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 </button>
             </div>
         )
-    }, [detailActions, isMobile])
+    }, [detailActions, isMobile, handleClose])
+
+    // Triple pill for the mobile main property view (new item + new location + close)
+    const mainHeaderActions = useMemo(() => {
+        if (!isMobile) return undefined
+        return (
+            <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
+                <button
+                    onClick={() => {
+                        setDefaultLocationId(null)
+                        setEditingItem(null)
+                        handleAddItem()
+                    }}
+                    className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
+                    aria-label="New item"
+                >
+                    <Plus className="w-[18px] h-[18px]" />
+                </button>
+                <div className="w-px h-5 bg-tertiary/15" />
+                <button
+                    onClick={() => addLocationTriggerRef.current?.()}
+                    className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
+                    aria-label="New location"
+                >
+                    <FolderPlus className="w-[18px] h-[18px]" />
+                </button>
+                <div className="w-px h-5 bg-tertiary/15" />
+                <button
+                    onClick={handleClose}
+                    className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
+                    aria-label="Close"
+                >
+                    <X className="w-[18px] h-[18px]" />
+                </button>
+            </div>
+        )
+    }, [isMobile, handleAddItem, handleClose, setDefaultLocationId, setEditingItem])
 
     const headerConfig = useMemo(() => {
         switch (view) {
@@ -135,15 +180,15 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 if (isMobile && mobileLocationView) {
                     return { title: 'Property Book', showBack: true, onBack: () => { resetLocationPath(); setMobileLocationView(false) } }
                 }
-                return { title: 'Property Book' }
+                return { title: 'Property Book', rightContent: mainHeaderActions, hideDefaultClose: !!mainHeaderActions }
             case 'property-detail':
-                return { title: selectedPropertyItemName ?? 'Item', showBack: true, onBack: handleBack, rightContent: detailHeaderActions }
+                return { title: selectedPropertyItemName ?? 'Item', showBack: true, onBack: handleBack, rightContent: detailHeaderActions, hideDefaultClose: !!(isMobile && detailHeaderActions) }
             case 'property-transfer':
                 return { title: 'Transfer Custody', showBack: true, onBack: handleBack }
             case 'property-form':
                 return { title: selectedPropertyItemName ? 'Edit Item' : 'Add Item', showBack: true, onBack: handleBack }
         }
-    }, [view, selectedPropertyItemName, handleBack, isMobile, mobileLocationView, detailHeaderActions, resetLocationPath])
+    }, [view, selectedPropertyItemName, handleBack, isMobile, mobileLocationView, detailHeaderActions, mainHeaderActions, resetLocationPath])
 
     return (
         <BaseDrawer
@@ -167,6 +212,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         mobileLocationView={mobileLocationView}
                         onMobileLocationViewChange={setMobileLocationView}
                         onRegisterDetailActions={setDetailActions}
+                        onRegisterAddLocation={(fn) => { addLocationTriggerRef.current = fn }}
                     />
                 </div>
             </ContentWrapper>

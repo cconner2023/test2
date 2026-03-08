@@ -3,13 +3,13 @@
  *
  * Displays the full detail view for a single clinic as a styled card,
  * followed by a responsive grid of user cards for all assigned and
- * additional users. Keeps existing delete/edit actions.
+ * additional users. Edit and delete are handled by AdminDrawer header.
  */
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Pencil, Trash2, AlertTriangle, MapPin, Building2 } from 'lucide-react'
+import { useEffect, useCallback, useMemo, useState } from 'react'
+import { MapPin, Building2 } from 'lucide-react'
 import { UserAvatar } from '../Settings/UserAvatar'
-import { listClinics, listAllUsers, deleteClinic } from '../../lib/adminService'
+import { listClinics, listAllUsers } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { fetchAllCertifications } from '../../lib/certificationService'
 import type { Certification } from '../../Data/User'
@@ -17,24 +17,17 @@ import {
   formatLastActive,
   lastActiveColor,
   RoleBadge,
-  CertBadges,
 } from './adminUtils'
 
 interface AdminClinicDetailProps {
   clinic: AdminClinic
-  onEdit: (clinic: AdminClinic) => void
-  onBack: () => void
   onClinicUpdated: (clinic: AdminClinic) => void
 }
 
-const AdminClinicDetail = ({ clinic, onEdit, onBack, onClinicUpdated }: AdminClinicDetailProps) => {
+const AdminClinicDetail = ({ clinic, onClinicUpdated }: AdminClinicDetailProps) => {
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
   const [allCerts, setAllCerts] = useState<Certification[]>([])
-  const [feedback, setFeedback] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
-  const [deleteConfirming, setDeleteConfirming] = useState(false)
-  const [deleteConfirmName, setDeleteConfirmName] = useState('')
-  const [deleteProcessing, setDeleteProcessing] = useState(false)
 
   /** Load clinics, users, and certifications. */
   const loadData = useCallback(async () => {
@@ -46,17 +39,27 @@ const AdminClinicDetail = ({ clinic, onEdit, onBack, onClinicUpdated }: AdminCli
     setClinics(fetchedClinics)
     setUsers(fetchedUsers)
     setAllCerts(certData)
-  }, [])
+
+    // Keep parent in sync with latest clinic data
+    const refreshed = fetchedClinics.find((c) => c.id === clinic.id)
+    if (refreshed) onClinicUpdated(refreshed)
+  }, [clinic.id, onClinicUpdated])
 
   useEffect(() => {
     loadData()
   }, [loadData])
 
   /** Users whose clinic_id matches this clinic. */
-  const assignedUsers = users.filter((u) => u.clinic_id === clinic.id)
+  const assignedUsers = useMemo(
+    () => users.filter((u) => u.clinic_id === clinic.id),
+    [users, clinic.id],
+  )
 
   /** Users referenced by additional_user_ids (resolved from full user list). */
-  const additionalUsers = users.filter((u) => clinic.additional_user_ids.includes(u.id))
+  const additionalUsers = useMemo(
+    () => users.filter((u) => clinic.additional_user_ids.includes(u.id)),
+    [users, clinic.additional_user_ids],
+  )
 
   /** All users to show in the grid (assigned + additional, deduplicated). */
   const allClinicUsers = useMemo(() => {
@@ -82,40 +85,8 @@ const AdminClinicDetail = ({ clinic, onEdit, onBack, onClinicUpdated }: AdminCli
     return map
   }, [allCerts])
 
-  /** Handle delete with name-confirmation guard. */
-  const handleDelete = useCallback(async () => {
-    if (deleteConfirmName !== clinic.name) return
-
-    setDeleteProcessing(true)
-    const result = await deleteClinic(clinic.id)
-    setDeleteProcessing(false)
-
-    if (result.success) {
-      setDeleteConfirming(false)
-      setDeleteConfirmName('')
-      setFeedback({ type: 'success', message: 'Clinic deleted successfully' })
-      onBack()
-    } else {
-      setFeedback({ type: 'error', message: result.error || 'Failed to delete clinic' })
-    }
-  }, [deleteConfirmName, clinic.id, clinic.name, onBack])
-
   return (
     <>
-      {/* Feedback banner */}
-      {feedback && (
-        <div className={`mb-4 p-3 rounded-lg text-sm ${
-          feedback.type === 'success'
-            ? 'bg-themegreen/10 border border-themegreen/20 text-themegreen'
-            : 'bg-themeredred/10 border border-themeredred/20 text-themeredred'
-        }`}>
-          {feedback.message}
-          <button onClick={() => setFeedback(null)} className="float-right text-xs opacity-60 hover:opacity-100">
-            dismiss
-          </button>
-        </div>
-      )}
-
       {/* ── Clinic card ─────────────────────────────────────────── */}
       <div className="rounded-xl border border-tertiary/15 bg-themewhite2 px-4 py-3.5 mb-4">
         <div className="flex items-center gap-3">
@@ -162,62 +133,7 @@ const AdminClinicDetail = ({ clinic, onEdit, onBack, onClinicUpdated }: AdminCli
             })}
           </div>
         )}
-
-        {/* Action buttons */}
-        <div className="flex gap-2 mt-3">
-          <button
-            onClick={() => onEdit(clinic)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeblue2 text-white text-sm font-medium hover:bg-themeblue2/90 transition-colors"
-          >
-            <Pencil size={14} /> Edit
-          </button>
-          <button
-            onClick={() => { setDeleteConfirming(true); setDeleteConfirmName('') }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeredred/10 text-themeredred text-sm font-medium
-                       hover:bg-themeredred/20 border border-themeredred/20 transition-colors"
-          >
-            <Trash2 size={14} /> Delete
-          </button>
-        </div>
       </div>
-
-      {/* Delete confirmation inline */}
-      {deleteConfirming && (
-        <div className="p-3 bg-themeredred/10 rounded-lg mb-4 border border-themeredred/20">
-          <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle size={16} className="text-themeredred shrink-0" />
-            <p className="text-sm text-themeredred font-semibold">Delete this clinic?</p>
-          </div>
-          <p className="text-xs text-themeredred mb-2">
-            Type <span className="font-mono font-semibold bg-themeredred/10 px-1 py-0.5 rounded">{clinic.name}</span> to confirm:
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={deleteConfirmName}
-              onChange={(e) => setDeleteConfirmName(e.target.value)}
-              placeholder="Type clinic name to confirm..."
-              className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 border border-themeredred/30 text-sm
-                         focus:border-themeredred focus:outline-none transition-colors placeholder:text-tertiary/30"
-              autoComplete="off"
-            />
-            <button
-              onClick={handleDelete}
-              disabled={deleteProcessing || deleteConfirmName !== clinic.name}
-              className="px-3 py-2 rounded-lg bg-themeredred text-white text-sm font-medium
-                         hover:bg-themeredred/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {deleteProcessing ? 'Deleting...' : 'Delete'}
-            </button>
-            <button
-              onClick={() => { setDeleteConfirming(false); setDeleteConfirmName('') }}
-              className="px-3 py-2 rounded-lg bg-tertiary/10 text-primary text-sm"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ── User cards grid ─────────────────────────────────────── */}
       {allClinicUsers.length > 0 && (
@@ -235,7 +151,7 @@ const AdminClinicDetail = ({ clinic, onEdit, onBack, onClinicUpdated }: AdminCli
                   key={user.id}
                   className="rounded-xl border border-tertiary/15 bg-themewhite2 px-4 py-3.5 space-y-2"
                 >
-                  {/* Row 1: Avatar + name + credential + last active + roles */}
+                  {/* Row 1: Avatar + name + credential (inline) + last active + roles (condensed) */}
                   <div className="flex items-center gap-3">
                     <UserAvatar
                       avatarId={user.avatar_id}
@@ -249,11 +165,17 @@ const AdminClinicDetail = ({ clinic, onEdit, onBack, onClinicUpdated }: AdminCli
                         {user.first_name || ''} {user.middle_initial || ''}{' '}
                         {user.last_name || ''}
                       </p>
-                      <div className="flex items-center gap-2">
-                        {user.credential && (
-                          <p className="text-[9pt] text-tertiary/50">{user.credential}</p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Primary + extra certs inline as text */}
+                        {(user.credential || userCerts.filter(c => !c.is_primary).length > 0) && (
+                          <p className="text-[9pt] text-tertiary/50 truncate">
+                            {[
+                              user.credential,
+                              ...userCerts.filter(c => !c.is_primary).map(c => c.title),
+                            ].filter(Boolean).join(' · ')}
+                          </p>
                         )}
-                        <span className="flex items-center gap-1 text-[9pt] text-tertiary/50">
+                        <span className="flex items-center gap-1 text-[9pt] text-tertiary/50 shrink-0">
                           <span
                             className={`inline-block w-1.5 h-1.5 rounded-full ${lastActiveColor(user.last_active_at)}`}
                           />
@@ -262,38 +184,27 @@ const AdminClinicDetail = ({ clinic, onEdit, onBack, onClinicUpdated }: AdminCli
                       </div>
                     </div>
 
-                    <div className="flex gap-1 shrink-0">
+                    {/* Condensed 1-letter role badges, flex-wrap */}
+                    <div className="flex flex-wrap gap-0.5 shrink-0 max-w-[48px] justify-end">
                       {user.roles?.map((role) => (
                         <RoleBadge key={role} role={role} />
                       ))}
                     </div>
                   </div>
 
-                  {/* Cert badges (non-primary only; primary is already shown as credential) */}
-                  {userCerts.filter(c => !c.is_primary).length > 0 && (
-                    <CertBadges certs={userCerts.filter(c => !c.is_primary)} />
-                  )}
-
-                  {/* UIC badge */}
-                  {user.uic && (
+                  {/* UIC badge — themeblue2 matching initials avatar */}
+                  {(user.uic || isAdditional) && (
                     <div className="flex items-center gap-1">
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeyellow/10 text-themeyellow border-themeyellow/30">
-                        {user.uic}
-                      </span>
+                      {user.uic && (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
+                          {user.uic}
+                        </span>
+                      )}
                       {isAdditional && (
                         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-tertiary/10 text-tertiary border-tertiary/30">
                           additional
                         </span>
                       )}
-                    </div>
-                  )}
-
-                  {/* Show additional tag if no UIC but is additional user */}
-                  {!user.uic && isAdditional && (
-                    <div className="flex items-center">
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-tertiary/10 text-tertiary border-tertiary/30">
-                        additional
-                      </span>
                     </div>
                   )}
                 </div>

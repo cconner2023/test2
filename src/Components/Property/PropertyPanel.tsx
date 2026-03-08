@@ -39,9 +39,11 @@ interface PropertyPanelProps {
   mobileLocationView?: boolean
   onMobileLocationViewChange?: (active: boolean) => void
   onRegisterDetailActions?: (actions: DetailActions | null) => void
+  /** Called once on mount with a function the drawer can invoke to open the new-location form */
+  onRegisterAddLocation?: (trigger: () => void) => void
 }
 
-export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions }: PropertyPanelProps) {
+export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation }: PropertyPanelProps) {
   const { user } = useAuth()
   const property = useProperty()
   const showLoading = useMinLoadTime(property.isLoading)
@@ -176,6 +178,15 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
   const handleMoveItem = useCallback(async (itemId: string, newLocationId: string | null) => {
     await property.editItem(itemId, { location_id: newLocationId })
   }, [property])
+
+  // Register the add-location trigger so the drawer header can invoke it
+  useEffect(() => {
+    onRegisterAddLocation?.(() => {
+      setNewLocationName('')
+      setShowNewLocation(true)
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onRegisterAddLocation])
 
   const handleCreateLocation = useCallback(async () => {
     const trimmed = newLocationName.trim()
@@ -471,17 +482,51 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
       {/* Content area */}
       <div className="flex-1 overflow-y-auto">
         {isMobile ? (
-          <PropertyLocationTree
-            locations={property.locations}
-            items={property.items}
-            onSelectLocation={handleTreeSelectLocation}
-            onSelectItem={handleSelectItem}
-            onMoveLocation={handleMoveLocation}
-            onMoveItem={handleMoveItem}
-            onEditLocation={(loc) => { setRenamingLocation({ id: loc.id, name: loc.name }) }}
-            onDeleteLocation={(locId) => property.removeLocation(locId)}
-            onDeleteItem={(item) => setPendingDelete({ kind: 'single', item })}
-          />
+          <>
+            {/* Mobile new-location inline form — triggered by header FolderPlus button */}
+            {showNewLocation && (
+              <div className="px-4 py-3 border-b border-primary/10 bg-themewhite2/50">
+                <input
+                  type="text"
+                  value={newLocationName}
+                  onChange={(e) => setNewLocationName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleCreateLocation()
+                    if (e.key === 'Escape') setShowNewLocation(false)
+                  }}
+                  placeholder="Location name"
+                  autoFocus
+                  className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
+                />
+                <div className="flex items-center gap-2 mt-2">
+                  <button
+                    onClick={() => setShowNewLocation(false)}
+                    className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleCreateLocation}
+                    disabled={!newLocationName.trim()}
+                    className="flex-1 py-1.5 rounded-lg bg-themeblue2 text-[10pt] text-white disabled:opacity-30 active:scale-[0.98] transition-all"
+                  >
+                    Create
+                  </button>
+                </div>
+              </div>
+            )}
+            <PropertyLocationTree
+              locations={property.locations}
+              items={property.items}
+              onSelectLocation={handleTreeSelectLocation}
+              onSelectItem={handleSelectItem}
+              onMoveLocation={handleMoveLocation}
+              onMoveItem={handleMoveItem}
+              onEditLocation={(loc) => { setRenamingLocation({ id: loc.id, name: loc.name }) }}
+              onDeleteLocation={(locId) => property.removeLocation(locId)}
+              onDeleteItem={(item) => setPendingDelete({ kind: 'single', item })}
+            />
+          </>
         ) : (
           <>
             {filteredItems.map((item) => (
@@ -580,8 +625,8 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
         )
       })()}
 
-      {/* FAB for adding items — hidden when selection active */}
-      {!hasSelection && (
+      {/* FAB for adding items — desktop only; mobile uses the header triple pill */}
+      {!isMobile && !hasSelection && (
         <button
           className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-themeblue3 text-white shadow-lg flex items-center justify-center hover:bg-themeblue3/90 transition-colors"
           onClick={() => {

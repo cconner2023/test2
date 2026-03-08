@@ -371,7 +371,7 @@ export function useMessages(): UseMessagesReturn {
     return () => { cancelled = true; clearTimeout(timer) }
   }, [isAuthenticated])
 
-  /** Add a decrypted message to the conversations map, deduplicating by ID. */
+  /** Add a decrypted message to the conversations map, deduplicating by ID and originId. */
   const addMessage = useCallback((msg: DecryptedSignalMessage) => {
     // Route by conversation key: groupId for group messages, peerId for 1:1
     const conversationKey = msg.groupId ?? (msg.senderId === userId ? msg.recipientId : msg.senderId)
@@ -380,6 +380,12 @@ export function useMessages(): UseMessagesReturn {
       const existing = prev[conversationKey] ?? []
       // Deduplicate by ID
       if (existing.some(m => m.id === msg.id)) return prev
+
+      // Deduplicate by originId — fan-out creates one row per device with
+      // different IDs but the same originId. After backup restore, IDB may
+      // contain a row from another device; catch-up then delivers this
+      // device's own row. Without this check both copies appear.
+      if (msg.originId && existing.some(m => m.originId === msg.originId)) return prev
 
       // Deduplicate request-accepted by sender (fan-out creates one per device)
       if (msg.messageType === 'request-accepted') {
@@ -478,7 +484,30 @@ export function useMessages(): UseMessagesReturn {
       if (cancelled) return
 
       if (Object.keys(convos).length > 0) {
-        setConversations(convos)
+        // Merge IDB data with any messages already in state (e.g. from
+        // catch-up that ran concurrently). Deduplicate by id and originId.
+        setConversations(prev => {
+          const merged = { ...convos }
+          for (const [key, msgs] of Object.entries(prev)) {
+            if (!merged[key]) {
+              merged[key] = msgs
+              continue
+            }
+            const ids = new Set(merged[key].map(m => m.id))
+            const origins = new Set(merged[key].map(m => m.originId).filter(Boolean))
+            for (const msg of msgs) {
+              if (ids.has(msg.id)) continue
+              if (msg.originId && origins.has(msg.originId)) continue
+              merged[key].push(msg)
+              ids.add(msg.id)
+              if (msg.originId) origins.add(msg.originId)
+            }
+            merged[key].sort(
+              (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+            )
+          }
+          return merged
+        })
       }
       if (Object.keys(counts).length > 0) {
         setUnreadCounts(counts)

@@ -153,9 +153,20 @@ export function useProperty() {
   const removeItem = useCallback(async (id: string) => {
     const userId = userIdRef.current
     if (!userId) return
-    // Optimistic removal
-    setItems((prev) => prev.filter((item) => item.id !== id))
+
+    // Collect child IDs from IDB before optimistic removal
+    const childItems = await fetchSubItems(id)
+    const childIds = childItems.map((c) => c.id)
+
+    // Optimistic removal of parent + all children
+    setItems((prev) => prev.filter((i) => i.id !== id && !childIds.includes(i.id)))
+
+    // Delete parent first, then children
     const result = await deleteItem(id, userId)
+    for (const child of childItems) {
+      await deleteItem(child.id, userId)
+    }
+
     if (!result.success) {
       await refreshItems()
     }
@@ -185,13 +196,41 @@ export function useProperty() {
   const removeLocation = useCallback(async (id: string) => {
     const userId = userIdRef.current
     if (!userId) return
-    setLocations((prev) => prev.filter((loc) => loc.id !== id))
+
+    // Collect all descendant location IDs (depth-first) from current state
+    const collectDescendants = (parentId: string, allLocs: LocalPropertyLocation[]): string[] => {
+      const children = allLocs.filter((l) => l.parent_id === parentId)
+      return children.flatMap((c) => [c.id, ...collectDescendants(c.id, allLocs)])
+    }
+
+    // We need current locations snapshot before the state update
+    const allLocs = locations
+    const descendantIds = collectDescendants(id, allLocs)
+    const allIdsToDelete = [id, ...descendantIds]
+
+    // Optimistic removal of location + all descendants
+    setLocations((prev) => prev.filter((loc) => !allIdsToDelete.includes(loc.id)))
+
+    // Null out location_id on any items assigned to deleted locations
+    setItems((prev) =>
+      prev.map((item) =>
+        item.location_id && allIdsToDelete.includes(item.location_id)
+          ? { ...item, location_id: null }
+          : item,
+      ),
+    )
+
+    // Delete each location (service handles zone/tag cleanup per location)
     const result = await deleteLocation(id, userId)
+    for (const descId of descendantIds) {
+      await deleteLocation(descId, userId)
+    }
+
     if (!result.success) {
       await refreshLocations()
     }
     return result
-  }, [refreshLocations])
+  }, [locations, refreshLocations])
 
   const doTransfer = useCallback(async (payload: TransferPayload) => {
     const userId = userIdRef.current

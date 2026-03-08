@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Pencil, KeyRound, Trash2, AlertTriangle, LogOut } from 'lucide-react'
+import { KeyRound, Trash2, AlertTriangle, LogOut } from 'lucide-react'
 import type { Certification } from '../../Data/User'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { AdminCertsSection } from './AdminCertsSection'
@@ -40,7 +40,7 @@ interface Feedback {
 
 // ─── Component ────────────────────────────────────────────────────────
 
-export function AdminUserDetail({ user, onEdit, onBack, onUserUpdated }: AdminUserDetailProps) {
+export function AdminUserDetail({ user, onEdit: _onEdit, onBack, onUserUpdated }: AdminUserDetailProps) {
   // ── Data state ──────────────────────────────────────────────────────
   const [users, setUsers] = useState<AdminUser[]>([])
   const [clinics, setClinics] = useState<AdminClinic[]>([])
@@ -329,39 +329,36 @@ export function AdminUserDetail({ user, onEdit, onBack, onUserUpdated }: AdminUs
         onChanged={loadData}
       />
 
-      {/* Action buttons */}
-      <div className="flex gap-2 mt-4">
-        <button
-          onClick={() => onEdit(user)}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeblue2 text-white text-sm font-medium hover:bg-themeblue2/90 transition-colors"
-        >
-          <Pencil size={14} /> Edit
-        </button>
-        <button
-          onClick={openResetPassword}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tertiary/10 text-primary text-sm font-medium hover:bg-tertiary/20 transition-colors"
-        >
-          <KeyRound size={14} /> Reset Password
-        </button>
-        {currentUserId !== user.id && (
+      {/* Action menu — consistent with CardActionBar style, rendered at bottom */}
+      <div className="mt-5 border-t border-tertiary/10 pt-4">
+        <p className="text-[10px] text-tertiary/50 uppercase tracking-wide mb-2">Actions</p>
+        <div className="flex flex-wrap gap-2">
           <button
-            onClick={handleForceLogout}
-            disabled={forceLogoutProcessing}
+            onClick={openResetPassword}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeyellow/10 text-themeyellow text-sm font-medium
-                       hover:bg-themeyellow/20 border border-themeyellow/20 transition-colors disabled:opacity-50"
+                       hover:bg-themeyellow/20 border border-themeyellow/20 transition-colors"
           >
-            <LogOut size={14} /> {forceLogoutProcessing ? 'Logging out...' : 'Force Logout'}
+            <KeyRound size={14} /> Reset Password
           </button>
-        )}
-        {currentUserId !== user.id && (
-          <button
-            onClick={openDelete}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeredred/10 text-themeredred text-sm font-medium
-                       hover:bg-themeredred/20 border border-themeredred/20 transition-colors"
-          >
-            <Trash2 size={14} /> Delete
-          </button>
-        )}
+          {currentUserId !== user.id && (
+            <button
+              onClick={handleForceLogout}
+              disabled={forceLogoutProcessing}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-tertiary/10 text-primary text-sm font-medium hover:bg-tertiary/20 transition-colors disabled:opacity-50"
+            >
+              <LogOut size={14} /> {forceLogoutProcessing ? 'Logging out...' : 'Force Logout'}
+            </button>
+          )}
+          {currentUserId !== user.id && (
+            <button
+              onClick={openDelete}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themeredred/10 text-themeredred text-sm font-medium
+                         hover:bg-themeredred/20 border border-themeredred/20 transition-colors"
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+          )}
+        </div>
       </div>
     </>
   )

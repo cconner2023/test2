@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useMemo } from 'react'
-import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, Video, ArrowLeft, MessageSquare, Users, Plus, Info, ChevronLeft, UserPlus, Pin, PenLine } from 'lucide-react'
+import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, Video, ArrowLeft, MessageSquare, Users, Plus, Info, ChevronLeft, Pin } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useSpring, animated } from '@react-spring/web'
 import { SPRING_CONFIGS } from '../../Utilities/GestureUtils'
@@ -31,7 +31,7 @@ import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
 import { playSendSound } from '../../lib/soundService'
 
-export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat'
+export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat' | 'messages-contacts'
 
 interface MessagesPanelProps {
   view: MessagesView
@@ -40,9 +40,10 @@ interface MessagesPanelProps {
   onSelectPeer: (medic: ClinicMedic) => void
   onSelectGroup: (group: GroupInfo) => void
   onBack?: () => void
+  onCloseDrawer?: () => void
 }
 
-// ── Contacts Panel (overlay) ──────────────────────────────────────────────
+// ── Contacts Panel (full-screen view, replaces messaging content) ─────────
 
 function ContactsPanel({
   medics,
@@ -53,7 +54,8 @@ function ContactsPanel({
   onSelectPeer,
   onSelectGroup,
   onCreateGroup,
-  onClose,
+  onBack,
+  onCloseDrawer,
 }: {
   medics: ClinicMedic[]
   groups: Record<string, GroupInfo>
@@ -63,151 +65,115 @@ function ContactsPanel({
   onSelectPeer: (medic: ClinicMedic) => void
   onSelectGroup: (group: GroupInfo) => void
   onCreateGroup: () => void
-  onClose: () => void
+  onBack: () => void
+  onCloseDrawer: () => void
 }) {
   const { ownClinicMedics, nearbyByClinic, nearbyClinicNames } = useClinicGroupedMedics(medics)
-  const [closing, setClosing] = useState(false)
 
   const sortedGroups = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name))
 
-  // Spring animation: slide up from bottom + backdrop fade
-  const [panelSpring] = useSpring(() => ({
-    from: { y: 100, opacity: 0 },
-    to: { y: 0, opacity: 1 },
-    config: { tension: 320, friction: 28 },
-  }), [])
-
-  const [backdropSpring] = useSpring(() => ({
-    from: { opacity: 0 },
-    to: { opacity: 1 },
-    config: { tension: 200, friction: 26 },
-  }), [])
-
-  const handleClose = useCallback(() => {
-    setClosing(true)
-    // Allow spring-out to play before unmounting
-    setTimeout(onClose, 200)
-  }, [onClose])
-
-  // Closing animation
-  const [closePanelSpring] = useSpring(() => ({
-    y: closing ? 100 : 0,
-    opacity: closing ? 0 : 1,
-    config: { tension: 380, friction: 26 },
-  }), [closing])
-
-  const [closeBackdropSpring] = useSpring(() => ({
-    opacity: closing ? 0 : 1,
-    config: { tension: 300, friction: 30 },
-  }), [closing])
-
-  const handleSelectPeer = useCallback((medic: ClinicMedic) => {
-    setClosing(true)
-    setTimeout(() => {
-      onClose()
-      onSelectPeer(medic)
-    }, 150)
-  }, [onClose, onSelectPeer])
-
-  const handleSelectGroup = useCallback((group: GroupInfo) => {
-    setClosing(true)
-    setTimeout(() => {
-      onClose()
-      onSelectGroup(group)
-    }, 150)
-  }, [onClose, onSelectGroup])
-
   return (
-    <div className="absolute inset-0 z-10 flex flex-col">
-      {/* Backdrop */}
-      <animated.div
-        className="absolute inset-0 bg-black/20"
-        style={{ opacity: closing ? closeBackdropSpring.opacity : backdropSpring.opacity }}
-        onClick={handleClose}
-      />
-
-      {/* Panel - slides up from bottom */}
-      <animated.div
-        className="absolute inset-x-0 bottom-0 top-0 bg-themewhite3 flex flex-col rounded-t-2xl shadow-lg"
-        style={{
-          transform: (closing ? closePanelSpring.y : panelSpring.y).to(v => `translateY(${v}%)`),
-          opacity: closing ? closePanelSpring.opacity : panelSpring.opacity,
-        }}
-      >
-        {/* Drag handle */}
-        <div className="flex justify-center pt-2 pb-1">
-          <div className="w-8 h-1 rounded-full bg-tertiary/20" />
-        </div>
-
-        <div className="shrink-0 px-4 py-2 border-b border-primary/10 flex items-center justify-between">
-          <p className="text-sm font-medium text-primary">Contacts</p>
-          <button onClick={handleClose} className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
-            <X size={18} className="text-tertiary" />
+    <div className="flex flex-col h-full">
+      {/* Mobile header: back + title + double-pill (new group + close) */}
+      <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-primary/10 flex items-center backdrop-blur-xl bg-themewhite3/80">
+        <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
+          <button
+            onClick={onBack}
+            className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform"
+            aria-label="Back"
+          >
+            <ChevronLeft className="w-6 h-6 text-tertiary" />
           </button>
         </div>
-        <div className="flex-1 overflow-y-auto px-2 py-2">
-          {/* Groups */}
-          <div className="flex items-center justify-between px-4 mb-2">
-            <p className="text-xs text-tertiary/60">Groups</p>
-            <button
-              onClick={onCreateGroup}
-              className="flex items-center gap-1 text-xs text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
-            >
-              <Plus size={12} />
-              New
-            </button>
-          </div>
-          {sortedGroups.map(group => {
-            const msgs = conversations[group.groupId]
-            const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
-            return (
-              <GroupListItem
-                key={group.groupId}
-                group={group}
-                lastMessage={lastMsg?.plaintext}
-                unreadCount={unreadCounts[group.groupId] ?? 0}
-                onClick={() => handleSelectGroup(group)}
-              />
-            )
-          })}
-          {sortedGroups.length === 0 && (
-            <p className="text-xs text-tertiary/30 px-4 mb-2">No groups yet</p>
-          )}
-          <div className="mx-4 my-1 border-b border-primary/10" />
 
-          {/* Own clinic members */}
-          <p className="text-xs text-tertiary/60 px-4 mb-2">Clinic Members</p>
-          {ownClinicMedics.length > 0
-            ? ownClinicMedics.map(medic => (
+        <p className="flex-1 text-sm font-medium text-primary text-center mx-3">Contacts</p>
+
+        <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5 shrink-0">
+          <button
+            onClick={onCreateGroup}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+            aria-label="New group"
+            title="New group"
+          >
+            <Users className="w-[18px] h-[18px]" />
+          </button>
+          <div className="w-px h-5 bg-tertiary/15" />
+          <button
+            onClick={onCloseDrawer}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+            aria-label="Close"
+            title="Close"
+          >
+            <X className="w-[18px] h-[18px]" />
+          </button>
+        </div>
+      </div>
+
+      {/* Desktop header */}
+      <div className="hidden md:flex shrink-0 px-4 h-10 border-b border-primary/10 items-center justify-between">
+        <p className="text-sm font-medium text-primary">Contacts</p>
+        <button
+          onClick={onCreateGroup}
+          className="flex items-center gap-1 text-xs text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
+        >
+          <Plus size={12} />
+          Group
+        </button>
+      </div>
+
+      <div className="flex-1 overflow-y-auto px-2 py-2">
+        {/* Groups section */}
+        <p className="text-xs text-tertiary/60 px-4 mb-2 mt-1">Groups</p>
+        {sortedGroups.map(group => {
+          const msgs = conversations[group.groupId]
+          const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
+          return (
+            <GroupListItem
+              key={group.groupId}
+              group={group}
+              lastMessage={lastMsg?.plaintext}
+              unreadCount={unreadCounts[group.groupId] ?? 0}
+              onClick={() => onSelectGroup(group)}
+            />
+          )
+        })}
+        {sortedGroups.length === 0 && (
+          <p className="text-xs text-tertiary/30 px-4 mb-2">No groups yet</p>
+        )}
+        <div className="mx-4 my-1 border-b border-primary/10" />
+
+        {/* Own clinic members */}
+        <p className="text-xs text-tertiary/60 px-4 mb-2 mt-2">Clinic Members</p>
+        {ownClinicMedics.length > 0
+          ? ownClinicMedics.map(medic => (
+            <ContactListItem
+              key={medic.id}
+              medic={medic}
+              unavailable={unavailableIds.has(medic.id)}
+              unavailableReason={unavailableIds.get(medic.id)}
+              onClick={() => onSelectPeer(medic)}
+            />
+          ))
+          : <p className="text-xs text-tertiary/30 px-4 mb-2">No clinic members</p>
+        }
+
+        {/* Nearby clinics */}
+        {nearbyClinicNames.map(clinicName => (
+          <div key={clinicName}>
+            <div className="mx-4 my-1 border-b border-primary/10" />
+            <p className="text-xs text-tertiary/60 px-4 mb-2 mt-2">{clinicName}</p>
+            {nearbyByClinic[clinicName].map(medic => (
               <ContactListItem
                 key={medic.id}
                 medic={medic}
                 unavailable={unavailableIds.has(medic.id)}
                 unavailableReason={unavailableIds.get(medic.id)}
-                onClick={() => handleSelectPeer(medic)}
+                onClick={() => onSelectPeer(medic)}
               />
-            ))
-            : <p className="text-xs text-tertiary/30 px-4 mb-2">No clinic members</p>
-          }
-
-          {/* Nearby clinics */}
-          {nearbyClinicNames.map(clinicName => (
-            <div key={clinicName}>
-              <div className="mx-4 my-1 border-b border-primary/10" />
-              <p className="text-xs text-tertiary/60 px-4 mb-2 mt-2">{clinicName}</p>
-              {nearbyByClinic[clinicName].map(medic => (
-                <ContactListItem
-                  key={medic.id}
-                  medic={medic}
-                  unavailable={unavailableIds.has(medic.id)}
-                  unavailableReason={unavailableIds.get(medic.id)}
-                  onClick={() => handleSelectPeer(medic)}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
-      </animated.div>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -361,7 +327,6 @@ function ConversationList({
   medics,
   groups,
   loading,
-  onCreateGroup,
   deleteConversation,
 }: {
   onSelectPeer: (medic: ClinicMedic) => void
@@ -372,17 +337,17 @@ function ConversationList({
   medics: ClinicMedic[]
   groups: Record<string, GroupInfo>
   loading: boolean
-  onCreateGroup: () => void
   deleteConversation: (conversationKey: string) => void
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? null
   const { currentAvatar } = useAvatar()
   const showLoading = useMinLoadTime(loading)
-  const [showContacts, setShowContacts] = useState(false)
   const [contextMenu, setContextMenu] = useState<{ conversationKey: string; x: number; y: number } | null>(null)
   const [pinnedKeys, setPinnedKeys] = useState<Set<string>>(new Set())
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Build a unified flat list of conversations sorted by last message time
   const recentEntries = useMemo(() => {
@@ -423,6 +388,26 @@ function ConversationList({
     ? { id: userId, firstName: null, lastName: 'Notes', middleInitial: null, rank: null, credential: null, avatarId: currentAvatar.id }
     : null
 
+  // Search: filter medics and groups by name, rank, credential, clinic
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim()) return null
+    const q = searchQuery.toLowerCase()
+    const matchedMedics = medics.filter(m => {
+      return (
+        m.firstName?.toLowerCase().includes(q) ||
+        m.lastName?.toLowerCase().includes(q) ||
+        m.rank?.toLowerCase().includes(q) ||
+        m.credential?.toLowerCase().includes(q) ||
+        m.clinicName?.toLowerCase().includes(q) ||
+        [m.rank, m.lastName].filter(Boolean).join(' ').toLowerCase().includes(q)
+      )
+    })
+    const matchedGroups = Object.values(groups).filter(g =>
+      g.name.toLowerCase().includes(q)
+    )
+    return { medics: matchedMedics, groups: matchedGroups }
+  }, [searchQuery, medics, groups])
+
   if (showLoading) {
     return (
       <LoadingSpinner label="Loading contacts..." className="py-12 text-tertiary" />
@@ -432,51 +417,90 @@ function ConversationList({
   return (
     <div className="h-full overflow-y-auto relative">
       <div className="px-2 py-3">
-        {/* Header row (mobile only — desktop has the sidebar) */}
-        <div className="flex items-center justify-between px-4 mb-3 md:hidden">
-          <p className="text-sm font-medium text-primary">Messages</p>
-          {/* Double-icon pill — matches NavTop pattern */}
-          <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
-            <button
-              onClick={() => setShowContacts(true)}
-              className="w-10 h-10 rounded-full flex items-center justify-center
-                         text-tertiary hover:text-primary active:scale-95 transition-all"
-              aria-label="New message"
-              title="New message"
-            >
-              <PenLine className="w-[18px] h-[18px]" />
-            </button>
-            <div className="w-px h-5 bg-tertiary/15" />
-            <button
-              onClick={onCreateGroup}
-              className="w-10 h-10 rounded-full flex items-center justify-center
-                         text-tertiary hover:text-primary active:scale-95 transition-all"
-              aria-label="New group"
-              title="New group"
-            >
-              <Users className="w-[18px] h-[18px]" />
-            </button>
+        {/* Search bar */}
+        <div className="mx-2 mb-3">
+          <div className="flex items-center bg-themewhite text-tertiary rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
+            <input
+              ref={searchInputRef}
+              type="search"
+              placeholder="Search by name, rank, clinic, group..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="text-tertiary bg-transparent outline-none text-[14px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full transition-all duration-300 hover:bg-themewhite shrink-0"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => setSearchQuery('')}
+              >
+                <X className="w-4 h-4 stroke-themeblue1" />
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Notes entry */}
-        {selfMedic && (
-          <>
-            <ContactListItem
-              medic={selfMedic}
-              lastMessage={conversations[userId!]?.filter(m => !m.threadId).at(-1)?.plaintext}
-              unreadCount={0}
-              onClick={() => onSelectPeer(selfMedic)}
-            />
-            <div className="mx-4 my-1 border-b border-primary/10" />
-          </>
+        {/* Search results */}
+        {searchResults && (
+          <div className="pb-4">
+            {searchResults.groups.length === 0 && searchResults.medics.length === 0 && (
+              <p className="text-xs text-tertiary/30 px-4 py-4 text-center">No results for "{searchQuery}"</p>
+            )}
+            {searchResults.groups.length > 0 && (
+              <>
+                <p className="text-xs text-tertiary/60 px-4 mb-2">Groups</p>
+                {searchResults.groups.map(group => (
+                  <GroupListItem
+                    key={group.groupId}
+                    group={group}
+                    lastMessage={conversations[group.groupId]?.filter(m => !m.threadId).at(-1)?.plaintext}
+                    unreadCount={unreadCounts[group.groupId] ?? 0}
+                    onClick={() => { setSearchQuery(''); onSelectGroup(group) }}
+                  />
+                ))}
+              </>
+            )}
+            {searchResults.medics.length > 0 && (
+              <>
+                <p className="text-xs text-tertiary/60 px-4 mb-2 mt-3">Contacts</p>
+                {searchResults.medics.map(medic => (
+                  <ContactListItem
+                    key={medic.id}
+                    medic={medic}
+                    lastMessage={conversations[medic.id]?.filter(m => !m.threadId).at(-1)?.plaintext}
+                    unreadCount={unreadCounts[medic.id] ?? 0}
+                    unavailable={unavailableIds.has(medic.id)}
+                    unavailableReason={unavailableIds.get(medic.id)}
+                    onClick={() => { setSearchQuery(''); onSelectPeer(medic) }}
+                  />
+                ))}
+              </>
+            )}
+          </div>
         )}
 
-        {/* Recent section */}
-        {recentEntries.length > 0 && (
-          <p className="text-xs text-tertiary/60 px-4 mb-2">Recent</p>
-        )}
-        {recentEntries.map(entry => {
+        {/* Normal conversation list (hidden when searching) */}
+        {!searchResults && (
+          <>
+            {/* Notes entry */}
+            {selfMedic && (
+              <>
+                <ContactListItem
+                  medic={selfMedic}
+                  lastMessage={conversations[userId!]?.filter(m => !m.threadId).at(-1)?.plaintext}
+                  unreadCount={0}
+                  onClick={() => onSelectPeer(selfMedic)}
+                />
+                <div className="mx-4 my-1 border-b border-primary/10" />
+              </>
+            )}
+
+            {/* Recent section */}
+            {recentEntries.length > 0 && (
+              <p className="text-xs text-tertiary/60 px-4 mb-2">Recent</p>
+            )}
+            {recentEntries.map(entry => {
           const msgs = conversations[entry.key]
           const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
           const isPinned = pinnedKeys.has(entry.key)
@@ -565,27 +589,14 @@ function ConversationList({
           return null
         })}
 
-        {recentEntries.length === 0 && (
-          <p className="text-xs text-tertiary/30 px-4 py-8 text-center">
-            No conversations yet. Tap the contacts button to start one.
-          </p>
+            {recentEntries.length === 0 && (
+              <p className="text-xs text-tertiary/30 px-4 py-8 text-center">
+                No conversations yet. Tap the contacts button to start one.
+              </p>
+            )}
+          </>
         )}
       </div>
-
-      {/* Contacts overlay */}
-      {showContacts && (
-        <ContactsPanel
-          medics={medics}
-          groups={groups}
-          conversations={conversations}
-          unreadCounts={unreadCounts}
-          unavailableIds={unavailableIds}
-          onSelectPeer={onSelectPeer}
-          onSelectGroup={onSelectGroup}
-          onCreateGroup={onCreateGroup}
-          onClose={() => setShowContacts(false)}
-        />
-      )}
 
       {/* Right-click context menu */}
       {contextMenu && (
@@ -1597,7 +1608,7 @@ function GroupChatDetail({
 
 // ── Exported Panel ─────────────────────────────────────────────────────────
 
-export function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack }: MessagesPanelProps) {
+export function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer }: MessagesPanelProps) {
   const messagesCtx = useMessagesContext()
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
@@ -1617,8 +1628,8 @@ export function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectP
     prevViewRef.current = view
     if (prev === view) return
 
-    const goingDeeper = view === 'messages-chat' || view === 'messages-group-chat'
-    const goingBack = view === 'messages' && (prev === 'messages-chat' || prev === 'messages-group-chat')
+    const goingDeeper = view === 'messages-chat' || view === 'messages-group-chat' || view === 'messages-contacts'
+    const goingBack = view === 'messages' && (prev === 'messages-chat' || prev === 'messages-group-chat' || prev === 'messages-contacts')
 
     if (goingDeeper) {
       // Start from right, spring to center
@@ -1702,6 +1713,21 @@ export function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectP
         peerUnavailableReason={unavailableIds.get(selectedPeerId)}
       />
     )
+  } else if (view === 'messages-contacts') {
+    mainContent = (
+      <ContactsPanel
+        medics={medics}
+        groups={groups}
+        conversations={conversations}
+        unreadCounts={unreadCounts}
+        unavailableIds={unavailableIds}
+        onSelectPeer={onSelectPeer}
+        onSelectGroup={onSelectGroup}
+        onCreateGroup={() => setShowCreateGroup(true)}
+        onBack={onBack!}
+        onCloseDrawer={onCloseDrawer!}
+      />
+    )
   } else {
     mainContent = (
       <ConversationList
@@ -1713,7 +1739,6 @@ export function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectP
         medics={medics}
         groups={groups}
         loading={loading}
-        onCreateGroup={() => setShowCreateGroup(true)}
         deleteConversation={deleteConversation}
       />
     )

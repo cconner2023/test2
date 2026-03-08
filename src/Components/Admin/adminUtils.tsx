@@ -29,15 +29,30 @@ export const lastActiveColor = (isoString: string | null): string => {
   return 'bg-tertiary/40'
 }
 
+/** Condensed 1-letter role abbreviation */
+const ROLE_ABBREV: Record<string, string> = {
+  medic: 'M',
+  supervisor: 'S',
+  dev: 'D',
+  admin: 'A',
+  credentials_manager: 'C',
+}
+
 export const RoleBadge = ({ role }: { role: string }) => {
   const colors: Record<string, string> = {
     medic: 'bg-themeblue2/10 text-themeblue2 border-themeblue2/30',
     supervisor: 'bg-themeyellow/10 text-themeyellow border-themeyellow/30',
     dev: 'bg-themepurple/10 text-themepurple border-themepurple/30',
+    admin: 'bg-themegreen/10 text-themegreen border-themegreen/30',
+    credentials_manager: 'bg-themeblue2/10 text-themeblue2 border-themeblue2/30',
   }
+  const label = ROLE_ABBREV[role] ?? role.charAt(0).toUpperCase()
   return (
-    <span className={`px-2 py-0.5 rounded text-xs font-medium border ${colors[role] || 'bg-tertiary/10 text-tertiary border-tertiary/30'}`}>
-      {role}
+    <span
+      title={role}
+      className={`w-5 h-5 flex items-center justify-center rounded text-[9px] font-bold border shrink-0 ${colors[role] || 'bg-tertiary/10 text-tertiary border-tertiary/30'}`}
+    >
+      {label}
     </span>
   )
 }

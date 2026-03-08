@@ -16,6 +16,8 @@ export interface DrawerHeaderConfig {
     badge?: string;
     /** Optional content rendered on the right side of the header (before the close button) */
     rightContent?: ReactNode;
+    /** When true, the built-in close button is hidden (rightContent handles closing) */
+    hideDefaultClose?: boolean;
 }
 
 /** Private header component rendered by BaseDrawer when header config is provided */
@@ -25,6 +27,7 @@ function DrawerHeader({
     onBack,
     badge,
     rightContent,
+    hideDefaultClose = false,
     onClose,
     isMobile,
 }: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean }) {
@@ -64,13 +67,15 @@ function DrawerHeader({
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                         {rightContent}
-                        <button
-                            onClick={onClose}
-                            className="p-2 rounded-full hover:bg-themewhite2 md:hover:bg-themewhite active:scale-95 transition-all shrink-0"
-                            aria-label="Close"
-                        >
-                            <X size={24} className="text-tertiary" />
-                        </button>
+                        {!hideDefaultClose && (
+                            <button
+                                onClick={onClose}
+                                className="p-2 rounded-full hover:bg-themewhite2 md:hover:bg-themewhite active:scale-95 transition-all shrink-0"
+                                aria-label="Close"
+                            >
+                                <X size={24} className="text-tertiary" />
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -337,6 +342,7 @@ export function BaseDrawer({
                                     onBack={header.onBack}
                                     badge={header.badge}
                                     rightContent={header.rightContent}
+                                    hideDefaultClose={header.hideDefaultClose}
                                     onClose={handleClose}
                                     isMobile={useMobileLayout}
                                 />

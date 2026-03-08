@@ -15,7 +15,7 @@ import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { createLogger } from '../Utilities/Logger'
 import { useSupabaseSubscription } from './useSupabaseSubscription'
-import { fetchUnreadMessages, deleteMessages as hardDeleteMessages, hardDeleteByOriginId, onLoRaMessage } from '../lib/signal/signalService'
+import { fetchUnreadMessages, markMessagesRead, deleteMessages as hardDeleteMessages, hardDeleteByOriginId, onLoRaMessage } from '../lib/signal/signalService'
 import { deleteMessages as deleteMessagesFromDb } from '../lib/signal/messageStore'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { processIncomingMessage } from '../lib/signal/session'
@@ -219,10 +219,16 @@ export function useSignalMessages({
 
       logger.info(`Catch-up: ${result.data.length} unread messages`)
 
+      // Collect processed row IDs so we can mark them as read on the server
+      // afterwards, preventing the same rows from being re-fetched on the
+      // next catch-up (especially sync rows which are never user-read).
+      const processedRowIds: string[] = []
+
       // Decrypt sequentially to preserve ratchet state ordering
       for (const row of result.data) {
         const decrypted = await decryptRow(row, userId)
         if (decrypted) {
+          processedRowIds.push(row.id)
           if (decrypted.messageType === 'delete') {
             try {
               const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
@@ -235,6 +241,11 @@ export function useSignalMessages({
             onMessageRef.current(decrypted)
           }
         }
+      }
+
+      // Mark all processed rows as read so they aren't re-fetched
+      if (processedRowIds.length > 0) {
+        markMessagesRead(processedRowIds).catch(() => {})
       }
     })()
   }, [isAuthenticated, userId, localDeviceId, catchUpTrigger])

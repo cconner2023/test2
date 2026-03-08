@@ -163,11 +163,21 @@ export async function loadAllConversations(): Promise<Record<string, DecryptedSi
       grouped[peer].push(msg)
     }
 
-    // Sort each conversation oldest-first
+    // Sort each conversation oldest-first and deduplicate by originId.
+    // Backup restore can introduce rows from another device that share the
+    // same originId as this device's own row, producing visual duplicates.
     for (const peer of Object.keys(grouped)) {
       grouped[peer].sort(
         (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
       )
+      const seenOrigins = new Set<string>()
+      grouped[peer] = grouped[peer].filter(msg => {
+        if (msg.originId) {
+          if (seenOrigins.has(msg.originId)) return false
+          seenOrigins.add(msg.originId)
+        }
+        return true
+      })
     }
 
     return grouped

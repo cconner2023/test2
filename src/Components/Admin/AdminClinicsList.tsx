@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Check, Search, Plus, Pencil, Trash2, Building2, MapPin } from 'lucide-react'
+import { Check, Search, Plus, Pencil, Trash2, Building2, MapPin, Eye } from 'lucide-react'
 import { SwipeableCard } from '../SwipeableCard'
 import { CardContextMenu } from '../CardContextMenu'
 import { CardActionBar } from '../CardActionBar'
@@ -207,6 +207,14 @@ export function AdminClinicsList({
 
               const swipeActions = [
                 {
+                  key: 'view',
+                  label: 'View',
+                  icon: Eye,
+                  iconBg: 'bg-themegreen/15',
+                  iconColor: 'text-themegreen',
+                  onAction: () => onSelectClinic(clinic),
+                },
+                {
                   key: 'edit',
                   label: 'Edit',
                   icon: Pencil,
@@ -317,6 +325,15 @@ export function AdminClinicsList({
           y={contextMenu.y}
           onClose={() => setContextMenu(null)}
           items={[
+            {
+              key: 'view',
+              label: 'View',
+              icon: Eye,
+              onAction: () => {
+                const clinic = clinics.find((c) => c.id === contextMenu.clinicId)
+                if (clinic) onSelectClinic(clinic)
+              },
+            },
             {
               key: 'edit',
               label: 'Edit',

@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Check, Search, UserPlus, Pencil, KeyRound, Trash2, LogOut } from 'lucide-react'
+import { Check, Search, UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye } from 'lucide-react'
 import { SwipeableCard, type SwipeAction } from '../SwipeableCard'
 import { CardContextMenu } from '../CardContextMenu'
 import { CardActionBar } from '../CardActionBar'
@@ -20,7 +20,6 @@ import {
   formatLastActive,
   lastActiveColor,
   RoleBadge,
-  CertBadges,
 } from './adminUtils'
 import {
   listAllUsers,
@@ -281,6 +280,14 @@ export function AdminUsersList({
       if (isSelf(user.id)) return []
       return [
         {
+          key: 'view',
+          label: 'View',
+          icon: Eye,
+          iconBg: 'bg-themegreen/15',
+          iconColor: 'text-themegreen',
+          onAction: () => onSelectUser(user),
+        },
+        {
           key: 'edit',
           label: 'Edit',
           icon: Pencil,
@@ -310,7 +317,7 @@ export function AdminUsersList({
       ]
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentUserId, onEditUser],
+    [currentUserId, onEditUser, onSelectUser],
   )
 
   /** Build right-click context menu items for a given user */
@@ -318,6 +325,12 @@ export function AdminUsersList({
     (user: AdminUser) => {
       if (isSelf(user.id)) return []
       return [
+        {
+          key: 'view',
+          label: 'View',
+          icon: Eye,
+          onAction: () => onSelectUser(user),
+        },
         {
           key: 'edit',
           label: 'Edit',
@@ -349,7 +362,7 @@ export function AdminUsersList({
       ]
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentUserId, onEditUser, handleForceLogout],
+    [currentUserId, onEditUser, onSelectUser, handleForceLogout],
   )
 
   /** Handle a tap on a user card */
@@ -487,17 +500,23 @@ export function AdminUsersList({
                         />
                       )}
 
-                      {/* Center: Name, credential, last-active */}
+                      {/* Center: Name, credential + extra certs inline, last-active */}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-primary truncate">
                           {user.first_name || ''} {user.middle_initial || ''}{' '}
                           {user.last_name || ''}
                         </p>
-                        <div className="flex items-center gap-2">
-                          {user.credential && (
-                            <p className="text-[9pt] text-tertiary/50">{user.credential}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {/* Primary credential + extra certs inline as text */}
+                          {(user.credential || userCerts.filter(c => !c.is_primary).length > 0) && (
+                            <p className="text-[9pt] text-tertiary/50 truncate">
+                              {[
+                                user.credential,
+                                ...userCerts.filter(c => !c.is_primary).map(c => c.title),
+                              ].filter(Boolean).join(' · ')}
+                            </p>
                           )}
-                          <span className="flex items-center gap-1 text-[9pt] text-tertiary/50">
+                          <span className="flex items-center gap-1 text-[9pt] text-tertiary/50 shrink-0">
                             <span
                               className={`inline-block w-1.5 h-1.5 rounded-full ${lastActiveColor(user.last_active_at)}`}
                             />
@@ -506,23 +525,18 @@ export function AdminUsersList({
                         </div>
                       </div>
 
-                      {/* Right: Role badges */}
-                      <div className="flex gap-1 shrink-0">
+                      {/* Right: Role badges — condensed 1-letter, flex-wrap to avoid collision */}
+                      <div className="flex flex-wrap gap-0.5 shrink-0 max-w-[48px] justify-end">
                         {user.roles?.map((role) => (
                           <RoleBadge key={role} role={role} />
                         ))}
                       </div>
                     </div>
 
-                    {/* Row 2: Cert badges (non-primary only; primary is already shown as credential) */}
-                    {userCerts.filter(c => !c.is_primary).length > 0 && (
-                      <CertBadges certs={userCerts.filter(c => !c.is_primary)} />
-                    )}
-
-                    {/* UIC badge */}
+                    {/* UIC badge — uses themeblue2 coloring matching initials avatar */}
                     {user.uic && (
                       <div className="flex items-center">
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeyellow/10 text-themeyellow border-themeyellow/30">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
                           {user.uic}
                         </span>
                       </div>

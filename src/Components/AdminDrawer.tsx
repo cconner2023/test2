@@ -1,9 +1,11 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Edit3 } from 'lucide-react'
+import { Edit3, UserPlus, Building2, Plus, Trash2, X } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { ContentWrapper } from './Settings/ContentWrapper'
+import { ConfirmDialog } from './ConfirmDialog'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { UI_TIMING } from '../Utilities/constants'
+import { deleteClinic } from '../lib/adminService'
 
 // Admin sub-components (Step 2+ will populate these)
 import { AdminRequestsList } from './Admin/AdminRequestsList'
@@ -42,6 +44,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // Tree filter state (desktop)
     const [treeFilterClinicId, setTreeFilterClinicId] = useState<string | null>(null)
     const [treeFilterUserId, setTreeFilterUserId] = useState<string | null>(null)
+
+    // Clinic delete confirmation (triggered from header pill)
+    const [confirmDeleteClinic, setConfirmDeleteClinic] = useState(false)
+    const [deleteClinicProcessing, setDeleteClinicProcessing] = useState(false)
 
     const [isMobile, setIsMobile] = useState(() =>
         typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
@@ -122,8 +128,20 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setSlideDirection('')
         setTreeFilterClinicId(null)
         setTreeFilterUserId(null)
+        setConfirmDeleteClinic(false)
         onClose()
     }, [onClose])
+
+    const handleDeleteClinic = useCallback(async () => {
+        if (!selectedClinic) return
+        setDeleteClinicProcessing(true)
+        const result = await deleteClinic(selectedClinic.id)
+        setDeleteClinicProcessing(false)
+        setConfirmDeleteClinic(false)
+        if (result.success) {
+            handleBack()
+        }
+    }, [selectedClinic, handleBack])
 
     // Swipe back for mobile
     const swipeHandlers = useSwipeBack(
@@ -147,14 +165,102 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setActiveTab('users')
     }, [])
 
-    // Header edit button for detail views
+    // Header actions for main 'admin' view — tab-aware pill buttons
+    const mainHeaderActions = useMemo(() => {
+        if (view !== 'admin') return undefined
+        if (isMobile) {
+            // Mobile: icon pill containers — always include close in the pill
+            if (activeTab === 'users') {
+                // Double pill: new user + close
+                return (
+                    <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
+                        <button onClick={handleCreateUser} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New user">
+                            <UserPlus className="w-5 h-5 stroke-current" />
+                        </button>
+                        <div className="w-px h-5 bg-tertiary/15" />
+                        <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
+                            <X className="w-[18px] h-[18px]" />
+                        </button>
+                    </div>
+                )
+            }
+            if (activeTab === 'clinics') {
+                // Double pill: new clinic + close
+                return (
+                    <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
+                        <button onClick={handleCreateClinic} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New clinic">
+                            <Building2 className="w-5 h-5 stroke-current" />
+                        </button>
+                        <div className="w-px h-5 bg-tertiary/15" />
+                        <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
+                            <X className="w-[18px] h-[18px]" />
+                        </button>
+                    </div>
+                )
+            }
+            if (activeTab === 'requests') {
+                // Triple pill: new user + new clinic + close
+                return (
+                    <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
+                        <button onClick={handleCreateUser} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New user">
+                            <UserPlus className="w-5 h-5 stroke-current" />
+                        </button>
+                        <div className="w-px h-5 bg-tertiary/15" />
+                        <button onClick={handleCreateClinic} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New clinic">
+                            <Building2 className="w-5 h-5 stroke-current" />
+                        </button>
+                        <div className="w-px h-5 bg-tertiary/15" />
+                        <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
+                            <X className="w-[18px] h-[18px]" />
+                        </button>
+                    </div>
+                )
+            }
+        } else {
+            // Desktop: text pill buttons
+            if (activeTab === 'users') {
+                return (
+                    <button onClick={handleCreateUser} className="flex items-center gap-1.5 h-8 px-3 rounded-full bg-themegreen text-white text-xs font-medium hover:bg-themegreen/90 transition-colors">
+                        <UserPlus size={14} /> New User
+                    </button>
+                )
+            }
+            if (activeTab === 'clinics') {
+                return (
+                    <button onClick={handleCreateClinic} className="flex items-center gap-1.5 h-8 px-3 rounded-full bg-themegreen text-white text-xs font-medium hover:bg-themegreen/90 transition-colors">
+                        <Plus size={14} /> New Clinic
+                    </button>
+                )
+            }
+            if (activeTab === 'requests') {
+                return (
+                    <div className="flex items-center gap-1.5">
+                        <button onClick={handleCreateUser} className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-tertiary/20 text-xs font-medium text-primary hover:bg-secondary/5 transition-colors">
+                            <UserPlus size={14} /> New User
+                        </button>
+                        <button onClick={handleCreateClinic} className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-tertiary/20 text-xs font-medium text-primary hover:bg-secondary/5 transition-colors">
+                            <Plus size={14} /> New Clinic
+                        </button>
+                    </div>
+                )
+            }
+        }
+        return undefined
+    }, [view, activeTab, isMobile, handleCreateUser, handleCreateClinic, handleClose])
+
+    // Header actions for detail/form views
     const detailHeaderActions = useMemo(() => {
         if (view === 'admin-user-detail' && selectedUser) {
             if (isMobile) {
+                // Double pill: edit + close
                 return (
                     <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
-                        <button onClick={() => handleEditUser(selectedUser)} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200" aria-label="Edit">
-                            <Edit3 className="w-6 h-6 stroke-current" />
+                        <button onClick={() => handleEditUser(selectedUser)} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Edit">
+                            <Edit3 className="w-[18px] h-[18px]" />
+                        </button>
+                        <div className="w-px h-5 bg-tertiary/15" />
+                        <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
+                            <X className="w-[18px] h-[18px]" />
                         </button>
                     </div>
                 )
@@ -167,28 +273,42 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         }
         if (view === 'admin-clinic-detail' && selectedClinic) {
             if (isMobile) {
+                // Triple pill: edit + delete + close
                 return (
                     <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
-                        <button onClick={() => handleEditClinic(selectedClinic)} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200" aria-label="Edit">
-                            <Edit3 className="w-6 h-6 stroke-current" />
+                        <button onClick={() => handleEditClinic(selectedClinic)} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Edit">
+                            <Edit3 className="w-[18px] h-[18px]" />
+                        </button>
+                        <div className="w-px h-5 bg-tertiary/15" />
+                        <button onClick={() => setConfirmDeleteClinic(true)} className="w-11 h-11 rounded-full flex items-center justify-center text-themeredred hover:text-themeredred/80 active:scale-95 transition-all duration-200" aria-label="Delete">
+                            <Trash2 className="w-[18px] h-[18px]" />
+                        </button>
+                        <div className="w-px h-5 bg-tertiary/15" />
+                        <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
+                            <X className="w-[18px] h-[18px]" />
                         </button>
                     </div>
                 )
             }
             return (
-                <button onClick={() => handleEditClinic(selectedClinic)} className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-tertiary/20 text-xs font-medium text-primary hover:bg-secondary/5 transition-colors">
-                    <Edit3 size={16} /> Edit
-                </button>
+                <div className="flex items-center gap-1.5">
+                    <button onClick={() => handleEditClinic(selectedClinic)} className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-tertiary/20 text-xs font-medium text-primary hover:bg-secondary/5 transition-colors">
+                        <Edit3 size={16} /> Edit
+                    </button>
+                    <button onClick={() => setConfirmDeleteClinic(true)} className="flex items-center justify-center h-8 w-8 rounded-full border border-themeredred/20 text-themeredred hover:bg-themeredred/10 transition-colors">
+                        <Trash2 size={16} />
+                    </button>
+                </div>
             )
         }
         return undefined
-    }, [view, selectedUser, selectedClinic, isMobile, handleEditUser, handleEditClinic])
+    }, [view, selectedUser, selectedClinic, isMobile, handleEditUser, handleEditClinic, handleClose])
 
     // Header config per view
     const headerConfig = useMemo(() => {
         switch (view) {
             case 'admin':
-                return { title: 'Admin Panel' }
+                return { title: 'Admin Panel', rightContent: mainHeaderActions, hideDefaultClose: !!(isMobile && mainHeaderActions) }
             case 'admin-user-detail':
                 return {
                     title: selectedUser
@@ -197,6 +317,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     showBack: true,
                     onBack: handleBack,
                     rightContent: detailHeaderActions,
+                    hideDefaultClose: !!(isMobile && detailHeaderActions),
                 }
             case 'admin-user-form':
                 return {
@@ -210,6 +331,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     showBack: true,
                     onBack: handleBack,
                     rightContent: detailHeaderActions,
+                    hideDefaultClose: !!(isMobile && detailHeaderActions),
                 }
             case 'admin-clinic-form':
                 return {
@@ -220,7 +342,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             case 'admin-request-detail':
                 return { title: 'Request', showBack: true, onBack: handleBack }
         }
-    }, [view, selectedUser, selectedClinic, handleBack, detailHeaderActions])
+    }, [view, selectedUser, selectedClinic, handleBack, detailHeaderActions, mainHeaderActions, isMobile])
 
     // Scrollable padded wrapper for sub-views (detail/form)
     const subViewWrapper = (children: React.ReactNode) => (
@@ -259,8 +381,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 return selectedClinic ? subViewWrapper(
                     <AdminClinicDetail
                         clinic={selectedClinic}
-                        onEdit={handleEditClinic}
-                        onBack={handleBack}
                         onClinicUpdated={(c) => setSelectedClinic(c)}
                     />
                 ) : null
@@ -326,6 +446,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     )
 
     return (
+        <>
         <BaseDrawer
             isVisible={isVisible}
             onClose={handleClose}
@@ -370,5 +491,18 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                 </div>
             </ContentWrapper>
         </BaseDrawer>
+
+        {/* Clinic delete confirmation — triggered from header pill */}
+        <ConfirmDialog
+            visible={confirmDeleteClinic}
+            title={`Delete ${selectedClinic?.name ?? 'clinic'}?`}
+            subtitle="This will permanently remove the clinic and all associated data. This action cannot be undone."
+            confirmLabel="Delete"
+            variant="danger"
+            processing={deleteClinicProcessing}
+            onConfirm={handleDeleteClinic}
+            onCancel={() => setConfirmDeleteClinic(false)}
+        />
+        </>
     )
 }
