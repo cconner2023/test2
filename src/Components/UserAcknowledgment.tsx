@@ -124,7 +124,7 @@ export const UserAcknowledgment = ({ onAccept, persistent }: UserAcknowledgmentP
           />
           <span className="text-xs text-primary leading-relaxed">
             I understand that no patient data is stored on external servers, and I accept
-            responsibility for any PHI/PII I choose to include in exported or shared notes.
+            responsibility for any unauthorized release of PHI/PII that occurs due to my own actions using this application.
           </span>
         </label>
 

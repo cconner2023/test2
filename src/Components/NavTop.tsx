@@ -1,5 +1,5 @@
 // NavTop.tsx - Simplified version with grouped props
-import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, Pill, HelpCircle, BookOpen, Mail, Package } from "lucide-react";
+import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, HelpCircle, BookOpen, Mail, Package } from "lucide-react";
 import { useRef, useEffect, useMemo } from "react";
 import { useSpring, useTrail, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
@@ -16,8 +16,7 @@ import { menuData as allMenuData } from "../Data/CatData";
 // Icon map for menu items
 const iconMap: Record<string, React.ReactNode> = {
     'import': <Upload size={16} className="text-primary/70" />,
-    'medications': <Pill size={16} className="text-primary/70" />,
-    'training': <BookOpen size={16} className="text-primary/70" />,
+    'knowledgebase': <BookOpen size={16} className="text-primary/70" />,
     'messages': <Mail size={16} className="text-primary/70" />,
     'property': <Package size={16} className="text-primary/70" />,
     'settings': <Settings size={16} className="text-primary/70" />,
@@ -49,10 +48,9 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         onMenuClick,
         onMenuClose,
         onImportClick,
-        onMedicationClick,
+        onKnowledgeBaseClick,
         onSettingsClick,
         onInfoClick,
-        onTrainingClick,
         onMessagesClick,
         onPropertyClick,
     } = actions
@@ -60,7 +58,6 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
     const {
         showBack = false,
         dynamicTitle,
-        medicationButtonText = "Medications",
         isMobile,
         isAlgorithmView = false,
         isMenuOpen = false,
@@ -142,11 +139,8 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
             case 'import':
                 onImportClick?.();
                 break;
-            case 'medications':
-                onMedicationClick?.();
-                break;
-            case 'training':
-                onTrainingClick?.();
+            case 'knowledgebase':
+                onKnowledgeBaseClick?.();
                 break;
             case 'messages':
                 onMessagesClick?.();
@@ -374,29 +368,16 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                     </span>
                                 </button>
                             </animated.div>
+                            {/* Knowledge Base */}
                             <button
-                                onClick={onMedicationClick}
+                                onClick={onKnowledgeBaseClick}
                                 className={BUTTON_CLASSES.desktop}
-                                aria-label={medicationButtonText}
-                                title={medicationButtonText}
-                            >
-                                <svg className="w-4 h-4 stroke-themeblue1 fill-transparent" viewBox="0 0 14 14">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M6.59 1.69a4.045 4.045 0 1 1 5.72 5.72l-4.9 4.9a4.045 4.045 0 1 1-5.72-5.72zm-2.2 2.2l5.72 5.72" />
-                                </svg>
-                                <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
-                                    {medicationButtonText}
-                                </span>
-                            </button>
-                            {/* Training */}
-                            <button
-                                onClick={onTrainingClick}
-                                className={BUTTON_CLASSES.desktop}
-                                aria-label="Training"
-                                title="Training"
+                                aria-label="Knowledge Base"
+                                title="Knowledge Base"
                             >
                                 <BookOpen className="w-4 h-4 stroke-themeblue1" />
                                 <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
-                                    Training
+                                    Knowledge Base
                                 </span>
                             </button>
                             {/* Property — gated on auth + feature flag */}

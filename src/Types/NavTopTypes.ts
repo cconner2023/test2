@@ -22,10 +22,9 @@ interface NavigationActions {
   onMenuClick?: () => void
   onMenuClose?: () => void
   onImportClick?: () => void
-  onMedicationClick?: () => void
+  onKnowledgeBaseClick?: () => void
   onSettingsClick?: () => void
   onInfoClick?: () => void
-  onTrainingClick?: () => void
   onMessagesClick?: () => void
   onPropertyClick?: () => void
 }
@@ -37,7 +36,6 @@ interface UIState {
   showBack?: boolean
   showMenu?: boolean
   dynamicTitle?: string
-  medicationButtonText?: string
   isMobile: boolean
   isAlgorithmView?: boolean
   isMenuOpen?: boolean

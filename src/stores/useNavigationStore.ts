@@ -24,7 +24,6 @@ const PRESERVED_FIELDS = (s: NavigationState) => ({
     viewState: s.viewState,
     selectedCategory: s.selectedCategory,
     selectedSymptom: s.selectedSymptom,
-    selectedMedication: s.selectedMedication,
     selectedGuideline: s.selectedGuideline,
     isSearchExpanded: s.isSearchExpanded,
     isWriteNoteVisible: s.isWriteNoteVisible,
@@ -35,14 +34,15 @@ const PRESERVED_FIELDS = (s: NavigationState) => ({
 const CLOSE_ALL_DRAWERS = {
     showNoteImport: false,
     showSettings: false,
-    showMedications: false,
+    showKnowledgeBase: false,
+    kbInitialView: null as string | null,
+    kbInitialMedication: null as medListTypes | null,
     showSymptomInfo: false,
     showTrainingDrawer: false,
     trainingDrawerTaskId: null as string | null,
     showMessagesDrawer: false,
     showPropertyDrawer: false,
     showAdminDrawer: false,
-    showTrainingPanel: false,
     isMenuOpen: false,
 } as const
 
@@ -50,14 +50,15 @@ interface NavigationState {
     viewState: ViewState
     selectedCategory: catDataTypes | null
     selectedSymptom: subCatDataTypes | null
-    selectedMedication: medListTypes | null
     selectedGuideline: { type: GuidelineType; id: number; symptomId: number } | null
     isMenuOpen: boolean
     showNoteImport: boolean
     showSettings: boolean
     isSearchExpanded: boolean
     showSymptomInfo: boolean
-    showMedications: boolean
+    showKnowledgeBase: boolean
+    kbInitialView: string | null
+    kbInitialMedication: medListTypes | null
     isWriteNoteVisible: boolean
     writeNoteData: WriteNoteData | null
     showTrainingDrawer: boolean
@@ -65,7 +66,6 @@ interface NavigationState {
     showMessagesDrawer: boolean
     showPropertyDrawer: boolean
     showAdminDrawer: boolean
-    showTrainingPanel: boolean
     isMobile: boolean
 }
 
@@ -75,8 +75,6 @@ interface NavigationActions {
 
     // Navigation
     handleNavigation: (result: SearchResultType) => void
-    handleMedicationSelect: (medication: medListTypes | null) => void
-    handleShowMedications: () => void
     handleBackClick: () => void
 
     // UI toggles / setters
@@ -89,12 +87,11 @@ interface NavigationActions {
     expandSearchOnMobile: () => void
     toggleSymptomInfo: () => void
     setShowSymptomInfo: (show: boolean) => void
-    setShowMedications: (show: boolean) => void
+    setShowKnowledgeBase: (show: boolean, initialView?: string | null, initialMedication?: medListTypes | null) => void
     setShowTrainingDrawer: (taskId: string | null) => void
     setShowMessagesDrawer: (show: boolean) => void
     setShowPropertyDrawer: (show: boolean) => void
     setShowAdminDrawer: (show: boolean) => void
-    setShowTrainingPanel: (show: boolean) => void
     openWriteNote: (data: WriteNoteData) => void
     closeWriteNote: () => void
     resetToMain: () => void
@@ -107,14 +104,15 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     viewState: 'main',
     selectedCategory: null,
     selectedSymptom: null,
-    selectedMedication: null,
     selectedGuideline: null,
     isMenuOpen: false,
     showNoteImport: false,
     showSettings: false,
     isSearchExpanded: false,
     showSymptomInfo: false,
-    showMedications: false,
+    showKnowledgeBase: false,
+    kbInitialView: null,
+    kbInitialMedication: null,
     isWriteNoteVisible: false,
     writeNoteData: null,
     showTrainingDrawer: false,
@@ -122,7 +120,6 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     showMessagesDrawer: false,
     showPropertyDrawer: false,
     showAdminDrawer: false,
-    showTrainingPanel: false,
     isMobile: typeof window !== 'undefined'
         ? window.matchMedia('(max-width: 767px)').matches
         : false,
@@ -151,7 +148,6 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
                         viewState: 'subcategory',
                         selectedCategory: category,
                         selectedSymptom: null,
-                        selectedMedication: null,
                         selectedGuideline: null,
                         isSearchExpanded: false,
                     })
@@ -170,7 +166,6 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
                         viewState: 'questions',
                         selectedCategory: parentCategory,
                         selectedSymptom: symptom,
-                        selectedMedication: null,
                         selectedGuideline: null,
                         isSearchExpanded: false,
                     })
@@ -191,7 +186,6 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
                         viewState: 'questions',
                         selectedCategory: guidelineCat,
                         selectedSymptom: guidelineSymptom,
-                        selectedMedication: null,
                         selectedGuideline: {
                             type: 'DDX',
                             id: result.data?.guidelineId || result.id,
@@ -207,33 +201,15 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
                 if (medication) {
                     set({
                         ...CLOSE_ALL_DRAWERS,
-                        showMedications: true,
-                        selectedMedication: medication,
+                        showKnowledgeBase: true,
+                        kbInitialView: 'medication-detail',
+                        kbInitialMedication: medication,
                         isSearchExpanded: false,
                     })
                 }
                 break
             }
         }
-    },
-
-    handleMedicationSelect: (medication) => {
-        if (medication) {
-            set({ showMedications: true, selectedMedication: medication })
-        } else {
-            set({ selectedMedication: null })
-        }
-    },
-
-    handleShowMedications: () => {
-        const s = get()
-        const opening = !s.showMedications
-        set({
-            ...(opening ? CLOSE_ALL_DRAWERS : { isMenuOpen: false }),
-            showMedications: opening,
-            selectedMedication: null,
-            isSearchExpanded: false,
-        })
     },
 
     // Back Button — reads current state via get() to avoid stale closures.
@@ -249,7 +225,6 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
                 viewState: 'main',
                 selectedCategory: null,
                 selectedSymptom: null,
-                selectedMedication: null,
                 selectedGuideline: null,
             })
         }
@@ -288,11 +263,12 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         showSymptomInfo: show,
     })),
 
-    setShowMedications: (show) => set((s) => ({
-        ...(show ? { ...CLOSE_ALL_DRAWERS, selectedMedication: null } : {}),
-        ...(!show ? { selectedMedication: null } : {}),
+    setShowKnowledgeBase: (show, initialView, initialMedication) => set((s) => ({
+        ...(show ? CLOSE_ALL_DRAWERS : {}),
         ...PRESERVED_FIELDS(s),
-        showMedications: show,
+        showKnowledgeBase: show,
+        kbInitialView: show ? (initialView ?? null) : null,
+        kbInitialMedication: show ? (initialMedication ?? null) : null,
     })),
 
     setShowTrainingDrawer: (taskId) => set((s) => ({
@@ -320,12 +296,6 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         showAdminDrawer: show,
     })),
 
-    setShowTrainingPanel: (show) => set((s) => ({
-        ...(show ? CLOSE_ALL_DRAWERS : {}),
-        ...PRESERVED_FIELDS(s),
-        showTrainingPanel: show,
-    })),
-
     openWriteNote: (data) => set({ isWriteNoteVisible: true, writeNoteData: data }),
 
     closeWriteNote: () => {
@@ -344,7 +314,6 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         selectedCategory: null,
         selectedSymptom: null,
         selectedGuideline: null,
-        selectedMedication: null,
         isWriteNoteVisible: false,
         writeNoteData: null,
     }),

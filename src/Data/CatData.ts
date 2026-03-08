@@ -8,20 +8,15 @@ export const menuData: sideMenuDataType[] = [
         action: 'import'
     },
     {
-        text: "Medications",
-        icon: 'pill',
-        action: 'medications'
+        text: "Knowledge Base",
+        icon: 'knowledgebase',
+        action: 'knowledgebase'
     },
     {
         text: "Property Book",
         icon: 'property',
         action: 'property',
         gateKey: 'property'
-    },
-    {
-        text: "Training",
-        icon: 'training',
-        action: 'training'
     },
     {
         text: 'Settings',

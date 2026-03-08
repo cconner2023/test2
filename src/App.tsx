@@ -15,7 +15,7 @@ import UpdateNotification from './Components/UpdateNotification'
 import InstallPrompt from './Components/InstallPrompt'
 import { Settings } from './Components/Settings'
 import { SymptomInfoDrawer } from './Components/SymptomInfoDrawer'
-import { MedicationsDrawer } from './Components/MedicationsDrawer'
+import { KnowledgeBaseDrawer } from './Components/KnowledgeBaseDrawer'
 import { ColumnA } from './Components/ColumnA'
 import { TC3DesktopLayout } from './Components/TC3/TC3DesktopLayout'
 import { TC3MobileWizard } from './Components/TC3/TC3MobileWizard'
@@ -24,7 +24,6 @@ import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useAuth } from './Hooks/useAuth'
 import { useAuthStore } from './stores/useAuthStore'
 import { TrainingDrawer } from './Components/TrainingDrawer'
-import { TrainingFullDrawer } from './Components/TrainingFullDrawer'
 import { MessagesDrawer } from './Components/MessagesDrawer'
 import { PropertyDrawer } from './Components/PropertyDrawer'
 import { AdminDrawer } from './Components/AdminDrawer'
@@ -89,7 +88,9 @@ function AppContent() {
     } else if (_initialViewParam === 'import') {
       navigation.setShowNoteImport(true)
     } else if (_initialViewParam === 'training') {
-      navigation.setShowTrainingPanel(true)
+      navigation.setShowKnowledgeBase(true, 'training')
+    } else if (_initialViewParam === 'kb') {
+      navigation.setShowKnowledgeBase(true)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -105,17 +106,17 @@ function AppContent() {
 
   const openTrainingTask = useCallback((taskId: string) => {
     setInitialTrainingTaskId(taskId)
-    navigation.setShowTrainingPanel(true)
-  }, [navigation.setShowTrainingPanel])
+    navigation.setShowKnowledgeBase(true, 'training-detail')
+  }, [navigation.setShowKnowledgeBase])
 
   const resetSettingsPanel = useCallback(() => {
     setSettingsInitialPanel('main')
   }, [])
 
-  const handleTrainingClick = useCallback(() => {
+  const handleKnowledgeBaseClick = useCallback(() => {
     setInitialTrainingTaskId(null)
-    navigation.setShowTrainingPanel(true)
-  }, [navigation.setShowTrainingPanel])
+    navigation.setShowKnowledgeBase(true)
+  }, [navigation.setShowKnowledgeBase])
 
   const handleMessagesClick = useCallback(() => {
     setInitialPeerId(null)
@@ -166,10 +167,12 @@ function AppContent() {
     // Intercept training items — split by guidelineType
     if (result.type === 'training' && result.data?.guidelineType) {
 
-      const openTrainingPanel = (taskId: string) => {
+      const openTrainingForResult = (taskId: string) => {
         if (navigation.isMobile) {
+          // Mobile: quick-view TrainingDrawer for search results
           navigation.setShowTrainingDrawer(taskId)
         } else {
+          // Desktop: open KB directly to task detail
           openTrainingTask(taskId)
         }
       }
@@ -189,9 +192,9 @@ function AppContent() {
             }
           })
           // Deferred so it doesn't get clobbered by CLOSE_ALL_DRAWERS in handleNavigation
-          requestAnimationFrame(() => openTrainingPanel(taskId))
+          requestAnimationFrame(() => openTrainingForResult(taskId))
         } else {
-          openTrainingPanel(taskId)
+          openTrainingForResult(taskId)
         }
       }
 
@@ -281,10 +284,9 @@ function AppContent() {
               onMenuClick: navigation.toggleMenu,
               onMenuClose: navigation.closeMenu,
               onImportClick: () => navigation.setShowNoteImport(true),
-              onMedicationClick: navigation.handleShowMedications,
+              onKnowledgeBaseClick: handleKnowledgeBaseClick,
               onSettingsClick: () => navigation.setShowSettings(true),
               onInfoClick: navigation.toggleSymptomInfo,
-              onTrainingClick: handleTrainingClick,
               onMessagesClick: handleMessagesClick,
               onPropertyClick: handlePropertyClick,
             }}
@@ -292,7 +294,6 @@ function AppContent() {
               showBack: navigation.shouldShowBackButton(!!search.searchInput.trim()),
               showMenu: navigation.shouldShowMenuButton(!!search.searchInput.trim()),
               dynamicTitle: title,
-              medicationButtonText: navigation.getMedicationButtonText(),
               isMobile: navigation.isMobile,
               isAlgorithmView: navigation.showQuestionCard,
               isMenuOpen: navigation.isMenuOpen,
@@ -394,11 +395,12 @@ function AppContent() {
         />
         </ErrorBoundary>
         <ErrorBoundary>
-        <MedicationsDrawer
-          isVisible={navigation.showMedications}
-          onClose={() => navigation.setShowMedications(false)}
-          selectedMedication={navigation.selectedMedication}
-          onMedicationSelect={navigation.handleMedicationSelect}
+        <KnowledgeBaseDrawer
+          isVisible={navigation.showKnowledgeBase}
+          onClose={() => navigation.setShowKnowledgeBase(false)}
+          initialView={navigation.kbInitialView}
+          initialTaskId={initialTrainingTaskId}
+          initialMedication={navigation.kbInitialMedication}
         />
         </ErrorBoundary>
         <ErrorBoundary>
@@ -415,13 +417,6 @@ function AppContent() {
           isVisible={navigation.showTrainingDrawer}
           onClose={() => navigation.setShowTrainingDrawer(null)}
           taskId={navigation.trainingDrawerTaskId}
-        />
-        </ErrorBoundary>
-        <ErrorBoundary>
-        <TrainingFullDrawer
-          isVisible={navigation.showTrainingPanel}
-          onClose={() => { navigation.setShowTrainingPanel(false); setInitialTrainingTaskId(null) }}
-          initialTaskId={initialTrainingTaskId}
         />
         </ErrorBoundary>
         <ErrorBoundary>

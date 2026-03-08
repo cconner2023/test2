@@ -188,8 +188,8 @@ export function ScreenerDrawer({
                                 (activeScreener.invertThreshold
                                     ? activeScore <= activeScreener.threshold
                                     : activeScore >= activeScreener.threshold)
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : 'bg-emerald-100 text-emerald-800'
+                                    ? 'bg-themeyellow/15 text-secondary'
+                                    : 'bg-themegreen/15 text-themegreen'
                             }`}>
                                 {interpretation}
                             </span>
@@ -269,8 +269,8 @@ export function ScreenerDrawer({
                                 {gate && qIdx === gate.gatedFromIndex - 1 && gateEvaluated && (
                                     <div className={`mx-1 my-3 px-3 py-2.5 rounded-md text-xs font-medium text-center ${
                                         gateOpen
-                                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                            : 'bg-amber-50 text-amber-800 border border-amber-200'
+                                            ? 'bg-themegreen/10 text-themegreen border border-themegreen/20'
+                                            : 'bg-themeyellow/15 text-secondary border border-themeyellow/30'
                                     }`}>
                                         {gateOpen ? gate.positiveMessage : gate.negativeMessage}
                                     </div>
@@ -284,11 +284,11 @@ export function ScreenerDrawer({
                 {showExtension && extendedScreener && ext && (
                     <div className="mt-4 animate-cardAppearIn">
                         <div className="flex items-center gap-2 mb-2 px-1">
-                            <div className="h-px flex-1 bg-amber-300/40" />
-                            <span className="text-[10px] font-semibold text-amber-700 uppercase tracking-wider">
+                            <div className="h-px flex-1 bg-themeyellow/30" />
+                            <span className="text-[10px] font-semibold text-secondary uppercase tracking-wider">
                                 Extended to {extendedScreener.title}
                             </span>
-                            <div className="h-px flex-1 bg-amber-300/40" />
+                            <div className="h-px flex-1 bg-themeyellow/30" />
                         </div>
                         <div className="space-y-1">
                             {extendedScreener.questions.slice(ext.carryOverQuestions).map((q, qIdx) => (
@@ -351,7 +351,7 @@ export function ScreenerDrawer({
 // QuestionRow — single screener question with Likert buttons
 // ---------------------------------------------------------------------------
 
-function QuestionRow({
+export function QuestionRow({
     index,
     text,
     scaleOptions,
@@ -395,7 +395,7 @@ function QuestionRow({
 // WordListContent — renders dynamic word list / digit string content
 // ---------------------------------------------------------------------------
 
-function WordListContent({ type, wordList }: { type: string; wordList: ScreenerWordList }) {
+export function WordListContent({ type, wordList }: { type: string; wordList: ScreenerWordList }) {
     if (type === 'wordList') {
         return (
             <div className="mt-2 px-2.5 py-2 bg-themewhite2 rounded-md border border-tertiary/10">

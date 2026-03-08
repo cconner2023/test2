@@ -7,7 +7,7 @@ import { getInitials } from "../Utilities/nameUtils";
 import { PROPERTY_MANAGEMENT_ENABLED } from "../lib/featureFlags";
 
 interface NavBarProps {
-    onTrainingClick: () => void
+    onKnowledgeBaseClick: () => void
     onMessagesClick: () => void
     onPropertyClick: () => void
     onAvatarClick: () => void
@@ -15,7 +15,7 @@ interface NavBarProps {
 
 const BTN = "h-8 flex items-center justify-center px-3 lg:px-4 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300 gap-2";
 
-export function NavBar({ onTrainingClick, onMessagesClick, onPropertyClick, onAvatarClick }: NavBarProps) {
+export function NavBar({ onKnowledgeBaseClick, onMessagesClick, onPropertyClick, onAvatarClick }: NavBarProps) {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
     const { profile, isAuthenticated } = useAuth()
     const messagesCtx = useMessagesContext()
@@ -47,10 +47,10 @@ export function NavBar({ onTrainingClick, onMessagesClick, onPropertyClick, onAv
                 )}
             </button>
 
-            {/* Training */}
-            <button onClick={onTrainingClick} className={BTN} aria-label="Training" title="Training">
+            {/* Knowledge Base */}
+            <button onClick={onKnowledgeBaseClick} className={BTN} aria-label="Knowledge Base" title="Knowledge Base">
                 <BookOpen className="w-4 h-4 stroke-themeblue1" />
-                <span className="hidden lg:inline text-[10pt] text-tertiary">Training</span>
+                <span className="hidden lg:inline text-[10pt] text-tertiary">Knowledge Base</span>
             </button>
 
             {/* Messages — gated on auth */}
