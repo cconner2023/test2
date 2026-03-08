@@ -292,10 +292,36 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
           const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
           persistSupabaseAuth(url, session.access_token, anonKey).catch(() => {})
         }
-        // Fetch profile in the background on sign-in
+        // Fetch profile in the background on sign-in or session resume
         if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
           startHeartbeat(session.user.id)
           get().refreshProfile()
+
+          // Initialize Signal Protocol keys independently of profile fetch.
+          // This must not be gated behind refreshProfile so that keys are
+          // generated even when the profile fetch fails (e.g., brief network
+          // hiccup on PWA resume). initSignalBundle is idempotent.
+          initSignalBundle(session.user.id).then(initResult => {
+            if (initResult) {
+              set({ deviceRole: initResult.role })
+              startHeartbeat(session.user.id, initResult.deviceId)
+              updateCleanupDeviceId(initResult.deviceId)
+              updateCleanupIsPrimary(initResult.role === 'primary')
+
+              // Initialize LoRa mesh subsystem (lazy — no-ops if flag is off)
+              initLoRaMesh(session.user.id).catch(() => {})
+
+              // Server-side encrypted backup: restore first on non-primary, then
+              // all devices schedule ongoing backups so the server row stays fresh.
+              if (initResult.role === 'linked' || initResult.role === 'provisional') {
+                restoreBackup(session.user.id)
+                  .then(() => scheduleBackup(session.user.id))
+                  .catch(() => scheduleBackup(session.user.id))
+              } else {
+                scheduleBackup(session.user.id)
+              }
+            }
+          }).catch(() => {})
         }
       }
       if (event === 'INITIAL_SESSION') {
@@ -382,29 +408,6 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
       // backend can deliver pushes even if a prior logout left the browser
       // subscription orphaned (browser sub alive, DB row deleted).
       resyncPushSubscription()
-
-      // Initialize Signal Protocol key bundle with device role classification
-      initSignalBundle(user.id).then(initResult => {
-        if (initResult) {
-          set({ deviceRole: initResult.role })
-          startHeartbeat(user.id, initResult.deviceId)
-          updateCleanupDeviceId(initResult.deviceId)
-          updateCleanupIsPrimary(initResult.role === 'primary')
-
-          // Initialize LoRa mesh subsystem (lazy — no-ops if flag is off)
-          initLoRaMesh(user.id).catch(() => {})
-
-          // Server-side encrypted backup: restore first on non-primary, then
-          // all devices schedule ongoing backups so the server row stays fresh.
-          if (initResult.role === 'linked' || initResult.role === 'provisional') {
-            restoreBackup(user.id)
-              .then(() => scheduleBackup(user.id))
-              .catch(() => scheduleBackup(user.id))
-          } else {
-            scheduleBackup(user.id)
-          }
-        }
-      }).catch(() => {})
     } catch {
       // Profile fetch failed — keep existing state
     }

@@ -1,16 +1,18 @@
 /**
- * usePeerAvailability — checks which peers have registered devices.
+ * usePeerAvailability — checks which peers have registered devices and key bundles.
  *
  * Calls the `check_users_messageable` RPC with all medic IDs in a single
- * batch query. Returns a Set of user IDs that have NO devices and thus
- * cannot receive encrypted messages.
+ * batch query. Returns a Map of user IDs to unavailability reasons for users
+ * that cannot receive encrypted messages.
  */
 
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 
-export function usePeerAvailability(medicIds: string[]): Set<string> {
-  const [unavailableIds, setUnavailableIds] = useState<Set<string>>(new Set())
+export type UnavailableReason = 'no_device' | 'no_keys'
+
+export function usePeerAvailability(medicIds: string[]): Map<string, UnavailableReason> {
+  const [unavailableMap, setUnavailableMap] = useState<Map<string, UnavailableReason>>(new Map())
   const prevKeyRef = useRef('')
 
   useEffect(() => {
@@ -31,16 +33,20 @@ export function usePeerAvailability(medicIds: string[]): Set<string> {
 
       if (cancelled || error || !data) return
 
-      const unavailable = new Set<string>()
-      for (const row of data as { user_id: string; has_devices: boolean }[]) {
-        if (!row.has_devices) unavailable.add(row.user_id)
+      const map = new Map<string, UnavailableReason>()
+      for (const row of data as { user_id: string; has_devices: boolean; has_keys: boolean }[]) {
+        if (!row.has_devices) {
+          map.set(row.user_id, 'no_device')
+        } else if (!row.has_keys) {
+          map.set(row.user_id, 'no_keys')
+        }
       }
-      setUnavailableIds(unavailable)
+      setUnavailableMap(map)
     }
 
     check()
     return () => { cancelled = true }
   }, [medicIds])
 
-  return unavailableIds
+  return unavailableMap
 }

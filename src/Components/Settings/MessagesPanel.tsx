@@ -25,7 +25,7 @@ import { CardContextMenu } from '../CardContextMenu'
 import { SwipeableCard, type SwipeAction as SwipeCardAction } from '../SwipeableCard'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { useChatInteractions } from '../../Hooks/useChatInteractions'
-import { usePeerAvailability } from '../../Hooks/usePeerAvailability'
+import { usePeerAvailability, type UnavailableReason } from '../../Hooks/usePeerAvailability'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
@@ -59,7 +59,7 @@ function ContactsPanel({
   groups: Record<string, GroupInfo>
   conversations: Record<string, DecryptedSignalMessage[]>
   unreadCounts: Record<string, number>
-  unavailableIds: Set<string>
+  unavailableIds: Map<string, UnavailableReason>
   onSelectPeer: (medic: ClinicMedic) => void
   onSelectGroup: (group: GroupInfo) => void
   onCreateGroup: () => void
@@ -183,6 +183,7 @@ function ContactsPanel({
                 key={medic.id}
                 medic={medic}
                 unavailable={unavailableIds.has(medic.id)}
+                unavailableReason={unavailableIds.get(medic.id)}
                 onClick={() => handleSelectPeer(medic)}
               />
             ))
@@ -199,6 +200,7 @@ function ContactsPanel({
                   key={medic.id}
                   medic={medic}
                   unavailable={unavailableIds.has(medic.id)}
+                  unavailableReason={unavailableIds.get(medic.id)}
                   onClick={() => handleSelectPeer(medic)}
                 />
               ))}
@@ -222,7 +224,7 @@ function ContactsSidebar({
 }: {
   medics: ClinicMedic[]
   groups: Record<string, GroupInfo>
-  unavailableIds: Set<string>
+  unavailableIds: Map<string, UnavailableReason>
   onSelectPeer: (medic: ClinicMedic) => void
   onSelectGroup: (group: GroupInfo) => void
   onCreateGroup: () => void
@@ -277,6 +279,7 @@ function ContactsSidebar({
         <p className="text-[10px] text-tertiary/50 px-3 mb-1 uppercase tracking-wide">My Clinic</p>
         {ownClinicMedics.map(medic => {
           const isUnavailable = unavailableIds.has(medic.id)
+          const reason = unavailableIds.get(medic.id)
           return (
             <button
               key={medic.id}
@@ -290,7 +293,9 @@ function ContactsSidebar({
                   {[medic.rank, medic.lastName].filter(Boolean).join(' ') || medic.firstName || 'Unknown'}
                 </p>
                 {isUnavailable ? (
-                  <p className="text-[9px] text-amber-500/80">No active device</p>
+                  <p className="text-[9px] text-amber-500/80">
+                    {reason === 'no_keys' ? 'Messaging keys not set up' : 'No active device'}
+                  </p>
                 ) : medic.credential ? (
                   <p className="text-[9px] text-tertiary/40">{medic.credential}</p>
                 ) : null}
@@ -306,6 +311,7 @@ function ContactsSidebar({
             <p className="text-[10px] text-tertiary/50 px-3 mb-1 uppercase tracking-wide">{clinicName}</p>
             {nearbyByClinic[clinicName].map(medic => {
               const isUnavailable = unavailableIds.has(medic.id)
+              const reason = unavailableIds.get(medic.id)
               return (
                 <button
                   key={medic.id}
@@ -319,7 +325,9 @@ function ContactsSidebar({
                       {[medic.rank, medic.lastName].filter(Boolean).join(' ') || medic.firstName || 'Unknown'}
                     </p>
                     {isUnavailable ? (
-                      <p className="text-[9px] text-amber-500/80">No active device</p>
+                      <p className="text-[9px] text-amber-500/80">
+                        {reason === 'no_keys' ? 'Messaging keys not set up' : 'No active device'}
+                      </p>
                     ) : medic.credential ? (
                       <p className="text-[9px] text-tertiary/40">{medic.credential}</p>
                     ) : null}
@@ -360,7 +368,7 @@ function ConversationList({
   onSelectGroup: (group: GroupInfo) => void
   conversations: Record<string, DecryptedSignalMessage[]>
   unreadCounts: Record<string, number>
-  unavailableIds: Set<string>
+  unavailableIds: Map<string, UnavailableReason>
   medics: ClinicMedic[]
   groups: Record<string, GroupInfo>
   loading: boolean
@@ -546,6 +554,7 @@ function ConversationList({
                     lastMessage={lastMsg?.plaintext}
                     unreadCount={unreadCounts[entry.key] ?? 0}
                     unavailable={unavailableIds.has(entry.key)}
+                    unavailableReason={unavailableIds.get(entry.key)}
                     onClick={() => {}}
                   />
                 </div>
@@ -690,6 +699,7 @@ function ChatDetail({
   peerFirstName,
   peerLastName,
   peerUnavailable,
+  peerUnavailableReason,
 }: {
   peerId: string
   conversations: Record<string, DecryptedSignalMessage[]>
@@ -711,6 +721,7 @@ function ChatDetail({
   peerFirstName?: string | null
   peerLastName?: string | null
   peerUnavailable?: boolean
+  peerUnavailableReason?: UnavailableReason
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? ''
@@ -859,12 +870,15 @@ function ChatDetail({
     }
 
     if (peerUnavailable && !isSelf) {
+      const unavailableMessage = peerUnavailableReason === 'no_keys'
+        ? `${peerName ?? 'This user'} hasn't set up messaging keys yet. Messages can't be delivered until they log in.`
+        : `${peerName ?? 'This user'} hasn't set up a device yet. Messages can't be delivered until they log in.`
       return (
         <div className="shrink-0 px-4 py-3 border-t border-primary/10">
           <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10">
             <div className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
             <p className="text-xs text-amber-700 dark:text-amber-400">
-              {peerName ?? 'This user'} hasn't set up a device yet. Messages can't be delivered until they log in.
+              {unavailableMessage}
             </p>
           </div>
         </div>
@@ -1685,6 +1699,7 @@ export function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectP
         peerFirstName={peer?.firstName}
         peerLastName={peer?.lastName}
         peerUnavailable={unavailableIds.has(selectedPeerId)}
+        peerUnavailableReason={unavailableIds.get(selectedPeerId)}
       />
     )
   } else {

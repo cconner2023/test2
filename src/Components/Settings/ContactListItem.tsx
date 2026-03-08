@@ -1,4 +1,5 @@
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
+import type { UnavailableReason } from '../../Hooks/usePeerAvailability'
 import { getDisplayName } from '../../Utilities/nameUtils'
 import { UserAvatar } from './UserAvatar'
 import { ListItemRow, UnreadBadge } from '../ListItemRow'
@@ -9,9 +10,15 @@ interface ContactListItemProps {
   unreadCount?: number
   onClick: () => void
   unavailable?: boolean
+  unavailableReason?: UnavailableReason
 }
 
-export function ContactListItem({ medic, lastMessage, unreadCount, onClick, unavailable }: ContactListItemProps) {
+const UNAVAILABLE_LABELS: Record<UnavailableReason, string> = {
+  no_device: 'No active device',
+  no_keys: 'Messaging keys not set up',
+}
+
+export function ContactListItem({ medic, lastMessage, unreadCount, onClick, unavailable, unavailableReason }: ContactListItemProps) {
   return (
     <ListItemRow
       onClick={onClick}
@@ -23,7 +30,7 @@ export function ContactListItem({ medic, lastMessage, unreadCount, onClick, unav
         <>
           <p className="text-sm font-medium text-primary truncate">{getDisplayName(medic)}</p>
           {unavailable ? (
-            <p className="text-[10px] text-amber-500/80">No active device</p>
+            <p className="text-[10px] text-amber-500/80">{UNAVAILABLE_LABELS[unavailableReason ?? 'no_device']}</p>
           ) : (
             <>
               {medic.credential && (
