@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Edit3, UserPlus, Building2, Plus, Trash2, X } from 'lucide-react'
+import { Edit3, UserPlus, Building2, Trash2, X } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -168,140 +168,90 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     // Header actions for main 'admin' view — tab-aware pill buttons
     const mainHeaderActions = useMemo(() => {
         if (view !== 'admin') return undefined
-        if (isMobile) {
-            // Mobile: icon pill containers — always include close in the pill
-            if (activeTab === 'users') {
-                // Double pill: new user + close
-                return (
-                    <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
-                        <button onClick={handleCreateUser} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New user">
-                            <UserPlus className="w-5 h-5 stroke-current" />
-                        </button>
-                        <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
-                            <X className="w-[18px] h-[18px]" />
-                        </button>
-                    </div>
-                )
-            }
-            if (activeTab === 'clinics') {
-                // Double pill: new clinic + close
-                return (
-                    <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
-                        <button onClick={handleCreateClinic} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New clinic">
-                            <Building2 className="w-5 h-5 stroke-current" />
-                        </button>
-                        <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
-                            <X className="w-[18px] h-[18px]" />
-                        </button>
-                    </div>
-                )
-            }
-            if (activeTab === 'requests') {
-                // Triple pill: new user + new clinic + close
-                return (
-                    <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
-                        <button onClick={handleCreateUser} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New user">
-                            <UserPlus className="w-5 h-5 stroke-current" />
-                        </button>
-                        <button onClick={handleCreateClinic} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New clinic">
-                            <Building2 className="w-5 h-5 stroke-current" />
-                        </button>
-                        <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
-                            <X className="w-[18px] h-[18px]" />
-                        </button>
-                    </div>
-                )
-            }
-        } else {
-            // Desktop: text pill buttons
-            if (activeTab === 'users') {
-                return (
-                    <button onClick={handleCreateUser} className="flex items-center gap-1.5 h-8 px-3 rounded-full bg-themegreen text-white text-xs font-medium hover:bg-themegreen/90 transition-colors">
-                        <UserPlus size={14} /> New User
-                    </button>
-                )
-            }
-            if (activeTab === 'clinics') {
-                return (
-                    <button onClick={handleCreateClinic} className="flex items-center gap-1.5 h-8 px-3 rounded-full bg-themegreen text-white text-xs font-medium hover:bg-themegreen/90 transition-colors">
-                        <Plus size={14} /> New Clinic
-                    </button>
-                )
-            }
-            if (activeTab === 'requests') {
-                return (
-                    <div className="flex items-center gap-1.5">
-                        <button onClick={handleCreateUser} className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-tertiary/20 text-xs font-medium text-primary hover:bg-secondary/5 transition-colors">
-                            <UserPlus size={14} /> New User
-                        </button>
-                        <button onClick={handleCreateClinic} className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-tertiary/20 text-xs font-medium text-primary hover:bg-secondary/5 transition-colors">
-                            <Plus size={14} /> New Clinic
-                        </button>
-                    </div>
-                )
-            }
-        }
-        return undefined
-    }, [view, activeTab, isMobile, handleCreateUser, handleCreateClinic, handleClose])
-
-    // Header actions for detail/form views
-    const detailHeaderActions = useMemo(() => {
-        if (view === 'admin-user-detail' && selectedUser) {
-            if (isMobile) {
-                // Double pill: edit + close
-                return (
-                    <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
-                        <button onClick={() => handleEditUser(selectedUser)} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Edit">
-                            <Edit3 className="w-[18px] h-[18px]" />
-                        </button>
-                        <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
-                            <X className="w-[18px] h-[18px]" />
-                        </button>
-                    </div>
-                )
-            }
+        if (activeTab === 'users') {
+            // Double pill: new user + close
             return (
-                <button onClick={() => handleEditUser(selectedUser)} className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-tertiary/20 text-xs font-medium text-primary hover:bg-secondary/5 transition-colors">
-                    <Edit3 size={16} /> Edit
-                </button>
+                <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
+                    <button onClick={handleCreateUser} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New user">
+                        <UserPlus className="w-5 h-5 stroke-current" />
+                    </button>
+                    <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
+                        <X className="w-[18px] h-[18px]" />
+                    </button>
+                </div>
             )
         }
-        if (view === 'admin-clinic-detail' && selectedClinic) {
-            if (isMobile) {
-                // Triple pill: edit + delete + close
-                return (
-                    <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
-                        <button onClick={() => handleEditClinic(selectedClinic)} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Edit">
-                            <Edit3 className="w-[18px] h-[18px]" />
-                        </button>
-                        <button onClick={() => setConfirmDeleteClinic(true)} className="w-11 h-11 rounded-full flex items-center justify-center text-themeredred hover:text-themeredred/80 active:scale-95 transition-all duration-200" aria-label="Delete">
-                            <Trash2 className="w-[18px] h-[18px]" />
-                        </button>
-                        <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
-                            <X className="w-[18px] h-[18px]" />
-                        </button>
-                    </div>
-                )
-            }
+        if (activeTab === 'clinics') {
+            // Double pill: new clinic + close
             return (
-                <div className="flex items-center gap-1.5">
-                    <button onClick={() => handleEditClinic(selectedClinic)} className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-tertiary/20 text-xs font-medium text-primary hover:bg-secondary/5 transition-colors">
-                        <Edit3 size={16} /> Edit
+                <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
+                    <button onClick={handleCreateClinic} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New clinic">
+                        <Building2 className="w-5 h-5 stroke-current" />
                     </button>
-                    <button onClick={() => setConfirmDeleteClinic(true)} className="flex items-center justify-center h-8 w-8 rounded-full border border-themeredred/20 text-themeredred hover:bg-themeredred/10 transition-colors">
-                        <Trash2 size={16} />
+                    <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
+                        <X className="w-[18px] h-[18px]" />
+                    </button>
+                </div>
+            )
+        }
+        if (activeTab === 'requests') {
+            // Triple pill: new user + new clinic + close
+            return (
+                <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
+                    <button onClick={handleCreateUser} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New user">
+                        <UserPlus className="w-5 h-5 stroke-current" />
+                    </button>
+                    <button onClick={handleCreateClinic} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New clinic">
+                        <Building2 className="w-5 h-5 stroke-current" />
+                    </button>
+                    <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
+                        <X className="w-[18px] h-[18px]" />
                     </button>
                 </div>
             )
         }
         return undefined
-    }, [view, selectedUser, selectedClinic, isMobile, handleEditUser, handleEditClinic, handleClose])
+    }, [view, activeTab, handleCreateUser, handleCreateClinic, handleClose])
+
+    // Header actions for detail/form views
+    const detailHeaderActions = useMemo(() => {
+        if (view === 'admin-user-detail' && selectedUser) {
+            // Double pill: edit + close
+            return (
+                <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
+                    <button onClick={() => handleEditUser(selectedUser)} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Edit">
+                        <Edit3 className="w-[18px] h-[18px]" />
+                    </button>
+                    <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
+                        <X className="w-[18px] h-[18px]" />
+                    </button>
+                </div>
+            )
+        }
+        if (view === 'admin-clinic-detail' && selectedClinic) {
+            // Triple pill: edit + delete + close
+            return (
+                <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
+                    <button onClick={() => handleEditClinic(selectedClinic)} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Edit">
+                        <Edit3 className="w-[18px] h-[18px]" />
+                    </button>
+                    <button onClick={() => setConfirmDeleteClinic(true)} className="w-11 h-11 rounded-full flex items-center justify-center text-themeredred hover:text-themeredred/80 active:scale-95 transition-all duration-200" aria-label="Delete">
+                        <Trash2 className="w-[18px] h-[18px]" />
+                    </button>
+                    <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
+                        <X className="w-[18px] h-[18px]" />
+                    </button>
+                </div>
+            )
+        }
+        return undefined
+    }, [view, selectedUser, selectedClinic, handleEditUser, handleEditClinic, handleClose])
 
     // Header config per view
     const headerConfig = useMemo(() => {
         switch (view) {
             case 'admin':
-                return { title: 'Admin Panel', rightContent: mainHeaderActions, hideDefaultClose: !!(isMobile && mainHeaderActions) }
+                return { title: 'Admin Panel', rightContent: mainHeaderActions, hideDefaultClose: !!mainHeaderActions }
             case 'admin-user-detail':
                 return {
                     title: selectedUser
@@ -310,7 +260,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     showBack: true,
                     onBack: handleBack,
                     rightContent: detailHeaderActions,
-                    hideDefaultClose: !!(isMobile && detailHeaderActions),
+                    hideDefaultClose: !!detailHeaderActions,
                 }
             case 'admin-user-form':
                 return {
@@ -324,7 +274,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     showBack: true,
                     onBack: handleBack,
                     rightContent: detailHeaderActions,
-                    hideDefaultClose: !!(isMobile && detailHeaderActions),
+                    hideDefaultClose: !!detailHeaderActions,
                 }
             case 'admin-clinic-form':
                 return {
@@ -335,7 +285,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             case 'admin-request-detail':
                 return { title: 'Request', showBack: true, onBack: handleBack }
         }
-    }, [view, selectedUser, selectedClinic, handleBack, detailHeaderActions, mainHeaderActions, isMobile])
+    }, [view, selectedUser, selectedClinic, handleBack, detailHeaderActions, mainHeaderActions])
 
     // Scrollable padded wrapper for sub-views (detail/form)
     const subViewWrapper = (children: React.ReactNode) => (

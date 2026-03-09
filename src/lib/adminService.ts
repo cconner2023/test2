@@ -195,6 +195,53 @@ export async function rejectAccountRequest(
 }
 
 /**
+ * Reopen a rejected account request (move back to pending).
+ * Guards with .eq('status', 'rejected') to prevent stale-state corruption.
+ */
+export async function reopenAccountRequest(
+  requestId: string
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase
+      .from('account_requests')
+      .update({
+        status: 'pending',
+        reviewed_at: null,
+        reviewed_by: null,
+        rejection_reason: null,
+      })
+      .eq('id', requestId)
+      .eq('status', 'rejected')
+
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to reopen request:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
+ * Permanently delete an account request.
+ */
+export async function deleteAccountRequest(
+  requestId: string
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase
+      .from('account_requests')
+      .delete()
+      .eq('id', requestId)
+
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to delete account request:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
+/**
  * Get user's roles
  */
 export async function getUserRoles(userId: string): Promise<string[]> {

@@ -7,11 +7,12 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Check, X, UserPlus, Clock, Search, Building2 } from 'lucide-react'
+import { Check, X, UserPlus, Clock, Search, Building2, RotateCcw, Trash2 } from 'lucide-react'
 
 import { SwipeableCard } from '../SwipeableCard'
 import { CardContextMenu } from '../CardContextMenu'
 import { CardActionBar } from '../CardActionBar'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { StatusBanner } from '../Settings/StatusBanner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
@@ -19,6 +20,8 @@ import {
   getAllAccountRequests,
   approveAccountRequest,
   rejectAccountRequest,
+  reopenAccountRequest,
+  deleteAccountRequest,
   listClinics,
 } from '../../lib/adminService'
 import type { AdminClinic } from '../../lib/adminService'
@@ -54,6 +57,9 @@ export function AdminRequestsList() {
   const [approvingId, setApprovingId] = useState<string | null>(null)
   const [rejectingId, setRejectingId] = useState<string | null>(null)
   const [rejectReason, setRejectReason] = useState('')
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deleteProcessing, setDeleteProcessing] = useState(false)
+  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false)
 
   // Status feedback
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -166,6 +172,62 @@ export function AdminRequestsList() {
     await loadRequests()
   }, [selectedIds, loadRequests])
 
+  // ── Reopen handler ──────────────────────────────────────
+  const handleReopen = useCallback(async (requestId: string) => {
+    setProcessingId(requestId)
+    const result = await reopenAccountRequest(requestId)
+    if (result.success) {
+      setStatus({ type: 'success', message: 'Request reopened — moved back to pending' })
+      setSelectedIds(new Set())
+      await loadRequests()
+    } else {
+      setStatus({ type: 'error', message: `Failed to reopen: ${result.error}` })
+    }
+    setProcessingId(null)
+  }, [loadRequests])
+
+  // ── Delete handler (called from ConfirmDialog) ─────────
+  const handleDeleteRequest = useCallback(async (requestId: string) => {
+    setDeleteProcessing(true)
+    const result = await deleteAccountRequest(requestId)
+    if (result.success) {
+      setConfirmDeleteId(null)
+      setStatus({ type: 'success', message: 'Request permanently deleted' })
+      setSelectedIds(new Set())
+      await loadRequests()
+    } else {
+      setStatus({ type: 'error', message: `Failed to delete: ${result.error}` })
+    }
+    setDeleteProcessing(false)
+  }, [loadRequests])
+
+  // ── Batch reopen (multi-select) ────────────────────────
+  const handleBatchReopen = useCallback(async () => {
+    const ids = [...selectedIds]
+    setSelectedIds(new Set())
+    for (const id of ids) {
+      setProcessingId(id)
+      await reopenAccountRequest(id)
+      setProcessingId(null)
+    }
+    setStatus({ type: 'success', message: `Reopened ${ids.length} request(s)` })
+    await loadRequests()
+  }, [selectedIds, loadRequests])
+
+  // ── Batch delete (called from ConfirmDialog) ───────────
+  const handleBatchDelete = useCallback(async () => {
+    setDeleteProcessing(true)
+    const ids = [...selectedIds]
+    setSelectedIds(new Set())
+    for (const id of ids) {
+      await deleteAccountRequest(id)
+    }
+    setConfirmBatchDelete(false)
+    setDeleteProcessing(false)
+    setStatus({ type: 'success', message: `Deleted ${ids.length} request(s)` })
+    await loadRequests()
+  }, [selectedIds, loadRequests])
+
   // ── Toggle selection ────────────────────────────────────
   const toggleSelect = useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -244,51 +306,78 @@ export function AdminRequestsList() {
           }`}>
             {filteredRequests.map((request) => {
               const isPending = request.status === 'pending'
+              const isRejected = request.status === 'rejected'
+              const hasActions = isPending || isRejected
               const isSelected = selectedIds.has(request.id)
               const matchedClinic = request.uic
                 ? uicToClinic.get(request.uic.toUpperCase())
                 : undefined
 
+              const swipeActions = isPending ? [
+                {
+                  key: 'approve',
+                  label: 'Approve',
+                  icon: Check,
+                  iconBg: 'bg-themegreen/15',
+                  iconColor: 'text-themegreen',
+                  onAction: () => {
+                    setSelectedIds(new Set([request.id]))
+                    setApprovingId(request.id)
+                    setRejectingId(null)
+                    setOpenSwipeId(null)
+                  },
+                },
+                {
+                  key: 'reject',
+                  label: 'Reject',
+                  icon: X,
+                  iconBg: 'bg-themeredred/15',
+                  iconColor: 'text-themeredred',
+                  onAction: () => {
+                    setSelectedIds(new Set([request.id]))
+                    setRejectingId(request.id)
+                    setApprovingId(null)
+                    setOpenSwipeId(null)
+                  },
+                },
+              ] : isRejected ? [
+                {
+                  key: 'reopen',
+                  label: 'Reopen',
+                  icon: RotateCcw,
+                  iconBg: 'bg-themeblue2/15',
+                  iconColor: 'text-themeblue2',
+                  onAction: () => {
+                    setOpenSwipeId(null)
+                    handleReopen(request.id)
+                  },
+                },
+                {
+                  key: 'delete',
+                  label: 'Delete',
+                  icon: Trash2,
+                  iconBg: 'bg-themeredred/15',
+                  iconColor: 'text-themeredred',
+                  onAction: () => {
+                    setOpenSwipeId(null)
+                    setConfirmDeleteId(request.id)
+                  },
+                },
+              ] : []
+
               return (
                 <SwipeableCard
                   key={request.id}
                   isOpen={openSwipeId === request.id}
-                  enabled={isPending && !multiSelectMode}
-                  actions={isPending ? [
-                    {
-                      key: 'approve',
-                      label: 'Approve',
-                      icon: Check,
-                      iconBg: 'bg-themegreen/15',
-                      iconColor: 'text-themegreen',
-                      onAction: () => {
-                        setSelectedIds(new Set([request.id]))
-                        setApprovingId(request.id)
-                        setRejectingId(null)
-                        setOpenSwipeId(null)
-                      },
-                    },
-                    {
-                      key: 'reject',
-                      label: 'Reject',
-                      icon: X,
-                      iconBg: 'bg-themeredred/15',
-                      iconColor: 'text-themeredred',
-                      onAction: () => {
-                        setSelectedIds(new Set([request.id]))
-                        setRejectingId(request.id)
-                        setApprovingId(null)
-                        setOpenSwipeId(null)
-                      },
-                    },
-                  ] : []}
+                  enabled={hasActions && !multiSelectMode}
+                  actions={swipeActions}
                   onOpen={() => setOpenSwipeId(request.id)}
                   onClose={() => { if (openSwipeId === request.id) setOpenSwipeId(null) }}
-                  onContextMenu={isPending ? (e) => {
+                  onContextMenu={hasActions ? (e) => {
                     e.preventDefault()
                     setContextMenu({ requestId: request.id, x: e.clientX, y: e.clientY })
                   } : undefined}
-                  onTap={isPending ? () => {
+                  onTap={hasActions ? () => {
                     if (multiSelectMode) {
                       toggleSelect(request.id)
                       return
@@ -498,6 +587,25 @@ export function AdminRequestsList() {
                             <p className="text-themeredred text-[9pt] mt-1">{request.rejection_reason}</p>
                           </div>
                         )}
+
+                        {isRejected && (
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleReopen(request.id)}
+                              disabled={processingId === request.id}
+                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-themeblue2 text-white font-medium text-[10pt] hover:bg-themeblue2/90 disabled:opacity-50 transition-colors"
+                            >
+                              <RotateCcw size={16} /> Reopen
+                            </button>
+                            <button
+                              onClick={() => setConfirmDeleteId(request.id)}
+                              disabled={processingId === request.id}
+                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-themeredred text-white font-medium text-[10pt] hover:bg-themeredred/90 disabled:opacity-50 transition-colors"
+                            >
+                              <Trash2 size={16} /> Delete
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -509,56 +617,126 @@ export function AdminRequestsList() {
       </div>
 
       {/* Multi-select action bar — pinned at bottom, outside scroll */}
-      {multiSelectMode && (
-        <div className="shrink-0">
-          <CardActionBar
-            selectedCount={selectedIds.size}
-            onClear={() => setSelectedIds(new Set())}
-            actions={[
-              {
-                key: 'approve',
-                label: 'Approve',
-                icon: Check,
-                iconBg: 'bg-themegreen/15',
-                iconColor: 'text-themegreen',
-                onAction: handleBatchApprove,
-              },
-              {
-                key: 'reject',
-                label: 'Reject',
-                icon: X,
-                iconBg: 'bg-themeredred/15',
-                iconColor: 'text-themeredred',
-                onAction: handleBatchReject,
-              },
-            ]}
-          />
-        </div>
-      )}
+      {multiSelectMode && (() => {
+        const selectedStatuses = new Set(
+          [...selectedIds].map(id => requests.find(r => r.id === id)?.status).filter(Boolean)
+        )
+        const allPending = selectedStatuses.size === 1 && selectedStatuses.has('pending')
+        const allRejected = selectedStatuses.size === 1 && selectedStatuses.has('rejected')
+
+        const batchActions = allPending ? [
+          {
+            key: 'approve',
+            label: 'Approve',
+            icon: Check,
+            iconBg: 'bg-themegreen/15',
+            iconColor: 'text-themegreen',
+            onAction: handleBatchApprove,
+          },
+          {
+            key: 'reject',
+            label: 'Reject',
+            icon: X,
+            iconBg: 'bg-themeredred/15',
+            iconColor: 'text-themeredred',
+            onAction: handleBatchReject,
+          },
+        ] : allRejected ? [
+          {
+            key: 'reopen',
+            label: 'Reopen',
+            icon: RotateCcw,
+            iconBg: 'bg-themeblue2/15',
+            iconColor: 'text-themeblue2',
+            onAction: handleBatchReopen,
+          },
+          {
+            key: 'delete',
+            label: 'Delete',
+            icon: Trash2,
+            iconBg: 'bg-themeredred/15',
+            iconColor: 'text-themeredred',
+            onAction: () => setConfirmBatchDelete(true),
+          },
+        ] : []
+
+        return (
+          <div className="shrink-0">
+            <CardActionBar
+              selectedCount={selectedIds.size}
+              onClear={() => setSelectedIds(new Set())}
+              actions={batchActions}
+            />
+          </div>
+        )
+      })()}
 
       {/* Right-click context menu */}
-      {contextMenu && (
-        <CardContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          onClose={() => setContextMenu(null)}
-          items={[
-            {
-              key: 'approve',
-              label: 'Approve',
-              icon: Check,
-              onAction: () => setApprovingId(contextMenu.requestId),
-            },
-            {
-              key: 'reject',
-              label: 'Reject',
-              icon: X,
-              destructive: true,
-              onAction: () => { setRejectingId(contextMenu.requestId); setApprovingId(null) },
-            },
-          ]}
-        />
-      )}
+      {contextMenu && (() => {
+        const ctxRequest = requests.find(r => r.id === contextMenu.requestId)
+        const ctxItems = ctxRequest?.status === 'rejected' ? [
+          {
+            key: 'reopen',
+            label: 'Reopen',
+            icon: RotateCcw,
+            onAction: () => handleReopen(contextMenu.requestId),
+          },
+          {
+            key: 'delete',
+            label: 'Delete',
+            icon: Trash2,
+            destructive: true,
+            onAction: () => setConfirmDeleteId(contextMenu.requestId),
+          },
+        ] : [
+          {
+            key: 'approve',
+            label: 'Approve',
+            icon: Check,
+            onAction: () => setApprovingId(contextMenu.requestId),
+          },
+          {
+            key: 'reject',
+            label: 'Reject',
+            icon: X,
+            destructive: true,
+            onAction: () => { setRejectingId(contextMenu.requestId); setApprovingId(null) },
+          },
+        ]
+
+        return (
+          <CardContextMenu
+            x={contextMenu.x}
+            y={contextMenu.y}
+            onClose={() => setContextMenu(null)}
+            items={ctxItems}
+          />
+        )
+      })()}
+
+      {/* Single delete confirmation */}
+      <ConfirmDialog
+        visible={!!confirmDeleteId}
+        title="Permanently delete this request?"
+        subtitle="This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        processing={deleteProcessing}
+        onConfirm={() => { if (confirmDeleteId) handleDeleteRequest(confirmDeleteId) }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
+
+      {/* Batch delete confirmation */}
+      <ConfirmDialog
+        visible={confirmBatchDelete}
+        title={`Delete ${selectedIds.size} request(s)?`}
+        subtitle="This will permanently remove the selected requests. This action cannot be undone."
+        confirmLabel="Delete All"
+        variant="danger"
+        processing={deleteProcessing}
+        onConfirm={handleBatchDelete}
+        onCancel={() => setConfirmBatchDelete(false)}
+      />
     </div>
   )
 }

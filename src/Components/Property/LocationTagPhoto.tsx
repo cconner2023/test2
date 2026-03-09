@@ -90,54 +90,53 @@ export function LocationTagPhoto({
   const [zoom, setZoom] = useState(1)
 
   // On initial content load, scroll viewport to top-left so content starts at (0,0).
-  // On zoom change only, re-center so content remains visible.
-  const prevZoomRef = useRef(zoom)
+  const initialScrollDone = useRef(false)
   useEffect(() => {
     const vp = viewportRef.current
-    if (!vp) return
-    const zoomChanged = prevZoomRef.current !== zoom
-    prevZoomRef.current = zoom
+    if (!vp || initialScrollDone.current) return
+    initialScrollDone.current = true
     requestAnimationFrame(() => {
-      if (zoomChanged) {
-        // Re-center so the visible area stays roughly in view
-        vp.scrollLeft = (vp.scrollWidth - vp.clientWidth) / 2
-        vp.scrollTop = (vp.scrollHeight - vp.clientHeight) / 2
-      } else {
-        // Initial load: scroll to top-left so shapes at (10,10) are visible
-        vp.scrollLeft = 0
-        vp.scrollTop = 0
-      }
+      vp.scrollLeft = 0
+      vp.scrollTop = 0
     })
-  }, [zoom, photoData])
+  }, [photoData])
 
-  // Zoom-to-zone: when a zone is selected, zoom in and scroll to center it
+  // Zoom-to-zone: when a zone is selected, zoom in and scroll so its top-left
+  // sits 15px from the top-left corner of the viewport for consistency.
+  // Use a serialized key so the effect fires reliably regardless of object reference identity.
+  const zoomTargetKey = zoomTarget
+    ? `${zoomTarget.x},${zoomTarget.y},${zoomTarget.w},${zoomTarget.h}`
+    : ''
   useEffect(() => {
     const vp = viewportRef.current
     if (!vp) return
     if (zoomTarget) {
       const newZoom = Math.min(
         Math.max(Math.min(0.9 / zoomTarget.w, 0.9 / zoomTarget.h), 1),
-        3,
+        10,
       )
       setZoom(newZoom)
       requestAnimationFrame(() => {
-        const contentW = vp.scrollWidth
-        const contentH = vp.scrollHeight
-        const centerX = (zoomTarget.x + zoomTarget.w / 2) * contentW
-        const centerY = (zoomTarget.y + zoomTarget.h / 2) * contentH
-        vp.scrollTo({
-          left: centerX - vp.clientWidth / 2,
-          top: centerY - vp.clientHeight / 2,
-          behavior: 'smooth',
+        requestAnimationFrame(() => {
+          const contentW = vp.scrollWidth
+          const contentH = vp.scrollHeight
+          vp.scrollTo({
+            left: zoomTarget.x * contentW - 15,
+            top: zoomTarget.y * contentH - 15,
+            behavior: 'smooth',
+          })
         })
       })
     } else {
       setZoom(1)
       requestAnimationFrame(() => {
-        vp.scrollTo({ left: 0, top: 0, behavior: 'smooth' })
+        requestAnimationFrame(() => {
+          vp.scrollTo({ left: 0, top: 0, behavior: 'smooth' })
+        })
       })
     }
-  }, [zoomTarget])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [zoomTargetKey])
 
   // Click-drag panning (mouse only; touch uses native overflow scroll)
   useEffect(() => {
@@ -204,6 +203,28 @@ export function LocationTagPhoto({
     }
   }, [])
 
+  // Manual zoom (+/-) maintains focal point at viewport center
+  const handleZoom = useCallback((direction: 'in' | 'out') => {
+    const vp = viewportRef.current
+    if (!vp) return
+    const oldW = vp.scrollWidth
+    const oldH = vp.scrollHeight
+    const cx = (vp.scrollLeft + vp.clientWidth / 2) / oldW
+    const cy = (vp.scrollTop + vp.clientHeight / 2) / oldH
+
+    setZoom(z => {
+      const next = direction === 'in' ? Math.min(z + 0.5, 10) : Math.max(z - 0.5, 1)
+      return next
+    })
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        vp.scrollLeft = cx * vp.scrollWidth - vp.clientWidth / 2
+        vp.scrollTop = cy * vp.scrollHeight - vp.clientHeight / 2
+      })
+    })
+  }, [])
+
   return (
     <div className="relative">
       {/* Scrollable viewport */}
@@ -217,7 +238,7 @@ export function LocationTagPhoto({
           className="relative select-none"
           style={{
             width: `${zoom * 100}%`,
-            transition: 'width 0.3s ease-out',
+
             touchAction: isEditMode || drawMode ? 'none' : 'auto',
           }}
         >
@@ -230,12 +251,11 @@ export function LocationTagPhoto({
             />
           ) : (
             <div
-              className="w-full rounded-lg"
+              className="w-full rounded-lg bg-themewhite2"
               style={{
                 aspectRatio: '1 / 1',
-                backgroundColor: '#f0f0f0',
                 backgroundImage:
-                  'linear-gradient(to right, #e0e0e0 1px, transparent 1px), linear-gradient(to bottom, #e0e0e0 1px, transparent 1px)',
+                  'linear-gradient(to right, color-mix(in srgb, var(--color-themegray1) 35%, transparent) 1px, transparent 1px), linear-gradient(to bottom, color-mix(in srgb, var(--color-themegray1) 35%, transparent) 1px, transparent 1px)',
                 backgroundSize: '10% 10%',
               }}
             />
@@ -313,13 +333,14 @@ export function LocationTagPhoto({
       <div className="absolute bottom-2 left-2 flex flex-col gap-1 z-10">
         <button
           className="p-1.5 rounded-full bg-black/50 text-white shadow-md hover:bg-black/60 transition-colors disabled:opacity-30"
-          onClick={() => setZoom((z) => Math.min(z + 0.5, 3))}
+          onClick={() => handleZoom('in')}
+          disabled={zoom >= 10}
         >
           <ZoomIn size={14} />
         </button>
         <button
           className="p-1.5 rounded-full bg-black/50 text-white shadow-md hover:bg-black/60 transition-colors disabled:opacity-30"
-          onClick={() => setZoom((z) => Math.max(z - 0.5, 1))}
+          onClick={() => handleZoom('out')}
           disabled={zoom <= 1}
         >
           <ZoomOut size={14} />
@@ -448,10 +469,10 @@ function StaticZone({
     <button
       className={`absolute rounded-md transition-colors cursor-pointer overflow-hidden ${
         isHighlighted
-          ? 'bg-themeblue3/30 border-2 border-themeblue3/70'
+          ? 'bg-zone-accent/30 border-2 border-zone-accent/70'
           : hasSomeHighlight
-            ? 'bg-themeblue3/15 border border-themeblue3/40 opacity-50'
-            : 'bg-themeblue3/15 border border-themeblue3/40 hover:bg-themeblue3/25'
+            ? 'bg-zone-accent/15 border border-zone-accent/40 opacity-50'
+            : 'bg-zone-accent/15 border border-zone-accent/40 hover:bg-zone-accent/25'
       }`}
       style={{
         left: `${tag.x * 100}%`,
@@ -463,7 +484,7 @@ function StaticZone({
       onClick={() => onTap?.(tag)}
     >
       {/* Label */}
-      <div className="absolute top-0.5 left-1 flex items-center gap-0.5 text-[10px] font-medium text-themeblue3 max-w-[90%]">
+      <div className="absolute top-0.5 left-1 flex items-center gap-0.5 text-[10px] font-medium text-zone-accent max-w-[90%]">
         <MapPin size={9} className="shrink-0" />
         <span className="truncate">{tag.label}</span>
       </div>
@@ -482,7 +503,7 @@ function StaticZone({
             ))}
           </div>
         ) : (
-          <div className="absolute bottom-0.5 right-1 px-1.5 py-0.5 rounded-full bg-themeblue3/80 text-white text-[9px] font-medium">
+          <div className="absolute bottom-0.5 right-1 px-1.5 py-0.5 rounded-full bg-zone-accent/80 text-white text-[9px] font-medium">
             {zoneItems.length}
           </div>
         )
@@ -586,7 +607,7 @@ function DraggableZone({
       className={`absolute rounded-md cursor-grab active:cursor-grabbing overflow-visible transition-all duration-150 ${
         isSelected
           ? 'bg-amber-400/25 border-2 border-amber-400 ring-2 ring-amber-400/50 shadow-[0_0_8px_rgba(251,191,36,0.4)]'
-          : 'bg-themeblue3/15 border border-themeblue3/40 ring-2 ring-themeblue3/50'
+          : 'bg-zone-accent/15 border border-zone-accent/40 ring-2 ring-zone-accent/50'
       }`}
       style={{
         left: `${tag.x * 100}%`,
@@ -601,7 +622,7 @@ function DraggableZone({
       {/* Inner clip wrapper — ensures content is also clipped */}
       <div className="absolute inset-0 overflow-hidden rounded-md">
         {/* Label */}
-        <div className="absolute top-0.5 left-1 flex items-center gap-0.5 text-[10px] font-medium text-themeblue3 max-w-[70%]">
+        <div className="absolute top-0.5 left-1 flex items-center gap-0.5 text-[10px] font-medium text-zone-accent max-w-[70%]">
           <MapPin size={9} className="shrink-0" />
           <span className="truncate">{tag.label}</span>
         </div>
@@ -620,7 +641,7 @@ function DraggableZone({
               ))}
             </div>
           ) : (
-            <div className="absolute bottom-0.5 right-5 px-1.5 py-0.5 rounded-full bg-themeblue3/80 text-white text-[9px] font-medium pointer-events-none">
+            <div className="absolute bottom-0.5 right-5 px-1.5 py-0.5 rounded-full bg-zone-accent/80 text-white text-[9px] font-medium pointer-events-none">
               {zoneItems.length}
             </div>
           )
@@ -646,7 +667,7 @@ function DraggableZone({
         style={{ touchAction: 'none', clipPath: 'none' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <GripHorizontal size={10} className="text-themeblue3/70 rotate-[-45deg]" />
+        <GripHorizontal size={10} className="text-zone-accent/70 rotate-[-45deg]" />
       </div>
     </div>
   )
