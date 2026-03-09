@@ -602,6 +602,22 @@ export async function getLocalLocationTags(locationId: string): Promise<Location
 }
 
 /**
+ * Get local location tags for multiple canvas locations in a single transaction.
+ * Returns a Map of locationId → tags[].
+ */
+export async function getLocalLocationTagsBatch(locationIds: string[]): Promise<Map<string, LocationTag[]>> {
+  const db = await getDb()
+  const tx = db.transaction('locationTags', 'readonly')
+  const idx = tx.objectStore('locationTags').index('by-location')
+  const result = new Map<string, LocationTag[]>()
+  for (const id of locationIds) {
+    result.set(id, await idx.getAll(id))
+  }
+  await tx.done
+  return result
+}
+
+/**
  * Full-replace all tags for a location in IndexedDB.
  * Deletes existing tags for the location, then inserts the new set.
  */

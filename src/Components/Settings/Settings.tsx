@@ -9,7 +9,6 @@ import { ReleaseNotesPanel } from './ReleaseNotesPanel';
 import { UserProfileDisplay } from './UserProfileDisplay';
 import { ProfileChangeRequestForm } from './ProfileChangeRequestForm';
 import { AccountRequestForm } from './AccountRequestForm';
-import { SupervisorPanel } from './SupervisorPanel';
 import { GuestOptionsPanel } from './GuestOptionsPanel';
 import { LoginPanel } from './LoginPanel';
 import { PinSetupPanel } from './PinSetupPanel';
@@ -41,6 +40,7 @@ interface SettingsDrawerProps {
     onToggleTheme: () => void;
     initialPanel?: 'main' | 'release-notes';
     onOpenAdmin?: () => void;
+    onOpenSupervisor?: () => void;
 }
 
 export const Settings = ({
@@ -50,13 +50,13 @@ export const Settings = ({
     onToggleTheme,
     initialPanel,
     onOpenAdmin,
+    onOpenSupervisor,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'supervisor' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'lora' | 'sessions-devices'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'lora' | 'sessions-devices'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
-    const supervisorBackRef = useRef<(() => void) | null>(null);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
     const { user, signOut, isAuthenticated, isDevRole, isSupervisorRole } = useAuth();
 
@@ -106,13 +106,20 @@ export const Settings = ({
             return;
         }
 
+        // Supervisor panel opens its own drawer
+        if (id === PANEL.SUPERVISOR && onOpenSupervisor) {
+            closeDrawer();
+            onOpenSupervisor();
+            return;
+        }
+
         // Look up the target panel name from the constant map
         const target = PANEL_TARGET[id];
         if (target) {
             handleSlideAnimation('left');
             setActivePanel(target as typeof activePanel);
         }
-    }, [handleSlideAnimation, onOpenAdmin]);
+    }, [handleSlideAnimation, onOpenAdmin, onOpenSupervisor]);
 
     const buildSettingsOptions = useCallback((closeDrawer: () => void): SettingsItem[] => {
         /** Shorthand for a standard menu option that navigates to a panel. */
@@ -189,8 +196,6 @@ export const Settings = ({
         switch (activePanel) {
             case 'main':
                 return { title: 'Settings' };
-            case 'supervisor':
-                return { title: 'Supervisor', showBack: true, onBack: () => { supervisorBackRef.current?.(); } };
             case 'profile-change-request':
                 return { title: 'Request Changes', ...backTo('user-profile-details') };
             case 'login':
@@ -361,14 +366,6 @@ export const Settings = ({
                     })()}
 
                     {/* Pre-mounted panels — data loads when Settings opens, hidden until active */}
-                    {isSupervisorRole && (
-                        <div className="h-full" style={{ display: activePanel === 'supervisor' ? undefined : 'none' }}>
-                            <SupervisorPanel
-                                backRef={supervisorBackRef}
-                                onBackToMain={() => { handleSlideAnimation('right'); setActivePanel('main'); }}
-                            />
-                        </div>
-                    )}
                     {isAuthenticated && (LORA_MESH_ENABLED || isDevRole) && (
                         <div className="h-full" style={{ display: activePanel === 'lora' ? undefined : 'none' }}>
                             <LoRaPanel />

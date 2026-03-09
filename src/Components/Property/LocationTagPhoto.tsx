@@ -1,8 +1,8 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { useDrag } from '@use-gesture/react'
 import { MapPin, Package, ZoomIn, ZoomOut, X, GripHorizontal } from 'lucide-react'
 import { clamp } from '../../Utilities/GestureUtils'
-import type { LocationTag, LocalPropertyItem, ZoneRect } from '../../Types/PropertyTypes'
+import type { LocationTag, LocalPropertyItem, LocalPropertyLocation, ZoneRect } from '../../Types/PropertyTypes'
 
 /** Default rects for a simple rectangle zone */
 const FULL_RECT: ZoneRect[] = [{ x: 0, y: 0, w: 1, h: 1 }]
@@ -61,6 +61,12 @@ interface LocationTagPhotoProps {
   highlightedZoneId?: string | null
   // Zoom target — zone rect to zoom into
   zoomTarget?: { x: number; y: number; w: number; h: number } | null
+  // Locations list — used to look up photos for zone backgrounds
+  locations?: LocalPropertyLocation[]
+  // Pre-fetched tags for child locations — used for mini-map previews in zones without photos
+  childTagsMap?: Map<string, LocationTag[]>
+  // Parent canvas context — cropped parent photo shown when current canvas has no photo
+  parentContext?: { photo: string; zoneRect: { x: number; y: number; w: number; h: number } } | null
 }
 
 export function LocationTagPhoto({
@@ -84,10 +90,22 @@ export function LocationTagPhoto({
   onZoneSelect,
   highlightedZoneId,
   zoomTarget,
+  locations,
+  childTagsMap,
 }: LocationTagPhotoProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState(1)
+
+  // Build a map of location id → photo_data for zone backgrounds
+  const locationPhotoMap = useMemo(() => {
+    if (!locations) return new Map<string, string>()
+    const m = new Map<string, string>()
+    for (const loc of locations) {
+      if (loc.photo_data) m.set(loc.id, loc.photo_data)
+    }
+    return m
+  }, [locations])
 
   // On initial content load, scroll viewport to top-left so content starts at (0,0).
   const initialScrollDone = useRef(false)
@@ -277,6 +295,8 @@ export function LocationTagPhoto({
                 items={items}
                 isSelected={selectedZoneIds?.has(tag.id) ?? false}
                 onSelect={onZoneSelect}
+                locationPhoto={locationPhotoMap.get(tag.target_id)}
+                subZoneTags={childTagsMap?.get(tag.target_id)}
               />
             ) : (
               <StaticZone
@@ -286,6 +306,8 @@ export function LocationTagPhoto({
                 items={items}
                 isHighlighted={!!highlightedZoneId && tag.target_id === highlightedZoneId}
                 hasSomeHighlight={!!highlightedZoneId}
+                locationPhoto={locationPhotoMap.get(tag.target_id)}
+                subZoneTags={childTagsMap?.get(tag.target_id)}
               />
             )
           )}
@@ -450,12 +472,16 @@ function StaticZone({
   items,
   isHighlighted,
   hasSomeHighlight,
+  locationPhoto,
+  subZoneTags,
 }: {
   tag: LocationTag
   onTap?: (tag: LocationTag) => void
   items?: LocalPropertyItem[]
   isHighlighted?: boolean
   hasSomeHighlight?: boolean
+  locationPhoto?: string | null
+  subZoneTags?: LocationTag[]
 }) {
   const w = tag.width!
   const h = tag.height!
@@ -465,14 +491,20 @@ function StaticZone({
   // Items assigned to the zone's linked sub-location
   const zoneItems = items?.filter((i) => i.location_id === tag.target_id) ?? []
 
+  // Sub-zones that are actual zone rectangles (for mini-map preview)
+  const subZones = subZoneTags?.filter(isZoneTag) ?? []
+  const hasPreview = !locationPhoto && subZones.length > 0
+
   return (
     <button
       className={`absolute rounded-md transition-colors cursor-pointer overflow-hidden ${
-        isHighlighted
-          ? 'bg-zone-accent/30 border-2 border-zone-accent/70'
-          : hasSomeHighlight
-            ? 'bg-zone-accent/15 border border-zone-accent/40 opacity-50'
-            : 'bg-zone-accent/15 border border-zone-accent/40 hover:bg-zone-accent/25'
+        locationPhoto
+          ? 'border border-zone-accent/40'
+          : isHighlighted
+            ? 'bg-zone-accent/30 border-2 border-zone-accent/70'
+            : hasSomeHighlight
+              ? 'bg-zone-accent/15 border border-zone-accent/40 opacity-50'
+              : 'bg-zone-accent/15 border border-zone-accent/40 hover:bg-zone-accent/25'
       }`}
       style={{
         left: `${tag.x * 100}%`,
@@ -483,8 +515,42 @@ function StaticZone({
       }}
       onClick={() => onTap?.(tag)}
     >
+      {/* Photo background (if location has a photo) */}
+      {locationPhoto && (
+        <img
+          src={locationPhoto}
+          alt=""
+          className="absolute inset-0 w-full h-full object-cover rounded-md"
+          draggable={false}
+        />
+      )}
+
+      {/* Mini-map preview of child zones (when no photo) */}
+      {hasPreview && (
+        <div className="absolute inset-0 pointer-events-none">
+          {subZones.map((sz) => (
+            <div
+              key={sz.id}
+              className="absolute rounded-sm border border-zone-accent/50 bg-zone-accent/10"
+              style={{
+                left: `${(sz.x) * 100}%`,
+                top: `${(sz.y) * 100}%`,
+                width: `${(sz.width ?? 0) * 100}%`,
+                height: `${(sz.height ?? 0) * 100}%`,
+              }}
+            >
+              <span className="absolute top-0 left-0.5 text-[7px] text-zone-accent/70 font-medium truncate max-w-full leading-tight">
+                {sz.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Label */}
-      <div className="absolute top-0.5 left-1 flex items-center gap-0.5 text-[10px] font-medium text-zone-accent max-w-[90%]">
+      <div className={`absolute top-0.5 left-1 flex items-center gap-0.5 text-[10px] font-medium max-w-[90%] ${
+        locationPhoto ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : 'text-zone-accent'
+      }`}>
         <MapPin size={9} className="shrink-0" />
         <span className="truncate">{tag.label}</span>
       </div>
@@ -523,6 +589,8 @@ function DraggableZone({
   items,
   isSelected,
   onSelect,
+  locationPhoto,
+  subZoneTags,
 }: {
   tag: LocationTag
   containerRef: React.RefObject<HTMLDivElement | null>
@@ -532,6 +600,8 @@ function DraggableZone({
   items?: LocalPropertyItem[]
   isSelected?: boolean
   onSelect?: (tagId: string) => void
+  locationPhoto?: string | null
+  subZoneTags?: LocationTag[]
 }) {
   const zoneRef = useRef<HTMLDivElement>(null)
   const w = tag.width!
@@ -539,6 +609,8 @@ function DraggableZone({
   const isLargeZone = w > 0.15 && h > 0.15
   const clipPath = `url(#zone-clip-${tag.id})`
   const zoneItems = items?.filter((i) => i.location_id === tag.target_id) ?? []
+  const subZones = subZoneTags?.filter(isZoneTag) ?? []
+  const hasPreview = !locationPhoto && subZones.length > 0
 
   // Move the entire zone body
   const moveBind = useDrag(
@@ -621,8 +693,42 @@ function DraggableZone({
     >
       {/* Inner clip wrapper — ensures content is also clipped */}
       <div className="absolute inset-0 overflow-hidden rounded-md">
+        {/* Photo background (if location has a photo) */}
+        {locationPhoto && (
+          <img
+            src={locationPhoto}
+            alt=""
+            className="absolute inset-0 w-full h-full object-cover rounded-md pointer-events-none"
+            draggable={false}
+          />
+        )}
+
+        {/* Mini-map preview of child zones (when no photo) */}
+        {hasPreview && (
+          <div className="absolute inset-0 pointer-events-none">
+            {subZones.map((sz) => (
+              <div
+                key={sz.id}
+                className="absolute rounded-sm border border-zone-accent/50 bg-zone-accent/10"
+                style={{
+                  left: `${(sz.x) * 100}%`,
+                  top: `${(sz.y) * 100}%`,
+                  width: `${(sz.width ?? 0) * 100}%`,
+                  height: `${(sz.height ?? 0) * 100}%`,
+                }}
+              >
+                <span className="absolute top-0 left-0.5 text-[7px] text-zone-accent/70 font-medium truncate max-w-full leading-tight">
+                  {sz.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Label */}
-        <div className="absolute top-0.5 left-1 flex items-center gap-0.5 text-[10px] font-medium text-zone-accent max-w-[70%]">
+        <div className={`absolute top-0.5 left-1 flex items-center gap-0.5 text-[10px] font-medium max-w-[70%] ${
+          locationPhoto ? 'text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]' : 'text-zone-accent'
+        }`}>
           <MapPin size={9} className="shrink-0" />
           <span className="truncate">{tag.label}</span>
         </div>

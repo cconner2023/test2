@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, type MutableRefObject } from 'react'
-import { Ban } from 'lucide-react'
+import { Ban, BarChart3, ChevronRight } from 'lucide-react'
 import { useTrainingCompletions } from '../../../Hooks/useTrainingCompletions'
 import { useSupervisorData } from './useSupervisorData'
 import { PersonnelRoster } from './PersonnelRoster'
 import { SoldierProfile } from './SoldierProfile'
 import { SoldierCertsEditor } from './SoldierCertsEditor'
 import { EvaluateFlow } from './EvaluateFlow'
+import { TeamInsights } from './TeamInsights'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import { LoadingSpinner } from '../../LoadingSpinner'
 import { useMinLoadTime } from '../../../Hooks/useMinLoadTime'
@@ -15,6 +16,7 @@ import type { StepResult } from '../../../Types/SupervisorTestTypes'
 
 type SupervisorView =
   | { screen: 'roster' }
+  | { screen: 'team-insights' }
   | { screen: 'soldier-profile'; soldier: ClinicMedic }
   | { screen: 'soldier-certs'; soldier: ClinicMedic }
   | { screen: 'evaluate-select-task'; soldier: ClinicMedic }
@@ -47,6 +49,10 @@ export function SupervisorPanel({
     updateCert,
     removeTest,
     refreshData,
+    competencyMatrix,
+    teamMetrics,
+    computeTrendsForPeriod,
+    testableTaskMap,
   } = useSupervisorData()
   const loading = useMinLoadTime(_loading)
 
@@ -59,6 +65,7 @@ export function SupervisorPanel({
       case 'roster':
         backRef.current = onBackToMain ?? null
         break
+      case 'team-insights':
       case 'soldier-profile':
       case 'soldier-certs':
       case 'evaluate-select-task':
@@ -141,6 +148,21 @@ export function SupervisorPanel({
     <div className="h-full overflow-y-auto">
       <div className="px-4 py-3 md:p-5">
         {view.screen === 'roster' && (
+          <>
+          <button
+            onClick={() => setView({ screen: 'team-insights' })}
+            className="w-full flex items-center gap-3 mb-4 p-3 rounded-lg border border-tertiary/10 bg-themewhite2
+                       hover:bg-themeblue2/5 transition-colors text-left"
+          >
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-themeblue2/10">
+              <BarChart3 size={16} className="text-themeblue2" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-primary">Team Insights</p>
+              <p className="text-[11px] text-tertiary/60">Competency, reporting &amp; trends</p>
+            </div>
+            <ChevronRight size={16} className="text-tertiary/40 flex-shrink-0" />
+          </button>
           <PersonnelRoster
             medics={medics}
             certsForSoldier={certsForSoldier}
@@ -150,6 +172,17 @@ export function SupervisorPanel({
             onEvaluate={handleEvaluate}
             onView={handleViewProfile}
             onModify={handleModifyCerts}
+          />
+          </>
+        )}
+
+        {view.screen === 'team-insights' && (
+          <TeamInsights
+            medics={medics}
+            teamMetrics={teamMetrics}
+            computeTrends={computeTrendsForPeriod}
+            resolveName={resolveName}
+            onViewSoldier={handleViewProfile}
           />
         )}
 

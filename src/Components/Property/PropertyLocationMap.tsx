@@ -6,7 +6,7 @@ import { clamp } from '../../Utilities/GestureUtils'
 import { LocationBreadcrumb } from './LocationBreadcrumb'
 import { LocationTagPhoto } from './LocationTagPhoto'
 import { usePropertyStore } from '../../stores/usePropertyStore'
-import { fetchLocationTags, upsertLocationTags, updateItem } from '../../lib/propertyService'
+import { fetchLocationTags, fetchLocationTagsBatch, upsertLocationTags, updateItem } from '../../lib/propertyService'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 import type { PropertyLocation, LocalPropertyLocation, LocationTag, LocalPropertyItem, ZoneRect } from '../../Types/PropertyTypes'
 
@@ -46,15 +46,18 @@ export function PropertyLocationMap({
   onAddItem,
   onRegisterLocationActions,
 }: PropertyLocationMapProps) {
-  const { selectedZoneId, selectZone, rootLocationId } = usePropertyStore()
+  const { selectedZoneId, selectZone, rootLocationId, canvasStack, navigateInto, navigateBack, navigateToPath } = usePropertyStore()
 
-  // Canvas is always the root
-  const canvasLocationId = rootLocationId
+  // Canvas shows the current drill-down location, or root if at top level
+  const canvasLocationId = selectedZoneId ?? rootLocationId
 
   // Derive the selected zone location from the store
   const selectedZone = selectedZoneId
     ? locations.find((l) => l.id === selectedZoneId) ?? null
     : null
+
+  // Canvas photo — look up the active location's photo
+  const canvasPhoto = selectedZone?.photo_data ?? null
 
   const [tags, setTags] = useState<LocationTag[]>([])
   const [isEditMode, setIsEditMode] = useState(false)
@@ -82,6 +85,10 @@ export function PropertyLocationMap({
   // Zone selection state (split/merge)
   const [selectedZoneIds, setSelectedZoneIds] = useState<Set<string>>(new Set())
   const [mergeConfirm, setMergeConfirm] = useState<{ tagA: LocationTag; tagB: LocationTag } | null>(null)
+
+  // Zoom-then-navigate state (Google Maps-style drill-down)
+  const [pendingNavId, setPendingNavId] = useState<string | null>(null)
+  const [navZoomTarget, setNavZoomTarget] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
 
   // Item tray state
   const [isTrayExpanded, setIsTrayExpanded] = useState(true)
@@ -125,15 +132,7 @@ export function PropertyLocationMap({
     return assignedItems.filter((i) => !taggedItemIds.has(i.id))
   }, [assignedItems, taggedItemIds])
 
-  // Derive zoom target from tags + selectedZoneId
-  const zoomTarget = useMemo(() => {
-    if (!selectedZoneId) return null
-    const tag = tags.find((t) => t.target_type === 'location' && t.target_id === selectedZoneId)
-    if (!tag || !tag.width || !tag.height) return null
-    return { x: tag.x, y: tag.y, w: tag.width, h: tag.height }
-  }, [selectedZoneId, tags])
-
-  // Load tags for root canvas
+  // Load tags for current canvas
   useEffect(() => {
     if (!canvasLocationId) { setTags([]); return }
     if (suppressRefetchRef.current) {
@@ -145,6 +144,52 @@ export function PropertyLocationMap({
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canvasLocationId, locations.length])
+
+  // Fetch sub-zone tags for child locations (used for mini-map previews in zones without photos)
+  const [childTagsMap, setChildTagsMap] = useState<Map<string, LocationTag[]>>(new Map())
+  useEffect(() => {
+    // Get location IDs referenced by zone tags on the current canvas
+    const childLocIds = tags
+      .filter(t => t.target_type === 'location' && t.width && t.height)
+      .map(t => t.target_id)
+    if (childLocIds.length === 0) { setChildTagsMap(new Map()); return }
+    fetchLocationTagsBatch(childLocIds).then(setChildTagsMap)
+  }, [tags])
+
+  // When the current canvas has no photo, look up the parent's photo + zone rect
+  // so LocationTagPhoto can show a cropped parent view as orientation context.
+  const [parentContext, setParentContext] = useState<{ photo: string; zoneRect: { x: number; y: number; w: number; h: number } } | null>(null)
+  useEffect(() => {
+    if (canvasPhoto || !selectedZoneId) { setParentContext(null); return }
+    // Find parent in the stack (one level up)
+    const parentId = canvasStack.length >= 2
+      ? canvasStack[canvasStack.length - 2]
+      : rootLocationId
+    if (!parentId) { setParentContext(null); return }
+    const parentLoc = locations.find(l => l.id === parentId)
+    if (!parentLoc?.photo_data) { setParentContext(null); return }
+    // Fetch parent's tags to find the zone rect for the current location
+    fetchLocationTags(parentId).then(parentTags => {
+      const zoneTag = parentTags.find(t => t.target_type === 'location' && t.target_id === selectedZoneId && t.width && t.height)
+      if (zoneTag) {
+        setParentContext({
+          photo: parentLoc.photo_data!,
+          zoneRect: { x: zoneTag.x, y: zoneTag.y, w: zoneTag.width!, h: zoneTag.height! },
+        })
+      } else {
+        setParentContext(null)
+      }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasLocationId, canvasPhoto])
+
+  // Reset edit state when navigating to a different canvas
+  useEffect(() => {
+    setIsEditMode(false)
+    setIsDrawMode(false)
+    setPendingZone(null)
+    setSelectedZoneIds(new Set())
+  }, [canvasLocationId])
 
   // Exit draw mode and clear selection when edit mode is turned off
   useEffect(() => {
@@ -158,13 +203,30 @@ export function PropertyLocationMap({
 
   const handleTagTap = useCallback((tag: LocationTag) => {
     if (tag.target_type === 'location') {
-      // Toggle zone selection
-      selectZone(selectedZoneId === tag.target_id ? null : tag.target_id)
+      if (tag.width && tag.height) {
+        // Zoom into the zone first, then navigate after animation
+        setNavZoomTarget({ x: tag.x, y: tag.y, w: tag.width, h: tag.height })
+        setPendingNavId(tag.target_id)
+      } else {
+        // Point badge — no zone to zoom into, navigate immediately
+        navigateInto(tag.target_id)
+      }
     } else {
       const item = items.find((i) => i.id === tag.target_id)
       if (item) onSelectItem(item)
     }
-  }, [items, selectZone, onSelectItem, selectedZoneId])
+  }, [items, navigateInto, onSelectItem])
+
+  // Complete navigation after zoom animation finishes
+  useEffect(() => {
+    if (!pendingNavId) return
+    const timer = setTimeout(() => {
+      navigateInto(pendingNavId)
+      setPendingNavId(null)
+      setNavZoomTarget(null)
+    }, 600)
+    return () => clearTimeout(timer)
+  }, [pendingNavId, navigateInto])
 
   const handleTagDrag = useCallback((tagId: string, x: number, y: number) => {
     setTags((prev) => prev.map((t) => t.id === tagId ? { ...t, x, y } : t))
@@ -521,17 +583,30 @@ export function PropertyLocationMap({
     setConfirmDeleteId(null)
     setOverflowMenuId(null)
     if (selectedZoneId === id) {
-      selectZone(null)
+      navigateBack()
     }
-  }, [onDeleteLocation, selectedZoneId, canvasLocationId, selectZone, tags])
+  }, [onDeleteLocation, selectedZoneId, canvasLocationId, navigateBack, tags])
+
+  // Build breadcrumb path from canvasStack
+  const breadcrumbPath = useMemo(() =>
+    canvasStack.map(id => ({
+      id,
+      name: locations.find(l => l.id === id)?.name ?? '...',
+    })),
+    [canvasStack, locations]
+  )
 
   return (
     <div className="flex flex-col">
       {/* Breadcrumb */}
       <LocationBreadcrumb
         clinicName={clinicName}
-        selectedZoneName={selectedZone?.name}
-        onTapRoot={() => selectZone(null)}
+        path={breadcrumbPath}
+        onTapRoot={() => navigateToPath([])}
+        onTapLevel={(id) => {
+          const idx = canvasStack.indexOf(id)
+          if (idx >= 0) navigateToPath(canvasStack.slice(0, idx + 1))
+        }}
       />
 
       {/* Canvas with tags — always shows root canvas */}
@@ -539,7 +614,8 @@ export function PropertyLocationMap({
         <div className="px-6 mb-3">
           <div className="relative">
             <LocationTagPhoto
-              photoData={null}
+              key={canvasLocationId}
+              photoData={canvasPhoto}
               tags={tags}
               isEditMode={isEditMode && !isDrawMode}
               onTagTap={handleTagTap}
@@ -557,8 +633,11 @@ export function PropertyLocationMap({
               onPendingZoneCancel={handleCancelZone}
               selectedZoneIds={selectedZoneIds}
               onZoneSelect={handleZoneSelect}
-              highlightedZoneId={selectedZoneId}
-              zoomTarget={zoomTarget}
+              highlightedZoneId={null}
+              zoomTarget={navZoomTarget}
+              locations={locations}
+              childTagsMap={childTagsMap}
+              parentContext={parentContext}
             />
             <div className="absolute top-2 right-2 flex gap-1 z-10">
               {/* Add item icon — visible when a zone is selected */}
@@ -807,7 +886,16 @@ export function PropertyLocationMap({
                             ? 'border-tertiary/10 hover:border-themeblue3/30'
                             : 'border-amber-300/60 bg-amber-50/40 hover:border-amber-400/70'
                       }`}
-                      onClick={() => selectZone(isActive ? null : loc.id)}
+                      onClick={() => {
+                        // If this location has a zone on the canvas, zoom into it first
+                        const matchingTag = tags.find(t => t.target_type === 'location' && t.target_id === loc.id && t.width && t.height)
+                        if (matchingTag) {
+                          setNavZoomTarget({ x: matchingTag.x, y: matchingTag.y, w: matchingTag.width!, h: matchingTag.height! })
+                          setPendingNavId(loc.id)
+                        } else {
+                          navigateInto(loc.id)
+                        }
+                      }}
                     >
                       {loc.photo_data ? (
                         <img src={loc.photo_data} alt={loc.name} className="w-full h-20 object-cover" />

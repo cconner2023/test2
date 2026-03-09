@@ -12,6 +12,12 @@ interface PropertyState {
   selectedZoneId: string | null
   selectZone: (zoneId: string | null) => void
 
+  // Canvas navigation stack — path from root, e.g. ['zoneA', 'zoneA1']
+  canvasStack: string[]
+  navigateInto: (zoneId: string) => void
+  navigateBack: () => void
+  navigateToPath: (path: string[]) => void
+
   // Root location id (invisible canvas host for top-level zones)
   rootLocationId: string | null
   setRootLocationId: (id: string | null) => void
@@ -35,6 +41,21 @@ export const usePropertyStore = create<PropertyState>((set) => ({
   // Zone selection
   selectedZoneId: null,
   selectZone: (zoneId) => set({ selectedZoneId: zoneId }),
+
+  // Canvas navigation stack
+  canvasStack: [],
+  navigateInto: (zoneId) => set((state) => ({
+    canvasStack: [...state.canvasStack, zoneId],
+    selectedZoneId: zoneId,
+  })),
+  navigateBack: () => set((state) => {
+    const next = state.canvasStack.slice(0, -1)
+    return { canvasStack: next, selectedZoneId: next[next.length - 1] ?? null }
+  }),
+  navigateToPath: (path) => set({
+    canvasStack: path,
+    selectedZoneId: path[path.length - 1] ?? null,
+  }),
 
   // Root location
   rootLocationId: null,

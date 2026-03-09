@@ -49,6 +49,7 @@ export function useNavigation() {
         showMessagesDrawer: s.showMessagesDrawer,
         showPropertyDrawer: s.showPropertyDrawer,
         showAdminDrawer: s.showAdminDrawer,
+        showSupervisorDrawer: s.showSupervisorDrawer,
 
         // Derived selectors
         showQuestionCard: selectShowQuestionCard(s),
@@ -73,6 +74,7 @@ export function useNavigation() {
         setShowMessagesDrawer: s.setShowMessagesDrawer,
         setShowPropertyDrawer: s.setShowPropertyDrawer,
         setShowAdminDrawer: s.setShowAdminDrawer,
+        setShowSupervisorDrawer: s.setShowSupervisorDrawer,
         showWriteNote: s.openWriteNote,
         closeWriteNote: s.closeWriteNote,
         resetToMain: s.resetToMain,

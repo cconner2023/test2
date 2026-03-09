@@ -15,7 +15,7 @@ interface PropertyDrawerProps {
 }
 
 export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
-    const { selectZone, setDefaultLocationId, setEditingItem } = usePropertyStore()
+    const { selectZone, setDefaultLocationId, setEditingItem, canvasStack, navigateBack, navigateToPath } = usePropertyStore()
     const [view, setView] = useState<PropertyView>('property')
     const [selectedPropertyItemName, setSelectedPropertyItemName] = useState<string | null>(null)
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
@@ -89,9 +89,9 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         setSelectedPropertyItemName(null)
         setSlideDirection('')
         setMobileLocationView(false)
-        selectZone(null)
+        navigateToPath([])
         onClose()
-    }, [onClose, selectZone])
+    }, [onClose, navigateToPath])
 
     const swipeHandlers = useSwipeBack(
         useMemo(() => {
@@ -211,7 +211,13 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     return {
                         title: 'Property Book',
                         showBack: true,
-                        onBack: () => { selectZone(null); setMobileLocationView(false) },
+                        onBack: () => {
+                            if (canvasStack.length > 0) {
+                                navigateBack()
+                            } else {
+                                setMobileLocationView(false)
+                            }
+                        },
                         rightContent: locationHeaderActions,
                         hideDefaultClose: !!(isMobile && locationHeaderActions),
                     }
@@ -224,7 +230,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             case 'property-form':
                 return { title: selectedPropertyItemName ? 'Edit Item' : 'Add Item', showBack: true, onBack: handleBack }
         }
-    }, [view, selectedPropertyItemName, handleBack, isMobile, mobileLocationView, detailHeaderActions, mainHeaderActions, locationHeaderActions, selectZone])
+    }, [view, selectedPropertyItemName, handleBack, isMobile, mobileLocationView, detailHeaderActions, mainHeaderActions, locationHeaderActions, canvasStack, navigateBack])
 
     return (
         <BaseDrawer

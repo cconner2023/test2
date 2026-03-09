@@ -35,7 +35,6 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.AVATAR_PICKER]: 'avatar-picker',
     [PANEL.USER_PROFILE]: 'user-profile',
     [PANEL.ADMIN]: 'admin',
-    [PANEL.SUPERVISOR]: 'supervisor',
     [PANEL.GUEST_OPTIONS]: 'guest-options',
     [PANEL.PROFILE_CHANGE_REQUEST]: 'profile-change-request',
     [PANEL.LOGIN]: 'login',

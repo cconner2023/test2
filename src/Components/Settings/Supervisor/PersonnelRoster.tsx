@@ -95,75 +95,80 @@ export function PersonnelRoster({
   }
 
   return (
-    <div>
-      {/* Search */}
-      <div className="relative mb-3">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary/40 pointer-events-none" />
-        <input
-          ref={inputRef}
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search personnel..."
-          className="w-full pl-8 pr-8 py-2 rounded-lg bg-themewhite2 text-sm text-primary
-                     placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
-        />
-        {searchQuery && (
-          <button
-            onClick={() => { setSearchQuery(''); inputRef.current?.focus() }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-tertiary/10 transition-colors"
-          >
-            <X size={14} className="text-tertiary/50" />
-          </button>
+    <div className="h-full flex flex-col overflow-hidden">
+      {/* Scrollable content */}
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 md:px-5 md:py-5">
+        {/* Search */}
+        <div className="relative mb-3">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary/40 pointer-events-none" />
+          <input
+            ref={inputRef}
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search personnel..."
+            className="w-full pl-8 pr-8 py-2 rounded-lg bg-themewhite2 text-sm text-primary
+                       placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => { setSearchQuery(''); inputRef.current?.focus() }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-tertiary/10 transition-colors"
+            >
+              <X size={14} className="text-tertiary/50" />
+            </button>
+          )}
+        </div>
+
+        {searchQuery.trim() && (
+          <p className="text-[10px] text-tertiary/50 mb-2">
+            {filteredMedics.length} result{filteredMedics.length !== 1 ? 's' : ''}
+          </p>
+        )}
+
+        {filteredMedics.length === 0 && searchQuery.trim() ? (
+          <p className="text-sm text-tertiary/40 text-center py-8">No personnel match your search.</p>
+        ) : (
+          <div className="space-y-2">
+            {filteredMedics.map((soldier) => (
+              <SwipeableRosterCard
+                key={soldier.id}
+                soldier={soldier}
+                certs={certsForSoldier(soldier.id)}
+                overdueCount={overdueCount(soldier.id)}
+                isOpen={openCardId === soldier.id}
+                isSelected={selectedSoldierIds.has(soldier.id)}
+                multiSelectMode={multiSelectMode}
+                onOpen={() => { setOpenCardId(soldier.id) }}
+                onClose={() => setOpenCardId(prev => prev === soldier.id ? null : prev)}
+                onContextMenu={(e) => { e.preventDefault(); setContextMenu({ soldierId: soldier.id, x: e.clientX, y: e.clientY }) }}
+                onToggleMultiSelect={() => handleToggleMultiSelect(soldier.id)}
+                onTap={() => {
+                  setOpenCardId(null)
+                  // Single-tap selects (shows bottom bar)
+                  if (!multiSelectMode) {
+                    const isTogglingOff = selectedSoldierIds.has(soldier.id)
+                    onSelectSoldiers(isTogglingOff ? new Set() : new Set([soldier.id]))
+                  }
+                }}
+                onEvaluate={() => onEvaluate(soldier)}
+                onView={() => onView(soldier)}
+                onModify={() => onModify(soldier)}
+              />
+            ))}
+          </div>
         )}
       </div>
 
-      {searchQuery.trim() && (
-        <p className="text-[10px] text-tertiary/50 mb-2">
-          {filteredMedics.length} result{filteredMedics.length !== 1 ? 's' : ''}
-        </p>
-      )}
-
-      {filteredMedics.length === 0 && searchQuery.trim() ? (
-        <p className="text-sm text-tertiary/40 text-center py-8">No personnel match your search.</p>
-      ) : (
-        <div className="space-y-2">
-          {filteredMedics.map((soldier) => (
-            <SwipeableRosterCard
-              key={soldier.id}
-              soldier={soldier}
-              certs={certsForSoldier(soldier.id)}
-              overdueCount={overdueCount(soldier.id)}
-              isOpen={openCardId === soldier.id}
-              isSelected={selectedSoldierIds.has(soldier.id)}
-              multiSelectMode={multiSelectMode}
-              onOpen={() => { setOpenCardId(soldier.id) }}
-              onClose={() => setOpenCardId(prev => prev === soldier.id ? null : prev)}
-              onContextMenu={(e) => { e.preventDefault(); setContextMenu({ soldierId: soldier.id, x: e.clientX, y: e.clientY }) }}
-              onToggleMultiSelect={() => handleToggleMultiSelect(soldier.id)}
-              onTap={() => {
-                setOpenCardId(null)
-                // Single-tap selects (shows bottom bar)
-                if (!multiSelectMode) {
-                  const isTogglingOff = selectedSoldierIds.has(soldier.id)
-                  onSelectSoldiers(isTogglingOff ? new Set() : new Set([soldier.id]))
-                }
-              }}
-              onEvaluate={() => onEvaluate(soldier)}
-              onView={() => onView(soldier)}
-              onModify={() => onModify(soldier)}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Bottom action bar */}
+      {/* Multi-select action bar — pinned at bottom, outside scroll */}
       {multiSelectMode && (
-        <CardActionBar
-          selectedCount={selectedSoldierIds.size}
-          onClear={() => onSelectSoldiers(new Set())}
-          actions={barActions}
-        />
+        <div className="shrink-0">
+          <CardActionBar
+            selectedCount={selectedSoldierIds.size}
+            onClear={() => onSelectSoldiers(new Set())}
+            actions={barActions}
+          />
+        </div>
       )}
 
       {/* Right-click context menu */}
@@ -198,7 +203,6 @@ export function PersonnelRoster({
           />
         )
       })()}
-
     </div>
   )
 }

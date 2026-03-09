@@ -21,6 +21,7 @@ import {
   getLocalDiscrepancies,
   saveLocalDiscrepancy,
   getLocalLocationTags,
+  getLocalLocationTagsBatch,
   saveLocalLocationTags,
   deleteLocalTagsByTarget,
 } from './offlineDb'
@@ -429,6 +430,11 @@ export async function fetchLocationTags(locationId: string): Promise<LocationTag
   }
 
   return []
+}
+
+/** Batch-fetch tags for multiple canvas locations (IndexedDB only, no network fallback). */
+export async function fetchLocationTagsBatch(locationIds: string[]): Promise<Map<string, LocationTag[]>> {
+  return getLocalLocationTagsBatch(locationIds)
 }
 
 export async function upsertLocationTags(

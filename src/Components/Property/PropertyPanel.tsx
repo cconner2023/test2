@@ -187,15 +187,22 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
   }, [store, onSelectItem])
 
   const handleTreeSelectLocation = useCallback((loc: LocalPropertyLocation) => {
-    store.selectZone(loc.id)
+    // Build path from root to this location
+    const path: string[] = []
+    let cur: LocalPropertyLocation | undefined = loc
+    while (cur && cur.name !== ROOT_LOCATION_NAME) {
+      path.unshift(cur.id)
+      cur = property.locations.find(l => l.id === cur!.parent_id)
+    }
+    store.navigateToPath(path)
     if (isMobile) {
       onMobileLocationViewChange?.(true)
     }
-  }, [store, isMobile, onMobileLocationViewChange])
+  }, [store, property.locations, isMobile, onMobileLocationViewChange])
 
-  // Clinic name tap → show root canvas zoomed out
+  // Clinic name tap → navigate to root canvas
   const handleSelectAllLocations = useCallback(() => {
-    store.selectZone(null)
+    store.navigateToPath([])
     if (isMobile) {
       onMobileLocationViewChange?.(true)
     }
@@ -270,12 +277,19 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
   const handleDesktopLocationSelect = useCallback((loc: LocalPropertyLocation) => {
     if (desktopLocationId === loc.id) {
       setDesktopLocationId(null)
-      store.selectZone(null)
+      store.navigateToPath([])
     } else {
       setDesktopLocationId(loc.id)
-      store.selectZone(loc.id)
+      // Build path from root to this location
+      const path: string[] = []
+      let cur: LocalPropertyLocation | undefined = loc
+      while (cur && cur.name !== ROOT_LOCATION_NAME) {
+        path.unshift(cur.id)
+        cur = property.locations.find(l => l.id === cur!.parent_id)
+      }
+      store.navigateToPath(path)
     }
-  }, [desktopLocationId, store])
+  }, [desktopLocationId, store, property.locations])
 
   const handleDeleteItem = useCallback(() => {
     if (!store.selectedItem) return
@@ -817,7 +831,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
               onSelectItem={handleSelectItem}
               onMoveLocation={handleMoveLocation}
               onMoveItem={handleMoveItem}
-              onSelectAll={() => { setDesktopLocationId(null); store.selectZone(null) }}
+              onSelectAll={() => { setDesktopLocationId(null); store.navigateToPath([]) }}
               allSelected={!desktopLocationId}
               onEditLocation={(loc) => { setRenamingLocation({ id: loc.id, name: loc.name }) }}
               onDeleteLocation={(locId) => property.removeLocation(locId)}

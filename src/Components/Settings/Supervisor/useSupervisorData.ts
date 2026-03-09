@@ -1,11 +1,22 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
-import { supabase } from '../../../lib/supabase'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useClinicMedics } from '../../../Hooks/useClinicMedics'
 import { useAuth } from '../../../Hooks/useAuth'
 import { fetchClinicCertifications } from '../../../lib/certificationService'
 import { fetchClinicTestHistory, type TrainingCompletionUI } from '../../../lib/trainingService'
 import { createLogger } from '../../../Utilities/Logger'
-import { formatMedicName, getExpirationStatus } from './supervisorHelpers'
+import {
+  formatMedicName,
+  getExpirationStatus,
+  buildTestableTaskMap,
+  buildCompetencyMatrix,
+  computeTeamMetrics,
+  computeTrends,
+  type FlatTask,
+  type SoldierCompetency,
+  type TeamMetrics,
+  type TrendPeriod,
+  type TrendBucket,
+} from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
 
@@ -42,60 +53,46 @@ export interface SupervisorData {
   removeTest: (testId: string) => void
   /** Refresh certs + tests from server */
   refreshData: () => void
+  /** Competency matrix for all soldiers */
+  competencyMatrix: SoldierCompetency[]
+  /** Aggregate team metrics */
+  teamMetrics: TeamMetrics
+  /** Compute trend buckets for a given period */
+  computeTrendsForPeriod: (period: TrendPeriod, groupBy: 'week' | 'month', soldierId?: string) => TrendBucket[]
+  /** Map of subject area -> testable tasks (only tasks with gradedSteps) */
+  testableTaskMap: Map<string, FlatTask[]>
 }
 
 export function useSupervisorData(): SupervisorData {
-  const [loading, setLoading] = useState(true)
-  const [isSupervisor, setIsSupervisor] = useState(false)
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
-  const [currentUserProfile, setCurrentUserProfile] = useState<ClinicMedic | null>(null)
   const [certs, setCerts] = useState<Certification[]>([])
   const [tests, setTests] = useState<TrainingCompletionUI[]>([])
 
   const { medics: allLocationMedics, loading: medicsLoading } = useClinicMedics()
-  const { clinicId: userClinicId } = useAuth()
+  const { user, clinicId: userClinicId, isSupervisorRole, profile: authProfile, loading: authLoading } = useAuth()
+
+  // Derive auth state from the reactive auth store (no separate Supabase call)
+  const currentUserId = user?.id ?? null
+  const isSupervisor = isSupervisorRole
+  const loading = authLoading
+
+  const currentUserProfile = useMemo<ClinicMedic | null>(() => {
+    if (!user) return null
+    return {
+      id: user.id,
+      firstName: authProfile.firstName ?? null,
+      lastName: authProfile.lastName ?? null,
+      middleInitial: authProfile.middleInitial ?? null,
+      rank: authProfile.rank ?? null,
+      credential: authProfile.credential ?? null,
+      avatarId: null,
+    }
+  }, [user, authProfile.firstName, authProfile.lastName, authProfile.middleInitial, authProfile.rank, authProfile.credential])
 
   // Filter to own clinic only – supervisor view should not include nearby clinics
   const medics = useMemo(() => {
     if (!userClinicId) return allLocationMedics
     return allLocationMedics.filter(m => !m.clinicId || m.clinicId === userClinicId)
   }, [allLocationMedics, userClinicId])
-
-  // Auth check + profile fetch (runs once)
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser()
-        if (!user || cancelled) { setLoading(false); return }
-
-        setCurrentUserId(user.id)
-        const { data } = await supabase
-          .from('profiles')
-          .select('id, first_name, last_name, middle_initial, rank, credential, roles')
-          .eq('id', user.id)
-          .single()
-
-        if (data && !cancelled) {
-          const roles = data.roles as string[] | null
-          setIsSupervisor(roles?.includes('supervisor') ?? false)
-          setCurrentUserProfile({
-            id: data.id,
-            firstName: data.first_name,
-            lastName: data.last_name,
-            middleInitial: data.middle_initial,
-            rank: data.rank,
-            credential: data.credential,
-          })
-        }
-      } catch (err) {
-        logger.error('Auth check failed:', err)
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    })()
-    return () => { cancelled = true }
-  }, [])
 
   // All clinic users including self for name resolution
   const allClinicUsers = useMemo(() => {
@@ -170,6 +167,29 @@ export function useSupervisorData(): SupervisorData {
     setTests(prev => prev.filter(t => t.id !== testId))
   }, [])
 
+  // ─── Team Insights Computations ──────────────────────────────────────
+  const testableTaskMapRef = useRef<Map<string, FlatTask[]> | null>(null)
+  if (!testableTaskMapRef.current) {
+    testableTaskMapRef.current = buildTestableTaskMap()
+  }
+  const testableTaskMap = testableTaskMapRef.current
+
+  const competencyMatrix = useMemo(
+    () => buildCompetencyMatrix(medics, tests, testableTaskMap),
+    [medics, tests, testableTaskMap]
+  )
+
+  const teamMetrics = useMemo(
+    () => computeTeamMetrics(medics, tests, certs, testableTaskMap, overdueItems),
+    [medics, tests, certs, testableTaskMap, overdueItems]
+  )
+
+  const computeTrendsForPeriod = useCallback(
+    (period: TrendPeriod, groupBy: 'week' | 'month', soldierId?: string) =>
+      computeTrends(tests, period, groupBy, soldierId),
+    [tests]
+  )
+
   return {
     loading: loading || medicsLoading,
     isSupervisor,
@@ -186,5 +206,9 @@ export function useSupervisorData(): SupervisorData {
     updateCert,
     removeTest,
     refreshData: fetchCertsAndTests,
+    competencyMatrix,
+    teamMetrics,
+    computeTrendsForPeriod,
+    testableTaskMap,
   }
 }
