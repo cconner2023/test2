@@ -58,6 +58,17 @@ export interface PropertyLocation {
   updated_at: string
 }
 
+/** Sentinel name for the invisible root location that hosts the top-level canvas. */
+export const ROOT_LOCATION_NAME = '__root__'
+
+/** A single rectangle within a composite zone shape, normalised 0..1 within the zone bounding box. */
+export interface ZoneRect {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
 export interface LocationTag {
   id: string
   location_id: string
@@ -68,6 +79,8 @@ export interface LocationTag {
   width?: number | null   // 0..1, null/undefined = point badge
   height?: number | null  // 0..1, null/undefined = point badge
   label: string
+  /** Composite shape rectangles (normalised within bounding box). null/undefined = simple rect. */
+  rects?: ZoneRect[] | null
 }
 
 export interface CustodyLedgerEntry {

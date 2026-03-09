@@ -5,6 +5,7 @@ import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
+import type { LocationEditActions } from './Property/PropertyLocationMap'
 import { UI_TIMING } from '../Utilities/constants'
 import { usePropertyStore } from '../stores/usePropertyStore'
 
@@ -14,7 +15,7 @@ interface PropertyDrawerProps {
 }
 
 export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
-    const { resetLocationPath, setDefaultLocationId, setEditingItem } = usePropertyStore()
+    const { selectZone, setDefaultLocationId, setEditingItem } = usePropertyStore()
     const [view, setView] = useState<PropertyView>('property')
     const [selectedPropertyItemName, setSelectedPropertyItemName] = useState<string | null>(null)
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
@@ -27,6 +28,9 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         onTransfer: () => void
         onDelete: () => void
     } | null>(null)
+
+    // Callbacks for canvas location edit/delete (set by PropertyLocationMap via PropertyPanel)
+    const [locationActions, setLocationActions] = useState<LocationEditActions | null>(null)
 
     const [isMobile, setIsMobile] = useState(() =>
         typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
@@ -85,9 +89,9 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         setSelectedPropertyItemName(null)
         setSlideDirection('')
         setMobileLocationView(false)
-        resetLocationPath()
+        selectZone(null)
         onClose()
-    }, [onClose, resetLocationPath])
+    }, [onClose, selectZone])
 
     const swipeHandlers = useSwipeBack(
         useMemo(() => {
@@ -107,15 +111,12 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                     <button onClick={onTransfer} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Transfer">
                         <ArrowRightLeft className="w-[18px] h-[18px]" />
                     </button>
-                    <div className="w-px h-5 bg-tertiary/15" />
                     <button onClick={onEdit} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Edit">
                         <Edit3 className="w-[18px] h-[18px]" />
                     </button>
-                    <div className="w-px h-5 bg-tertiary/15" />
                     <button onClick={onDelete} className="w-11 h-11 rounded-full flex items-center justify-center text-themeredred hover:text-themeredred/80 active:scale-95 transition-all duration-200" aria-label="Delete">
                         <Trash2 className="w-[18px] h-[18px]" />
                     </button>
-                    <div className="w-px h-5 bg-tertiary/15" />
                     <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
                         <X className="w-[18px] h-[18px]" />
                     </button>
@@ -154,7 +155,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 >
                     <Plus className="w-[18px] h-[18px]" />
                 </button>
-                <div className="w-px h-5 bg-tertiary/15" />
                 <button
                     onClick={() => addLocationTriggerRef.current?.()}
                     className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
@@ -162,7 +162,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                 >
                     <FolderPlus className="w-[18px] h-[18px]" />
                 </button>
-                <div className="w-px h-5 bg-tertiary/15" />
                 <button
                     onClick={handleClose}
                     className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
@@ -174,11 +173,48 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         )
     }, [isMobile, handleAddItem, handleClose, setDefaultLocationId, setEditingItem])
 
+    // Header actions for the canvas location view (edit/delete current location)
+    const locationHeaderActions = useMemo(() => {
+        if (!locationActions) return undefined
+        if (isMobile) {
+            return (
+                <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
+                    <button onClick={locationActions.onEdit} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Edit location">
+                        <Edit3 className="w-[18px] h-[18px]" />
+                    </button>
+                    <button onClick={locationActions.onDelete} className="w-11 h-11 rounded-full flex items-center justify-center text-themeredred hover:text-themeredred/80 active:scale-95 transition-all duration-200" aria-label="Delete location">
+                        <Trash2 className="w-[18px] h-[18px]" />
+                    </button>
+                    <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
+                        <X className="w-[18px] h-[18px]" />
+                    </button>
+                </div>
+            )
+        }
+        return (
+            <div className="flex items-center gap-1.5">
+                <button onClick={locationActions.onEdit} className="flex items-center gap-1.5 h-8 px-3 rounded-full border border-tertiary/20 text-xs font-medium text-primary hover:bg-secondary/5 transition-colors">
+                    <Edit3 size={16} /> Edit
+                </button>
+                <button onClick={locationActions.onDelete} className="flex items-center justify-center h-8 w-8 rounded-full border border-themeredred/20 text-themeredred hover:bg-themeredred/10 transition-colors">
+                    <Trash2 size={16} />
+                </button>
+            </div>
+        )
+    }, [locationActions, isMobile, handleClose])
+
     const headerConfig = useMemo(() => {
         switch (view) {
             case 'property':
                 if (isMobile && mobileLocationView) {
-                    return { title: 'Property Book', showBack: true, onBack: () => { resetLocationPath(); setMobileLocationView(false) } }
+                    // Show location edit/delete in header when drilling into a canvas location
+                    return {
+                        title: 'Property Book',
+                        showBack: true,
+                        onBack: () => { selectZone(null); setMobileLocationView(false) },
+                        rightContent: locationHeaderActions,
+                        hideDefaultClose: !!(isMobile && locationHeaderActions),
+                    }
                 }
                 return { title: 'Property Book', rightContent: mainHeaderActions, hideDefaultClose: !!mainHeaderActions }
             case 'property-detail':
@@ -188,7 +224,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             case 'property-form':
                 return { title: selectedPropertyItemName ? 'Edit Item' : 'Add Item', showBack: true, onBack: handleBack }
         }
-    }, [view, selectedPropertyItemName, handleBack, isMobile, mobileLocationView, detailHeaderActions, mainHeaderActions, resetLocationPath])
+    }, [view, selectedPropertyItemName, handleBack, isMobile, mobileLocationView, detailHeaderActions, mainHeaderActions, locationHeaderActions, selectZone])
 
     return (
         <BaseDrawer
@@ -213,6 +249,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onMobileLocationViewChange={setMobileLocationView}
                         onRegisterDetailActions={setDetailActions}
                         onRegisterAddLocation={(fn) => { addLocationTriggerRef.current = fn }}
+                        onRegisterLocationActions={setLocationActions}
                     />
                 </div>
             </ContentWrapper>

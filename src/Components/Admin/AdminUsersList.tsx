@@ -403,16 +403,10 @@ export function AdminUsersList({
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header: subtitle + create button */}
+      {/* Header: subtitle */}
       <div className="shrink-0 px-5 pt-4 pb-2 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center">
           <p className="text-sm text-tertiary/60">Manage user accounts</p>
-          <button
-            onClick={onCreateUser}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-themegreen text-white text-sm font-medium hover:bg-themegreen/90 transition-colors"
-          >
-            <UserPlus size={14} /> Create User
-          </button>
         </div>
 
         {/* Feedback banner */}

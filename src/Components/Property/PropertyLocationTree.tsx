@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, MapPin, Package, Layers, Edit3, Trash2, Eye } from 'lucide-react'
+import { ChevronRight, ChevronDown, MapPin, Package, Building2, Edit3, Trash2, Eye } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
 import { CardContextMenu } from '../CardContextMenu'
 import type { LocalPropertyLocation, LocalPropertyItem } from '../../Types/PropertyTypes'
@@ -8,6 +8,7 @@ import type { LocalPropertyLocation, LocalPropertyItem } from '../../Types/Prope
 interface PropertyLocationTreeProps {
   locations: LocalPropertyLocation[]
   items: LocalPropertyItem[]
+  clinicName?: string
   onSelectLocation: (location: LocalPropertyLocation) => void
   onSelectItem: (item: LocalPropertyItem) => void
   onMoveLocation?: (locationId: string, newParentId: string | null) => void
@@ -36,6 +37,7 @@ interface DragState {
 export function PropertyLocationTree({
   locations,
   items,
+  clinicName,
   onSelectLocation,
   onSelectItem,
   onMoveLocation,
@@ -365,8 +367,8 @@ export function PropertyLocationTree({
           onKeyDown={(e) => { if (e.key === 'Enter') onSelectAll() }}
         >
           <span className="w-[18px] shrink-0" />
-          <Layers size={16} className="text-themeblue3 shrink-0" />
-          <span className="text-[10pt] font-medium text-primary truncate">All Locations</span>
+          <Building2 size={16} className="text-themeblue3 shrink-0" />
+          <span className="text-[10pt] font-medium text-primary truncate">{clinicName || 'Clinic'}</span>
         </div>
       )}
 

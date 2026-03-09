@@ -261,7 +261,12 @@ export function AdminRequestsList() {
                       icon: Check,
                       iconBg: 'bg-themegreen/15',
                       iconColor: 'text-themegreen',
-                      onAction: () => setApprovingId(request.id),
+                      onAction: () => {
+                        setSelectedIds(new Set([request.id]))
+                        setApprovingId(request.id)
+                        setRejectingId(null)
+                        setOpenSwipeId(null)
+                      },
                     },
                     {
                       key: 'reject',
@@ -269,7 +274,12 @@ export function AdminRequestsList() {
                       icon: X,
                       iconBg: 'bg-themeredred/15',
                       iconColor: 'text-themeredred',
-                      onAction: () => { setRejectingId(request.id); setApprovingId(null) },
+                      onAction: () => {
+                        setSelectedIds(new Set([request.id]))
+                        setRejectingId(request.id)
+                        setApprovingId(null)
+                        setOpenSwipeId(null)
+                      },
                     },
                   ] : []}
                   onOpen={() => setOpenSwipeId(request.id)}
@@ -289,12 +299,13 @@ export function AdminRequestsList() {
                   } : undefined}
                 >
                   <div
-                    className={`rounded-xl border px-4 py-3.5 transition-colors ${
+                    className={`rounded-xl border px-4 py-3.5 transition-colors space-y-2 ${
                       isSelected
                         ? 'border-themeblue2/30 bg-themeblue2/5'
                         : 'border-tertiary/15 bg-themewhite2'
                     }`}
                   >
+                    {/* Row 1: Avatar/check + name + email + 1-letter badges */}
                     <div className="flex items-center gap-3">
                       {isSelected ? (
                         <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2">
@@ -307,79 +318,75 @@ export function AdminRequestsList() {
                       )}
 
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-[10pt] font-semibold text-primary truncate">
-                            {request.first_name}
-                            {request.middle_initial ? ` ${request.middle_initial}` : ''}{' '}
-                            {request.last_name}
-                          </span>
-                        </div>
-                        <p className="text-[10pt] text-tertiary/70 truncate mt-0.5">
-                          {request.email}
+                        <p className="text-sm font-semibold text-primary truncate">
+                          {request.rank ? `${request.rank} ` : ''}
+                          {request.first_name}
+                          {request.middle_initial ? ` ${request.middle_initial}` : ''}{' '}
+                          {request.last_name}
                         </p>
-                        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
                           {request.credential && (
-                            <span className="text-[10pt] text-primary/80">{request.credential}</span>
+                            <p className="text-[9pt] text-tertiary/50 truncate">{request.credential}</p>
                           )}
-                          {request.credential && request.rank && (
-                            <span className="text-tertiary/30">&middot;</span>
-                          )}
-                          {request.rank && (
-                            <span className="text-[10pt] text-primary/80">{request.rank}</span>
-                          )}
-                          {request.uic && (
-                            <>
-                              {(request.credential || request.rank) && (
-                                <span className="text-tertiary/30">&middot;</span>
-                              )}
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeyellow/10 text-themeyellow border-themeyellow/30">
-                                {request.uic}
-                              </span>
-                              {matchedClinic && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themegreen/10 text-themegreen border-themegreen/30">
-                                  <Building2 size={9} />
-                                  {matchedClinic.name}
-                                </span>
-                              )}
-                            </>
+                          {request.email && (
+                            <p className="text-[9pt] text-tertiary/50 truncate">{request.email}</p>
                           )}
                         </div>
                       </div>
 
-                      <div className="flex flex-col gap-1 items-end shrink-0">
-                        <span className={`px-2 py-0.5 rounded-full text-[9pt] font-medium border ${
+                      {/* Right: 1-letter type + status badges matching RoleBadge pattern */}
+                      <div className="flex flex-wrap gap-0.5 shrink-0 max-w-[48px] justify-end">
+                        <span className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold ${
                           request.request_type === 'profile_change'
-                            ? 'bg-themeblue2/10 text-themeblue2 border-themeblue2/30'
-                            : 'bg-themepurple/10 text-themepurple border-themepurple/30'
-                        }`}>
-                          {request.request_type === 'profile_change' ? 'CHANGE' : 'NEW'}
+                            ? 'bg-themeblue2/15 text-themeblue2'
+                            : 'bg-themepurple/15 text-themepurple'
+                        }`} title={request.request_type === 'profile_change' ? 'Profile Change' : 'New Account'}>
+                          {request.request_type === 'profile_change' ? 'C' : 'N'}
                         </span>
-                        <span className={`px-2 py-0.5 rounded-full text-[9pt] font-medium border ${getStatusColor(request.status)}`}>
-                          {request.status.toUpperCase()}
+                        <span className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold border ${getStatusColor(request.status)}`}
+                          title={request.status.charAt(0).toUpperCase() + request.status.slice(1)}>
+                          {request.status.charAt(0).toUpperCase()}
                         </span>
                       </div>
                     </div>
 
+                    {/* Row 2: UIC + matched clinic suggestion (prominent on card face) */}
+                    {request.uic && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
+                          {request.uic}
+                        </span>
+                        {matchedClinic ? (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themegreen/10 text-themegreen border-themegreen/30">
+                            <Building2 size={9} />
+                            {matchedClinic.name}
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeyellow/10 text-themeyellow border-themeyellow/30">
+                            <Building2 size={9} />
+                            No clinic match
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     {isSelected && !multiSelectMode && (
                       <div className="mt-3 pt-3 border-t border-tertiary/10 space-y-2">
-                        <div className="grid grid-cols-2 gap-2 text-[10pt]">
-                          {request.component && (
-                            <div>
-                              <span className="text-tertiary/60">Component:</span>{' '}
-                              <span className="text-primary font-medium">{request.component}</span>
-                            </div>
-                          )}
-                          <div>
-                            <span className="text-tertiary/60">UIC:</span>{' '}
-                            <span className="text-primary font-medium">{request.uic}</span>
+                        {/* Component / extra details */}
+                        {(request.component) && (
+                          <div className="text-[10pt]">
+                            {request.component && (
+                              <span className="text-tertiary/60">Component: <span className="text-primary font-medium">{request.component}</span></span>
+                            )}
                           </div>
-                        </div>
+                        )}
 
+                        {/* Clinic suggestion — expanded with location detail */}
                         {matchedClinic ? (
                           <div className="flex items-center gap-2 p-2 bg-themegreen/10 rounded-lg text-[10pt]">
                             <Building2 size={14} className="text-themegreen shrink-0" />
                             <div>
-                              <span className="text-themegreen font-medium">Recommended Clinic</span>
+                              <span className="text-themegreen font-medium">Suggested clinic for UIC {request.uic}</span>
                               <p className="text-themegreen/80 text-[9pt]">
                                 {matchedClinic.name}
                                 {matchedClinic.location ? ` — ${matchedClinic.location}` : ''}
@@ -390,7 +397,7 @@ export function AdminRequestsList() {
                           <div className="flex items-center gap-2 p-2 bg-themeyellow/10 rounded-lg text-[10pt]">
                             <Building2 size={14} className="text-themeyellow shrink-0" />
                             <span className="text-themeyellow/80">
-                              No clinic found for UIC {request.uic}
+                              No clinic found for UIC {request.uic} — assign manually after approval
                             </span>
                           </div>
                         ) : null}

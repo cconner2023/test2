@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { PropertyItem, PropertyLocation } from '../Types/PropertyTypes'
+import type { PropertyItem } from '../Types/PropertyTypes'
 
 interface PropertyState {
   // Item selection (view navigation is managed by parent Settings panel)
@@ -8,12 +8,13 @@ interface PropertyState {
   selectItem: (item: PropertyItem | null) => void
   setEditingItem: (item: PropertyItem | null) => void
 
-  // Location breadcrumb stack
-  locationPath: PropertyLocation[]
-  selectedLocation: PropertyLocation | null
-  pushLocation: (location: PropertyLocation) => void
-  popLocation: () => void
-  resetLocationPath: () => void
+  // Zone selection (which zone is selected/highlighted on the single root canvas)
+  selectedZoneId: string | null
+  selectZone: (zoneId: string | null) => void
+
+  // Root location id (invisible canvas host for top-level zones)
+  rootLocationId: string | null
+  setRootLocationId: (id: string | null) => void
 
   // Default location for new items (set when adding from a location view)
   defaultLocationId: string | null
@@ -31,23 +32,13 @@ export const usePropertyStore = create<PropertyState>((set) => ({
   selectItem: (item) => set({ selectedItem: item }),
   setEditingItem: (item) => set({ editingItem: item }),
 
-  // Location breadcrumb
-  locationPath: [],
-  selectedLocation: null,
-  pushLocation: (location) =>
-    set((state) => ({
-      locationPath: [...state.locationPath, location],
-      selectedLocation: location,
-    })),
-  popLocation: () =>
-    set((state) => {
-      const newPath = state.locationPath.slice(0, -1)
-      return {
-        locationPath: newPath,
-        selectedLocation: newPath[newPath.length - 1] ?? null,
-      }
-    }),
-  resetLocationPath: () => set({ locationPath: [], selectedLocation: null }),
+  // Zone selection
+  selectedZoneId: null,
+  selectZone: (zoneId) => set({ selectedZoneId: zoneId }),
+
+  // Root location
+  rootLocationId: null,
+  setRootLocationId: (id) => set({ rootLocationId: id }),
 
   // Default location
   defaultLocationId: null,

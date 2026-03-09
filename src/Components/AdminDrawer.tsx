@@ -177,7 +177,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         <button onClick={handleCreateUser} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New user">
                             <UserPlus className="w-5 h-5 stroke-current" />
                         </button>
-                        <div className="w-px h-5 bg-tertiary/15" />
                         <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
                             <X className="w-[18px] h-[18px]" />
                         </button>
@@ -191,7 +190,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         <button onClick={handleCreateClinic} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New clinic">
                             <Building2 className="w-5 h-5 stroke-current" />
                         </button>
-                        <div className="w-px h-5 bg-tertiary/15" />
                         <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
                             <X className="w-[18px] h-[18px]" />
                         </button>
@@ -205,11 +203,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         <button onClick={handleCreateUser} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New user">
                             <UserPlus className="w-5 h-5 stroke-current" />
                         </button>
-                        <div className="w-px h-5 bg-tertiary/15" />
                         <button onClick={handleCreateClinic} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="New clinic">
                             <Building2 className="w-5 h-5 stroke-current" />
                         </button>
-                        <div className="w-px h-5 bg-tertiary/15" />
                         <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
                             <X className="w-[18px] h-[18px]" />
                         </button>
@@ -258,7 +254,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         <button onClick={() => handleEditUser(selectedUser)} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Edit">
                             <Edit3 className="w-[18px] h-[18px]" />
                         </button>
-                        <div className="w-px h-5 bg-tertiary/15" />
                         <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
                             <X className="w-[18px] h-[18px]" />
                         </button>
@@ -279,11 +274,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         <button onClick={() => handleEditClinic(selectedClinic)} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Edit">
                             <Edit3 className="w-[18px] h-[18px]" />
                         </button>
-                        <div className="w-px h-5 bg-tertiary/15" />
                         <button onClick={() => setConfirmDeleteClinic(true)} className="w-11 h-11 rounded-full flex items-center justify-center text-themeredred hover:text-themeredred/80 active:scale-95 transition-all duration-200" aria-label="Delete">
                             <Trash2 className="w-[18px] h-[18px]" />
                         </button>
-                        <div className="w-px h-5 bg-tertiary/15" />
                         <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
                             <X className="w-[18px] h-[18px]" />
                         </button>

@@ -17,8 +17,12 @@ import { LoadingSpinner } from '../LoadingSpinner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { PropertyCSVImport } from './PropertyCSVImport'
 import { exportPropertyCSV, parsePropertyCSV, downloadCSVTemplate } from '../../Utilities/PropertyCSV'
+import { ensureRootLocation, fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
+import { useClinicName } from '../../Hooks/useClinicNameResolver'
 import type { ParsedRow } from '../../Utilities/PropertyCSV'
+import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
+import type { LocationEditActions } from './PropertyLocationMap'
 
 export type PropertyView = 'property' | 'property-detail' | 'property-form' | 'property-transfer'
 
@@ -41,13 +45,16 @@ interface PropertyPanelProps {
   onRegisterDetailActions?: (actions: DetailActions | null) => void
   /** Called once on mount with a function the drawer can invoke to open the new-location form */
   onRegisterAddLocation?: (trigger: () => void) => void
+  /** Called whenever the active canvas location changes with edit/delete handlers for the drawer header */
+  onRegisterLocationActions?: (actions: LocationEditActions | null) => void
 }
 
-export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation }: PropertyPanelProps) {
+export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onRegisterLocationActions }: PropertyPanelProps) {
   const { user } = useAuth()
   const property = useProperty()
   const showLoading = useMinLoadTime(property.isLoading)
   const store = usePropertyStore()
+  const clinicName = useClinicName(property.clinicId) || 'Clinic'
   const [holders, setHolders] = useState<Map<string, HolderInfo>>(new Map())
   const [clinicMembers, setClinicMembers] = useState<HolderInfo[]>([])
   const [filterQuery, setFilterQuery] = useState('')
@@ -95,6 +102,21 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
         setClinicMembers(members)
       })
   }, [property.clinicId])
+
+  // Ensure root location exists for top-level canvas
+  useEffect(() => {
+    if (!property.clinicId || !user?.id) return
+    ensureRootLocation(property.clinicId, user.id)
+      .then((root) => store.setRootLocationId(root.id))
+      .catch(() => { /* non-fatal: canvas just won't render at root */ })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [property.clinicId, user?.id])
+
+  // Locations visible to the user (hides the invisible root)
+  const visibleLocations = useMemo(
+    () => property.locations.filter((l) => l.name !== ROOT_LOCATION_NAME),
+    [property.locations],
+  )
 
   // Sub-item counts for list view
   const subItemCounts = useMemo(() => {
@@ -165,7 +187,15 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
   }, [store, onSelectItem])
 
   const handleTreeSelectLocation = useCallback((loc: LocalPropertyLocation) => {
-    store.pushLocation(loc)
+    store.selectZone(loc.id)
+    if (isMobile) {
+      onMobileLocationViewChange?.(true)
+    }
+  }, [store, isMobile, onMobileLocationViewChange])
+
+  // Clinic name tap → show root canvas zoomed out
+  const handleSelectAllLocations = useCallback(() => {
+    store.selectZone(null)
     if (isMobile) {
       onMobileLocationViewChange?.(true)
     }
@@ -191,7 +221,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
   const handleCreateLocation = useCallback(async () => {
     const trimmed = newLocationName.trim()
     if (!trimmed || !property.clinicId) return
-    await property.addLocation({
+    const result = await property.addLocation({
       clinic_id: property.clinicId,
       parent_id: null,
       name: trimmed,
@@ -200,16 +230,50 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     })
     setNewLocationName('')
     setShowNewLocation(false)
-  }, [newLocationName, property, user?.id])
+
+    // Auto-create a zone tag on the root canvas for this new location
+    const newLoc = result as { success?: boolean; location?: { id: string } } | undefined
+    const newLocId = newLoc?.location?.id
+    const canvasId = store.rootLocationId
+    if (newLocId && canvasId) {
+      try {
+        const existing = await fetchLocationTags(canvasId)
+        // Grid placement: 3 columns, ~30% wide, ~30% tall
+        const zoneCount = existing.filter(
+          (t) => t.width != null && t.height != null && t.width > 0 && t.height > 0,
+        ).length
+        const col = zoneCount % 3
+        const row = Math.floor(zoneCount / 3)
+        const zoneW = 0.28
+        const zoneH = 0.28
+        const zoneX = 0.04 + col * 0.32
+        const zoneY = 0.04 + row * 0.32
+        const newTag = {
+          location_id: canvasId,
+          target_type: 'location' as const,
+          target_id: newLocId,
+          x: zoneX,
+          y: zoneY,
+          width: zoneW,
+          height: zoneH,
+          label: trimmed,
+          rects: null,
+        }
+        await upsertLocationTags(canvasId, [
+          ...existing.map(({ id: _id, ...rest }) => rest),
+          newTag,
+        ])
+      } catch { /* non-fatal */ }
+    }
+  }, [newLocationName, property, user?.id, store.rootLocationId])
 
   const handleDesktopLocationSelect = useCallback((loc: LocalPropertyLocation) => {
     if (desktopLocationId === loc.id) {
       setDesktopLocationId(null)
-      store.resetLocationPath()
+      store.selectZone(null)
     } else {
       setDesktopLocationId(loc.id)
-      store.resetLocationPath()
-      store.pushLocation(loc)
+      store.selectZone(loc.id)
     }
   }, [desktopLocationId, store])
 
@@ -280,6 +344,13 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     setPendingDelete(null)
   }, [pendingDelete, property, store, onBack, clearSelection])
 
+  // Helper to navigate to add-item form from within the canvas, with location pre-set
+  const handleCanvasAddItem = useCallback(() => {
+    store.setDefaultLocationId(store.selectedZoneId ?? null)
+    store.setEditingItem(null)
+    onAddItem()
+  }, [store, onAddItem])
+
   if (showLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -327,7 +398,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
       <PropertyItemForm
         editingItem={store.editingItem}
         parentItems={property.items}
-        locations={property.locations}
+        locations={visibleLocations}
         clinicMembers={clinicMembers}
         onSave={property.addItem}
         onUpdate={property.editItem}
@@ -340,32 +411,24 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
     )
   }
 
-  // Desktop: show location map when a location is selected in sidebar
-  if (!isMobile && desktopLocationId) {
+  // Desktop: always show canvas (with zone highlighted if selected)
+  if (!isMobile) {
     return (
-      <div className="flex flex-col h-full relative">
+      <div className="flex flex-col h-full overflow-y-auto">
         <PropertyLocationMap
           locations={property.locations}
           items={property.items}
           clinicId={property.clinicId || ''}
+          clinicName={clinicName}
           onAddLocation={property.addLocation}
           onUpdateLocation={property.editLocation}
           onDeleteLocation={property.removeLocation}
           onSelectItem={handleSelectItem}
           onUnassignItem={(id) => property.editItem(id, { location_id: null })}
           userId={user?.id || ''}
+          onAddItem={handleCanvasAddItem}
+          onRegisterLocationActions={onRegisterLocationActions}
         />
-        <button
-          className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-themeblue3 text-white shadow-lg flex items-center justify-center hover:bg-themeblue3/90 transition-colors"
-          onClick={() => {
-            const path = store.locationPath
-            store.setDefaultLocationId(path[path.length - 1]?.id ?? null)
-            store.setEditingItem(null)
-            onAddItem()
-          }}
-        >
-          <Plus size={24} />
-        </button>
       </div>
     )
   }
@@ -373,29 +436,21 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
   // Mobile: location map view (back button is in the drawer header)
   if (isMobile && mobileLocationView) {
     return (
-      <div className="flex flex-col h-full relative">
+      <div className="flex flex-col h-full">
         <PropertyLocationMap
           locations={property.locations}
           items={property.items}
           clinicId={property.clinicId || ''}
+          clinicName={clinicName}
           onAddLocation={property.addLocation}
           onUpdateLocation={property.editLocation}
           onDeleteLocation={property.removeLocation}
           onSelectItem={handleSelectItem}
           onUnassignItem={(id) => property.editItem(id, { location_id: null })}
           userId={user?.id || ''}
+          onAddItem={handleCanvasAddItem}
+          onRegisterLocationActions={onRegisterLocationActions}
         />
-        <button
-          className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-themeblue3 text-white shadow-lg flex items-center justify-center hover:bg-themeblue3/90 transition-colors"
-          onClick={() => {
-            const path = store.locationPath
-            store.setDefaultLocationId(path[path.length - 1]?.id ?? null)
-            store.setEditingItem(null)
-            onAddItem()
-          }}
-        >
-          <Plus size={24} />
-        </button>
       </div>
     )
   }
@@ -448,7 +503,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
               <button
                 title="Export CSV"
                 className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
-                onClick={() => exportPropertyCSV(property.items, property.locations)}
+                onClick={() => exportPropertyCSV(property.items, visibleLocations)}
               >
                 <Download className="w-5 h-5 stroke-themeblue1" />
               </button>
@@ -516,12 +571,15 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
               </div>
             )}
             <PropertyLocationTree
-              locations={property.locations}
+              locations={visibleLocations}
               items={property.items}
+              clinicName={clinicName}
               onSelectLocation={handleTreeSelectLocation}
               onSelectItem={handleSelectItem}
               onMoveLocation={handleMoveLocation}
               onMoveItem={handleMoveItem}
+              onSelectAll={handleSelectAllLocations}
+              allSelected={false}
               onEditLocation={(loc) => { setRenamingLocation({ id: loc.id, name: loc.name }) }}
               onDeleteLocation={(locId) => property.removeLocation(locId)}
               onDeleteItem={(item) => setPendingDelete({ kind: 'single', item })}
@@ -644,7 +702,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
         <PropertyCSVImport
           rows={csvImport.rows}
           errors={csvImport.errors}
-          locations={property.locations}
+          locations={visibleLocations}
           clinicId={property.clinicId || ''}
           onImport={property.addItem}
           onClose={() => setCsvImport(null)}
@@ -751,14 +809,15 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
           )}
           <div className="flex-1 overflow-y-auto">
             <PropertyLocationTree
-              locations={property.locations}
+              locations={visibleLocations}
               items={property.items}
+              clinicName={clinicName}
               activeLocationId={desktopLocationId}
               onSelectLocation={handleDesktopLocationSelect}
               onSelectItem={handleSelectItem}
               onMoveLocation={handleMoveLocation}
               onMoveItem={handleMoveItem}
-              onSelectAll={() => { setDesktopLocationId(null); store.resetLocationPath() }}
+              onSelectAll={() => { setDesktopLocationId(null); store.selectZone(null) }}
               allSelected={!desktopLocationId}
               onEditLocation={(loc) => { setRenamingLocation({ id: loc.id, name: loc.name }) }}
               onDeleteLocation={(locId) => property.removeLocation(locId)}
@@ -767,11 +826,6 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
           </div>
         </div>
         <div className="flex-1 flex flex-col min-w-0 relative">
-          <div className="shrink-0 px-6 py-3 border-b border-primary/10">
-            <p className="text-[10pt] font-medium text-tertiary/70 uppercase tracking-wide">
-              {desktopLocationId ? (property.locations.find(l => l.id === desktopLocationId)?.name ?? 'Items') : 'All Items'}
-            </p>
-          </div>
           {renderViewContent()}
         </div>
       </div>

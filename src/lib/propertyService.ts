@@ -20,6 +20,9 @@ import {
   deleteLocalPropertyLocation,
   getLocalDiscrepancies,
   saveLocalDiscrepancy,
+  getLocalLocationTags,
+  saveLocalLocationTags,
+  deleteLocalTagsByTarget,
 } from './offlineDb'
 import { processSyncQueue, isOnline } from './syncService'
 import type {
@@ -335,7 +338,8 @@ export async function deleteLocation(
   try {
     await deleteLocalPropertyLocation(id)
 
-    // Remove tags on parent locations that reference this child as a zone
+    // Remove tags referencing this location from IndexedDB and Supabase
+    await deleteLocalTagsByTarget(id)
     if (isOnline()) {
       await supabase.from('location_tags').delete().eq('target_id', id).eq('target_type', 'location')
     }
@@ -355,47 +359,112 @@ export async function deleteLocation(
   }
 }
 
+// ── Root Location (invisible canvas host) ────────────────────
+
+import { ROOT_LOCATION_NAME } from '../Types/PropertyTypes'
+
+/**
+ * Ensure the invisible root location exists for the clinic.
+ * Returns the root location record (creates if needed).
+ */
+export async function ensureRootLocation(
+  clinicId: string,
+  userId: string,
+): Promise<LocalPropertyLocation> {
+  // Check local DB first
+  const locals = await getLocalPropertyLocations(clinicId)
+  const localRoot = locals.find((l) => l.name === ROOT_LOCATION_NAME && l.parent_id === null)
+  if (localRoot) return localRoot
+
+  // Check Supabase
+  if (isOnline()) {
+    try {
+      const { data } = await supabase
+        .from('property_locations')
+        .select('*')
+        .eq('clinic_id', clinicId)
+        .eq('name', ROOT_LOCATION_NAME)
+        .is('parent_id', null)
+        .limit(1)
+        .single()
+      if (data) {
+        const loc = localLocation(data as PropertyLocation, 'synced')
+        await saveLocalPropertyLocation(loc)
+        return loc
+      }
+    } catch { /* not found on server */ }
+  }
+
+  // Create the root location
+  const result = await createLocation(
+    { clinic_id: clinicId, parent_id: null, name: ROOT_LOCATION_NAME, photo_data: null, created_by: userId },
+    userId,
+  )
+  if (result.success) return result.location
+  throw new Error('Failed to create root location')
+}
+
 // ── Location Tags ────────────────────────────────────────────
 
 export async function fetchLocationTags(locationId: string): Promise<LocationTag[]> {
-  if (!isOnline()) return []
-  try {
-    const { data, error } = await supabase
-      .from('location_tags')
-      .select('*')
-      .eq('location_id', locationId)
-    if (error) throw error
-    return (data as LocationTag[]) ?? []
-  } catch (err) {
-    logger.warn('Failed to fetch location tags:', err)
-    return []
+  // IndexedDB is the source of truth for tags
+  const localTags = await getLocalLocationTags(locationId)
+  if (localTags.length > 0) return localTags
+
+  // No local data — seed from Supabase if available
+  if (isOnline()) {
+    try {
+      const { data, error } = await supabase
+        .from('location_tags')
+        .select('*')
+        .eq('location_id', locationId)
+      if (!error && data && data.length > 0) {
+        const serverTags = data as LocationTag[]
+        await saveLocalLocationTags(locationId, serverTags)
+        return serverTags
+      }
+    } catch (err) {
+      logger.warn('Failed to seed location tags from server:', err)
+    }
   }
+
+  return []
 }
 
 export async function upsertLocationTags(
   locationId: string,
   tags: Omit<LocationTag, 'id'>[],
 ): Promise<ServiceResult> {
-  if (!isOnline()) return fail('Tags require connectivity')
   try {
-    // Full replace: delete existing, insert new
-    await supabase.from('location_tags').delete().eq('location_id', locationId)
+    // Build full tag objects with IDs
+    const fullTags: LocationTag[] = tags.map((t) => ({
+      id: crypto.randomUUID(),
+      location_id: locationId,
+      target_type: t.target_type,
+      target_id: t.target_id,
+      x: t.x,
+      y: t.y,
+      width: t.width ?? null,
+      height: t.height ?? null,
+      label: t.label,
+      rects: t.rects ?? null,
+    }))
 
-    if (tags.length > 0) {
-      const rows = tags.map((t) => ({
-        id: crypto.randomUUID(),
-        location_id: locationId,
-        target_type: t.target_type,
-        target_id: t.target_id,
-        x: t.x,
-        y: t.y,
-        width: t.width ?? null,
-        height: t.height ?? null,
-        label: t.label,
-      }))
-      const { error } = await supabase.from('location_tags').insert(rows)
-      if (error) return fail(error.message)
+    // Always save to IndexedDB first (offline-first)
+    await saveLocalLocationTags(locationId, fullTags)
+
+    // If online, push to Supabase
+    if (isOnline()) {
+      await supabase.from('location_tags').delete().eq('location_id', locationId)
+      if (fullTags.length > 0) {
+        const { error } = await supabase.from('location_tags').insert(fullTags)
+        if (error) {
+          logger.warn('Failed to push tags to Supabase:', error.message)
+          return fail(error.message)
+        }
+      }
     }
+
     return succeed()
   } catch (err) {
     return fail(String(err))

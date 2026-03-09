@@ -110,25 +110,23 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                 <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
                     <button
                         onClick={handleShowContacts}
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                        className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
                         aria-label="New message"
                         title="New message"
                     >
                         <PenLine className="w-[18px] h-[18px]" />
                     </button>
-                    <div className="w-px h-5 bg-tertiary/15" />
                     <button
                         onClick={handleShowContacts}
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                        className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
                         aria-label="New group"
                         title="New group"
                     >
                         <Users className="w-[18px] h-[18px]" />
                     </button>
-                    <div className="w-px h-5 bg-tertiary/15" />
                     <button
                         onClick={handleClose}
-                        className="w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                        className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
                         aria-label="Close"
                         title="Close"
                     >

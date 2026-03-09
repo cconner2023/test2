@@ -21,7 +21,7 @@
  */
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { CompletionType, CompletionResult, Json } from '../Types/database.types'
-import type { LocalPropertyItem, LocalPropertyLocation, LocalDiscrepancy } from '../Types/PropertyTypes'
+import type { LocalPropertyItem, LocalPropertyLocation, LocalDiscrepancy, LocationTag } from '../Types/PropertyTypes'
 import { createLogger } from '../Utilities/Logger'
 import { encryptString, decryptString } from './secureStorage'
 
@@ -120,10 +120,17 @@ interface PackageBackEndDB extends DBSchema {
       'by-status': string
     }
   }
+  locationTags: {
+    key: string
+    value: LocationTag
+    indexes: {
+      'by-location': string
+    }
+  }
 }
 
 const DB_NAME = 'packagebackend-offline'
-const DB_VERSION = 4
+const DB_VERSION = 5
 
 let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 
@@ -207,6 +214,12 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
         discrepanciesStore.createIndex('by-responsible', 'responsible_holder_id')
         discrepanciesStore.createIndex('by-item', 'item_id')
         discrepanciesStore.createIndex('by-status', 'status')
+      }
+
+      // v4 → v5: Location tags store
+      if (oldVersion < 5) {
+        const tagsStore = db.createObjectStore('locationTags', { keyPath: 'id' })
+        tagsStore.createIndex('by-location', 'location_id')
       }
     },
   })
@@ -577,6 +590,56 @@ export async function deleteLocalPropertyLocation(locationId: string): Promise<v
 }
 
 // ============================================================
+// Location Tags Operations
+// ============================================================
+
+/**
+ * Get all local location tags for a given canvas location.
+ */
+export async function getLocalLocationTags(locationId: string): Promise<LocationTag[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('locationTags', 'by-location', locationId)
+}
+
+/**
+ * Full-replace all tags for a location in IndexedDB.
+ * Deletes existing tags for the location, then inserts the new set.
+ */
+export async function saveLocalLocationTags(locationId: string, tags: LocationTag[]): Promise<void> {
+  const db = await getDb()
+  const tx = db.transaction('locationTags', 'readwrite')
+  const store = tx.objectStore('locationTags')
+  // Delete existing tags for this location
+  const existing = await store.index('by-location').getAllKeys(locationId)
+  for (const key of existing) {
+    await store.delete(key)
+  }
+  // Insert new tags
+  for (const tag of tags) {
+    await store.put(tag)
+  }
+  await tx.done
+}
+
+/**
+ * Remove all local tags that reference a given target (e.g., a deleted location).
+ * Scans all tags and deletes those where target_id matches.
+ */
+export async function deleteLocalTagsByTarget(targetId: string): Promise<void> {
+  const db = await getDb()
+  const tx = db.transaction('locationTags', 'readwrite')
+  const store = tx.objectStore('locationTags')
+  let cursor = await store.openCursor()
+  while (cursor) {
+    if (cursor.value.target_id === targetId) {
+      await cursor.delete()
+    }
+    cursor = await cursor.continue()
+  }
+  await tx.done
+}
+
+// ============================================================
 // Property Discrepancies Operations
 // ============================================================
 
@@ -623,7 +686,7 @@ export async function deleteLocalDiscrepancy(discrepancyId: string): Promise<voi
 export async function clearAllUserData(): Promise<void> {
   const db = await getDb()
   const tx = db.transaction(
-    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies'],
+    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'locationTags'],
     'readwrite',
   )
   await tx.objectStore('syncQueue').clear()
@@ -631,6 +694,7 @@ export async function clearAllUserData(): Promise<void> {
   await tx.objectStore('propertyItems').clear()
   await tx.objectStore('propertyLocations').clear()
   await tx.objectStore('propertyDiscrepancies').clear()
+  await tx.objectStore('locationTags').clear()
   await tx.done
   logger.info('Cleared all user data from IndexedDB')
 }

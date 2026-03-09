@@ -2,7 +2,34 @@ import { useRef, useState, useCallback, useEffect } from 'react'
 import { useDrag } from '@use-gesture/react'
 import { MapPin, Package, ZoomIn, ZoomOut, X, GripHorizontal } from 'lucide-react'
 import { clamp } from '../../Utilities/GestureUtils'
-import type { LocationTag, LocalPropertyItem } from '../../Types/PropertyTypes'
+import type { LocationTag, LocalPropertyItem, ZoneRect } from '../../Types/PropertyTypes'
+
+/** Default rects for a simple rectangle zone */
+const FULL_RECT: ZoneRect[] = [{ x: 0, y: 0, w: 1, h: 1 }]
+
+/** Renders an invisible SVG with <clipPath> defs for each zone tag (composite shapes via rect union) */
+function ZoneClipDefs({ tags }: { tags: LocationTag[] }) {
+  const zoneTags = tags.filter(
+    (t) => t.width != null && t.height != null && t.width > 0 && t.height > 0,
+  )
+  if (zoneTags.length === 0) return null
+  return (
+    <svg width="0" height="0" style={{ position: 'absolute' }}>
+      <defs>
+        {zoneTags.map((tag) => {
+          const rects = tag.rects?.length ? tag.rects : FULL_RECT
+          return (
+            <clipPath key={tag.id} id={`zone-clip-${tag.id}`} clipPathUnits="objectBoundingBox">
+              {rects.map((r, i) => (
+                <rect key={i} x={r.x} y={r.y} width={r.w} height={r.h} />
+              ))}
+            </clipPath>
+          )
+        })}
+      </defs>
+    </svg>
+  )
+}
 
 /** Returns true if a tag should render as a zone rectangle rather than a point badge. */
 function isZoneTag(tag: LocationTag): boolean {
@@ -27,9 +54,13 @@ interface LocationTagPhotoProps {
   onPendingZoneNameChange?: (name: string) => void
   onPendingZoneConfirm?: () => void
   onPendingZoneCancel?: () => void
-  // Zone selection
+  // Zone selection (edit mode split/merge)
   selectedZoneIds?: Set<string>
   onZoneSelect?: (tagId: string) => void
+  // Zone highlight (browse mode — which zone is selected in the tree)
+  highlightedZoneId?: string | null
+  // Zoom target — zone rect to zoom into
+  zoomTarget?: { x: number; y: number; w: number; h: number } | null
 }
 
 export function LocationTagPhoto({
@@ -51,20 +82,62 @@ export function LocationTagPhoto({
   onPendingZoneCancel,
   selectedZoneIds,
   onZoneSelect,
+  highlightedZoneId,
+  zoomTarget,
 }: LocationTagPhotoProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const [zoom, setZoom] = useState(1)
 
-  // Center viewport scroll on zoom change and initial content load
+  // On initial content load, scroll viewport to top-left so content starts at (0,0).
+  // On zoom change only, re-center so content remains visible.
+  const prevZoomRef = useRef(zoom)
   useEffect(() => {
     const vp = viewportRef.current
     if (!vp) return
+    const zoomChanged = prevZoomRef.current !== zoom
+    prevZoomRef.current = zoom
     requestAnimationFrame(() => {
-      vp.scrollLeft = (vp.scrollWidth - vp.clientWidth) / 2
-      vp.scrollTop = (vp.scrollHeight - vp.clientHeight) / 2
+      if (zoomChanged) {
+        // Re-center so the visible area stays roughly in view
+        vp.scrollLeft = (vp.scrollWidth - vp.clientWidth) / 2
+        vp.scrollTop = (vp.scrollHeight - vp.clientHeight) / 2
+      } else {
+        // Initial load: scroll to top-left so shapes at (10,10) are visible
+        vp.scrollLeft = 0
+        vp.scrollTop = 0
+      }
     })
   }, [zoom, photoData])
+
+  // Zoom-to-zone: when a zone is selected, zoom in and scroll to center it
+  useEffect(() => {
+    const vp = viewportRef.current
+    if (!vp) return
+    if (zoomTarget) {
+      const newZoom = Math.min(
+        Math.max(Math.min(0.9 / zoomTarget.w, 0.9 / zoomTarget.h), 1),
+        3,
+      )
+      setZoom(newZoom)
+      requestAnimationFrame(() => {
+        const contentW = vp.scrollWidth
+        const contentH = vp.scrollHeight
+        const centerX = (zoomTarget.x + zoomTarget.w / 2) * contentW
+        const centerY = (zoomTarget.y + zoomTarget.h / 2) * contentH
+        vp.scrollTo({
+          left: centerX - vp.clientWidth / 2,
+          top: centerY - vp.clientHeight / 2,
+          behavior: 'smooth',
+        })
+      })
+    } else {
+      setZoom(1)
+      requestAnimationFrame(() => {
+        vp.scrollTo({ left: 0, top: 0, behavior: 'smooth' })
+      })
+    }
+  }, [zoomTarget])
 
   // Click-drag panning (mouse only; touch uses native overflow scroll)
   useEffect(() => {
@@ -144,6 +217,7 @@ export function LocationTagPhoto({
           className="relative select-none"
           style={{
             width: `${zoom * 100}%`,
+            transition: 'width 0.3s ease-out',
             touchAction: isEditMode || drawMode ? 'none' : 'auto',
           }}
         >
@@ -167,6 +241,9 @@ export function LocationTagPhoto({
             />
           )}
 
+          {/* SVG clip-path definitions for composite zone shapes */}
+          <ZoneClipDefs tags={tags} />
+
           {/* Render tags: zones first (below), then point badges (above) */}
           {tags.filter(isZoneTag).map((tag) =>
             isEditMode ? (
@@ -187,6 +264,8 @@ export function LocationTagPhoto({
                 tag={tag}
                 onTap={onTagTap}
                 items={items}
+                isHighlighted={!!highlightedZoneId && tag.target_id === highlightedZoneId}
+                hasSomeHighlight={!!highlightedZoneId}
               />
             )
           )}
@@ -348,26 +427,38 @@ function StaticZone({
   tag,
   onTap,
   items,
+  isHighlighted,
+  hasSomeHighlight,
 }: {
   tag: LocationTag
   onTap?: (tag: LocationTag) => void
   items?: LocalPropertyItem[]
+  isHighlighted?: boolean
+  hasSomeHighlight?: boolean
 }) {
   const w = tag.width!
   const h = tag.height!
   const isLargeZone = w > 0.15 && h > 0.15
+  const clipPath = `url(#zone-clip-${tag.id})`
 
   // Items assigned to the zone's linked sub-location
   const zoneItems = items?.filter((i) => i.location_id === tag.target_id) ?? []
 
   return (
     <button
-      className="absolute rounded-md bg-themeblue3/15 border border-themeblue3/40 hover:bg-themeblue3/25 transition-colors cursor-pointer overflow-hidden"
+      className={`absolute rounded-md transition-colors cursor-pointer overflow-hidden ${
+        isHighlighted
+          ? 'bg-themeblue3/30 border-2 border-themeblue3/70'
+          : hasSomeHighlight
+            ? 'bg-themeblue3/15 border border-themeblue3/40 opacity-50'
+            : 'bg-themeblue3/15 border border-themeblue3/40 hover:bg-themeblue3/25'
+      }`}
       style={{
         left: `${tag.x * 100}%`,
         top: `${tag.y * 100}%`,
         width: `${w * 100}%`,
         height: `${h * 100}%`,
+        clipPath,
       }}
       onClick={() => onTap?.(tag)}
     >
@@ -425,6 +516,7 @@ function DraggableZone({
   const w = tag.width!
   const h = tag.height!
   const isLargeZone = w > 0.15 && h > 0.15
+  const clipPath = `url(#zone-clip-${tag.id})`
   const zoneItems = items?.filter((i) => i.location_id === tag.target_id) ?? []
 
   // Move the entire zone body
@@ -491,59 +583,67 @@ function DraggableZone({
       ref={zoneRef}
       {...moveBind()}
       data-no-pan
-      className={`absolute rounded-md bg-themeblue3/15 border border-themeblue3/40 ring-2 ${
-        isSelected ? 'ring-amber-400' : 'ring-themeblue3/50'
-      } cursor-grab active:cursor-grabbing overflow-hidden`}
+      className={`absolute rounded-md cursor-grab active:cursor-grabbing overflow-visible transition-all duration-150 ${
+        isSelected
+          ? 'bg-amber-400/25 border-2 border-amber-400 ring-2 ring-amber-400/50 shadow-[0_0_8px_rgba(251,191,36,0.4)]'
+          : 'bg-themeblue3/15 border border-themeblue3/40 ring-2 ring-themeblue3/50'
+      }`}
       style={{
         left: `${tag.x * 100}%`,
         top: `${tag.y * 100}%`,
         width: `${w * 100}%`,
         height: `${h * 100}%`,
+        clipPath,
         touchAction: 'none',
       }}
       onClick={() => onSelect?.(tag.id)}
     >
-      {/* Label */}
-      <div className="absolute top-0.5 left-1 flex items-center gap-0.5 text-[10px] font-medium text-themeblue3 max-w-[70%]">
-        <MapPin size={9} className="shrink-0" />
-        <span className="truncate">{tag.label}</span>
+      {/* Inner clip wrapper — ensures content is also clipped */}
+      <div className="absolute inset-0 overflow-hidden rounded-md">
+        {/* Label */}
+        <div className="absolute top-0.5 left-1 flex items-center gap-0.5 text-[10px] font-medium text-themeblue3 max-w-[70%]">
+          <MapPin size={9} className="shrink-0" />
+          <span className="truncate">{tag.label}</span>
+        </div>
+
+        {/* Items inside zone */}
+        {zoneItems.length > 0 && (
+          isLargeZone ? (
+            <div className="absolute inset-0 top-4 p-1 flex flex-wrap gap-0.5 content-start overflow-hidden pointer-events-none">
+              {zoneItems.map((item) => (
+                <span
+                  key={item.id}
+                  className="px-1 py-0.5 rounded bg-black/60 text-white text-[9px] font-medium truncate max-w-full"
+                >
+                  {item.name}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <div className="absolute bottom-0.5 right-5 px-1.5 py-0.5 rounded-full bg-themeblue3/80 text-white text-[9px] font-medium pointer-events-none">
+              {zoneItems.length}
+            </div>
+          )
+        )}
       </div>
 
-      {/* Remove button */}
+      {/* Controls outside clip region — positioned relative to zone, overflow-visible */}
+      {/* Remove button — top-right outside */}
       {onRemove && (
         <button
-          className="absolute top-0.5 right-0.5 p-0.5 rounded-full bg-red-500/80 text-white hover:bg-red-600 transition-colors z-10"
+          className="absolute -top-2 -right-2 p-0.5 rounded-full bg-red-500/80 text-white hover:bg-red-600 transition-colors z-20"
+          style={{ clipPath: 'none' }}
           onClick={(e) => { e.stopPropagation(); onRemove(tag.id) }}
         >
           <X size={10} />
         </button>
       )}
 
-      {/* Items inside zone */}
-      {zoneItems.length > 0 && (
-        isLargeZone ? (
-          <div className="absolute inset-0 top-4 p-1 flex flex-wrap gap-0.5 content-start overflow-hidden pointer-events-none">
-            {zoneItems.map((item) => (
-              <span
-                key={item.id}
-                className="px-1 py-0.5 rounded bg-black/60 text-white text-[9px] font-medium truncate max-w-full"
-              >
-                {item.name}
-              </span>
-            ))}
-          </div>
-        ) : (
-          <div className="absolute bottom-0.5 right-5 px-1.5 py-0.5 rounded-full bg-themeblue3/80 text-white text-[9px] font-medium pointer-events-none">
-            {zoneItems.length}
-          </div>
-        )
-      )}
-
-      {/* Resize handle */}
+      {/* Resize handle — bottom-right, outside clip */}
       <div
         {...resizeBind()}
-        className="absolute bottom-0 right-0 w-4 h-4 flex items-center justify-center cursor-nwse-resize z-10"
-        style={{ touchAction: 'none' }}
+        className="absolute -bottom-1.5 -right-1.5 w-4 h-4 flex items-center justify-center cursor-nwse-resize z-10"
+        style={{ touchAction: 'none', clipPath: 'none' }}
         onClick={(e) => e.stopPropagation()}
       >
         <GripHorizontal size={10} className="text-themeblue3/70 rotate-[-45deg]" />

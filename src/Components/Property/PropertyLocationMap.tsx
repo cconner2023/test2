@@ -7,50 +7,71 @@ import { LocationBreadcrumb } from './LocationBreadcrumb'
 import { LocationTagPhoto } from './LocationTagPhoto'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { fetchLocationTags, upsertLocationTags, updateItem } from '../../lib/propertyService'
-import type { PropertyLocation, LocalPropertyLocation, LocationTag, LocalPropertyItem } from '../../Types/PropertyTypes'
+import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
+import type { PropertyLocation, LocalPropertyLocation, LocationTag, LocalPropertyItem, ZoneRect } from '../../Types/PropertyTypes'
+
+export interface LocationEditActions {
+  onEdit: () => void
+  onDelete: () => void
+}
 
 interface PropertyLocationMapProps {
   locations: LocalPropertyLocation[]
   items: LocalPropertyItem[]
   clinicId: string
+  clinicName: string
   onAddLocation: (data: Omit<PropertyLocation, 'id' | 'created_at' | 'updated_at'>) => Promise<unknown>
   onUpdateLocation: (id: string, updates: Partial<PropertyLocation>) => Promise<unknown>
   onDeleteLocation: (id: string) => Promise<unknown>
   onSelectItem: (item: LocalPropertyItem) => void
   onUnassignItem?: (itemId: string) => void
   userId: string
+  /** Called when the user taps the 'Add Item' icon in the canvas toolbar */
+  onAddItem?: () => void
+  /** Called whenever the active location changes, providing edit/delete actions for the drawer header */
+  onRegisterLocationActions?: (actions: LocationEditActions | null) => void
 }
 
 export function PropertyLocationMap({
   locations,
   items,
   clinicId,
+  clinicName,
   onAddLocation,
   onUpdateLocation,
   onDeleteLocation,
   onSelectItem,
   onUnassignItem,
   userId,
+  onAddItem,
+  onRegisterLocationActions,
 }: PropertyLocationMapProps) {
-  const { locationPath, pushLocation, popLocation, resetLocationPath } = usePropertyStore()
-  // Derive currentLocation from the fresh locations prop (not the stale store snapshot)
-  // so edits are reflected immediately after save + refresh
-  const currentLocationId = locationPath[locationPath.length - 1]?.id ?? null
-  const currentLocation = currentLocationId
-    ? locations.find((l) => l.id === currentLocationId) ?? null
+  const { selectedZoneId, selectZone, rootLocationId } = usePropertyStore()
+
+  // Canvas is always the root
+  const canvasLocationId = rootLocationId
+
+  // Derive the selected zone location from the store
+  const selectedZone = selectedZoneId
+    ? locations.find((l) => l.id === selectedZoneId) ?? null
     : null
 
   const [tags, setTags] = useState<LocationTag[]>([])
   const [isEditMode, setIsEditMode] = useState(false)
   const [isDrawMode, setIsDrawMode] = useState(false)
 
+  // Suppress the next locations.length-triggered refetch when we've already persisted tags locally
+  const suppressRefetchRef = useRef(false)
+
   // Zone creation state: after drawing a rectangle, prompt for a name
   const [pendingZone, setPendingZone] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
   const [zoneName, setZoneName] = useState('')
   // When drawing a zone for a specific existing sub-location
   const [drawForLocationId, setDrawForLocationId] = useState<string | null>(null)
+  // When splitting a zone, track the original location id so the new zone gets the same parent_id
+  const [splitOriginLocationId, setSplitOriginLocationId] = useState<string | null>(null)
 
-  // Edit/delete state
+  // Edit/delete state for selected zone
   const [isEditingCurrent, setIsEditingCurrent] = useState(false)
   const [editName, setEditName] = useState('')
   const [editPhotoData, setEditPhotoData] = useState<string | null>(null)
@@ -65,23 +86,31 @@ export function PropertyLocationMap({
   // Item tray state
   const [isTrayExpanded, setIsTrayExpanded] = useState(true)
 
-  // Child locations of current level
-  const childLocations = useMemo(() => {
-    const parentId = currentLocation?.id ?? null
-    return locations.filter((l) => l.parent_id === parentId)
-  }, [locations, currentLocation])
-
-  // Items assigned to this location and which ones are already tagged on canvas
+  // Items assigned to the selected zone
   const assignedItems = useMemo(() => {
-    if (!currentLocation) return []
-    return items.filter((i) => i.location_id === currentLocation.id)
-  }, [items, currentLocation])
+    if (!selectedZoneId) return []
+    return items.filter((i) => i.location_id === selectedZoneId)
+  }, [items, selectedZoneId])
 
-  // Items for all child sub-locations (for zone density display)
+  // All non-root locations (for cards + zone density display)
+  const allLocations = useMemo(() => {
+    return locations.filter((l) => l.name !== ROOT_LOCATION_NAME)
+  }, [locations])
+
+  // Visible location cards — scoped to current selection level
+  const visibleLocations = useMemo(() => {
+    if (selectedZoneId) {
+      // Show children of the selected zone
+      return allLocations.filter((l) => l.parent_id === selectedZoneId)
+    }
+    // No selection — show root-level zones
+    return allLocations.filter((l) => l.parent_id === null)
+  }, [allLocations, selectedZoneId])
+
   const childLocationItems = useMemo(() => {
-    const childIds = new Set(childLocations.map((l) => l.id))
-    return items.filter((i) => i.location_id && childIds.has(i.location_id))
-  }, [items, childLocations])
+    const allIds = new Set(allLocations.map((l) => l.id))
+    return items.filter((i) => i.location_id && allIds.has(i.location_id))
+  }, [items, allLocations])
 
   const taggedItemIds = useMemo(() => {
     return new Set(tags.filter((t) => t.target_type === 'item').map((t) => t.target_id))
@@ -91,38 +120,31 @@ export function PropertyLocationMap({
     return new Set(tags.filter((t) => t.target_type === 'location').map((t) => t.target_id))
   }, [tags])
 
-  // Items assigned to this location but NOT placed on the canvas
+  // Items assigned to selected zone but NOT placed on the canvas
   const unplacedItems = useMemo(() => {
     return assignedItems.filter((i) => !taggedItemIds.has(i.id))
   }, [assignedItems, taggedItemIds])
 
-  // Load tags for current location; auto-create baseline self-zone if none exist
+  // Derive zoom target from tags + selectedZoneId
+  const zoomTarget = useMemo(() => {
+    if (!selectedZoneId) return null
+    const tag = tags.find((t) => t.target_type === 'location' && t.target_id === selectedZoneId)
+    if (!tag || !tag.width || !tag.height) return null
+    return { x: tag.x, y: tag.y, w: tag.width, h: tag.height }
+  }, [selectedZoneId, tags])
+
+  // Load tags for root canvas
   useEffect(() => {
-    if (!currentLocation?.id) { setTags([]); return }
-    setIsTrayExpanded(false)
-    fetchLocationTags(currentLocation.id).then((fetched) => {
-      const hasZones = fetched.some(
-        (t) => t.width != null && t.height != null && t.width > 0 && t.height > 0,
-      )
-      if (!hasZones) {
-        // Baseline self-zone: 90% of canvas, centered
-        const selfZone: LocationTag = {
-          id: crypto.randomUUID(),
-          location_id: currentLocation.id,
-          target_type: 'location',
-          target_id: currentLocation.id,
-          x: 0.05,
-          y: 0.05,
-          width: 0.9,
-          height: 0.9,
-          label: currentLocation.name,
-        }
-        setTags([...fetched, selfZone])
-      } else {
-        setTags(fetched)
-      }
+    if (!canvasLocationId) { setTags([]); return }
+    if (suppressRefetchRef.current) {
+      suppressRefetchRef.current = false
+      return
+    }
+    fetchLocationTags(canvasLocationId).then((fetched) => {
+      setTags(fetched)
     })
-  }, [currentLocation?.id, currentLocation?.name])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasLocationId, locations.length])
 
   // Exit draw mode and clear selection when edit mode is turned off
   useEffect(() => {
@@ -134,22 +156,15 @@ export function PropertyLocationMap({
     }
   }, [isEditMode])
 
-  const handleBreadcrumbTap = useCallback((index: number) => {
-    const popsNeeded = locationPath.length - 1 - index
-    for (let i = 0; i < popsNeeded; i++) popLocation()
-  }, [locationPath, popLocation])
-
   const handleTagTap = useCallback((tag: LocationTag) => {
     if (tag.target_type === 'location') {
-      // Self-zone: target_id === currentLocation — don't navigate
-      if (tag.target_id === currentLocation?.id) return
-      const loc = locations.find((l) => l.id === tag.target_id)
-      if (loc) pushLocation(loc)
+      // Toggle zone selection
+      selectZone(selectedZoneId === tag.target_id ? null : tag.target_id)
     } else {
       const item = items.find((i) => i.id === tag.target_id)
       if (item) onSelectItem(item)
     }
-  }, [locations, items, pushLocation, onSelectItem, currentLocation])
+  }, [items, selectZone, onSelectItem, selectedZoneId])
 
   const handleTagDrag = useCallback((tagId: string, x: number, y: number) => {
     setTags((prev) => prev.map((t) => t.id === tagId ? { ...t, x, y } : t))
@@ -170,26 +185,27 @@ export function PropertyLocationMap({
   }, [isEditMode])
 
   const handleSaveTags = useCallback(async () => {
-    if (!currentLocation) return
+    if (!canvasLocationId) return
     await upsertLocationTags(
-      currentLocation.id,
+      canvasLocationId,
       tags.map(({ id, ...rest }) => rest),
     )
     setIsEditMode(false)
     setIsDrawMode(false)
     setSelectedZoneIds(new Set())
-  }, [currentLocation, tags])
+  }, [canvasLocationId, tags])
 
   // ── Zone drawing ──────────────────────────────────────────
 
-  const handleZoneDrawn = useCallback((x: number, y: number, w: number, h: number) => {
+  const handleZoneDrawn = useCallback(async (x: number, y: number, w: number, h: number) => {
+    if (!canvasLocationId) return
     if (drawForLocationId) {
       // Drawing a zone for an existing sub-location
       const loc = locations.find((l) => l.id === drawForLocationId)
       if (loc) {
         const newTag: LocationTag = {
           id: crypto.randomUUID(),
-          location_id: currentLocation!.id,
+          location_id: canvasLocationId,
           target_type: 'location',
           target_id: loc.id,
           x, y,
@@ -197,7 +213,13 @@ export function PropertyLocationMap({
           height: h,
           label: loc.name,
         }
-        setTags((prev) => [...prev, newTag])
+        const updatedTags = [...tags, newTag]
+        setTags(updatedTags)
+        // Persist immediately
+        await upsertLocationTags(
+          canvasLocationId,
+          updatedTags.map(({ id: _id, ...rest }) => rest),
+        )
       }
       setDrawForLocationId(null)
       setIsDrawMode(false)
@@ -207,14 +229,24 @@ export function PropertyLocationMap({
       setZoneName('')
       setIsDrawMode(false)
     }
-  }, [drawForLocationId, locations, currentLocation])
+  }, [drawForLocationId, locations, canvasLocationId, tags])
 
   const handleConfirmZoneName = useCallback(async () => {
-    if (!pendingZone || !currentLocation || !zoneName.trim()) return
+    if (!pendingZone || !canvasLocationId || !zoneName.trim()) return
+    // When splitting, the new zone should be at the same hierarchy level as the original
+    let parentId: string | null
+    if (splitOriginLocationId) {
+      const originLoc = locations.find((l) => l.id === splitOriginLocationId)
+      parentId = originLoc?.parent_id ?? null
+    } else {
+      parentId = selectedZoneId ?? null
+    }
+    // Suppress the tag refetch that fires when locations.length changes — we persist tags ourselves
+    suppressRefetchRef.current = true
     // Create the sub-location
     const result = await onAddLocation({
       clinic_id: clinicId,
-      parent_id: currentLocation.id,
+      parent_id: parentId,
       name: zoneName.trim(),
       photo_data: null,
       created_by: userId,
@@ -225,7 +257,7 @@ export function PropertyLocationMap({
     if (newLocId) {
       const newTag: LocationTag = {
         id: crypto.randomUUID(),
-        location_id: currentLocation.id,
+        location_id: canvasLocationId,
         target_type: 'location',
         target_id: newLocId,
         x: pendingZone.x,
@@ -234,17 +266,25 @@ export function PropertyLocationMap({
         height: pendingZone.h,
         label: zoneName.trim(),
       }
-      setTags((prev) => [...prev, newTag])
+      const updatedTags = [...tags, newTag]
+      setTags(updatedTags)
+      // Persist immediately so tags survive the locations.length refetch
+      await upsertLocationTags(
+        canvasLocationId,
+        updatedTags.map(({ id: _id, ...rest }) => rest),
+      )
     }
     setPendingZone(null)
     setZoneName('')
+    setSplitOriginLocationId(null)
     if (!isEditMode) setIsEditMode(true)
-  }, [pendingZone, currentLocation, zoneName, clinicId, userId, onAddLocation, isEditMode])
+  }, [pendingZone, canvasLocationId, selectedZoneId, splitOriginLocationId, locations, zoneName, clinicId, userId, onAddLocation, isEditMode, tags])
 
   const handleCancelZone = useCallback(() => {
     setPendingZone(null)
     setZoneName('')
     setDrawForLocationId(null)
+    setSplitOriginLocationId(null)
   }, [])
 
   // Start drawing a zone for a specific existing sub-location
@@ -274,17 +314,24 @@ export function PropertyLocationMap({
     })
   }, [isEditMode])
 
-  const handleSplit = useCallback(() => {
+  const handleSplit = useCallback(async () => {
     const selectedId = [...selectedZoneIds][0]
-    if (!selectedId || !currentLocation) return
+    if (!selectedId || !canvasLocationId) return
     const tag = tags.find((t) => t.id === selectedId)
     if (!tag || !tag.width || !tag.height) return
 
     const halfW = tag.width / 2
-    // Shrink the original zone to the left half
-    setTags((prev) =>
-      prev.map((t) => t.id === tag.id ? { ...t, width: halfW } : t),
+    const simpleRect: ZoneRect[] = [{ x: 0, y: 0, w: 1, h: 1 }]
+    // Shrink the original zone to the left half, reset to simple rectangle
+    const shrunkTags = tags.map((t) => t.id === tag.id ? { ...t, width: halfW, rects: simpleRect } : t)
+    setTags(shrunkTags)
+    // Persist the shrunk original immediately so it survives any refetch
+    await upsertLocationTags(
+      canvasLocationId,
+      shrunkTags.map(({ id: _id, ...rest }) => rest),
     )
+    // Track the original zone's location so the new split zone gets the same parent_id
+    setSplitOriginLocationId(tag.target_id)
     // Set up pending zone for the right half
     setPendingZone({
       x: tag.x + halfW,
@@ -295,7 +342,7 @@ export function PropertyLocationMap({
     setZoneName('')
     setSelectedZoneIds(new Set())
     if (!isEditMode) setIsEditMode(true)
-  }, [selectedZoneIds, tags, currentLocation, isEditMode])
+  }, [selectedZoneIds, tags, canvasLocationId, isEditMode])
 
   const handleMergeRequest = useCallback(() => {
     const ids = [...selectedZoneIds]
@@ -307,37 +354,74 @@ export function PropertyLocationMap({
   }, [selectedZoneIds, tags])
 
   const handleMergeConfirm = useCallback(async () => {
-    if (!mergeConfirm) return
+    if (!mergeConfirm || !canvasLocationId) return
     const { tagA, tagB } = mergeConfirm
+
     const aW = tagA.width ?? 0
     const aH = tagA.height ?? 0
     const bW = tagB.width ?? 0
     const bH = tagB.height ?? 0
 
-    // Compute bounding box
-    const x = Math.min(tagA.x, tagB.x)
-    const y = Math.min(tagA.y, tagB.y)
-    const w = Math.max(tagA.x + aW, tagB.x + bW) - x
-    const h = Math.max(tagA.y + aH, tagB.y + bH) - y
+    // Compute new bounding box encompassing both zones
+    const newX = Math.min(tagA.x, tagB.x)
+    const newY = Math.min(tagA.y, tagB.y)
+    const newW = Math.max(tagA.x + aW, tagB.x + bW) - newX
+    const newH = Math.max(tagA.y + aH, tagB.y + bH) - newY
 
-    // Update tag A with bounding box, remove tag B
-    setTags((prev) =>
-      prev
-        .map((t) => t.id === tagA.id ? { ...t, x, y, width: w, height: h } : t)
-        .filter((t) => t.id !== tagB.id),
+    // Rescale each zone's rects into the new bounding-box coordinate space
+    const rectsA = tagA.rects?.length ? tagA.rects : [{ x: 0, y: 0, w: 1, h: 1 }]
+    const rectsB = tagB.rects?.length ? tagB.rects : [{ x: 0, y: 0, w: 1, h: 1 }]
+
+    const rescale = (rects: ZoneRect[], tagX: number, tagY: number, tagW: number, tagH: number): ZoneRect[] =>
+      rects.map((r) => ({
+        x: newW > 0 ? ((tagX + r.x * tagW) - newX) / newW : 0,
+        y: newH > 0 ? ((tagY + r.y * tagH) - newY) / newH : 0,
+        w: newW > 0 ? (r.w * tagW) / newW : 1,
+        h: newH > 0 ? (r.h * tagH) / newH : 1,
+      }))
+
+    const compositeRects = [
+      ...rescale(rectsA, tagA.x, tagA.y, aW, aH),
+      ...rescale(rectsB, tagB.x, tagB.y, bW, bH),
+    ]
+
+    // Build the merged tags array: expand tag A with composite shape, remove tag B
+    const mergedTags = tags
+      .map((t) => t.id === tagA.id ? { ...t, x: newX, y: newY, width: newW, height: newH, rects: compositeRects } : t)
+      .filter((t) => t.id !== tagB.id)
+
+    // Update local state AND persist to DB so the merge survives refetches
+    setTags(mergedTags)
+    await upsertLocationTags(
+      canvasLocationId,
+      mergedTags.map(({ id: _id, ...rest }) => rest),
     )
 
-    // Reassign items from B's location to A's location
+    // Suppress the tag refetch that fires when locations.length changes — tags are already persisted
+    suppressRefetchRef.current = true
+
+    // Reassign items and sub-locations from B's location to A's location,
+    // then delete B's location to remove it from the roster/grid entirely.
     if (tagB.target_id && tagA.target_id && tagB.target_id !== tagA.target_id) {
+      // Move all items assigned to B's location into A's location
       const itemsToMove = items.filter((i) => i.location_id === tagB.target_id)
       for (const item of itemsToMove) {
         await updateItem(item.id, { location_id: tagA.target_id }, userId)
+      }
+      // Reparent any child locations of B to A
+      const childrenOfB = locations.filter((l) => l.parent_id === tagB.target_id)
+      for (const child of childrenOfB) {
+        await onUpdateLocation(child.id, { parent_id: tagA.target_id })
+      }
+      // Delete the merged location so it is removed from the grid/roster
+      if (tagB.target_type === 'location') {
+        await onDeleteLocation(tagB.target_id)
       }
     }
 
     setMergeConfirm(null)
     setSelectedZoneIds(new Set())
-  }, [mergeConfirm, items, userId])
+  }, [mergeConfirm, canvasLocationId, tags, items, locations, userId, onUpdateLocation, onDeleteLocation])
 
   const handleDuplicate = useCallback(() => {
     const selectedId = [...selectedZoneIds][0]
@@ -360,13 +444,13 @@ export function PropertyLocationMap({
   // ── Existing tag management ───────────────────────────────
 
   const handleAddItemTag = useCallback((item: LocalPropertyItem) => {
-    if (tags.some((t) => t.target_type === 'item' && t.target_id === item.id)) return
+    if (!canvasLocationId || tags.some((t) => t.target_type === 'item' && t.target_id === item.id)) return
     const existingCount = tags.length
     const col = existingCount % 3
     const row = Math.floor(existingCount / 3)
     const newTag: LocationTag = {
       id: crypto.randomUUID(),
-      location_id: currentLocation!.id,
+      location_id: canvasLocationId,
       target_type: 'item',
       target_id: item.id,
       x: clamp(0.2 + col * 0.3, 0, 0.85),
@@ -375,52 +459,41 @@ export function PropertyLocationMap({
     }
     setTags((prev) => [...prev, newTag])
     if (!isEditMode) setIsEditMode(true)
-  }, [tags, currentLocation, isEditMode])
+  }, [tags, canvasLocationId, isEditMode])
 
   const handleRemoveItemTag = useCallback((itemId: string) => {
     setTags((prev) => prev.filter((t) => !(t.target_type === 'item' && t.target_id === itemId)))
     if (!isEditMode) setIsEditMode(true)
   }, [isEditMode])
 
-  const handleAddLocationTag = useCallback((loc: LocalPropertyLocation) => {
-    if (tags.some((t) => t.target_type === 'location' && t.target_id === loc.id)) return
-    const existingCount = tags.length
-    const col = existingCount % 3
-    const row = Math.floor(existingCount / 3)
-    const newTag: LocationTag = {
-      id: crypto.randomUUID(),
-      location_id: currentLocation!.id,
-      target_type: 'location',
-      target_id: loc.id,
-      x: clamp(0.2 + col * 0.3, 0, 0.85),
-      y: clamp(0.2 + row * 0.15, 0, 0.85),
-      label: loc.name,
-    }
-    setTags((prev) => [...prev, newTag])
-    if (!isEditMode) setIsEditMode(true)
-  }, [tags, currentLocation, isEditMode])
-
-  const handleRemoveLocationTag = useCallback((locId: string) => {
-    setTags((prev) => prev.filter((t) => !(t.target_type === 'location' && t.target_id === locId)))
-    if (!isEditMode) setIsEditMode(true)
-  }, [isEditMode])
-
-
   const handleStartEditCurrent = useCallback(() => {
-    if (!currentLocation) return
-    setEditName(currentLocation.name)
-    setEditPhotoData(currentLocation.photo_data ?? null)
+    if (!selectedZone) return
+    setEditName(selectedZone.name)
+    setEditPhotoData(selectedZone.photo_data ?? null)
     setIsEditingCurrent(true)
-  }, [currentLocation])
+  }, [selectedZone])
+
+  // Register location edit/delete actions for the drawer header whenever selected zone changes.
+  useEffect(() => {
+    if (!onRegisterLocationActions) return
+    if (selectedZone && !isEditingCurrent) {
+      onRegisterLocationActions({
+        onEdit: handleStartEditCurrent,
+        onDelete: () => setConfirmDeleteId(selectedZone.id),
+      })
+    } else {
+      onRegisterLocationActions(null)
+    }
+  }, [selectedZone?.id, isEditingCurrent, onRegisterLocationActions, handleStartEditCurrent])
 
   const handleSaveEditCurrent = useCallback(async () => {
-    if (!currentLocation || !editName.trim()) return
-    await onUpdateLocation(currentLocation.id, {
+    if (!selectedZone || !editName.trim()) return
+    await onUpdateLocation(selectedZone.id, {
       name: editName.trim(),
       photo_data: editPhotoData,
     })
     setIsEditingCurrent(false)
-  }, [currentLocation, editName, editPhotoData, onUpdateLocation])
+  }, [selectedZone, editName, editPhotoData, onUpdateLocation])
 
   const handleEditPhotoSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -435,69 +508,38 @@ export function PropertyLocationMap({
   const handleDeleteLocation = useCallback(async (id: string) => {
     // Remove tags referencing this location from the current canvas
     const updatedTags = tags.filter(t => !(t.target_type === 'location' && t.target_id === id))
-    if (updatedTags.length !== tags.length && currentLocation) {
+    if (updatedTags.length !== tags.length && canvasLocationId) {
       setTags(updatedTags)
       await upsertLocationTags(
-        currentLocation.id,
+        canvasLocationId,
         updatedTags.map(({ id: _id, ...rest }) => rest),
       )
     }
+    // Suppress the tag refetch — tags are already persisted above
+    suppressRefetchRef.current = true
     await onDeleteLocation(id)
     setConfirmDeleteId(null)
     setOverflowMenuId(null)
-    if (currentLocation?.id === id) {
-      popLocation()
+    if (selectedZoneId === id) {
+      selectZone(null)
     }
-  }, [onDeleteLocation, currentLocation, popLocation, tags])
-
-  // Edit a child location (inline rename via overflow menu)
-  const [editingChildId, setEditingChildId] = useState<string | null>(null)
-  const [editingChildName, setEditingChildName] = useState('')
-
-  const handleStartEditChild = useCallback((loc: LocalPropertyLocation) => {
-    setEditingChildId(loc.id)
-    setEditingChildName(loc.name)
-    setOverflowMenuId(null)
-  }, [])
-
-  const handleSaveEditChild = useCallback(async () => {
-    if (!editingChildId || !editingChildName.trim()) return
-    await onUpdateLocation(editingChildId, { name: editingChildName.trim() })
-    setEditingChildId(null)
-    setEditingChildName('')
-  }, [editingChildId, editingChildName, onUpdateLocation])
+  }, [onDeleteLocation, selectedZoneId, canvasLocationId, selectZone, tags])
 
   return (
     <div className="flex flex-col">
       {/* Breadcrumb */}
       <LocationBreadcrumb
-        path={locationPath}
-        onTapSegment={handleBreadcrumbTap}
-        onTapRoot={resetLocationPath}
-        rightContent={currentLocation && !isEditingCurrent ? (
-          <div className="rounded-full border border-tertiary/20 flex items-center p-0.5 bg-themewhite">
-            <button
-              className="w-11 h-11 rounded-full flex items-center justify-center text-primary hover:bg-secondary/10 transition-colors"
-              onClick={handleStartEditCurrent}
-            >
-              <Edit3 size={16} />
-            </button>
-            <button
-              className="w-11 h-11 rounded-full flex items-center justify-center text-themeredred hover:bg-red-50 transition-colors"
-              onClick={() => setConfirmDeleteId(currentLocation.id)}
-            >
-              <Trash2 size={16} />
-            </button>
-          </div>
-        ) : undefined}
+        clinicName={clinicName}
+        selectedZoneName={selectedZone?.name}
+        onTapRoot={() => selectZone(null)}
       />
 
-      {/* Current location photo/canvas with tags */}
-      {currentLocation && (
+      {/* Canvas with tags — always shows root canvas */}
+      {canvasLocationId && (
         <div className="px-6 mb-3">
           <div className="relative">
             <LocationTagPhoto
-              photoData={currentLocation.photo_data}
+              photoData={null}
               tags={tags}
               isEditMode={isEditMode && !isDrawMode}
               onTagTap={handleTagTap}
@@ -515,8 +557,20 @@ export function PropertyLocationMap({
               onPendingZoneCancel={handleCancelZone}
               selectedZoneIds={selectedZoneIds}
               onZoneSelect={handleZoneSelect}
+              highlightedZoneId={selectedZoneId}
+              zoomTarget={zoomTarget}
             />
             <div className="absolute top-2 right-2 flex gap-1 z-10">
+              {/* Add item icon — visible when a zone is selected */}
+              {onAddItem && selectedZoneId && (
+                <button
+                  className="p-1.5 rounded-full bg-black/50 text-white shadow-md hover:bg-themeblue3/90 transition-colors"
+                  onClick={onAddItem}
+                  title="Add item to this location"
+                >
+                  <Plus size={16} />
+                </button>
+              )}
               {/* Zone action icons (shown when zones are selected in edit mode) */}
               {isEditMode && selectedZoneIds.size > 0 && (
                 <>
@@ -589,8 +643,8 @@ export function PropertyLocationMap({
         </div>
       )}
 
-      {/* Assigned items tray */}
-      {currentLocation && assignedItems.length > 0 && (
+      {/* Assigned items tray — shown when a zone is selected */}
+      {selectedZoneId && assignedItems.length > 0 && (
         <div className="px-6 mb-3">
           <div className="rounded-lg border border-tertiary/10 overflow-hidden">
             {/* Summary bar */}
@@ -666,8 +720,8 @@ export function PropertyLocationMap({
         </div>
       )}
 
-      {/* Inline edit form for current location */}
-      {currentLocation && isEditingCurrent && (
+      {/* Inline edit form for selected zone */}
+      {selectedZone && isEditingCurrent && (
         <div className="px-6 mb-3 space-y-2">
           <input
             type="text"
@@ -733,84 +787,97 @@ export function PropertyLocationMap({
       />
 
       {/* Child locations as cards */}
-      {childLocations.length > 0 && (
+      {visibleLocations.length > 0 && (
         <div className="px-6 mb-3">
           <h3 className="text-xs font-medium text-tertiary uppercase tracking-wide mb-2">
-            {currentLocation ? 'Sub-locations' : 'Locations'}
+            {selectedZone ? 'Sub-locations' : 'Locations'}
           </h3>
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            {childLocations.map((loc) => (
-              <div key={loc.id} className="shrink-0 w-28 relative">
-                {/* Inline rename for child */}
-                {editingChildId === loc.id ? (
-                  <div className="rounded-lg border border-themeblue3/30 overflow-hidden p-1.5 space-y-1">
-                    <input
-                      type="text"
-                      value={editingChildName}
-                      onChange={(e) => setEditingChildName(e.target.value)}
-                      className="w-full px-2 py-1 text-xs rounded border border-tertiary/20 bg-themewhite text-primary focus:outline-none focus:border-themeblue3/50"
-                      autoFocus
-                      onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEditChild(); if (e.key === 'Escape') setEditingChildId(null) }}
-                    />
-                    <div className="flex gap-1">
-                      <button className="flex-1 py-1 rounded bg-themeblue3 text-white text-[10px] font-medium" onClick={handleSaveEditChild}>Save</button>
-                      <button className="py-1 px-2 rounded border border-tertiary/20 text-[10px] text-tertiary" onClick={() => setEditingChildId(null)}>X</button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    className="w-full rounded-lg border border-tertiary/10 overflow-hidden hover:border-themeblue3/30 transition-colors"
-                    onClick={() => pushLocation(loc)}
-                  >
-                    {loc.photo_data ? (
-                      <img src={loc.photo_data} alt={loc.name} className="w-full h-20 object-cover" />
-                    ) : (
-                      <div className="w-full h-20 bg-secondary/5 flex items-center justify-center">
-                        <Camera size={20} className="text-tertiary" />
+          <div className="flex flex-wrap gap-2 max-h-[280px] overflow-y-auto pb-2">
+            {visibleLocations.map((loc) => {
+                const isOnCanvas = taggedLocationIds.has(loc.id)
+                const locItems = items.filter((i) => i.location_id === loc.id)
+                const isActive = selectedZoneId === loc.id
+                return (
+                  <div key={loc.id} className="shrink-0 w-28 relative">
+                    <button
+                      className={`w-full rounded-lg border overflow-hidden transition-colors ${
+                        isActive
+                          ? 'border-themeblue3/50 bg-themeblue3/5 ring-1 ring-themeblue3/30'
+                          : isOnCanvas
+                            ? 'border-tertiary/10 hover:border-themeblue3/30'
+                            : 'border-amber-300/60 bg-amber-50/40 hover:border-amber-400/70'
+                      }`}
+                      onClick={() => selectZone(isActive ? null : loc.id)}
+                    >
+                      {loc.photo_data ? (
+                        <img src={loc.photo_data} alt={loc.name} className="w-full h-20 object-cover" />
+                      ) : (
+                        <div className={`w-full h-20 flex items-center justify-center ${isOnCanvas ? 'bg-secondary/5' : 'bg-amber-50/60'}`}>
+                          <Camera size={20} className={isOnCanvas ? 'text-tertiary' : 'text-amber-500/70'} />
+                        </div>
+                      )}
+                      <div className="px-2 py-1.5">
+                        <span className="text-xs font-medium text-primary truncate block">{loc.name}</span>
+                        {locItems.length > 0 && (
+                          <span className="inline-block text-[9px] px-1 py-0.5 rounded bg-tertiary/10 text-tertiary font-medium mt-0.5">
+                            {locItems.length} item{locItems.length !== 1 ? 's' : ''}
+                          </span>
+                        )}
+                        {!isOnCanvas && (
+                          <span className="inline-block text-[9px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-medium mt-0.5">
+                            no zone
+                          </span>
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Overflow menu trigger */}
+                    <button
+                      className="absolute top-1 right-1 p-0.5 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
+                      onClick={(e) => { e.stopPropagation(); setOverflowMenuId(overflowMenuId === loc.id ? null : loc.id) }}
+                    >
+                      <MoreVertical size={16} />
+                    </button>
+
+                    {/* Place on canvas button for zoneless sub-locations */}
+                    {!isOnCanvas && isEditMode && (
+                      <button
+                        className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-0.5 px-2 py-0.5 rounded-full bg-themeblue3 text-white text-[9px] font-medium shadow hover:bg-themeblue3/90 transition-colors whitespace-nowrap"
+                        onClick={(e) => { e.stopPropagation(); handleDrawZoneForLocation(loc) }}
+                        title="Draw zone on canvas"
+                      >
+                        <Plus size={10} /> Zone
+                      </button>
+                    )}
+
+                    {/* Overflow dropdown */}
+                    {overflowMenuId === loc.id && (
+                      <div className="absolute top-7 right-1 z-10 bg-themewhite2 rounded-lg shadow-lg border border-tertiary/10 overflow-hidden min-w-[100px]">
+                        {!isOnCanvas && (
+                          <button
+                            className="w-full flex items-center gap-2 px-3 py-2 text-xs text-themeblue3 hover:bg-themeblue3/5"
+                            onClick={(e) => { e.stopPropagation(); handleDrawZoneForLocation(loc); setOverflowMenuId(null) }}
+                          >
+                            <Plus size={16} /> Draw Zone
+                          </button>
+                        )}
+                        <button
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50"
+                          onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(loc.id); setOverflowMenuId(null) }}
+                        >
+                          <Trash2 size={16} /> Delete
+                        </button>
                       </div>
                     )}
-                    <div className="px-2 py-1.5">
-                      <span className="text-xs font-medium text-primary truncate block">{loc.name}</span>
-                    </div>
-                  </button>
-                )}
-
-                {/* Overflow menu trigger */}
-                {editingChildId !== loc.id && (
-                  <button
-                    className="absolute top-1 right-1 p-0.5 rounded-full bg-black/40 text-white hover:bg-black/60 transition-colors"
-                    onClick={(e) => { e.stopPropagation(); setOverflowMenuId(overflowMenuId === loc.id ? null : loc.id) }}
-                  >
-                    <MoreVertical size={16} />
-                  </button>
-                )}
-
-                {/* Overflow dropdown */}
-                {overflowMenuId === loc.id && (
-                  <div className="absolute top-7 right-1 z-10 bg-themewhite2 rounded-lg shadow-lg border border-tertiary/10 overflow-hidden min-w-[100px]">
-                    <button
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-primary hover:bg-secondary/5"
-                      onClick={(e) => { e.stopPropagation(); handleStartEditChild(loc) }}
-                    >
-                      <Edit3 size={16} /> Rename
-                    </button>
-                    <button
-                      className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50"
-                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(loc.id); setOverflowMenuId(null) }}
-                    >
-                      <Trash2 size={16} /> Delete
-                    </button>
                   </div>
-                )}
-              </div>
-            ))}
+                )
+              })}
           </div>
         </div>
       )}
 
-
       {/* Unplaced items as cards */}
-      {currentLocation && unplacedItems.length > 0 && (
+      {selectedZoneId && unplacedItems.length > 0 && (
         <div className="px-6 mb-3">
           <h3 className="text-xs font-medium text-tertiary uppercase tracking-wide mb-2">
             Unplaced Items
@@ -837,7 +904,7 @@ export function PropertyLocationMap({
         </div>
       )}
 
-      {childLocations.length === 0 && !currentLocation && (
+      {allLocations.length === 0 && !canvasLocationId && (
         <div className="px-6 py-8 text-center text-sm text-tertiary">
           No locations yet. Add your first location above.
         </div>
