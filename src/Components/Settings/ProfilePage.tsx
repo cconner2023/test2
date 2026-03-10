@@ -127,7 +127,7 @@ export const ProfilePage = ({
                         <button
                             key={item.panel}
                             onClick={() => onNavigate(item.panel)}
-                            className="flex items-center w-full px-5 py-3.5 hover:bg-themewhite2 active:scale-[0.98]
+                            className="flex items-center w-full px-5 py-3.5 hover:bg-themewhite2 active:scale-95
                                        transition-all rounded-xl group"
                         >
                             <div className="mr-4 text-tertiary/60 group-hover:scale-110 transition-transform">
@@ -150,14 +150,14 @@ export const ProfilePage = ({
                                 <div className="flex items-center gap-2">
                                     <button
                                         onClick={onSignOut}
-                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-themeredred/10 text-themeredred text-sm font-medium active:scale-[0.98] transition-all"
+                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-themeredred/10 text-themeredred text-sm font-medium active:scale-95 transition-all"
                                     >
                                         <LogOut size={16} />
                                         Confirm Sign Out
                                     </button>
                                     <button
                                         onClick={() => setConfirmSignOut(false)}
-                                        className="px-4 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary text-sm font-medium active:scale-[0.98] transition-all"
+                                        className="px-4 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary text-sm font-medium active:scale-95 transition-all"
                                     >
                                         Cancel
                                     </button>
@@ -166,7 +166,7 @@ export const ProfilePage = ({
                         ) : (
                             <button
                                 onClick={deviceRole === 'primary' ? () => setConfirmSignOut(true) : onSignOut}
-                                className="flex items-center w-full px-5 py-3.5 hover:bg-themeredred/5 active:scale-[0.98]
+                                className="flex items-center w-full px-5 py-3.5 hover:bg-themeredred/5 active:scale-95
                                            transition-all rounded-xl group mt-2"
                             >
                                 <div className="mr-4 text-themeredred group-hover:scale-110 transition-transform">
@@ -185,7 +185,7 @@ export const ProfilePage = ({
                             {deletePhase === 'idle' ? (
                                 <button
                                     onClick={() => { setDeletePhase('confirm'); setDeleteError(''); setConfirmText(''); }}
-                                    className="flex items-center w-full px-5 py-3.5 hover:bg-themeredred/5 active:scale-[0.98]
+                                    className="flex items-center w-full px-5 py-3.5 hover:bg-themeredred/5 active:scale-95
                                                transition-all rounded-xl group mt-1"
                                 >
                                     <div className="mr-4 text-themeredred/60 group-hover:scale-110 transition-transform">
@@ -221,7 +221,7 @@ export const ProfilePage = ({
                                             />
                                             <button
                                                 onClick={resetDelete}
-                                                className="mt-4 px-6 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary text-sm font-medium active:scale-[0.98] transition-all"
+                                                className="mt-4 px-6 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary text-sm font-medium active:scale-95 transition-all"
                                             >
                                                 Cancel
                                             </button>
@@ -250,7 +250,7 @@ export const ProfilePage = ({
                                                     onClick={handleTypedConfirm}
                                                     disabled={confirmText !== 'DELETE'}
                                                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-themeredred
-                                                               text-white text-sm font-medium active:scale-[0.98] transition-all disabled:opacity-30"
+                                                               text-white text-sm font-medium active:scale-95 transition-all disabled:opacity-30"
                                                 >
                                                     <Trash2 size={16} />
                                                     Delete Account
@@ -258,7 +258,7 @@ export const ProfilePage = ({
                                                 <button
                                                     onClick={resetDelete}
                                                     className="px-4 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary
-                                                               text-sm font-medium active:scale-[0.98] transition-all"
+                                                               text-sm font-medium active:scale-95 transition-all"
                                                 >
                                                     Cancel
                                                 </button>

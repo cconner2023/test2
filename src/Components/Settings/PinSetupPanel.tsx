@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Lock, KeyRound, ScanFace, Timer, Activity, Smartphone, ChevronRight } from 'lucide-react'
-import { StatusBanner } from './StatusBanner'
+import { ErrorDisplay } from '../ErrorDisplay'
 import { ToggleSwitch } from './ToggleSwitch'
 import { PinKeypad } from '../PinKeypad'
 import { UI_TIMING } from '../../Utilities/constants'
@@ -196,11 +196,11 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
           </p>
 
           {success && (
-            <StatusBanner type="success" message={success} className="" />
+            <ErrorDisplay type="success" message={success} />
           )}
 
           {error && (
-            <StatusBanner type="error" message={error} className="" />
+            <ErrorDisplay type="error" message={error} />
           )}
 
           {/* App Lock */}
@@ -266,7 +266,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
                 <button
                   onClick={() => { resetState(); setPendingAction('change'); setView('verify-current') }}
                   className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-tertiary/15 bg-themewhite
-                             hover:bg-themewhite/80 active:scale-[0.98] transition-all text-left"
+                             hover:bg-themewhite/80 active:scale-95 transition-all text-left"
                 >
                   <KeyRound size={16} className="text-themeblue2" />
                   <span className="text-sm font-medium text-themeblue2">Change PIN</span>
@@ -344,7 +344,7 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
           {/* Sessions & Devices — nested under Security */}
           {onNavigateToDevices && (
             <div
-              className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-tertiary/15 bg-themewhite2 cursor-pointer active:scale-[0.98] transition-all"
+              className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-tertiary/15 bg-themewhite2 cursor-pointer active:scale-95 transition-all"
               onClick={onNavigateToDevices}
               role="button"
               tabIndex={0}

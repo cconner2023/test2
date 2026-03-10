@@ -15,7 +15,7 @@ const INITIAL_PW_UNLOCKED_KEY = 'adtmc_initial_pw_unlocked'
 /** Full-screen loading overlay matching the HTML splash style */
 function LoadingScreen() {
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-themewhite dark:bg-[rgba(25,35,45,1)]">
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-themewhite dark:bg-themewhite3">
       <LoadingSpinner size="lg" className="text-[rgba(0,66,92,1)]" />
       <div className="mt-4 font-semibold text-lg tracking-[2px] text-[rgba(0,66,92,1)] dark:text-[rgba(129,161,181,1)]">
         ADTMC

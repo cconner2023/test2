@@ -6,7 +6,7 @@ import { useAuth } from '../../Hooks/useAuth'
 import { isDevUser } from '../../lib/adminService'
 import { isMessageSoundsEnabled, setMessageSoundsEnabled } from '../../lib/soundService'
 import { ToggleSwitch } from './ToggleSwitch'
-import { StatusBanner } from './StatusBanner'
+import { ErrorDisplay } from '../ErrorDisplay'
 import { UI_TIMING } from '../../Utilities/constants'
 
 export const NotificationSettingsPanel = () => {
@@ -90,12 +90,12 @@ export const NotificationSettingsPanel = () => {
 
         {/* Success banner */}
         {success && (
-          <StatusBanner type="success" message={success} />
+          <ErrorDisplay type="success" message={success} />
         )}
 
         {/* Error banner */}
         {(error || pushError) && (
-          <StatusBanner type="error" message={error || pushError || ''} />
+          <ErrorDisplay type="error" message={error || pushError || ''} />
         )}
 
         {/* Not supported */}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { LogIn } from 'lucide-react'
 import { signIn } from '../../lib/authService'
+import { ErrorDisplay } from '../ErrorDisplay'
 
 interface LoginPanelProps {
   onSuccess: () => void
@@ -38,14 +39,7 @@ export const LoginPanel = ({
     <div className={variant === 'panel' ? 'h-full overflow-y-auto' : ''}>
       <div className={variant === 'panel' ? 'px-4 py-3 md:p-5' : 'p-6'}>
 
-        {error && (
-          <div className={`mb-4 p-3 text-sm ${variant === 'modal'
-            ? 'rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred'
-            : 'text-themeredred'
-            }`}>
-            {error}
-          </div>
-        )}
+        {error && <ErrorDisplay message={error} />}
 
         {/* ── Primary: username / password ── */}
         <form onSubmit={handlePasswordLogin} className="space-y-4">
@@ -86,7 +80,7 @@ export const LoginPanel = ({
             disabled={loading}
             className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
                      text-white font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors
-                     ${variant === 'modal' ? 'bg-themeblue2 hover:bg-themeblue2/90' : 'bg-themeblue3 hover:bg-themeblue2/90'}`}
+                     ${variant === 'modal' ? 'bg-themeblue3 hover:bg-themeblue3/90' : 'bg-themeblue3 hover:bg-themeblue3/90'}`}
           >
             <LogIn size={18} />
             {loading ? 'Signing In...' : 'Sign In'}

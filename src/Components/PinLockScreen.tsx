@@ -111,7 +111,7 @@ export const PinLockScreen = ({ onUnlock }: PinLockScreenProps) => {
       <button
         onClick={handlePasswordUnlock}
         disabled={!passwordInput}
-        className="w-full py-3 rounded-lg bg-themeblue2 text-white text-sm font-medium disabled:opacity-40"
+        className="w-full py-3 rounded-lg bg-themeblue3 text-white text-sm font-medium disabled:opacity-40"
       >
         Unlock
       </button>

@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { verifyPasswordLocally, storePasswordHash } from '../lib/authService'
 import { deriveAndStoreBackupKey } from '../lib/signal/backupService'
 import { PasswordInput } from './FormInputs'
-import { ErrorMessage } from './ErrorMessage'
+import { ErrorDisplay } from './ErrorDisplay'
 
 interface PasswordLockScreenProps {
   onUnlock: () => void
@@ -172,7 +172,7 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
         </div>
 
         {/* Error */}
-        <ErrorMessage error={error} />
+        <ErrorDisplay message={error} centered />
 
         {/* Lockout */}
         {isLockedOut && (
@@ -203,8 +203,8 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
           <button
             type="submit"
             disabled={!password.trim() || submitting || isLockedOut}
-            className="w-full px-4 py-3 rounded-lg bg-themeblue2 text-white font-medium
-                       hover:bg-themeblue2/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
+                       hover:bg-themeblue3/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? 'Verifying...' : 'Unlock'}
           </button>

@@ -4,6 +4,7 @@ import { useDrag } from '@use-gesture/react';
 import { X, ChevronLeft } from 'lucide-react';
 import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils';
 import { DRAWER_TIMING } from '../Utilities/constants';
+import { useIsMobile } from '../Hooks/useIsMobile';
 
 /** Render prop type: children can receive handleClose for animated close */
 type DrawerRenderProp = (handleClose: () => void) => ReactNode;
@@ -132,17 +133,7 @@ export function BaseDrawer({
     const [isMounted, setIsMounted] = useState(false);
     const [desktopOpen, setDesktopOpen] = useState(false);
 
-    // Detect mobile viewport — single source of truth for layout mode
-    const [isMobile, setIsMobile] = useState(() =>
-        typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
-    );
-
-    useEffect(() => {
-        const mql = window.matchMedia('(max-width: 767px)');
-        const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-        mql.addEventListener('change', handler);
-        return () => mql.removeEventListener('change', handler);
-    }, []);
+    const isMobile = useIsMobile();
 
     const useMobileLayout = mobileOnly || isMobile;
 

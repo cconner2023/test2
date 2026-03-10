@@ -1,21 +1,16 @@
-import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react'
 import './App.css'
 import { NavTop } from './Components/NavTop'
 import { SearchResults } from './Components/SearchResults'
-import { NoteImport } from './Components/NoteImport'
 import { ThemeProvider, useTheme } from './Utilities/ThemeContext'
 import { AvatarProvider } from './Utilities/AvatarContext'
 import { AlgorithmPage } from './Components/AlgorithmPage'
-import { WriteNotePage } from './Components/WriteNotePage'
 import type { SearchResultType } from './Types/CatTypes'
 import { useSearch } from './Hooks/useSearch'
 import { useNavigation } from './Hooks/useNavigation'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
 import UpdateNotification from './Components/UpdateNotification'
 import InstallPrompt from './Components/InstallPrompt'
-import { Settings } from './Components/Settings'
-import { SymptomInfoDrawer } from './Components/SymptomInfoDrawer'
-import { KnowledgeBaseDrawer } from './Components/KnowledgeBaseDrawer'
 import { ColumnA } from './Components/ColumnA'
 import { TC3DesktopLayout } from './Components/TC3/TC3DesktopLayout'
 import { TC3MobileWizard } from './Components/TC3/TC3MobileWizard'
@@ -23,12 +18,6 @@ import { TC3MobileWizard } from './Components/TC3/TC3MobileWizard'
 import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useAuth } from './Hooks/useAuth'
 import { useAuthStore } from './stores/useAuthStore'
-import { TrainingDrawer } from './Components/TrainingDrawer'
-import { MessagesDrawer } from './Components/MessagesDrawer'
-import { PropertyDrawer } from './Components/PropertyDrawer'
-import { AdminDrawer } from './Components/AdminDrawer'
-import { SupervisorDrawer } from './Components/SupervisorDrawer'
-import { getTaskData } from './Data/TrainingData'
 import { LockGate } from './Components/LockGate'
 import { ErrorBoundary } from './Components/ErrorBoundary'
 import { MessagesProvider, useMessagesContext } from './Hooks/MessagesContext'
@@ -36,6 +25,18 @@ import { CallProvider } from './Hooks/CallContext'
 import { CallOverlay } from './Components/Settings/CallOverlay'
 import { MessageNotificationToast } from './Components/MessageNotificationToast'
 import type { MessageNotification } from './Hooks/useMessageNotifications'
+
+// ── Lazy-loaded drawers/panels (code-split into separate chunks) ──
+const Settings = lazy(() => import('./Components/Settings').then(m => ({ default: m.Settings })))
+const KnowledgeBaseDrawer = lazy(() => import('./Components/KnowledgeBaseDrawer').then(m => ({ default: m.KnowledgeBaseDrawer })))
+const TrainingDrawer = lazy(() => import('./Components/TrainingDrawer').then(m => ({ default: m.TrainingDrawer })))
+const MessagesDrawer = lazy(() => import('./Components/MessagesDrawer').then(m => ({ default: m.MessagesDrawer })))
+const PropertyDrawer = lazy(() => import('./Components/PropertyDrawer').then(m => ({ default: m.PropertyDrawer })))
+const AdminDrawer = lazy(() => import('./Components/AdminDrawer').then(m => ({ default: m.AdminDrawer })))
+const SupervisorDrawer = lazy(() => import('./Components/SupervisorDrawer').then(m => ({ default: m.SupervisorDrawer })))
+const WriteNotePage = lazy(() => import('./Components/WriteNotePage').then(m => ({ default: m.WriteNotePage })))
+const SymptomInfoDrawer = lazy(() => import('./Components/SymptomInfoDrawer').then(m => ({ default: m.SymptomInfoDrawer })))
+const NoteImport = lazy(() => import('./Components/NoteImport').then(m => ({ default: m.NoteImport })))
 
 // PWA App Shortcut: capture ?view= URL parameter once at module load time
 const _initialViewParam = (() => {
@@ -212,7 +213,11 @@ function AppContent() {
 
       if (result.data.guidelineType === 'stp' || result.data.guidelineType === 'medcom') {
         const taskId = result.icon
-        if (taskId && getTaskData(taskId)) openTrainingForTask(taskId)
+        if (taskId) {
+          import('./Data/TrainingData').then(({ getTaskData }) => {
+            if (getTaskData(taskId)) openTrainingForTask(taskId)
+          })
+        }
         search.clearSearch()
         return
       }
@@ -382,14 +387,17 @@ function AppContent() {
           />
         )}
         <ErrorBoundary>
+        <Suspense fallback={null}>
         <NoteImport
           isVisible={navigation.showNoteImport}
           onClose={() => navigation.setShowNoteImport(false)}
           initialViewState={importInitialView}
           isMobile={navigation.isMobile}
         />
+        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
+        <Suspense fallback={null}>
         <Settings
           isVisible={navigation.showSettings}
           onClose={() => { navigation.setShowSettings(false); resetSettingsPanel() }}
@@ -399,8 +407,10 @@ function AppContent() {
           onOpenAdmin={handleAdminClick}
           onOpenSupervisor={handleSupervisorClick}
         />
+        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
+        <Suspense fallback={null}>
         <KnowledgeBaseDrawer
           isVisible={navigation.showKnowledgeBase}
           onClose={() => navigation.setShowKnowledgeBase(false)}
@@ -408,8 +418,10 @@ function AppContent() {
           initialTaskId={initialTrainingTaskId}
           initialMedication={navigation.kbInitialMedication}
         />
+        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
+        <Suspense fallback={null}>
         <SymptomInfoDrawer
           isVisible={navigation.showSymptomInfo}
           onClose={() => navigation.setShowSymptomInfo(false)}
@@ -417,15 +429,19 @@ function AppContent() {
           selectedCategory={navigation.selectedCategory}
           onNavigate={handleNavigationClick}
         />
+        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
+        <Suspense fallback={null}>
         <TrainingDrawer
           isVisible={navigation.showTrainingDrawer}
           onClose={() => navigation.setShowTrainingDrawer(null)}
           taskId={navigation.trainingDrawerTaskId}
         />
+        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
+        <Suspense fallback={null}>
         <MessagesDrawer
           isVisible={navigation.showMessagesDrawer}
           onClose={() => { navigation.setShowMessagesDrawer(false); setInitialPeerId(null); setInitialGroupId(null); setInitialPeerName(null) }}
@@ -433,28 +449,36 @@ function AppContent() {
           initialGroupId={initialGroupId}
           initialPeerName={initialPeerName}
         />
+        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
+        <Suspense fallback={null}>
         <PropertyDrawer
           isVisible={navigation.showPropertyDrawer}
           onClose={() => navigation.setShowPropertyDrawer(false)}
         />
+        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
+        <Suspense fallback={null}>
         <AdminDrawer
           isVisible={navigation.showAdminDrawer}
           onClose={() => navigation.setShowAdminDrawer(false)}
         />
+        </Suspense>
         </ErrorBoundary>
         <ErrorBoundary>
+        <Suspense fallback={null}>
         <SupervisorDrawer
           isVisible={navigation.showSupervisorDrawer}
           onClose={() => navigation.setShowSupervisorDrawer(false)}
         />
+        </Suspense>
         </ErrorBoundary>
         {/* WriteNotePage — BaseDrawer handles mobile/desktop positioning */}
         {navigation.writeNoteData && (
           <ErrorBoundary>
+          <Suspense fallback={null}>
           <WriteNotePage
             isVisible={navigation.isWriteNoteVisible}
             disposition={navigation.writeNoteData.disposition}
@@ -465,6 +489,7 @@ function AppContent() {
             isMobile={navigation.isMobile}
             initialPage={navigation.writeNoteData.initialPage}
           />
+          </Suspense>
           </ErrorBoundary>
         )}
         <UpdateNotification onVisibilityChange={setUpdateVisible} />

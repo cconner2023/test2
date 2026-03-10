@@ -70,10 +70,13 @@ export function useSupervisorData(): SupervisorData {
   const { medics: allLocationMedics, loading: medicsLoading } = useClinicMedics()
   const { user, clinicId: userClinicId, isSupervisorRole, profile: authProfile, loading: authLoading } = useAuth()
 
-  // Derive auth state from the reactive auth store (no separate Supabase call)
+  // Derive auth state from the reactive auth store (no separate Supabase call).
+  // authLoading clears on INITIAL_SESSION before refreshProfile() resolves,
+  // so we also wait for clinicId to populate (set by refreshProfile) to avoid
+  // showing all-location medics before the supervisor's own clinic is known.
   const currentUserId = user?.id ?? null
   const isSupervisor = isSupervisorRole
-  const loading = authLoading
+  const loading = authLoading || (!!user && !userClinicId)
 
   const currentUserProfile = useMemo<ClinicMedic | null>(() => {
     if (!user) return null

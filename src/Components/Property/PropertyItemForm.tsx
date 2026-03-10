@@ -14,7 +14,7 @@ interface PropertyItemFormProps {
   clinicId: string
 }
 
-const inputClass = 'w-full px-3 py-2 text-base rounded-lg border border-tertiary/20 bg-themewhite text-primary placeholder:text-tertiary/50 focus:outline-none focus:border-themeblue3/50 focus:ring-1 focus:ring-themeblue3/20 transition-colors'
+const inputClass = 'w-full px-3 py-2 text-base rounded-lg border border-tertiary/20 bg-themewhite text-primary placeholder:text-tertiary/50 focus:outline-none focus:border-themeblue2 transition-colors'
 const labelClass = 'block text-xs font-medium text-secondary mb-1'
 
 /** Placement value encodes type + id, e.g. "location:uuid" or "item:uuid" */

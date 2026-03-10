@@ -32,7 +32,7 @@ export function CardActionBar({ selectedCount, onClear, actions }: CardActionBar
               <button
                 key={action.key}
                 onClick={action.onAction}
-                className="flex flex-col items-center gap-0.5 active:scale-90 transition-all"
+                className="flex flex-col items-center gap-0.5 active:scale-95 transition-all"
               >
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${action.iconBg}`}>
                   <Icon size={18} className={action.iconColor} />

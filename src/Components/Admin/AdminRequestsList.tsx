@@ -7,14 +7,16 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Check, X, UserPlus, Clock, Search, Building2, RotateCcw, Trash2 } from 'lucide-react'
+import { Check, X, UserPlus, Clock, Building2, RotateCcw, Trash2 } from 'lucide-react'
+import { EmptyState } from '../EmptyState'
+import { SearchInput } from '../SearchInput'
 
 import { SwipeableCard } from '../SwipeableCard'
 import { CardContextMenu } from '../CardContextMenu'
 import { CardActionBar } from '../CardActionBar'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LoadingSpinner } from '../LoadingSpinner'
-import { StatusBanner } from '../Settings/StatusBanner'
+import { ErrorDisplay } from '../ErrorDisplay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import {
   getAllAccountRequests,
@@ -255,7 +257,7 @@ export function AdminRequestsList() {
           Review and approve account requests. Swipe left or right-click for actions.
         </p>
 
-        {status && <StatusBanner type={status.type} message={status.message} />}
+        {status && <ErrorDisplay type={status.type} message={status.message} />}
 
         {/* Filter tabs */}
         <div className="flex gap-1 p-0.5 bg-themewhite2 rounded-lg overflow-x-auto">
@@ -275,27 +277,20 @@ export function AdminRequestsList() {
         </div>
 
         {/* Search */}
-        <div className="relative">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary/40" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, email, credential..."
-            className="w-full pl-8 pr-3 py-2 rounded-lg bg-themewhite2 border border-tertiary/10 text-sm text-primary placeholder:text-tertiary/40 focus:outline-none focus:border-themeblue2/40"
-          />
-        </div>
+        <SearchInput
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search by name, email, credential..."
+        />
       </div>
 
       {/* Card list — scrollable */}
       <div className="flex-1 overflow-y-auto px-5 pb-4">
         {filteredRequests.length === 0 ? (
-          <div className="text-center py-12">
-            <Clock size={28} className="mx-auto mb-3 text-tertiary/30" />
-            <p className="text-tertiary/60 text-sm">
-              No {filter !== 'all' ? filter : ''} requests found
-            </p>
-          </div>
+          <EmptyState
+            icon={<Clock size={28} />}
+            title={`No ${filter !== 'all' ? filter + ' ' : ''}requests found`}
+          />
         ) : (
           <div className={`grid gap-3 ${
             filteredRequests.length === 1
@@ -593,7 +588,7 @@ export function AdminRequestsList() {
                             <button
                               onClick={() => handleReopen(request.id)}
                               disabled={processingId === request.id}
-                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-themeblue2 text-white font-medium text-[10pt] hover:bg-themeblue2/90 disabled:opacity-50 transition-colors"
+                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-themeblue3 text-white font-medium text-[10pt] hover:bg-themeblue3/90 disabled:opacity-50 transition-colors"
                             >
                               <RotateCcw size={16} /> Reopen
                             </button>

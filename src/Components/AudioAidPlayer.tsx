@@ -13,7 +13,7 @@ function AudioAidItem({ aid, isPlaying, onPlay, onStop }: {
     return (
         <button
             onClick={isPlaying ? onStop : onPlay}
-            className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left transition-all active:scale-[0.98]
+            className={`flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-left transition-all active:scale-95
                 ${isPlaying
                     ? 'bg-themeblue2/15 ring-1 ring-themeblue2/30'
                     : 'bg-themewhite2 hover:bg-themewhite2/80'

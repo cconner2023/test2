@@ -98,7 +98,7 @@ const NodeEditor = ({ node, onSave, onCancel }: NodeEditorProps) => {
                 <button onClick={onCancel} className="text-[11px] px-3 py-1 rounded-md text-tertiary hover:bg-tertiary/10 transition-colors">
                     Cancel
                 </button>
-                <button onClick={handleSave} className="text-[11px] px-3 py-1 rounded-md bg-themeblue2 text-white hover:bg-themeblue2/90 transition-colors">
+                <button onClick={handleSave} className="text-[11px] px-3 py-1 rounded-md bg-themeblue3 text-white hover:bg-themeblue3/90 transition-colors">
                     <Check size={12} className="inline mr-1" />Save
                 </button>
             </div>

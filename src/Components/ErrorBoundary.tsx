@@ -60,7 +60,7 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                     <button
                         type="button"
                         onClick={this.handleRetry}
-                        className="px-4 py-2 text-xs font-medium text-white bg-themeblue2 rounded-md active:scale-95 transition-all"
+                        className="px-4 py-2 text-xs font-medium text-white bg-themeblue3 rounded-md active:scale-95 transition-all"
                     >
                         Try Again
                     </button>

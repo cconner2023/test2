@@ -62,7 +62,7 @@ export const TC3FrontColumn = memo(function TC3FrontColumn() {
                 )}
                 {inj.description && <span className="text-[10px] text-tertiary/60 truncate">{inj.description}</span>}
                 {inj.treatmentLinks.length > 0 && (
-                  <span className="text-[8px] text-green-600 font-medium">{inj.treatmentLinks.length} tx</span>
+                  <span className="text-[8px] text-themegreen font-medium">{inj.treatmentLinks.length} tx</span>
                 )}
                 <button
                   onClick={() => removeInjury(inj.id)}

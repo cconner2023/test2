@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 import { writeFileSync, mkdirSync } from 'fs'
@@ -11,10 +12,26 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(APP_VERSION),
   },
   plugins: [
+    react({
+      babel: {
+        plugins: [
+          'babel-plugin-react-compiler',
+        ],
+      },
+    }),
     {
       name: 'html-version',
-      transformIndexHtml(html) {
-        return html.replace(/%APP_VERSION%/, APP_VERSION)
+      transformIndexHtml(html, ctx) {
+        let result = html.replace(/%APP_VERSION%/, APP_VERSION)
+        // Inject CSP only in production builds (inline scripts break CSP in dev)
+        if (ctx.bundle) {
+          // Hash allows the inline splash-screen theme-detection script
+          const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Zblva+Y24jGsap4fF/wYX94AXAYZOGIx/aCQnOc1mQ4='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' https://*.supabase.co wss://*.supabase.co; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self';">`
+          result = result.replace('<!--CSP_PLACEHOLDER-->', csp)
+        } else {
+          result = result.replace('<!--CSP_PLACEHOLDER-->', '')
+        }
+        return result
       }
     },
     {

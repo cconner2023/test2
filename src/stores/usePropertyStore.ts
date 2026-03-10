@@ -26,6 +26,15 @@ interface PropertyState {
   defaultLocationId: string | null
   setDefaultLocationId: (id: string | null) => void
 
+  // Canvas transition state (prevents double-tap during animation)
+  transitionState: 'idle' | 'zooming-in'
+  setTransitionState: (state: 'idle' | 'zooming-in') => void
+
+  // Pending navigation target — set by tree/external nav, processed by PropertyLocationMap
+  // with zoom animation if the target has a visible zone on the current canvas
+  pendingNavTarget: string | null
+  setPendingNavTarget: (id: string | null) => void
+
   // Filters
   holderFilter: string | null
   setHolderFilter: (holderId: string | null) => void
@@ -64,6 +73,14 @@ export const usePropertyStore = create<PropertyState>((set) => ({
   // Default location
   defaultLocationId: null,
   setDefaultLocationId: (id) => set({ defaultLocationId: id }),
+
+  // Canvas transition state
+  transitionState: 'idle',
+  setTransitionState: (state) => set({ transitionState: state }),
+
+  // Pending navigation target
+  pendingNavTarget: null,
+  setPendingNavTarget: (id) => set({ pendingNavTarget: id }),
 
   // Filters
   holderFilter: null,

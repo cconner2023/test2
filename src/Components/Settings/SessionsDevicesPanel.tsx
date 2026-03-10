@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { Crown, Trash2, Smartphone, LogOut, Info, Check } from 'lucide-react'
+import { EmptyState } from '../EmptyState'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
@@ -19,7 +20,7 @@ import { fetchOwnDevicesWithRole, type DeviceWithRole } from '../../lib/signal/d
 import { CardContextMenu } from '../CardContextMenu'
 import { CardActionBar } from '../CardActionBar'
 import { SwipeableCard } from '../SwipeableCard'
-import { StatusBanner } from './StatusBanner'
+import { ErrorDisplay } from '../ErrorDisplay'
 import { UI_TIMING } from '../../Utilities/constants'
 
 export function SessionsDevicesPanel() {
@@ -143,7 +144,7 @@ export function SessionsDevicesPanel() {
   if (error) {
     return (
       <div className="px-5 py-4">
-        <StatusBanner type="error" message={error} />
+        <ErrorDisplay type="error" message={error} />
       </div>
     )
   }
@@ -151,10 +152,11 @@ export function SessionsDevicesPanel() {
   // --- Empty state ---
   if (devices.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-2 text-tertiary px-6">
-        <Smartphone size={32} className="text-tertiary/50" />
-        <p className="text-sm text-center">No devices registered</p>
-      </div>
+      <EmptyState
+        icon={<Smartphone size={28} />}
+        title="No devices registered"
+        className="h-full"
+      />
     )
   }
 
@@ -166,7 +168,7 @@ export function SessionsDevicesPanel() {
           Devices registered to your account. Tap or swipe left on a device to remove it.
         </p>
 
-        {status && <StatusBanner type={status.type} message={status.message} />}
+        {status && <ErrorDisplay type={status.type} message={status.message} />}
 
         {/* Device list */}
         {devices.map((device) => {
@@ -265,7 +267,7 @@ export function SessionsDevicesPanel() {
           <div className="pt-2">
             <button
               onClick={() => setConfirmLogoutAll(true)}
-              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-themeredred/10 text-themeredred text-sm font-medium active:scale-[0.98] transition-all"
+              className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-themeredred/10 text-themeredred text-sm font-medium active:scale-95 transition-all"
             >
               <LogOut size={16} />
               Sign Out All Other Sessions

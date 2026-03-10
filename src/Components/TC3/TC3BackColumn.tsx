@@ -213,7 +213,7 @@ export const TC3BackColumn = memo(function TC3BackColumn() {
         <div className="space-y-3">
           <div
             onClick={() => setShowWriteNote(true)}
-            className="flex flex-col rounded-md w-full overflow-hidden shadow-sm bg-themewhite2 border border-themeredred/30 cursor-pointer active:scale-[0.98] transition-all"
+            className="flex flex-col rounded-md w-full overflow-hidden shadow-sm bg-themewhite2 border border-themeredred/30 cursor-pointer active:scale-95 transition-all"
           >
             <div className="p-4">
               <div className="flex items-center justify-between">

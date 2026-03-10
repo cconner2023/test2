@@ -3,6 +3,7 @@ import type { Component } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import { submitAccountRequest, checkRequestStatus, type AccountRequest } from '../../lib/accountRequestService'
 import { TextInput, SelectInput } from '../FormInputs'
+import { ErrorDisplay } from '../ErrorDisplay'
 import { validatePasswordComplexity } from '../../lib/constants'
 
 const LOCAL_STORAGE_TOKEN_KEY = 'account_request_token'
@@ -221,8 +222,8 @@ export const AccountRequestForm = () => {
               setRequestStatus(null)
               setSubmitted(false)
             }}
-            className="mt-4 px-4 py-2 rounded-lg bg-themeblue2 text-white font-medium
-                     hover:bg-themeblue2/90 transition-colors"
+            className="mt-4 px-4 py-2 rounded-lg bg-themeblue3 text-white font-medium
+                     hover:bg-themeblue3/90 transition-colors"
           >
             Back
           </button>
@@ -259,8 +260,8 @@ export const AccountRequestForm = () => {
 
             <button
               onClick={() => handleCheckStatus()}
-              className="px-4 py-2 rounded-lg bg-themeblue2 text-white font-medium
-                       hover:bg-themeblue2/90 transition-colors"
+              className="px-4 py-2 rounded-lg bg-themeblue3 text-white font-medium
+                       hover:bg-themeblue3/90 transition-colors"
             >
               Check Request Status
             </button>
@@ -278,11 +279,7 @@ export const AccountRequestForm = () => {
           An account lets you log training completion and store your preferences. No patient data is collected.
         </p>
 
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred text-sm">
-            {error}
-          </div>
-        )}
+        {error && <ErrorDisplay message={error} />}
 
         <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="md:col-span-2">
@@ -319,7 +316,7 @@ export const AccountRequestForm = () => {
             type="submit"
             disabled={submitting}
             className="md:col-span-2 w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
-                     hover:bg-themeblue2/90 transition-colors disabled:opacity-50"
+                     hover:bg-themeblue3/90 transition-colors disabled:opacity-50"
           >
             {submitting ? 'Submitting...' : 'Submit Request'}
           </button>

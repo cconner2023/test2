@@ -1,5 +1,7 @@
-import { useState, useMemo, useRef } from 'react'
-import { Search, X, ChevronDown, ChevronRight, Users } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { ChevronDown, ChevronRight, Users } from 'lucide-react'
+import { EmptyState } from '../../EmptyState'
+import { SearchInput } from '../../SearchInput'
 import { formatMedicName } from './supervisorHelpers'
 import { subjectAreaIcons } from '../../../Data/TrainingConstants'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
@@ -41,7 +43,6 @@ export function CompetencyMatrix({
   const [searchQuery, setSearchQuery] = useState('')
   const [areaFilter, setAreaFilter] = useState<string | null>(initialAreaFilter)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const areaNames = useMemo(() => [...testableTaskMap.keys()], [testableTaskMap])
 
@@ -81,36 +82,22 @@ export function CompetencyMatrix({
 
   if (matrix.length === 0) {
     return (
-      <div className="text-center py-12">
-        <Users size={28} className="mx-auto mb-3 text-tertiary/30" />
-        <p className="text-sm text-tertiary/60">No personnel data available.</p>
-      </div>
+      <EmptyState
+        icon={<Users size={28} />}
+        title="No personnel data available"
+      />
     )
   }
 
   return (
     <div>
       {/* Search */}
-      <div className="relative mb-3">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary/40 pointer-events-none" />
-        <input
-          ref={inputRef}
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search personnel..."
-          className="w-full pl-8 pr-8 py-2 rounded-lg bg-themewhite2 text-sm text-primary
-                     placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
-        />
-        {searchQuery && (
-          <button
-            onClick={() => { setSearchQuery(''); inputRef.current?.focus() }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-tertiary/10 transition-colors"
-          >
-            <X size={14} className="text-tertiary/50" />
-          </button>
-        )}
-      </div>
+      <SearchInput
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search personnel..."
+        className="mb-3"
+      />
 
       {/* Area filter */}
       <div className="mb-4">
@@ -134,7 +121,7 @@ export function CompetencyMatrix({
       )}
 
       {sorted.length === 0 && searchQuery.trim() ? (
-        <p className="text-sm text-tertiary/40 text-center py-8">No personnel match your search.</p>
+        <EmptyState title="No personnel match your search" />
       ) : (
         <div className="space-y-2">
           {sorted.map((sc) => {

@@ -314,7 +314,7 @@ export const AdminCertsSection = ({
                     <span className="text-tertiary/50">Unverified</span>
                     <button
                       onClick={() => handleVerify(cert.id)}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg font-medium bg-themeblue2 text-white hover:bg-themeblue2/90 transition-colors ml-auto"
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg font-medium bg-themeblue3 text-white hover:bg-themeblue3/90 transition-colors ml-auto"
                     >
                       <CheckCircle size={11} /> Verify
                     </button>
@@ -325,7 +325,7 @@ export const AdminCertsSection = ({
                 <button
                   onClick={handleSaveEdit}
                   disabled={saving || !editTitle.trim()}
-                  className="flex-1 py-2 rounded-lg bg-themeblue2 text-white text-sm font-medium hover:bg-themeblue2/90 disabled:opacity-50 transition-colors"
+                  className="flex-1 py-2 rounded-lg bg-themeblue3 text-white text-sm font-medium hover:bg-themeblue3/90 disabled:opacity-50 transition-colors"
                 >
                   {saving ? 'Saving...' : 'Save'}
                 </button>
@@ -414,7 +414,7 @@ export const AdminCertsSection = ({
             <button
               onClick={handleAdd}
               disabled={submitting || !addTitle.trim()}
-              className="flex-1 py-2 rounded-lg bg-themeblue2 text-white text-sm font-medium hover:bg-themeblue2/90 disabled:opacity-50 transition-colors"
+              className="flex-1 py-2 rounded-lg bg-themeblue3 text-white text-sm font-medium hover:bg-themeblue3/90 disabled:opacity-50 transition-colors"
             >
               {submitting ? 'Adding...' : 'Add'}
             </button>

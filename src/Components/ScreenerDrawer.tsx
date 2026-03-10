@@ -336,7 +336,7 @@ export function ScreenerDrawer({
                     disabled={!allComplete}
                     className={`w-full mt-5 py-3 rounded-lg text-sm font-medium transition-all ${
                         allComplete
-                            ? 'bg-themeblue2 text-white active:scale-[0.98]'
+                            ? 'bg-themeblue3 text-white active:scale-95'
                             : 'bg-tertiary/20 text-tertiary cursor-not-allowed'
                     }`}
                 >

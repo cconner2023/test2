@@ -7,14 +7,16 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Check, Search, UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye } from 'lucide-react'
+import { Check, UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye } from 'lucide-react'
+import { EmptyState } from '../EmptyState'
+import { SearchInput } from '../SearchInput'
 import { SwipeableCard, type SwipeAction } from '../SwipeableCard'
 import { CardContextMenu } from '../CardContextMenu'
 import { CardActionBar } from '../CardActionBar'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { UserAvatar } from '../Settings/UserAvatar'
 import { LoadingSpinner } from '../LoadingSpinner'
-import { StatusBanner } from '../Settings/StatusBanner'
+import { ErrorDisplay } from '../ErrorDisplay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import {
   formatLastActive,
@@ -410,23 +412,14 @@ export function AdminUsersList({
         </div>
 
         {/* Feedback banner */}
-        {feedback && <StatusBanner type={feedback.type} message={feedback.message} />}
+        {feedback && <ErrorDisplay type={feedback.type} message={feedback.message} />}
 
         {/* Search */}
-        <div className="relative">
-          <Search
-            size={16}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary/40"
-          />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, email, or UIC..."
-            className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-sm
-                       border border-tertiary/10 focus:border-themeblue2 focus:outline-none transition-colors placeholder:text-tertiary/30"
-          />
-        </div>
+        <SearchInput
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search by name, email, or UIC..."
+        />
       </div>
 
       {/* Card list */}
@@ -434,11 +427,10 @@ export function AdminUsersList({
         {showLoading ? (
           <LoadingSpinner label="Loading users..." className="py-12 text-tertiary" />
         ) : filteredUsers.length === 0 ? (
-          <div className="text-center py-12">
-            <p className="text-tertiary/60">
-              {searchQuery ? 'No users match your search' : 'No users found'}
-            </p>
-          </div>
+          <EmptyState
+            icon={<UserPlus size={28} />}
+            title={searchQuery ? 'No users match your search' : 'No users found'}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {filteredUsers.map((user) => {

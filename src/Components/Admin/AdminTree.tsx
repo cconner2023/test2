@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, Building2, User, Layers, Edit3, Trash2, Eye } from 'lucide-react'
+import { ChevronRight, ChevronDown, Building2, User, Layers, Pencil, Trash2, Eye } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
 import { CardContextMenu } from '../CardContextMenu'
 import { listClinics, listAllUsers, setUserClinic, updateClinic } from '../../lib/adminService'
@@ -555,7 +555,7 @@ export function AdminTree({
                   {
                     key: 'edit',
                     label: 'Edit',
-                    icon: Edit3,
+                    icon: Pencil,
                     onAction: () => onSelectClinic(clinic.id),
                   },
                   {
@@ -580,7 +580,7 @@ export function AdminTree({
                   {
                     key: 'edit',
                     label: 'Edit',
-                    icon: Edit3,
+                    icon: Pencil,
                     onAction: () => onSelectUser(user.id),
                   },
                   {

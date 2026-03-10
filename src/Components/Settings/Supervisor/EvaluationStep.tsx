@@ -184,8 +184,8 @@ export function EvaluationStep({
         <button
           onClick={handleSubmit}
           disabled={!allEvaluated}
-          className="w-full py-3 rounded-lg bg-themeblue2 text-white text-sm font-semibold
-                     hover:bg-themeblue2/90 active:scale-[0.98] transition-all
+          className="w-full py-3 rounded-lg bg-themeblue3 text-white text-sm font-semibold
+                     hover:bg-themeblue3/90 active:scale-95 transition-all
                      disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Submit Evaluation

@@ -53,7 +53,7 @@ export const AvatarPickerPanel = ({
                             </button>
                             <button
                                 onClick={clearCustomImage}
-                                className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-themeredred flex items-center justify-center active:scale-90 transition-transform"
+                                className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-themeredred flex items-center justify-center active:scale-95 transition-transform"
                                 aria-label="Remove custom photo"
                             >
                                 <X size={12} className="text-white" />

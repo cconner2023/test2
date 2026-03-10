@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronRight, ChevronDown, MapPin, Package, Building2, Edit3, Trash2, Eye } from 'lucide-react'
+import { ChevronRight, ChevronDown, MapPin, Package, Building2, Pencil, Trash2, Eye } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
 import { CardContextMenu } from '../CardContextMenu'
 import type { LocalPropertyLocation, LocalPropertyItem } from '../../Types/PropertyTypes'
@@ -458,7 +458,7 @@ export function PropertyLocationTree({
               y={contextMenu.y}
               onClose={() => setContextMenu(null)}
               items={[
-                ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Edit3, onAction: () => onEditLocation(loc) }] : []),
+                ...(onEditLocation ? [{ key: 'edit', label: 'Edit', icon: Pencil, onAction: () => onEditLocation(loc) }] : []),
                 ...(onDeleteLocation ? [{ key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => onDeleteLocation(loc.id) }] : []),
               ]}
             />

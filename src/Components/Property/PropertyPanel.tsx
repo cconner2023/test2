@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Plus, Search as SearchIcon, X, Upload, Download, FileSpreadsheet, Eye, ArrowRightLeft, Trash2 } from 'lucide-react'
+import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
+import { Plus, Upload, Download, FileSpreadsheet, Eye, ArrowRightLeft, Trash2 } from 'lucide-react'
+import { EmptyState } from '../EmptyState'
+import { SearchInput } from '../SearchInput'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useProperty } from '../../Hooks/useProperty'
 import { usePropertyStore } from '../../stores/usePropertyStore'
@@ -49,7 +51,7 @@ interface PropertyPanelProps {
   onRegisterLocationActions?: (actions: LocationEditActions | null) => void
 }
 
-export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onRegisterLocationActions }: PropertyPanelProps) {
+export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onRegisterLocationActions }: PropertyPanelProps) {
   const { user } = useAuth()
   const property = useProperty()
   const showLoading = useMinLoadTime(property.isLoading)
@@ -60,9 +62,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
   const [filterQuery, setFilterQuery] = useState('')
   const [desktopLocationId, setDesktopLocationId] = useState<string | null>(null)
   const [csvImport, setCsvImport] = useState<{ rows: ParsedRow[]; errors: string[] } | null>(null)
-  const [isSearchExpanded, setIsSearchExpanded] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const searchInputRef = useRef<HTMLInputElement>(null)
   const [showNewLocation, setShowNewLocation] = useState(false)
   const [newLocationName, setNewLocationName] = useState('')
   const [renamingLocation, setRenamingLocation] = useState<{ id: string; name: string } | null>(null)
@@ -187,18 +187,13 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
   }, [store, onSelectItem])
 
   const handleTreeSelectLocation = useCallback((loc: LocalPropertyLocation) => {
-    // Build path from root to this location
-    const path: string[] = []
-    let cur: LocalPropertyLocation | undefined = loc
-    while (cur && cur.name !== ROOT_LOCATION_NAME) {
-      path.unshift(cur.id)
-      cur = property.locations.find(l => l.id === cur!.parent_id)
-    }
-    store.navigateToPath(path)
+    // Request animated navigation — PropertyLocationMap will zoom to zone if visible,
+    // otherwise fall back to direct path navigation
+    store.setPendingNavTarget(loc.id)
     if (isMobile) {
       onMobileLocationViewChange?.(true)
     }
-  }, [store, property.locations, isMobile, onMobileLocationViewChange])
+  }, [store, isMobile, onMobileLocationViewChange])
 
   // Clinic name tap → navigate to root canvas
   const handleSelectAllLocations = useCallback(() => {
@@ -280,16 +275,10 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
       store.navigateToPath([])
     } else {
       setDesktopLocationId(loc.id)
-      // Build path from root to this location
-      const path: string[] = []
-      let cur: LocalPropertyLocation | undefined = loc
-      while (cur && cur.name !== ROOT_LOCATION_NAME) {
-        path.unshift(cur.id)
-        cur = property.locations.find(l => l.id === cur!.parent_id)
-      }
-      store.navigateToPath(path)
+      // Request animated navigation — PropertyLocationMap will zoom to zone if visible
+      store.setPendingNavTarget(loc.id)
     }
-  }, [desktopLocationId, store, property.locations])
+  }, [desktopLocationId, store])
 
   const handleDeleteItem = useCallback(() => {
     if (!store.selectedItem) return
@@ -472,79 +461,46 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
   return (
     <div className="flex flex-col h-full">
       {/* Search + CSV toolbar */}
-      <div className="flex items-center gap-2 px-6 py-3">
-        {isSearchExpanded ? (
-          <div className="flex items-center flex-1 min-w-0 bg-themewhite text-tertiary rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
-            <input
-              ref={searchInputRef}
-              autoFocus
-              type="search"
-              placeholder="search"
-              value={filterQuery}
-              onChange={(e) => setFilterQuery(e.target.value)}
-              onBlur={() => { if (!filterQuery) setIsSearchExpanded(false) }}
-              className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
-            />
+      <div className="px-6 py-3 space-y-2">
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
+            {property.isSyncing && (
+              <span className="text-[10pt] text-tertiary animate-pulse mr-1">Syncing...</span>
+            )}
             <button
-              type="button"
-              className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full transition-all duration-300 hover:bg-themewhite shrink-0"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                if (filterQuery) {
-                  setFilterQuery('')
-                  searchInputRef.current?.focus()
-                } else {
-                  setIsSearchExpanded(false)
-                }
-              }}
+              title="Import CSV"
+              className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
+              onClick={() => fileInputRef.current?.click()}
             >
-              <X className="w-5 h-5 stroke-themeblue1" />
+              <Upload className="w-5 h-5 stroke-themeblue1" />
+            </button>
+            <button
+              title="Export CSV"
+              className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
+              onClick={() => exportPropertyCSV(property.items, visibleLocations)}
+            >
+              <Download className="w-5 h-5 stroke-themeblue1" />
+            </button>
+            <button
+              title="Download Template"
+              className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
+              onClick={downloadCSVTemplate}
+            >
+              <FileSpreadsheet className="w-5 h-5 stroke-themeblue1" />
             </button>
           </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-2 shrink-0">
-              {property.isSyncing && (
-                <span className="text-[10pt] text-tertiary animate-pulse mr-1">Syncing...</span>
-              )}
-              <button
-                title="Import CSV"
-                className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="w-5 h-5 stroke-themeblue1" />
-              </button>
-              <button
-                title="Export CSV"
-                className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
-                onClick={() => exportPropertyCSV(property.items, visibleLocations)}
-              >
-                <Download className="w-5 h-5 stroke-themeblue1" />
-              </button>
-              <button
-                title="Download Template"
-                className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
-                onClick={downloadCSVTemplate}
-              >
-                <FileSpreadsheet className="w-5 h-5 stroke-themeblue1" />
-              </button>
-            </div>
-            <div className="flex-1" />
-            <button
-              title="Search"
-              className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300 shrink-0"
-              onClick={() => setIsSearchExpanded(true)}
-            >
-              <SearchIcon className="w-5 h-5 stroke-themeblue1 opacity-50" />
-            </button>
-          </>
-        )}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".csv"
-          className="hidden"
-          onChange={handleCSVFile}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleCSVFile}
+          />
+        </div>
+        <SearchInput
+          value={filterQuery}
+          onChange={setFilterQuery}
+          placeholder="Search items..."
         />
       </div>
 
@@ -577,7 +533,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
                   <button
                     onClick={handleCreateLocation}
                     disabled={!newLocationName.trim()}
-                    className="flex-1 py-1.5 rounded-lg bg-themeblue2 text-[10pt] text-white disabled:opacity-30 active:scale-[0.98] transition-all"
+                    className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white disabled:opacity-30 active:scale-95 transition-all"
                   >
                     Create
                   </button>
@@ -627,9 +583,9 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
               />
             ))}
             {filteredItems.length === 0 && (
-              <div className="px-6 py-8 text-center text-[10pt] text-tertiary">
-                {filterQuery ? 'No items match your filter' : desktopLocationId ? 'No items at this location' : 'No items in property book'}
-              </div>
+              <EmptyState
+                title={filterQuery ? 'No items match your filter' : desktopLocationId ? 'No items at this location' : 'No items in property book'}
+              />
             )}
           </>
         )}
@@ -775,7 +731,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
                 <button
                   onClick={handleCreateLocation}
                   disabled={!newLocationName.trim()}
-                  className="flex-1 py-1.5 rounded-lg bg-themeblue2 text-[10pt] text-white disabled:opacity-30 active:scale-[0.98] transition-all"
+                  className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white disabled:opacity-30 active:scale-95 transition-all"
                 >
                   Create
                 </button>
@@ -814,7 +770,7 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
                     }
                   }}
                   disabled={!renamingLocation.name.trim()}
-                  className="flex-1 py-1.5 rounded-lg bg-themeblue2 text-[10pt] text-white disabled:opacity-30 active:scale-[0.98] transition-all"
+                  className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white disabled:opacity-30 active:scale-95 transition-all"
                 >
                   Rename
                 </button>
@@ -868,5 +824,5 @@ export function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTra
       />
     </>
   )
-}
+})
 

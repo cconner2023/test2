@@ -184,7 +184,7 @@ export const TextExpanderManager = ({ expanders, onChange }: TextExpanderManager
                         </button>
                         <button
                             onClick={save}
-                            className="text-[11px] px-3 py-1 rounded-md bg-themeblue2 text-white hover:bg-themeblue2/90 transition-colors"
+                            className="text-[11px] px-3 py-1 rounded-md bg-themeblue3 text-white hover:bg-themeblue3/90 transition-colors"
                         >
                             {editingIndex !== null ? 'Update' : 'Add'}
                         </button>

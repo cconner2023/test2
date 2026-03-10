@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Star, CheckCircle } from 'lucide-react'
 import { submitFeedback } from '../../lib/feedbackService'
+import { ErrorDisplay } from '../ErrorDisplay'
 
 export const FeedbackPanel = () => {
   const [rating, setRating] = useState(0)
@@ -62,11 +63,7 @@ export const FeedbackPanel = () => {
           Help us improve by sharing your experience and suggestions.
         </p>
 
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred text-sm">
-            {error}
-          </div>
-        )}
+        {error && <ErrorDisplay message={error} />}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           {/* Star Rating */}
@@ -80,7 +77,7 @@ export const FeedbackPanel = () => {
                   key={star}
                   type="button"
                   onClick={() => setRating(star)}
-                  className="p-1 active:scale-90 transition-transform"
+                  className="p-1 active:scale-95 transition-transform"
                   aria-label={`${star} star${star !== 1 ? 's' : ''}`}
                 >
                   <Star
@@ -103,7 +100,7 @@ export const FeedbackPanel = () => {
               placeholder="Share your thoughts..."
               rows={3}
               className="mt-1 w-full px-4 py-2 rounded-2xl bg-themewhite text-tertiary text-[16px]
-                       border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2
+                       border border-themeblue3/10 shadow-xs focus:border-themeblue2 focus:bg-themewhite2
                        focus:outline-none transition-all placeholder:text-tertiary/30 resize-none"
             />
           </label>
@@ -119,7 +116,7 @@ export const FeedbackPanel = () => {
               onChange={(e) => setMostUseful(e.target.value)}
               placeholder="e.g. Algorithm navigation, clinic notes..."
               className="mt-1 w-full px-4 py-2 rounded-full bg-themewhite text-tertiary text-[16px]
-                       border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2
+                       border border-themeblue3/10 shadow-xs focus:border-themeblue2 focus:bg-themewhite2
                        focus:outline-none transition-all placeholder:text-tertiary/30"
             />
           </label>
@@ -134,7 +131,7 @@ export const FeedbackPanel = () => {
               onChange={(e) => setDesiredFeature(e.target.value)}
               placeholder="e.g. Offline mode, medication calculator..."
               className="mt-1 w-full px-4 py-2 rounded-full bg-themewhite text-tertiary text-[16px]
-                       border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2
+                       border border-themeblue3/10 shadow-xs focus:border-themeblue2 focus:bg-themewhite2
                        focus:outline-none transition-all placeholder:text-tertiary/30"
             />
           </label>
@@ -149,7 +146,7 @@ export const FeedbackPanel = () => {
               onChange={(e) => setNeedsImprovement(e.target.value)}
               placeholder="e.g. Search, navigation, performance..."
               className="mt-1 w-full px-4 py-2 rounded-full bg-themewhite text-tertiary text-[16px]
-                       border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2
+                       border border-themeblue3/10 shadow-xs focus:border-themeblue2 focus:bg-themewhite2
                        focus:outline-none transition-all placeholder:text-tertiary/30"
             />
           </label>
@@ -158,8 +155,8 @@ export const FeedbackPanel = () => {
           <button
             type="submit"
             disabled={rating === 0 || submitting}
-            className="w-full px-4 py-3 rounded-lg bg-themeblue2 text-white font-medium
-                     hover:bg-themeblue2/90 transition-colors disabled:opacity-50
+            className="w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
+                     hover:bg-themeblue3/90 transition-colors disabled:opacity-50
                      disabled:cursor-not-allowed"
           >
             {submitting ? 'Submitting...' : 'Submit Feedback'}

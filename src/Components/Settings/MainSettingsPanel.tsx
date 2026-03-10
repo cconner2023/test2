@@ -87,7 +87,7 @@ export const MainSettingsPanel = ({
                                 item.action();
                                 onItemClick(item.id);
                             }}
-                            className="flex items-center w-full px-6 py-3.5 hover:bg-themewhite2 active:scale-[0.98]
+                            className="flex items-center w-full px-6 py-3.5 hover:bg-themewhite2 active:scale-95
                                          transition-all rounded-xl group
                                          md:px-6 md:py-3"
                         >

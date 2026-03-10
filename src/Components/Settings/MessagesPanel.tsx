@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, memo } from 'react'
 import { useMemo } from 'react'
-import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, Video, ArrowLeft, MessageSquare, Users, Plus, Info, ChevronLeft, Pin } from 'lucide-react'
+import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, Video, ArrowLeft, MessageSquare, Users, Info, ChevronLeft, Pin } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useSpring, animated } from '@react-spring/web'
 import { SPRING_CONFIGS } from '../../Utilities/GestureUtils'
@@ -75,7 +75,7 @@ function ContactsPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Mobile header: back + title + double-pill (new group + close) */}
-      <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-primary/10 flex items-center backdrop-blur-xl bg-themewhite3/80">
+      <div className="md:hidden sticky top-0 z-10 shrink-0 px-6 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] border-b border-tertiary/10 flex items-center backdrop-blur-xl bg-themewhite3/80">
         <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
           <button
             onClick={onBack}
@@ -91,16 +91,15 @@ function ContactsPanel({
         <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5 shrink-0">
           <button
             onClick={onCreateGroup}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+            className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
             aria-label="New group"
             title="New group"
           >
             <Users className="w-[18px] h-[18px]" />
           </button>
-          <div className="w-px h-5 bg-tertiary/15" />
           <button
             onClick={onCloseDrawer}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+            className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
             aria-label="Close"
             title="Close"
           >
@@ -110,15 +109,18 @@ function ContactsPanel({
       </div>
 
       {/* Desktop header */}
-      <div className="hidden md:flex shrink-0 px-4 h-10 border-b border-primary/10 items-center justify-between">
+      <div className="hidden md:flex shrink-0 px-6 py-3 border-b border-tertiary/10 items-center justify-between">
         <p className="text-sm font-medium text-primary">Contacts</p>
-        <button
-          onClick={onCreateGroup}
-          className="flex items-center gap-1 text-xs text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
-        >
-          <Plus size={12} />
-          Group
-        </button>
+        <div className="rounded-full bg-themewhite border border-tertiary/20 p-0.5 shrink-0">
+          <button
+            onClick={onCreateGroup}
+            className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+            aria-label="New group"
+            title="New group"
+          >
+            <Users className="w-[18px] h-[18px]" />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-2 py-2">
@@ -186,14 +188,12 @@ function ContactsSidebar({
   unavailableIds,
   onSelectPeer,
   onSelectGroup,
-  onCreateGroup,
 }: {
   medics: ClinicMedic[]
   groups: Record<string, GroupInfo>
   unavailableIds: Map<string, UnavailableReason>
   onSelectPeer: (medic: ClinicMedic) => void
   onSelectGroup: (group: GroupInfo) => void
-  onCreateGroup: () => void
 }) {
   const { ownClinicMedics, nearbyByClinic, nearbyClinicNames } = useClinicGroupedMedics(medics)
 
@@ -203,16 +203,7 @@ function ContactsSidebar({
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="shrink-0 px-4 h-10 flex items-center border-b border-primary/10">
-        <div className="flex items-center justify-between w-full">
-          <p className="text-xs font-medium text-tertiary/70 uppercase tracking-wide">Contacts</p>
-          <button
-            onClick={onCreateGroup}
-            className="flex items-center gap-1 text-xs text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
-          >
-            <Plus size={12} />
-            Group
-          </button>
-        </div>
+        <p className="text-xs font-medium text-tertiary/70 uppercase tracking-wide">Contacts</p>
       </div>
 
       {/* Scrollable contact list */}
@@ -226,7 +217,7 @@ function ContactsSidebar({
                 key={group.groupId}
                 onClick={() => onSelectGroup(group)}
                 className="flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-left
-                           hover:bg-themewhite2 active:scale-[0.98] transition-all"
+                           hover:bg-themewhite2 active:scale-95 transition-all"
               >
                 <div className="w-8 h-8 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
                   <Users size={14} className="text-themeblue2" />
@@ -251,7 +242,7 @@ function ContactsSidebar({
               key={medic.id}
               onClick={() => onSelectPeer(medic)}
               className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-left
-                         hover:bg-themewhite2 active:scale-[0.98] transition-all${isUnavailable ? ' opacity-50' : ''}`}
+                         hover:bg-themewhite2 active:scale-95 transition-all${isUnavailable ? ' opacity-50' : ''}`}
             >
               <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
               <div className="min-w-0">
@@ -283,7 +274,7 @@ function ContactsSidebar({
                   key={medic.id}
                   onClick={() => onSelectPeer(medic)}
                   className={`flex items-center gap-2.5 w-full px-3 py-2 rounded-lg text-left
-                             hover:bg-themewhite2 active:scale-[0.98] transition-all${isUnavailable ? ' opacity-50' : ''}`}
+                             hover:bg-themewhite2 active:scale-95 transition-all${isUnavailable ? ' opacity-50' : ''}`}
                 >
                   <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
                   <div className="min-w-0">
@@ -886,9 +877,9 @@ function ChatDetail({
         : `${peerName ?? 'This user'} hasn't set up a device yet. Messages can't be delivered until they log in.`
       return (
         <div className="shrink-0 px-4 py-3 border-t border-primary/10">
-          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10">
-            <div className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
-            <p className="text-xs text-amber-700 dark:text-amber-400">
+          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-themeyellow/10">
+            <div className="w-2 h-2 rounded-full bg-themeyellow shrink-0" />
+            <p className="text-xs text-themeyellow">
               {unavailableMessage}
             </p>
           </div>
@@ -906,14 +897,14 @@ function ChatDetail({
             <button
               onClick={onBack}
               className="flex-1 py-2.5 rounded-full border border-primary/15 text-sm font-medium
-                         text-tertiary active:scale-[0.98] transition-all"
+                         text-tertiary active:scale-95 transition-all"
             >
               Decline
             </button>
             <button
               onClick={() => acceptRequest(peerId)}
-              className="flex-1 py-2.5 rounded-full bg-themeblue2 text-sm font-medium
-                         text-white active:scale-[0.98] transition-all"
+              className="flex-1 py-2.5 rounded-full bg-themeblue3 text-sm font-medium
+                         text-white active:scale-95 transition-all"
             >
               Accept
             </button>
@@ -1608,7 +1599,7 @@ function GroupChatDetail({
 
 // ── Exported Panel ─────────────────────────────────────────────────────────
 
-export function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer }: MessagesPanelProps) {
+export const MessagesPanel = memo(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer }: MessagesPanelProps) {
   const messagesCtx = useMessagesContext()
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
@@ -1754,7 +1745,6 @@ export function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectP
           unavailableIds={unavailableIds}
           onSelectPeer={onSelectPeer}
           onSelectGroup={onSelectGroup}
-          onCreateGroup={() => setShowCreateGroup(true)}
         />
       </div>
 
@@ -1779,4 +1769,4 @@ export function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectP
       <ProvisionalDeviceModal />
     </div>
   )
-}
+})

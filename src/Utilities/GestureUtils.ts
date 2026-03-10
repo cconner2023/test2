@@ -47,6 +47,8 @@ export const SPRING_CONFIGS = {
   stiff: { tension: 400, friction: 35 },
   /** Bouncy spring for overswipe snap-back */
   bounce: { tension: 300, friction: 22 },
+  /** Canvas pan/zoom — responsive with slight damping for map-like feel */
+  canvas: { tension: 350, friction: 30 },
 } as const
 
 // ─── Shared touch-gesture direction-lock helpers ─────────────────

@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { useAuthStore } from '../stores/useAuthStore'
 import { deriveAndStoreBackupKey, createBackup } from '../lib/signal/backupService'
 import { PasswordInput } from './FormInputs'
-import { ErrorMessage } from './ErrorMessage'
+import { ErrorDisplay } from './ErrorDisplay'
 
 interface SetPasswordScreenProps {
   /** 'recovery' = user clicked a password-reset link (forgot password flow)
@@ -87,7 +87,7 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
           </p>
         </div>
 
-        <ErrorMessage error={error} />
+        <ErrorDisplay message={error} centered />
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <PasswordInput
@@ -115,8 +115,8 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
           <button
             type="submit"
             disabled={!isValid || submitting}
-            className="w-full px-4 py-3 rounded-lg bg-themeblue2 text-white font-medium
-                       hover:bg-themeblue2/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
+                       hover:bg-themeblue3/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {submitting ? 'Setting Password...' : isSetup ? 'Set Password' : 'Update Password'}
           </button>

@@ -168,7 +168,7 @@ export function GroupInfoPanel({
               {isAdmin && member.userId !== userId && (
                 <button
                   onClick={() => handleRemoveMember(member.userId)}
-                  className="p-1.5 rounded-full hover:bg-red-50 active:scale-95 transition-all"
+                  className="p-1.5 rounded-full hover:bg-themeredred/10 active:scale-95 transition-all"
                 >
                   <UserMinus size={14} className="text-red-400" />
                 </button>
@@ -183,7 +183,7 @@ export function GroupInfoPanel({
         <button
           onClick={() => onLeave(group.groupId)}
           className="w-full py-2.5 rounded-full border border-red-200 text-sm font-medium
-                     text-red-500 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                     text-red-500 active:scale-95 transition-all flex items-center justify-center gap-2"
         >
           <LogOut size={14} />
           Leave Group

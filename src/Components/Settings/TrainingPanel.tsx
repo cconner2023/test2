@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { Check, ChevronRight, AlertTriangle, Info, Lock, BookOpen, Search, X } from 'lucide-react'
+import { Check, ChevronRight, AlertTriangle, Info, Lock, BookOpen } from 'lucide-react'
+import { EmptyState } from '../EmptyState'
+import { SearchInput } from '../SearchInput'
 import { stp68wTraining } from '../../Data/TrainingTaskList'
 import { getTaskData } from '../../Data/TrainingData'
 import type { TaskTrainingData, PerformanceStep } from '../../Data/TrainingData'
@@ -92,7 +94,7 @@ function TaskRow({
             disabled={!hasData}
             className={`flex items-center w-full px-6 py-3 rounded-xl text-left transition-all
                 ${hasData
-                    ? 'hover:bg-themewhite2 active:scale-[0.98] cursor-pointer'
+                    ? 'hover:bg-themewhite2 active:scale-95 cursor-pointer'
                     : 'opacity-40 cursor-not-allowed'
                 }`}
         >
@@ -132,7 +134,6 @@ function TrainingList({
 }) {
     const { isTaskCompleted, isTaskViewed } = useTrainingCompletions()
     const [searchQuery, setSearchQuery] = useState('')
-    const inputRef = useRef<HTMLInputElement>(null)
 
     const allByCategory = useMemo(() => buildAllTasksByCategory(), [])
 
@@ -167,26 +168,12 @@ function TrainingList({
                 </p>
 
                 {/* Search Bar */}
-                <div className="relative mb-3">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary/40 pointer-events-none" />
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search tasks..."
-                        className="w-full pl-8 pr-8 py-2 rounded-lg bg-themewhite2 text-sm text-primary
-                                   placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
-                    />
-                    {searchQuery && (
-                        <button
-                            onClick={() => { setSearchQuery(''); inputRef.current?.focus() }}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-tertiary/10 transition-colors"
-                        >
-                            <X size={14} className="text-tertiary/50" />
-                        </button>
-                    )}
-                </div>
+                <SearchInput
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    placeholder="Search tasks..."
+                    className="mb-3"
+                />
 
                 {isSearching && (
                     <p className="text-[10px] text-tertiary/50 mb-2">
@@ -195,7 +182,7 @@ function TrainingList({
                 )}
 
                 {totalResults === 0 && isSearching ? (
-                    <p className="text-sm text-tertiary/40 text-center py-8">No tasks match your search.</p>
+                    <EmptyState title="No tasks match your search" />
                 ) : (
                     <div className="space-y-1">
                         {Array.from(displayCategories).map(([categoryName, tasks]) => (
@@ -355,7 +342,7 @@ function TaskDetail({
                     <button
                         onClick={handleMarkComplete}
                         className="w-full py-3 rounded-xl bg-themegreen/15 text-themegreen text-sm font-medium
-                                   hover:bg-themegreen/25 active:scale-[0.98] transition-all"
+                                   hover:bg-themegreen/25 active:scale-95 transition-all"
                     >
                         Mark as Completed
                     </button>

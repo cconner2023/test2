@@ -29,8 +29,8 @@ export function ProvisionalDeviceModal() {
     <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/40">
       <div className="bg-themewhite rounded-2xl shadow-2xl border border-tertiary/10 mx-4 max-w-sm w-full px-6 py-5 flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center flex-shrink-0">
-            <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div className="w-10 h-10 rounded-full bg-themeyellow/15 flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-themeyellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
             </svg>
           </div>

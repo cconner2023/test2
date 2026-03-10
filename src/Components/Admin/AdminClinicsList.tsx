@@ -7,13 +7,15 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Check, Search, Plus, Pencil, Trash2, Building2, MapPin, Eye } from 'lucide-react'
+import { Check, Plus, Pencil, Trash2, Building2, MapPin, Eye } from 'lucide-react'
+import { EmptyState } from '../EmptyState'
+import { SearchInput } from '../SearchInput'
 import { SwipeableCard } from '../SwipeableCard'
 import { CardContextMenu } from '../CardContextMenu'
 import { CardActionBar } from '../CardActionBar'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LoadingSpinner } from '../LoadingSpinner'
-import { StatusBanner } from '../Settings/StatusBanner'
+import { ErrorDisplay } from '../ErrorDisplay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { listClinics, listAllUsers, deleteClinic } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
@@ -166,20 +168,14 @@ export function AdminClinicsList({
         </div>
 
         {/* Feedback banner */}
-        {status && <StatusBanner type={status.type} message={status.message} />}
+        {status && <ErrorDisplay type={status.type} message={status.message} />}
 
         {/* Search bar */}
-        <div className="relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary/40" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by name, location, or UIC..."
-            className="w-full pl-9 pr-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-sm
-                       border border-tertiary/10 focus:border-themeblue2 focus:outline-none transition-colors placeholder:text-tertiary/30"
-          />
-        </div>
+        <SearchInput
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search by name, location, or UIC..."
+        />
       </div>
 
       {/* Card list — scrollable */}
@@ -187,12 +183,10 @@ export function AdminClinicsList({
         {showLoading ? (
           <LoadingSpinner label="Loading clinics..." className="py-12 text-tertiary" />
         ) : filteredClinics.length === 0 ? (
-          <div className="text-center py-12">
-            <Building2 size={28} className="mx-auto mb-3 text-tertiary/30" />
-            <p className="text-tertiary/60">
-              {searchQuery ? 'No clinics match your search' : 'No clinics found'}
-            </p>
-          </div>
+          <EmptyState
+            icon={<Building2 size={28} />}
+            title={searchQuery ? 'No clinics match your search' : 'No clinics found'}
+          />
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {filteredClinics.map((clinic) => {

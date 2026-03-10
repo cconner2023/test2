@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { AlertCircle, CheckCircle2, ChevronDown, ChevronRight } from 'lucide-react'
+import { EmptyState } from '../EmptyState'
 import type { LocalDiscrepancy, RectifyMethod } from '../../Types/PropertyTypes'
 
 interface DiscrepancyListProps {
@@ -69,7 +70,7 @@ export function DiscrepancyList({ discrepancies, onRectify, itemNames, holderNam
               {expandedId === d.id && (
                 <div className="px-4 pb-3 space-y-2">
                   <select
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-tertiary/20 bg-themewhite text-primary focus:outline-none focus:border-themeblue3/50"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-tertiary/20 bg-themewhite text-primary focus:outline-none focus:border-themeblue2"
                     value={rectifyMethod}
                     onChange={(e) => setRectifyMethod(e.target.value as RectifyMethod)}
                   >
@@ -78,14 +79,14 @@ export function DiscrepancyList({ discrepancies, onRectify, itemNames, holderNam
                     ))}
                   </select>
                   <textarea
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-tertiary/20 bg-themewhite text-primary placeholder:text-tertiary/50 focus:outline-none focus:border-themeblue3/50 resize-none"
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-tertiary/20 bg-themewhite text-primary placeholder:text-tertiary/50 focus:outline-none focus:border-themeblue2 resize-none"
                     rows={2}
                     value={rectifyNotes}
                     onChange={(e) => setRectifyNotes(e.target.value)}
                     placeholder="Resolution notes..."
                   />
                   <button
-                    className="w-full py-2 rounded-lg bg-green-600 text-white text-sm font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                    className="w-full py-2 rounded-lg bg-themegreen text-white text-sm font-medium hover:bg-themegreen/90 transition-colors disabled:opacity-50"
                     disabled={isRectifying}
                     onClick={() => handleRectify(d.id)}
                   >
@@ -101,7 +102,7 @@ export function DiscrepancyList({ discrepancies, onRectify, itemNames, holderNam
       {/* Rectified */}
       {rectified.length > 0 && (
         <div>
-          <h3 className="px-4 text-xs font-medium text-green-600 uppercase tracking-wide mb-2">
+          <h3 className="px-4 text-xs font-medium text-themegreen uppercase tracking-wide mb-2">
             Resolved ({rectified.length})
           </h3>
           {rectified.map((d) => (
@@ -121,9 +122,10 @@ export function DiscrepancyList({ discrepancies, onRectify, itemNames, holderNam
       )}
 
       {discrepancies.length === 0 && (
-        <div className="px-4 py-8 text-center text-sm text-tertiary">
-          No discrepancies
-        </div>
+        <EmptyState
+          icon={<CheckCircle2 size={28} />}
+          title="No discrepancies"
+        />
       )}
     </div>
   )

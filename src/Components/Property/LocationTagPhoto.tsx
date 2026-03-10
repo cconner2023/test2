@@ -1,7 +1,9 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
+import { animated, to } from '@react-spring/web'
 import { useDrag } from '@use-gesture/react'
 import { MapPin, Package, ZoomIn, ZoomOut, X, GripHorizontal } from 'lucide-react'
 import { clamp } from '../../Utilities/GestureUtils'
+import { useCanvasGesture } from '../../Hooks/useCanvasGesture'
 import type { LocationTag, LocalPropertyItem, LocalPropertyLocation, ZoneRect } from '../../Types/PropertyTypes'
 
 /** Default rects for a simple rectangle zone */
@@ -61,12 +63,16 @@ interface LocationTagPhotoProps {
   highlightedZoneId?: string | null
   // Zoom target — zone rect to zoom into
   zoomTarget?: { x: number; y: number; w: number; h: number } | null
+  // Called when zoomToRect spring animation completes (zone fully framed)
+  onZoomComplete?: () => void
   // Locations list — used to look up photos for zone backgrounds
   locations?: LocalPropertyLocation[]
   // Pre-fetched tags for child locations — used for mini-map previews in zones without photos
   childTagsMap?: Map<string, LocationTag[]>
-  // Parent canvas context — cropped parent photo shown when current canvas has no photo
-  parentContext?: { photo: string; zoneRect: { x: number; y: number; w: number; h: number } } | null
+  /** When true, disables all interaction — used for background layers in the stack */
+  frozen?: boolean
+  /** Pre-set the canvas transform (background layers start already zoomed) */
+  initialTransform?: { x: number; y: number; scale: number }
 }
 
 export function LocationTagPhoto({
@@ -90,12 +96,13 @@ export function LocationTagPhoto({
   onZoneSelect,
   highlightedZoneId,
   zoomTarget,
+  onZoomComplete,
   locations,
   childTagsMap,
+  frozen,
+  initialTransform,
 }: LocationTagPhotoProps) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const viewportRef = useRef<HTMLDivElement>(null)
-  const [zoom, setZoom] = useState(1)
 
   // Build a map of location id → photo_data for zone backgrounds
   const locationPhotoMap = useMemo(() => {
@@ -107,159 +114,81 @@ export function LocationTagPhoto({
     return m
   }, [locations])
 
-  // On initial content load, scroll viewport to top-left so content starts at (0,0).
-  const initialScrollDone = useRef(false)
-  useEffect(() => {
-    const vp = viewportRef.current
-    if (!vp || initialScrollDone.current) return
-    initialScrollDone.current = true
-    requestAnimationFrame(() => {
-      vp.scrollLeft = 0
-      vp.scrollTop = 0
-    })
-  }, [photoData])
+  // Transform-based pan/zoom via spring physics
+  const gesturesEnabled = !drawMode && !frozen
+  const { style: canvasStyle, bind, viewportRef, zoomStep, zoomToRect, resetView, getScale, restRef } = useCanvasGesture({
+    enabled: gesturesEnabled,
+    initialTransform,
+  })
 
-  // Zoom-to-zone: when a zone is selected, zoom in and scroll so its top-left
-  // sits 15px from the top-left corner of the viewport for consistency.
-  // Use a serialized key so the effect fires reliably regardless of object reference identity.
+  // Zoom-to-zone: when zoomTarget changes, animate the canvas to frame the zone
   const zoomTargetKey = zoomTarget
     ? `${zoomTarget.x},${zoomTarget.y},${zoomTarget.w},${zoomTarget.h}`
     : ''
+  const onZoomToRectRef = useRef(zoomToRect)
+  onZoomToRectRef.current = zoomToRect
+  const resetViewRef = useRef(resetView)
+  resetViewRef.current = resetView
+  const onZoomCompleteRef = useRef(onZoomComplete)
+  onZoomCompleteRef.current = onZoomComplete
+  // Flag: true while a zoom transition is in progress (zoom-in → navigate → zoom-out)
+  const isZoomTransitionRef = useRef(false)
   useEffect(() => {
-    const vp = viewportRef.current
-    if (!vp) return
     if (zoomTarget) {
-      const newZoom = Math.min(
-        Math.max(Math.min(0.9 / zoomTarget.w, 0.9 / zoomTarget.h), 1),
-        10,
-      )
-      setZoom(newZoom)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const contentW = vp.scrollWidth
-          const contentH = vp.scrollHeight
-          vp.scrollTo({
-            left: zoomTarget.x * contentW - 15,
-            top: zoomTarget.y * contentH - 15,
-            behavior: 'smooth',
-          })
-        })
+      isZoomTransitionRef.current = true
+      onZoomToRectRef.current(zoomTarget, () => {
+        // Spring has settled — zone is fully framed in the viewport.
+        onZoomCompleteRef.current?.()
       })
-    } else {
-      setZoom(1)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          vp.scrollTo({ left: 0, top: 0, behavior: 'smooth' })
-        })
-      })
+    } else if (isZoomTransitionRef.current) {
+      // Coming out of a zoom transition (zoomTarget cleared after navigation).
+      // Immediate reset: zoomed zone → child canvas at scale=1 is a seamless swap
+      // because the zone was filling the viewport and the child canvas fills it too.
+      isZoomTransitionRef.current = false
+      resetViewRef.current(true)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoomTargetKey])
 
-  // Click-drag panning (mouse only; touch uses native overflow scroll)
+  // Reset view when content changes WITHOUT a zoom transition
+  // (e.g., breadcrumb navigation, direct path changes). Skip for frozen layers.
+  const prevPhotoRef = useRef(photoData)
   useEffect(() => {
-    const vp = viewportRef.current
-    if (!vp) return
-
-    let panning = false
-    let didPan = false
-    let startX = 0
-    let startY = 0
-    let scrollX = 0
-    let scrollY = 0
-
-    const onMouseDown = (e: MouseEvent) => {
-      if (e.button !== 0) return
-      // Skip if starting on edit-mode draggable elements or inputs
-      if ((e.target as HTMLElement).closest('[data-no-pan], input')) return
-      panning = true
-      didPan = false
-      startX = e.clientX
-      startY = e.clientY
-      scrollX = vp.scrollLeft
-      scrollY = vp.scrollTop
-    }
-
-    const onMouseMove = (e: MouseEvent) => {
-      if (!panning) return
-      const dx = e.clientX - startX
-      const dy = e.clientY - startY
-      if (!didPan && Math.abs(dx) + Math.abs(dy) > 3) {
-        didPan = true
-        vp.style.cursor = 'grabbing'
-      }
-      if (didPan) {
-        vp.scrollLeft = scrollX - dx
-        vp.scrollTop = scrollY - dy
+    if (frozen) return
+    if (prevPhotoRef.current !== photoData) {
+      prevPhotoRef.current = photoData
+      // Skip immediate reset during zoom transitions — the zoomTarget effect handles it
+      if (!isZoomTransitionRef.current) {
+        resetViewRef.current(true)
       }
     }
-
-    const onMouseUp = () => {
-      if (!panning) return
-      panning = false
-      vp.style.cursor = ''
-    }
-
-    // Block click after a pan drag so buttons/zones don't activate
-    const onClick = (e: MouseEvent) => {
-      if (didPan) {
-        e.stopPropagation()
-        e.preventDefault()
-        didPan = false
-      }
-    }
-
-    vp.addEventListener('mousedown', onMouseDown)
-    document.addEventListener('mousemove', onMouseMove)
-    document.addEventListener('mouseup', onMouseUp)
-    vp.addEventListener('click', onClick, true) // capture phase
-    return () => {
-      vp.removeEventListener('mousedown', onMouseDown)
-      document.removeEventListener('mousemove', onMouseMove)
-      document.removeEventListener('mouseup', onMouseUp)
-      vp.removeEventListener('click', onClick, true)
-    }
-  }, [])
-
-  // Manual zoom (+/-) maintains focal point at viewport center
-  const handleZoom = useCallback((direction: 'in' | 'out') => {
-    const vp = viewportRef.current
-    if (!vp) return
-    const oldW = vp.scrollWidth
-    const oldH = vp.scrollHeight
-    const cx = (vp.scrollLeft + vp.clientWidth / 2) / oldW
-    const cy = (vp.scrollTop + vp.clientHeight / 2) / oldH
-
-    setZoom(z => {
-      const next = direction === 'in' ? Math.min(z + 0.5, 10) : Math.max(z - 0.5, 1)
-      return next
-    })
-
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        vp.scrollLeft = cx * vp.scrollWidth - vp.clientWidth / 2
-        vp.scrollTop = cy * vp.scrollHeight - vp.clientHeight / 2
-      })
-    })
-  }, [])
+  }, [photoData, frozen])
 
   return (
     <div className="relative">
-      {/* Scrollable viewport */}
+      {/* Viewport — clips content, captures gestures */}
       <div
         ref={viewportRef}
-        className="max-h-[40vh] rounded-lg overflow-auto cursor-grab"
+        {...bind()}
+        className={`max-h-[40vh] rounded-lg overflow-hidden ${frozen ? '' : 'cursor-grab'}`}
+        style={{ touchAction: isEditMode || drawMode ? 'none' : 'pan-y', pointerEvents: frozen ? 'none' : 'auto' }}
       >
-        {/* Zoomable content — width scales with zoom so native scroll handles panning */}
-        <div
-          ref={containerRef}
-          className="relative select-none"
+        {/* Transform layer — spring-animated translate + scale */}
+        <animated.div
           style={{
-            width: `${zoom * 100}%`,
-
-            touchAction: isEditMode || drawMode ? 'none' : 'auto',
+            transform: to(
+              [canvasStyle.x, canvasStyle.y, canvasStyle.scale],
+              (x, y, s) => `translate3d(${x}px, ${y}px, 0) scale(${s})`,
+            ),
+            transformOrigin: '0 0',
           }}
         >
+          {/* Content container — always 100% width, positions are percentage-based */}
+          <div
+            ref={containerRef}
+            className="relative select-none w-full"
+            style={{ touchAction: isEditMode || drawMode ? 'none' : 'auto' }}
+          >
           {photoData ? (
             <img
               src={photoData}
@@ -349,28 +278,31 @@ export function LocationTagPhoto({
             />
           )}
         </div>
+        </animated.div>
       </div>
 
-      {/* Zoom controls */}
-      <div className="absolute bottom-2 left-2 flex flex-col gap-1 z-10">
-        <button
-          className="p-1.5 rounded-full bg-black/50 text-white shadow-md hover:bg-black/60 transition-colors disabled:opacity-30"
-          onClick={() => handleZoom('in')}
-          disabled={zoom >= 10}
-        >
-          <ZoomIn size={14} />
-        </button>
-        <button
-          className="p-1.5 rounded-full bg-black/50 text-white shadow-md hover:bg-black/60 transition-colors disabled:opacity-30"
-          onClick={() => handleZoom('out')}
-          disabled={zoom <= 1}
-        >
-          <ZoomOut size={14} />
-        </button>
-      </div>
+      {/* Zoom controls — hidden for frozen background layers */}
+      {!frozen && (
+        <div className="absolute bottom-2 left-2 flex flex-col gap-1 z-10">
+          <button
+            className="p-1.5 rounded-full bg-black/50 text-white shadow-md hover:bg-black/60 transition-colors disabled:opacity-30"
+            onClick={() => zoomStep('in')}
+            disabled={getScale() >= 10}
+          >
+            <ZoomIn size={14} />
+          </button>
+          <button
+            className="p-1.5 rounded-full bg-black/50 text-white shadow-md hover:bg-black/60 transition-colors disabled:opacity-30"
+            onClick={() => zoomStep('out')}
+            disabled={getScale() <= 1}
+          >
+            <ZoomOut size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Draw mode indicator */}
-      {drawMode && (
+      {drawMode && !frozen && (
         <div className="absolute top-2 left-2 px-2 py-1 rounded-full bg-themeblue3 text-white text-[10px] font-medium shadow-md z-10">
           Draw a zone
         </div>

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react'
-import { PenLine, Users, X } from 'lucide-react'
+import { PenLine, X } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { MessagesPanel, type MessagesView } from './Settings/MessagesPanel'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
@@ -115,14 +115,6 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                         title="New message"
                     >
                         <PenLine className="w-[18px] h-[18px]" />
-                    </button>
-                    <button
-                        onClick={handleShowContacts}
-                        className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-                        aria-label="New group"
-                        title="New group"
-                    >
-                        <Users className="w-[18px] h-[18px]" />
                     </button>
                     <button
                         onClick={handleClose}

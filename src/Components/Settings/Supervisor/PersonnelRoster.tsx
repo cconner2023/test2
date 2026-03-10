@@ -1,5 +1,7 @@
-import { useState, useMemo, useRef, useCallback } from 'react'
-import { Search, X, Users, ClipboardCheck, Eye, Pencil } from 'lucide-react'
+import { useState, useMemo, useCallback } from 'react'
+import { Users, ClipboardCheck, Eye, Pencil } from 'lucide-react'
+import { EmptyState } from '../../EmptyState'
+import { SearchInput } from '../../SearchInput'
 import { SwipeableRosterCard } from './SwipeableRosterCard'
 import { CardContextMenu } from '../../CardContextMenu'
 import { CardActionBar, type ActionBarAction } from '../../CardActionBar'
@@ -31,7 +33,6 @@ export function PersonnelRoster({
   const [searchQuery, setSearchQuery] = useState('')
   const [openCardId, setOpenCardId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ soldierId: string; x: number; y: number } | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const multiSelectMode = selectedSoldierIds.size > 0
 
@@ -60,10 +61,10 @@ export function PersonnelRoster({
 
   if (medics.length === 0) {
     return (
-      <div className="text-center py-12">
-        <Users size={28} className="mx-auto mb-3 text-tertiary/30" />
-        <p className="text-sm text-tertiary/60">No medics found in your clinic</p>
-      </div>
+      <EmptyState
+        icon={<Users size={28} />}
+        title="No medics found in your clinic"
+      />
     )
   }
 
@@ -99,26 +100,12 @@ export function PersonnelRoster({
       {/* Scrollable content */}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 md:px-5 md:py-5">
         {/* Search */}
-        <div className="relative mb-3">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary/40 pointer-events-none" />
-          <input
-            ref={inputRef}
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search personnel..."
-            className="w-full pl-8 pr-8 py-2 rounded-lg bg-themewhite2 text-sm text-primary
-                       placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => { setSearchQuery(''); inputRef.current?.focus() }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-tertiary/10 transition-colors"
-            >
-              <X size={14} className="text-tertiary/50" />
-            </button>
-          )}
-        </div>
+        <SearchInput
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search personnel..."
+          className="mb-3"
+        />
 
         {searchQuery.trim() && (
           <p className="text-[10px] text-tertiary/50 mb-2">
@@ -127,7 +114,7 @@ export function PersonnelRoster({
         )}
 
         {filteredMedics.length === 0 && searchQuery.trim() ? (
-          <p className="text-sm text-tertiary/40 text-center py-8">No personnel match your search.</p>
+          <EmptyState title="No personnel match your search" />
         ) : (
           <div className="space-y-2">
             {filteredMedics.map((soldier) => (

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Award, Plus, Star, Trash2, ChevronDown, ChevronUp, CheckCircle, AlertCircle, Clock, Minus } from 'lucide-react';
+import { EmptyState } from '../EmptyState';
 import { useCertifications } from '../../Hooks/useCertifications';
 import { credentials } from '../../Data/User';
 import { LoadingSpinner } from '../LoadingSpinner';
@@ -274,8 +275,8 @@ function AddCertForm({ onAdd }: { onAdd: (input: {
                     <button
                         onClick={handleSubmit}
                         disabled={submitting || !title.trim()}
-                        className="w-full py-2.5 rounded-xl bg-themeblue2 text-white text-sm font-semibold
-                                   hover:bg-themeblue2/90 active:scale-[0.98] transition-all
+                        className="w-full py-2.5 rounded-xl bg-themeblue3 text-white text-sm font-semibold
+                                   hover:bg-themeblue3/90 active:scale-95 transition-all
                                    disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                         {submitting ? 'Adding...' : 'Add Certification'}
@@ -306,12 +307,10 @@ export const CertificationsPanel = () => {
                     <div className="space-y-3">
                         {/* Cert list */}
                         {certs.length === 0 && (
-                            <div className="flex flex-col items-center py-8 text-center">
-                                <div className="w-12 h-12 rounded-full bg-tertiary/5 flex items-center justify-center mb-3">
-                                    <Award size={22} className="text-tertiary/40" />
-                                </div>
-                                <p className="text-sm text-tertiary/50">No certifications added yet</p>
-                            </div>
+                            <EmptyState
+                                icon={<Award size={28} />}
+                                title="No certifications added yet"
+                            />
                         )}
 
                         {certs.map((cert) => (

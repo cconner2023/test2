@@ -117,7 +117,7 @@ export function CallOverlay() {
       <div className={`flex flex-col items-center gap-3 ${isVideo && isActive ? 'z-10' : ''}`}>
         {/* Avatar — hidden during active video call */}
         {!(isVideo && isActive) && (
-          <div className="w-20 h-20 rounded-full bg-gray-700 flex items-center justify-center">
+          <div className="w-20 h-20 rounded-full bg-tertiary/80 flex items-center justify-center">
             <span className="text-2xl font-semibold text-white">
               {peer.displayName.charAt(0).toUpperCase()}
             </span>
@@ -138,7 +138,7 @@ export function CallOverlay() {
           <button
             onClick={() => actions?.toggleMute()}
             className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors
-                       ${isMuted ? 'bg-red-500/20' : 'bg-gray-700'}`}
+                       ${isMuted ? 'bg-red-500/20' : 'bg-tertiary/80'}`}
           >
             {isMuted ? (
               <MicOff size={24} className="text-red-400" />
@@ -153,7 +153,7 @@ export function CallOverlay() {
           <button
             onClick={() => actions?.toggleVideo()}
             className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors
-                       ${isVideoOff ? 'bg-red-500/20' : 'bg-gray-700'}`}
+                       ${isVideoOff ? 'bg-red-500/20' : 'bg-tertiary/80'}`}
           >
             {isVideoOff ? (
               <VideoOff size={24} className="text-red-400" />

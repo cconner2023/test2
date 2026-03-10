@@ -151,7 +151,7 @@ export const ActionIconButton = ({
     variant: 'copy' | 'share' | 'pdf';
     title: string;
 }) => {
-    const colorClass = status === 'done' ? 'text-green-600'
+    const colorClass = status === 'done' ? 'text-themegreen'
         : status === 'busy' ? 'text-purple-600'
             : 'text-tertiary hover:text-primary hover:bg-themewhite3';
 

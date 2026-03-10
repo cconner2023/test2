@@ -112,7 +112,7 @@ export function SoldierCertsEditor({
                           <span className="text-xs text-tertiary/50">Unverified</span>
                           <button onClick={() => handleVerify(cert.id)}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium
-                                       bg-themeblue2 text-white hover:bg-themeblue2/90 transition-colors ml-auto">
+                                       bg-themeblue3 text-white hover:bg-themeblue3/90 transition-colors ml-auto">
                             <CheckCircle size={11} /> Verify
                           </button>
                         </>

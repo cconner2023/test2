@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { TextInput, SelectInput } from '../FormInputs'
+import { ErrorDisplay } from '../ErrorDisplay'
 import { credentials, components, ranksByComponent } from '../../Data/User'
 import type { Component } from '../../Data/User'
 import {
@@ -253,11 +254,7 @@ const AdminUserForm = ({ user, onBack, onSaved }: AdminUserFormProps) => {
 
       {!isEditMode && <div className="mb-4" />}
 
-      {error && (
-        <div className="mb-4 p-3 rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred text-sm">
-          {error}
-        </div>
-      )}
+      {error && <ErrorDisplay message={error} />}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* ── Create-only: email & password ─────────────────────────── */}
@@ -369,7 +366,7 @@ const AdminUserForm = ({ user, onBack, onSaved }: AdminUserFormProps) => {
           className={`w-full px-4 py-3 rounded-lg text-white font-medium transition-colors
                       disabled:opacity-50 disabled:cursor-not-allowed
                       ${isEditMode
-                        ? 'bg-themeblue2 hover:bg-themeblue2/90'
+                        ? 'bg-themeblue3 hover:bg-themeblue3/90'
                         : 'bg-themegreen hover:bg-themegreen/90'
                       }`}
         >

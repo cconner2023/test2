@@ -141,7 +141,7 @@ export function CustodyTransferForm({
       <div>
         <label className="block text-xs font-medium text-secondary mb-1">Transfer To</label>
         <select
-          className="w-full px-3 py-2 text-base rounded-lg border border-tertiary/20 bg-themewhite text-primary focus:outline-none focus:border-themeblue3/50 focus:ring-1 focus:ring-themeblue3/20 transition-colors"
+          className="w-full px-3 py-2 text-base rounded-lg border border-tertiary/20 bg-themewhite text-primary focus:outline-none focus:border-themeblue2 transition-colors"
           value={toHolderId}
           onChange={(e) => setToHolderId(e.target.value)}
         >
@@ -171,13 +171,13 @@ export function CustodyTransferForm({
                 const v = Math.max(1, Math.min(maxQuantity, Number(e.target.value) || 1))
                 setQuantity(v)
               }}
-              className="w-full px-3 py-2 text-base rounded-lg border border-tertiary/20 bg-themewhite text-primary focus:outline-none focus:border-themeblue3/50 focus:ring-1 focus:ring-themeblue3/20 transition-colors"
+              className="w-full px-3 py-2 text-base rounded-lg border border-tertiary/20 bg-themewhite text-primary focus:outline-none focus:border-themeblue2 transition-colors"
             />
           </div>
           <div className="flex-1">
             <label className="block text-xs font-medium text-secondary mb-1">Unit of Issue</label>
             <select
-              className="w-full px-3 py-2 text-base rounded-lg border border-tertiary/20 bg-themewhite text-primary focus:outline-none focus:border-themeblue3/50 focus:ring-1 focus:ring-themeblue3/20 transition-colors"
+              className="w-full px-3 py-2 text-base rounded-lg border border-tertiary/20 bg-themewhite text-primary focus:outline-none focus:border-themeblue2 transition-colors"
               value={unitOfIssue}
               onChange={(e) => setUnitOfIssue(e.target.value)}
             >
@@ -221,13 +221,13 @@ export function CustodyTransferForm({
 
       {/* Missing warning — single item only */}
       {!isBatch && missingCount > 0 && singleItem && (
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200">
-          <AlertTriangle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-themeyellow/10 border border-themeyellow/30">
+          <AlertTriangle size={16} className="text-themeyellow shrink-0 mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-amber-800">
+            <p className="text-sm font-medium text-themeyellow">
               {missingCount} item{missingCount > 1 ? 's' : ''} will be logged as discrepancies
             </p>
-            <p className="text-xs text-amber-700 mt-0.5">
+            <p className="text-xs text-themeyellow mt-0.5">
               Against: {singleItem.current_holder_id ? holders.get(singleItem.current_holder_id)?.displayName ?? 'Unknown' : 'Unassigned'}
             </p>
           </div>
@@ -238,7 +238,7 @@ export function CustodyTransferForm({
       <div>
         <label className="block text-xs font-medium text-secondary mb-1">Notes</label>
         <textarea
-          className="w-full px-3 py-2 text-base rounded-lg border border-tertiary/20 bg-themewhite text-primary placeholder:text-tertiary/50 focus:outline-none focus:border-themeblue3/50 resize-none"
+          className="w-full px-3 py-2 text-base rounded-lg border border-tertiary/20 bg-themewhite text-primary placeholder:text-tertiary/50 focus:outline-none focus:border-themeblue2 resize-none"
           rows={2}
           value={notes}
           onChange={(e) => setNotes(e.target.value)}

@@ -69,7 +69,7 @@ export function CreateGroupModal({ medics, onClose, onCreate }: CreateGroupModal
               key={medic.id}
               onClick={() => toggleMember(medic.id)}
               className="flex items-center w-full px-4 py-2.5 rounded-xl text-left gap-3
-                         hover:bg-themewhite2 active:scale-[0.98] transition-all"
+                         hover:bg-themewhite2 active:scale-95 transition-all"
             >
               <UserAvatar avatarId={medic.avatarId} firstName={medic.firstName} lastName={medic.lastName} className="w-8 h-8" />
               <span className="flex-1 text-sm text-primary truncate">{getDisplayName(medic)}</span>
@@ -86,8 +86,8 @@ export function CreateGroupModal({ medics, onClose, onCreate }: CreateGroupModal
           <button
             onClick={handleCreate}
             disabled={!name.trim() || selectedIds.size === 0 || creating}
-            className="w-full py-2.5 rounded-full bg-themeblue2 text-sm font-medium text-white
-                       disabled:opacity-30 active:scale-[0.98] transition-all"
+            className="w-full py-2.5 rounded-full bg-themeblue3 text-sm font-medium text-white
+                       disabled:opacity-30 active:scale-95 transition-all"
           >
             {creating ? 'Creating...' : `Create Group (${selectedIds.size})`}
           </button>

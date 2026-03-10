@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useAlgorithm } from '../Hooks/useAlgorithm';
 import type { dispositionType } from '../Types/AlgorithmTypes';
@@ -99,30 +99,30 @@ export function AlgorithmPage() {
         return () => observer.disconnect();
     }, [isTransitioning, scrollToMarker]);
     // Wrapper handlers — scroll delayed to let connector stagger animation (~500ms) complete
-    const handleAnswer = (cardIndex: number, answerIndex: number) => {
+    const handleAnswer = useCallback((cardIndex: number, answerIndex: number) => {
         setIsTransitioning(true);
         hookHandleAnswer(cardIndex, answerIndex);
         setTimeout(() => {
             setScrollTrigger(prev => prev + 1);
         }, ALGORITHM_TIMING.SCROLL_AFTER_STAGGER);
-    };
+    }, [hookHandleAnswer]);
 
-    const handleQuestionOption = (cardIndex: number, optionIndex: number) => {
+    const handleQuestionOption = useCallback((cardIndex: number, optionIndex: number) => {
         setIsTransitioning(true);
         hookHandleQuestionOption(cardIndex, optionIndex);
         setTimeout(() => {
             setScrollTrigger(prev => prev + 1);
         }, ALGORITHM_TIMING.SCROLL_AFTER_STAGGER);
-    };
+    }, [hookHandleQuestionOption]);
 
     // Action status wrapper — triggers animation when pending cards are revealed
-    const handleActionStatus = (cardIndex: number, status: 'performed' | 'deferred') => {
+    const handleActionStatus = useCallback((cardIndex: number, status: 'performed' | 'deferred') => {
         setIsTransitioning(true);
         setActionStatus(cardIndex, status);
         setTimeout(() => {
             setScrollTrigger(prev => prev + 1);
         }, ALGORITHM_TIMING.SCROLL_AFTER_STAGGER);
-    };
+    }, [setActionStatus]);
 
     // Screener handlers
     const handleOpenScreener = useCallback((cardIndex: number) => {

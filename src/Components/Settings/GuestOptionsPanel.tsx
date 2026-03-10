@@ -20,7 +20,7 @@ export const GuestOptionsPanel = ({
           <button
             onClick={onSignIn}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                     bg-themeblue3 text-white font-medium hover:bg-themeblue2/90
+                     bg-themeblue3 text-white font-medium hover:bg-themeblue3/90
                      transition-colors"
           >
             <LogIn size={18} />

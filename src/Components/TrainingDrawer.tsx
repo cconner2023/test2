@@ -150,7 +150,7 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
                     <button
                         onClick={handleMarkComplete}
                         className="w-full py-3 rounded-xl bg-themegreen/15 text-themegreen text-sm font-medium
-                                   hover:bg-themegreen/25 active:scale-[0.98] transition-all"
+                                   hover:bg-themegreen/25 active:scale-95 transition-all"
                     >
                         Mark as Completed
                     </button>

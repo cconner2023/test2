@@ -37,15 +37,15 @@ export function ConfirmDialog({
           <button
             onClick={onCancel}
             disabled={processing}
-            className="flex-1 py-2.5 rounded-full border border-tertiary/15 text-sm font-medium text-tertiary active:scale-[0.98] transition-all"
+            className="flex-1 py-2.5 rounded-full border border-tertiary/15 text-sm font-medium text-tertiary active:scale-95 transition-all"
           >
             {cancelLabel}
           </button>
           <button
             onClick={onConfirm}
             disabled={processing}
-            className={`flex-1 py-2.5 rounded-full text-sm font-medium text-white active:scale-[0.98] transition-all ${
-              variant === 'danger' ? 'bg-themeredred' : 'bg-amber-500'
+            className={`flex-1 py-2.5 rounded-full text-sm font-medium text-white active:scale-95 transition-all ${
+              variant === 'danger' ? 'bg-themeredred' : 'bg-themeyellow'
             } ${processing ? 'opacity-60' : ''}`}
           >
             {processing ? 'Processing...' : confirmLabel}

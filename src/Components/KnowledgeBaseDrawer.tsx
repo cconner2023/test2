@@ -248,7 +248,7 @@ function KBHome({ onCategoryClick }: { onCategoryClick: (cat: KBCategory) => voi
                                         className={`flex items-center w-full px-4 py-3.5 text-left transition-all
                                             ${cat.comingSoon
                                                 ? 'opacity-40 cursor-not-allowed'
-                                                : 'hover:bg-themewhite2 active:scale-[0.99] cursor-pointer'
+                                                : 'hover:bg-themewhite2 active:scale-95 cursor-pointer'
                                             }
                                             ${idx > 0 ? 'border-t border-tertiary/8' : ''}
                                         `}
@@ -538,7 +538,7 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
                                 </p>
                                 <button
                                     onClick={handleRetake}
-                                    className="mt-3 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium bg-themewhite2 text-tertiary hover:bg-themewhite active:scale-[0.98] transition-all"
+                                    className="mt-3 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium bg-themewhite2 text-tertiary hover:bg-themewhite active:scale-95 transition-all"
                                 >
                                     <RotateCcw size={14} />
                                     Retake

@@ -229,7 +229,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                 <div className={BUTTON_CLASSES.mobileContainer}>
                                     <button
                                         onClick={onBackClick}
-                                        className={`${BUTTON_CLASSES.mobileButton} active:scale-90`}
+                                        className={`${BUTTON_CLASSES.mobileButton} active:scale-95`}
                                         aria-label="Go back"
                                         title="Go back"
                                     >

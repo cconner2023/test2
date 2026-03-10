@@ -1,4 +1,4 @@
-import { Edit2 } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
 
 const DisplayField = ({
@@ -65,10 +65,10 @@ export const UserProfileDisplay = ({ onRequestChange }: UserProfileDisplayProps)
           <button
             onClick={onRequestChange}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                     bg-themeblue2 text-white font-medium hover:bg-themeblue2/90
+                     bg-themeblue3 text-white font-medium hover:bg-themeblue3/90
                      transition-colors"
           >
-            <Edit2 size={18} />
+            <Pencil size={18} />
             Request Profile Changes
           </button>
           <p className="text-xs text-tertiary/60 text-center mt-2">

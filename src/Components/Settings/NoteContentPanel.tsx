@@ -250,7 +250,7 @@ const CustomPEBlockManager = ({ blocks, onChange }: CustomPEBlockManagerProps) =
                         </button>
                         <button
                             onClick={save}
-                            className="text-[11px] px-3 py-1 rounded-md bg-themeblue2 text-white hover:bg-themeblue2/90 transition-colors"
+                            className="text-[11px] px-3 py-1 rounded-md bg-themeblue3 text-white hover:bg-themeblue3/90 transition-colors"
                         >
                             {editingId ? 'Update' : 'Add'}
                         </button>
@@ -579,7 +579,7 @@ const OrderSetManager = ({ orderSets, orderTags, instructionTags, onChange }: Or
                         <button onClick={cancel} className="text-[11px] px-3 py-1 rounded-md text-tertiary hover:bg-tertiary/10 transition-colors">
                             Cancel
                         </button>
-                        <button onClick={save} className="text-[11px] px-3 py-1 rounded-md bg-themeblue2 text-white hover:bg-themeblue2/90 transition-colors">
+                        <button onClick={save} className="text-[11px] px-3 py-1 rounded-md bg-themeblue3 text-white hover:bg-themeblue3/90 transition-colors">
                             {editingId ? 'Update' : 'Add'}
                         </button>
                     </div>

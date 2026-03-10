@@ -1,9 +1,10 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Edit3, UserPlus, Building2, Trash2, X } from 'lucide-react'
+import { useState, useCallback, useMemo } from 'react'
+import { Pencil, UserPlus, Building2, Trash2, X } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
+import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
 import { deleteClinic } from '../lib/adminService'
 
@@ -49,15 +50,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const [confirmDeleteClinic, setConfirmDeleteClinic] = useState(false)
     const [deleteClinicProcessing, setDeleteClinicProcessing] = useState(false)
 
-    const [isMobile, setIsMobile] = useState(() =>
-        typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
-    )
-    useEffect(() => {
-        const mql = window.matchMedia('(max-width: 767px)')
-        const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
-        mql.addEventListener('change', handler)
-        return () => mql.removeEventListener('change', handler)
-    }, [])
+    const isMobile = useIsMobile()
 
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
         setSlideDirection(direction)
@@ -220,7 +213,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             return (
                 <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
                     <button onClick={() => handleEditUser(selectedUser)} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Edit">
-                        <Edit3 className="w-[18px] h-[18px]" />
+                        <Pencil className="w-[18px] h-[18px]" />
                     </button>
                     <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
                         <X className="w-[18px] h-[18px]" />
@@ -233,7 +226,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             return (
                 <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
                     <button onClick={() => handleEditClinic(selectedClinic)} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Edit">
-                        <Edit3 className="w-[18px] h-[18px]" />
+                        <Pencil className="w-[18px] h-[18px]" />
                     </button>
                     <button onClick={() => setConfirmDeleteClinic(true)} className="w-11 h-11 rounded-full flex items-center justify-center text-themeredred hover:text-themeredred/80 active:scale-95 transition-all duration-200" aria-label="Delete">
                         <Trash2 className="w-[18px] h-[18px]" />

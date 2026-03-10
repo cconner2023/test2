@@ -46,7 +46,7 @@ export const ChipInput = ({
                      transition-colors placeholder:text-tertiary/30"
         />
         <button type="button" onClick={addChip} disabled={!inputValue.trim()}
-          className="px-3 py-2 rounded-lg bg-themeblue2 text-white text-sm font-medium hover:bg-themeblue2/90 disabled:opacity-50 transition-colors">
+          className="px-3 py-2 rounded-lg bg-themeblue3 text-white text-sm font-medium hover:bg-themeblue3/90 disabled:opacity-50 transition-colors">
           <Plus size={14} />
         </button>
       </div>

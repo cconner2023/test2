@@ -1,5 +1,6 @@
-import { useState, useMemo, useRef } from 'react'
-import { ChevronRight, Search, X, Lock, BookOpen } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { ChevronRight, Lock, BookOpen } from 'lucide-react'
+import { SearchInput } from '../../SearchInput'
 import { isTaskTestable } from '../../../Data/TrainingData'
 import { subjectAreaIcons, skillLevelLabels } from '../../../Data/TrainingConstants'
 import { buildTestableTasksByCategory } from './supervisorHelpers'
@@ -12,7 +13,6 @@ export function SelectTaskStep({
   medicName: string
 }) {
   const [searchQuery, setSearchQuery] = useState('')
-  const inputRef = useRef<HTMLInputElement>(null)
 
   const allByCategory = useMemo(() => buildTestableTasksByCategory(), [])
 
@@ -45,26 +45,12 @@ export function SelectTaskStep({
       </p>
 
       {/* Search Bar */}
-      <div className="relative mb-3">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-tertiary/40 pointer-events-none" />
-        <input
-          ref={inputRef}
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search tasks..."
-          className="w-full pl-8 pr-8 py-2 rounded-lg bg-themewhite2 text-sm text-primary
-                     placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
-        />
-        {searchQuery && (
-          <button
-            onClick={() => { setSearchQuery(''); inputRef.current?.focus() }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-0.5 rounded-full hover:bg-tertiary/10 transition-colors"
-          >
-            <X size={14} className="text-tertiary/50" />
-          </button>
-        )}
-      </div>
+      <SearchInput
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search tasks..."
+        className="mb-3"
+      />
 
       {isSearching && (
         <p className="text-[10px] text-tertiary/50 mb-2">
@@ -103,7 +89,7 @@ export function SelectTaskStep({
                     disabled={!testable}
                     className={`flex items-center w-full px-6 py-3 rounded-lg text-left transition-all
                       ${testable
-                        ? 'hover:bg-themewhite2 active:scale-[0.98] cursor-pointer'
+                        ? 'hover:bg-themewhite2 active:scale-95 cursor-pointer'
                         : 'opacity-40 cursor-not-allowed'
                       }`}
                   >

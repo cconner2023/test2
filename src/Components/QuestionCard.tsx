@@ -1,4 +1,5 @@
 // components/QuestionCard.tsx
+import { memo } from 'react';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
@@ -18,7 +19,7 @@ interface QuestionCardProps {
 }
 
 // components/QuestionCard.tsx
-export const QuestionCard = ({
+export const QuestionCard = memo(function QuestionCard({
     algorithmOptions,
     visibleCards,
     isTransitioning,
@@ -26,7 +27,7 @@ export const QuestionCard = ({
     onQuestionOption,
     onOpenScreener,
     onActionStatus
-}: QuestionCardProps) => {
+}: QuestionCardProps) {
     return (
         <div className="space-y-0">
             {visibleCards.map((card, idx) => {
@@ -91,7 +92,7 @@ export const QuestionCard = ({
                                         </div>
                                         <button
                                             onClick={() => onOpenScreener?.(card.index)}
-                                            className="w-full py-2 text-xs text-themeblue2 bg-themeblue2/8 rounded-md font-medium active:scale-[0.98] transition-all"
+                                            className="w-full py-2 text-xs text-themeblue2 bg-themeblue2/8 rounded-md font-medium active:scale-95 transition-all"
                                         >
                                             View / Edit Results
                                         </button>
@@ -100,7 +101,7 @@ export const QuestionCard = ({
                                     <div className="px-4 pb-3">
                                         <button
                                             onClick={() => onOpenScreener?.(card.index)}
-                                            className="w-full py-2.5 text-xs text-white bg-themeblue2 rounded-md font-medium flex items-center justify-center gap-1.5 active:scale-[0.98] transition-all"
+                                            className="w-full py-2.5 text-xs text-white bg-themeblue3 rounded-md font-medium flex items-center justify-center gap-1.5 active:scale-95 transition-all"
                                         >
                                             <ClipboardList size={14} />
                                             Start Screening
@@ -172,14 +173,14 @@ export const QuestionCard = ({
                                         <button
                                             onClick={() => onActionStatus?.(card.index, 'performed')}
                                             disabled={isTransitioning}
-                                            className="flex-1 py-2.5 text-xs text-white bg-themegreen rounded-md font-medium active:scale-[0.98] transition-all"
+                                            className="flex-1 py-2.5 text-xs text-white bg-themegreen rounded-md font-medium active:scale-95 transition-all"
                                         >
                                             Performed
                                         </button>
                                         <button
                                             onClick={() => onActionStatus?.(card.index, 'deferred')}
                                             disabled={isTransitioning}
-                                            className="flex-1 py-2.5 text-xs text-themered border border-themered rounded-md font-medium active:scale-[0.98] transition-all"
+                                            className="flex-1 py-2.5 text-xs text-themered border border-themered rounded-md font-medium active:scale-95 transition-all"
                                         >
                                             Deferred/Not Indicated
                                         </button>
@@ -309,4 +310,4 @@ export const QuestionCard = ({
             })}
         </div>
     );
-};
+});

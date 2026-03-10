@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase'
 import { submitProfileChangeRequest } from '../../lib/accountRequestService'
 import { createLogger } from '../../Utilities/Logger'
 import { TextInput, SelectInput } from '../FormInputs'
+import { ErrorDisplay } from '../ErrorDisplay'
 
 const logger = createLogger('ProfileChangeRequest')
 
@@ -138,8 +139,8 @@ export const ProfileChangeRequestForm = () => {
             </p>
             <button
               onClick={() => setSubmitted(false)}
-              className="px-4 py-2 rounded-lg bg-themeblue2 text-white font-medium
-                       hover:bg-themeblue2/90 transition-colors"
+              className="px-4 py-2 rounded-lg bg-themeblue3 text-white font-medium
+                       hover:bg-themeblue3/90 transition-colors"
             >
               Submit Another Request
             </button>
@@ -157,11 +158,7 @@ export const ProfileChangeRequestForm = () => {
           Update the fields you want to change. An administrator will review your request.
         </p>
 
-        {error && (
-          <div className="mb-4 p-3 rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred text-sm">
-            {error}
-          </div>
-        )}
+        {error && <ErrorDisplay message={error} />}
 
         {!hasChanges && (
           <div className="mb-4 p-3 rounded-lg bg-themeyellow/10 border border-themeyellow/20 text-themeyellow text-sm">
@@ -249,8 +246,8 @@ export const ProfileChangeRequestForm = () => {
           <button
             type="submit"
             disabled={submitting || !hasChanges}
-            className="w-full px-4 py-3 rounded-lg bg-themeblue2 text-white font-medium
-                     hover:bg-themeblue2/90 transition-colors disabled:opacity-50
+            className="w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
+                     hover:bg-themeblue3/90 transition-colors disabled:opacity-50
                      disabled:cursor-not-allowed"
           >
             {submitting ? 'Submitting...' : 'Submit Change Request'}

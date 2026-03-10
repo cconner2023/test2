@@ -5,6 +5,7 @@ import { useNavigationStore } from '../stores/useNavigationStore'
 import { signIn } from '../lib/authService'
 import { supabase } from '../lib/supabase'
 import { PinKeypad } from './PinKeypad'
+import { ErrorDisplay } from './ErrorDisplay'
 
 type View = 'main' | 'reset' | 'resetToken' | 'pin'
 
@@ -94,7 +95,7 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="fixed inset-0 z-[90] bg-themewhite dark:bg-[rgba(25,35,45,1)] overflow-y-auto"
+    <div className="fixed inset-0 z-[90] bg-themewhite dark:bg-themewhite3 overflow-y-auto"
          style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
       <div className="min-h-full flex flex-col items-center justify-center py-8 px-4">
       <div className="w-full max-w-sm">
@@ -112,11 +113,7 @@ export function LoginScreen() {
           </h1>
         </div>
 
-        {error && (
-          <div className="mb-4 p-3 text-sm rounded-lg bg-themeredred/10 border border-themeredred/20 text-themeredred">
-            {error}
-          </div>
-        )}
+        {error && <ErrorDisplay message={error} />}
 
         {/* ── Sign In (email / password) ── */}
         {view === 'main' && (
@@ -144,7 +141,7 @@ export function LoginScreen() {
                 type="submit"
                 disabled={loading}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                         bg-themeblue2 text-white font-medium disabled:opacity-50 transition-colors"
+                         bg-themeblue3 text-white font-medium disabled:opacity-50 transition-colors"
               >
                 <LogIn size={18} />
                 {loading ? 'Signing In...' : 'Sign In'}
@@ -168,7 +165,7 @@ export function LoginScreen() {
                 <div className="w-full border-t border-tertiary/10" />
               </div>
               <div className="relative flex justify-center text-xs">
-                <span className="px-3 bg-themewhite dark:bg-[rgba(25,35,45,1)] text-tertiary/50">or</span>
+                <span className="px-3 bg-themewhite dark:bg-themewhite3 text-tertiary/50">or</span>
               </div>
             </div>
 
@@ -219,7 +216,7 @@ export function LoginScreen() {
                 <button
                   type="submit"
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                           bg-themeblue2 text-white font-medium transition-colors"
+                           bg-themeblue3 text-white font-medium transition-colors"
                 >
                   Continue
                 </button>
@@ -272,7 +269,7 @@ export function LoginScreen() {
                 type="submit"
                 disabled={loading}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                         bg-themeblue2 text-white font-medium disabled:opacity-50 transition-colors"
+                         bg-themeblue3 text-white font-medium disabled:opacity-50 transition-colors"
               >
                 <KeyRound size={18} />
                 {loading ? 'Sending...' : 'Send Reset Token'}
@@ -313,7 +310,7 @@ export function LoginScreen() {
                 type="submit"
                 disabled={loading}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                         bg-themeblue2 text-white font-medium disabled:opacity-50 transition-colors"
+                         bg-themeblue3 text-white font-medium disabled:opacity-50 transition-colors"
               >
                 <KeyRound size={18} />
                 {loading ? 'Verifying...' : 'Verify & Reset'}

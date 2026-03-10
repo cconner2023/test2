@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { Plus, Camera, Edit3, Check, Trash2, MoreVertical, X, Package, CheckCircle2, CirclePlus, ChevronDown, ChevronUp, RectangleHorizontal, Scissors, Merge, Copy } from 'lucide-react'
+import { Plus, Camera, Pencil, Check, Trash2, MoreVertical, X, Package, CheckCircle2, CirclePlus, ChevronDown, ChevronUp, RectangleHorizontal, Scissors, Merge, Copy } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { resizeImage } from '../../Utilities/imageUtils'
 import { clamp } from '../../Utilities/GestureUtils'
@@ -46,7 +46,7 @@ export function PropertyLocationMap({
   onAddItem,
   onRegisterLocationActions,
 }: PropertyLocationMapProps) {
-  const { selectedZoneId, selectZone, rootLocationId, canvasStack, navigateInto, navigateBack, navigateToPath } = usePropertyStore()
+  const { selectedZoneId, selectZone, rootLocationId, canvasStack, navigateInto, navigateBack, navigateToPath, transitionState, setTransitionState, pendingNavTarget, setPendingNavTarget } = usePropertyStore()
 
   // Canvas shows the current drill-down location, or root if at top level
   const canvasLocationId = selectedZoneId ?? rootLocationId
@@ -89,6 +89,10 @@ export function PropertyLocationMap({
   // Zoom-then-navigate state (Google Maps-style drill-down)
   const [pendingNavId, setPendingNavId] = useState<string | null>(null)
   const [navZoomTarget, setNavZoomTarget] = useState<{ x: number; y: number; w: number; h: number } | null>(null)
+
+  // Layer stack — cached tags for background (parent) layers so they persist after navigation
+  const [layerTagsMap, setLayerTagsMap] = useState<Map<string, LocationTag[]>>(new Map())
+  const canvasWrapperRef = useRef<HTMLDivElement>(null)
 
   // Item tray state
   const [isTrayExpanded, setIsTrayExpanded] = useState(true)
@@ -156,33 +160,6 @@ export function PropertyLocationMap({
     fetchLocationTagsBatch(childLocIds).then(setChildTagsMap)
   }, [tags])
 
-  // When the current canvas has no photo, look up the parent's photo + zone rect
-  // so LocationTagPhoto can show a cropped parent view as orientation context.
-  const [parentContext, setParentContext] = useState<{ photo: string; zoneRect: { x: number; y: number; w: number; h: number } } | null>(null)
-  useEffect(() => {
-    if (canvasPhoto || !selectedZoneId) { setParentContext(null); return }
-    // Find parent in the stack (one level up)
-    const parentId = canvasStack.length >= 2
-      ? canvasStack[canvasStack.length - 2]
-      : rootLocationId
-    if (!parentId) { setParentContext(null); return }
-    const parentLoc = locations.find(l => l.id === parentId)
-    if (!parentLoc?.photo_data) { setParentContext(null); return }
-    // Fetch parent's tags to find the zone rect for the current location
-    fetchLocationTags(parentId).then(parentTags => {
-      const zoneTag = parentTags.find(t => t.target_type === 'location' && t.target_id === selectedZoneId && t.width && t.height)
-      if (zoneTag) {
-        setParentContext({
-          photo: parentLoc.photo_data!,
-          zoneRect: { x: zoneTag.x, y: zoneTag.y, w: zoneTag.width!, h: zoneTag.height! },
-        })
-      } else {
-        setParentContext(null)
-      }
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canvasLocationId, canvasPhoto])
-
   // Reset edit state when navigating to a different canvas
   useEffect(() => {
     setIsEditMode(false)
@@ -202,9 +179,11 @@ export function PropertyLocationMap({
   }, [isEditMode])
 
   const handleTagTap = useCallback((tag: LocationTag) => {
+    if (transitionState !== 'idle') return // prevent double-tap during animation
     if (tag.target_type === 'location') {
       if (tag.width && tag.height) {
-        // Zoom into the zone first, then navigate after animation
+        // Zoom into the zone first, then navigate after spring rest
+        setTransitionState('zooming-in')
         setNavZoomTarget({ x: tag.x, y: tag.y, w: tag.width, h: tag.height })
         setPendingNavId(tag.target_id)
       } else {
@@ -215,18 +194,59 @@ export function PropertyLocationMap({
       const item = items.find((i) => i.id === tag.target_id)
       if (item) onSelectItem(item)
     }
-  }, [items, navigateInto, onSelectItem])
+  }, [items, navigateInto, onSelectItem, transitionState, setTransitionState])
 
-  // Complete navigation after zoom animation finishes
+  // Called by LocationTagPhoto when the zoom spring rests (zone fully framed).
+  // Cache current tags for the layer that's about to become a background layer,
+  // then push the stack so a new top layer appears.
+  const handleZoomComplete = useCallback(() => {
+    if (!pendingNavId || transitionState !== 'zooming-in') return
+
+    // Cache the current top layer's tags so the background layer can render them
+    if (canvasLocationId) {
+      setLayerTagsMap(prev => {
+        const next = new Map(prev)
+        next.set(canvasLocationId, [...tags])
+        return next
+      })
+    }
+
+    // Navigate — pushes canvasStack, new top layer renders at scale=1
+    navigateInto(pendingNavId)
+    setPendingNavId(null)
+    // Don't clear navZoomTarget — the old top layer (now background) keeps its zoom.
+    // The new top layer doesn't receive navZoomTarget (it gets null via the zoomTarget prop).
+    setNavZoomTarget(null)
+    setTransitionState('idle')
+  }, [pendingNavId, transitionState, navigateInto, setTransitionState, canvasLocationId, tags])
+
+  // Process pending navigation target from tree/external nav
+  // If the target has a zone on the current canvas, zoom to it first.
+  // If the target is deeper (not on current canvas), navigate directly.
   useEffect(() => {
-    if (!pendingNavId) return
-    const timer = setTimeout(() => {
-      navigateInto(pendingNavId)
-      setPendingNavId(null)
-      setNavZoomTarget(null)
-    }, 600)
-    return () => clearTimeout(timer)
-  }, [pendingNavId, navigateInto])
+    if (!pendingNavTarget || transitionState !== 'idle') return
+    setPendingNavTarget(null)
+
+    // Check if the target is a zone on the current canvas
+    const matchingTag = tags.find(
+      (t) => t.target_type === 'location' && t.target_id === pendingNavTarget && t.width && t.height,
+    )
+    if (matchingTag) {
+      // Zoom into the zone, then navigate (same flow as zone tap)
+      setTransitionState('zooming-in')
+      setNavZoomTarget({ x: matchingTag.x, y: matchingTag.y, w: matchingTag.width!, h: matchingTag.height! })
+      setPendingNavId(pendingNavTarget)
+    } else {
+      // Target not on current canvas — build full path and navigate directly
+      const path: string[] = []
+      let cur = locations.find((l) => l.id === pendingNavTarget)
+      while (cur && cur.name !== ROOT_LOCATION_NAME) {
+        path.unshift(cur.id)
+        cur = locations.find((l) => l.id === cur!.parent_id)
+      }
+      navigateToPath(path)
+    }
+  }, [pendingNavTarget, transitionState, tags, locations, navigateToPath, setPendingNavTarget, setTransitionState])
 
   const handleTagDrag = useCallback((tagId: string, x: number, y: number) => {
     setTags((prev) => prev.map((t) => t.id === tagId ? { ...t, x, y } : t))
@@ -596,6 +616,36 @@ export function PropertyLocationMap({
     [canvasStack, locations]
   )
 
+  // Build background layer stack — one per ancestor level (root + all but the last canvasStack entry).
+  // Each background layer shows its photo + zones, zoomed into the zone that leads to the next level.
+  const backgroundLayers = useMemo(() => {
+    if (canvasStack.length === 0) return []
+    const layerIds = [rootLocationId, ...canvasStack.slice(0, -1)].filter(Boolean) as string[]
+    return layerIds.map((locId, i) => {
+      const nextLocId = i < layerIds.length - 1 ? layerIds[i + 1] : canvasStack[canvasStack.length - 1]
+      const layerTags = layerTagsMap.get(locId) ?? []
+      const loc = locations.find(l => l.id === locId)
+      const photo = loc?.photo_data ?? null
+      // Find the zone tag that points to the next level
+      const zoneTag = layerTags.find(
+        t => t.target_type === 'location' && t.target_id === nextLocId && t.width && t.height,
+      )
+      // Compute the spring transform matching zoomToRect math
+      let transform: { x: number; y: number; scale: number } | undefined
+      if (zoneTag) {
+        const vpW = canvasWrapperRef.current?.clientWidth ?? 300
+        const vpH = Math.min(canvasWrapperRef.current?.clientHeight ?? vpW, window.innerHeight * 0.4)
+        const scaleX = 0.9 / zoneTag.width!
+        const scaleY = 0.9 / zoneTag.height!
+        const scale = Math.min(scaleX, scaleY, 10)
+        const x = 10 - zoneTag.x * vpW * scale
+        const y = 10 - zoneTag.y * vpH * scale
+        transform = { x, y, scale }
+      }
+      return { locId, photo, tags: layerTags, transform, zIndex: i }
+    })
+  }, [canvasStack, rootLocationId, layerTagsMap, locations])
+
   return (
     <div className="flex flex-col">
       {/* Breadcrumb */}
@@ -612,33 +662,54 @@ export function PropertyLocationMap({
       {/* Canvas with tags — always shows root canvas */}
       {canvasLocationId && (
         <div className="px-6 mb-3">
-          <div className="relative">
-            <LocationTagPhoto
-              key={canvasLocationId}
-              photoData={canvasPhoto}
-              tags={tags}
-              isEditMode={isEditMode && !isDrawMode}
-              onTagTap={handleTagTap}
-              onTagDrag={handleTagDrag}
-              items={[...assignedItems, ...childLocationItems]}
-              drawMode={isDrawMode}
-              onZoneDrawn={handleZoneDrawn}
-              onZoneMove={handleZoneMove}
-              onZoneResize={handleZoneResize}
-              onTagRemove={handleTagRemove}
-              pendingZone={pendingZone}
-              pendingZoneName={zoneName}
-              onPendingZoneNameChange={setZoneName}
-              onPendingZoneConfirm={handleConfirmZoneName}
-              onPendingZoneCancel={handleCancelZone}
-              selectedZoneIds={selectedZoneIds}
-              onZoneSelect={handleZoneSelect}
-              highlightedZoneId={null}
-              zoomTarget={navZoomTarget}
-              locations={locations}
-              childTagsMap={childTagsMap}
-              parentContext={parentContext}
-            />
+          <div className="relative" ref={canvasWrapperRef}>
+            {/* Background layers — zoomed-in parent canvases, non-interactive */}
+            {backgroundLayers.map(({ locId, photo, tags: layerTags, transform, zIndex }) => (
+              <div
+                key={locId}
+                className="absolute inset-0"
+                style={{ zIndex }}
+              >
+                <LocationTagPhoto
+                  photoData={photo}
+                  tags={layerTags}
+                  isEditMode={false}
+                  frozen
+                  initialTransform={transform}
+                  locations={locations}
+                  childTagsMap={childTagsMap}
+                />
+              </div>
+            ))}
+
+            {/* Active (top) layer — fully interactive */}
+            <div style={{ position: 'relative', zIndex: backgroundLayers.length + 1 }}>
+              <LocationTagPhoto
+                photoData={canvasPhoto}
+                tags={tags}
+                isEditMode={isEditMode && !isDrawMode}
+                onTagTap={handleTagTap}
+                onTagDrag={handleTagDrag}
+                items={[...assignedItems, ...childLocationItems]}
+                drawMode={isDrawMode}
+                onZoneDrawn={handleZoneDrawn}
+                onZoneMove={handleZoneMove}
+                onZoneResize={handleZoneResize}
+                onTagRemove={handleTagRemove}
+                pendingZone={pendingZone}
+                pendingZoneName={zoneName}
+                onPendingZoneNameChange={setZoneName}
+                onPendingZoneConfirm={handleConfirmZoneName}
+                onPendingZoneCancel={handleCancelZone}
+                selectedZoneIds={selectedZoneIds}
+                onZoneSelect={handleZoneSelect}
+                highlightedZoneId={null}
+                zoomTarget={navZoomTarget}
+                onZoomComplete={handleZoomComplete}
+                locations={locations}
+                childTagsMap={childTagsMap}
+              />
+            </div>
             <div className="absolute top-2 right-2 flex gap-1 z-10">
               {/* Add item icon — visible when a zone is selected */}
               {onAddItem && selectedZoneId && (
@@ -714,7 +785,7 @@ export function PropertyLocationMap({
                   className="p-1.5 rounded-full bg-black/50 text-white shadow-md"
                   onClick={() => setIsEditMode(true)}
                 >
-                  <Edit3 size={16} />
+                  <Pencil size={16} />
                 </button>
               )}
             </div>
@@ -737,7 +808,7 @@ export function PropertyLocationMap({
                   {assignedItems.length} item{assignedItems.length !== 1 ? 's' : ''} assigned
                 </span>
                 {assignedItems.length - taggedItemIds.size > 0 && (
-                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-themeyellow/15 text-themeyellow font-medium">
                     {assignedItems.length - taggedItemIds.size} not on schematic
                   </span>
                 )}
@@ -766,7 +837,7 @@ export function PropertyLocationMap({
                       {isPlaced ? (
                         isEditMode && (
                           <button
-                            className="p-1 rounded-full hover:bg-red-50 text-tertiary hover:text-red-500 transition-colors"
+                            className="p-1 rounded-full hover:bg-themeredred/10 text-tertiary hover:text-red-500 transition-colors"
                             onClick={() => handleRemoveItemTag(item.id)}
                             title="Remove from schematic"
                           >
@@ -783,7 +854,7 @@ export function PropertyLocationMap({
                       )}
                       {onUnassignItem && (
                         <button
-                          className="p-1 rounded-full hover:bg-red-50 text-tertiary/40 hover:text-red-500 transition-colors"
+                          className="p-1 rounded-full hover:bg-themeredred/10 text-tertiary/40 hover:text-red-500 transition-colors"
                           onClick={() => { handleRemoveItemTag(item.id); onUnassignItem(item.id) }}
                           title="Unassign from location"
                         >
@@ -807,7 +878,7 @@ export function PropertyLocationMap({
             value={editName}
             onChange={(e) => setEditName(e.target.value)}
             placeholder="Location name..."
-            className="w-full px-3 py-2 text-sm rounded-lg border border-tertiary/20 bg-themewhite text-primary placeholder:text-tertiary/50 focus:outline-none focus:border-themeblue3/50"
+            className="w-full px-3 py-2 text-sm rounded-lg border border-tertiary/20 bg-themewhite text-primary placeholder:text-tertiary/50 focus:outline-none focus:border-themeblue2"
             autoFocus
           />
           {editPhotoData && (
@@ -884,12 +955,14 @@ export function PropertyLocationMap({
                           ? 'border-themeblue3/50 bg-themeblue3/5 ring-1 ring-themeblue3/30'
                           : isOnCanvas
                             ? 'border-tertiary/10 hover:border-themeblue3/30'
-                            : 'border-amber-300/60 bg-amber-50/40 hover:border-amber-400/70'
+                            : 'border-themeyellow/30 bg-themeyellow/10 hover:border-themeyellow/40'
                       }`}
                       onClick={() => {
+                        if (transitionState !== 'idle') return
                         // If this location has a zone on the canvas, zoom into it first
                         const matchingTag = tags.find(t => t.target_type === 'location' && t.target_id === loc.id && t.width && t.height)
                         if (matchingTag) {
+                          setTransitionState('zooming-in')
                           setNavZoomTarget({ x: matchingTag.x, y: matchingTag.y, w: matchingTag.width!, h: matchingTag.height! })
                           setPendingNavId(loc.id)
                         } else {
@@ -900,8 +973,8 @@ export function PropertyLocationMap({
                       {loc.photo_data ? (
                         <img src={loc.photo_data} alt={loc.name} className="w-full h-20 object-cover" />
                       ) : (
-                        <div className={`w-full h-20 flex items-center justify-center ${isOnCanvas ? 'bg-secondary/5' : 'bg-amber-50/60'}`}>
-                          <Camera size={20} className={isOnCanvas ? 'text-tertiary' : 'text-amber-500/70'} />
+                        <div className={`w-full h-20 flex items-center justify-center ${isOnCanvas ? 'bg-secondary/5' : 'bg-themeyellow/10'}`}>
+                          <Camera size={20} className={isOnCanvas ? 'text-tertiary' : 'text-themeyellow/70'} />
                         </div>
                       )}
                       <div className="px-2 py-1.5">
@@ -912,7 +985,7 @@ export function PropertyLocationMap({
                           </span>
                         )}
                         {!isOnCanvas && (
-                          <span className="inline-block text-[9px] px-1 py-0.5 rounded bg-amber-100 text-amber-700 font-medium mt-0.5">
+                          <span className="inline-block text-[9px] px-1 py-0.5 rounded bg-themeyellow/15 text-themeyellow font-medium mt-0.5">
                             no zone
                           </span>
                         )}
@@ -950,7 +1023,7 @@ export function PropertyLocationMap({
                           </button>
                         )}
                         <button
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-red-50"
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs text-red-600 hover:bg-themeredred/10"
                           onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(loc.id); setOverflowMenuId(null) }}
                         >
                           <Trash2 size={16} /> Delete
@@ -982,7 +1055,7 @@ export function PropertyLocationMap({
                 </div>
                 <div className="px-2 py-1.5 space-y-1">
                   <span className="text-xs font-medium text-primary truncate block">{item.name}</span>
-                  <span className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
+                  <span className="inline-block text-[10px] px-1.5 py-0.5 rounded-full bg-themeyellow/15 text-themeyellow font-medium">
                     unassigned
                   </span>
                 </div>

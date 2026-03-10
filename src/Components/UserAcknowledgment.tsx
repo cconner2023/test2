@@ -132,7 +132,7 @@ export const UserAcknowledgment = ({ onAccept, persistent }: UserAcknowledgmentP
         <button
           onClick={handleAccept}
           disabled={!checked}
-          className="w-full py-3 rounded-lg bg-themeblue2 text-white text-sm font-medium disabled:opacity-30 transition-opacity"
+          className="w-full py-3 rounded-lg bg-themeblue3 text-white text-sm font-medium disabled:opacity-30 transition-opacity"
         >
           Continue
         </button>
