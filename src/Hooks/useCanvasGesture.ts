@@ -1,198 +1,155 @@
-import { useCallback, useRef } from 'react'
+/**
+ * Pan/zoom gesture hook for the property canvas.
+ * Uses @react-spring/web for spring-animated transforms and
+ * @use-gesture/react for unified drag + pinch + wheel input.
+ */
+import { useRef, useCallback } from 'react'
 import { useSpring } from '@react-spring/web'
 import { useGesture } from '@use-gesture/react'
-import { SPRING_CONFIGS, clamp } from '../Utilities/GestureUtils'
+import { SPRING_CONFIGS, clamp, isInteractiveTarget } from '../Utilities/GestureUtils'
 
-interface UseCanvasGestureOptions {
-  /** Whether gestures are enabled (disable during draw mode, etc.) */
-  enabled?: boolean
-  /** Minimum scale value */
-  minScale?: number
-  /** Maximum scale value */
-  maxScale?: number
-  /** Start at this transform instead of (0,0,1). Used for background canvas layers. */
-  initialTransform?: { x: number; y: number; scale: number }
+/** Target for programmatic zoom animations */
+export interface ZoomTarget {
+  x: number
+  y: number
+  scale: number
 }
 
-const DEFAULT_MIN_SCALE = 1
-const DEFAULT_MAX_SCALE = 10
-/** How far past the edge the user can drag (fraction of viewport) */
-const OVERSHOOT_FRACTION = 0.15
+/** Current camera state */
+export interface CameraState {
+  x: number
+  y: number
+  scale: number
+}
 
-/**
- * Canvas pan/zoom gesture hook using CSS transforms.
- *
- * Manages spring-animated `translate3d(x, y, 0) scale(s)` on a canvas element.
- * Supports drag-to-pan, pinch-to-zoom, and Ctrl+wheel zoom.
- *
- * Pattern follows useColumnCarousel.ts — returns { style, bind, zoom, ... }.
- */
-export function useCanvasGesture({
-  enabled = true,
-  minScale = DEFAULT_MIN_SCALE,
-  maxScale = DEFAULT_MAX_SCALE,
-  initialTransform,
-}: UseCanvasGestureOptions = {}) {
-  const viewportRef = useRef<HTMLDivElement>(null)
+const MIN_SCALE = 0.1
+const MAX_SCALE = 50
+const WHEEL_ZOOM_FACTOR = 0.002
 
-  const [style, api] = useSpring(() => ({
-    x: initialTransform?.x ?? 0,
-    y: initialTransform?.y ?? 0,
-    scale: initialTransform?.scale ?? 1,
+interface UseCanvasGestureOptions {
+  /** Called when the camera changes (for LOD recalculation) */
+  onCameraChange?: (camera: CameraState) => void
+  /** Container element ref for coordinate calculations */
+  containerRef: React.RefObject<HTMLDivElement | null>
+}
+
+export function useCanvasGesture({ onCameraChange, containerRef }: UseCanvasGestureOptions) {
+  // Store current camera in a ref for synchronous reads
+  const cameraRef = useRef<CameraState>({ x: 0, y: 0, scale: 1 })
+  const animatingRef = useRef(false)
+
+  const [spring, api] = useSpring(() => ({
+    x: 0,
+    y: 0,
+    scale: 1,
     config: SPRING_CONFIGS.canvas,
-    immediate: !!initialTransform,
+    onChange: ({ value }) => {
+      cameraRef.current = { x: value.x, y: value.y, scale: value.scale }
+      onCameraChange?.(cameraRef.current)
+    },
   }))
 
-  // Track the resting (committed) values so drag/pinch can accumulate
-  const restRef = useRef(initialTransform ?? { x: 0, y: 0, scale: 1 })
+  /** Synchronous camera read */
+  const getCamera = useCallback((): CameraState => cameraRef.current, [])
 
-  /** Compute pan bounds for a given scale, allowing OVERSHOOT_FRACTION past edges */
-  const getBounds = useCallback((scale: number) => {
-    const vp = viewportRef.current
-    if (!vp) return { minX: 0, maxX: 0, minY: 0, maxY: 0 }
-    const vpW = vp.clientWidth
-    const vpH = vp.clientHeight
-    const contentW = vpW * scale
-    const contentH = vpH * scale
-    const overX = vpW * OVERSHOOT_FRACTION
-    const overY = vpH * OVERSHOOT_FRACTION
-    // At scale=1 the content exactly fills the viewport, so max pan is 0 + overshoot.
-    // At scale>1 the content overflows, so we allow panning to see edges + overshoot.
-    const minX = -(contentW - vpW) - overX
-    const maxX = overX
-    const minY = -(contentH - vpH) - overY
-    const maxY = overY
-    return { minX, maxX, minY, maxY }
-  }, [])
+  /** Animate to a specific zoom target */
+  const zoomToRect = useCallback((target: ZoomTarget) => {
+    animatingRef.current = true
+    api.start({
+      x: target.x,
+      y: target.y,
+      scale: target.scale,
+      config: SPRING_CONFIGS.canvas,
+      onRest: () => { animatingRef.current = false },
+    })
+  }, [api])
 
-  /** Clamp pan values to bounds */
-  const clampPan = useCallback((x: number, y: number, scale: number) => {
-    const { minX, maxX, minY, maxY } = getBounds(scale)
-    return { x: clamp(x, minX, maxX), y: clamp(y, minY, maxY) }
-  }, [getBounds])
+  /** Chain zoom-out → zoom-in for shared-parent navigation */
+  const animateSequence = useCallback(async (targets: ZoomTarget[]) => {
+    animatingRef.current = true
+    for (const target of targets) {
+      await new Promise<void>((resolve) => {
+        api.start({
+          x: target.x,
+          y: target.y,
+          scale: target.scale,
+          config: SPRING_CONFIGS.canvas,
+          onRest: () => resolve(),
+        })
+      })
+    }
+    animatingRef.current = false
+  }, [api])
 
-  /** Snap pan within tight bounds (no overshoot) for resting position */
-  const getRestBounds = useCallback((scale: number) => {
-    const vp = viewportRef.current
-    if (!vp) return { minX: 0, maxX: 0, minY: 0, maxY: 0 }
-    const vpW = vp.clientWidth
-    const vpH = vp.clientHeight
-    const contentW = vpW * scale
-    const contentH = vpH * scale
-    const minX = Math.min(0, -(contentW - vpW))
-    const maxX = Math.max(0, 0)
-    const minY = Math.min(0, -(contentH - vpH))
-    const maxY = Math.max(0, 0)
-    return { minX, maxX, minY, maxY }
-  }, [])
+  /** Reset camera to origin */
+  const resetCamera = useCallback(() => {
+    api.start({ x: 0, y: 0, scale: 1, config: SPRING_CONFIGS.canvas })
+  }, [api])
 
-  const clampRestPan = useCallback((x: number, y: number, scale: number) => {
-    const { minX, maxX, minY, maxY } = getRestBounds(scale)
-    return { x: clamp(x, minX, maxX), y: clamp(y, minY, maxY) }
-  }, [getRestBounds])
-
+  // Gesture binding
   const bind = useGesture(
     {
-      onDrag: ({ active, movement: [mx, my], event, tap, first, memo }) => {
-        if (tap) return
-        // Skip if starting on [data-no-pan] elements (edit-mode handles, inputs)
-        if (first) {
-          const target = event?.target as HTMLElement | null
-          if (target?.closest('[data-no-pan], input, textarea, button')) return 'skip'
+      onDrag: ({ offset: [ox, oy], event, first, memo }) => {
+        if (animatingRef.current) return memo
+        // Skip if interacting with buttons/inputs
+        if (first && isInteractiveTarget(event.target as HTMLElement)) {
+          return 'skip'
         }
-        if (memo === 'skip') return 'skip'
+        if (memo === 'skip') return memo
 
-        const rest = restRef.current
-        const newX = rest.x + mx
-        const newY = rest.y + my
-
-        if (active) {
-          const clamped = clampPan(newX, newY, rest.scale)
-          api.start({ x: clamped.x, y: clamped.y, immediate: true })
-        } else {
-          // Snap within rest bounds on release
-          const clamped = clampRestPan(newX, newY, rest.scale)
-          restRef.current = { ...rest, x: clamped.x, y: clamped.y }
-          api.start({ x: clamped.x, y: clamped.y, config: SPRING_CONFIGS.canvas })
-        }
+        api.start({ x: ox, y: oy, immediate: true })
         return memo
       },
+      onPinch: ({ offset: [scale], origin: [ox, oy], event }) => {
+        if (animatingRef.current) return
+        event?.preventDefault?.()
 
-      onPinch: ({ active, offset: [s], origin: [ox, oy], memo, first }) => {
-        const vp = viewportRef.current
-        if (!vp) return memo
+        const container = containerRef.current
+        if (!container) return
 
-        const newScale = clamp(s, minScale, maxScale)
+        const rect = container.getBoundingClientRect()
+        const cx = ox - rect.left
+        const cy = oy - rect.top
 
-        if (first) {
-          // Capture focal point relative to viewport
-          const rect = vp.getBoundingClientRect()
-          const fx = ox - rect.left
-          const fy = oy - rect.top
-          memo = { fx, fy, startX: restRef.current.x, startY: restRef.current.y, startScale: restRef.current.scale }
-        }
+        // Zoom toward the pinch center
+        const cam = cameraRef.current
+        const newScale = clamp(scale, MIN_SCALE, MAX_SCALE)
+        const scaleRatio = newScale / cam.scale
+        const newX = cx - (cx - cam.x) * scaleRatio
+        const newY = cy - (cy - cam.y) * scaleRatio
 
-        if (memo) {
-          // Adjust pan so the focal point stays stationary
-          const { fx, fy, startX, startY, startScale } = memo as { fx: number; fy: number; startX: number; startY: number; startScale: number }
-          const ratio = newScale / startScale
-          const newX = fx - (fx - startX) * ratio
-          const newY = fy - (fy - startY) * ratio
-
-          if (active) {
-            const clamped = clampPan(newX, newY, newScale)
-            api.start({ x: clamped.x, y: clamped.y, scale: newScale, immediate: true })
-          } else {
-            const clamped = clampRestPan(newX, newY, newScale)
-            restRef.current = { x: clamped.x, y: clamped.y, scale: newScale }
-            api.start({ x: clamped.x, y: clamped.y, scale: newScale, config: SPRING_CONFIGS.canvas })
-          }
-        }
-        return memo
+        api.start({ x: newX, y: newY, scale: newScale, immediate: true })
       },
-
-      onWheel: ({ event, active }) => {
-        // Only handle Ctrl+wheel (standard map zoom convention)
-        if (!event?.ctrlKey) return
+      onWheel: ({ event, delta: [, dy] }) => {
+        if (animatingRef.current) return
         event.preventDefault()
 
-        const vp = viewportRef.current
-        if (!vp) return
+        const container = containerRef.current
+        if (!container) return
 
-        const rest = restRef.current
-        const delta = -event.deltaY * 0.01
-        const newScale = clamp(rest.scale + delta, minScale, maxScale)
+        const rect = container.getBoundingClientRect()
+        const cx = event.clientX - rect.left
+        const cy = event.clientY - rect.top
 
-        // Focal point = cursor position relative to viewport
-        const rect = vp.getBoundingClientRect()
-        const fx = event.clientX - rect.left
-        const fy = event.clientY - rect.top
+        const cam = cameraRef.current
+        const zoomDelta = -dy * WHEEL_ZOOM_FACTOR
+        const newScale = clamp(cam.scale * (1 + zoomDelta), MIN_SCALE, MAX_SCALE)
+        const scaleRatio = newScale / cam.scale
+        const newX = cx - (cx - cam.x) * scaleRatio
+        const newY = cy - (cy - cam.y) * scaleRatio
 
-        const ratio = newScale / rest.scale
-        const newX = fx - (fx - rest.x) * ratio
-        const newY = fy - (fy - rest.y) * ratio
-
-        const clamped = clampRestPan(newX, newY, newScale)
-        restRef.current = { x: clamped.x, y: clamped.y, scale: newScale }
-        api.start({
-          x: clamped.x,
-          y: clamped.y,
-          scale: newScale,
-          immediate: active,
-          config: SPRING_CONFIGS.canvas,
-        })
+        api.start({ x: newX, y: newY, scale: newScale, immediate: true })
       },
     },
     {
-      enabled,
       drag: {
+        from: () => [cameraRef.current.x, cameraRef.current.y],
         filterTaps: true,
         pointer: { touch: true },
-        from: () => [0, 0],
       },
       pinch: {
-        scaleBounds: { min: minScale, max: maxScale },
-        from: () => [restRef.current.scale, 0],
+        scaleBounds: { min: MIN_SCALE, max: MAX_SCALE },
+        from: () => [cameraRef.current.scale, 0],
       },
       wheel: {
         eventOptions: { passive: false },
@@ -200,88 +157,13 @@ export function useCanvasGesture({
     },
   )
 
-  /** Zoom in/out by a fixed step, centered on viewport */
-  const zoomStep = useCallback((direction: 'in' | 'out') => {
-    const vp = viewportRef.current
-    if (!vp) return
-    const rest = restRef.current
-    const step = direction === 'in' ? 0.5 : -0.5
-    const newScale = clamp(rest.scale + step, minScale, maxScale)
-
-    // Keep viewport center stationary
-    const cx = vp.clientWidth / 2
-    const cy = vp.clientHeight / 2
-    const ratio = newScale / rest.scale
-    const newX = cx - (cx - rest.x) * ratio
-    const newY = cy - (cy - rest.y) * ratio
-
-    const clamped = clampRestPan(newX, newY, newScale)
-    restRef.current = { x: clamped.x, y: clamped.y, scale: newScale }
-    api.start({ x: clamped.x, y: clamped.y, scale: newScale, config: SPRING_CONFIGS.canvas })
-  }, [api, minScale, maxScale, clampRestPan])
-
-  /** Animate to frame a specific rect (normalized 0-1 coordinates) within the viewport.
-   *  Positions the zone 10px from top-left, scaled to fill ~90% of viewport. */
-  const onRestGuardRef = useRef(false)
-  const zoomToRect = useCallback((rect: { x: number; y: number; w: number; h: number }, onRest?: () => void) => {
-    const vp = viewportRef.current
-    if (!vp) return
-    const vpW = vp.clientWidth
-    const vpH = vp.clientHeight
-
-    // Compute scale so the rect fills ~90% of viewport
-    const scaleX = 0.9 / rect.w
-    const scaleY = 0.9 / rect.h
-    const newScale = clamp(Math.min(scaleX, scaleY), minScale, maxScale)
-
-    // Position so rect's top-left sits at (10px, 10px) in the viewport
-    const newX = 10 - rect.x * vpW * newScale
-    const newY = 10 - rect.y * vpH * newScale
-
-    restRef.current = { x: newX, y: newY, scale: newScale }
-    // Guard onRest — react-spring fires it per animated key (x, y, scale)
-    onRestGuardRef.current = false
-    api.start({
-      x: newX,
-      y: newY,
-      scale: newScale,
-      config: SPRING_CONFIGS.canvas,
-      onRest: onRest ? () => {
-        if (!onRestGuardRef.current) {
-          onRestGuardRef.current = true
-          onRest()
-        }
-      } : undefined,
-    })
-  }, [api, minScale, maxScale])
-
-  /** Reset to default view (scale=1, pan=0,0) */
-  const resetView = useCallback((immediate = false) => {
-    restRef.current = { x: 0, y: 0, scale: 1 }
-    api.start({ x: 0, y: 0, scale: 1, immediate, config: SPRING_CONFIGS.canvas })
-  }, [api])
-
-  /** Get the current scale value (for UI like zoom buttons) */
-  const getScale = useCallback(() => restRef.current.scale, [])
-
   return {
-    /** Spring style — apply to the inner animated.div: transform: translate3d + scale */
-    style,
-    /** Gesture handlers — spread onto the viewport container */
+    spring,
     bind,
-    /** Ref for the viewport container (overflow-hidden element) */
-    viewportRef,
-    /** Zoom in/out by a step */
-    zoomStep,
-    /** Animate to frame a normalized rect */
+    getCamera,
     zoomToRect,
-    /** Reset to default view */
-    resetView,
-    /** Get current scale */
-    getScale,
-    /** Direct access to spring API for advanced control */
-    api,
-    /** Access to rest position ref */
-    restRef,
+    animateSequence,
+    resetCamera,
+    isAnimating: () => animatingRef.current,
   }
 }

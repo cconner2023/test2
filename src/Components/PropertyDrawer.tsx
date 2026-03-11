@@ -6,7 +6,7 @@ import { ContentWrapper } from './Settings/ContentWrapper'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
-import type { LocationEditActions } from './Property/PropertyLocationMap'
+import type { LocationEditActions } from './Property/PropertyPanel'
 import { UI_TIMING } from '../Utilities/constants'
 import { usePropertyStore } from '../stores/usePropertyStore'
 

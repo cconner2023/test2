@@ -360,6 +360,86 @@ export async function deleteLocation(
   }
 }
 
+/**
+ * Cascade-delete a location and all its descendants.
+ * - Recursively finds all descendant location IDs via parent_id
+ * - Deletes all location_tags referencing those IDs
+ * - Reassigns orphaned items to the parent location (or null)
+ * - Deletes the locations themselves
+ */
+export async function cascadeDeleteLocation(
+  locationId: string,
+  userId: string,
+  clinicId: string,
+): Promise<ServiceResult> {
+  try {
+    const allLocations = await getLocalPropertyLocations(clinicId)
+
+    // Find all descendant IDs recursively
+    const toDelete = new Set<string>([locationId])
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const loc of allLocations) {
+        if (loc.parent_id && toDelete.has(loc.parent_id) && !toDelete.has(loc.id)) {
+          toDelete.add(loc.id)
+          changed = true
+        }
+      }
+    }
+
+    // Find the parent of the root location being deleted (for orphan reassignment)
+    const rootLoc = allLocations.find((l) => l.id === locationId)
+    const reassignParentId = rootLoc?.parent_id ?? null
+
+    // Reassign items at any of these locations to the parent
+    const items = await getLocalPropertyItems(clinicId)
+    for (const item of items) {
+      if (item.location_id && toDelete.has(item.location_id)) {
+        const now = new Date().toISOString()
+        await saveLocalPropertyItem({
+          ...item,
+          location_id: reassignParentId,
+          updated_at: now,
+          _sync_status: 'pending',
+        })
+        await addToSyncQueue({
+          user_id: userId,
+          action: 'update',
+          table_name: 'property_items',
+          record_id: item.id,
+          payload: { location_id: reassignParentId, updated_at: now },
+        })
+      }
+    }
+
+    // Delete tags referencing any of these locations
+    for (const locId of toDelete) {
+      await deleteLocalTagsByTarget(locId)
+      if (isOnline()) {
+        await supabase.from('location_tags').delete().eq('target_id', locId).eq('target_type', 'location')
+      }
+    }
+
+    // Delete the locations themselves
+    for (const locId of toDelete) {
+      await deleteLocalPropertyLocation(locId)
+      await addToSyncQueue({
+        user_id: userId,
+        action: 'delete',
+        table_name: 'property_locations',
+        record_id: locId,
+        payload: { _deleted_at_timestamp: new Date().toISOString() },
+      })
+    }
+
+    immediateSync(userId)
+    return succeed()
+  } catch (err) {
+    return fail(String(err))
+  }
+}
+
 // ── Root Location (invisible canvas host) ────────────────────
 
 import { ROOT_LOCATION_NAME } from '../Types/PropertyTypes'
@@ -387,13 +467,15 @@ export async function ensureRootLocation(
         .eq('name', ROOT_LOCATION_NAME)
         .is('parent_id', null)
         .limit(1)
-        .single()
+        .maybeSingle()
       if (data) {
         const loc = localLocation(data as PropertyLocation, 'synced')
         await saveLocalPropertyLocation(loc)
         return loc
       }
-    } catch { /* not found on server */ }
+    } catch (err) {
+      logger.warn('Root location lookup failed:', err)
+    }
   }
 
   // Create the root location
@@ -434,6 +516,13 @@ export async function fetchLocationTags(locationId: string): Promise<LocationTag
 
 /** Batch-fetch tags for multiple canvas locations (IndexedDB only, no network fallback). */
 export async function fetchLocationTagsBatch(locationIds: string[]): Promise<Map<string, LocationTag[]>> {
+  return getLocalLocationTagsBatch(locationIds)
+}
+
+/** Fetch ALL location tags for a clinic in a single IDB scan.
+ *  Collects tags from every location that has tags, grouped by location_id. */
+export async function fetchAllLocationTags(clinicId: string, locations: { id: string }[]): Promise<Map<string, LocationTag[]>> {
+  const locationIds = locations.map(l => l.id)
   return getLocalLocationTagsBatch(locationIds)
 }
 

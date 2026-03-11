@@ -1,12 +1,12 @@
 import { create } from 'zustand'
-import type { PropertyItem } from '../Types/PropertyTypes'
+import type { LocalPropertyItem } from '../Types/PropertyTypes'
 
 interface PropertyState {
   // Item selection (view navigation is managed by parent Settings panel)
-  selectedItem: PropertyItem | null
-  editingItem: PropertyItem | null
-  selectItem: (item: PropertyItem | null) => void
-  setEditingItem: (item: PropertyItem | null) => void
+  selectedItem: LocalPropertyItem | null
+  editingItem: LocalPropertyItem | null
+  selectItem: (item: LocalPropertyItem | null) => void
+  setEditingItem: (item: LocalPropertyItem | null) => void
 
   // Zone selection (which zone is selected/highlighted on the single root canvas)
   selectedZoneId: string | null
@@ -26,9 +26,13 @@ interface PropertyState {
   defaultLocationId: string | null
   setDefaultLocationId: (id: string | null) => void
 
+  // Tag version — bumped after zone creation to trigger refetch
+  tagVersion: number
+  bumpTagVersion: () => void
+
   // Canvas transition state (prevents double-tap during animation)
-  transitionState: 'idle' | 'zooming-in'
-  setTransitionState: (state: 'idle' | 'zooming-in') => void
+  transitionState: 'idle' | 'zooming-in' | 'zooming-out'
+  setTransitionState: (state: 'idle' | 'zooming-in' | 'zooming-out') => void
 
   // Pending navigation target — set by tree/external nav, processed by PropertyLocationMap
   // with zoom animation if the target has a visible zone on the current canvas
@@ -73,6 +77,10 @@ export const usePropertyStore = create<PropertyState>((set) => ({
   // Default location
   defaultLocationId: null,
   setDefaultLocationId: (id) => set({ defaultLocationId: id }),
+
+  // Tag version
+  tagVersion: 0,
+  bumpTagVersion: () => set((state) => ({ tagVersion: state.tagVersion + 1 })),
 
   // Canvas transition state
   transitionState: 'idle',

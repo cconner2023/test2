@@ -16,7 +16,7 @@ import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { createLogger } from '../Utilities/Logger'
 import { useSupabaseSubscription } from './useSupabaseSubscription'
 import { fetchUnreadMessages, markMessagesRead, deleteMessages as hardDeleteMessages, hardDeleteByOriginId, onLoRaMessage } from '../lib/signal/signalService'
-import { deleteMessages as deleteMessagesFromDb } from '../lib/signal/messageStore'
+import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb } from '../lib/signal/messageStore'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { processIncomingMessage } from '../lib/signal/session'
 import type { SealedEnvelope } from '../lib/signal/sealedSender'
@@ -232,7 +232,7 @@ export function useSignalMessages({
           if (decrypted.messageType === 'delete') {
             try {
               const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
-              await deleteMessagesFromDb(originIds).catch(() => {})
+              await deleteMessagesByOriginIdFromDb(originIds).catch(() => {})
               onDeleteRef.current?.(originIds)
               hardDeleteByOriginId(originIds).catch(() => {})
               await hardDeleteMessages([decrypted.id]).catch(() => {})
@@ -268,7 +268,7 @@ export function useSignalMessages({
         if (decrypted.messageType === 'delete') {
           try {
             const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
-            deleteMessagesFromDb(originIds).catch(() => {})
+            deleteMessagesByOriginIdFromDb(originIds).catch(() => {})
             onDeleteRef.current?.(originIds)
             hardDeleteByOriginId(originIds).catch(() => {})
             hardDeleteMessages([decrypted.id]).catch(() => {})
@@ -305,7 +305,7 @@ export function useSignalMessages({
         if (decrypted.messageType === 'delete') {
           try {
             const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
-            deleteMessagesFromDb(originIds).catch(() => {})
+            deleteMessagesByOriginIdFromDb(originIds).catch(() => {})
             onDeleteRef.current?.(originIds)
             hardDeleteByOriginId(originIds).catch(() => {})
             hardDeleteMessages([decrypted.id]).catch(() => {})

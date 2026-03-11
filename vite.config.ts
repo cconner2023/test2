@@ -8,17 +8,20 @@ const APP_VERSION = '2.6.3'
 
 export default defineConfig({
   base: '/test2/',
+  server: {
+    // Explicit HMR WebSocket — Windows often fails with default auto-detection
+    hmr: true,
+    watch: {
+      // Use polling on Windows for reliable file-change detection
+      usePolling: true,
+      interval: 1000,
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(APP_VERSION),
   },
   plugins: [
-    react({
-      babel: {
-        plugins: [
-          'babel-plugin-react-compiler',
-        ],
-      },
-    }),
+    react(),
     {
       name: 'html-version',
       transformIndexHtml(html, ctx) {

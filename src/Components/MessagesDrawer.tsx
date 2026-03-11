@@ -1,7 +1,8 @@
-import { useState, useCallback, useMemo } from 'react'
-import { PenLine, X } from 'lucide-react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { PenLine, Search, X } from 'lucide-react'
+import { useSpring, animated } from '@react-spring/web'
 import { BaseDrawer } from './BaseDrawer'
-import { MessagesPanel, type MessagesView } from './Settings/MessagesPanel'
+import { MessagesPanel, type MessagesView, type MessagesPanelHandle } from './Settings/MessagesPanel'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useMessagesContext } from '../Hooks/MessagesContext'
 import { useAuth } from '../Hooks/useAuth'
@@ -22,9 +23,36 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const [selectedPeerId, setSelectedPeerId] = useState<string | null>(null)
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
     const [selectedPeerName, setSelectedPeerName] = useState<string | null>(null)
+    const [searchQuery, setSearchQuery] = useState('')
+    const [isSearchExpanded, setIsSearchExpanded] = useState(false)
+    const searchInputRef = useRef<HTMLInputElement>(null)
     const messagesCtx = useMessagesContext()
     const { user } = useAuth()
     const { profile } = useUserProfile()
+    const panelRef = useRef<MessagesPanelHandle>(null)
+
+    // Spring for search expand/collapse — consistent across mobile + desktop
+    const searchSpring = useSpring({
+        progress: isSearchExpanded ? 1 : 0,
+        config: { tension: 260, friction: 26 },
+    })
+
+    // Focus input when search expands
+    useEffect(() => {
+        if (isSearchExpanded && searchInputRef.current) {
+            searchInputRef.current.focus()
+        }
+    }, [isSearchExpanded])
+
+    const collapseSearch = useCallback(() => {
+        setSearchQuery('')
+        setIsSearchExpanded(false)
+    }, [])
+
+    const handleSearchClear = useCallback(() => {
+        setSearchQuery('')
+        setIsSearchExpanded(false)
+    }, [])
 
     // Apply deep-link when drawer opens
     const appliedInitialRef = useMemo(() => {
@@ -66,7 +94,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     }, [])
 
     const handleBack = useCallback(() => {
-        if (view === 'messages-chat' || view === 'messages-group-chat' || view === 'messages-contacts') {
+        if (view === 'messages-chat' || view === 'messages-group-chat') {
             setView('messages')
             setSelectedPeerId(null)
             setSelectedPeerName(null)
@@ -74,10 +102,6 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             if (messagesCtx) messagesCtx.activePeerRef.current = null
         }
     }, [view, messagesCtx])
-
-    const handleShowContacts = useCallback(() => {
-        setView('messages-contacts')
-    }, [])
 
     const handleClose = useCallback(() => {
         setView('messages')
@@ -96,7 +120,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         view !== 'messages',
     )
 
-    const isConversationView = view === 'messages-chat' || view === 'messages-group-chat' || view === 'messages-contacts'
+    const isConversationView = view === 'messages-chat' || view === 'messages-group-chat'
     const isMessagesActive = view === 'messages' || isConversationView
 
     const headerConfig = useMemo(() => {
@@ -106,28 +130,74 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         return {
             title: 'Messages',
             hideDefaultClose: true,
+            rightContentFill: isSearchExpanded,
             rightContent: (
-                <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
-                    <button
-                        onClick={handleShowContacts}
-                        className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-                        aria-label="New message"
-                        title="New message"
+                <div className="relative flex items-center w-full">
+                    {/* Pill buttons — fade out when search expands */}
+                    <animated.div
+                        className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5"
+                        style={{
+                            opacity: searchSpring.progress.to(p => 1 - p),
+                            pointerEvents: isSearchExpanded ? 'none' : 'auto',
+                        }}
                     >
-                        <PenLine className="w-[18px] h-[18px]" />
-                    </button>
-                    <button
-                        onClick={handleClose}
-                        className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-                        aria-label="Close"
-                        title="Close"
+                        <button
+                            onClick={() => panelRef.current?.createGroup()}
+                            className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                            aria-label="New message"
+                            title="New message"
+                        >
+                            <PenLine className="w-[18px] h-[18px]" />
+                        </button>
+                        <button
+                            onClick={() => setIsSearchExpanded(true)}
+                            className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                            aria-label="Search"
+                            title="Search"
+                        >
+                            <Search className="w-[18px] h-[18px]" />
+                        </button>
+                        <button
+                            onClick={handleClose}
+                            className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                            aria-label="Close"
+                            title="Close"
+                        >
+                            <X className="w-[18px] h-[18px]" />
+                        </button>
+                    </animated.div>
+
+                    {/* Search overlay — fade in when search expands */}
+                    <animated.div
+                        className="absolute inset-0 flex items-center"
+                        style={{
+                            opacity: searchSpring.progress,
+                            transform: searchSpring.progress.to(p => `scale(${0.97 + 0.03 * p})`),
+                            pointerEvents: isSearchExpanded ? 'auto' : 'none',
+                        }}
                     >
-                        <X className="w-[18px] h-[18px]" />
-                    </button>
+                        <div className="flex items-center w-full rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
+                            <input
+                                ref={searchInputRef}
+                                type="search"
+                                placeholder="Search..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onKeyDown={(e) => { if (e.key === 'Escape') collapseSearch() }}
+                                className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
+                            />
+                            <div
+                                className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
+                                onClick={collapseSearch}
+                            >
+                                <X className="w-5 h-5 stroke-themeblue1" />
+                            </div>
+                        </div>
+                    </animated.div>
                 </div>
             ),
         }
-    }, [view, handleBack, handleShowContacts, handleClose])
+    }, [view, handleBack, handleClose, isSearchExpanded, searchQuery, searchSpring, collapseSearch])
 
     return (
         <BaseDrawer
@@ -141,6 +211,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         >
             <div className="h-full" {...(view !== 'messages' ? swipeHandlers : {})}>
                 <MessagesPanel
+                    ref={panelRef}
                     view={view}
                     selectedPeerId={selectedPeerId}
                     selectedGroupId={selectedGroupId}
@@ -148,6 +219,8 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                     onSelectGroup={handleSelectGroup}
                     onBack={handleBack}
                     onCloseDrawer={handleClose}
+                    searchQuery={searchQuery}
+                    onSearchClear={handleSearchClear}
                 />
             </div>
         </BaseDrawer>

@@ -12,7 +12,6 @@ import { CardActionBar, type ActionBarAction } from '../CardActionBar'
 import { PropertyItemRow } from './PropertyItemRow'
 import { PropertyItemDetail } from './PropertyItemDetail'
 import { PropertyItemForm } from './PropertyItemForm'
-import { PropertyLocationMap } from './PropertyLocationMap'
 import { PropertyLocationTree } from './PropertyLocationTree'
 import { CustodyTransferForm } from './CustodyTransferForm'
 import { LoadingSpinner } from '../LoadingSpinner'
@@ -20,11 +19,15 @@ import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { PropertyCSVImport } from './PropertyCSVImport'
 import { exportPropertyCSV, parsePropertyCSV, downloadCSVTemplate } from '../../Utilities/PropertyCSV'
 import { ensureRootLocation, fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
+import { PropertyLocationMap } from './PropertyLocationMap'
 import { useClinicName } from '../../Hooks/useClinicNameResolver'
 import type { ParsedRow } from '../../Utilities/PropertyCSV'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
-import type { LocationEditActions } from './PropertyLocationMap'
+export interface LocationEditActions {
+  onEdit: () => void
+  onDelete: () => void
+}
 
 export type PropertyView = 'property' | 'property-detail' | 'property-form' | 'property-transfer'
 
@@ -108,7 +111,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
     if (!property.clinicId || !user?.id) return
     ensureRootLocation(property.clinicId, user.id)
       .then((root) => store.setRootLocationId(root.id))
-      .catch(() => { /* non-fatal: canvas just won't render at root */ })
+      .catch((err) => { console.error('[PropertyPanel] ensureRootLocation failed:', err) })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [property.clinicId, user?.id])
 
@@ -195,9 +198,10 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
     }
   }, [store, isMobile, onMobileLocationViewChange])
 
-  // Clinic name tap → navigate to root canvas
+  // Clinic name tap → zoom canvas back to root
   const handleSelectAllLocations = useCallback(() => {
-    store.navigateToPath([])
+    store.selectZone(null)
+    store.setPendingNavTarget('__reset__')
     if (isMobile) {
       onMobileLocationViewChange?.(true)
     }
@@ -265,6 +269,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
           ...existing.map(({ id: _id, ...rest }) => rest),
           newTag,
         ])
+        store.bumpTagVersion()
       } catch { /* non-fatal */ }
     }
   }, [newLocationName, property, user?.id, store.rootLocationId])
@@ -347,13 +352,6 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
     setPendingDelete(null)
   }, [pendingDelete, property, store, onBack, clearSelection])
 
-  // Helper to navigate to add-item form from within the canvas, with location pre-set
-  const handleCanvasAddItem = useCallback(() => {
-    store.setDefaultLocationId(store.selectedZoneId ?? null)
-    store.setEditingItem(null)
-    onAddItem()
-  }, [store, onAddItem])
-
   if (showLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -417,44 +415,34 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
   // Desktop: always show canvas (with zone highlighted if selected)
   if (!isMobile) {
     return (
-      <div className="flex flex-col h-full overflow-y-auto">
-        <PropertyLocationMap
-          locations={property.locations}
-          items={property.items}
-          clinicId={property.clinicId || ''}
-          clinicName={clinicName}
-          onAddLocation={property.addLocation}
-          onUpdateLocation={property.editLocation}
-          onDeleteLocation={property.removeLocation}
-          onSelectItem={handleSelectItem}
-          onUnassignItem={(id) => property.editItem(id, { location_id: null })}
-          userId={user?.id || ''}
-          onAddItem={handleCanvasAddItem}
-          onRegisterLocationActions={onRegisterLocationActions}
-        />
-      </div>
+      <PropertyLocationMap
+        clinicId={property.clinicId!}
+        clinicName={clinicName}
+        locations={visibleLocations}
+        items={property.items}
+        onCreateLocation={property.addLocation}
+        onDeleteLocation={property.removeLocation}
+        onEditItem={property.editItem}
+        onUpdateLocation={property.editLocation}
+        onSelectItem={handleSelectItem}
+      />
     )
   }
 
   // Mobile: location map view (back button is in the drawer header)
   if (isMobile && mobileLocationView) {
     return (
-      <div className="flex flex-col h-full">
-        <PropertyLocationMap
-          locations={property.locations}
-          items={property.items}
-          clinicId={property.clinicId || ''}
-          clinicName={clinicName}
-          onAddLocation={property.addLocation}
-          onUpdateLocation={property.editLocation}
-          onDeleteLocation={property.removeLocation}
-          onSelectItem={handleSelectItem}
-          onUnassignItem={(id) => property.editItem(id, { location_id: null })}
-          userId={user?.id || ''}
-          onAddItem={handleCanvasAddItem}
-          onRegisterLocationActions={onRegisterLocationActions}
-        />
-      </div>
+      <PropertyLocationMap
+        clinicId={property.clinicId!}
+        clinicName={clinicName}
+        locations={visibleLocations}
+        items={property.items}
+        onCreateLocation={property.addLocation}
+        onDeleteLocation={property.removeLocation}
+        onEditItem={property.editItem}
+        onUpdateLocation={property.editLocation}
+        onSelectItem={handleSelectItem}
+      />
     )
   }
 
@@ -787,7 +775,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
               onSelectItem={handleSelectItem}
               onMoveLocation={handleMoveLocation}
               onMoveItem={handleMoveItem}
-              onSelectAll={() => { setDesktopLocationId(null); store.navigateToPath([]) }}
+              onSelectAll={() => { setDesktopLocationId(null); store.navigateToPath([]); store.selectZone(null); store.setPendingNavTarget('__reset__') }}
               allSelected={!desktopLocationId}
               onEditLocation={(loc) => { setRenamingLocation({ id: loc.id, name: loc.name }) }}
               onDeleteLocation={(locId) => property.removeLocation(locId)}

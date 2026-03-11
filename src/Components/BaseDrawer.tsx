@@ -19,6 +19,8 @@ export interface DrawerHeaderConfig {
     rightContent?: ReactNode;
     /** When true, the built-in close button is hidden (rightContent handles closing) */
     hideDefaultClose?: boolean;
+    /** When true, rightContent fills the header width (title collapses) */
+    rightContentFill?: boolean;
 }
 
 /** Private header component rendered by BaseDrawer when header config is provided */
@@ -29,6 +31,7 @@ function DrawerHeader({
     badge,
     rightContent,
     hideDefaultClose = false,
+    rightContentFill = false,
     onClose,
     isMobile,
 }: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean }) {
@@ -41,7 +44,7 @@ function DrawerHeader({
             )}
             <div className="px-6 border-b border-tertiary/10 py-3 md:py-4" data-drag-zone style={{ touchAction: 'none' }}>
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 min-w-0 transition-all duration-200">
+                    <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${rightContentFill ? ' w-0 overflow-hidden' : ''}`}>
                         <div
                             className="shrink-0 overflow-hidden transition-all duration-200"
                             style={{
@@ -66,7 +69,7 @@ function DrawerHeader({
                             </span>
                         )}
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className={`flex items-center gap-2${rightContentFill ? ' flex-1 min-w-0' : ' shrink-0'}`}>
                         {rightContent}
                         {!hideDefaultClose && (
                             <button
@@ -334,6 +337,7 @@ export function BaseDrawer({
                                     badge={header.badge}
                                     rightContent={header.rightContent}
                                     hideDefaultClose={header.hideDefaultClose}
+                                    rightContentFill={header.rightContentFill}
                                     onClose={handleClose}
                                     isMobile={useMobileLayout}
                                 />

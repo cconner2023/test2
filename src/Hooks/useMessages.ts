@@ -439,14 +439,14 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [userId, addMessage])
 
-  /** Remove messages by IDs from all conversations (delete callback). */
-  const removeMessagesByIds = useCallback((messageIds: string[]) => {
-    const idSet = new Set(messageIds)
+  /** Remove messages by origin IDs from all conversations (delete callback). */
+  const removeMessagesByOriginIds = useCallback((originIds: string[]) => {
+    const originSet = new Set(originIds)
     setConversations(prev => {
       let changed = false
       const next: Record<string, DecryptedSignalMessage[]> = {}
       for (const [key, msgs] of Object.entries(prev)) {
-        const filtered = msgs.filter(m => !idSet.has(m.id))
+        const filtered = msgs.filter(m => !(m.originId && originSet.has(m.originId)))
         if (filtered.length !== msgs.length) changed = true
         if (filtered.length > 0) {
           next[key] = filtered
@@ -466,7 +466,7 @@ export function useMessages(): UseMessagesReturn {
     isAuthenticated: isAuthenticated && !!localDeviceId,
     isPageVisible,
     onMessage: handleIncomingMessage,
-    onDelete: removeMessagesByIds,
+    onDelete: removeMessagesByOriginIds,
   })
 
   // Hydrate conversations and unread counts from IndexedDB on mount

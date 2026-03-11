@@ -265,6 +265,26 @@ export async function deleteMessages(messageIds: string[]): Promise<void> {
   }
 }
 
+/** Delete messages from IndexedDB by originId (for cross-device/peer delete sync). */
+export async function deleteMessagesByOriginId(originIds: string[]): Promise<void> {
+  if (originIds.length === 0) return
+  try {
+    const db = await getDb()
+    const tx = db.transaction('messages', 'readwrite')
+    const originSet = new Set(originIds)
+    let cursor = await tx.store.openCursor()
+    while (cursor) {
+      if (cursor.value.originId && originSet.has(cursor.value.originId)) {
+        await cursor.delete()
+      }
+      cursor = await cursor.continue()
+    }
+    await tx.done
+  } catch (err) {
+    logger.warn('Failed to delete messages by originId:', err)
+  }
+}
+
 /** Delete all messages for a conversation (by peerId / groupId). */
 export async function deleteConversation(conversationKey: string): Promise<void> {
   try {
