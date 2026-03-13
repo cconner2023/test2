@@ -34,7 +34,7 @@ interface CanvasEditOverlayProps {
   resizeMode?: boolean
   /** Canvas scale — edit overlay matches the view-mode canvas size */
   scale?: number
-  onSave: (tags: Omit<LocationTag, 'id'>[], removedTargetIds: string[]) => void
+  onSave: (tags: (Omit<LocationTag, 'id'> & { id?: string })[], removedTargetIds: string[]) => void
   onCancel: () => void
   /** Called when an existing zone is deleted — triggers cascade delete of the location + children */
   onDeleteZone?: (targetId: string, label: string) => void
@@ -58,6 +58,8 @@ type DragAction =
 type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se'
 
 interface EditableTag {
+  /** Preserved from the original LocationTag so IDs survive round-trips. */
+  _origId?: string
   target_type: 'location' | 'item'
   target_id: string
   x: number
@@ -89,6 +91,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
     tags
       .filter((t) => (t.width ?? 0) > 0 && (t.height ?? 0) > 0)
       .map((t) => ({
+        _origId: t.id,
         target_type: t.target_type,
         target_id: t.target_id,
         x: t.x,
@@ -127,7 +130,8 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
       const next = new Set(prev)
       if (next.has(idx)) next.delete(idx)
       else next.add(idx)
-      onSelectionChange?.(next.size)
+      // Defer parent notification to avoid setState-during-render
+      queueMicrotask(() => onSelectionChange?.(next.size))
       return next
     })
   }, [onSelectionChange])
@@ -470,6 +474,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
     const validTags = editTags.filter((t) => t.label.trim() !== '')
     onSave(
       validTags.map((t) => ({
+        ...(t._origId ? { id: t._origId } : {}),
         location_id: canvasId,
         target_type: t.target_type,
         target_id: t.target_id,

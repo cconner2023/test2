@@ -28,7 +28,7 @@ import { x3dhRespond } from './x3dh'
 import { initReceiver, ratchetDecrypt } from './ratchet'
 import { importDhPublicKey } from './keyManager'
 import { uploadKeyBundle, registerDevice } from './signalService'
-import { saveMessage } from './messageStore'
+import { saveMessage, deleteMessagesByOriginId } from './messageStore'
 import { parseMessageContent } from './messageContent'
 import type { PublicKeyBundle, InitialMessage, EncryptedMessage, RatchetState, RatchetKeyPair } from './types'
 import type { DecryptedSignalMessage, SignalMessageRow, SyncMessagePayload } from './transportTypes'
@@ -658,7 +658,12 @@ export async function processVaultMessages(userId: string): Promise<number> {
           originId: sync.originId ?? row.origin_id ?? undefined,
         }
         await saveMessage(syncMsg.id, senderUuid, syncMsg)
-      } else if (row.message_type !== 'delete') {
+      } else if (row.message_type === 'delete') {
+        try {
+          const { originIds } = JSON.parse(plaintext) as { originIds: string[] }
+          await deleteMessagesByOriginId(originIds)
+        } catch { /* ignore parse errors */ }
+      } else {
         const msg: DecryptedSignalMessage = {
           id: row.id,
           senderId: senderUuid,

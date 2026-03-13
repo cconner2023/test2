@@ -57,6 +57,7 @@ import {
 } from '../lib/signal/messageContent'
 import type { MessageContent, ImageContent, ReplyTo } from '../lib/signal/messageContent'
 import { uploadEncryptedAttachment } from '../lib/signal/attachmentService'
+import { createBackup, markHydrationComplete } from '../lib/signal/backupService'
 import { ok as okResult, err as errResult, type Result } from '../lib/result'
 import { resizeImage, getImageDimensions, generateThumbnail, dataUrlToBlob } from '../Utilities/imageUtils'
 import type { DecryptedSignalMessage, PeerDevice, FanOutMessageInput, SyncMessagePayload } from '../lib/signal/transportTypes'
@@ -524,6 +525,7 @@ export function useMessages(): UseMessagesReturn {
         setUnreadCounts(counts)
       }
       logger.info(`Hydrated ${Object.keys(convos).length} conversations from IDB`)
+      markHydrationComplete()
     }
 
     hydrate().catch(err => logger.warn('IDB hydration failed:', err))
@@ -1136,10 +1138,10 @@ export function useMessages(): UseMessagesReturn {
       return { ...prev, [peerId]: filtered }
     })
 
-    // 3. Delete from local IDB
-    deleteMessagesFromDb(messageIds).catch(e =>
-      logger.warn('Failed to delete messages from IDB:', e instanceof Error ? e.message : e)
-    )
+    // 3. Delete from local IDB, then re-sync backup
+    deleteMessagesFromDb(messageIds)
+      .then(() => createBackup(userId))
+      .catch(e => logger.warn('Failed to delete/re-sync:', e instanceof Error ? e.message : e))
 
     if (originIds.length === 0) return
 
@@ -1191,8 +1193,13 @@ export function useMessages(): UseMessagesReturn {
     )
   }, [userId, localDeviceId])
 
-  /** Delete an entire conversation from state, unread counts, and IndexedDB. */
+  /** Delete an entire conversation from state, unread counts, IndexedDB, Supabase, and backup. */
   const deleteConversation = useCallback((conversationKey: string) => {
+    // 1. Collect originIds BEFORE removing from state
+    const msgs = conversationsRef.current[conversationKey] ?? []
+    const originIds = msgs.map(m => m.originId).filter((oid): oid is string => !!oid)
+
+    // 2. Remove from React state
     setConversations(prev => {
       if (!prev[conversationKey]) return prev
       const next = { ...prev }
@@ -1205,10 +1212,18 @@ export function useMessages(): UseMessagesReturn {
       delete next[conversationKey]
       return next
     })
-    deleteConversationFromDb(conversationKey).catch(e =>
-      logger.warn('Failed to delete conversation from IDB:', e instanceof Error ? e.message : e)
-    )
-  }, [])
+
+    // 3. Delete from IDB, then re-sync backup
+    deleteConversationFromDb(conversationKey)
+      .then(() => { if (userId) return createBackup(userId) })
+      .catch(e => logger.warn('Failed to delete conversation/re-sync:', e instanceof Error ? e.message : e))
+
+    // 4. Hard-delete from Supabase (sender rows + vault copies)
+    if (originIds.length > 0) {
+      hardDeleteByOriginId(originIds).catch(e =>
+        logger.warn('Failed to hard-delete conversation from Supabase:', e instanceof Error ? e.message : e))
+    }
+  }, [userId])
 
   // ── Group messaging ────────────────────────────────────────────────────
 

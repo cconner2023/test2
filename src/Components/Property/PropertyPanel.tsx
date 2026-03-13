@@ -266,7 +266,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
           rects: null,
         }
         await upsertLocationTags(canvasId, [
-          ...existing.map(({ id: _id, ...rest }) => rest),
+          ...existing,
           newTag,
         ])
         store.bumpTagVersion()

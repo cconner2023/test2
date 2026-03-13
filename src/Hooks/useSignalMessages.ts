@@ -17,6 +17,7 @@ import { createLogger } from '../Utilities/Logger'
 import { useSupabaseSubscription } from './useSupabaseSubscription'
 import { fetchUnreadMessages, markMessagesRead, deleteMessages as hardDeleteMessages, hardDeleteByOriginId, onLoRaMessage } from '../lib/signal/signalService'
 import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb } from '../lib/signal/messageStore'
+import { scheduleBackup } from '../lib/signal/backupService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { processIncomingMessage } from '../lib/signal/session'
 import type { SealedEnvelope } from '../lib/signal/sealedSender'
@@ -236,6 +237,7 @@ export function useSignalMessages({
               onDeleteRef.current?.(originIds)
               hardDeleteByOriginId(originIds).catch(() => {})
               await hardDeleteMessages([decrypted.id]).catch(() => {})
+              if (userIdRef.current) scheduleBackup(userIdRef.current)
             } catch { /* ignore parse errors */ }
           } else {
             onMessageRef.current(decrypted)
@@ -272,6 +274,7 @@ export function useSignalMessages({
             onDeleteRef.current?.(originIds)
             hardDeleteByOriginId(originIds).catch(() => {})
             hardDeleteMessages([decrypted.id]).catch(() => {})
+            if (userIdRef.current) scheduleBackup(userIdRef.current)
           } catch { /* ignore parse errors */ }
           return
         }
@@ -309,6 +312,7 @@ export function useSignalMessages({
             onDeleteRef.current?.(originIds)
             hardDeleteByOriginId(originIds).catch(() => {})
             hardDeleteMessages([decrypted.id]).catch(() => {})
+            if (userIdRef.current) scheduleBackup(userIdRef.current)
           } catch { /* ignore parse errors */ }
           return
         }

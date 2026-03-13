@@ -321,7 +321,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   }, [namingState])
 
   const handleEditSave = useCallback(
-    async (newTags: Omit<LocationTag, 'id'>[], mergedAwayIds: string[]) => {
+    async (newTags: (Omit<LocationTag, 'id'> & { id?: string })[], mergedAwayIds: string[]) => {
       const canvasId = editCanvasId || rootLocationId
       if (!canvasId) return
 
@@ -364,19 +364,17 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         }
       }
 
-      await upsertLocationTags(canvasId, resolvedTags)
+      const savedTags = await upsertLocationTags(canvasId, resolvedTags)
 
       // Optimistic: update tagIndex directly instead of waiting for refetch
-      setTagIndex((prev) => {
-        if (!prev) return prev
-        const newByCanvas = new Map(prev.byCanvas)
-        const savedTags: LocationTag[] = resolvedTags.map((t) => ({
-          id: crypto.randomUUID(),
-          ...t,
-        } as LocationTag))
-        newByCanvas.set(canvasId, savedTags)
-        return buildTagIndex(newByCanvas)
-      })
+      if (savedTags.success && savedTags.tags) {
+        setTagIndex((prev) => {
+          if (!prev) return prev
+          const newByCanvas = new Map(prev.byCanvas)
+          newByCanvas.set(canvasId, savedTags.tags!)
+          return buildTagIndex(newByCanvas)
+        })
+      }
 
       store.bumpTagVersion()
       handleExitEdit()

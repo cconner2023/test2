@@ -29,6 +29,7 @@ import {
   saveLocalPropertyItem,
   deleteLocalPropertyItem,
   stripLocalFields,
+  getLocalLocationTags,
   type LocalTrainingCompletion,
 } from './offlineDb'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
@@ -36,7 +37,7 @@ import type { LocalPropertyItem } from '../Types/PropertyTypes'
 const logger = createLogger('SyncService')
 
 /** Tables that the sync queue is allowed to write to. */
-const ALLOWED_SYNC_TABLES = ['training_completions', 'property_items', 'property_locations', 'discrepancies', 'custody_ledger'] as const
+const ALLOWED_SYNC_TABLES = ['training_completions', 'property_items', 'property_locations', 'discrepancies', 'custody_ledger', 'location_tags'] as const
 type SyncableTable = typeof ALLOWED_SYNC_TABLES[number]
 
 /** Maximum number of retries before giving up on a sync item. */
@@ -171,20 +172,26 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
 
       try {
         const table = validateTableName(item.table_name)
-        const cleanPayload = stripLocalFields(item.payload)
 
-        switch (item.action) {
-          case 'create':
-            await handleCreate(table, cleanPayload)
-            break
-          case 'update':
-            await handleUpdate(table, item.record_id, cleanPayload)
-            break
-          case 'delete':
-            // Pass the original payload (not cleaned) because _deleted_at_timestamp
-            // is prefixed with _ but is needed for timestamp conflict resolution.
-            await handleDelete(table, item.record_id, item.payload)
-            break
+        // location_tags use full-canvas-replace, not individual CRUD
+        if (table === 'location_tags') {
+          await handleLocationTagsSync(item.record_id)
+        } else {
+          const cleanPayload = stripLocalFields(item.payload)
+
+          switch (item.action) {
+            case 'create':
+              await handleCreate(table, cleanPayload)
+              break
+            case 'update':
+              await handleUpdate(table, item.record_id, cleanPayload)
+              break
+            case 'delete':
+              // Pass the original payload (not cleaned) because _deleted_at_timestamp
+              // is prefixed with _ but is needed for timestamp conflict resolution.
+              await handleDelete(table, item.record_id, item.payload)
+              break
+          }
         }
 
         // Mark queue item as synced
@@ -295,6 +302,31 @@ async function handleUpdate(
     .eq('id' as never, recordId)
 
   if (error) throw new Error(`Update failed: ${error.message}`)
+}
+
+/**
+ * Push all location tags for a canvas from IndexedDB to Supabase.
+ * Uses delete-then-insert (full replace) since tags are managed per-canvas.
+ */
+async function handleLocationTagsSync(canvasLocationId: string): Promise<void> {
+  const localTags = await getLocalLocationTags(canvasLocationId)
+
+  // Delete existing server tags for this canvas
+  const { error: delError } = await supabase
+    .from('location_tags')
+    .delete()
+    .eq('location_id', canvasLocationId)
+
+  if (delError) throw new Error(`Tag delete failed: ${delError.message}`)
+
+  // Insert current local tags
+  if (localTags.length > 0) {
+    const { error: insError } = await supabase
+      .from('location_tags')
+      .insert(localTags)
+
+    if (insError) throw new Error(`Tag insert failed: ${insError.message}`)
+  }
 }
 
 async function handleDelete(
@@ -532,6 +564,10 @@ export function setupConnectivityListeners(
     onSyncComplete?: (result: SyncResult) => void
     onTrainingReconcileComplete?: (completions: LocalTrainingCompletion[]) => void
     onPropertyReconcileComplete?: (items: LocalPropertyItem[]) => void
+    /** Called after tag reconciliation so the UI can refresh the canvas. */
+    onTagsReconcileComplete?: () => void
+    /** Provides current locations for tag reconciliation scope. */
+    getLocations?: () => { id: string }[]
     clinicId?: string
   }
 ): () => void {
@@ -553,6 +589,14 @@ export function setupConnectivityListeners(
       if (callbacks?.clinicId) {
         const reconciledItems = await reconcilePropertyWithServer(callbacks.clinicId)
         callbacks?.onPropertyReconcileComplete?.(reconciledItems)
+
+        // 1c. Reconcile location tags (zones on canvas)
+        const locations = callbacks?.getLocations?.() || []
+        if (locations.length > 0) {
+          const { reconcileLocationTagsWithServer } = await import('./propertyService')
+          await reconcileLocationTagsWithServer(callbacks.clinicId, locations)
+          callbacks?.onTagsReconcileComplete?.()
+        }
       }
 
       // 2. Push local changes

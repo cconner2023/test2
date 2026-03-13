@@ -9,6 +9,7 @@
  */
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
+import { usePropertyStore } from '../stores/usePropertyStore'
 import { createLogger } from '../Utilities/Logger'
 import {
   fetchClinicItems,
@@ -51,6 +52,7 @@ export function useProperty() {
   const userIdRef = useRef<string | null>(null)
   const clinicIdRef = useRef<string | null>(null)
   const cleanupRef = useRef<(() => void) | null>(null)
+  const locationsRef = useRef<LocalPropertyLocation[]>([])
 
   const refreshItems = useCallback(async () => {
     const clinicId = clinicIdRef.current
@@ -64,6 +66,7 @@ export function useProperty() {
     if (!clinicId) return
     const refreshed = await fetchClinicLocations(clinicId)
     setLocations(refreshed)
+    locationsRef.current = refreshed
   }, [])
 
   const refreshDiscrepancies = useCallback(async () => {
@@ -111,6 +114,10 @@ export function useProperty() {
           },
           onPropertyReconcileComplete: (reconciled) => {
             if (!cancelled) setItems(reconciled)
+          },
+          getLocations: () => locationsRef.current,
+          onTagsReconcileComplete: () => {
+            usePropertyStore.getState().bumpTagVersion()
           },
         })
       } catch (err) {

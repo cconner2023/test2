@@ -24,6 +24,7 @@ import {
   getLocalLocationTagsBatch,
   saveLocalLocationTags,
   deleteLocalTagsByTarget,
+  getPendingTagCanvasIds,
 } from './offlineDb'
 import { processSyncQueue, isOnline } from './syncService'
 import type {
@@ -490,28 +491,34 @@ export async function ensureRootLocation(
 // ── Location Tags ────────────────────────────────────────────
 
 export async function fetchLocationTags(locationId: string): Promise<LocationTag[]> {
-  // IndexedDB is the source of truth for tags
+  // Load local first for instant display
   const localTags = await getLocalLocationTags(locationId)
-  if (localTags.length > 0) return localTags
 
-  // No local data — seed from Supabase if available
-  if (isOnline()) {
+  // Check if this canvas has pending local changes
+  const pendingIds = await getPendingTagCanvasIds()
+  const hasPending = pendingIds.has(locationId)
+
+  // If online and no pending local edits, reconcile with server
+  if (isOnline() && !hasPending) {
     try {
       const { data, error } = await supabase
         .from('location_tags')
         .select('*')
         .eq('location_id', locationId)
-      if (!error && data && data.length > 0) {
+      if (!error && data) {
         const serverTags = data as LocationTag[]
-        await saveLocalLocationTags(locationId, serverTags)
-        return serverTags
+        // Accept server state if it differs
+        if (!tagsEqual(serverTags, localTags)) {
+          await saveLocalLocationTags(locationId, serverTags)
+          return serverTags
+        }
       }
     } catch (err) {
-      logger.warn('Failed to seed location tags from server:', err)
+      logger.warn('Failed to reconcile location tags from server:', err)
     }
   }
 
-  return []
+  return localTags
 }
 
 /** Batch-fetch tags for multiple canvas locations (IndexedDB only, no network fallback). */
@@ -528,12 +535,12 @@ export async function fetchAllLocationTags(clinicId: string, locations: { id: st
 
 export async function upsertLocationTags(
   locationId: string,
-  tags: Omit<LocationTag, 'id'>[],
-): Promise<ServiceResult> {
+  tags: (Omit<LocationTag, 'id'> & { id?: string })[],
+): Promise<ServiceResult<{ tags: LocationTag[] }>> {
   try {
-    // Build full tag objects with IDs
+    // Preserve existing IDs, generate only for truly new tags
     const fullTags: LocationTag[] = tags.map((t) => ({
-      id: crypto.randomUUID(),
+      id: t.id || crypto.randomUUID(),
       location_id: locationId,
       target_type: t.target_type,
       target_id: t.target_id,
@@ -548,22 +555,113 @@ export async function upsertLocationTags(
     // Always save to IndexedDB first (offline-first)
     await saveLocalLocationTags(locationId, fullTags)
 
-    // If online, push to Supabase
+    // If online, push to Supabase immediately
     if (isOnline()) {
-      await supabase.from('location_tags').delete().eq('location_id', locationId)
-      if (fullTags.length > 0) {
-        const { error } = await supabase.from('location_tags').insert(fullTags)
-        if (error) {
-          logger.warn('Failed to push tags to Supabase:', error.message)
-          return fail(error.message)
+      try {
+        await supabase.from('location_tags').delete().eq('location_id', locationId)
+        if (fullTags.length > 0) {
+          const { error } = await supabase.from('location_tags').insert(fullTags)
+          if (error) {
+            logger.warn('Failed to push tags to Supabase, queuing for retry:', error.message)
+            await queueTagSync(locationId)
+          }
         }
+      } catch {
+        // Network error — queue for retry
+        await queueTagSync(locationId)
       }
+    } else {
+      // Offline — queue for sync when connectivity returns
+      await queueTagSync(locationId)
     }
 
-    return succeed()
+    return succeed({ tags: fullTags })
   } catch (err) {
     return fail(String(err))
   }
+}
+
+/** Queue a canvas for tag sync. Uses the sync queue so it's processed on reconnect. */
+async function queueTagSync(locationId: string): Promise<void> {
+  // Use a deterministic user_id placeholder — the sync handler reads fresh from IDB
+  await addToSyncQueue({
+    user_id: '__tag_sync__',
+    action: 'create',
+    table_name: 'location_tags',
+    record_id: locationId,
+    payload: { _canvas_id: locationId },
+  })
+}
+
+/**
+ * Reconcile location tags with the server for a clinic.
+ * Pulls all tags from Supabase and merges with local IDB state.
+ * Server wins for canvases that have no pending local changes.
+ */
+export async function reconcileLocationTagsWithServer(
+  clinicId: string,
+  locations: { id: string }[],
+): Promise<void> {
+  if (!isOnline()) return
+
+  try {
+    const locationIds = locations.map((l) => l.id)
+    if (locationIds.length === 0) return
+
+    // Fetch all tags from server in one query
+    const { data, error } = await supabase
+      .from('location_tags')
+      .select('*')
+      .in('location_id', locationIds)
+
+    if (error || !data) {
+      logger.warn('Tag reconciliation failed:', error?.message)
+      return
+    }
+
+    // Group server tags by canvas
+    const serverByCanvas = new Map<string, LocationTag[]>()
+    for (const tag of data as LocationTag[]) {
+      const arr = serverByCanvas.get(tag.location_id) || []
+      arr.push(tag)
+      serverByCanvas.set(tag.location_id, arr)
+    }
+
+    // Check which canvases have pending sync queue items
+    const pendingCanvasIds = await getPendingTagCanvasIds()
+
+    // For each canvas: if no pending local changes, accept server state
+    const localByCanvas = await getLocalLocationTagsBatch(locationIds)
+    for (const locId of locationIds) {
+      if (pendingCanvasIds.has(locId)) continue // local changes pending — keep local
+
+      const serverTags = serverByCanvas.get(locId) || []
+      const localTags = localByCanvas.get(locId) || []
+
+      // Only update if there's a difference
+      if (serverTags.length !== localTags.length || !tagsEqual(serverTags, localTags)) {
+        await saveLocalLocationTags(locId, serverTags)
+      }
+    }
+
+    // Seed canvases that exist on server but not locally
+    for (const [locId, serverTags] of serverByCanvas) {
+      if (!localByCanvas.has(locId) || (localByCanvas.get(locId)?.length === 0 && serverTags.length > 0)) {
+        if (!pendingCanvasIds.has(locId)) {
+          await saveLocalLocationTags(locId, serverTags)
+        }
+      }
+    }
+  } catch (err) {
+    logger.warn('Tag reconciliation error:', err)
+  }
+}
+
+/** Quick structural equality check for tag arrays (by id set). */
+function tagsEqual(a: LocationTag[], b: LocationTag[]): boolean {
+  if (a.length !== b.length) return false
+  const aIds = new Set(a.map((t) => t.id))
+  return b.every((t) => aIds.has(t.id))
 }
 
 // ── Custody Ledger ───────────────────────────────────────────

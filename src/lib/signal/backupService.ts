@@ -51,6 +51,13 @@ let _periodicTimer: ReturnType<typeof setInterval> | null = null
 let _scheduledUserId: string | null = null
 /** Whether the pagehide listener has been registered. */
 let _pagehideRegistered = false
+/** Whether this device has completed initial IDB hydration.
+ *  Prevents a fresh device from overwriting the backup before restoring. */
+let _hydrationComplete = false
+
+export function markHydrationComplete(): void {
+  _hydrationComplete = true
+}
 
 /** Max time (ms) from first unsaved change before a backup is forced. */
 const BACKUP_MAX_WAIT_MS = 10_000
@@ -150,6 +157,7 @@ export function deriveAndStoreBackupKey(password: string): Promise<void> {
 export function clearBackupKey(): void {
   _backupKey = null
   _backupKeyReady = null
+  _hydrationComplete = false
   _firstDirtyAt = null
   _scheduledUserId = null
   if (_backupTimer) {
@@ -299,8 +307,8 @@ export async function createBackup(userId: string): Promise<void> {
 
   try {
     let messages = await loadRawMessages()
-    if (messages.length === 0) {
-      logger.info('No local messages, skipping backup to avoid overwriting existing data')
+    if (messages.length === 0 && !_hydrationComplete) {
+      logger.info('Skipping empty backup — hydration not yet complete')
       return
     }
     // Cap at max messages

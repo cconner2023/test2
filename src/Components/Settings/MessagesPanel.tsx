@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
-import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, Video, ArrowLeft, MessageSquare, Users, Info, ChevronLeft, Pin, PenLine, ChevronDown, ChevronRight } from 'lucide-react'
+import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, Video, ArrowLeft, MessageSquare, Users, Info, ChevronLeft, Pin, PenLine } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useSpring, animated } from '@react-spring/web'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
@@ -91,17 +91,12 @@ function ConversationPane({
   const userId = user?.id ?? null
   const { currentAvatar } = useAvatar()
   const { ownClinicMedics, nearbyByClinic, nearbyClinicNames } = useClinicGroupedMedics(medics)
-  const [expandedClinics, setExpandedClinics] = useState<Record<string, boolean>>({ __own__: true })
   const [pinnedKeys, setPinnedKeys] = useState<Set<string>>(new Set())
   const [contextMenu, setContextMenu] = useState<{ conversationKey: string; x: number; y: number } | null>(null)
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
   const showLoading = useMinLoadTime(loading ?? false)
 
   const sortedGroups = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name))
-
-  const toggleClinic = (key: string) => {
-    setExpandedClinics(prev => ({ ...prev, [key]: !prev[key] }))
-  }
 
   // Build recent conversations list
   const recentEntries = useMemo(() => {
@@ -351,16 +346,12 @@ function ConversationPane({
 
             <div className="mx-3 my-2 border-b border-primary/10" />
 
-            {/* Contacts: My Clinic (expanded by default) */}
-            <button
-              onClick={() => toggleClinic('__own__')}
-              className="flex items-center gap-1.5 w-full px-3 py-1.5 text-left hover:bg-themewhite2 rounded-lg transition-all"
-            >
-              {expandedClinics['__own__'] ? <ChevronDown className="w-3 h-3 text-tertiary/50" /> : <ChevronRight className="w-3 h-3 text-tertiary/50" />}
+            {/* Contacts: My Clinic */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5">
               <p className="text-[10px] text-tertiary/50 uppercase tracking-wide">My Clinic</p>
               <span className="text-[9px] text-tertiary/30 ml-auto">{ownClinicMedics.length}</span>
-            </button>
-            {expandedClinics['__own__'] && ownClinicMedics.map(medic => (
+            </div>
+            {ownClinicMedics.map(medic => (
               <ContactListItem
                 key={medic.id}
                 medic={medic}
@@ -372,18 +363,14 @@ function ConversationPane({
               />
             ))}
 
-            {/* Contacts: Nearby clinics (collapsed by default) */}
+            {/* Contacts: Nearby clinics */}
             {nearbyClinicNames.map(clinicName => (
               <div key={clinicName}>
-                <button
-                  onClick={() => toggleClinic(clinicName)}
-                  className="flex items-center gap-1.5 w-full px-3 py-1.5 text-left hover:bg-themewhite2 rounded-lg transition-all"
-                >
-                  {expandedClinics[clinicName] ? <ChevronDown className="w-3 h-3 text-tertiary/50" /> : <ChevronRight className="w-3 h-3 text-tertiary/50" />}
+                <div className="flex items-center gap-1.5 px-3 py-1.5">
                   <p className="text-[10px] text-tertiary/50 uppercase tracking-wide">{clinicName}</p>
                   <span className="text-[9px] text-tertiary/30 ml-auto">{nearbyByClinic[clinicName].length}</span>
-                </button>
-                {expandedClinics[clinicName] && nearbyByClinic[clinicName].map(medic => (
+                </div>
+                {nearbyByClinic[clinicName].map(medic => (
                   <ContactListItem
                     key={medic.id}
                     medic={medic}

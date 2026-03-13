@@ -655,6 +655,26 @@ export async function deleteLocalTagsByTarget(targetId: string): Promise<void> {
   await tx.done
 }
 
+/**
+ * Get canvas IDs that have pending tag sync queue items.
+ */
+export async function getPendingTagCanvasIds(): Promise<Set<string>> {
+  const db = await getDb()
+  const tx = db.transaction('syncQueue', 'readonly')
+  const store = tx.objectStore('syncQueue')
+  const ids = new Set<string>()
+  let cursor = await store.openCursor()
+  while (cursor) {
+    const item = cursor.value
+    if (item.table_name === 'location_tags' && item.status === 'pending') {
+      ids.add(item.record_id)
+    }
+    cursor = await cursor.continue()
+  }
+  await tx.done
+  return ids
+}
+
 // ============================================================
 // Property Discrepancies Operations
 // ============================================================
