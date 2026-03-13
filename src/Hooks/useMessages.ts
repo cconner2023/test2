@@ -20,7 +20,6 @@ import {
   sendMessageFanOut,
   fetchPeerDevices,
   fetchOwnDevices,
-  fetchConversation,
   fetchGroupConversation,
   markMessagesRead,
   hardDeleteByOriginId,
@@ -74,13 +73,25 @@ export function getRequestStatus(
   userId: string
 ): RequestStatus {
   if (!msgs || msgs.length === 0) return 'none'
+  // Explicit accept always wins
   for (const m of msgs) {
     if (m.messageType === 'request-accepted') return 'accepted'
   }
+  // Check for request direction
+  let weSentRequest = false
+  let peerSentRequest = false
   for (const m of msgs) {
-    if (m.messageType === 'request' && m.senderId === userId) return 'sent'
-    if (m.messageType === 'request' && m.senderId !== userId) return 'received'
+    if (m.messageType === 'request' && m.senderId === userId) weSentRequest = true
+    if (m.messageType === 'request' && m.senderId !== userId) peerSentRequest = true
   }
+  // Implicit acceptance: peer replied with a regular message after our request
+  if (weSentRequest) {
+    for (const m of msgs) {
+      if (m.senderId !== userId && m.messageType === 'message') return 'accepted'
+    }
+    return 'sent'
+  }
+  if (peerSentRequest) return 'received'
   return 'none'
 }
 
@@ -938,37 +949,10 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage])
 
-  /** Fetch conversation history from Supabase, decrypt locally, merge into state. */
+  /** Fetch conversation history — no-op, IDB + catch-up handle hydration. */
   const fetchHistory = useCallback(async (peerId: string) => {
-    if (!userId) return
-
-    // Self-notes are encrypted per-device — Supabase rows target OTHER devices.
-    // The current device's copies live in IDB (hydrated on mount). Nothing to fetch.
-    if (peerId === userId) return
-
-    const result = await fetchConversation(userId, peerId)
-    if (!result.ok) {
-      logger.warn('fetchHistory failed:', result.error)
-      return
-    }
-
-    // Rows come newest-first from the DB — reverse for chronological order.
-    // We only add "sent" messages (where we are the sender) from history,
-    // because received messages need decryption which mutates ratchet state.
-    // Received messages are handled by useSignalMessages catch-up on mount.
-    const rows = result.data.reverse()
-
-    for (const row of rows) {
-      if (row.sender_id === userId) {
-        // Our own sent messages — we can't decrypt them (no session state for self),
-        // but we don't have the plaintext stored. Skip for now.
-        // They'll appear from the addMessage call when we send.
-      }
-      // Received messages are decrypted by useSignalMessages catch-up
-    }
-
-    logger.info(`fetchHistory: ${rows.length} rows for peer ${peerId}`)
-  }, [userId, addMessage])
+    logger.debug('fetchHistory: no-op (IDB + catch-up handle hydration)')
+  }, [])
 
   /** Mark messages from a peer as read. */
   const markAsRead = useCallback((peerId: string) => {

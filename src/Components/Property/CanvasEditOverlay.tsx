@@ -3,8 +3,8 @@
  * Operates in the canvas's own 0..1 normalised coordinate space.
  * Zones are locations — drawing a zone creates a location with a name.
  */
-import { useState, useCallback, useRef, useMemo, useImperativeHandle, memo } from 'react'
-import { Trash2, Copy } from 'lucide-react'
+import { useState, useCallback, useRef, useMemo, useImperativeHandle, useEffect, memo } from 'react'
+// Icons removed — delete/duplicate now handled via toolbar
 import { traceCompositeOutline } from '../../lib/tagIndex'
 import type { LocationTag, ZoneRect } from '../../Types/PropertyTypes'
 
@@ -13,10 +13,16 @@ export interface CanvasEditHandle {
   canSplit: boolean
   canMerge: boolean
   canDuplicate: boolean
+  canDelete: boolean
+  canRename: boolean
   split: () => void
   merge: () => void
   duplicate: () => void
+  deleteSelected: () => void
+  renameSelected: () => void
   selectedCount: number
+  confirmName: (name: string) => void
+  cancelName: () => void
 }
 
 interface CanvasEditOverlayProps {
@@ -24,6 +30,8 @@ interface CanvasEditOverlayProps {
   canvasId: string
   /** When true, dragging on empty canvas draws a new zone. When false, pointer events are ignored (pan handled by parent). */
   drawMode: boolean
+  /** When true, only resize handles are interactive (no move). */
+  resizeMode?: boolean
   /** Canvas scale — edit overlay matches the view-mode canvas size */
   scale?: number
   onSave: (tags: Omit<LocationTag, 'id'>[], removedTargetIds: string[]) => void
@@ -36,6 +44,10 @@ interface CanvasEditOverlayProps {
   onSelectionChange?: (count: number) => void
   /** Map of target_id → photo_data base64 URL for zone background images */
   photoMap?: Map<string, string>
+  /** When true, name prompt is rendered externally (by parent) instead of inline */
+  externalNamePrompt?: boolean
+  /** Called when naming state changes (for external prompt rendering) */
+  onNamingChange?: (naming: { index: number; existingLabel: string } | null) => void
 }
 
 type DragAction =
@@ -62,6 +74,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
   tags,
   canvasId,
   drawMode,
+  resizeMode = false,
   scale = 1,
   onSave,
   onCancel,
@@ -69,6 +82,8 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
   editRef,
   onSelectionChange,
   photoMap,
+  externalNamePrompt = false,
+  onNamingChange,
 }: CanvasEditOverlayProps) {
   const [editTags, setEditTags] = useState<EditableTag[]>(() =>
     tags
@@ -224,9 +239,12 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
   const handleNameConfirm = useCallback(() => {
     if (namingIndex === null) return
     const trimmed = nameInput.trim()
+    const existingLabel = editTags[namingIndex]?.label
     if (!trimmed) {
-      // Remove the zone if no name given
-      setEditTags((prev) => prev.filter((_, i) => i !== namingIndex))
+      // New zone with no name → remove; rename with no name → keep original
+      if (!existingLabel) {
+        setEditTags((prev) => prev.filter((_, i) => i !== namingIndex))
+      }
     } else {
       setEditTags((prev) => {
         const next = [...prev]
@@ -236,7 +254,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
     }
     setNamingIndex(null)
     setNameInput('')
-  }, [namingIndex, nameInput])
+  }, [namingIndex, nameInput, editTags])
 
   // Track zone pointer-down to distinguish tap (select) from drag (move)
   const zoneDownRef = useRef<{ idx: number; x: number; y: number; nx: number; ny: number } | null>(null)
@@ -263,6 +281,8 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
         const dx = Math.abs(e.clientX - down.x)
         const dy = Math.abs(e.clientY - down.y)
         if (dx > 4 || dy > 4) {
+          // In resize mode, suppress move — only handles resize
+          if (resizeMode) return
           // Start move drag
           const tag = editTags[down.idx]
           setDragAction({
@@ -274,7 +294,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
         }
       }
     },
-    [dragAction, editTags],
+    [dragAction, editTags, resizeMode],
   )
 
   const handleZonePointerUp = useCallback(
@@ -385,47 +405,60 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
   }, [selectedIndices, onSelectionChange])
 
   const handleMerge = useCallback(() => {
-    if (selectedIndices.size !== 2) return
-    const [idxA, idxB] = [...selectedIndices].sort((a, b) => a - b)
+    if (selectedIndices.size < 2) return
+    const sortedAsc = [...selectedIndices].sort((a, b) => a - b)
+    const sortedDesc = [...sortedAsc].reverse()
 
     setEditTags((prev) => {
-      const a = prev[idxA]
-      const b = prev[idxB]
+      const selected = sortedAsc.map((i) => prev[i])
+      const survivor = selected[0] // lowest index keeps identity
 
-      // Track the merged-away original (the one NOT kept) for item transfer on save
-      // Keep the first selected zone's identity; the second is merged away
-      if (existingTargetIds.has(b.target_id)) setMergedAwayIds((ids) => [...ids, b.target_id])
+      // Track merged-away IDs for item transfer on save
+      const awayIds = selected.slice(1)
+        .filter((z) => existingTargetIds.has(z.target_id))
+        .map((z) => z.target_id)
+      if (awayIds.length > 0) setMergedAwayIds((ids) => [...ids, ...awayIds])
 
-      // Compute bounding box
-      const x = Math.min(a.x, b.x)
-      const y = Math.min(a.y, b.y)
-      const x2 = Math.max(a.x + a.width, b.x + b.width)
-      const y2 = Math.max(a.y + a.height, b.y + b.height)
-      const w = x2 - x
-      const h = y2 - y
+      // Compute bounding box across all N zones
+      const bbX = Math.min(...selected.map((z) => z.x))
+      const bbY = Math.min(...selected.map((z) => z.y))
+      const bbX2 = Math.max(...selected.map((z) => z.x + z.width))
+      const bbY2 = Math.max(...selected.map((z) => z.y + z.height))
+      const bbW = bbX2 - bbX
+      const bbH = bbY2 - bbY
 
-      // Store original rects relative to the bounding box
-      const rects: ZoneRect[] = [
-        { x: (a.x - x) / w, y: (a.y - y) / h, w: a.width / w, h: a.height / h },
-        { x: (b.x - x) / w, y: (b.y - y) / h, w: b.width / w, h: b.height / h },
-      ]
+      // Build rects array — composite-aware
+      const rects: ZoneRect[] = []
+      for (const zone of selected) {
+        if (zone.rects && zone.rects.length > 0) {
+          // Existing composite: convert each sub-rect from local → canvas → new bounding box
+          for (const r of zone.rects) {
+            const cx = zone.x + r.x * zone.width
+            const cy = zone.y + r.y * zone.height
+            const cw = r.w * zone.width
+            const ch = r.h * zone.height
+            rects.push({ x: (cx - bbX) / bbW, y: (cy - bbY) / bbH, w: cw / bbW, h: ch / bbH })
+          }
+        } else {
+          // Simple zone: one rect from its bounding box
+          rects.push({ x: (zone.x - bbX) / bbW, y: (zone.y - bbY) / bbH, w: zone.width / bbW, h: zone.height / bbH })
+        }
+      }
 
-      // Merged zone keeps the first selected's target_id + name
       const merged: EditableTag = {
         target_type: 'location',
-        target_id: a.target_id,
-        x,
-        y,
-        width: w,
-        height: h,
-        label: a.label,
+        target_id: survivor.target_id,
+        x: bbX,
+        y: bbY,
+        width: bbW,
+        height: bbH,
+        label: survivor.label,
         rects,
       }
 
-      // Remove both originals (higher index first to avoid shift)
+      // Remove all selected (descending order to preserve indices)
       const next = [...prev]
-      next.splice(idxB, 1)
-      next.splice(idxA, 1)
+      for (const idx of sortedDesc) next.splice(idx, 1)
       next.push(merged)
       return next
     })
@@ -459,20 +492,91 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
     onSelectionChange?.(0)
   }, [selectedIndices, handleDuplicate, onSelectionChange])
 
-  // Expose save + split/merge/duplicate to parent via imperative handle
+  const handleDeleteSelected = useCallback(() => {
+    if (selectedIndices.size === 0) return
+    // Delete in reverse order to preserve indices
+    const sorted = [...selectedIndices].sort((a, b) => b - a)
+    for (const idx of sorted) {
+      const tag = editTags[idx]
+      if (tag && existingTargetIds.has(tag.target_id) && onDeleteZone) {
+        onDeleteZone(tag.target_id, tag.label || 'Unnamed')
+      }
+    }
+    setEditTags((prev) => prev.filter((_, i) => !selectedIndices.has(i)))
+    setSelectedIndices(new Set())
+    onSelectionChange?.(0)
+  }, [selectedIndices, editTags, existingTargetIds, onDeleteZone, onSelectionChange])
+
+  const handleRenameSelected = useCallback(() => {
+    if (selectedIndices.size !== 1) return
+    const idx = [...selectedIndices][0]
+    const tag = editTags[idx]
+    if (!tag) return
+    setNameInput(tag.label)
+    setNamingIndex(idx)
+    setTimeout(() => nameInputRef.current?.focus(), 50)
+  }, [selectedIndices, editTags])
+
+  // External name prompt: notify parent when naming state changes
+  useEffect(() => {
+    if (!externalNamePrompt || !onNamingChange) return
+    if (namingIndex !== null) {
+      onNamingChange({ index: namingIndex, existingLabel: editTags[namingIndex]?.label || '' })
+    } else {
+      onNamingChange(null)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [namingIndex, externalNamePrompt])
+
+  const confirmNameExternal = useCallback((name: string) => {
+    if (namingIndex === null) return
+    const trimmed = name.trim()
+    if (!trimmed) {
+      if (!editTags[namingIndex]?.label) {
+        setEditTags((prev) => prev.filter((_, i) => i !== namingIndex))
+      }
+    } else {
+      setEditTags((prev) => {
+        const next = [...prev]
+        next[namingIndex] = { ...next[namingIndex], label: trimmed }
+        return next
+      })
+    }
+    setNamingIndex(null)
+    setNameInput('')
+  }, [namingIndex, editTags])
+
+  const cancelNameExternal = useCallback(() => {
+    if (namingIndex === null) return
+    if (!editTags[namingIndex]?.label) {
+      setEditTags((prev) => prev.filter((_, i) => i !== namingIndex))
+    }
+    setNamingIndex(null)
+    setNameInput('')
+  }, [namingIndex, editTags])
+
+  // Expose save + split/merge/duplicate/delete/rename to parent via imperative handle
   const canSplit = selectedIndices.size === 1
-  const canMerge = selectedIndices.size === 2
+  const canMerge = selectedIndices.size >= 2
   const canDuplicate = selectedIndices.size === 1
+  const canDelete = selectedIndices.size >= 1
+  const canRename = selectedIndices.size === 1
   useImperativeHandle(editRef, () => ({
     save: handleSave,
     canSplit,
     canMerge,
     canDuplicate,
+    canDelete,
+    canRename,
     split: handleSplit,
     merge: handleMerge,
     duplicate: handleDuplicateSelected,
+    deleteSelected: handleDeleteSelected,
+    renameSelected: handleRenameSelected,
     selectedCount: selectedIndices.size,
-  }), [handleSave, canSplit, canMerge, canDuplicate, handleSplit, handleMerge, handleDuplicateSelected, selectedIndices.size])
+    confirmName: confirmNameExternal,
+    cancelName: cancelNameExternal,
+  }), [handleSave, canSplit, canMerge, canDuplicate, canDelete, canRename, handleSplit, handleMerge, handleDuplicateSelected, handleDeleteSelected, handleRenameSelected, selectedIndices.size, confirmNameExternal, cancelNameExternal])
 
   const drawPreview =
     dragAction?.type === 'draw'
@@ -515,6 +619,23 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
           ))}
         </svg>
 
+        {/* SVG defs for composite zone clip paths */}
+        {editTags.some((t) => t.rects && t.rects.length > 0) && (
+          <svg className="absolute" width="0" height="0">
+            <defs>
+              {editTags.map((tag, idx) =>
+                tag.rects && tag.rects.length > 0 ? (
+                  <clipPath key={idx} id={`ebb-${idx}`} clipPathUnits="objectBoundingBox">
+                    {tag.rects.map((r, i) => (
+                      <rect key={i} x={r.x} y={r.y} width={r.w} height={r.h} />
+                    ))}
+                  </clipPath>
+                ) : null,
+              )}
+            </defs>
+          </svg>
+        )}
+
         {/* Zones */}
         {editTags.map((tag, idx) => {
           const isComposite = tag.rects && tag.rects.length > 0
@@ -526,9 +647,10 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
             key={idx}
             data-zone
             className={[
-              'absolute cursor-move overflow-hidden',
+              'absolute overflow-hidden',
+              drawMode ? 'pointer-events-none' : 'cursor-move',
               isComposite
-                ? (isSel ? 'ring-2 ring-themeyellow' : '')
+                ? ''
                 : [
                     'rounded-lg border-2',
                     isSel
@@ -542,6 +664,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
               top: `${tag.y * 100}%`,
               width: `${tag.width * 100}%`,
               height: `${tag.height * 100}%`,
+              ...(isComposite ? { clipPath: `url(#ebb-${idx})` } : {}),
             }}
             onPointerDown={(e) => handleZonePointerDown(e, idx)}
             onPointerMove={handleZonePointerMove}
@@ -569,7 +692,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
                   {outline && (
                     <path d={outline} fill="none"
                       className={isSel ? 'stroke-themeyellow/50' : 'stroke-themeblue3/40'}
-                      strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                      strokeWidth={isSel ? 2.5 : 2} vectorEffect="non-scaling-stroke" />
                   )}
                 </svg>
               )
@@ -582,29 +705,14 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
               </span>
             </div>
 
-            {/* Delete button */}
-            <button
-              className="absolute -top-2.5 -right-2.5 w-5 h-5 rounded-full bg-themeredred text-white flex items-center justify-center shadow-sm hover:bg-themeredred/80 active:scale-95 transition-all z-10"
-              onClick={(e) => { e.stopPropagation(); handleDelete(idx) }}
-            >
-              <Trash2 size={10} />
-            </button>
-
-            {/* Duplicate button */}
-            <button
-              className="absolute -bottom-2.5 -right-2.5 w-5 h-5 rounded-full bg-themeblue3 text-white flex items-center justify-center shadow-sm hover:bg-themeblue3/80 active:scale-95 transition-all z-10"
-              onClick={(e) => { e.stopPropagation(); handleDuplicate(idx) }}
-            >
-              <Copy size={10} />
-            </button>
-
-            {/* Resize handles */}
-            {(['nw', 'ne', 'sw', 'se'] as ResizeHandle[]).map((handle) => (
+            {/* Resize handles — only on selected zones */}
+            {isSel && (['nw', 'ne', 'sw', 'se'] as ResizeHandle[]).map((handle) => (
               <div
                 key={handle}
                 data-handle
                 className={[
-                  'absolute w-3.5 h-3.5 rounded-full bg-white border-2 border-themeblue3 z-10',
+                  'absolute w-3.5 h-3.5 rounded-full bg-white border-2 z-10',
+                  resizeMode ? 'border-themeyellow shadow-md' : 'border-themeblue3',
                   handle === 'nw' ? '-top-1.5 -left-1.5 cursor-nw-resize' : '',
                   handle === 'ne' ? '-top-1.5 -right-1.5 cursor-ne-resize' : '',
                   handle === 'sw' ? '-bottom-1.5 -left-1.5 cursor-sw-resize' : '',
@@ -630,11 +738,13 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
           />
         )}
 
-        {/* Name prompt — fixed position within canvas so it stays visible */}
-        {namingIndex !== null && (
+        {/* Name prompt — fixed position within canvas so it stays visible (skipped when parent renders it) */}
+        {namingIndex !== null && !externalNamePrompt && (
           <div className="sticky bottom-4 left-0 right-0 z-20 flex justify-center pointer-events-none">
             <div className="pointer-events-auto bg-themewhite rounded-xl shadow-lg w-72 p-4 border border-primary/10">
-              <p className="text-[10pt] font-medium text-primary mb-2">Name this zone</p>
+              <p className="text-[10pt] font-medium text-primary mb-2">
+                {editTags[namingIndex!]?.label ? 'Rename zone' : 'Name this zone'}
+              </p>
               <input
                 ref={nameInputRef}
                 type="text"
@@ -643,7 +753,10 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') handleNameConfirm()
                   if (e.key === 'Escape') {
-                    setEditTags((prev) => prev.filter((_, i) => i !== namingIndex))
+                    // New zone (no label) → remove; rename → keep original
+                    if (!editTags[namingIndex!]?.label) {
+                      setEditTags((prev) => prev.filter((_, i) => i !== namingIndex))
+                    }
                     setNamingIndex(null)
                     setNameInput('')
                   }
@@ -654,7 +767,10 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
               <div className="flex items-center gap-2 mt-3">
                 <button
                   onClick={() => {
-                    setEditTags((prev) => prev.filter((_, i) => i !== namingIndex))
+                    // New zone (no label) → remove; rename → keep original
+                    if (!editTags[namingIndex!]?.label) {
+                      setEditTags((prev) => prev.filter((_, i) => i !== namingIndex))
+                    }
                     setNamingIndex(null)
                     setNameInput('')
                   }}

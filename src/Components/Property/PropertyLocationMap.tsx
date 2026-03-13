@@ -7,8 +7,10 @@
  * LOD: nested zones become visible when their parent zone fills ≥80%
  * of the viewport (via canvasScale), or when the parent is selected.
  */
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Pencil, Check, PenTool, ZoomIn, ZoomOut, Scissors, Merge, X, Copy, Camera } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef } from 'react'
+import { flushSync } from 'react-dom'
+import { useSpring, animated } from '@react-spring/web'
+import { Pencil, Check, PenTool, ZoomIn, ZoomOut, Scissors, Merge, X, Copy, Camera, Trash2, Maximize2 } from 'lucide-react'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { fetchAllLocationTags, fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
 import { buildTagIndex, findLCA } from '../../lib/tagIndex'
@@ -57,6 +59,11 @@ function flattenToWorld(tagIndex: TagIndex, rootId: string): LocationTag[] {
 /** Drag distance threshold — below this we treat pointerup as a tap, not a pan */
 const TAP_THRESHOLD = 8
 
+export interface MapNavHandle {
+  navigateToZone: (targetId: string) => void
+  resetZoom: () => void
+}
+
 interface PropertyLocationMapProps {
   clinicId: string
   clinicName: string
@@ -69,13 +76,15 @@ interface PropertyLocationMapProps {
   onSelectItem?: (item: LocalPropertyItem) => void
 }
 
-export function PropertyLocationMap({ clinicId, clinicName, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem }: PropertyLocationMapProps) {
+export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, clinicName, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem }, ref) {
   const store = usePropertyStore()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [tagIndex, setTagIndex] = useState<TagIndex | null>(null)
   const [canvasScale, setCanvasScale] = useState(1)
   const [isEditing, setIsEditing] = useState(false)
   const [isDrawing, setIsDrawing] = useState(false)
+  const [isResizing, setIsResizing] = useState(false)
+  const [editCanvasId, setEditCanvasId] = useState<string | null>(null)
   const [editCanvasTags, setEditCanvasTags] = useState<LocationTag[]>([])
   const [pendingZoneDelete, setPendingZoneDelete] = useState<{ targetId: string; label: string } | null>(null)
   const editRef = useRef<CanvasEditHandle>(null)
@@ -83,6 +92,10 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
   const lcaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Track edit selection count so toolbar re-renders when shift-selection changes
   const [editSelectionCount, setEditSelectionCount] = useState(0)
+  // Nested edit: external name prompt state
+  const [namingState, setNamingState] = useState<{ index: number; existingLabel: string } | null>(null)
+  const [nameInput, setNameInput] = useState('')
+  const nameInputRef = useRef<HTMLInputElement>(null)
 
   const rootLocationId = store.rootLocationId
 
@@ -111,8 +124,43 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
     return flattenToWorld(tagIndex, rootLocationId)
   }, [tagIndex, rootLocationId])
 
-  // ── Visible tags — always show all zones so the user can pan and tap any ──
-  const visibleTags = allWorldTags
+  // ── Parent bounds for nested editing — world-space tag of the zone being edited ──
+  const parentBounds = useMemo(() => {
+    if (!editCanvasId || editCanvasId === rootLocationId) return null
+    return allWorldTags.find((t) => t.target_id === editCanvasId) ?? null
+  }, [editCanvasId, rootLocationId, allWorldTags])
+
+  // ── Visible tags — LOD filter: hide sub-zones until parent fills ≥80% of viewport ──
+  const visibleTags = useMemo(() => {
+    if (!rootLocationId) return allWorldTags
+    const selectedId = store.selectedZoneId
+
+    const byTargetId = new Map<string, LocationTag>()
+    for (const t of allWorldTags) byTargetId.set(t.target_id, t)
+
+    // Build ancestor set so the selected zone + its parent chain are always visible
+    const ancestorIds = new Set<string>()
+    if (selectedId) {
+      ancestorIds.add(selectedId)
+      let curLocId = allWorldTags.find((t) => t.target_id === selectedId)?.location_id
+      while (curLocId && curLocId !== rootLocationId) {
+        ancestorIds.add(curLocId)
+        const parentTag = byTargetId.get(curLocId)
+        curLocId = parentTag?.location_id
+      }
+    }
+
+    return allWorldTags.filter((tag) => {
+      if (tag.location_id === rootLocationId) return true
+      if (tag.location_id === selectedId) return true
+      if (ancestorIds.has(tag.target_id)) return true
+
+      const parent = byTargetId.get(tag.location_id)
+      if (!parent) return false
+      const fill = Math.max((parent.width ?? 0), (parent.height ?? 0)) * canvasScale
+      return fill >= 0.8
+    })
+  }, [allWorldTags, rootLocationId, canvasScale, store.selectedZoneId])
 
   // ── Zoom to a world-coord tag ──
   const zoomToTag = useCallback(
@@ -120,18 +168,25 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
       const container = scrollRef.current
       if (!container || !tag.width || !tag.height) return
 
+      const PADDING = 10
+      const FILL = 0.80
+
       const vpW = container.clientWidth
       const vpH = container.clientHeight
-      const scaleX = (vpW * 0.8) / (tag.width * vpW)
-      const scaleY = (vpH * 0.8) / (tag.height * vpH)
-      const newScale = Math.min(scaleX, scaleY, 5)
+      const newScale = Math.min(FILL / tag.width, FILL / tag.height, 100)
 
-      setCanvasScale(newScale)
+      // Force synchronous DOM commit so scrollWidth/Height reflect newScale
+      flushSync(() => setCanvasScale(newScale))
 
-      requestAnimationFrame(() => {
-        const scrollX = tag.x * newScale * vpW - vpW * 0.1
-        const scrollY = tag.y * newScale * vpH - vpH * 0.1
-        container.scrollTo({ left: scrollX, top: scrollY, behavior: 'smooth' })
+      // Read actual rendered canvas size
+      const canvasW = container.scrollWidth
+      const canvasH = container.scrollHeight
+
+      // Place tag top-left at PADDING,PADDING from viewport top-left
+      container.scrollTo({
+        left: tag.x * canvasW - PADDING,
+        top: tag.y * canvasH - PADDING,
+        behavior: 'smooth',
       })
     },
     [],
@@ -175,6 +230,12 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
   // ── Zone tap → select + zoom ──
   const handleZoneTap = useCallback(
     (targetId: string) => {
+      // Tapping already-selected zone → deselect only, no zoom change
+      if (targetId === store.selectedZoneId) {
+        store.selectZone(null)
+        return
+      }
+
       const prevId = store.selectedZoneId
       store.selectZone(targetId)
       const tag = allWorldTags.find((t) => t.target_id === targetId)
@@ -197,52 +258,78 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
     scrollRef.current?.scrollTo({ left: 0, top: 0, behavior: 'smooth' })
   }, [store])
 
-  // ── Handle pending nav target from tree ──
-  useEffect(() => {
-    const target = store.pendingNavTarget
-    if (!target) return
-
-    store.setPendingNavTarget(null)
-
-    if (target === '__reset__') {
-      handleResetZoom()
-      return
-    }
-
-    const tag = allWorldTags.find((t) => t.target_id === target)
-    if (!tag) return
-
-    const prevId = store.selectedZoneId
-    store.selectZone(target)
-
-    if (prevId && prevId !== target) {
-      zoomViaLCA(prevId, target, tag)
-    } else {
+  // ── Imperative handle for external navigation (tree clicks, breadcrumbs) ──
+  useImperativeHandle(ref, () => ({
+    navigateToZone(targetId: string) {
+      const tag = allWorldTags.find((t) => t.target_id === targetId)
+      if (!tag) return
+      store.selectZone(targetId)
       zoomToTag(tag)
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [store.pendingNavTarget, allWorldTags, zoomToTag, zoomViaLCA, handleResetZoom])
+    },
+    resetZoom() {
+      handleResetZoom()
+    },
+  }), [allWorldTags, store, zoomToTag, handleResetZoom])
 
   // ── Edit mode ──
   const handleEnterEdit = useCallback(async () => {
     if (!rootLocationId) return
-    const tags = await fetchLocationTags(rootLocationId)
+    // Edit the selected zone's canvas (nested) or root canvas
+    const canvasId = store.selectedZoneId || rootLocationId
+    const tags = await fetchLocationTags(canvasId)
+    setEditCanvasId(canvasId)
     setEditCanvasTags(tags)
     setIsDrawing(false)
+    setIsResizing(false)
     setIsEditing(true)
-  }, [rootLocationId])
+
+    // For nested edit, zoom to parent zone so it's centered/visible
+    if (canvasId !== rootLocationId) {
+      const parentTag = allWorldTags.find((t) => t.target_id === canvasId)
+      if (parentTag) zoomToTag(parentTag)
+    }
+  }, [rootLocationId, store.selectedZoneId, allWorldTags, zoomToTag])
 
   const handleExitEdit = useCallback(() => {
     setIsEditing(false)
     setIsDrawing(false)
+    setIsResizing(false)
+    setEditCanvasId(null)
+    setNamingState(null)
+    setNameInput('')
   }, [])
+
+  // ── Nested edit: external name prompt handlers ──
+  const handleExternalNameConfirm = useCallback(() => {
+    editRef.current?.confirmName(nameInput)
+    setNamingState(null)
+    setNameInput('')
+  }, [nameInput])
+
+  const handleExternalNameCancel = useCallback(() => {
+    editRef.current?.cancelName()
+    setNamingState(null)
+    setNameInput('')
+  }, [])
+
+  // Focus external name input when naming state changes
+  useEffect(() => {
+    if (namingState) {
+      setNameInput(namingState.existingLabel)
+      setTimeout(() => nameInputRef.current?.focus(), 50)
+    }
+  }, [namingState])
 
   const handleEditSave = useCallback(
     async (newTags: Omit<LocationTag, 'id'>[], mergedAwayIds: string[]) => {
-      if (!rootLocationId) return
+      const canvasId = editCanvasId || rootLocationId
+      if (!canvasId) return
+
+      // Determine parent_id for new locations: if editing a nested canvas, parent is the canvas zone
+      const parentId = canvasId !== rootLocationId ? canvasId : null
 
       const existingIds = new Set(locations.map((l) => l.id))
-      existingIds.add(rootLocationId)
+      existingIds.add(rootLocationId!)
 
       const resolvedTags = [...newTags]
       for (let i = 0; i < resolvedTags.length; i++) {
@@ -250,7 +337,7 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
         if (tag.target_type === 'location' && !existingIds.has(tag.target_id)) {
           const result = await onCreateLocation({
             clinic_id: clinicId,
-            parent_id: null,
+            parent_id: parentId,
             name: tag.label,
             photo_data: null,
             created_by: '',
@@ -263,7 +350,6 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
 
       // Transfer items from merged-away locations to the surviving merged zone
       if (mergedAwayIds.length > 0 && onEditItem) {
-        // The surviving zone's target_id is the one that has rects and is NOT in mergedAwayIds
         const survivingTag = resolvedTags.find(
           (t) => t.rects && t.rects.length > 0 && !mergedAwayIds.includes(t.target_id),
         )
@@ -273,17 +359,29 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
             await onEditItem(item.id, { location_id: survivingTag.target_id })
           }
         }
-        // Delete the merged-away locations from the tree
         for (const id of mergedAwayIds) {
           await onDeleteLocation(id)
         }
       }
 
-      await upsertLocationTags(rootLocationId, resolvedTags)
+      await upsertLocationTags(canvasId, resolvedTags)
+
+      // Optimistic: update tagIndex directly instead of waiting for refetch
+      setTagIndex((prev) => {
+        if (!prev) return prev
+        const newByCanvas = new Map(prev.byCanvas)
+        const savedTags: LocationTag[] = resolvedTags.map((t) => ({
+          id: crypto.randomUUID(),
+          ...t,
+        } as LocationTag))
+        newByCanvas.set(canvasId, savedTags)
+        return buildTagIndex(newByCanvas)
+      })
+
       store.bumpTagVersion()
       handleExitEdit()
     },
-    [rootLocationId, store, locations, items, clinicId, onCreateLocation, onDeleteLocation, onEditItem, handleExitEdit],
+    [editCanvasId, rootLocationId, store, locations, items, clinicId, onCreateLocation, onDeleteLocation, onEditItem, handleExitEdit],
   )
 
   // ── Drill up one level in the zone hierarchy ──
@@ -306,8 +404,8 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
   }, [store, locations, allWorldTags, zoomToTag, handleResetZoom])
 
   // ── Click-drag panning ──
-  // Do NOT capture the pointer when the target is a zone — let zone
-  // pointer events fire so taps/re-selection work while zoomed.
+  // Always capture the pointer so panning works even over zones.
+  // Zone taps are detected in handlePanEnd via the data-zone-target attribute.
   const handlePanStart = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return
     // In edit mode, only allow panning when NOT drawing (draw mode captures its own events)
@@ -318,15 +416,13 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
     const el = scrollRef.current
     if (!el) return
 
-    const onZone = !!(e.target as HTMLElement).closest('[data-zone-target]')
-    dragRef.current = { startX: e.clientX, startY: e.clientY, scrollX: el.scrollLeft, scrollY: el.scrollTop }
+    const zoneEl = (e.target as HTMLElement).closest('[data-zone-target]')
+    const zoneId = zoneEl?.getAttribute('data-zone-target') ?? null
+    dragRef.current = { startX: e.clientX, startY: e.clientY, scrollX: el.scrollLeft, scrollY: el.scrollTop, zoneId }
 
-    // Only capture when NOT on a zone — capture steals pointer events
-    if (!onZone) {
-      el.setPointerCapture(e.pointerId)
-    }
+    el.setPointerCapture(e.pointerId)
     el.style.cursor = 'grabbing'
-  }, [isEditing])
+  }, [isEditing, isDrawing])
 
   const handlePanMove = useCallback((e: React.PointerEvent) => {
     const d = dragRef.current
@@ -347,17 +443,19 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
       el.style.cursor = ''
     }
 
-    // If the pointer barely moved and NOT on a zone, drill up one level (view mode only)
+    // If the pointer barely moved, treat as a tap (view mode only)
     if (!isEditing) {
       const dx = Math.abs(e.clientX - d.startX)
       const dy = Math.abs(e.clientY - d.startY)
       if (dx < TAP_THRESHOLD && dy < TAP_THRESHOLD) {
-        if (!(e.target as HTMLElement).closest('[data-zone-target]')) {
-          drillUp()
+        if (d.zoneId) {
+          handleZoneTap(d.zoneId)
+        } else if (store.selectedZoneId) {
+          store.selectZone(null)
         }
       }
     }
-  }, [drillUp, isEditing])
+  }, [store, isEditing, handleZoneTap])
 
   // ── One-level-deep content for the bottom panel ──
   // Context = selected zone, or null (root) if nothing selected
@@ -387,12 +485,26 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
   // ── Cascade delete a zone's location ──
   const handleConfirmZoneDelete = useCallback(async () => {
     if (!pendingZoneDelete || !clinicId) return
-    await onDeleteLocation(pendingZoneDelete.targetId)
-    store.bumpTagVersion()
-    if (store.selectedZoneId === pendingZoneDelete.targetId) {
+    const targetId = pendingZoneDelete.targetId
+
+    // Optimistic: remove tag from index immediately
+    setTagIndex((prev) => {
+      if (!prev) return prev
+      const newByCanvas = new Map<string, LocationTag[]>()
+      for (const [cid, tags] of prev.byCanvas) {
+        newByCanvas.set(cid, tags.filter((t) => t.target_id !== targetId))
+      }
+      return buildTagIndex(newByCanvas)
+    })
+
+    if (store.selectedZoneId === targetId) {
       store.selectZone(null)
     }
     setPendingZoneDelete(null)
+
+    // Fire actual delete in background
+    await onDeleteLocation(targetId)
+    store.bumpTagVersion()
   }, [pendingZoneDelete, clinicId, onDeleteLocation, store])
 
   // ── Photo map: location_id → photo_data for zone background images ──
@@ -426,24 +538,29 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
 
   const isZoomed = canvasScale > 1
 
+  // ── Toolbar expand/collapse spring (NavTop-style) ──
+  const toolbarSpring = useSpring({
+    progress: isEditing ? 1 : 0,
+    config: { tension: 260, friction: 26 },
+  })
+
   /** Zoom anchored to viewport center — adjusts scroll so the same point stays centered. */
   const zoomBy = useCallback((factor: number) => {
     const el = scrollRef.current
     if (!el) return
     const old = canvasScale
-    const next = Math.min(Math.max(old * factor, 1), 10)
+    const next = Math.min(Math.max(old * factor, 1), 100)
     if (next === old) return
 
     // Point at center of viewport in canvas-space (0..1)
-    const cx = (el.scrollLeft + el.clientWidth / 2) / (old * el.clientWidth)
-    const cy = (el.scrollTop + el.clientHeight / 2) / (old * el.clientHeight)
+    const cx = (el.scrollLeft + el.clientWidth / 2) / (el.scrollWidth || el.clientWidth)
+    const cy = (el.scrollTop + el.clientHeight / 2) / (el.scrollHeight || el.clientHeight)
 
-    setCanvasScale(next)
+    // Force synchronous DOM commit so scrollWidth/Height reflect new scale
+    flushSync(() => setCanvasScale(next))
 
-    requestAnimationFrame(() => {
-      el.scrollLeft = cx * next * el.clientWidth - el.clientWidth / 2
-      el.scrollTop = cy * next * el.clientHeight - el.clientHeight / 2
-    })
+    el.scrollLeft = cx * el.scrollWidth - el.clientWidth / 2
+    el.scrollTop = cy * el.scrollHeight - el.clientHeight / 2
   }, [canvasScale])
 
   const handleZoomIn = useCallback(() => zoomBy(1.5), [zoomBy])
@@ -478,17 +595,57 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
         {/* Scrollable canvas */}
         <div
           ref={scrollRef}
-          className={`absolute inset-0 overflow-auto bg-themewhite2 border border-tertiary/15 rounded-lg ${isEditing && !isDrawing ? 'cursor-default' : isDrawing ? 'cursor-crosshair' : 'cursor-grab'}`}
+          className={`absolute inset-0 overflow-auto bg-themewhite2 border border-tertiary/15 rounded-lg ${isEditing ? (isDrawing ? 'cursor-crosshair' : isResizing ? 'cursor-nwse-resize' : 'cursor-default') : 'cursor-grab'}`}
           onPointerDown={handlePanStart}
           onPointerMove={handlePanMove}
           onPointerUp={handlePanEnd}
           onPointerCancel={handlePanEnd}
         >
-          {isEditing ? (
+          {isEditing && parentBounds ? (
+            /* ── Nested edit: dimmed background + scoped overlay at parent zone bounds ── */
+            <div
+              className="relative origin-top-left"
+              style={{ width: `${canvasScale * 100}%`, height: `${canvasScale * 100}%`, minHeight: '100%' }}
+            >
+              {/* Dimmed background showing all zones */}
+              <div className="absolute inset-0 opacity-40 pointer-events-none">
+                <LocationTagPhoto tags={visibleTags} selectedZoneId={null} onZoneTap={() => {}} scale={1} photoMap={photoMap} />
+              </div>
+              <div className="absolute inset-0 bg-black/20 pointer-events-none" />
+              {/* Scoped edit overlay positioned at parent zone's world-space bounds */}
+              <div
+                className="absolute z-10 ring-2 ring-themeblue2 rounded-lg overflow-hidden"
+                style={{
+                  left: `${parentBounds.x * 100}%`,
+                  top: `${parentBounds.y * 100}%`,
+                  width: `${(parentBounds.width ?? 0) * 100}%`,
+                  height: `${(parentBounds.height ?? 0) * 100}%`,
+                }}
+              >
+                <CanvasEditOverlay
+                  tags={editCanvasTags}
+                  canvasId={editCanvasId!}
+                  drawMode={isDrawing}
+                  resizeMode={isResizing}
+                  scale={1}
+                  editRef={editRef}
+                  onSave={handleEditSave}
+                  onCancel={handleExitEdit}
+                  onDeleteZone={(targetId, label) => setPendingZoneDelete({ targetId, label })}
+                  onSelectionChange={setEditSelectionCount}
+                  photoMap={photoMap}
+                  externalNamePrompt
+                  onNamingChange={setNamingState}
+                />
+              </div>
+            </div>
+          ) : isEditing ? (
+            /* ── Root edit: current behavior ── */
             <CanvasEditOverlay
               tags={editCanvasTags}
-              canvasId={rootLocationId!}
+              canvasId={editCanvasId || rootLocationId!}
               drawMode={isDrawing}
+              resizeMode={isResizing}
               scale={canvasScale}
               editRef={editRef}
               onSave={handleEditSave}
@@ -526,7 +683,7 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
 
         {/* Floating zoom controls — bottom-left vertical pill */}
         {!isEditing && (
-          <div data-zoom-controls className="absolute bottom-3 left-3 z-10 rounded-full border border-tertiary/20 bg-themewhite p-0.5 flex flex-col items-center shadow-sm">
+          <div data-zoom-controls className="absolute bottom-3 left-3 z-20 rounded-full border border-tertiary/20 bg-themewhite p-0.5 flex flex-col items-center shadow-sm">
             <button
               onClick={handleZoomIn}
               className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:text-primary hover:bg-primary/5 active:scale-95 transition-all"
@@ -544,140 +701,201 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
           </div>
         )}
 
-        {/* Floating toolbar — top-right horizontal pill */}
-        <div className="absolute top-3 right-3 z-10 rounded-full border border-tertiary/20 bg-themewhite p-0.5 flex items-center shadow-sm">
-          {!isEditing ? (
+        {/* Floating toolbar — top-right pill, edit/save button anchored right, tools expand left */}
+        <div className="absolute top-3 right-3 z-20 rounded-full border border-tertiary/20 bg-themewhite p-0.5 flex items-center shadow-sm">
+          {/* Tool buttons — expand leftward via animated maxWidth */}
+          <animated.div
+            className="flex items-center overflow-hidden"
+            style={{
+              maxWidth: toolbarSpring.progress.to(p => `${p * 340}px`),
+              opacity: toolbarSpring.progress,
+            }}
+          >
             <button
-              onClick={handleEnterEdit}
-              className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+              onClick={() => { setIsDrawing((d) => !d); setIsResizing(false) }}
+              className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${isDrawing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+              title="Draw zone"
+            >
+              <PenTool size={15} />
+            </button>
+            <div className="h-5 w-px shrink-0 bg-tertiary/15" />
+            <button
+              onClick={() => editRef.current?.deleteSelected()}
+              disabled={editSelectionCount < 1}
+              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
+              title="Delete selected"
+            >
+              <Trash2 size={15} />
+            </button>
+            <button
+              onClick={() => editRef.current?.renameSelected()}
+              disabled={editSelectionCount !== 1}
+              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
+              title="Rename zone (select 1)"
             >
               <Pencil size={15} />
             </button>
-          ) : (
-            <>
-              <button
-                onClick={() => setIsDrawing((d) => !d)}
-                className={`w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-all ${isDrawing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-                title="Draw zone"
-              >
-                <PenTool size={15} />
-              </button>
-              <div className="h-5 w-px bg-tertiary/15" />
-              <button
-                onClick={() => editRef.current?.duplicate()}
-                disabled={editSelectionCount !== 1}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
-                title="Duplicate zone (select 1)"
-              >
-                <Copy size={15} />
-              </button>
-              <button
-                onClick={() => editRef.current?.split()}
-                disabled={editSelectionCount !== 1}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
-                title="Split zone (select 1)"
-              >
-                <Scissors size={15} />
-              </button>
-              <button
-                onClick={() => editRef.current?.merge()}
-                disabled={editSelectionCount !== 2}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
-                title="Merge zones (select 2)"
-              >
-                <Merge size={15} />
-              </button>
-              <div className="h-5 w-px bg-tertiary/15" />
-              <button
-                onClick={handleExitEdit}
-                className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
-                title="Cancel"
-              >
-                <X size={15} />
-              </button>
-              <button
-                onClick={() => editRef.current?.save()}
-                className="w-9 h-9 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
-                title="Save"
-              >
-                <Check size={15} />
-              </button>
-            </>
-          )}
+            <button
+              onClick={() => { setIsResizing((r) => !r); setIsDrawing(false) }}
+              disabled={editSelectionCount !== 1}
+              className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none ${isResizing ? 'bg-themeyellow text-white' : 'text-tertiary hover:text-primary'}`}
+              title="Resize mode (select 1)"
+            >
+              <Maximize2 size={15} />
+            </button>
+            <div className="h-5 w-px shrink-0 bg-tertiary/15" />
+            <button
+              onClick={() => editRef.current?.duplicate()}
+              disabled={editSelectionCount !== 1}
+              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
+              title="Duplicate zone (select 1)"
+            >
+              <Copy size={15} />
+            </button>
+            <button
+              onClick={() => editRef.current?.split()}
+              disabled={editSelectionCount !== 1}
+              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
+              title="Split zone (select 1)"
+            >
+              <Scissors size={15} />
+            </button>
+            <button
+              onClick={() => editRef.current?.merge()}
+              disabled={editSelectionCount < 2}
+              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
+              title="Merge zones (select 2+)"
+            >
+              <Merge size={15} />
+            </button>
+            <div className="h-5 w-px shrink-0 bg-tertiary/15" />
+            <button
+              onClick={handleExitEdit}
+              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
+              title="Cancel"
+            >
+              <X size={15} />
+            </button>
+          </animated.div>
+
+          {/* Anchored edit/save button — stays in place, icon morphs */}
+          <button
+            onClick={isEditing ? () => editRef.current?.save() : handleEnterEdit}
+            className={`p-2 rounded-full flex items-center justify-center active:scale-95 transition-all ${isEditing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+            title={isEditing ? 'Save' : 'Edit'}
+          >
+            {isEditing ? <Check size={15} /> : <Pencil size={15} />}
+          </button>
         </div>
+
+        {/* External name prompt for nested editing — rendered above scroll container */}
+        {namingState && (
+          <div className="absolute inset-0 z-30 flex items-end justify-center pb-4 pointer-events-none">
+            <div className="pointer-events-auto bg-themewhite rounded-xl shadow-lg w-72 p-4 border border-primary/10">
+              <p className="text-[10pt] font-medium text-primary mb-2">
+                {namingState.existingLabel ? 'Rename zone' : 'Name this zone'}
+              </p>
+              <input
+                ref={nameInputRef}
+                type="text"
+                value={nameInput}
+                onChange={(e) => setNameInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleExternalNameConfirm()
+                  if (e.key === 'Escape') handleExternalNameCancel()
+                }}
+                placeholder="e.g. Arms Room, Supply Closet"
+                className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary placeholder:text-tertiary/40 outline-none focus:border-themeblue2 focus:outline-none border border-tertiary/20 transition-all"
+              />
+              <div className="flex items-center gap-2 mt-3">
+                <button
+                  onClick={handleExternalNameCancel}
+                  className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleExternalNameConfirm}
+                  disabled={!nameInput.trim()}
+                  className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white disabled:opacity-30 active:scale-95 transition-all"
+                >
+                  Done
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Bottom panel — always visible, card grid of one-level-deep sub-zones + items */}
-      {!isEditing && (
-        <div className="shrink-0 border-t border-primary/10 max-h-[45%] flex flex-col">
-          <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-themewhite3/50">
-            {store.selectedZoneId && (
-              <>
-                <button
-                  onClick={handleResetZoom}
-                  className="text-[9pt] text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
-                >
-                  {clinicName}
-                </button>
-                <span className="text-[9pt] text-tertiary/30">/</span>
-              </>
-            )}
-            <span className="text-[9pt] font-medium text-primary truncate">{selectedZoneLabel}</span>
-          </div>
-          <div className="flex-1 overflow-y-auto px-3 pb-3">
-            {childZoneCards.length === 0 && contextItems.length === 0 ? (
-              <p className="text-[9pt] text-tertiary/40 text-center py-6">
-                {store.selectedZoneId ? 'Nothing here yet' : 'Tap Edit to draw zones'}
-              </p>
-            ) : (
-              <div className="grid grid-cols-4 gap-2 pt-1">
-                {/* Child location cards */}
-                {childZoneCards.map(({ location, tag }) => (
-                  <button
-                    key={location.id}
-                    onClick={() => tag ? handleZoneTap(location.id) : store.selectZone(location.id)}
-                    className="rounded-lg border border-themeblue3/20 bg-themeblue3/5 overflow-hidden active:scale-[0.97] transition-all group relative"
-                  >
-                    {location.photo_data ? (
-                      <img src={location.photo_data} alt={location.name} className="w-full h-16 object-cover" draggable={false} />
-                    ) : (
-                      <div className="w-full h-16 bg-themeblue3/10" />
-                    )}
-                    {onUpdateLocation && (
-                      <div
-                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => { e.stopPropagation(); triggerPhotoUpload(location.id) }}
-                      >
-                        <Camera size={12} className="text-white" />
-                      </div>
-                    )}
-                    <div className="px-2 py-1.5">
-                      <p className="text-[9pt] font-medium text-primary truncate">{location.name}</p>
-                    </div>
-                  </button>
-                ))}
-                {/* Item cards */}
-                {contextItems.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => onSelectItem?.(item)}
-                    className="rounded-lg border border-tertiary/15 bg-themewhite2 overflow-hidden active:scale-[0.97] transition-all"
-                  >
-                    {item.photo_url ? (
-                      <img src={item.photo_url} alt={item.name} className="w-full h-16 object-cover" draggable={false} />
-                    ) : (
-                      <div className="w-full h-16 bg-tertiary/5" />
-                    )}
-                    <div className="px-2 py-1.5">
-                      <p className="text-[9pt] font-medium text-primary truncate">{item.name}</p>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+      <div className="shrink-0 border-t border-primary/10 max-h-[45%] flex flex-col">
+        <div className="shrink-0 flex items-center gap-2 px-3 py-2 bg-themewhite3/50">
+          {store.selectedZoneId && (
+            <>
+              <button
+                onClick={handleResetZoom}
+                className="text-[9pt] text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
+              >
+                {clinicName}
+              </button>
+              <span className="text-[9pt] text-tertiary/30">/</span>
+            </>
+          )}
+          <span className="text-[9pt] font-medium text-primary truncate">{selectedZoneLabel}</span>
         </div>
-      )}
+        <div className="flex-1 overflow-y-auto px-3 pb-3">
+          {childZoneCards.length === 0 && contextItems.length === 0 ? (
+            <p className="text-[9pt] text-tertiary/40 text-center py-6">
+              {store.selectedZoneId ? 'Nothing here yet' : 'Tap Edit to draw zones'}
+            </p>
+          ) : (
+            <div className="grid grid-cols-4 gap-2 pt-1">
+              {/* Child location cards */}
+              {childZoneCards.map(({ location, tag }) => (
+                <button
+                  key={location.id}
+                  onClick={() => tag ? handleZoneTap(location.id) : store.selectZone(location.id)}
+                  className="rounded-lg border border-themeblue3/20 bg-themeblue3/5 overflow-hidden active:scale-[0.97] transition-all group relative"
+                >
+                  {location.photo_data ? (
+                    <img src={location.photo_data} alt={location.name} className="w-full h-16 object-cover" draggable={false} />
+                  ) : (
+                    <div className="w-full h-16 bg-themeblue3/10" />
+                  )}
+                  {onUpdateLocation && (
+                    <div
+                      className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={(e) => { e.stopPropagation(); triggerPhotoUpload(location.id) }}
+                    >
+                      <Camera size={12} className="text-white" />
+                    </div>
+                  )}
+                  <div className="px-2 py-1.5">
+                    <p className="text-[9pt] font-medium text-primary truncate">{location.name}</p>
+                  </div>
+                </button>
+              ))}
+              {/* Item cards */}
+              {contextItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => onSelectItem?.(item)}
+                  className="rounded-lg border border-tertiary/15 bg-themewhite2 overflow-hidden active:scale-[0.97] transition-all"
+                >
+                  {item.photo_url ? (
+                    <img src={item.photo_url} alt={item.name} className="w-full h-16 object-cover" draggable={false} />
+                  ) : (
+                    <div className="w-full h-16 bg-tertiary/5" />
+                  )}
+                  <div className="px-2 py-1.5">
+                    <p className="text-[9pt] font-medium text-primary truncate">{item.name}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Hidden file input for zone photo uploads */}
       <input
@@ -699,4 +917,4 @@ export function PropertyLocationMap({ clinicId, clinicName, locations, items, on
       />
     </div>
   )
-}
+})

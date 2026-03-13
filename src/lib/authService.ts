@@ -12,6 +12,7 @@ import { hashWithSalt, verifyHash } from './cryptoUtils'
 import { secureSet, secureGet, secureRemove } from './secureStorage'
 import { fireNotification } from './notifyDispatcher'
 import { deriveAndStoreBackupKey } from './signal/backupService'
+import { generateVaultIdentity, uploadVaultDevice, deriveAndCacheVaultKey, ensureVaultExists } from './signal/vaultDevice'
 import { succeed, fail, getErrorMessage as getErrMsg, type ServiceResult } from './result'
 
 const logger = createLogger('AuthService')
@@ -115,6 +116,11 @@ export async function signUp(
 
     // Auto-associate clinic based on UIC
     await associateClinic(data.user.id, profile.uic)
+
+    // Generate vault device while password is in scope (non-fatal)
+    generateVaultIdentity(data.user.id, password).then(vaultBundle => {
+      if (data.user) uploadVaultDevice(data.user.id, vaultBundle)
+    }).catch(() => {})
   }
 
   return {
@@ -142,6 +148,9 @@ export async function signIn(
     storePasswordHash(password).catch(() => {})
     // Derive non-extractable backup CryptoKey from password (password is NOT cached)
     deriveAndStoreBackupKey(password).catch(() => {})
+    // Ensure vault exists for this user (migration for existing users) and cache wrapping key
+    ensureVaultExists(data.user.id, password).catch(() => {})
+    deriveAndCacheVaultKey(password).catch(() => {})
 
     fireNotification({
       type: 'user_login',

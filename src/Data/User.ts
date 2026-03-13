@@ -94,6 +94,8 @@ export interface UserTypes {
     planOrderSets?: PlanOrderSet[];
     /** TC3 (Battle Injury) mode — switches main content to DD 1380 card */
     tc3Mode?: boolean;
+    /** Favorite medication trade names (icon field) pinned to the top of the list */
+    favoriteMedications?: string[];
 }
 
 export const credentials: Credential[] = ['EMT-B', 'EMT-A', 'EMT-P', 'PA-C', 'NP', 'MD', 'DO'];

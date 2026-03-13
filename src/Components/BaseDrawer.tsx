@@ -114,6 +114,9 @@ interface BaseDrawerProps {
     /** When true, mobile drawer expands to 100dvh with no border-radius,
      *  drag is disabled, and the built-in header is hidden (children provide their own). */
     mobileFullScreen?: boolean;
+    /** When true, the drawer transforms into a compact card pushed upward,
+     *  leaving the bottom portion of the column free for companion content. */
+    cardMode?: boolean;
 }
 
 export function BaseDrawer({
@@ -130,6 +133,7 @@ export function BaseDrawer({
     desktopWidth,
     header,
     mobileFullScreen = false,
+    cardMode = false,
 }: BaseDrawerProps) {
     const [drawerPosition, setDrawerPosition] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
@@ -299,25 +303,29 @@ export function BaseDrawer({
             {/* Drawer / Panel — single container that adapts to viewport */}
             <div
                 className={useMobileLayout
-                    ? `fixed left-0 right-0 bottom-0 ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
-                    : `absolute ${desktopAlignClass} top-0 bottom-0 ${desktopWidthClass} ${zIndex}
+                    ? `fixed left-0 right-0 ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
+                    : `absolute ${desktopAlignClass} top-0 ${desktopWidthClass} ${zIndex}
                         flex flex-col rounded-md border border-tertiary/20
                         shadow-lg shadow-black/8 backdrop-blur-xl bg-themewhite3/95
                         transform-gpu overflow-hidden text-primary/80 text-sm`
                 }
                 style={useMobileLayout ? {
-                    height: mobileFullScreen ? '100dvh' : fullHeight,
-                    maxHeight: mobileFullScreen ? '100dvh' : fullHeight,
+                    height: cardMode ? '35dvh' : (mobileFullScreen ? '100dvh' : fullHeight),
+                    maxHeight: cardMode ? '35dvh' : (mobileFullScreen ? '100dvh' : fullHeight),
                     width: '100%',
+                    bottom: cardMode ? '55dvh' : 0,
                     transform: `translateY(${100 - drawerPosition}%)`,
                     opacity: Math.min(1, drawerPosition / 60 + 0.2),
-                    borderRadius: mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0',
+                    borderRadius: cardMode ? '1.25rem' : (mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0'),
                     willChange: isDragging ? 'transform' : 'auto',
-                    boxShadow: mobileFullScreen ? 'none' : '0 -4px 20px rgba(0, 0, 0, 0.1)',
+                    boxShadow: cardMode
+                        ? '0 4px 30px rgba(0, 0, 0, 0.12)'
+                        : (mobileFullScreen ? 'none' : '0 -4px 20px rgba(0, 0, 0, 0.1)'),
                     overflow: 'hidden',
                     visibility: isMounted ? 'visible' : 'hidden',
                 } : {
-                    transition: 'opacity 250ms cubic-bezier(0.25, 0.1, 0.25, 1), transform 300ms cubic-bezier(0.32, 0.72, 0, 1)',
+                    bottom: cardMode ? '60%' : 0,
+                    transition: 'opacity 250ms cubic-bezier(0.25, 0.1, 0.25, 1), transform 300ms cubic-bezier(0.32, 0.72, 0, 1), bottom 300ms cubic-bezier(0.32, 0.72, 0, 1)',
                     opacity: desktopOpen ? 1 : 0,
                     transform: desktopOpen ? 'scale(1)' : 'scale(0.95)',
                     transformOrigin: desktopPosition === 'left' ? 'top left' : 'top right',

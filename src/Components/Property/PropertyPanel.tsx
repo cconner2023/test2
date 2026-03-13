@@ -20,6 +20,7 @@ import { PropertyCSVImport } from './PropertyCSVImport'
 import { exportPropertyCSV, parsePropertyCSV, downloadCSVTemplate } from '../../Utilities/PropertyCSV'
 import { ensureRootLocation, fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
 import { PropertyLocationMap } from './PropertyLocationMap'
+import type { MapNavHandle } from './PropertyLocationMap'
 import { useClinicName } from '../../Hooks/useClinicNameResolver'
 import type { ParsedRow } from '../../Utilities/PropertyCSV'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
@@ -66,6 +67,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
   const [desktopLocationId, setDesktopLocationId] = useState<string | null>(null)
   const [csvImport, setCsvImport] = useState<{ rows: ParsedRow[]; errors: string[] } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const mapRef = useRef<MapNavHandle>(null)
   const [showNewLocation, setShowNewLocation] = useState(false)
   const [newLocationName, setNewLocationName] = useState('')
   const [renamingLocation, setRenamingLocation] = useState<{ id: string; name: string } | null>(null)
@@ -190,18 +192,16 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
   }, [store, onSelectItem])
 
   const handleTreeSelectLocation = useCallback((loc: LocalPropertyLocation) => {
-    // Request animated navigation — PropertyLocationMap will zoom to zone if visible,
-    // otherwise fall back to direct path navigation
-    store.setPendingNavTarget(loc.id)
+    mapRef.current?.navigateToZone(loc.id)
     if (isMobile) {
       onMobileLocationViewChange?.(true)
     }
-  }, [store, isMobile, onMobileLocationViewChange])
+  }, [isMobile, onMobileLocationViewChange])
 
   // Clinic name tap → zoom canvas back to root
   const handleSelectAllLocations = useCallback(() => {
     store.selectZone(null)
-    store.setPendingNavTarget('__reset__')
+    mapRef.current?.resetZoom()
     if (isMobile) {
       onMobileLocationViewChange?.(true)
     }
@@ -280,8 +280,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
       store.navigateToPath([])
     } else {
       setDesktopLocationId(loc.id)
-      // Request animated navigation — PropertyLocationMap will zoom to zone if visible
-      store.setPendingNavTarget(loc.id)
+      mapRef.current?.navigateToZone(loc.id)
     }
   }, [desktopLocationId, store])
 
@@ -416,6 +415,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
   if (!isMobile) {
     return (
       <PropertyLocationMap
+        ref={mapRef}
         clinicId={property.clinicId!}
         clinicName={clinicName}
         locations={visibleLocations}
@@ -433,6 +433,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
   if (isMobile && mobileLocationView) {
     return (
       <PropertyLocationMap
+        ref={mapRef}
         clinicId={property.clinicId!}
         clinicName={clinicName}
         locations={visibleLocations}
@@ -775,7 +776,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
               onSelectItem={handleSelectItem}
               onMoveLocation={handleMoveLocation}
               onMoveItem={handleMoveItem}
-              onSelectAll={() => { setDesktopLocationId(null); store.navigateToPath([]); store.selectZone(null); store.setPendingNavTarget('__reset__') }}
+              onSelectAll={() => { setDesktopLocationId(null); store.navigateToPath([]); store.selectZone(null); mapRef.current?.resetZoom() }}
               allSelected={!desktopLocationId}
               onEditLocation={(loc) => { setRenamingLocation({ id: loc.id, name: loc.name }) }}
               onDeleteLocation={(locId) => property.removeLocation(locId)}

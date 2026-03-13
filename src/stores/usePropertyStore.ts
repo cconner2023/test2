@@ -34,11 +34,6 @@ interface PropertyState {
   transitionState: 'idle' | 'zooming-in' | 'zooming-out'
   setTransitionState: (state: 'idle' | 'zooming-in' | 'zooming-out') => void
 
-  // Pending navigation target — set by tree/external nav, processed by PropertyLocationMap
-  // with zoom animation if the target has a visible zone on the current canvas
-  pendingNavTarget: string | null
-  setPendingNavTarget: (id: string | null) => void
-
   // Filters
   holderFilter: string | null
   setHolderFilter: (holderId: string | null) => void
@@ -85,10 +80,6 @@ export const usePropertyStore = create<PropertyState>((set) => ({
   // Canvas transition state
   transitionState: 'idle',
   setTransitionState: (state) => set({ transitionState: state }),
-
-  // Pending navigation target
-  pendingNavTarget: null,
-  setPendingNavTarget: (id) => set({ pendingNavTarget: id }),
 
   // Filters
   holderFilter: null,

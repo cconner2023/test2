@@ -1,19 +1,23 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
-import { ChevronRight, RotateCcw } from 'lucide-react'
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { ChevronRight, RotateCcw, X } from 'lucide-react'
+import { useDrag } from '@use-gesture/react'
 import { BaseDrawer } from './BaseDrawer'
 import { TrainingPanel, type TrainingView } from './Settings/TrainingPanel'
 import { MedicationContent } from './MedicationContent'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { QuestionRow, WordListContent } from './ScreenerDrawer'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
+import { VitalSignsCalculator } from './VitalSignsCalculator'
 import { useAuthStore } from '../stores/useAuthStore'
+import { useIsMobile } from '../Hooks/useIsMobile'
 import { kbCategories, kbGroupLabels, kbGroupOrder, type KBCategory } from '../Data/KnowledgeBaseCategories'
-import { GAD7, PHQ2, MACE2 } from '../Data/SpecTesting'
+import { GAD7, PHQ2, MACE2, AUDITC } from '../Data/SpecTesting'
 import { getScreenerMaxScore, isQuestionScored } from '../Data/SpecTesting'
 import { stp68wTraining } from '../Data/TrainingTaskList'
 import { getTaskData } from '../Data/TrainingData'
 import { Check } from 'lucide-react'
 import { UI_TIMING } from '../Utilities/constants'
+import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils'
 import type { subjectAreaArrayOptions } from '../Types/CatTypes'
 import type { medListTypes } from '../Data/MedData'
 import type { ScreenerConfig, ScreenerWordList } from '../Types/AlgorithmTypes'
@@ -38,6 +42,7 @@ const screenerMap: Record<string, ScreenerConfig> = {
     gad7: GAD7,
     phq2: PHQ2,
     mace2: MACE2,
+    auditc: AUDITC,
 }
 
 export function KnowledgeBaseDrawer({
@@ -53,6 +58,7 @@ export function KnowledgeBaseDrawer({
     const [selectedMedication, setSelectedMedication] = useState<medListTypes | null>(null)
     const [activeScreener, setActiveScreener] = useState<ScreenerConfig | null>(null)
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
+    const [calculatorOpen, setCalculatorOpen] = useState(false)
 
     // ── Deep-link / initial view handling ───────────────────────
     useEffect(() => {
@@ -91,8 +97,13 @@ export function KnowledgeBaseDrawer({
     // ── Category click from KB home ─────────────────────────────
     const handleCategoryClick = useCallback((category: KBCategory) => {
         if (category.comingSoon) return
-        handleSlideAnimation('left')
 
+        if (category.id === 'vital-signs') {
+            setCalculatorOpen(true)
+            return
+        }
+
+        handleSlideAnimation('left')
         switch (category.id) {
             case 'medications':
                 setView('medications')
@@ -150,6 +161,7 @@ export function KnowledgeBaseDrawer({
 
     // ── Close handler ───────────────────────────────────────────
     const handleClose = useCallback(() => {
+        setCalculatorOpen(false)
         setView('home')
         setSelectedTask(null)
         setSelectedMedication(null)
@@ -184,36 +196,46 @@ export function KnowledgeBaseDrawer({
     }, [view, selectedTask, selectedMedication, activeScreener, tc3Mode, handleBack])
 
     return (
-        <BaseDrawer
-            isVisible={isVisible}
-            onClose={handleClose}
-            fullHeight="90dvh"
-            desktopPosition="left"
-            header={headerConfig}
-        >
-            <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
-                {view === 'home' && (
-                    <KBHome onCategoryClick={handleCategoryClick} />
-                )}
-                {(view === 'training' || view === 'training-detail') && (
-                    <TrainingPanel
-                        view={view as TrainingView}
-                        selectedTask={selectedTask}
-                        onSelectTask={handleSelectTask}
-                    />
-                )}
-                {(view === 'medications' || view === 'medication-detail') && (
-                    <MedicationContent
-                        selectedMedication={selectedMedication}
-                        onMedicationSelect={handleMedicationSelect}
-                        tc3Mode={tc3Mode}
-                    />
-                )}
-                {view === 'screener' && activeScreener && (
-                    <StandaloneScreener screenerConfig={activeScreener} />
-                )}
-            </ContentWrapper>
-        </BaseDrawer>
+        <>
+            <BaseDrawer
+                isVisible={isVisible}
+                onClose={handleClose}
+                fullHeight="90dvh"
+                desktopPosition="left"
+                header={headerConfig}
+                cardMode={calculatorOpen}
+            >
+                <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
+                    {view === 'home' && (
+                        <KBHome onCategoryClick={handleCategoryClick} />
+                    )}
+                    {(view === 'training' || view === 'training-detail') && (
+                        <TrainingPanel
+                            view={view as TrainingView}
+                            selectedTask={selectedTask}
+                            onSelectTask={handleSelectTask}
+                        />
+                    )}
+                    {(view === 'medications' || view === 'medication-detail') && (
+                        <MedicationContent
+                            selectedMedication={selectedMedication}
+                            onMedicationSelect={handleMedicationSelect}
+                            tc3Mode={tc3Mode}
+                        />
+                    )}
+                    {view === 'screener' && activeScreener && (
+                        <StandaloneScreener screenerConfig={activeScreener} />
+                    )}
+                </ContentWrapper>
+            </BaseDrawer>
+
+            {isVisible && (
+                <VitalSignsDrawer
+                    isOpen={calculatorOpen}
+                    onClose={() => setCalculatorOpen(false)}
+                />
+            )}
+        </>
     )
 }
 
@@ -548,6 +570,93 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
                     })()}
                 </div>
             )}
+        </div>
+    )
+}
+
+// ── Vital Signs Drawer ───────────────────────────────────────────────────────
+// Always mounted while KB is open — isOpen drives a pure CSS transition so both
+// the KB card-mode shrink and this slide-up are triggered by the same state
+// change with zero JS timing lag.
+
+function VitalSignsDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+    const isMobile = useIsMobile()
+    const [isDragging, setIsDragging] = useState(false)
+    const cardRef = useRef<HTMLDivElement>(null)
+    const dragPos = useRef(0)   // live drag offset in % (0 = resting, 100 = fully off-screen)
+    const [dragOffset, setDragOffset] = useState(0)
+
+    const bindDrag = useDrag(
+        ({ active, first, movement: [, my], velocity: [, vy], direction: [, dy], event, cancel }) => {
+            if (first) {
+                const target = event?.target as HTMLElement
+                if (!target?.closest('[data-drag-zone]')) { cancel(); return }
+                dragPos.current = 0
+            }
+            if (active) {
+                setIsDragging(true)
+                const h = cardRef.current?.offsetHeight ?? 300
+                const pct = clamp((my / h) * 100, 0, 100)
+                dragPos.current = pct
+                setDragOffset(pct)
+            } else {
+                setIsDragging(false)
+                if ((vy > GESTURE_THRESHOLDS.DRAWER_FLING_VELOCITY && dy > 0) || dragPos.current > 40) {
+                    onClose()
+                }
+                dragPos.current = 0
+                setDragOffset(0)
+            }
+        },
+        { axis: 'y', filterTaps: true, pointer: { touch: true } },
+    )
+
+    // Combine CSS-driven open/close with drag offset
+    const translateY = isOpen ? dragOffset : 100
+
+    return (
+        <div
+            ref={cardRef}
+            className={isMobile
+                ? `fixed left-0 right-0 bottom-0 z-60 bg-themewhite3 flex flex-col
+                    ${isDragging ? '' : 'transition-all duration-300 ease-out'}`
+                : `absolute left-0 bottom-0 w-[45%] z-60 flex flex-col rounded-md border border-tertiary/20
+                    shadow-lg shadow-black/8 backdrop-blur-xl bg-themewhite3/95
+                    transform-gpu overflow-hidden text-primary/80 text-sm
+                    ${isDragging ? '' : 'transition-all duration-300 ease-out'}`
+            }
+            style={{
+                height: isMobile ? '50dvh' : '55%',
+                transform: `translateY(${translateY}%)`,
+                opacity: isOpen ? Math.max(0, 1 - dragOffset / 80) : 0,
+                borderRadius: isMobile ? '1.25rem 1.25rem 0 0' : undefined,
+                boxShadow: isMobile ? '0 -4px 20px rgba(0, 0, 0, 0.1)' : undefined,
+                pointerEvents: isOpen ? 'auto' : 'none',
+            }}
+        >
+            {/* Drag handle + header */}
+            <div className="shrink-0" {...bindDrag()} data-drag-zone style={{ touchAction: 'none' }}>
+                {isMobile && (
+                    <div className="flex justify-center pt-3 pb-1" data-drag-zone>
+                        <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
+                    </div>
+                )}
+                <div className="px-6 py-3 border-b border-tertiary/10 flex items-center justify-between" data-drag-zone>
+                    <h2 className="text-[11pt] font-normal text-primary md:text-2xl">Vital Signs</h2>
+                    <button
+                        onClick={onClose}
+                        className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
+                        aria-label="Close calculator"
+                    >
+                        <X size={24} className="text-tertiary" />
+                    </button>
+                </div>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 min-h-0 overflow-y-auto">
+                <VitalSignsCalculator />
+            </div>
         </div>
     )
 }

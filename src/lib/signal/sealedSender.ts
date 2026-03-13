@@ -237,11 +237,18 @@ export async function seal(
  *                          used to verify the cert was addressed to us.
  * @returns The decrypted inner payload, authenticated sender UUID, and cert.
  */
+/** Options for unsealing a SealedEnvelope. */
+export interface UnsealOptions {
+  /** Skip the 24h sender certificate expiry check (for vault messages that may sit for days/weeks). */
+  skipExpiry?: boolean
+}
+
 export async function unseal(
   envelope: SealedEnvelope,
   _myUuid: string,
   myDhPrivKey: CryptoKey,
-  myDhPubKeyBase64: string
+  myDhPubKeyBase64: string,
+  options?: UnsealOptions
 ): Promise<{ inner: Record<string, unknown>; senderUuid: string; cert: SenderCertificate }> {
   // 1. Import the ephemeral public key from the envelope
   const ephemeralPubKey = await importDhPublicKey(envelope.ephemeralKey)
@@ -288,8 +295,8 @@ export async function unseal(
     throw new Error('Sealed sender: invalid cert signature')
   }
 
-  // 8. Check sender certificate expiration
-  if (new Date(cert.expires).getTime() < Date.now()) {
+  // 8. Check sender certificate expiration (skippable for vault messages)
+  if (!options?.skipExpiry && new Date(cert.expires).getTime() < Date.now()) {
     throw new Error('Sealed sender: sender certificate has expired')
   }
 

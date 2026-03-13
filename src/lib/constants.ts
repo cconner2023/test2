@@ -65,3 +65,12 @@ export const SIGNAL = {
   /** PBKDF2 iteration count for backup encryption key derivation. */
   BACKUP_PBKDF2_ITERATIONS: 600_000,
 } as const
+
+export const VAULT = {
+  /** Device ID for the vault virtual device. */
+  DEVICE_ID: 'vault',
+  /** Number of one-time pre-keys to generate for the vault. */
+  PREKEY_BATCH_SIZE: 500,
+  /** PBKDF2 iteration count for vault key wrapping. */
+  KDF_ITERATIONS: 600_000,
+} as const

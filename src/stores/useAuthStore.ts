@@ -27,6 +27,7 @@ import { unregisterDevice, deleteKeyBundle, primaryLogoutAll, initLoRaMesh } fro
 import { secureSet, secureGet, secureRemove, persistSupabaseAuth, destroySecureStore } from '../lib/secureStorage'
 import { clearOutboundQueue, destroyOutboundQueue } from '../lib/signal/outboundQueue'
 import { clearBackupKey, deleteBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
+import { processVaultMessages, clearVaultKey } from '../lib/signal/vaultDevice'
 import { unsubscribeFromPush, resyncPushSubscription } from '../lib/pushNotificationService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
 import { registerSessionCleanup, updateCleanupToken, updateCleanupDeviceId, updateCleanupIsPrimary } from '../lib/sessionCleanup'
@@ -123,7 +124,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   const BASE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, note_include_hpi, note_include_pe, pe_depth, text_expanders, text_expander_enabled, note_include_plan, plan_order_tags, plan_instruction_tags, plan_order_sets'
   // Optional columns that may not exist yet — appended to BASE_SELECT and
   // gracefully stripped on fallback if the query fails.
-  const OPTIONAL_COLS = 'needs_password_setup, tc3_mode'
+  const OPTIONAL_COLS = 'needs_password_setup, tc3_mode, favorite_medications'
   let { data, error: fetchError } = await supabase
     .from('profiles')
     .select(`${BASE_SELECT}, ${OPTIONAL_COLS}`)
@@ -180,6 +181,7 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     if (sec.plan_instruction_tags != null) profile.planInstructionTags = sec.plan_instruction_tags as string[]
     if (sec.plan_order_sets != null) profile.planOrderSets = sec.plan_order_sets as UserTypes['planOrderSets']
     if (sec.tc3_mode != null) profile.tc3Mode = sec.tc3_mode as boolean
+    if (sec.favorite_medications != null) profile.favoriteMedications = sec.favorite_medications as string[]
     if (sec.needs_password_setup === true) needsPasswordSetup = true
   }
 
@@ -243,6 +245,8 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
         clearPasswordVerification().catch(() => {})
         clearServiceWorkerCaches().catch(() => {})
 
+        // Clear vault wrapping key
+        clearVaultKey()
         // Aggressively clear backup state first (detaches onMessageSaved callback)
         clearBackupKey()
         // Clear in-memory session cache
@@ -307,6 +311,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
               startHeartbeat(session.user.id, initResult.deviceId)
               updateCleanupDeviceId(initResult.deviceId)
               updateCleanupIsPrimary(initResult.role === 'primary')
+
+              // Process vault messages (deferred messages from offline period)
+              processVaultMessages(session.user.id).catch(() => {})
 
               // Initialize LoRa mesh subsystem (lazy — no-ops if flag is off)
               initLoRaMesh(session.user.id).catch(() => {})

@@ -6,11 +6,9 @@
  * Merged zones (those with `rects`) render as a single SVG composite shape
  * using clipPath for uniform fill + traced outline for the border.
  */
-import { memo, useRef, useCallback } from 'react'
+import { memo } from 'react'
 import { traceCompositeOutline } from '../../lib/tagIndex'
 import type { LocationTag, ZoneRect } from '../../Types/PropertyTypes'
-
-const TAP_THRESHOLD = 8
 
 interface LocationTagPhotoProps {
   tags: LocationTag[]
@@ -81,26 +79,6 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
   scale,
   photoMap,
 }: LocationTagPhotoProps) {
-  const downRef = useRef<{ id: string; x: number; y: number } | null>(null)
-
-  const handlePointerDown = useCallback((e: React.PointerEvent, targetId: string) => {
-    e.stopPropagation()
-    downRef.current = { id: targetId, x: e.clientX, y: e.clientY }
-  }, [])
-
-  const handlePointerUp = useCallback((e: React.PointerEvent) => {
-    const d = downRef.current
-    if (!d) return
-    downRef.current = null
-
-    const dx = Math.abs(e.clientX - d.x)
-    const dy = Math.abs(e.clientY - d.y)
-    if (dx < TAP_THRESHOLD && dy < TAP_THRESHOLD) {
-      e.stopPropagation()
-      onZoneTap(d.id)
-    }
-  }, [onZoneTap])
-
   const zones = tags.filter((t) => (t.width ?? 0) > 0 && (t.height ?? 0) > 0)
 
   return (
@@ -112,7 +90,24 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
         minHeight: '100%',
       }}
     >
-      {zones.map((tag) => {
+      {/* SVG defs for composite zone clip paths */}
+      {zones.some((t) => t.rects && t.rects.length > 0) && (
+        <svg className="absolute" width="0" height="0">
+          <defs>
+            {zones.map((tag) =>
+              tag.rects && tag.rects.length > 0 ? (
+                <clipPath key={tag.id} id={`zbb-${tag.id}`} clipPathUnits="objectBoundingBox">
+                  {tag.rects.map((r, i) => (
+                    <rect key={i} x={r.x} y={r.y} width={r.w} height={r.h} />
+                  ))}
+                </clipPath>
+              ) : null,
+            )}
+          </defs>
+        </svg>
+      )}
+
+      {zones.map((tag, idx) => {
         const isSelected = tag.target_id === selectedZoneId
         const isComposite = tag.rects && tag.rects.length > 0
         const photo = photoMap?.get(tag.target_id)
@@ -120,11 +115,11 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
         return (
           <div
             key={tag.id}
-            data-zone-target
+            data-zone-target={tag.target_id}
             className={[
               'absolute cursor-pointer transition-shadow duration-150 overflow-hidden',
               isComposite
-                ? (isSelected ? 'ring-2 ring-themeyellow' : '')
+                ? ''
                 : [
                     'rounded-lg border',
                     isSelected
@@ -138,9 +133,9 @@ export const LocationTagPhoto = memo(function LocationTagPhoto({
               top: `${tag.y * 100}%`,
               width: `${(tag.width ?? 0) * 100}%`,
               height: `${(tag.height ?? 0) * 100}%`,
+              zIndex: idx,
+              ...(isComposite ? { clipPath: `url(#zbb-${tag.id})` } : {}),
             }}
-            onPointerDown={(e) => handlePointerDown(e, tag.target_id)}
-            onPointerUp={handlePointerUp}
           >
             {photo && !isComposite && (
               <img src={photo} alt={tag.label} className="absolute inset-0 w-full h-full object-cover pointer-events-none" draggable={false} />

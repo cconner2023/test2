@@ -100,6 +100,52 @@ export const GAD7: ScreenerConfig = {
 };
 
 // ---------------------------------------------------------------------------
+// AUDIT-C — Alcohol Use Disorders Identification Test (Consumption)
+// ---------------------------------------------------------------------------
+
+const auditcFrequencyScale: ScreenerScaleOption[] = [
+    { value: 0, label: 'Never' },
+    { value: 1, label: 'Monthly or less' },
+    { value: 2, label: '2-4 times a month' },
+    { value: 3, label: '2-3 times a week' },
+    { value: 4, label: '4+ times a week' },
+];
+
+const auditcQuantityScale: ScreenerScaleOption[] = [
+    { value: 0, label: '1-2' },
+    { value: 1, label: '3-4' },
+    { value: 2, label: '5-6' },
+    { value: 3, label: '7-9' },
+    { value: 4, label: '10+' },
+];
+
+const auditcBingeScale: ScreenerScaleOption[] = [
+    { value: 0, label: 'Never' },
+    { value: 1, label: 'Less than monthly' },
+    { value: 2, label: 'Monthly' },
+    { value: 3, label: 'Weekly' },
+    { value: 4, label: 'Daily or almost daily' },
+];
+
+export const AUDITC: ScreenerConfig = {
+    id: 'AUDITC',
+    title: 'AUDIT-C Alcohol Screener',
+    instruction: 'The following questions ask about your alcohol use. One standard drink is equivalent to 12 oz beer, 5 oz wine, or 1.5 oz liquor.',
+    questions: [
+        { text: 'How often do you have a drink containing alcohol?', scaleOptions: auditcFrequencyScale },
+        { text: 'How many standard drinks containing alcohol do you have on a typical day when you are drinking?', scaleOptions: auditcQuantityScale },
+        { text: 'How often do you have 6 or more drinks on one occasion?', scaleOptions: auditcBingeScale },
+    ],
+    scaleOptions: [],
+    interpretations: [
+        { minScore: 0, maxScore: 3, label: 'Negative Screen' },
+        { minScore: 4, maxScore: 7, label: 'Positive Screen (At-Risk Drinking)' },
+        { minScore: 8, maxScore: 12, label: 'Positive Screen (High Risk)' },
+    ],
+    threshold: 4,
+};
+
+// ---------------------------------------------------------------------------
 // Shared scales
 // ---------------------------------------------------------------------------
 
@@ -441,4 +487,5 @@ export const screenerRegistry: Record<string, ScreenerConfig> = {
     PHQ2,
     PHQ9,
     MACE2,
+    AUDITC,
 };

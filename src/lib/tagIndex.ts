@@ -87,15 +87,10 @@ export function findLCA(index: TagIndex, idA: string, idB: string): string | nul
   return lca
 }
 
-/**
- * Trace the outer contour of the union of axis-aligned rectangles.
- * Returns an SVG path `d` attribute in 0..1 coordinate space.
- * Uses a grid-based approach: collect unique x/y coords → mark filled cells → trace boundary.
- */
-export function traceCompositeOutline(rects: ZoneRect[]): string {
-  if (rects.length === 0) return ''
+/** Extract contour polygons from the union of axis-aligned rectangles (grid-based approach). */
+function traceContourPolygons(rects: ZoneRect[]): [number, number][][] {
+  if (rects.length === 0) return []
 
-  // Collect unique x and y coordinates
   const xSet = new Set<number>()
   const ySet = new Set<number>()
   for (const r of rects) {
@@ -107,9 +102,8 @@ export function traceCompositeOutline(rects: ZoneRect[]): string {
 
   const cols = xs.length - 1
   const rows = ys.length - 1
-  if (cols <= 0 || rows <= 0) return ''
+  if (cols <= 0 || rows <= 0) return []
 
-  // Mark which grid cells fall inside any rect
   const filled: boolean[][] = Array.from({ length: cols }, () => Array(rows).fill(false))
   for (const r of rects) {
     for (let i = 0; i < cols; i++) {
@@ -123,23 +117,21 @@ export function traceCompositeOutline(rects: ZoneRect[]): string {
     }
   }
 
-  // Collect directed boundary edges (clockwise winding)
-  type Edge = [number, number, number, number] // x1, y1, x2, y2
+  type Edge = [number, number, number, number]
   const edges: Edge[] = []
 
   for (let i = 0; i < cols; i++) {
     for (let j = 0; j < rows; j++) {
       if (!filled[i][j]) continue
-      if (j === 0 || !filled[i][j - 1])         edges.push([xs[i], ys[j], xs[i + 1], ys[j]])       // top
-      if (j === rows - 1 || !filled[i][j + 1])   edges.push([xs[i + 1], ys[j + 1], xs[i], ys[j + 1]]) // bottom
-      if (i === 0 || !filled[i - 1][j])           edges.push([xs[i], ys[j + 1], xs[i], ys[j]])       // left
-      if (i === cols - 1 || !filled[i + 1][j])    edges.push([xs[i + 1], ys[j], xs[i + 1], ys[j + 1]]) // right
+      if (j === 0 || !filled[i][j - 1])         edges.push([xs[i], ys[j], xs[i + 1], ys[j]])
+      if (j === rows - 1 || !filled[i][j + 1])   edges.push([xs[i + 1], ys[j + 1], xs[i], ys[j + 1]])
+      if (i === 0 || !filled[i - 1][j])           edges.push([xs[i], ys[j + 1], xs[i], ys[j]])
+      if (i === cols - 1 || !filled[i + 1][j])    edges.push([xs[i + 1], ys[j], xs[i + 1], ys[j + 1]])
     }
   }
 
-  if (edges.length === 0) return ''
+  if (edges.length === 0) return []
 
-  // Chain edges into closed polygon(s)
   const key = (x: number, y: number) => `${x.toFixed(10)},${y.toFixed(10)}`
   const startMap = new Map<string, number[]>()
   edges.forEach(([x1, y1], idx) => {
@@ -150,7 +142,7 @@ export function traceCompositeOutline(rects: ZoneRect[]): string {
   })
 
   const used = new Set<number>()
-  const paths: string[] = []
+  const polygons: [number, number][][] = []
 
   for (let s = 0; s < edges.length; s++) {
     if (used.has(s)) continue
@@ -169,12 +161,20 @@ export function traceCompositeOutline(rects: ZoneRect[]): string {
       cur = next
     }
 
-    if (pts.length >= 3) {
-      paths.push(
-        pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x} ${y}`).join(' ') + ' Z',
-      )
-    }
+    if (pts.length >= 3) polygons.push(pts)
   }
 
-  return paths.join(' ')
+  return polygons
 }
+
+/**
+ * Trace the outer contour of the union of axis-aligned rectangles.
+ * Returns an SVG path `d` attribute in 0..1 coordinate space.
+ */
+export function traceCompositeOutline(rects: ZoneRect[]): string {
+  const polygons = traceContourPolygons(rects)
+  return polygons
+    .map((pts) => pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x} ${y}`).join(' ') + ' Z')
+    .join(' ')
+}
+

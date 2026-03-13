@@ -11,7 +11,7 @@ export const TextInput = ({
   type = 'text',
   currentValue,
 }: {
-  label: string
+  label?: string
   value: string
   onChange: (val: string) => void
   placeholder?: string
@@ -21,9 +21,11 @@ export const TextInput = ({
   currentValue?: string | null
 }) => (
   <label className="block">
-    <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-      {label} {required && <span className="text-themeredred">*</span>}
-    </span>
+    {label && (
+      <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
+        {label} {required && <span className="text-themeredred">*</span>}
+      </span>
+    )}
     {currentValue && (
       <div className="text-xs text-tertiary/50 mb-1">
         Current: <span className="font-medium">{currentValue}</span>
@@ -36,9 +38,9 @@ export const TextInput = ({
       placeholder={placeholder}
       maxLength={maxLength}
       required={required}
-      className="mt-1 w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-base
+      className={`${label ? 'mt-1' : ''} w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-base
                  border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                 transition-colors placeholder:text-tertiary/30"
+                 transition-colors placeholder:text-tertiary/30`}
     />
   </label>
 )
@@ -97,7 +99,7 @@ export const PasswordInput = ({
   inputRef,
   hint,
 }: {
-  label: string
+  label?: string
   value: string
   onChange: (val: string) => void
   placeholder?: string
@@ -110,8 +112,8 @@ export const PasswordInput = ({
 
   return (
     <label className="block">
-      <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>
-      <div className="relative mt-1">
+      {label && <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>}
+      <div className={`relative ${label ? 'mt-1' : ''}`}>
         <input
           ref={inputRef}
           type={show ? 'text' : 'password'}

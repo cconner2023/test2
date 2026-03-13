@@ -69,19 +69,25 @@ export const kbCategories: KBCategory[] = [
         icon: Brain,
         group: 'screening',
     },
-
-    // ── Calculators ───────────────────────────────────────────
-    {
-        id: 'burn',
-        label: 'Burn Assessment',
-        description: 'Coming soon',
-        icon: Calculator,
-        group: 'calculators',
-        comingSoon: true,
-    },
     {
         id: 'auditc',
         label: 'AUDIT-C',
+        description: 'Alcohol use screening',
+        icon: ClipboardList,
+        group: 'screening',
+    },
+
+    // ── Calculators ───────────────────────────────────────────
+    {
+        id: 'vital-signs',
+        label: 'Vital Signs',
+        description: 'Height, weight, BMI & temperature',
+        icon: Calculator,
+        group: 'calculators',
+    },
+    {
+        id: 'burn',
+        label: 'Burn Assessment',
         description: 'Coming soon',
         icon: Calculator,
         group: 'calculators',

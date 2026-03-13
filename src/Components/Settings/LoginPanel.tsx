@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { LogIn } from 'lucide-react'
 import { signIn } from '../../lib/authService'
 import { ErrorDisplay } from '../ErrorDisplay'
+import { TextInput, PasswordInput } from '../FormInputs'
 
 interface LoginPanelProps {
   onSuccess: () => void
@@ -43,37 +44,20 @@ export const LoginPanel = ({
 
         {/* ── Primary: username / password ── */}
         <form onSubmit={handlePasswordLogin} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium text-tertiary/60 uppercase tracking-wide mb-2">
-              Username
-            </label>
-            <input
-              type="email"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder={variant === 'modal' ? 'your.email@mail.mil' : 'email'}
-              required
-              className="w-full px-4 py-3 rounded-lg bg-themewhite2 border border-tertiary/10
-                       focus:border-themeblue2 focus:outline-none transition-colors
-                       text-primary placeholder:text-tertiary/30"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-tertiary/60 uppercase tracking-wide mb-2">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-              className="w-full px-4 py-3 rounded-lg bg-themewhite2 border border-tertiary/10
-                       focus:border-themeblue2 focus:outline-none transition-colors
-                       text-primary placeholder:text-tertiary/30"
-            />
-          </div>
+          <TextInput
+            label="Username"
+            value={username}
+            onChange={setUsername}
+            type="email"
+            placeholder={variant === 'modal' ? 'your.email@mail.mil' : 'email'}
+            required
+          />
+          <PasswordInput
+            label="Password"
+            value={password}
+            onChange={setPassword}
+            placeholder="••••••••"
+          />
 
           <button
             type="submit"

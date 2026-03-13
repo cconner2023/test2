@@ -111,6 +111,32 @@ describe('getRequestStatus', () => {
     expect(getRequestStatus(msgs, userId)).toBe('none')
   })
 
+  it('returns "accepted" when we sent a request and peer replied with a regular message', () => {
+    // Implicit acceptance: request-accepted was lost but peer sent a message
+    const msgs = [
+      makeMsg({ senderId: userId, messageType: 'request' }),
+      makeMsg({ senderId: 'bob', messageType: 'message' }),
+    ]
+    expect(getRequestStatus(msgs, userId)).toBe('accepted')
+  })
+
+  it('returns "sent" when we sent a request but only our own messages exist', () => {
+    const msgs = [
+      makeMsg({ senderId: userId, messageType: 'request' }),
+      makeMsg({ senderId: userId, messageType: 'message' }),
+    ]
+    expect(getRequestStatus(msgs, userId)).toBe('sent')
+  })
+
+  it('implicit acceptance does not apply when peer sent the request', () => {
+    // We replied with a message but peer sent the request — status is "received"
+    const msgs = [
+      makeMsg({ senderId: 'bob', messageType: 'request' }),
+      makeMsg({ senderId: userId, messageType: 'message' }),
+    ]
+    expect(getRequestStatus(msgs, userId)).toBe('received')
+  })
+
   it('handles multiple request-accepted without error', () => {
     // Duplicate request-accepted scenario (the bug we fixed)
     const msgs = [
