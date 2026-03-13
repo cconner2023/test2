@@ -530,6 +530,7 @@ export async function fetchLocationTagsBatch(locationIds: string[]): Promise<Map
  *  Collects tags from every location that has tags, grouped by location_id. */
 export async function fetchAllLocationTags(clinicId: string, locations: { id: string }[]): Promise<Map<string, LocationTag[]>> {
   const locationIds = locations.map(l => l.id)
+  await reconcileLocationTagsWithServer(clinicId, locations)
   return getLocalLocationTagsBatch(locationIds)
 }
 

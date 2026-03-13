@@ -119,28 +119,12 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   let needsPasswordSetup = false
 
   // Fetch core profile + clinic name.
-  // Try with needs_password_setup first (available after migration).
-  // Fall back to the query without it if the column doesn't exist yet.
-  const BASE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, note_include_hpi, note_include_pe, pe_depth, text_expanders, text_expander_enabled, note_include_plan, plan_order_tags, plan_instruction_tags, plan_order_sets'
-  // Optional columns that may not exist yet — appended to BASE_SELECT and
-  // gracefully stripped on fallback if the query fails.
-  const OPTIONAL_COLS = 'needs_password_setup, tc3_mode, favorite_medications'
-  let { data, error: fetchError } = await supabase
+  const PROFILE_SELECT = 'first_name, last_name, middle_initial, credential, component, rank, uic, roles, clinic_id, clinics(name), pin_hash, pin_salt, notify_dev_alerts, note_include_hpi, note_include_pe, pe_depth, text_expanders, text_expander_enabled, note_include_plan, plan_order_tags, plan_instruction_tags, plan_order_sets, needs_password_setup, favorite_medications'
+  const { data, error: fetchError } = await supabase
     .from('profiles')
-    .select(`${BASE_SELECT}, ${OPTIONAL_COLS}`)
+    .select(PROFILE_SELECT)
     .eq('id', userId)
     .single()
-
-  if (fetchError && !data) {
-    // Column(s) likely not yet migrated — retry without optional columns
-    const fallback = await supabase
-      .from('profiles')
-      .select(BASE_SELECT)
-      .eq('id', userId)
-      .single()
-    data = fallback.data
-    fetchError = fallback.error
-  }
 
   if (data) {
     const clinicRow = data.clinics as { name: string } | null
@@ -180,7 +164,6 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     if (sec.plan_order_tags != null) profile.planOrderTags = sec.plan_order_tags as UserTypes['planOrderTags']
     if (sec.plan_instruction_tags != null) profile.planInstructionTags = sec.plan_instruction_tags as string[]
     if (sec.plan_order_sets != null) profile.planOrderSets = sec.plan_order_sets as UserTypes['planOrderSets']
-    if (sec.tc3_mode != null) profile.tc3Mode = sec.tc3_mode as boolean
     if (sec.favorite_medications != null) profile.favoriteMedications = sec.favorite_medications as string[]
     if (sec.needs_password_setup === true) needsPasswordSetup = true
   }

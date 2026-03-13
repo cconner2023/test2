@@ -630,7 +630,6 @@ export const NoteContentPanel = () => {
         if (fields.planOrderTags !== undefined) dbFields.plan_order_tags = fields.planOrderTags;
         if (fields.planInstructionTags !== undefined) dbFields.plan_instruction_tags = fields.planInstructionTags;
         if (fields.planOrderSets !== undefined) dbFields.plan_order_sets = fields.planOrderSets;
-        if (fields.tc3Mode !== undefined) dbFields.tc3_mode = fields.tc3Mode;
 
         syncProfileField(dbFields);
     }, [updateProfile, syncProfileField]);

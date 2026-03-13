@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { BaseDrawer } from './BaseDrawer';
+import { HeaderPill, PillButton } from './HeaderPill';
 import { SymptomGuidelines } from './CategoryList';
 import type { GuidelineItemData } from './CategoryList';
 import type { catDataTypes, subCatDataTypes, SearchResultType } from '../Types/CatTypes';
@@ -51,35 +52,24 @@ export function SymptomInfoDrawer({
             fullHeight="90dvh"
             mobileOnly={true}
             mobileClassName="flex flex-col"
+            header={{
+                title: selectedSymptom.text || 'Symptom Info',
+                rightContent: (
+                    <HeaderPill>
+                        <PillButton icon={X} onClick={onClose} label="Close" />
+                    </HeaderPill>
+                ),
+                hideDefaultClose: true,
+            }}
         >
-            {(handleClose) => (
-                <>
-                    {/* Drag Handle + Close */}
-                    <div className="flex items-center justify-between px-4 pt-3 pb-2" data-drag-zone style={{ touchAction: 'none' }}>
-                        <div className="flex-1" />
-                        <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
-                        <div className="flex-1 flex justify-end">
-                            <button
-                                onClick={handleClose}
-                                className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
-                                aria-label="Close"
-                            >
-                                <X size={20} className="text-tertiary" />
-                            </button>
-                        </div>
-                    </div>
-
-                    {/* Content — reuses SymptomGuidelines card layout */}
-                    <div className="overflow-y-auto flex-1 px-4 pb-4">
-                        <SymptomGuidelines
-                            symptom={selectedSymptom}
-                            category={selectedCategory}
-                            onNavigate={onNavigate}
-                            guidelineToResult={guidelineToResult}
-                        />
-                    </div>
-                </>
-            )}
+            <div className="overflow-y-auto flex-1 px-4 pb-4">
+                <SymptomGuidelines
+                    symptom={selectedSymptom}
+                    category={selectedCategory}
+                    onNavigate={onNavigate}
+                    guidelineToResult={guidelineToResult}
+                />
+            </div>
         </BaseDrawer>
     );
 }

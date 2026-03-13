@@ -38,9 +38,9 @@ export const TextInput = ({
       placeholder={placeholder}
       maxLength={maxLength}
       required={required}
-      className={`${label ? 'mt-1' : ''} w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-base
-                 border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                 transition-colors placeholder:text-tertiary/30`}
+      className={`${label ? 'mt-1' : ''} w-full px-3 py-2.5 rounded-lg text-primary text-base
+                 border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none
+                 transition-all placeholder:text-tertiary/30`}
     />
   </label>
 )
@@ -122,9 +122,8 @@ export const PasswordInput = ({
           placeholder={placeholder}
           autoComplete={autoComplete}
           disabled={disabled}
-          className="w-full px-3 py-2.5 pr-10 rounded-lg bg-themewhite2 text-primary text-base
-                     border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                     transition-colors placeholder:text-tertiary/30 disabled:opacity-50"
+          className="w-full px-3 py-2.5 pr-10 rounded-lg bg-themewhite dark:bg-themewhite3 text-primary text-base
+                     border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary/30 disabled:opacity-50"
         />
         <button
           type="button"

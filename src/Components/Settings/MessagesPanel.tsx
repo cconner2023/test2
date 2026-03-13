@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
-import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, Video, ArrowLeft, MessageSquare, Users, Info, ChevronLeft, Pin, PenLine } from 'lucide-react'
+import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, Video, ArrowLeft, MessageSquare, Users, Info, ChevronLeft, Pin } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useSpring, animated } from '@react-spring/web'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
@@ -337,11 +337,6 @@ function ConversationPane({
                   )
                 })}
               </>
-            )}
-            {recentEntries.length === 0 && (
-              <p className="text-xs text-tertiary/30 px-4 py-8 text-center">
-                No conversations yet. Tap <PenLine className="w-3.5 h-3.5 inline" /> to start one.
-              </p>
             )}
 
             <div className="mx-3 my-2 border-b border-primary/10" />

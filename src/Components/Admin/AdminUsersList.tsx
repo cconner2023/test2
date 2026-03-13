@@ -7,9 +7,8 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Check, UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye } from 'lucide-react'
+import { Check, UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, Building2 } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
-import { SearchInput } from '../SearchInput'
 import { SwipeableCard, type SwipeAction } from '../SwipeableCard'
 import { CardContextMenu } from '../CardContextMenu'
 import { CardActionBar } from '../CardActionBar'
@@ -42,8 +41,8 @@ export interface AdminUsersListProps {
   onSelectUser: (user: AdminUser) => void
   onEditUser: (user: AdminUser) => void
   onCreateUser: () => void
-  /** When set, auto-filter to just this user (from tree selection) */
   filterUserId?: string | null
+  searchQuery?: string
 }
 
 // ─── Component ───────────────────────────────────────────────────────────
@@ -53,16 +52,16 @@ export function AdminUsersList({
   onEditUser,
   onCreateUser,
   filterUserId,
+  searchQuery: searchQueryProp,
 }: AdminUsersListProps) {
+  const searchQuery = searchQueryProp ?? ''
+
   // Data
   const [users, setUsers] = useState<AdminUser[]>([])
-  const [_clinics, setClinics] = useState<AdminClinic[]>([])
+  const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [allCerts, setAllCerts] = useState<Certification[]>([])
   const [loading, setLoading] = useState(true)
   const showLoading = useMinLoadTime(loading)
-
-  // Search
-  const [searchQuery, setSearchQuery] = useState('')
 
   // Current user ID (to prevent self-deletion / self-logout)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
@@ -132,6 +131,13 @@ export function AdminUsersList({
   }, [])
 
   // ─── Derived Data ──────────────────────────────────────────────────────
+
+  /** Clinic lookup by ID */
+  const clinicById = useMemo(() => {
+    const map = new Map<string, AdminClinic>()
+    for (const c of clinics) map.set(c.id, c)
+    return map
+  }, [clinics])
 
   /** Certifications grouped by user_id for O(1) lookup */
   const certsByUser = useMemo(() => {
@@ -298,8 +304,8 @@ export function AdminUsersList({
           onAction: () => onEditUser(user),
         },
         {
-          key: 'reset',
-          label: 'Reset',
+          key: 'changepw',
+          label: 'Ch. Pass',
           icon: KeyRound,
           iconBg: 'bg-themeyellow/15',
           iconColor: 'text-themeyellow',
@@ -307,6 +313,14 @@ export function AdminUsersList({
             setResetPwUserId(user.id)
             setResetPwValue('')
           },
+        },
+        {
+          key: 'logout',
+          label: 'Log Out',
+          icon: LogOut,
+          iconBg: 'bg-themepurple/15',
+          iconColor: 'text-themepurple',
+          onAction: () => handleForceLogout(user.id),
         },
         {
           key: 'delete',
@@ -319,7 +333,7 @@ export function AdminUsersList({
       ]
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentUserId, onEditUser, onSelectUser],
+    [currentUserId, onEditUser, onSelectUser, handleForceLogout],
   )
 
   /** Build right-click context menu items for a given user */
@@ -340,8 +354,8 @@ export function AdminUsersList({
           onAction: () => onEditUser(user),
         },
         {
-          key: 'reset',
-          label: 'Reset Password',
+          key: 'changepw',
+          label: 'Change Password',
           icon: KeyRound,
           onAction: () => {
             setResetPwUserId(user.id)
@@ -350,7 +364,7 @@ export function AdminUsersList({
         },
         {
           key: 'logout',
-          label: 'Force Logout',
+          label: 'Log Out',
           icon: LogOut,
           onAction: () => handleForceLogout(user.id),
         },
@@ -411,15 +425,7 @@ export function AdminUsersList({
           <p className="text-sm text-tertiary/60">Manage user accounts</p>
         </div>
 
-        {/* Feedback banner */}
         {feedback && <ErrorDisplay type={feedback.type} message={feedback.message} />}
-
-        {/* Search */}
-        <SearchInput
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search by name, email, or UIC..."
-        />
       </div>
 
       {/* Card list */}
@@ -489,7 +495,7 @@ export function AdminUsersList({
                       {/* Center: Name, credential + extra certs inline, last-active */}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-primary truncate">
-                          {user.first_name || ''} {user.middle_initial || ''}{' '}
+                          {user.rank ? `${user.rank} ` : ''}{user.first_name || ''} {user.middle_initial || ''}{' '}
                           {user.last_name || ''}
                         </p>
                         <div className="flex items-center gap-2 flex-wrap">
@@ -519,12 +525,20 @@ export function AdminUsersList({
                       </div>
                     </div>
 
-                    {/* UIC badge — uses themeblue2 coloring matching initials avatar */}
-                    {user.uic && (
-                      <div className="flex items-center">
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
-                          {user.uic}
-                        </span>
+                    {/* UIC + Clinic badges */}
+                    {(user.uic || user.clinic_id) && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {user.uic && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
+                            {user.uic}
+                          </span>
+                        )}
+                        {user.clinic_id && clinicById.get(user.clinic_id) && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themegreen/10 text-themegreen border-themegreen/30">
+                            <Building2 size={9} />
+                            {clinicById.get(user.clinic_id)!.name}
+                          </span>
+                        )}
                       </div>
                     )}
 

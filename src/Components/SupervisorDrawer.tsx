@@ -1,8 +1,10 @@
-import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Ban, X } from 'lucide-react'
+import { useState, useCallback, useMemo } from 'react'
+import { Ban, X, BarChart3 } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { ContentWrapper } from './Settings/ContentWrapper'
+import { HeaderPill, PillButton } from './HeaderPill'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
+import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
 import { useSupervisorData } from './Settings/Supervisor/useSupervisorData'
@@ -14,7 +16,6 @@ import { TeamInsights } from './Settings/Supervisor/TeamInsights'
 import { SupervisorTree, type TreeSelection } from './Settings/Supervisor/SupervisorTree'
 import { LoadingSpinner } from './LoadingSpinner'
 import { useMinLoadTime } from '../Hooks/useMinLoadTime'
-import { BarChart3 } from 'lucide-react'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { StepResult } from '../Types/SupervisorTestTypes'
 
@@ -37,15 +38,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const [selectedSoldierIds, setSelectedSoldierIds] = useState<Set<string>>(new Set())
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
 
-  const [isMobile, setIsMobile] = useState(() =>
-    typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches
-  )
-  useEffect(() => {
-    const mql = window.matchMedia('(max-width: 767px)')
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches)
-    mql.addEventListener('change', handler)
-    return () => mql.removeEventListener('change', handler)
-  }, [])
+  const isMobile = useIsMobile()
 
   // ── Data ───────────────────────────────────────────────────────────────────
 
@@ -176,31 +169,26 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     // Mobile on roster: double-pill with Team Insights + Close
     if (isMobile && treeSelection.type === 'all-personnel') {
       return (
-        <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
-          <button
+        <HeaderPill>
+          <PillButton
+            icon={BarChart3}
+            iconSize={20}
             onClick={() => {
               handleSlideAnimation('left')
               setTreeSelection({ type: 'team-insights' })
             }}
-            className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
-            aria-label="Team Insights"
-          >
-            <BarChart3 className="w-5 h-5 stroke-current" />
-          </button>
-          <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
-            <X className="w-[18px] h-[18px]" />
-          </button>
-        </div>
+            label="Team Insights"
+          />
+          <PillButton icon={X} onClick={handleClose} label="Close" />
+        </HeaderPill>
       )
     }
 
     // Default: single close pill
     return (
-      <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
-        <button onClick={handleClose} className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200" aria-label="Close">
-          <X className="w-[18px] h-[18px]" />
-        </button>
-      </div>
+      <HeaderPill>
+        <PillButton icon={X} onClick={handleClose} label="Close" />
+      </HeaderPill>
     )
   }, [view, isMobile, treeSelection, handleClose, handleSlideAnimation])
 

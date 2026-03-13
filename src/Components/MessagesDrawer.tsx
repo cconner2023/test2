@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { PenLine, Search, X } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
 import { BaseDrawer } from './BaseDrawer'
+import { HeaderPill, PillButton } from './HeaderPill'
 import { MessagesPanel, type MessagesView, type MessagesPanelHandle } from './Settings/MessagesPanel'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useMessagesContext } from '../Hooks/MessagesContext'
@@ -133,38 +134,17 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             rightContentFill: isSearchExpanded,
             rightContent: (
                 <div className="relative flex items-center w-full">
-                    {/* Pill buttons — fade out when search expands */}
                     <animated.div
-                        className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5"
                         style={{
                             opacity: searchSpring.progress.to(p => 1 - p),
                             pointerEvents: isSearchExpanded ? 'none' : 'auto',
                         }}
                     >
-                        <button
-                            onClick={() => panelRef.current?.createGroup()}
-                            className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-                            aria-label="New message"
-                            title="New message"
-                        >
-                            <PenLine className="w-[18px] h-[18px]" />
-                        </button>
-                        <button
-                            onClick={() => setIsSearchExpanded(true)}
-                            className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-                            aria-label="Search"
-                            title="Search"
-                        >
-                            <Search className="w-[18px] h-[18px]" />
-                        </button>
-                        <button
-                            onClick={handleClose}
-                            className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-                            aria-label="Close"
-                            title="Close"
-                        >
-                            <X className="w-[18px] h-[18px]" />
-                        </button>
+                        <HeaderPill>
+                            <PillButton icon={PenLine} onClick={() => panelRef.current?.createGroup()} label="New message" />
+                            <PillButton icon={Search} onClick={() => setIsSearchExpanded(true)} label="Search" />
+                            <PillButton icon={X} onClick={handleClose} label="Close" />
+                        </HeaderPill>
                     </animated.div>
 
                     {/* Search overlay — fade in when search expands */}

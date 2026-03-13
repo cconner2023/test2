@@ -30,6 +30,7 @@ import {
   deleteLocalPropertyItem,
   stripLocalFields,
   getLocalLocationTags,
+  getDb,
   type LocalTrainingCompletion,
 } from './offlineDb'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
@@ -202,6 +203,12 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
         // so the update will silently no-op (record not found).
         if (table === 'training_completions') {
           await updateTrainingCompletionSyncStatus(item.record_id, 'synced')
+        } else if (table === 'property_items' && item.action !== 'delete') {
+          await markPropertyRecordSynced('propertyItems', item.record_id)
+        } else if (table === 'property_locations' && item.action !== 'delete') {
+          await markPropertyRecordSynced('propertyLocations', item.record_id)
+        } else if (table === 'discrepancies' && item.action !== 'delete') {
+          await markPropertyRecordSynced('propertyDiscrepancies', item.record_id)
         }
 
         processed++
@@ -216,6 +223,11 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
         // so the update will silently no-op (record not found).
         if (item.table_name === 'training_completions') {
           await updateTrainingCompletionSyncStatus(item.record_id, 'error', errorMessage)
+        } else if (['property_items', 'property_locations', 'discrepancies'].includes(item.table_name) && item.action !== 'delete') {
+          const storeName = item.table_name === 'property_items' ? 'propertyItems'
+            : item.table_name === 'property_locations' ? 'propertyLocations'
+            : 'propertyDiscrepancies'
+          await markPropertyRecordSynced(storeName, item.record_id, 'error')
         }
 
         failed++
@@ -238,6 +250,37 @@ export async function processSyncQueue(userId: string): Promise<SyncResult> {
 
   logger.info(`Sync complete: ${processed} processed, ${failed} failed, ${skipped} skipped`)
   return { processed, failed, skipped, aborted: false }
+}
+
+// ============================================================
+// Property Record Sync Status
+// ============================================================
+
+/**
+ * Mark a property record's _sync_status in IndexedDB after sync.
+ * Without this, records stay 'pending' forever and reconciliation
+ * skips server updates — breaking cross-device sync.
+ */
+async function markPropertyRecordSynced(
+  storeName: 'propertyItems' | 'propertyLocations' | 'propertyDiscrepancies',
+  recordId: string,
+  status: 'synced' | 'error' = 'synced',
+): Promise<void> {
+  try {
+    const db = await getDb()
+    const record = await db.get(storeName, recordId)
+    if (!record) return
+    const updated = {
+      ...record,
+      _sync_status: status,
+      _sync_retry_count: status === 'synced' ? 0 : (record._sync_retry_count ?? 0) + 1,
+      _last_sync_error: status === 'synced' ? null : new Date().toISOString(),
+      _last_sync_error_message: status === 'synced' ? null : record._last_sync_error_message,
+    }
+    await db.put(storeName, updated as any)
+  } catch (err) {
+    logger.warn(`Failed to update sync status for ${storeName}/${recordId}:`, err)
+  }
 }
 
 // ============================================================
@@ -542,6 +585,101 @@ export async function reconcilePropertyWithServer(
   return getLocalPropertyItems(clinicId)
 }
 
+export async function reconcilePropertyLocationsWithServer(
+  clinicId: string,
+): Promise<void> {
+  if (!isOnline()) return
+
+  logger.info('Starting property locations reconciliation with server')
+
+  try {
+    const { getLocalPropertyLocations, saveLocalPropertyLocation, deleteLocalPropertyLocation } = await import('./offlineDb')
+    type LocalLoc = Awaited<ReturnType<typeof getLocalPropertyLocations>>[number]
+
+    await reconcile<LocalLoc, Record<string, unknown>>(clinicId, {
+      tableName: 'property_locations',
+      fetchLocal: getLocalPropertyLocations,
+      fetchServer: async (cId) => {
+        const { data, error } = await supabase
+          .from('property_locations')
+          .select('*')
+          .eq('clinic_id', cId)
+          .order('updated_at', { ascending: false })
+        if (error) throw error
+        return (data || []) as unknown as Record<string, unknown>[]
+      },
+      getId: (r) => (r as Record<string, unknown>).id as string,
+      getTimestamp: (r) => (r as Record<string, unknown>).updated_at as string,
+      saveLocal: async (serverRecord) => {
+        await saveLocalPropertyLocation({
+          ...serverRecord as unknown as LocalLoc,
+          _sync_status: 'synced',
+          _sync_retry_count: 0,
+          _last_sync_error: null,
+          _last_sync_error_message: null,
+        })
+      },
+      deleteLocal: deleteLocalPropertyLocation,
+      upsertServer: async () => {},
+    })
+  } catch (err) {
+    logger.error('Failed to reconcile property locations:', err)
+  }
+}
+
+// ============================================================
+// Heal Stuck Records
+// ============================================================
+
+/**
+ * One-time heal for records stuck at _sync_status='pending' that have
+ * no actual pending sync queue entry. Before this fix, property records
+ * were never marked 'synced' after push, blocking cross-device sync.
+ */
+export async function healStuckPendingRecords(userId: string): Promise<void> {
+  try {
+    const db = await getDb()
+
+    // Collect all record IDs that actually have pending sync queue entries
+    const pendingQueueItems = await getPendingSyncItems(userId)
+    const pendingRecordIds = new Set(pendingQueueItems.map((q) => q.record_id))
+
+    // Heal propertyItems
+    const allItems = await db.getAll('propertyItems')
+    for (const item of allItems) {
+      if (item._sync_status === 'pending' && !pendingRecordIds.has(item.id)) {
+        await db.put('propertyItems', { ...item, _sync_status: 'synced' } as any)
+      }
+    }
+
+    // Heal propertyLocations
+    const allLocations = await db.getAll('propertyLocations')
+    for (const loc of allLocations) {
+      if (loc._sync_status === 'pending' && !pendingRecordIds.has(loc.id)) {
+        await db.put('propertyLocations', { ...loc, _sync_status: 'synced' } as any)
+      }
+    }
+
+    // Heal propertyDiscrepancies
+    const allDisc = await db.getAll('propertyDiscrepancies')
+    for (const disc of allDisc) {
+      if (disc._sync_status === 'pending' && !pendingRecordIds.has(disc.id)) {
+        await db.put('propertyDiscrepancies', { ...disc, _sync_status: 'synced' } as any)
+      }
+    }
+
+    const healed = allItems.filter(i => i._sync_status === 'pending' && !pendingRecordIds.has(i.id)).length
+      + allLocations.filter(l => l._sync_status === 'pending' && !pendingRecordIds.has(l.id)).length
+      + allDisc.filter(d => d._sync_status === 'pending' && !pendingRecordIds.has(d.id)).length
+
+    if (healed > 0) {
+      logger.info(`Healed ${healed} stuck 'pending' property records → 'synced'`)
+    }
+  } catch (err) {
+    logger.warn('healStuckPendingRecords failed (non-fatal):', err)
+  }
+}
+
 // ============================================================
 // Connectivity Listeners
 // ============================================================
@@ -587,8 +725,14 @@ export function setupConnectivityListeners(
 
       // 1b. Reconcile property if clinic context available
       if (callbacks?.clinicId) {
+        // Heal records stuck as 'pending' from before the _sync_status fix
+        await healStuckPendingRecords(userId)
+
         const reconciledItems = await reconcilePropertyWithServer(callbacks.clinicId)
         callbacks?.onPropertyReconcileComplete?.(reconciledItems)
+
+        // 1b-ii. Reconcile locations (was previously missing)
+        await reconcilePropertyLocationsWithServer(callbacks.clinicId)
 
         // 1c. Reconcile location tags (zones on canvas)
         const locations = callbacks?.getLocations?.() || []

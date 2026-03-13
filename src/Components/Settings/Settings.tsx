@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, UserCog, Lock, MessageSquare, Bell, Stethoscope, ClipboardCheck, Scale, Radio } from 'lucide-react';
+import { Moon, Sun, Shield, UserCog, Lock, MessageSquare, Bell, Stethoscope, ClipboardCheck, Scale, Radio, X } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -29,6 +29,7 @@ import { UI_TIMING } from '../../Utilities/constants';
 import { MainSettingsPanel } from './MainSettingsPanel';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
 import { ContentWrapper } from './ContentWrapper';
+import { HeaderPill, PillButton } from '../HeaderPill';
 import { LoRaPanel } from './LoRaPanel';
 import { SessionsDevicesPanel } from './SessionsDevicesPanel';
 import { LORA_MESH_ENABLED } from '../../lib/featureFlags';
@@ -186,6 +187,12 @@ export const Settings = ({
         activePanel !== 'main',
     );
 
+    const handleClose = useCallback(() => {
+        setActivePanel('main');
+        setSlideDirection('');
+        onClose();
+    }, [onClose]);
+
     /** Shorthand: back button that slides right to a target panel (default: 'main'). */
     const backTo = useCallback((target: typeof activePanel = 'main') => ({
         showBack: true as const,
@@ -195,7 +202,15 @@ export const Settings = ({
     const headerConfig = useMemo(() => {
         switch (activePanel) {
             case 'main':
-                return { title: 'Settings' };
+                return {
+                    title: 'Settings',
+                    rightContent: (
+                        <HeaderPill>
+                            <PillButton icon={X} onClick={handleClose} label="Close" />
+                        </HeaderPill>
+                    ),
+                    hideDefaultClose: true,
+                };
             case 'profile-change-request':
                 return { title: 'Request Changes', ...backTo('user-profile-details') };
             case 'login':
@@ -217,12 +232,12 @@ export const Settings = ({
             case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
             case 'note-content':        return { title: 'Note Content', ...backTo() };
         }
-    }, [activePanel, backTo]);
+    }, [activePanel, backTo, handleClose]);
 
     return (
         <BaseDrawer
             isVisible={isVisible}
-            onClose={() => { setActivePanel('main'); setSlideDirection(''); onClose(); }}
+            onClose={handleClose}
             fullHeight="90dvh"
             disableDrag={false}
             desktopPosition="left"

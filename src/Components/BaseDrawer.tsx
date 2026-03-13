@@ -42,7 +42,7 @@ function DrawerHeader({
                     <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
                 </div>
             )}
-            <div className="px-6 border-b border-tertiary/10 py-3 md:py-4" data-drag-zone style={{ touchAction: 'none' }}>
+            <div className="px-5 border-b border-tertiary/10 py-3 md:py-4" data-drag-zone style={{ touchAction: 'none' }}>
                 <div className="flex items-center justify-between">
                     <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${rightContentFill ? ' w-0 overflow-hidden' : ''}`}>
                         <div

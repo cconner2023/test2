@@ -1,7 +1,9 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
-import { ChevronRight, RotateCcw, X } from 'lucide-react'
+import { ChevronRight, RotateCcw, Search, X } from 'lucide-react'
+import { useSpring, animated } from '@react-spring/web'
 import { useDrag } from '@use-gesture/react'
 import { BaseDrawer } from './BaseDrawer'
+import { HeaderPill, PillButton } from './HeaderPill'
 import { TrainingPanel, type TrainingView } from './Settings/TrainingPanel'
 import { MedicationContent } from './MedicationContent'
 import { ContentWrapper } from './Settings/ContentWrapper'
@@ -59,6 +61,25 @@ export function KnowledgeBaseDrawer({
     const [activeScreener, setActiveScreener] = useState<ScreenerConfig | null>(null)
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
     const [calculatorOpen, setCalculatorOpen] = useState(false)
+    const [searchQuery, setSearchQuery] = useState('')
+    const [isSearchExpanded, setIsSearchExpanded] = useState(false)
+    const searchInputRef = useRef<HTMLInputElement>(null)
+
+    const searchSpring = useSpring({
+        progress: isSearchExpanded ? 1 : 0,
+        config: { tension: 260, friction: 26 },
+    })
+
+    useEffect(() => {
+        if (isSearchExpanded && searchInputRef.current) {
+            searchInputRef.current.focus()
+        }
+    }, [isSearchExpanded])
+
+    const collapseSearch = useCallback(() => {
+        setSearchQuery('')
+        setIsSearchExpanded(false)
+    }, [])
 
     // ── Deep-link / initial view handling ───────────────────────
     useEffect(() => {
@@ -138,6 +159,7 @@ export function KnowledgeBaseDrawer({
 
     // ── Back navigation ─────────────────────────────────────────
     const handleBack = useCallback(() => {
+        collapseSearch()
         handleSlideAnimation('right')
         switch (view) {
             case 'training-detail':
@@ -157,10 +179,11 @@ export function KnowledgeBaseDrawer({
             default:
                 setView('home')
         }
-    }, [view, handleSlideAnimation])
+    }, [view, handleSlideAnimation, collapseSearch])
 
     // ── Close handler ───────────────────────────────────────────
     const handleClose = useCallback(() => {
+        collapseSearch()
         setCalculatorOpen(false)
         setView('home')
         setSelectedTask(null)
@@ -168,7 +191,7 @@ export function KnowledgeBaseDrawer({
         setActiveScreener(null)
         setSlideDirection('')
         onClose()
-    }, [onClose])
+    }, [onClose, collapseSearch])
 
     // ── Swipe back ──────────────────────────────────────────────
     const canSwipeBack = view !== 'home'
@@ -178,22 +201,71 @@ export function KnowledgeBaseDrawer({
     )
 
     // ── Header config ───────────────────────────────────────────
+    const searchRightContent = useMemo(() => (
+        <div className="relative flex items-center w-full">
+            <animated.div
+                style={{
+                    opacity: searchSpring.progress.to(p => 1 - p),
+                    pointerEvents: isSearchExpanded ? 'none' : 'auto',
+                }}
+            >
+                <HeaderPill>
+                    <PillButton icon={Search} onClick={() => setIsSearchExpanded(true)} label="Search" />
+                    <PillButton icon={X} onClick={handleClose} label="Close" />
+                </HeaderPill>
+            </animated.div>
+
+            <animated.div
+                className="absolute inset-0 flex items-center"
+                style={{
+                    opacity: searchSpring.progress,
+                    transform: searchSpring.progress.to(p => `scale(${0.97 + 0.03 * p})`),
+                    pointerEvents: isSearchExpanded ? 'auto' : 'none',
+                }}
+            >
+                <div className="flex items-center w-full rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
+                    <input
+                        ref={searchInputRef}
+                        type="search"
+                        placeholder="Search..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Escape') collapseSearch() }}
+                        className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
+                    />
+                    <div
+                        className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
+                        onClick={collapseSearch}
+                    >
+                        <X className="w-5 h-5 stroke-themeblue1" />
+                    </div>
+                </div>
+            </animated.div>
+        </div>
+    ), [isSearchExpanded, searchQuery, searchSpring, handleClose, collapseSearch])
+
     const headerConfig = useMemo(() => {
+        const searchHeader = {
+            hideDefaultClose: true,
+            rightContentFill: isSearchExpanded,
+            rightContent: searchRightContent,
+        }
+
         switch (view) {
             case 'training':
-                return { title: 'STP 68W Training', showBack: true, onBack: handleBack }
+                return { title: 'STP 68W Training', showBack: true, onBack: handleBack, ...searchHeader }
             case 'training-detail':
-                return { title: selectedTask?.text || 'Task', showBack: true, onBack: handleBack }
+                return { title: selectedTask?.text || 'Task', showBack: true, onBack: handleBack, ...searchHeader }
             case 'medications':
-                return { title: tc3Mode ? 'TC3 Medications' : 'Medications', showBack: true, onBack: handleBack }
+                return { title: tc3Mode ? 'TC3 Medications' : 'Medications', showBack: true, onBack: handleBack, ...searchHeader }
             case 'medication-detail':
-                return { title: selectedMedication?.text || 'Medication', showBack: true, onBack: handleBack }
+                return { title: selectedMedication?.text || 'Medication', showBack: true, onBack: handleBack, ...searchHeader }
             case 'screener':
-                return { title: activeScreener?.title || 'Screener', showBack: true, onBack: handleBack }
+                return { title: activeScreener?.title || 'Screener', showBack: true, onBack: handleBack, ...searchHeader }
             default:
-                return { title: 'Knowledge Base' }
+                return { title: 'Knowledge Base', ...searchHeader }
         }
-    }, [view, selectedTask, selectedMedication, activeScreener, tc3Mode, handleBack])
+    }, [view, selectedTask, selectedMedication, activeScreener, tc3Mode, handleBack, isSearchExpanded, searchRightContent])
 
     return (
         <>
@@ -207,13 +279,14 @@ export function KnowledgeBaseDrawer({
             >
                 <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
                     {view === 'home' && (
-                        <KBHome onCategoryClick={handleCategoryClick} />
+                        <KBHome onCategoryClick={handleCategoryClick} searchQuery={searchQuery} />
                     )}
                     {(view === 'training' || view === 'training-detail') && (
                         <TrainingPanel
                             view={view as TrainingView}
                             selectedTask={selectedTask}
                             onSelectTask={handleSelectTask}
+                            searchQuery={searchQuery}
                         />
                     )}
                     {(view === 'medications' || view === 'medication-detail') && (
@@ -221,6 +294,7 @@ export function KnowledgeBaseDrawer({
                             selectedMedication={selectedMedication}
                             onMedicationSelect={handleMedicationSelect}
                             tc3Mode={tc3Mode}
+                            searchQuery={searchQuery}
                         />
                     )}
                     {view === 'screener' && activeScreener && (
@@ -241,7 +315,7 @@ export function KnowledgeBaseDrawer({
 
 // ── KB Home View ────────────────────────────────────────────────────────────
 
-function KBHome({ onCategoryClick }: { onCategoryClick: (cat: KBCategory) => void }) {
+function KBHome({ onCategoryClick, searchQuery: _searchQuery }: { onCategoryClick: (cat: KBCategory) => void; searchQuery: string }) {
     const grouped = useMemo(() => {
         const map = new Map<string, KBCategory[]>()
         for (const group of kbGroupOrder) {
@@ -643,13 +717,9 @@ function VitalSignsDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () =>
                 )}
                 <div className="px-6 py-3 border-b border-tertiary/10 flex items-center justify-between" data-drag-zone>
                     <h2 className="text-[11pt] font-normal text-primary md:text-2xl">Vital Signs</h2>
-                    <button
-                        onClick={onClose}
-                        className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
-                        aria-label="Close calculator"
-                    >
-                        <X size={24} className="text-tertiary" />
-                    </button>
+                    <HeaderPill>
+                        <PillButton icon={X} onClick={onClose} label="Close calculator" />
+                    </HeaderPill>
                 </div>
             </div>
 

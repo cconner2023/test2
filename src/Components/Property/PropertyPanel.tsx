@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
 import { Plus, Upload, Download, FileSpreadsheet, Eye, ArrowRightLeft, Trash2 } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
-import { SearchInput } from '../SearchInput'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useProperty } from '../../Hooks/useProperty'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuth } from '../../Hooks/useAuth'
 import { supabase } from '../../lib/supabase'
+import { VerticalPill, PillButton } from '../HeaderPill'
 import { CardContextMenu } from '../CardContextMenu'
 import { CardActionBar, type ActionBarAction } from '../CardActionBar'
 import { PropertyItemRow } from './PropertyItemRow'
@@ -40,6 +40,7 @@ export interface DetailActions {
 
 interface PropertyPanelProps {
   view: PropertyView
+  searchQuery?: string
   onSelectItem: (item: LocalPropertyItem) => void
   onAddItem: () => void
   onEditItem: (item: LocalPropertyItem) => void
@@ -55,7 +56,7 @@ interface PropertyPanelProps {
   onRegisterLocationActions?: (actions: LocationEditActions | null) => void
 }
 
-export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onRegisterLocationActions }: PropertyPanelProps) {
+export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '', onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onRegisterLocationActions }: PropertyPanelProps) {
   const { user } = useAuth()
   const property = useProperty()
   const showLoading = useMinLoadTime(property.isLoading)
@@ -63,7 +64,6 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
   const clinicName = useClinicName(property.clinicId) || 'Clinic'
   const [holders, setHolders] = useState<Map<string, HolderInfo>>(new Map())
   const [clinicMembers, setClinicMembers] = useState<HolderInfo[]>([])
-  const [filterQuery, setFilterQuery] = useState('')
   const [desktopLocationId, setDesktopLocationId] = useState<string | null>(null)
   const [csvImport, setCsvImport] = useState<{ rows: ParsedRow[]; errors: string[] } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -143,8 +143,8 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
     if (!isMobile && desktopLocationId) {
       list = list.filter((i) => i.location_id === desktopLocationId)
     }
-    if (filterQuery.trim()) {
-      const q = filterQuery.toLowerCase()
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
       list = list.filter((i) =>
         i.name.toLowerCase().includes(q) ||
         i.nomenclature?.toLowerCase().includes(q) ||
@@ -153,7 +153,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
       )
     }
     return list.sort((a, b) => a.name.localeCompare(b.name))
-  }, [property.items, store.holderFilter, filterQuery, isMobile, desktopLocationId])
+  }, [property.items, store.holderFilter, searchQuery, isMobile, desktopLocationId])
 
   // ── Selection handlers ──
 
@@ -449,52 +449,23 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
 
   return (
     <div className="flex flex-col h-full">
-      {/* Search + CSV toolbar */}
-      <div className="px-6 py-3 space-y-2">
-        <div className="flex items-center gap-2">
-          <div className="flex items-center gap-2 shrink-0">
-            {property.isSyncing && (
-              <span className="text-[10pt] text-tertiary animate-pulse mr-1">Syncing...</span>
-            )}
-            <button
-              title="Import CSV"
-              className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <Upload className="w-5 h-5 stroke-themeblue1" />
-            </button>
-            <button
-              title="Export CSV"
-              className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
-              onClick={() => exportPropertyCSV(property.items, visibleLocations)}
-            >
-              <Download className="w-5 h-5 stroke-themeblue1" />
-            </button>
-            <button
-              title="Download Template"
-              className="w-9 h-9 flex items-center justify-center bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
-              onClick={downloadCSVTemplate}
-            >
-              <FileSpreadsheet className="w-5 h-5 stroke-themeblue1" />
-            </button>
-          </div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={handleCSVFile}
-          />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv"
+        className="hidden"
+        onChange={handleCSVFile}
+      />
+
+      {property.isSyncing && (
+        <div className="px-6 py-1">
+          <span className="text-[10pt] text-tertiary animate-pulse">Syncing...</span>
         </div>
-        <SearchInput
-          value={filterQuery}
-          onChange={setFilterQuery}
-          placeholder="Search items..."
-        />
-      </div>
+      )}
 
       {/* Content area */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 flex min-h-0">
+        <div className="flex-1 overflow-y-auto min-w-0">
         {isMobile ? (
           <>
             {/* Mobile new-location inline form — triggered by header FolderPlus button */}
@@ -573,11 +544,19 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
             ))}
             {filteredItems.length === 0 && (
               <EmptyState
-                title={filterQuery ? 'No items match your filter' : desktopLocationId ? 'No items at this location' : 'No items in property book'}
+                title={searchQuery ? 'No items match your search' : desktopLocationId ? 'No items at this location' : 'No items in property book'}
               />
             )}
           </>
         )}
+        </div>
+        <div className="shrink-0 mt-3 mr-3 self-start">
+          <VerticalPill>
+            <PillButton icon={Upload} label="Import CSV" onClick={() => fileInputRef.current?.click()} />
+            <PillButton icon={Download} label="Export CSV" onClick={() => exportPropertyCSV(property.items, visibleLocations)} />
+            <PillButton icon={FileSpreadsheet} label="Download Template" onClick={downloadCSVTemplate} />
+          </VerticalPill>
+        </div>
       </div>
 
       {/* Bottom action bar — shown when items are selected */}
@@ -679,6 +658,13 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
   if (!isMobile) {
     return (
       <>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv"
+        className="hidden"
+        onChange={handleCSVFile}
+      />
       <div className="flex h-full">
         <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
           <div className="shrink-0 px-6 py-3 border-b border-primary/10">
@@ -786,8 +772,25 @@ export const PropertyPanel = memo(function PropertyPanel({ view, onSelectItem, o
         </div>
         <div className="flex-1 flex flex-col min-w-0 relative">
           {renderViewContent()}
+          <div className="absolute top-20 right-5 z-20">
+            <VerticalPill>
+              <PillButton icon={Upload} label="Import CSV" onClick={() => fileInputRef.current?.click()} />
+              <PillButton icon={Download} label="Export CSV" onClick={() => exportPropertyCSV(property.items, visibleLocations)} />
+              <PillButton icon={FileSpreadsheet} label="Download Template" onClick={downloadCSVTemplate} />
+            </VerticalPill>
+          </div>
         </div>
       </div>
+      {csvImport && (
+        <PropertyCSVImport
+          rows={csvImport.rows}
+          errors={csvImport.errors}
+          locations={visibleLocations}
+          clinicId={property.clinicId || ''}
+          onImport={property.addItem}
+          onClose={() => setCsvImport(null)}
+        />
+      )}
       <ConfirmDialog
         visible={!!pendingDelete}
         title={deleteDialogTitle}

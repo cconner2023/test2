@@ -27,7 +27,7 @@ import {
   fetchItemLedger,
   fetchHolderDiscrepancies,
 } from '../lib/propertyService'
-import { setupConnectivityListeners } from '../lib/syncService'
+import { setupConnectivityListeners, healStuckPendingRecords } from '../lib/syncService'
 import { getLocalDiscrepanciesByStatus } from '../lib/offlineDb'
 import type {
   PropertyItem,
@@ -96,7 +96,10 @@ export function useProperty() {
         if (!profile?.clinic_id || cancelled) { setIsLoading(false); return }
         clinicIdRef.current = profile.clinic_id
 
-        // Load from IDB (instant)
+        // Heal records stuck as 'pending' from before the _sync_status fix
+        await healStuckPendingRecords(user.id)
+
+        // Load from IDB (instant), reconciles with server if online
         await Promise.all([refreshItems(), refreshLocations(), refreshDiscrepancies()])
         if (!cancelled) setIsLoading(false)
 

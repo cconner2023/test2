@@ -7,10 +7,8 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Check, X, UserPlus, Clock, Building2, RotateCcw, Trash2 } from 'lucide-react'
+import { Check, X, UserPlus, Clock, Building2, RotateCcw, Trash2, UserCheck, Eye } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
-import { SearchInput } from '../SearchInput'
-
 import { SwipeableCard } from '../SwipeableCard'
 import { CardContextMenu } from '../CardContextMenu'
 import { CardActionBar } from '../CardActionBar'
@@ -25,14 +23,11 @@ import {
   reopenAccountRequest,
   deleteAccountRequest,
   listClinics,
+  listAllUsers,
 } from '../../lib/adminService'
 import type { AdminClinic } from '../../lib/adminService'
 import type { AccountRequest } from '../../lib/accountRequestService'
 import { UI_TIMING } from '../../Utilities/constants'
-
-// ─── Filter type ────────────────────────────────────────────
-type FilterTab = 'pending' | 'approved' | 'rejected' | 'all'
-const FILTER_TABS: readonly FilterTab[] = ['pending', 'approved', 'rejected', 'all'] as const
 
 // ─── Status badge colors ────────────────────────────────────
 function getStatusColor(status: string): string {
@@ -44,15 +39,23 @@ function getStatusColor(status: string): string {
   }
 }
 
+// ─── Public Interface ───────────────────────────────────────
+interface AdminRequestsListProps {
+  searchQuery?: string
+  /** Called after a request is approved — passes the new user so the parent can open the edit form */
+  onUserApproved?: (user: { id: string; first_name: string; last_name: string; email: string }) => void
+}
+
 // ─── Component ──────────────────────────────────────────────
-export function AdminRequestsList() {
+export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved }: AdminRequestsListProps) {
+  const searchQuery = searchQueryProp ?? ''
+
   // Data
   const [requests, setRequests] = useState<AccountRequest[]>([])
   const [clinics, setClinics] = useState<AdminClinic[]>([])
+  const [userEmails, setUserEmails] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const showLoading = useMinLoadTime(loading)
-  const [filter, setFilter] = useState<FilterTab>('pending')
-  const [searchQuery, setSearchQuery] = useState('')
 
   // Processing state
   const [processingId, setProcessingId] = useState<string | null>(null)
@@ -82,14 +85,16 @@ export function AdminRequestsList() {
   // ── Data loading ────────────────────────────────────────
   const loadRequests = useCallback(async () => {
     setLoading(true)
-    const [reqData, clinicData] = await Promise.all([
-      getAllAccountRequests(filter === 'all' ? undefined : filter),
+    const [reqData, clinicData, userData] = await Promise.all([
+      getAllAccountRequests(),
       listClinics(),
+      listAllUsers(),
     ])
     setRequests(reqData)
     setClinics(clinicData)
+    setUserEmails(new Set(userData.map(u => u.email?.toLowerCase()).filter(Boolean)))
     setLoading(false)
-  }, [filter])
+  }, [])
 
   useEffect(() => { loadRequests() }, [loadRequests])
 
@@ -104,10 +109,14 @@ export function AdminRequestsList() {
     return map
   }, [clinics])
 
-  // ── Search filtering ────────────────────────────────────
-  const filteredRequests = searchQuery.trim()
-    ? requests.filter((r) => {
-        const q = searchQuery.toLowerCase()
+  // ── Search filtering + sorting (pending first, then by date) ──
+  const filteredRequests = useMemo(() => {
+    // Approved requests become users — only show pending and rejected
+    let result = requests.filter(r => r.status !== 'approved')
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase()
+      result = result.filter((r) => {
         const fullName = `${r.first_name} ${r.middle_initial ?? ''} ${r.last_name}`.toLowerCase()
         return (
           fullName.includes(q) ||
@@ -116,7 +125,17 @@ export function AdminRequestsList() {
           (r.rank?.toLowerCase().includes(q) ?? false)
         )
       })
-    : requests
+    }
+
+    return [...result].sort((a, b) => {
+      const aPending = a.status === 'pending' ? 0 : 1
+      const bPending = b.status === 'pending' ? 0 : 1
+      if (aPending !== bPending) return aPending - bPending
+      const aTime = new Date(a.requested_at).getTime()
+      const bTime = new Date(b.requested_at).getTime()
+      return bTime - aTime
+    })
+  }, [requests, searchQuery])
 
   // ── Approve handler ─────────────────────────────────────
   const handleApprove = useCallback(async (requestId: string) => {
@@ -126,11 +145,21 @@ export function AdminRequestsList() {
       setApprovingId(null)
       setStatus({ type: 'success', message: 'Account approved and setup email sent' })
       await loadRequests()
+
+      // Navigate to user edit form so admin can adjust name, UIC, supervisor, etc.
+      if (onUserApproved && result.data?.userId) {
+        onUserApproved({
+          id: result.data.userId,
+          first_name: result.data.firstName ?? '',
+          last_name: result.data.lastName ?? '',
+          email: result.data.email ?? '',
+        })
+      }
     } else {
       setStatus({ type: 'error', message: `Failed to approve: ${result.error}` })
     }
     setProcessingId(null)
-  }, [loadRequests])
+  }, [loadRequests, onUserApproved])
 
   // ── Reject handler ──────────────────────────────────────
   const handleReject = useCallback(async (requestId: string) => {
@@ -258,30 +287,6 @@ export function AdminRequestsList() {
         </p>
 
         {status && <ErrorDisplay type={status.type} message={status.message} />}
-
-        {/* Filter tabs */}
-        <div className="flex gap-1 p-0.5 bg-themewhite2 rounded-lg overflow-x-auto">
-          {FILTER_TABS.map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setFilter(tab)}
-              className={`flex-1 px-3 py-1.5 rounded-md text-sm font-medium transition-colors whitespace-nowrap ${
-                filter === tab
-                  ? 'bg-themeblue2 text-white shadow-sm'
-                  : 'text-tertiary/70 hover:text-primary'
-              }`}
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          ))}
-        </div>
-
-        {/* Search */}
-        <SearchInput
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search by name, email, credential..."
-        />
       </div>
 
       {/* Card list — scrollable */}
@@ -289,7 +294,7 @@ export function AdminRequestsList() {
         {filteredRequests.length === 0 ? (
           <EmptyState
             icon={<Clock size={28} />}
-            title={`No ${filter !== 'all' ? filter + ' ' : ''}requests found`}
+            title={searchQuery ? 'No requests match your search' : 'No requests found'}
           />
         ) : (
           <div className={`grid gap-3 ${
@@ -307,14 +312,26 @@ export function AdminRequestsList() {
               const matchedClinic = request.uic
                 ? uicToClinic.get(request.uic.toUpperCase())
                 : undefined
+              const isExistingUser = isRejected && userEmails.has(request.email.toLowerCase())
 
               const swipeActions = isPending ? [
+                {
+                  key: 'view',
+                  label: 'View',
+                  icon: Eye,
+                  iconBg: 'bg-themegreen/15',
+                  iconColor: 'text-themegreen',
+                  onAction: () => {
+                    setOpenSwipeId(null)
+                    setSelectedIds(new Set([request.id]))
+                  },
+                },
                 {
                   key: 'approve',
                   label: 'Approve',
                   icon: Check,
-                  iconBg: 'bg-themegreen/15',
-                  iconColor: 'text-themegreen',
+                  iconBg: 'bg-themeblue2/15',
+                  iconColor: 'text-themeblue2',
                   onAction: () => {
                     setSelectedIds(new Set([request.id]))
                     setApprovingId(request.id)
@@ -337,8 +354,19 @@ export function AdminRequestsList() {
                 },
               ] : isRejected ? [
                 {
-                  key: 'reopen',
-                  label: 'Reopen',
+                  key: 'view',
+                  label: 'View',
+                  icon: Eye,
+                  iconBg: 'bg-themegreen/15',
+                  iconColor: 'text-themegreen',
+                  onAction: () => {
+                    setOpenSwipeId(null)
+                    setSelectedIds(new Set([request.id]))
+                  },
+                },
+                {
+                  key: 'return',
+                  label: 'Return',
                   icon: RotateCcw,
                   iconBg: 'bg-themeblue2/15',
                   iconColor: 'text-themeblue2',
@@ -408,12 +436,12 @@ export function AdminRequestsList() {
                           {request.middle_initial ? ` ${request.middle_initial}` : ''}{' '}
                           {request.last_name}
                         </p>
-                        <div className="flex items-center gap-2 flex-wrap">
+                        <div className="flex items-center gap-2 min-w-0">
                           {request.credential && (
-                            <p className="text-[9pt] text-tertiary/50 truncate">{request.credential}</p>
+                            <p className="text-[9pt] text-tertiary/50 shrink-0">{request.credential}</p>
                           )}
                           {request.email && (
-                            <p className="text-[9pt] text-tertiary/50 truncate">{request.email}</p>
+                            <p className="text-[9pt] text-tertiary/50 truncate min-w-0">{request.email}</p>
                           )}
                         </div>
                       </div>
@@ -451,6 +479,16 @@ export function AdminRequestsList() {
                             No clinic match
                           </span>
                         )}
+                      </div>
+                    )}
+
+                    {/* Strip: denied request already has a user account — safe to clear */}
+                    {isExistingUser && (
+                      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-themeblue2/10 border border-themeblue2/20">
+                        <UserCheck size={13} className="text-themeblue2 shrink-0" />
+                        <span className="text-[9px] font-medium text-themeblue2">
+                          Already a user — safe to clear this request
+                        </span>
                       </div>
                     )}
 
@@ -590,7 +628,7 @@ export function AdminRequestsList() {
                               disabled={processingId === request.id}
                               className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-themeblue3 text-white font-medium text-[10pt] hover:bg-themeblue3/90 disabled:opacity-50 transition-colors"
                             >
-                              <RotateCcw size={16} /> Reopen
+                              <RotateCcw size={16} /> Return
                             </button>
                             <button
                               onClick={() => setConfirmDeleteId(request.id)}
@@ -638,8 +676,8 @@ export function AdminRequestsList() {
           },
         ] : allRejected ? [
           {
-            key: 'reopen',
-            label: 'Reopen',
+            key: 'return',
+            label: 'Return',
             icon: RotateCcw,
             iconBg: 'bg-themeblue2/15',
             iconColor: 'text-themeblue2',
@@ -671,8 +709,14 @@ export function AdminRequestsList() {
         const ctxRequest = requests.find(r => r.id === contextMenu.requestId)
         const ctxItems = ctxRequest?.status === 'rejected' ? [
           {
-            key: 'reopen',
-            label: 'Reopen',
+            key: 'view',
+            label: 'View',
+            icon: Eye,
+            onAction: () => setSelectedIds(new Set([contextMenu.requestId])),
+          },
+          {
+            key: 'return',
+            label: 'Return',
             icon: RotateCcw,
             onAction: () => handleReopen(contextMenu.requestId),
           },
@@ -684,6 +728,12 @@ export function AdminRequestsList() {
             onAction: () => setConfirmDeleteId(contextMenu.requestId),
           },
         ] : [
+          {
+            key: 'view',
+            label: 'View',
+            icon: Eye,
+            onAction: () => setSelectedIds(new Set([contextMenu.requestId])),
+          },
           {
             key: 'approve',
             label: 'Approve',

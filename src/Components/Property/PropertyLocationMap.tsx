@@ -779,10 +779,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           {/* Anchored edit/save button — stays in place, icon morphs */}
           <button
             onClick={isEditing ? () => editRef.current?.save() : handleEnterEdit}
-            className={`p-2 rounded-full flex items-center justify-center active:scale-95 transition-all ${isEditing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+            className={`w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all ${isEditing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
             title={isEditing ? 'Save' : 'Edit'}
           >
-            {isEditing ? <Check size={15} /> : <Pencil size={15} />}
+            {isEditing ? <Check size={18} /> : <Pencil size={18} />}
           </button>
         </div>
 

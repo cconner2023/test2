@@ -9,7 +9,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Check, Plus, Pencil, Trash2, Building2, MapPin, Eye } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
-import { SearchInput } from '../SearchInput'
 import { SwipeableCard } from '../SwipeableCard'
 import { CardContextMenu } from '../CardContextMenu'
 import { CardActionBar } from '../CardActionBar'
@@ -26,6 +25,7 @@ interface AdminClinicsListProps {
   onEditClinic: (clinic: AdminClinic) => void
   onCreateClinic: () => void
   filterClinicId?: string | null
+  searchQuery?: string
 }
 
 export function AdminClinicsList({
@@ -33,13 +33,15 @@ export function AdminClinicsList({
   onEditClinic,
   onCreateClinic,
   filterClinicId,
+  searchQuery: searchQueryProp,
 }: AdminClinicsListProps) {
+  const searchQuery = searchQueryProp ?? ''
+
   // ── Data state ──────────────────────────────────────────────
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
   const showLoading = useMinLoadTime(loading)
-  const [searchQuery, setSearchQuery] = useState('')
 
   // ── Selection state ─────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -167,15 +169,7 @@ export function AdminClinicsList({
           <p className="text-sm text-tertiary/60">Manage clinics</p>
         </div>
 
-        {/* Feedback banner */}
         {status && <ErrorDisplay type={status.type} message={status.message} />}
-
-        {/* Search bar */}
-        <SearchInput
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search by name, location, or UIC..."
-        />
       </div>
 
       {/* Card list — scrollable */}

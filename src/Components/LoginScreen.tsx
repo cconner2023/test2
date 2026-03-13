@@ -10,12 +10,6 @@ import { TextInput, PasswordInput } from './FormInputs'
 
 type View = 'main' | 'reset' | 'resetToken' | 'pin'
 
-/* ── SVG trace animation ──
-   Single path traces the outer perimeter of the star-of-life (union of
-   three 6×22 rounded-rects at 0°/60°/120°).  18 vertices: 6 arm tips
-   (2 corners each) + 6 notch points where adjacent rect edges meet.
-   pathLength="1" lets us use simple 0→1 dashoffset math. */
-const STAR_PERIMETER = 'M-3-11 L3-11 L3-5.2 L8.03-8.1 L11.03-2.9 L6 0 L11.03 2.9 L8.03 8.1 L3 5.2 L3 11 L-3 11 L-3 5.2 L-8.03 8.1 L-11.03 2.9 L-6 0 L-11.03-2.9 L-8.03-8.1 L-3-5.2Z'
 
 export function LoginScreen() {
   const continueAsGuest = useAuthStore(s => s.continueAsGuest)
@@ -105,11 +99,11 @@ export function LoginScreen() {
   return (
     <div className="fixed inset-0 z-[90] bg-themewhite dark:bg-themewhite3 overflow-y-auto"
       style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
-      {/* Keyframes for SVG trace animation */}
+      {/* Keyframes for orbiting glow */}
       <style>{`
-        @keyframes login-trace {
-          0%   { stroke-dashoffset: 0; }
-          100% { stroke-dashoffset: -1; }
+        @keyframes login-orbit {
+          0%   { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
       `}</style>
 
@@ -117,23 +111,15 @@ export function LoginScreen() {
         <div className="w-full max-w-sm">
           {/* Branding */}
           <div className="text-center mb-15">
-            <svg className="w-17 h-17 mx-auto mb-2" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <defs>
-                <filter id="soft-light" x="-50%" y="-50%" width="200%" height="200%">
-                  <feGaussianBlur stdDeviation="1.2" />
-                </filter>
-              </defs>
-              <g transform="translate(20,20)">
-                {/* Trace — soft light roaming the perimeter (rendered behind fill so inner bleed is covered) */}
-                <path d={STAR_PERIMETER} pathLength={1} fill="none"
-                  stroke="var(--color-themeblue1)" strokeWidth={2.2} strokeLinecap="round"
-                  strokeDasharray="0.12 0.88" opacity={0.9} filter="url(#soft-light)"
-                  style={{ animation: 'login-trace 25s linear infinite' }} />
-                <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" />
-                <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" transform="rotate(60)" />
-                <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" transform="rotate(120)" />
-              </g>
-            </svg>
+            <div className="relative w-17 h-17 mx-auto mb-2">
+              <svg className="relative w-17 h-17" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <g transform="translate(20,20)">
+                  <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" />
+                  <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" transform="rotate(60)" />
+                  <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" transform="rotate(120)" />
+                </g>
+              </svg>
+            </div>
             <h1 className="text-xl font-semibold tracking-[2px] text-themeblue3 dark:text-themeblue1">
               ADTMC <div className='text-[10pt]'>Medical Knowledge Repository and Operational Network</div>
             </h1>
@@ -161,7 +147,7 @@ export function LoginScreen() {
                   type="submit"
                   disabled={loading}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                         bg-themeblue3 text-white font-medium disabled:opacity-50 transition-colors"
+                         bg-themeblue3 text-white disabled:opacity-50 transition-colors"
                 >
                   <LogIn size={18} />
                   {loading ? 'Signing In...' : 'Sign In'}
@@ -192,8 +178,8 @@ export function LoginScreen() {
               <div className="flex gap-3">
                 <button
                   onClick={continueAsGuest}
-                  className="flex-1 px-4 py-3 rounded-lg border-2 border-tertiary/20 text-primary
-                         font-medium hover:bg-themewhite2 transition-colors"
+                  className="flex-1 px-4 py-3 rounded-lg border-2 border-tertiary/10 text-primary
+                         font-medium"
                 >
                   Continue as Guest
                 </button>
@@ -202,8 +188,8 @@ export function LoginScreen() {
                     continueAsGuest()
                     useNavigationStore.getState().setShowSettings(true)
                   }}
-                  className="flex-1 px-4 py-3 rounded-lg border-2 border-tertiary/20 text-primary
-                         font-medium hover:bg-themewhite2 transition-colors"
+                  className="flex-1 px-4 py-3 rounded-lg border-2 border-tertiary/10 text-primary
+                         font-medium"
                 >
                   Request Account
                 </button>
