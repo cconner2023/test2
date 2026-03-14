@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { PenLine, Search, X } from 'lucide-react'
+import { PenLine, Search, X, CalendarDays, Plus } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -28,7 +28,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const [isSearchExpanded, setIsSearchExpanded] = useState(false)
     const searchInputRef = useRef<HTMLInputElement>(null)
     const messagesCtx = useMessagesContext()
-    const { user } = useAuth()
+    const { user, isDevRole } = useAuth()
     const { profile } = useUserProfile()
     const panelRef = useRef<MessagesPanelHandle>(null)
 
@@ -95,7 +95,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     }, [])
 
     const handleBack = useCallback(() => {
-        if (view === 'messages-chat' || view === 'messages-group-chat') {
+        if (view === 'messages-chat' || view === 'messages-group-chat' || view === 'messages-calendar') {
             setView('messages')
             setSelectedPeerId(null)
             setSelectedPeerName(null)
@@ -122,11 +122,26 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     )
 
     const isConversationView = view === 'messages-chat' || view === 'messages-group-chat'
-    const isMessagesActive = view === 'messages' || isConversationView
+    const isCalendarView = view === 'messages-calendar'
+    const isMessagesActive = view === 'messages' || isConversationView || isCalendarView
 
     const headerConfig = useMemo(() => {
         if (view === 'messages-chat' || view === 'messages-group-chat') {
             return { title: 'Messages', showBack: true, onBack: handleBack }
+        }
+        if (view === 'messages-calendar') {
+            return {
+                title: 'Calendar',
+                showBack: true,
+                onBack: handleBack,
+                hideDefaultClose: true,
+                rightContent: (
+                    <HeaderPill>
+                        <PillButton icon={Plus} onClick={() => {}} label="New event" />
+                        <PillButton icon={X} onClick={handleClose} label="Close" />
+                    </HeaderPill>
+                ),
+            }
         }
         return {
             title: 'Messages',
@@ -141,6 +156,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                         }}
                     >
                         <HeaderPill>
+                            {isDevRole && <PillButton icon={CalendarDays} onClick={() => setView('messages-calendar')} label="Calendar" />}
                             <PillButton icon={PenLine} onClick={() => panelRef.current?.createGroup()} label="New message" />
                             <PillButton icon={Search} onClick={() => setIsSearchExpanded(true)} label="Search" />
                             <PillButton icon={X} onClick={handleClose} label="Close" />
@@ -177,7 +193,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                 </div>
             ),
         }
-    }, [view, handleBack, handleClose, isSearchExpanded, searchQuery, searchSpring, collapseSearch])
+    }, [view, handleBack, handleClose, isSearchExpanded, searchQuery, searchSpring, collapseSearch, isDevRole])
 
     return (
         <BaseDrawer

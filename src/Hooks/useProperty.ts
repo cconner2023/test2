@@ -26,6 +26,7 @@ import {
   fetchSubItems,
   fetchItemLedger,
   fetchHolderDiscrepancies,
+  syncLocationNameToTags,
 } from '../lib/propertyService'
 import { setupConnectivityListeners, healStuckPendingRecords } from '../lib/syncService'
 import { getLocalDiscrepanciesByStatus } from '../lib/offlineDb'
@@ -199,6 +200,11 @@ export function useProperty() {
     const result = await updateLocation(id, updates, userId)
     if (result.success) {
       await refreshLocations()
+      // Sync renamed location → canvas tag labels
+      if (updates.name) {
+        await syncLocationNameToTags(id, updates.name)
+        usePropertyStore.getState().bumpTagVersion()
+      }
     }
     return result
   }, [refreshLocations])

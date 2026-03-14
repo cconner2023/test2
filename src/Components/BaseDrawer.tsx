@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback, type ReactNode } from 'react';
 import { useDrag } from '@use-gesture/react';
 import { X, ChevronLeft } from 'lucide-react';
+import { HeaderPill, PillButton } from './HeaderPill';
 import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils';
 import { DRAWER_TIMING } from '../Utilities/constants';
 import { useIsMobile } from '../Hooks/useIsMobile';
@@ -21,6 +22,8 @@ export interface DrawerHeaderConfig {
     hideDefaultClose?: boolean;
     /** When true, rightContent fills the header width (title collapses) */
     rightContentFill?: boolean;
+    /** Optional progress indicator rendered below the title row */
+    progressDots?: ReactNode;
 }
 
 /** Private header component rendered by BaseDrawer when header config is provided */
@@ -32,6 +35,7 @@ function DrawerHeader({
     rightContent,
     hideDefaultClose = false,
     rightContentFill = false,
+    progressDots,
     onClose,
     isMobile,
 }: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean }) {
@@ -72,16 +76,13 @@ function DrawerHeader({
                     <div className={`flex items-center gap-2${rightContentFill ? ' flex-1 min-w-0' : ' shrink-0'}`}>
                         {rightContent}
                         {!hideDefaultClose && (
-                            <button
-                                onClick={onClose}
-                                className="p-2 rounded-full hover:bg-themewhite2 md:hover:bg-themewhite active:scale-95 transition-all shrink-0"
-                                aria-label="Close"
-                            >
-                                <X size={24} className="text-tertiary" />
-                            </button>
+                            <HeaderPill>
+                                <PillButton icon={X} onClick={onClose} label="Close" />
+                            </HeaderPill>
                         )}
                     </div>
                 </div>
+                {progressDots}
             </div>
         </div>
     );
@@ -346,6 +347,7 @@ export function BaseDrawer({
                                     rightContent={header.rightContent}
                                     hideDefaultClose={header.hideDefaultClose}
                                     rightContentFill={header.rightContentFill}
+                                    progressDots={header.progressDots}
                                     onClose={handleClose}
                                     isMobile={useMobileLayout}
                                 />

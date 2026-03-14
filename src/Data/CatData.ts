@@ -19,6 +19,18 @@ export const menuData: sideMenuDataType[] = [
         gateKey: 'property'
     },
     {
+        text: 'Supervisor',
+        icon: 'supervisor',
+        action: 'supervisor',
+        gateKey: 'supervisor'
+    },
+    {
+        text: 'Admin',
+        icon: 'admin',
+        action: 'admin',
+        gateKey: 'admin'
+    },
+    {
         text: 'Settings',
         icon: 'settings',
         action: 'settings'

@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react'
 import './App.css'
 import { NavTop } from './Components/NavTop'
+import { SideNav } from './Components/SideNav'
 import { SearchResults } from './Components/SearchResults'
 import { ThemeProvider, useTheme } from './Utilities/ThemeContext'
 import { AvatarProvider } from './Utilities/AvatarContext'
@@ -71,7 +72,7 @@ function AppContent() {
   const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
 
   // ── Settings/training targeting state (lightweight replacement for useActiveNote) ──
-  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes'>('main')
+  const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'user-profile'>('main')
   const [initialTrainingTaskId, setInitialTrainingTaskId] = useState<string | null>(null)
   const [initialPeerId, setInitialPeerId] = useState<string | null>(null)
   const [initialGroupId, setInitialGroupId] = useState<string | null>(null)
@@ -138,6 +139,36 @@ function AppContent() {
   const handleSupervisorClick = useCallback(() => {
     navigation.setShowSupervisorDrawer(true)
   }, [navigation.setShowSupervisorDrawer])
+
+  const handleMenuItemClick = useCallback((action: string) => {
+    switch (action) {
+      case 'import':
+        navigation.setShowNoteImport(true)
+        break
+      case 'knowledgebase':
+        handleKnowledgeBaseClick()
+        break
+      case 'messages':
+        handleMessagesClick()
+        break
+      case 'property':
+        handlePropertyClick()
+        break
+      case 'supervisor':
+        handleSupervisorClick()
+        break
+      case 'admin':
+        handleAdminClick()
+        break
+      case 'settings':
+        navigation.setShowSettings(true)
+        break
+      case 'settings-profile':
+        setSettingsInitialPanel('user-profile')
+        navigation.setShowSettings(true)
+        break
+    }
+  }, [navigation.setShowNoteImport, navigation.setShowSettings, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleSupervisorClick, handleAdminClick])
 
   // Callback for notification toast tap — opens MessagesDrawer to the target conversation
   const handleNotificationTap = useCallback((n: MessageNotification) => {
@@ -223,10 +254,22 @@ function AppContent() {
       }
     }
 
+    // Screener / calculator → open KB to the right view
+    if (result.type === 'screener' && result.data?.kbCategoryId) {
+      navigation.setShowKnowledgeBase(true, 'screener', null, result.data.kbCategoryId)
+      search.clearSearch()
+      return
+    }
+    if (result.type === 'calculator' && result.data?.kbCategoryId) {
+      navigation.setShowKnowledgeBase(true, 'calculator', null, result.data.kbCategoryId)
+      search.clearSearch()
+      return
+    }
+
     // Navigation state change drives the grid column transition and Column A carousel
     navigation.handleNavigation(result)
     search.clearSearch()
-  }, [navigation.handleNavigation, search.clearSearch, navigation.setShowTrainingDrawer, navigation.isMobile, openTrainingTask])
+  }, [navigation.handleNavigation, search.clearSearch, navigation.setShowTrainingDrawer, navigation.isMobile, openTrainingTask, navigation.setShowKnowledgeBase])
 
   const clearSearchAndCollapse = useCallback(() => {
     search.clearSearch()
@@ -292,13 +335,14 @@ function AppContent() {
             actions={{
               onBackClick: handleBackClick,
               onMenuClick: navigation.toggleMenu,
-              onMenuClose: navigation.closeMenu,
               onImportClick: () => navigation.setShowNoteImport(true),
               onKnowledgeBaseClick: handleKnowledgeBaseClick,
               onSettingsClick: () => navigation.setShowSettings(true),
               onInfoClick: navigation.toggleSymptomInfo,
               onMessagesClick: handleMessagesClick,
               onPropertyClick: handlePropertyClick,
+              onSupervisorClick: handleSupervisorClick,
+              onAdminClick: handleAdminClick,
             }}
             ui={{
               showBack: navigation.shouldShowBackButton(!!search.searchInput.trim()),
@@ -306,7 +350,6 @@ function AppContent() {
               dynamicTitle: title,
               isMobile: navigation.isMobile,
               isAlgorithmView: navigation.showQuestionCard,
-              isMenuOpen: navigation.isMenuOpen,
             }}
           />
         </div>
@@ -378,14 +421,11 @@ function AppContent() {
             </div>
           )}
         </div>
-        {/* Menu backdrop - rendered at App level to avoid overflow-hidden clipping.
-            z-20 sits below navbar (z-30) but above content, so menu items remain clickable */}
-        {navigation.isMenuOpen && navigation.isMobile && (
-          <div
-            className="fixed inset-0 z-20"
-            onClick={navigation.closeMenu}
-          />
-        )}
+        <SideNav
+          isOpen={navigation.isMenuOpen && navigation.isMobile}
+          onClose={navigation.closeMenu}
+          onMenuItemClick={handleMenuItemClick}
+        />
         <ErrorBoundary>
         <Suspense fallback={null}>
         <NoteImport
@@ -404,8 +444,6 @@ function AppContent() {
           isDarkMode={theme === 'dark'}
           onToggleTheme={toggleTheme}
           initialPanel={settingsInitialPanel}
-          onOpenAdmin={handleAdminClick}
-          onOpenSupervisor={handleSupervisorClick}
         />
         </Suspense>
         </ErrorBoundary>
@@ -417,6 +455,7 @@ function AppContent() {
           initialView={navigation.kbInitialView}
           initialTaskId={initialTrainingTaskId}
           initialMedication={navigation.kbInitialMedication}
+          initialScreenerId={navigation.kbInitialScreenerId}
         />
         </Suspense>
         </ErrorBoundary>

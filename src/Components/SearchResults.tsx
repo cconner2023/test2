@@ -10,6 +10,8 @@ export interface SearchResultsProps {
     isSearching?: boolean
 }
 
+import { kbCategories } from '../Data/KnowledgeBaseCategories'
+
 // Badge configuration map for cleaner lookup
 const BADGE_CONFIG: Record<string, { label: string; className: string }> = {
     category: { label: 'CATEGORY', className: 'bg-themeblue3 text-primary' },
@@ -17,6 +19,8 @@ const BADGE_CONFIG: Record<string, { label: string; className: string }> = {
     medication: { label: 'MEDICATION', className: 'bg-themeyellowlow/30 text-secondary' },
     training: { label: 'GUIDELINE', className: 'bg-themewhite2 text-themeblue1' },
     DDX: { label: 'DDX', className: 'bg-themewhite2 text-themeblue1' },
+    screener: { label: 'SCREENER', className: 'bg-themegreen/15 text-themegreen' },
+    calculator: { label: 'CALCULATOR', className: 'bg-themeblue2/15 text-themeblue2' },
 }
 
 // Training type specific labels
@@ -63,7 +67,7 @@ export function SearchResults({
     if (!searchTerm.trim()) {
         return (
             <div className="h-full w-full mx-5 py-2 flex items-center justify-center text-tertiary">
-                <p>Search for symptoms, guidelines, or medications</p>
+                <p>Search symptoms, medications, screeners, or training</p>
             </div>
         )
     }
@@ -125,6 +129,11 @@ export function SearchResults({
                                 {result.type === 'training' && result.data?.guidelineType === 'medcom' && result.data?.categoryRef && (
                                     <div className="text-[10px] text-themeblue1/70 mt-1">
                                         {result.data.categoryRef.text}
+                                    </div>
+                                )}
+                                {(result.type === 'screener' || result.type === 'calculator') && result.data?.kbCategoryId && (
+                                    <div className="text-[10px] text-themeblue1/70 mt-1">
+                                        {kbCategories.find(c => c.id === result.data!.kbCategoryId)?.description}
                                     </div>
                                 )}
                             </div>

@@ -37,6 +37,7 @@ const CLOSE_ALL_DRAWERS = {
     showKnowledgeBase: false,
     kbInitialView: null as string | null,
     kbInitialMedication: null as medListTypes | null,
+    kbInitialScreenerId: null as string | null,
     showSymptomInfo: false,
     showTrainingDrawer: false,
     trainingDrawerTaskId: null as string | null,
@@ -60,6 +61,7 @@ interface NavigationState {
     showKnowledgeBase: boolean
     kbInitialView: string | null
     kbInitialMedication: medListTypes | null
+    kbInitialScreenerId: string | null
     isWriteNoteVisible: boolean
     writeNoteData: WriteNoteData | null
     showTrainingDrawer: boolean
@@ -89,7 +91,7 @@ interface NavigationActions {
     expandSearchOnMobile: () => void
     toggleSymptomInfo: () => void
     setShowSymptomInfo: (show: boolean) => void
-    setShowKnowledgeBase: (show: boolean, initialView?: string | null, initialMedication?: medListTypes | null) => void
+    setShowKnowledgeBase: (show: boolean, initialView?: string | null, initialMedication?: medListTypes | null, initialScreenerId?: string | null) => void
     setShowTrainingDrawer: (taskId: string | null) => void
     setShowMessagesDrawer: (show: boolean) => void
     setShowPropertyDrawer: (show: boolean) => void
@@ -116,6 +118,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     showKnowledgeBase: false,
     kbInitialView: null,
     kbInitialMedication: null,
+    kbInitialScreenerId: null,
     isWriteNoteVisible: false,
     writeNoteData: null,
     showTrainingDrawer: false,
@@ -267,12 +270,13 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         showSymptomInfo: show,
     })),
 
-    setShowKnowledgeBase: (show, initialView, initialMedication) => set((s) => ({
+    setShowKnowledgeBase: (show, initialView, initialMedication, initialScreenerId) => set((s) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
         ...PRESERVED_FIELDS(s),
         showKnowledgeBase: show,
         kbInitialView: show ? (initialView ?? null) : null,
         kbInitialMedication: show ? (initialMedication ?? null) : null,
+        kbInitialScreenerId: show ? (initialScreenerId ?? null) : null,
     })),
 
     setShowTrainingDrawer: (taskId) => set((s) => ({

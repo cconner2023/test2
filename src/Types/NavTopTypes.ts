@@ -20,13 +20,14 @@ interface SearchProps {
 interface NavigationActions {
   onBackClick?: () => void
   onMenuClick?: () => void
-  onMenuClose?: () => void
   onImportClick?: () => void
   onKnowledgeBaseClick?: () => void
   onSettingsClick?: () => void
   onInfoClick?: () => void
   onMessagesClick?: () => void
   onPropertyClick?: () => void
+  onSupervisorClick?: () => void
+  onAdminClick?: () => void
 }
 
 /**
@@ -38,7 +39,6 @@ interface UIState {
   dynamicTitle?: string
   isMobile: boolean
   isAlgorithmView?: boolean
-  isMenuOpen?: boolean
 }
 
 /**

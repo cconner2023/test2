@@ -32,6 +32,8 @@ interface CanvasEditOverlayProps {
   drawMode: boolean
   /** When true, only resize handles are interactive (no move). */
   resizeMode?: boolean
+  /** When true, dragging zones moves them. Required for touch — mouse moves implicitly. */
+  moveMode?: boolean
   /** Canvas scale — edit overlay matches the view-mode canvas size */
   scale?: number
   onSave: (tags: (Omit<LocationTag, 'id'> & { id?: string })[], removedTargetIds: string[]) => void
@@ -77,6 +79,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
   canvasId,
   drawMode,
   resizeMode = false,
+  moveMode = false,
   scale = 1,
   onSave,
   onCancel,
@@ -111,7 +114,6 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
   // Track target_ids removed by merge (so save handler can transfer items)
   const [mergedAwayIds, setMergedAwayIds] = useState<string[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
-  const nameInputRef = useRef<HTMLInputElement>(null)
 
   const toNorm = useCallback(
     (clientX: number, clientY: number) => {
@@ -233,32 +235,11 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
         setEditTags((prev) => [...prev, newTag])
         setNameInput('')
         setNamingIndex(editTags.length)
-        setTimeout(() => nameInputRef.current?.focus(), 50)
       }
     }
 
     setDragAction(null)
   }, [dragAction, editTags.length])
-
-  const handleNameConfirm = useCallback(() => {
-    if (namingIndex === null) return
-    const trimmed = nameInput.trim()
-    const existingLabel = editTags[namingIndex]?.label
-    if (!trimmed) {
-      // New zone with no name → remove; rename with no name → keep original
-      if (!existingLabel) {
-        setEditTags((prev) => prev.filter((_, i) => i !== namingIndex))
-      }
-    } else {
-      setEditTags((prev) => {
-        const next = [...prev]
-        next[namingIndex] = { ...next[namingIndex], label: trimmed }
-        return next
-      })
-    }
-    setNamingIndex(null)
-    setNameInput('')
-  }, [namingIndex, nameInput, editTags])
 
   // Track zone pointer-down to distinguish tap (select) from drag (move)
   const zoneDownRef = useRef<{ idx: number; x: number; y: number; nx: number; ny: number } | null>(null)
@@ -284,9 +265,13 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
       if (!dragAction) {
         const dx = Math.abs(e.clientX - down.x)
         const dy = Math.abs(e.clientY - down.y)
-        if (dx > 4 || dy > 4) {
+        const isTouch = e.pointerType === 'touch'
+        const threshold = isTouch ? 16 : 4
+        if (dx > threshold || dy > threshold) {
           // In resize mode, suppress move — only handles resize
           if (resizeMode) return
+          // Touch requires explicit move mode — otherwise let parent handle panning
+          if (isTouch && !moveMode) return
           // Start move drag
           const tag = editTags[down.idx]
           setDragAction({
@@ -298,7 +283,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
         }
       }
     },
-    [dragAction, editTags, resizeMode],
+    [dragAction, editTags, resizeMode, moveMode],
   )
 
   const handleZonePointerUp = useCallback(
@@ -519,7 +504,6 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
     if (!tag) return
     setNameInput(tag.label)
     setNamingIndex(idx)
-    setTimeout(() => nameInputRef.current?.focus(), 50)
   }, [selectedIndices, editTags])
 
   // External name prompt: notify parent when naming state changes
@@ -743,57 +727,6 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
           />
         )}
 
-        {/* Name prompt — fixed position within canvas so it stays visible (skipped when parent renders it) */}
-        {namingIndex !== null && !externalNamePrompt && (
-          <div className="sticky bottom-4 left-0 right-0 z-20 flex justify-center pointer-events-none">
-            <div className="pointer-events-auto bg-themewhite rounded-xl shadow-lg w-72 p-4 border border-primary/10">
-              <p className="text-[10pt] font-medium text-primary mb-2">
-                {editTags[namingIndex!]?.label ? 'Rename zone' : 'Name this zone'}
-              </p>
-              <input
-                ref={nameInputRef}
-                type="text"
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleNameConfirm()
-                  if (e.key === 'Escape') {
-                    // New zone (no label) → remove; rename → keep original
-                    if (!editTags[namingIndex!]?.label) {
-                      setEditTags((prev) => prev.filter((_, i) => i !== namingIndex))
-                    }
-                    setNamingIndex(null)
-                    setNameInput('')
-                  }
-                }}
-                placeholder="e.g. Arms Room, Supply Closet"
-                className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary placeholder:text-tertiary/40 outline-none focus:border-themeblue2 focus:outline-none border border-tertiary/20 transition-all"
-              />
-              <div className="flex items-center gap-2 mt-3">
-                <button
-                  onClick={() => {
-                    // New zone (no label) → remove; rename → keep original
-                    if (!editTags[namingIndex!]?.label) {
-                      setEditTags((prev) => prev.filter((_, i) => i !== namingIndex))
-                    }
-                    setNamingIndex(null)
-                    setNameInput('')
-                  }}
-                  className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleNameConfirm}
-                  disabled={!nameInput.trim()}
-                  className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white disabled:opacity-30 active:scale-95 transition-all"
-                >
-                  Done
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
     </div>
   )
 })

@@ -21,7 +21,8 @@ import { Check } from 'lucide-react'
 import { UI_TIMING } from '../Utilities/constants'
 import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils'
 import type { subjectAreaArrayOptions } from '../Types/CatTypes'
-import type { medListTypes } from '../Data/MedData'
+import { medList, type medListTypes } from '../Data/MedData'
+import { tc3MedList } from '../Data/TC3MedData'
 import type { ScreenerConfig, ScreenerWordList } from '../Types/AlgorithmTypes'
 
 type KBView =
@@ -38,6 +39,7 @@ interface KnowledgeBaseDrawerProps {
     initialView?: string | null
     initialTaskId?: string | null
     initialMedication?: medListTypes | null
+    initialScreenerId?: string | null
 }
 
 const screenerMap: Record<string, ScreenerConfig> = {
@@ -53,6 +55,7 @@ export function KnowledgeBaseDrawer({
     initialView,
     initialTaskId,
     initialMedication,
+    initialScreenerId,
 }: KnowledgeBaseDrawerProps) {
     const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
     const [view, setView] = useState<KBView>('home')
@@ -103,6 +106,13 @@ export function KnowledgeBaseDrawer({
         } else if (initialView === 'medication-detail' && initialMedication) {
             setSelectedMedication(initialMedication)
             setView('medication-detail')
+            setSlideDirection('')
+        } else if (initialView === 'screener' && initialScreenerId && screenerMap[initialScreenerId]) {
+            setActiveScreener(screenerMap[initialScreenerId])
+            setView('screener')
+            setSlideDirection('')
+        } else if (initialView === 'calculator' && initialScreenerId === 'vital-signs') {
+            setCalculatorOpen(true)
             setSlideDirection('')
         } else {
             setView('home')
@@ -279,7 +289,13 @@ export function KnowledgeBaseDrawer({
             >
                 <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
                     {view === 'home' && (
-                        <KBHome onCategoryClick={handleCategoryClick} searchQuery={searchQuery} />
+                        <KBHome
+                            onCategoryClick={handleCategoryClick}
+                            searchQuery={searchQuery}
+                            onSelectTask={handleSelectTask}
+                            onMedicationSelect={handleMedicationSelect}
+                            tc3Mode={tc3Mode}
+                        />
                     )}
                     {(view === 'training' || view === 'training-detail') && (
                         <TrainingPanel
@@ -313,9 +329,32 @@ export function KnowledgeBaseDrawer({
     )
 }
 
+// ── KB Search Result Types ────────────────────────────────────────────────────
+
+type KBSearchResult = {
+    type: 'category' | 'task' | 'medication'
+    label: string
+    subtitle: string
+    badge: string
+    badgeClass: string
+    onSelect: () => void
+}
+
 // ── KB Home View ────────────────────────────────────────────────────────────
 
-function KBHome({ onCategoryClick, searchQuery: _searchQuery }: { onCategoryClick: (cat: KBCategory) => void; searchQuery: string }) {
+function KBHome({
+    onCategoryClick,
+    searchQuery,
+    onSelectTask,
+    onMedicationSelect,
+    tc3Mode,
+}: {
+    onCategoryClick: (cat: KBCategory) => void
+    searchQuery: string
+    onSelectTask: (task: subjectAreaArrayOptions) => void
+    onMedicationSelect: (medication: medListTypes) => void
+    tc3Mode: boolean
+}) {
     const grouped = useMemo(() => {
         const map = new Map<string, KBCategory[]>()
         for (const group of kbGroupOrder) {
@@ -324,6 +363,138 @@ function KBHome({ onCategoryClick, searchQuery: _searchQuery }: { onCategoryClic
         return map
     }, [])
 
+    // Build KB-scoped search index once
+    const kbSearchIndex = useMemo(() => {
+        const items: Omit<KBSearchResult, 'onSelect'>[] = []
+
+        // KB categories
+        kbCategories.forEach(cat => {
+            if (cat.comingSoon) return
+            items.push({
+                type: 'category',
+                label: cat.label,
+                subtitle: cat.description,
+                badge: kbGroupLabels[cat.group],
+                badgeClass: cat.group === 'screening'
+                    ? 'bg-themegreen/15 text-themegreen'
+                    : cat.group === 'calculators'
+                    ? 'bg-themeblue2/15 text-themeblue2'
+                    : 'bg-themewhite2 text-secondary',
+            })
+        })
+
+        // Training tasks (deduplicated)
+        const seenTaskIds = new Set<string>()
+        stp68wTraining.forEach(level => {
+            level.subjectArea.forEach((area, areaIdx) => {
+                area.tasks.forEach((task, taskIdx) => {
+                    if (seenTaskIds.has(task.id)) return
+                    seenTaskIds.add(task.id)
+                    items.push({
+                        type: 'task',
+                        label: task.title,
+                        subtitle: `${task.id} · ${area.name}`,
+                        badge: 'STP TASK',
+                        badgeClass: 'bg-themewhite2 text-themeblue1',
+                    })
+                })
+            })
+        })
+
+        // Medications
+        const list = tc3Mode ? tc3MedList : medList
+        list.forEach(med => {
+            items.push({
+                type: 'medication',
+                label: med.icon,
+                subtitle: med.text,
+                badge: 'MEDICATION',
+                badgeClass: 'bg-themeyellowlow/30 text-secondary',
+            })
+        })
+
+        return items
+    }, [tc3Mode])
+
+    // Filter results when searching
+    const searchResults = useMemo(() => {
+        const q = searchQuery.trim().toLowerCase()
+        if (!q) return null
+
+        return kbSearchIndex.filter(item =>
+            item.label.toLowerCase().includes(q) ||
+            item.subtitle.toLowerCase().includes(q)
+        ).slice(0, 50)
+    }, [searchQuery, kbSearchIndex])
+
+    // Resolve click handlers for search results
+    const handleResultClick = useCallback((result: typeof kbSearchIndex[0]) => {
+        if (result.type === 'category') {
+            const cat = kbCategories.find(c => c.label === result.label)
+            if (cat) onCategoryClick(cat)
+        } else if (result.type === 'task') {
+            const taskId = result.subtitle.split(' · ')[0]
+            for (const level of stp68wTraining) {
+                for (let areaIdx = 0; areaIdx < level.subjectArea.length; areaIdx++) {
+                    const area = level.subjectArea[areaIdx]
+                    const taskIdx = area.tasks.findIndex(t => t.id === taskId)
+                    if (taskIdx !== -1) {
+                        onSelectTask({
+                            id: taskIdx,
+                            icon: taskId,
+                            text: area.tasks[taskIdx].title,
+                            isParent: false,
+                            parentId: areaIdx,
+                        })
+                        return
+                    }
+                }
+            }
+        } else if (result.type === 'medication') {
+            const list = tc3Mode ? tc3MedList : medList
+            const med = list.find(m => m.icon === result.label)
+            if (med) onMedicationSelect(med)
+        }
+    }, [onCategoryClick, onSelectTask, onMedicationSelect, tc3Mode])
+
+    // ── Search results view ───────────────────────────────────
+    if (searchResults) {
+        if (searchResults.length === 0) {
+            return (
+                <div className="h-full flex items-center justify-center text-themeblue1">
+                    <div className="text-center">
+                        <p className="text-sm">No results for "{searchQuery}"</p>
+                        <p className="text-xs mt-1 text-tertiary">Try different keywords</p>
+                    </div>
+                </div>
+            )
+        }
+
+        return (
+            <div className="h-full overflow-y-auto">
+                <div className="px-3 py-2 text-xs text-tertiary border-b border-themewhite2">
+                    {searchResults.length} result{searchResults.length !== 1 ? 's' : ''}
+                </div>
+                {searchResults.map((result, idx) => (
+                    <button
+                        key={`${result.type}-${result.label}-${idx}`}
+                        className="flex items-start gap-3 w-full px-4 py-3 text-left border-b border-themewhite2/50 hover:bg-themewhite2 active:scale-95 transition-all cursor-pointer"
+                        onClick={() => handleResultClick(result)}
+                    >
+                        <span className={`text-[8pt] px-2 py-1 rounded-md shrink-0 ${result.badgeClass}`}>
+                            {result.badge}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm text-primary truncate">{result.label}</p>
+                            <p className="text-[10px] text-themeblue1/70 mt-0.5">{result.subtitle}</p>
+                        </div>
+                    </button>
+                ))}
+            </div>
+        )
+    }
+
+    // ── Default category grid ─────────────────────────────────
     return (
         <div className="h-full overflow-y-auto">
             <div className="px-4 py-3 md:p-5">

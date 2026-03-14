@@ -2,7 +2,7 @@ import { memo, useState, useCallback } from 'react'
 import { ChevronLeft, ChevronRight, FileText } from 'lucide-react'
 import { useTC3Store } from '../../stores/useTC3Store'
 import { TC3_WIZARD_PAGES } from '../../Types/TC3Types'
-import { SlideWrapper } from '../WriteNoteHelpers'
+import { SlideWrapper, ProgressDots } from '../WriteNoteHelpers'
 import { CasualtyInfoForm } from './CasualtyInfoForm'
 import { MechanismForm } from './MechanismForm'
 import { BodyDiagram } from './BodyDiagram'
@@ -69,21 +69,7 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
             </h2>
           </div>
         </div>
-        {/* Progress dots */}
-        <div className="flex gap-1.5 mt-2">
-          {PAGES.map((_, idx) => (
-            <div
-              key={idx}
-              className={`h-1 rounded-full transition-all duration-300 ${
-                idx === wizardStep
-                  ? 'w-4 bg-themeredred'
-                  : idx < wizardStep
-                    ? 'w-1.5 bg-themeredred/40'
-                    : 'w-1.5 bg-tertiary/20'
-              }`}
-            />
-          ))}
-        </div>
+        <ProgressDots pages={PAGES} currentPage={wizardStep} colorClass="bg-themeredred" />
       </div>
 
       {/* Page content */}

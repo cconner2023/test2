@@ -1,30 +1,17 @@
 // NavTop.tsx - Simplified version with grouped props
-import { Search, X, Menu, ChevronLeft, Upload, Info, Settings, HelpCircle, BookOpen, Mail, Package } from "lucide-react";
-import { useRef, useEffect, useMemo } from "react";
-import { useSpring, useTrail, animated, to } from '@react-spring/web';
+import { Search, X, ChevronLeft, Info, Mail, Upload, BookOpen, Package, ClipboardCheck, UserCog, ChevronDown } from "lucide-react";
+import { useState, useRef, useEffect, useMemo } from "react";
+import { useSpring, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { useAvatar } from "../Utilities/AvatarContext";
 import { useAuth } from "../Hooks/useAuth";
 import { useMessagesContext } from "../Hooks/MessagesContext";
 import { getInitials } from "../Utilities/nameUtils";
-import { createLogger } from "../Utilities/Logger";
 import { PROPERTY_MANAGEMENT_ENABLED } from "../lib/featureFlags";
-
-const logger = createLogger('NavTop');
-import { menuData as allMenuData } from "../Data/CatData";
-
-// Icon map for menu items
-const iconMap: Record<string, React.ReactNode> = {
-    'import': <Upload size={16} className="text-primary/70" />,
-    'knowledgebase': <BookOpen size={16} className="text-primary/70" />,
-    'messages': <Mail size={16} className="text-primary/70" />,
-    'property': <Package size={16} className="text-primary/70" />,
-    'settings': <Settings size={16} className="text-primary/70" />,
-};
 
 export function NavTop({ search, actions, ui }: NavTopProps) {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
-    const { profile, isAuthenticated } = useAuth()
+    const { profile, isAuthenticated, isSupervisorRole, isDevRole } = useAuth()
     const messagesCtx = useMessagesContext()
     const totalUnread = useMemo(() => {
         if (!messagesCtx) return 0
@@ -46,13 +33,14 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
     const {
         onBackClick,
         onMenuClick,
-        onMenuClose,
         onImportClick,
         onKnowledgeBaseClick,
         onSettingsClick,
         onInfoClick,
         onMessagesClick,
         onPropertyClick,
+        onSupervisorClick,
+        onAdminClick,
     } = actions
 
     const {
@@ -60,15 +48,30 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         dynamicTitle,
         isMobile,
         isAlgorithmView = false,
-        isMenuOpen = false,
     } = ui
 
-    const menuData = useMemo(() => allMenuData.filter(item => {
-        if (!item.gateKey) return true
-        if (item.gateKey === 'authenticated') return isAuthenticated
-        if (item.gateKey === 'property') return isAuthenticated && PROPERTY_MANAGEMENT_ENABLED
-        return true
-    }), [isAuthenticated]);
+    // Roles dropdown state
+    const [rolesOpen, setRolesOpen] = useState(false)
+    const rolesRef = useRef<HTMLDivElement>(null)
+    const hasAnyRole = isSupervisorRole || isDevRole
+    const hasBothRoles = isSupervisorRole && isDevRole
+
+    // Close roles dropdown on click-away or Escape
+    useEffect(() => {
+        if (!rolesOpen) return
+        const handleClick = (e: MouseEvent) => {
+            if (rolesRef.current && !rolesRef.current.contains(e.target as Node)) setRolesOpen(false)
+        }
+        const handleKey = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setRolesOpen(false)
+        }
+        document.addEventListener('mousedown', handleClick)
+        document.addEventListener('keydown', handleKey)
+        return () => {
+            document.removeEventListener('mousedown', handleClick)
+            document.removeEventListener('keydown', handleKey)
+        }
+    }, [rolesOpen])
 
     // Refs and computed values
     const internalInputRef = useRef<HTMLInputElement>(null);
@@ -78,23 +81,10 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
     // Mobile-specific UI flags
     const shouldShowMessagesButton = isMobile && isAuthenticated && !isSearchExpanded;
     const shouldShowInfoButton = isMobile && isAlgorithmView && !isSearchExpanded;
-    // Menu spring: container expansion
-    const containerSpring = useSpring({
-        width: isMenuOpen ? 224 : 48,
-        height: isMenuOpen ? menuData.length * 48 + 24 : 48,
-        borderRadius: isMenuOpen ? 6 : 22,
-        padTop: isMenuOpen ? 12 : 2,
-        padBottom: isMenuOpen ? 12 : 2,
-        padLeft: isMenuOpen ? 12 : 2,
-        padRight: isMenuOpen ? 20 : 2,
-        config: { tension: 220, friction: 26 },
-    });
 
-    // Menu button spring: hidden when menu open OR navigated to detail (showBack)
-    const buttonSpring = useSpring({
-        opacity: (isMenuOpen || showBack) ? 0 : 1,
-        x: isMenuOpen ? 3 : showBack ? -3 : 0,
-        scale: (isMenuOpen || showBack) ? 1.05 : 1,
+    // Avatar button spring: hidden when navigated to detail (showBack)
+    const avatarSpring = useSpring({
+        opacity: showBack ? 0 : 1,
         config: { tension: 220, friction: 26 },
     });
 
@@ -124,38 +114,6 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         buttonsOpacity: isSearchExpanded ? 0 : 1,
         config: { tension: 260, friction: 26 },
     });
-
-    // Menu spring: staggered item reveal
-    const menuItemTrail = useTrail(menuData.length, {
-        opacity: isMenuOpen ? 1 : 0,
-        y: isMenuOpen ? 0 : 8,
-        config: { tension: 300, friction: 28 },
-        delay: isMenuOpen ? 200 : 0,
-    });
-
-    // Menu item click handler
-    const handleMenuItemClick = (action: string) => {
-        switch (action) {
-            case 'import':
-                onImportClick?.();
-                break;
-            case 'knowledgebase':
-                onKnowledgeBaseClick?.();
-                break;
-            case 'messages':
-                onMessagesClick?.();
-                break;
-            case 'property':
-                onPropertyClick?.();
-                break;
-            case 'settings':
-                onSettingsClick?.();
-                break;
-            default:
-                logger.warn("Unknown menu action:", action);
-        }
-        onMenuClose?.();
-    };
 
     // Focus input when mobile search expands
     useEffect(() => {
@@ -211,7 +169,7 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
             {/* Left section: buttons - hidden when mobile search is expanded */}
             {(!isMobile || !isSearchExpanded) && (
                 <div className="flex items-center shrink-0">
-                    {/* Mobile: Back + Menu button crossfade */}
+                    {/* Mobile: Back + Avatar button crossfade */}
                     {isMobile && (
                         <div className="relative">
                             {/* Invisible spacer to maintain navbar layout - 48px to match button */}
@@ -238,35 +196,15 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                 </div>
                             </animated.div>
 
-                            {/* Backdrop is rendered at App level to avoid overflow-hidden clipping */}
-
-                            {/* Morphing container: button → menu panel */}
+                            {/* Avatar button — opens SideNav */}
                             <animated.div
-                                className="absolute top-0 left-1 z-50 transform-gpu overflow-hidden bg-themewhite"
+                                className="absolute top-0.5 left-1"
                                 style={{
-                                    transformOrigin: 'top left',
-                                    width: containerSpring.width,
-                                    height: containerSpring.height,
-                                    borderRadius: containerSpring.borderRadius,
-                                    paddingTop: containerSpring.padTop,
-                                    paddingBottom: containerSpring.padBottom,
-                                    paddingLeft: containerSpring.padLeft,
-                                    paddingRight: containerSpring.padRight,
-                                    opacity: buttonSpring.opacity.to(o => isMenuOpen ? 1 : o),
-                                    pointerEvents: (isMenuOpen || !showBack) ? 'auto' : 'none',
+                                    opacity: avatarSpring.opacity,
+                                    pointerEvents: showBack ? 'none' : 'auto',
                                 }}
                             >
-                                {/* Border overlay - always visible */}
-                                <div className="absolute inset-0 rounded-inherit pointer-events-none border border-tertiary/15" />
-                                {/* Menu button - avatar on mobile, fades in with right-to-left slide */}
-                                <animated.div
-                                    className="absolute top-0.5 left-0.5 w-11 h-11 flex items-center justify-center z-20"
-                                    style={{
-                                        opacity: buttonSpring.opacity,
-                                        transform: to([buttonSpring.x, buttonSpring.scale], (x, s) => `translateX(${x}px) scale(${s})`),
-                                        pointerEvents: (isMenuOpen || showBack) ? 'none' : 'auto',
-                                    }}
-                                >
+                                <div className={BUTTON_CLASSES.mobileContainer}>
                                     <button
                                         onClick={onMenuClick}
                                         className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform overflow-hidden"
@@ -290,33 +228,6 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                             </div>
                                         )}
                                     </button>
-                                </animated.div>
-
-                                {/* Menu items: staggered spring reveal */}
-                                <div className="relative z-10 space-y-0.5">
-                                    {menuItemTrail.map((style, index) => (
-                                        <animated.button
-                                            key={index}
-                                            onClick={() => handleMenuItemClick(menuData[index].action)}
-                                            className="w-full text-left flex items-center pl-3 pr-4 py-3 rounded-xl cursor-pointer hover:bg-themewhite2/60 bg-transparent active:scale-[0.97] transform-gpu transition-colors"
-                                            style={{
-                                                opacity: style.opacity,
-                                                transform: style.y.to(y => `translateY(${y}px)`),
-                                            }}
-                                        >
-                                            <div className="mr-3 relative">
-                                                {iconMap[menuData[index].action] || <HelpCircle size={16} className="text-primary/70" />}
-                                                {menuData[index].badge && totalUnread > 0 && (
-                                                    <span className="absolute -top-1.5 -right-1.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
-                                                        {totalUnread > 99 ? '99+' : totalUnread}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <span className="tracking-wide text-sm text-primary/80 font-medium">
-                                                {menuData[index].text}
-                                            </span>
-                                        </animated.button>
-                                    ))}
                                 </div>
                             </animated.div>
                         </div>
@@ -368,6 +279,67 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                     </span>
                                 </button>
                             </animated.div>
+                            {/* Roles — dropdown when both roles, direct button when single */}
+                            {hasAnyRole && (
+                                hasBothRoles ? (
+                                    <div ref={rolesRef} className="relative">
+                                        <button
+                                            onClick={() => setRolesOpen(!rolesOpen)}
+                                            className={BUTTON_CLASSES.desktop}
+                                            aria-label="Roles"
+                                            title="Roles"
+                                        >
+                                            <ClipboardCheck className="w-4 h-4 stroke-themeblue1" />
+                                            <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
+                                                Roles
+                                            </span>
+                                            <ChevronDown className={`w-3 h-3 stroke-themeblue1 ml-1 transition-transform duration-200 ${rolesOpen ? 'rotate-180' : ''}`} />
+                                        </button>
+                                        {rolesOpen && (
+                                            <div className="absolute top-full left-0 mt-1 min-w-[160px] rounded-xl bg-themewhite2 shadow-lg border border-primary/10 py-1 z-50">
+                                                <button
+                                                    onClick={() => { onSupervisorClick?.(); setRolesOpen(false); }}
+                                                    className="w-full text-left flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-primary/5 active:bg-primary/10 transition-colors"
+                                                >
+                                                    <ClipboardCheck className="w-4 h-4 stroke-themeblue1" />
+                                                    <span className="text-[10pt] text-tertiary">Supervisor</span>
+                                                </button>
+                                                <button
+                                                    onClick={() => { onAdminClick?.(); setRolesOpen(false); }}
+                                                    className="w-full text-left flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-primary/5 active:bg-primary/10 transition-colors"
+                                                >
+                                                    <UserCog className="w-4 h-4 stroke-themeblue1" />
+                                                    <span className="text-[10pt] text-tertiary">Admin</span>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                ) : isSupervisorRole ? (
+                                    <button
+                                        onClick={onSupervisorClick}
+                                        className={BUTTON_CLASSES.desktop}
+                                        aria-label="Supervisor"
+                                        title="Supervisor"
+                                    >
+                                        <ClipboardCheck className="w-4 h-4 stroke-themeblue1" />
+                                        <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
+                                            Supervisor
+                                        </span>
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={onAdminClick}
+                                        className={BUTTON_CLASSES.desktop}
+                                        aria-label="Admin"
+                                        title="Admin"
+                                    >
+                                        <UserCog className="w-4 h-4 stroke-themeblue1" />
+                                        <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
+                                            Admin
+                                        </span>
+                                    </button>
+                                )
+                            )}
                             {/* Knowledge Base */}
                             <button
                                 onClick={onKnowledgeBaseClick}

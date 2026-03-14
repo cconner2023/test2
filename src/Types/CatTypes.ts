@@ -66,7 +66,7 @@ export interface differential {
 
 // Types/CatTypes.ts - Update SearchResultType
 export type SearchResultType = {
-    type: 'category' | 'CC' | 'training' | 'DDX' | 'medication';
+    type: 'category' | 'CC' | 'training' | 'DDX' | 'medication' | 'screener' | 'calculator';
     id: number;
     icon: string;
     text: string;
@@ -82,6 +82,7 @@ export type SearchResultType = {
         subjectArea?: string;
         categoryRef?: catDataTypes;
         symptomRef?: subCatDataTypes;
+        kbCategoryId?: string;
     };
 }
 
@@ -89,6 +90,6 @@ export interface sideMenuDataType {
     text: string,
     icon: string,
     action: string,
-    gateKey?: 'authenticated' | 'property',
+    gateKey?: 'authenticated' | 'property' | 'supervisor' | 'admin',
     badge?: boolean
 }

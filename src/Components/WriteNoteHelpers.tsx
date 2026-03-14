@@ -1,5 +1,5 @@
 import type { RefObject } from 'react';
-import { Check, Copy, Share2, FileDown, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Check, Copy, Share2, FileDown, ChevronRight } from 'lucide-react';
 import type { getColorClasses } from '../Utilities/ColorUtilities';
 import type { TextExpander } from '../Data/User';
 import type { useTemplateSession } from '../Hooks/useTemplateSession';
@@ -256,84 +256,32 @@ export function exportStatusToIconStatus(status: string): 'idle' | 'busy' | 'don
 }
 
 // ---------------------------------------------------------------------------
-// NoteWizardHeader — Drag handle + title bar + progress dots.
-// Shared note-wizard UI component.
+// ProgressDots — Step indicator dots for multi-page wizards.
+// Used by WriteNotePage (via BaseDrawer's progressDots slot) and TC3MobileWizard.
 // ---------------------------------------------------------------------------
 
-export const NoteWizardHeader = ({
-    visiblePages,
+export const ProgressDots = ({
+    pages,
     currentPage,
-    onPageBack,
-    onClose,
-    colors,
-    isMobile,
+    colorClass,
 }: {
-    visiblePages: { id: string; label: string }[];
+    pages: { id: string; label: string }[];
     currentPage: number;
-    onPageBack: () => void;
-    onClose: () => void;
-    colors: ReturnType<typeof getColorClasses>;
-    isMobile: boolean;
+    colorClass: string;
 }) => (
-    <>
-        {isMobile && (
+    <div className="flex gap-1.5 mt-2">
+        {pages.map((page, idx) => (
             <div
-                className="flex justify-center pt-3 pb-2 cursor-grab active:cursor-grabbing"
-                style={{ touchAction: 'none' }}
-                data-drag-zone
-            >
-                <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
-            </div>
-        )}
-        <div
-            className="px-6 border-b border-tertiary/10 py-3 md:py-4"
-            style={isMobile ? { touchAction: 'none' } : {}}
-            data-drag-zone
-        >
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 min-w-0 transition-all duration-200">
-                    <div
-                        className="shrink-0 overflow-hidden transition-all duration-200"
-                        style={{
-                            width: currentPage > 0 ? 40 : 0,
-                            opacity: currentPage > 0 ? 1 : 0,
-                        }}
-                    >
-                        <button
-                            onClick={onPageBack}
-                            className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
-                            aria-label="Go back"
-                        >
-                            <ChevronLeft className="w-6 h-6 text-tertiary" />
-                        </button>
-                    </div>
-                    <h2 className="text-[11pt] font-normal text-primary md:text-2xl truncate">
-                        {visiblePages[currentPage]?.label}
-                    </h2>
-                </div>
-                <button
-                    onClick={onClose}
-                    className="p-2 rounded-full hover:bg-themewhite2 md:hover:bg-themewhite active:scale-95 transition-all shrink-0"
-                    aria-label="Close"
-                >
-                    <X className="w-6 h-6 text-tertiary" />
-                </button>
-            </div>
-            <div className="flex gap-1.5 mt-2">
-                {visiblePages.map((_, idx) => (
-                    <div
-                        key={idx}
-                        className={`h-1 rounded-full transition-all duration-300 ${idx === currentPage
-                            ? `w-4 ${colors.symptomClass}`
-                            : idx < currentPage
-                                ? `w-1.5 ${colors.symptomClass} opacity-40`
-                                : 'w-1.5 bg-themegray1/30'
-                            }`}
-                    />
-                ))}
-            </div>
-        </div>
-    </>
+                key={page.id}
+                className={`h-1 rounded-full transition-all duration-300 ${idx === currentPage
+                    ? `w-4 ${colorClass}`
+                    : idx < currentPage
+                        ? `w-1.5 ${colorClass} opacity-40`
+                        : 'w-1.5 bg-themegray1/30'
+                    }`}
+            />
+        ))}
+    </div>
 );
 
 // ---------------------------------------------------------------------------

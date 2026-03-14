@@ -665,6 +665,49 @@ function tagsEqual(a: LocationTag[], b: LocationTag[]): boolean {
   return b.every((t) => aIds.has(t.id))
 }
 
+// ── Name Sync (tree → canvas tags) ───────────────────────────
+
+/**
+ * When a location is renamed in the tree, update all canvas tags
+ * that reference it so the canvas label stays in sync.
+ *
+ * Scan is O(n) over all tags because there's no target_id index.
+ * Fine for typical data sizes (tens to hundreds of tags).
+ */
+export async function syncLocationNameToTags(locationId: string, newName: string): Promise<void> {
+  try {
+    // 1. Scan for affected canvases (read-only — cheaper than readwrite cursor)
+    const db = await getDb()
+    const tx = db.transaction('locationTags', 'readonly')
+    const store = tx.objectStore('locationTags')
+    const affectedCanvasIds = new Set<string>()
+    let cursor = await store.openCursor()
+    while (cursor) {
+      const tag = cursor.value as LocationTag
+      if (tag.target_type === 'location' && tag.target_id === locationId && tag.label !== newName) {
+        affectedCanvasIds.add(tag.location_id)
+      }
+      cursor = await cursor.continue()
+    }
+    await tx.done
+
+    if (affectedCanvasIds.size === 0) return
+
+    // 2. For each affected canvas, update labels and upsert (handles IDB + Supabase + offline queue)
+    for (const canvasId of affectedCanvasIds) {
+      const tags = await getLocalLocationTags(canvasId)
+      const updated = tags.map(t =>
+        t.target_type === 'location' && t.target_id === locationId
+          ? { ...t, label: newName }
+          : t,
+      )
+      await upsertLocationTags(canvasId, updated)
+    }
+  } catch (err) {
+    logger.warn('syncLocationNameToTags failed:', err)
+  }
+}
+
 // ── Custody Ledger ───────────────────────────────────────────
 
 export async function recordLedgerEntry(

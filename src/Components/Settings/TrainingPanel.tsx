@@ -1,7 +1,6 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useRef, useEffect, useCallback, useMemo } from 'react'
 import { Check, ChevronRight, AlertTriangle, Info, Lock, BookOpen } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
-import { SearchInput } from '../SearchInput'
 import { stp68wTraining } from '../../Data/TrainingTaskList'
 import { getTaskData } from '../../Data/TrainingData'
 import type { TaskTrainingData, PerformanceStep } from '../../Data/TrainingData'
@@ -129,11 +128,12 @@ function TaskRow({
 
 function TrainingList({
     onSelectTask,
+    searchQuery,
 }: {
     onSelectTask: (task: subjectAreaArrayOptions) => void
+    searchQuery: string
 }) {
     const { isTaskCompleted, isTaskViewed } = useTrainingCompletions()
-    const [searchQuery, setSearchQuery] = useState('')
 
     const allByCategory = useMemo(() => buildAllTasksByCategory(), [])
 
@@ -166,14 +166,6 @@ function TrainingList({
                 <p className="text-xs text-tertiary/60 mb-3">
                     STP 8-68W13-SM-TG — Select a task to begin studying.
                 </p>
-
-                {/* Search Bar */}
-                <SearchInput
-                    value={searchQuery}
-                    onChange={setSearchQuery}
-                    placeholder="Search tasks..."
-                    className="mb-3"
-                />
 
                 {isSearching && (
                     <p className="text-[10px] text-tertiary/50 mb-2">
@@ -363,12 +355,14 @@ interface TrainingPanelProps {
     view: TrainingView
     selectedTask: subjectAreaArrayOptions | null
     onSelectTask: (task: subjectAreaArrayOptions) => void
+    searchQuery: string
 }
 
 export function TrainingPanel({
     view,
     selectedTask,
     onSelectTask,
+    searchQuery,
 }: TrainingPanelProps) {
     if (view === 'training-detail' && selectedTask) {
         const taskData = getTaskData(selectedTask.icon)
@@ -377,5 +371,5 @@ export function TrainingPanel({
         }
     }
 
-    return <TrainingList onSelectTask={onSelectTask} />
+    return <TrainingList onSelectTask={onSelectTask} searchQuery={searchQuery} />
 }

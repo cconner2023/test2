@@ -29,8 +29,9 @@ import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
 import { playSendSound } from '../../lib/soundService'
+import { CalendarPanel } from '../Calendar/CalendarPanel'
 
-export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat'
+export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat' | 'messages-calendar'
 
 export interface MessagesPanelHandle {
   createGroup: () => void
@@ -1478,7 +1479,11 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   // Determine main content based on view
   let mainContent: React.ReactNode
 
-  if (view === 'messages-group-chat' && selectedGroupId && groups[selectedGroupId]) {
+  if (view === 'messages-calendar') {
+    mainContent = (
+      <CalendarPanel onBack={() => onBack?.()} />
+    )
+  } else if (view === 'messages-group-chat' && selectedGroupId && groups[selectedGroupId]) {
     mainContent = (
       <GroupChatDetail
         groupId={selectedGroupId}

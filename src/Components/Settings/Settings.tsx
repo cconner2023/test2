@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, UserCog, Lock, MessageSquare, Bell, Stethoscope, ClipboardCheck, Scale, Radio, X } from 'lucide-react';
+import { Moon, Sun, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, Radio, X } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -39,9 +39,7 @@ interface SettingsDrawerProps {
     onClose: () => void;
     isDarkMode: boolean;
     onToggleTheme: () => void;
-    initialPanel?: 'main' | 'release-notes';
-    onOpenAdmin?: () => void;
-    onOpenSupervisor?: () => void;
+    initialPanel?: 'main' | 'release-notes' | 'user-profile';
 }
 
 export const Settings = ({
@@ -50,8 +48,6 @@ export const Settings = ({
     isDarkMode,
     onToggleTheme,
     initialPanel,
-    onOpenAdmin,
-    onOpenSupervisor,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
     const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'lora' | 'sessions-devices'>('main');
@@ -59,7 +55,7 @@ export const Settings = ({
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
-    const { user, signOut, isAuthenticated, isDevRole, isSupervisorRole } = useAuth();
+    const { user, signOut, isAuthenticated, isDevRole } = useAuth();
 
     // Supabase realtime WebSocket for device status — active only while settings is open
     useEffect(() => {
@@ -100,27 +96,13 @@ export const Settings = ({
         // Toggle theme has no panel navigation
         if (id === PANEL.TOGGLE_THEME) return;
 
-        // Admin panel opens its own drawer
-        if (id === PANEL.ADMIN && onOpenAdmin) {
-            closeDrawer();
-            onOpenAdmin();
-            return;
-        }
-
-        // Supervisor panel opens its own drawer
-        if (id === PANEL.SUPERVISOR && onOpenSupervisor) {
-            closeDrawer();
-            onOpenSupervisor();
-            return;
-        }
-
         // Look up the target panel name from the constant map
         const target = PANEL_TARGET[id];
         if (target) {
             handleSlideAnimation('left');
             setActivePanel(target as typeof activePanel);
         }
-    }, [handleSlideAnimation, onOpenAdmin, onOpenSupervisor]);
+    }, [handleSlideAnimation]);
 
     const buildSettingsOptions = useCallback((closeDrawer: () => void): SettingsItem[] => {
         /** Shorthand for a standard menu option that navigates to a panel. */
@@ -138,13 +120,6 @@ export const Settings = ({
 
         if (isAuthenticated && (LORA_MESH_ENABLED || isDevRole)) {
             items.push(opt(PANEL.LORA, <Radio size={20} />, 'LoRa Mesh'));
-        }
-
-        // ROLES section - only if user has supervisor or admin roles
-        if (isSupervisorRole || isDevRole) {
-            items.push({ type: 'header', label: 'Roles' });
-            if (isSupervisorRole) items.push(opt(PANEL.SUPERVISOR, <ClipboardCheck size={20} />, 'Supervisor'));
-            if (isDevRole) items.push(opt(PANEL.ADMIN, <UserCog size={20} />, 'Admin Panel'));
         }
 
         // PREFERENCES section
@@ -165,7 +140,7 @@ export const Settings = ({
         );
 
         return items;
-    }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isSupervisorRole, isAuthenticated]);
+    }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isAuthenticated]);
 
     // Swipe-back for sub-panels (mobile touch only)
     const swipeHandlers = useSwipeBack(

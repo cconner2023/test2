@@ -10,7 +10,7 @@ interface PillButtonProps {
     compact?: boolean
 }
 
-export function PillButton({ icon: Icon, onClick, label, variant = 'default', iconSize = 18, compact }: PillButtonProps) {
+export function PillButton({ icon: Icon, onClick, label, variant = 'default', iconSize = 24, compact }: PillButtonProps) {
     return (
         <button
             onClick={onClick}
@@ -29,7 +29,7 @@ export function PillButton({ icon: Icon, onClick, label, variant = 'default', ic
 
 export function HeaderPill({ children }: { children: ReactNode }) {
     return (
-        <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5 shadow-sm">
+        <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
             {children}
         </div>
     )
@@ -37,7 +37,7 @@ export function HeaderPill({ children }: { children: ReactNode }) {
 
 export function VerticalPill({ children }: { children: ReactNode }) {
     return (
-        <div className="rounded-full bg-themewhite border border-tertiary/20 flex flex-col items-center p-0.5 shadow-sm">
+        <div className="rounded-full bg-themewhite border border-tertiary/20 flex flex-col items-center p-0.5">
             {children}
         </div>
     )

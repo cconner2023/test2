@@ -3,6 +3,7 @@ import { useState, useRef, useCallback, useMemo } from 'react'
 import { catData } from '../Data/CatData'
 import { medList } from '../Data/MedData'
 import { stp68wTraining } from '../Data/TrainingTaskList'
+import { kbCategories } from '../Data/KnowledgeBaseCategories'
 import type { SearchResultType } from '../Types/CatTypes'
 
 /**
@@ -146,6 +147,28 @@ export function useSearch() {
             })
         })
 
+        // Screeners & Calculators from KB categories
+        kbCategories.forEach((cat, index) => {
+            if (cat.comingSoon) return
+            if (cat.group === 'screening') {
+                items.push({
+                    type: 'screener',
+                    id: index,
+                    icon: '🧠',
+                    text: cat.label,
+                    data: { kbCategoryId: cat.id }
+                })
+            } else if (cat.group === 'calculators') {
+                items.push({
+                    type: 'calculator',
+                    id: index,
+                    icon: '🔢',
+                    text: cat.label,
+                    data: { kbCategoryId: cat.id }
+                })
+            }
+        })
+
         return items
     }, [])
 
@@ -168,12 +191,14 @@ export function useSearch() {
             const lowerValue = value.toLowerCase()
 
             // Filter and sort
-            const typePriority = {
+            const typePriority: Record<string, number> = {
                 'category': 1,
                 'CC': 2,
-                'training': 3,
-                'DDX': 4,
-                'medication': 5
+                'screener': 3,
+                'calculator': 3,
+                'training': 4,
+                'DDX': 5,
+                'medication': 6
             }
 
             const filteredItems = searchIndex

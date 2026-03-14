@@ -1,7 +1,6 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useMemo, useCallback } from 'react'
 import { Star } from 'lucide-react'
 import { MedicationPage } from './MedicationPage'
-import { SearchInput } from './SearchInput'
 import { medList, type medListTypes } from '../Data/MedData'
 import { tc3MedList } from '../Data/TC3MedData'
 import { useUserProfile } from '../Hooks/useUserProfile'
@@ -46,6 +45,7 @@ interface MedicationContentProps {
     selectedMedication: medListTypes | null
     onMedicationSelect: (medication: medListTypes) => void
     tc3Mode: boolean
+    searchQuery: string
 }
 
 /**
@@ -56,11 +56,11 @@ export function MedicationContent({
     selectedMedication,
     onMedicationSelect,
     tc3Mode,
+    searchQuery,
 }: MedicationContentProps) {
     const { profile, updateProfile, syncProfileField } = useUserProfile()
     const favorites = profile.favoriteMedications ?? []
     const list = tc3Mode ? tc3MedList : medList
-    const [search, setSearch] = useState('')
 
     const toggleFavorite = useCallback((tradeName: string) => {
         const current = profile.favoriteMedications ?? []
@@ -72,7 +72,7 @@ export function MedicationContent({
     }, [profile.favoriteMedications, updateProfile, syncProfileField])
 
     const { favoriteMeds, otherMeds } = useMemo(() => {
-        const query = search.trim().toLowerCase()
+        const query = searchQuery.trim().toLowerCase()
         const isFav = (m: medListTypes) => favorites.includes(m.icon)
         const matchesQuery = (m: medListTypes) =>
             !query || m.icon.toLowerCase().includes(query) || m.text.toLowerCase().includes(query)
@@ -85,7 +85,7 @@ export function MedicationContent({
             else others.push(m)
         }
         return { favoriteMeds: favs, otherMeds: others }
-    }, [list, favorites, search])
+    }, [list, favorites, searchQuery])
 
     if (selectedMedication) {
         return (
@@ -101,14 +101,6 @@ export function MedicationContent({
 
     return (
         <div className="h-full overflow-y-auto px-4 pb-4">
-            <div className="py-2">
-                <SearchInput
-                    value={search}
-                    onChange={setSearch}
-                    placeholder="Search medications..."
-                />
-            </div>
-
             {favoriteMeds.length > 0 && (
                 <>
                     <div className="flex items-center gap-2 mt-1 mb-1 px-1">

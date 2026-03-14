@@ -42,6 +42,7 @@ export function useNavigation() {
         showKnowledgeBase: s.showKnowledgeBase,
         kbInitialView: s.kbInitialView,
         kbInitialMedication: s.kbInitialMedication,
+        kbInitialScreenerId: s.kbInitialScreenerId,
         isWriteNoteVisible: s.isWriteNoteVisible,
         writeNoteData: s.writeNoteData,
         showTrainingDrawer: s.showTrainingDrawer,

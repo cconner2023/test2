@@ -10,7 +10,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, useImperativeHandle, forwardRef } from 'react'
 import { flushSync } from 'react-dom'
 import { useSpring, animated } from '@react-spring/web'
-import { Pencil, Check, PenTool, ZoomIn, ZoomOut, Scissors, Merge, X, Copy, Camera, Trash2, Maximize2 } from 'lucide-react'
+import { Pencil, Check, PenTool, ZoomIn, ZoomOut, Scissors, Merge, X, Copy, Camera, Trash2, Maximize2, Move } from 'lucide-react'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { fetchAllLocationTags, fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
 import { buildTagIndex, findLCA } from '../../lib/tagIndex'
@@ -84,11 +84,12 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const [isEditing, setIsEditing] = useState(false)
   const [isDrawing, setIsDrawing] = useState(false)
   const [isResizing, setIsResizing] = useState(false)
+  const [isMoving, setIsMoving] = useState(false)
   const [editCanvasId, setEditCanvasId] = useState<string | null>(null)
   const [editCanvasTags, setEditCanvasTags] = useState<LocationTag[]>([])
   const [pendingZoneDelete, setPendingZoneDelete] = useState<{ targetId: string; label: string } | null>(null)
   const editRef = useRef<CanvasEditHandle>(null)
-  const dragRef = useRef<{ startX: number; startY: number; scrollX: number; scrollY: number } | null>(null)
+  const dragRef = useRef<{ startX: number; startY: number; scrollX: number; scrollY: number; zoneId: string | null } | null>(null)
   const lcaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Track edit selection count so toolbar re-renders when shift-selection changes
   const [editSelectionCount, setEditSelectionCount] = useState(0)
@@ -99,18 +100,32 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
   const rootLocationId = store.rootLocationId
 
+  // Ref for locations — avoids stale async fetches when locations change mid-save
+  const locationsRef = useRef(locations)
+  locationsRef.current = locations
+
+  const itemsRef = useRef(items)
+  itemsRef.current = items
+
   // ── Cleanup LCA animation timer on unmount ──
   useEffect(() => () => { if (lcaTimerRef.current) clearTimeout(lcaTimerRef.current) }, [])
 
   // ── Load tags and build index ──
+  // Fires on rootLocationId (initial load) and tagVersion (sync, tree rename).
+  // locationsRef reads fresh data; stale guard prevents old fetches from
+  // overwriting newer ones.  bumpTagVersion is NOT called from handleEditSave
+  // (optimistic setTagIndex handles it) to avoid racing with Supabase push.
   useEffect(() => {
     if (!clinicId || !rootLocationId) return
+    let stale = false
 
-    const allIds = [{ id: rootLocationId }, ...locations]
+    const allIds = [{ id: rootLocationId }, ...locationsRef.current]
     fetchAllLocationTags(clinicId, allIds)
-      .then((tagMap) => setTagIndex(buildTagIndex(tagMap)))
+      .then((tagMap) => { if (!stale) setTagIndex(buildTagIndex(tagMap)) })
       .catch(() => { /* non-fatal */ })
-  }, [clinicId, rootLocationId, locations, store.tagVersion])
+
+    return () => { stale = true }
+  }, [clinicId, rootLocationId, store.tagVersion])
 
   // ── Root canvas tags (for edit mode + empty-state check) ──
   const canvasTags: LocationTag[] = useMemo(() => {
@@ -281,6 +296,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     setEditCanvasTags(tags)
     setIsDrawing(false)
     setIsResizing(false)
+    setIsMoving(false)
     setIsEditing(true)
 
     // For nested edit, zoom to parent zone so it's centered/visible
@@ -294,6 +310,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     setIsEditing(false)
     setIsDrawing(false)
     setIsResizing(false)
+    setIsMoving(false)
     setEditCanvasId(null)
     setNamingState(null)
     setNameInput('')
@@ -328,7 +345,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       // Determine parent_id for new locations: if editing a nested canvas, parent is the canvas zone
       const parentId = canvasId !== rootLocationId ? canvasId : null
 
-      const existingIds = new Set(locations.map((l) => l.id))
+      const existingIds = new Set(locationsRef.current.map((l) => l.id))
       existingIds.add(rootLocationId!)
 
       const resolvedTags = [...newTags]
@@ -354,7 +371,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           (t) => t.rects && t.rects.length > 0 && !mergedAwayIds.includes(t.target_id),
         )
         if (survivingTag) {
-          const affectedItems = items.filter((i) => i.location_id && mergedAwayIds.includes(i.location_id))
+          const affectedItems = itemsRef.current.filter((i) => i.location_id && mergedAwayIds.includes(i.location_id))
           for (const item of affectedItems) {
             await onEditItem(item.id, { location_id: survivingTag.target_id })
           }
@@ -366,7 +383,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
       const savedTags = await upsertLocationTags(canvasId, resolvedTags)
 
-      // Optimistic: update tagIndex directly instead of waiting for refetch
+      // Optimistic: update tagIndex directly — no bumpTagVersion() here to avoid
+      // racing reconcileLocationTagsWithServer with the Supabase push in upsertLocationTags
       if (savedTags.success && savedTags.tags) {
         setTagIndex((prev) => {
           if (!prev) return prev
@@ -376,10 +394,9 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         })
       }
 
-      store.bumpTagVersion()
       handleExitEdit()
     },
-    [editCanvasId, rootLocationId, store, locations, items, clinicId, onCreateLocation, onDeleteLocation, onEditItem, handleExitEdit],
+    [editCanvasId, rootLocationId, clinicId, onCreateLocation, onDeleteLocation, onEditItem, handleExitEdit],
   )
 
   // ── Drill up one level in the zone hierarchy ──
@@ -593,7 +610,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         {/* Scrollable canvas */}
         <div
           ref={scrollRef}
-          className={`absolute inset-0 overflow-auto bg-themewhite2 border border-tertiary/15 rounded-lg ${isEditing ? (isDrawing ? 'cursor-crosshair' : isResizing ? 'cursor-nwse-resize' : 'cursor-default') : 'cursor-grab'}`}
+          className={`absolute inset-0 overflow-auto bg-themewhite2 border border-tertiary/15 rounded-lg ${isEditing ? (isDrawing ? 'cursor-crosshair' : isResizing ? 'cursor-nwse-resize' : isMoving ? 'cursor-move' : 'cursor-default') : 'cursor-grab'}`}
           onPointerDown={handlePanStart}
           onPointerMove={handlePanMove}
           onPointerUp={handlePanEnd}
@@ -625,6 +642,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                   canvasId={editCanvasId!}
                   drawMode={isDrawing}
                   resizeMode={isResizing}
+                  moveMode={isMoving}
                   scale={1}
                   editRef={editRef}
                   onSave={handleEditSave}
@@ -644,6 +662,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
               canvasId={editCanvasId || rootLocationId!}
               drawMode={isDrawing}
               resizeMode={isResizing}
+              moveMode={isMoving}
               scale={canvasScale}
               editRef={editRef}
               onSave={handleEditSave}
@@ -651,6 +670,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
               onDeleteZone={(targetId, label) => setPendingZoneDelete({ targetId, label })}
               onSelectionChange={setEditSelectionCount}
               photoMap={photoMap}
+              externalNamePrompt
+              onNamingChange={setNamingState}
             />
           ) : (
             <>
@@ -699,97 +720,106 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           </div>
         )}
 
-        {/* Floating toolbar — top-right pill, edit/save button anchored right, tools expand left */}
-        <div className="absolute top-3 right-3 z-20 rounded-full border border-tertiary/20 bg-themewhite p-0.5 flex items-center shadow-sm">
-          {/* Tool buttons — expand leftward via animated maxWidth */}
-          <animated.div
-            className="flex items-center overflow-hidden"
-            style={{
-              maxWidth: toolbarSpring.progress.to(p => `${p * 340}px`),
-              opacity: toolbarSpring.progress,
-            }}
-          >
-            <button
-              onClick={() => { setIsDrawing((d) => !d); setIsResizing(false) }}
-              className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${isDrawing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-              title="Draw zone"
+        {/* Floating toolbar — top-right, pill + rename dropdown */}
+        <div className="absolute top-3 right-3 z-20 flex flex-col items-end">
+          {/* Toolbar pill */}
+          <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 flex items-center shadow-sm">
+            {/* Tool buttons — expand leftward via animated maxWidth */}
+            <animated.div
+              className="flex items-center overflow-hidden"
+              style={{
+                maxWidth: toolbarSpring.progress.to(p => `${p * 376}px`),
+                opacity: toolbarSpring.progress,
+              }}
             >
-              <PenTool size={15} />
-            </button>
-            <div className="h-5 w-px shrink-0 bg-tertiary/15" />
-            <button
-              onClick={() => editRef.current?.deleteSelected()}
-              disabled={editSelectionCount < 1}
-              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
-              title="Delete selected"
-            >
-              <Trash2 size={15} />
-            </button>
-            <button
-              onClick={() => editRef.current?.renameSelected()}
-              disabled={editSelectionCount !== 1}
-              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
-              title="Rename zone (select 1)"
-            >
-              <Pencil size={15} />
-            </button>
-            <button
-              onClick={() => { setIsResizing((r) => !r); setIsDrawing(false) }}
-              disabled={editSelectionCount !== 1}
-              className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none ${isResizing ? 'bg-themeyellow text-white' : 'text-tertiary hover:text-primary'}`}
-              title="Resize mode (select 1)"
-            >
-              <Maximize2 size={15} />
-            </button>
-            <div className="h-5 w-px shrink-0 bg-tertiary/15" />
-            <button
-              onClick={() => editRef.current?.duplicate()}
-              disabled={editSelectionCount !== 1}
-              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
-              title="Duplicate zone (select 1)"
-            >
-              <Copy size={15} />
-            </button>
-            <button
-              onClick={() => editRef.current?.split()}
-              disabled={editSelectionCount !== 1}
-              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
-              title="Split zone (select 1)"
-            >
-              <Scissors size={15} />
-            </button>
-            <button
-              onClick={() => editRef.current?.merge()}
-              disabled={editSelectionCount < 2}
-              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
-              title="Merge zones (select 2+)"
-            >
-              <Merge size={15} />
-            </button>
-            <div className="h-5 w-px shrink-0 bg-tertiary/15" />
-            <button
-              onClick={handleExitEdit}
-              className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
-              title="Cancel"
-            >
-              <X size={15} />
-            </button>
-          </animated.div>
+              <button
+                onClick={() => { setIsDrawing((d) => !d); setIsResizing(false); setIsMoving(false) }}
+                className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${isDrawing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                title="Draw zone"
+              >
+                <PenTool size={15} />
+              </button>
+              <button
+                onClick={() => { setIsMoving((m) => !m); setIsDrawing(false); setIsResizing(false) }}
+                disabled={editSelectionCount !== 1}
+                className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none ${isMoving ? 'bg-themegreen text-white' : 'text-tertiary hover:text-primary'}`}
+                title="Move mode (select 1)"
+              >
+                <Move size={15} />
+              </button>
+              <div className="h-5 w-px shrink-0 bg-tertiary/15" />
+              <button
+                onClick={() => editRef.current?.deleteSelected()}
+                disabled={editSelectionCount < 1}
+                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
+                title="Delete selected"
+              >
+                <Trash2 size={15} />
+              </button>
+              <button
+                onClick={() => editRef.current?.renameSelected()}
+                disabled={editSelectionCount !== 1}
+                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
+                title="Rename zone (select 1)"
+              >
+                <Pencil size={15} />
+              </button>
+              <button
+                onClick={() => { setIsResizing((r) => !r); setIsDrawing(false); setIsMoving(false) }}
+                disabled={editSelectionCount !== 1}
+                className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none ${isResizing ? 'bg-themeyellow text-white' : 'text-tertiary hover:text-primary'}`}
+                title="Resize mode (select 1)"
+              >
+                <Maximize2 size={15} />
+              </button>
+              <div className="h-5 w-px shrink-0 bg-tertiary/15" />
+              <button
+                onClick={() => editRef.current?.duplicate()}
+                disabled={editSelectionCount !== 1}
+                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
+                title="Duplicate zone (select 1)"
+              >
+                <Copy size={15} />
+              </button>
+              <button
+                onClick={() => editRef.current?.split()}
+                disabled={editSelectionCount !== 1}
+                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
+                title="Split zone (select 1)"
+              >
+                <Scissors size={15} />
+              </button>
+              <button
+                onClick={() => editRef.current?.merge()}
+                disabled={editSelectionCount < 2}
+                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
+                title="Merge zones (select 2+)"
+              >
+                <Merge size={15} />
+              </button>
+              <div className="h-5 w-px shrink-0 bg-tertiary/15" />
+              <button
+                onClick={handleExitEdit}
+                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
+                title="Cancel"
+              >
+                <X size={15} />
+              </button>
+            </animated.div>
 
-          {/* Anchored edit/save button — stays in place, icon morphs */}
-          <button
-            onClick={isEditing ? () => editRef.current?.save() : handleEnterEdit}
-            className={`w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all ${isEditing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-            title={isEditing ? 'Save' : 'Edit'}
-          >
-            {isEditing ? <Check size={18} /> : <Pencil size={18} />}
-          </button>
-        </div>
+            {/* Anchored edit/save button — stays in place, icon morphs */}
+            <button
+              onClick={isEditing ? () => editRef.current?.save() : handleEnterEdit}
+              className={`w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all ${isEditing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+              title={isEditing ? 'Save' : 'Edit'}
+            >
+              {isEditing ? <Check size={18} /> : <Pencil size={18} />}
+            </button>
+          </div>
 
-        {/* External name prompt for nested editing — rendered above scroll container */}
-        {namingState && (
-          <div className="absolute inset-0 z-30 flex items-end justify-center pb-4 pointer-events-none">
-            <div className="pointer-events-auto bg-themewhite rounded-xl shadow-lg w-72 p-4 border border-primary/10">
+          {/* Rename dropdown — expands below the toolbar pill */}
+          {namingState && (
+            <div className="mt-1.5 bg-themewhite rounded-xl shadow-lg w-64 p-3 border border-primary/10">
               <p className="text-[10pt] font-medium text-primary mb-2">
                 {namingState.existingLabel ? 'Rename zone' : 'Name this zone'}
               </p>
@@ -805,10 +835,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                 placeholder="e.g. Arms Room, Supply Closet"
                 className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary placeholder:text-tertiary/40 outline-none focus:border-themeblue2 focus:outline-none border border-tertiary/20 transition-all"
               />
-              <div className="flex items-center gap-2 mt-3">
+              <div className="flex items-center gap-2 mt-2">
                 <button
                   onClick={handleExternalNameCancel}
-                  className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 transition-all"
+                  className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 active:scale-95 transition-all"
                 >
                   Cancel
                 </button>
@@ -821,8 +851,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                 </button>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Bottom panel — always visible, card grid of one-level-deep sub-zones + items */}

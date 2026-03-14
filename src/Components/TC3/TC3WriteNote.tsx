@@ -1,5 +1,4 @@
 import { memo, useMemo, useState, useEffect } from 'react'
-import { X } from 'lucide-react'
 import { BaseDrawer } from '../BaseDrawer'
 import { BarcodeDisplay } from '../Barcode'
 import { ActionIconButton } from '../WriteNoteHelpers'
@@ -133,123 +132,108 @@ export const TC3WriteNote = memo(function TC3WriteNote({ isVisible, onClose }: T
       onClose={onClose}
       fullHeight="90dvh"
       mobileClassName="flex flex-col bg-themewhite2"
+      header={{ title: 'TC3 Card — Export' }}
     >
-      {(handleClose) => (
-        <>
-          {/* Header */}
-          <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b border-tertiary/10" data-drag-zone style={{ touchAction: 'none' }}>
-            <h2 className="text-sm font-semibold text-primary">TC3 Card — Export</h2>
-            <div className="flex items-center gap-2">
-              <div className="w-14 h-1.5 rounded-full bg-tertiary/30 md:hidden" />
-              <button onClick={handleClose} className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all">
-                <X size={20} className="text-tertiary" />
-              </button>
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {/* Medic signature & avatar */}
+        {signature && (
+          <div className="flex items-center gap-3 px-3 py-3 rounded-xl border border-tertiary/15 bg-themewhite">
+            <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
+              {isCustom && customImage ? (
+                <img src={customImage} alt="Profile" className="w-full h-full object-cover" />
+              ) : isInitials ? (
+                <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
+                  <span className="text-sm font-semibold text-themeblue2">
+                    {getInitials(profile.firstName, profile.lastName)}
+                  </span>
+                </div>
+              ) : (
+                <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full">
+                  {currentAvatar.svg}
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-primary truncate">
+                {[profile.rank, profile.lastName, profile.firstName].filter(Boolean).join(' ')}
+              </p>
+              <p className="text-[11px] text-tertiary/70 truncate">
+                {[profile.credential, profile.component].filter(Boolean).join(' — ')}
+              </p>
             </div>
           </div>
+        )}
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {/* Medic signature & avatar */}
-            {signature && (
-              <div className="flex items-center gap-3 px-3 py-3 rounded-xl border border-tertiary/15 bg-themewhite">
-                <div className="w-10 h-10 rounded-full overflow-hidden shrink-0">
-                  {isCustom && customImage ? (
-                    <img src={customImage} alt="Profile" className="w-full h-full object-cover" />
-                  ) : isInitials ? (
-                    <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
-                      <span className="text-sm font-semibold text-themeblue2">
-                        {getInitials(profile.firstName, profile.lastName)}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full">
-                      {currentAvatar.svg}
-                    </div>
-                  )}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-primary truncate">
-                    {[profile.rank, profile.lastName, profile.firstName].filter(Boolean).join(' ')}
-                  </p>
-                  <p className="text-[11px] text-tertiary/70 truncate">
-                    {[profile.credential, profile.component].filter(Boolean).join(' — ')}
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* Body diagram with injuries */}
-            {hasInjuries && (
-              <div className="rounded-xl border border-tertiary/15 bg-themewhite p-3">
-                <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">Injury Diagram</p>
-                <div className="flex gap-2 justify-center">
-                  <ExportBodyPanel side="front" injuries={card.injuries} />
-                  <ExportBodyPanel side="back" injuries={card.injuries} />
-                </div>
-                {/* Injury legend */}
-                <div className="mt-2 pt-2 border-t border-tertiary/10 flex flex-wrap gap-x-3 gap-y-1">
-                  {card.injuries.map((inj, i) => {
-                    const region = inj.bodyRegion ? getRegionLabel(inj.bodyRegion) : inj.side
-                    return (
-                      <div key={inj.id} className="flex items-center gap-1">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full shrink-0"
-                          style={{ backgroundColor: INJURY_COLORS[inj.type] ?? '#6b7280' }}
-                        />
-                        <span className="text-[9px] text-tertiary">
-                          {i + 1}. {inj.type} ({region})
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Note Preview */}
-            <div>
-              <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
-                <span className="font-medium">Note Preview</span>
-                <ActionIconButton
-                  onClick={() => handleCopy(noteText, 'preview')}
-                  status={copiedTarget === 'preview' ? 'done' : 'idle'}
-                  variant="copy"
-                  title="Copy note text"
-                />
-              </div>
-              <pre className="p-3 rounded-b-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto border border-themegray1/15">
-                {noteText || 'No content'}
-              </pre>
+        {/* Body diagram with injuries */}
+        {hasInjuries && (
+          <div className="rounded-xl border border-tertiary/15 bg-themewhite p-3">
+            <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-2">Injury Diagram</p>
+            <div className="flex gap-2 justify-center">
+              <ExportBodyPanel side="front" injuries={card.injuries} />
+              <ExportBodyPanel side="back" injuries={card.injuries} />
             </div>
-
-            {/* Encoded Note / Barcode */}
-            <div>
-              <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
-                <span className="font-medium">Encoded Note</span>
-                <div className="flex items-center gap-1">
-                  <ActionIconButton
-                    onClick={() => handleCopy(encodedText, 'encoded')}
-                    status={copiedTarget === 'encoded' ? 'done' : 'idle'}
-                    variant="copy"
-                    title="Copy encoded text"
-                  />
-                  {typeof navigator.share === 'function' && (
-                    <ActionIconButton
-                      onClick={handleShare}
-                      status={shareStatus === 'shared' ? 'done' : shareStatus === 'sharing' ? 'busy' : 'idle'}
-                      variant="share"
-                      title="Share note"
+            {/* Injury legend */}
+            <div className="mt-2 pt-2 border-t border-tertiary/10 flex flex-wrap gap-x-3 gap-y-1">
+              {card.injuries.map((inj, i) => {
+                const region = inj.bodyRegion ? getRegionLabel(inj.bodyRegion) : inj.side
+                return (
+                  <div key={inj.id} className="flex items-center gap-1">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{ backgroundColor: INJURY_COLORS[inj.type] ?? '#6b7280' }}
                     />
-                  )}
-                </div>
-              </div>
-              <div className="mt-1">
-                {encodedText && <BarcodeDisplay encodedText={encodedText} layout={encodedText.length > 300 ? 'col' : 'row'} />}
-              </div>
+                    <span className="text-[9px] text-tertiary">
+                      {i + 1}. {inj.type} ({region})
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </div>
-        </>
-      )}
+        )}
+
+        {/* Note Preview */}
+        <div>
+          <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
+            <span className="font-medium">Note Preview</span>
+            <ActionIconButton
+              onClick={() => handleCopy(noteText, 'preview')}
+              status={copiedTarget === 'preview' ? 'done' : 'idle'}
+              variant="copy"
+              title="Copy note text"
+            />
+          </div>
+          <pre className="p-3 rounded-b-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto border border-themegray1/15">
+            {noteText || 'No content'}
+          </pre>
+        </div>
+
+        {/* Encoded Note / Barcode */}
+        <div>
+          <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
+            <span className="font-medium">Encoded Note</span>
+            <div className="flex items-center gap-1">
+              <ActionIconButton
+                onClick={() => handleCopy(encodedText, 'encoded')}
+                status={copiedTarget === 'encoded' ? 'done' : 'idle'}
+                variant="copy"
+                title="Copy encoded text"
+              />
+              {typeof navigator.share === 'function' && (
+                <ActionIconButton
+                  onClick={handleShare}
+                  status={shareStatus === 'shared' ? 'done' : shareStatus === 'sharing' ? 'busy' : 'idle'}
+                  variant="share"
+                  title="Share note"
+                />
+              )}
+            </div>
+          </div>
+          <div className="mt-1">
+            {encodedText && <BarcodeDisplay encodedText={encodedText} layout={encodedText.length > 300 ? 'col' : 'row'} />}
+          </div>
+        </div>
+      </div>
     </BaseDrawer>
   )
 })
