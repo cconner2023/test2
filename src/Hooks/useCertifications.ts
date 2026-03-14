@@ -3,8 +3,11 @@ import type { Certification } from '../Data/User'
 import {
   fetchCertifications,
   addCertification,
+  updateCertification,
   removeCertification,
   togglePrimary,
+  syncPrimaryToProfile,
+  type CertInput,
 } from '../lib/certificationService'
 import { fail } from '../lib/result'
 import { useAuth } from './useAuth'
@@ -40,6 +43,19 @@ export function useCertifications() {
     return result
   }, [user, load, refreshProfile])
 
+  const updateCert = useCallback(async (certId: string, fields: Partial<CertInput>) => {
+    if (!user) return fail('Not authenticated')
+    const result = await updateCertification(certId, fields)
+    if (result.success) {
+      await load()
+      if (fields.is_primary) {
+        await syncPrimaryToProfile(user.id)
+      }
+      await refreshProfile()
+    }
+    return result
+  }, [user, load, refreshProfile])
+
   const removeCert = useCallback(async (certId: string, wasPrimary: boolean) => {
     if (!user) return fail('Not authenticated')
     const result = await removeCertification(user.id, certId, wasPrimary)
@@ -60,5 +76,5 @@ export function useCertifications() {
     return result
   }, [user, load, refreshProfile])
 
-  return { certs, loading, addCert, removeCert, togglePrimaryCert, refresh: load }
+  return { certs, loading, addCert, updateCert, removeCert, togglePrimaryCert, refresh: load }
 }

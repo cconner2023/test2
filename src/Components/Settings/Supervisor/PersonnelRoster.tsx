@@ -1,5 +1,5 @@
-import { useState, useMemo, useCallback } from 'react'
-import { Users, ClipboardCheck, Eye, Pencil } from 'lucide-react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { Users, ClipboardCheck, Eye, Pencil, ChevronRight, Building2 } from 'lucide-react'
 import { EmptyState } from '../../EmptyState'
 import { SearchInput } from '../../SearchInput'
 import { SwipeableRosterCard } from './SwipeableRosterCard'
@@ -8,6 +8,19 @@ import { CardActionBar, type ActionBarAction } from '../../CardActionBar'
 import { formatMedicName } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
+import type { TeamMetrics } from './supervisorHelpers'
+
+function readinessColor(pct: number): string {
+  if (pct >= 80) return 'bg-themegreen'
+  if (pct >= 50) return 'bg-themeyellow'
+  return 'bg-themeredred'
+}
+
+function readinessTextColor(pct: number): string {
+  if (pct >= 80) return 'text-themegreen'
+  if (pct >= 50) return 'text-themeyellow'
+  return 'text-themeredred'
+}
 
 interface PersonnelRosterProps {
   medics: ClinicMedic[]
@@ -18,6 +31,11 @@ interface PersonnelRosterProps {
   onEvaluate: (soldier: ClinicMedic) => void
   onView: (soldier: ClinicMedic) => void
   onModify: (soldier: ClinicMedic) => void
+  showSearch?: boolean
+  clinicName?: string | null
+  teamMetrics?: TeamMetrics
+  onViewInsights?: () => void
+  onManageClinic?: () => void
 }
 
 export function PersonnelRoster({
@@ -29,10 +47,18 @@ export function PersonnelRoster({
   onEvaluate,
   onView,
   onModify,
+  showSearch = false,
+  clinicName,
+  teamMetrics,
+  onViewInsights,
+  onManageClinic,
 }: PersonnelRosterProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [openCardId, setOpenCardId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ soldierId: string; x: number; y: number } | null>(null)
+
+  // Clear search when search panel is hidden
+  useEffect(() => { if (!showSearch) setSearchQuery('') }, [showSearch])
 
   const multiSelectMode = selectedSoldierIds.size > 0
 
@@ -99,13 +125,59 @@ export function PersonnelRoster({
     <div className="h-full flex flex-col overflow-hidden">
       {/* Scrollable content */}
       <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 md:px-5 md:py-5">
-        {/* Search */}
-        <SearchInput
-          value={searchQuery}
-          onChange={setSearchQuery}
-          placeholder="Search personnel..."
-          className="mb-3"
-        />
+        {/* Clinic card — navigates to Team Insights */}
+        {onViewInsights && teamMetrics && (
+          <button
+            onClick={onViewInsights}
+            className="w-full rounded-xl bg-themewhite2 px-4 py-3 mb-3 text-left active:scale-95 transition-transform"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                <Building2 size={16} className="text-tertiary/50" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-primary truncate">{clinicName ?? 'My Clinic'}</p>
+                <p className="text-[9pt] text-tertiary/50">{medics.length} personnel</p>
+              </div>
+              {onManageClinic && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); onManageClinic() }}
+                  className="p-1.5 rounded-lg hover:bg-tertiary/10 text-tertiary/40 hover:text-themeblue3 transition-colors active:scale-95 shrink-0"
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
+              <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
+            </div>
+            <div className="flex flex-col gap-1.5 mt-2 ml-11">
+              <div className="flex items-center gap-2">
+                <span className="text-[9pt] text-tertiary/50 w-18 shrink-0">Readiness</span>
+                <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
+                  <div className={`h-full rounded-full ${readinessColor(teamMetrics.teamReadinessPercent)}`} style={{ width: `${teamMetrics.teamReadinessPercent}%` }} />
+                </div>
+                <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(teamMetrics.teamReadinessPercent)}`}>{teamMetrics.teamReadinessPercent}%</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[9pt] text-tertiary/50 w-18 shrink-0">Compliance</span>
+                <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
+                  <div className={`h-full rounded-full ${readinessColor(teamMetrics.certCompliancePercent)}`} style={{ width: `${teamMetrics.certCompliancePercent}%` }} />
+                </div>
+                <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(teamMetrics.certCompliancePercent)}`}>{teamMetrics.certCompliancePercent}%</span>
+              </div>
+            </div>
+          </button>
+        )}
+
+        {/* Search — toggled by header pill */}
+        {showSearch && (
+          <SearchInput
+            value={searchQuery}
+            onChange={setSearchQuery}
+            placeholder="Search personnel..."
+            className="mb-3"
+            autoFocus
+          />
+        )}
 
         {searchQuery.trim() && (
           <p className="text-[10px] text-tertiary/50 mb-2">

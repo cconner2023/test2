@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
-import { Plus, Upload, Download, FileSpreadsheet, Eye, ArrowRightLeft, Trash2 } from 'lucide-react'
+import { Plus, Upload, Download, FileSpreadsheet, Eye, ArrowRightLeft, Trash2, AlertTriangle } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useProperty } from '../../Hooks/useProperty'
@@ -25,6 +25,10 @@ import { useClinicName } from '../../Hooks/useClinicNameResolver'
 import type { ParsedRow } from '../../Utilities/PropertyCSV'
 import { ROOT_LOCATION_NAME } from '../../Types/PropertyTypes'
 import type { LocalPropertyItem, LocalPropertyLocation, HolderInfo } from '../../Types/PropertyTypes'
+import { createLogger } from '../../Utilities/Logger'
+
+const logger = createLogger('PropertyPanel')
+
 export interface LocationEditActions {
   onEdit: () => void
   onDelete: () => void
@@ -70,6 +74,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
   const mapRef = useRef<MapNavHandle>(null)
   const [showNewLocation, setShowNewLocation] = useState(false)
   const [newLocationName, setNewLocationName] = useState('')
+  const [rootError, setRootError] = useState(false)
   const [renamingLocation, setRenamingLocation] = useState<{ id: string; name: string } | null>(null)
 
   // ── Selection state ──
@@ -111,9 +116,13 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
   // Ensure root location exists for top-level canvas
   useEffect(() => {
     if (!property.clinicId || !user?.id) return
+    setRootError(false)
     ensureRootLocation(property.clinicId, user.id)
       .then((root) => store.setRootLocationId(root.id))
-      .catch((err) => { console.error('[PropertyPanel] ensureRootLocation failed:', err) })
+      .catch((err) => {
+        logger.error('ensureRootLocation failed:', err)
+        setRootError(true)
+      })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [property.clinicId, user?.id])
 
@@ -192,18 +201,23 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
   }, [store, onSelectItem])
 
   const handleTreeSelectLocation = useCallback((loc: LocalPropertyLocation) => {
-    mapRef.current?.navigateToZone(loc.id)
     if (isMobile) {
+      // Switch to canvas view first, then navigate — map handles deferred nav if tags aren't loaded
       onMobileLocationViewChange?.(true)
+      setTimeout(() => mapRef.current?.navigateToZone(loc.id), 60)
+    } else {
+      mapRef.current?.navigateToZone(loc.id)
     }
   }, [isMobile, onMobileLocationViewChange])
 
   // Clinic name tap → zoom canvas back to root
   const handleSelectAllLocations = useCallback(() => {
     store.selectZone(null)
-    mapRef.current?.resetZoom()
     if (isMobile) {
       onMobileLocationViewChange?.(true)
+      setTimeout(() => mapRef.current?.resetZoom(), 60)
+    } else {
+      mapRef.current?.resetZoom()
     }
   }, [store, isMobile, onMobileLocationViewChange])
 
@@ -359,6 +373,30 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
     )
   }
 
+  if (rootError) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-6 gap-4">
+        <AlertTriangle size={32} className="text-themeyellow" />
+        <p className="text-[10pt] text-secondary text-center">Unable to initialize property canvas. Local storage may not be available.</p>
+        <button
+          onClick={() => {
+            if (!property.clinicId || !user?.id) return
+            setRootError(false)
+            ensureRootLocation(property.clinicId, user.id)
+              .then((root) => store.setRootLocationId(root.id))
+              .catch((err) => {
+                logger.error('ensureRootLocation retry failed:', err)
+                setRootError(true)
+              })
+          }}
+          className="px-4 py-2 rounded-lg bg-themeblue3 text-white text-[10pt] active:scale-95 transition-all"
+        >
+          Retry
+        </button>
+      </div>
+    )
+  }
+
   const renderViewContent = () => {
   // Transfer custody view
   if (view === 'property-transfer' && transferItems.length > 0) {
@@ -432,18 +470,38 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
   // Mobile: location map view (back button is in the drawer header)
   if (isMobile && mobileLocationView) {
     return (
-      <PropertyLocationMap
-        ref={mapRef}
-        clinicId={property.clinicId!}
-        clinicName={clinicName}
-        locations={visibleLocations}
-        items={property.items}
-        onCreateLocation={property.addLocation}
-        onDeleteLocation={property.removeLocation}
-        onEditItem={property.editItem}
-        onUpdateLocation={property.editLocation}
-        onSelectItem={handleSelectItem}
-      />
+      <div className="flex flex-col h-full relative">
+        <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleCSVFile} />
+        <PropertyLocationMap
+          ref={mapRef}
+          clinicId={property.clinicId!}
+          clinicName={clinicName}
+          locations={visibleLocations}
+          items={property.items}
+          onCreateLocation={property.addLocation}
+          onDeleteLocation={property.removeLocation}
+          onEditItem={property.editItem}
+          onUpdateLocation={property.editLocation}
+          onSelectItem={handleSelectItem}
+        />
+        <div className="absolute top-3 left-3 z-30">
+          <VerticalPill>
+            <PillButton icon={Upload} label="Import CSV" onClick={() => fileInputRef.current?.click()} />
+            <PillButton icon={Download} label="Export CSV" onClick={() => exportPropertyCSV(property.items, visibleLocations)} />
+            <PillButton icon={FileSpreadsheet} label="Download Template" onClick={downloadCSVTemplate} />
+          </VerticalPill>
+        </div>
+        {csvImport && (
+          <PropertyCSVImport
+            rows={csvImport.rows}
+            errors={csvImport.errors}
+            locations={visibleLocations}
+            clinicId={property.clinicId || ''}
+            onImport={property.addItem}
+            onClose={() => setCsvImport(null)}
+          />
+        )}
+      </div>
     )
   }
 

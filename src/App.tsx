@@ -81,6 +81,8 @@ function AppContent() {
   const [importInitialView, setImportInitialView] = useState<'input' | 'scanning' | undefined>(
     _initialViewParam === 'import' ? 'scanning' : undefined
   )
+  const [importInitialBarcode, setImportInitialBarcode] = useState<string | undefined>()
+  const [importAutoPickImage, setImportAutoPickImage] = useState(false)
   const importWasOpenedRef = useRef(false)
 
   // PWA App Shortcut / Post-update: open the appropriate view on mount
@@ -98,14 +100,24 @@ function AppContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Clear the import initial view state when the import drawer is closed
+  // Clear the import initial view / barcode state when the import drawer is closed
   useEffect(() => {
     if (navigation.showNoteImport) {
       importWasOpenedRef.current = true
-    } else if (importWasOpenedRef.current && importInitialView) {
-      setImportInitialView(undefined)
+    } else if (importWasOpenedRef.current) {
+      if (importInitialView) setImportInitialView(undefined)
+      if (importInitialBarcode) setImportInitialBarcode(undefined)
+      if (importAutoPickImage) setImportAutoPickImage(false)
     }
-  }, [navigation.showNoteImport, importInitialView])
+  }, [navigation.showNoteImport, importInitialView, importInitialBarcode, importAutoPickImage])
+
+  // Desktop inline import: collapse navbar input → open drawer with barcode to decode
+  const handleInlineImportSubmit = useCallback((barcodeText: string) => {
+    navigation.setImportExpanded(false)
+    setImportInitialBarcode(barcodeText)
+    setImportInitialView(undefined)
+    navigation.setShowNoteImport(true)
+  }, [navigation.setImportExpanded, navigation.setShowNoteImport])
 
   const openTrainingTask = useCallback((taskId: string) => {
     setInitialTrainingTaskId(taskId)
@@ -332,6 +344,13 @@ function AppContent() {
               isSearchExpanded: navigation.isSearchExpanded,
               onSearchExpandToggle: navigation.toggleSearchExpanded,
             }}
+            import={{
+              isImportExpanded: navigation.isImportExpanded,
+              onImportExpandToggle: navigation.toggleImportExpanded,
+              onImportSubmit: handleInlineImportSubmit,
+              onImportScan: () => { navigation.setImportExpanded(false); setImportInitialView('scanning'); navigation.setShowNoteImport(true); },
+              onImportImage: () => { navigation.setImportExpanded(false); setImportAutoPickImage(true); navigation.setShowNoteImport(true); },
+            }}
             actions={{
               onBackClick: handleBackClick,
               onMenuClick: navigation.toggleMenu,
@@ -432,6 +451,8 @@ function AppContent() {
           isVisible={navigation.showNoteImport}
           onClose={() => navigation.setShowNoteImport(false)}
           initialViewState={importInitialView}
+          initialBarcodeText={importInitialBarcode}
+          autoPickImage={importAutoPickImage}
           isMobile={navigation.isMobile}
         />
         </Suspense>

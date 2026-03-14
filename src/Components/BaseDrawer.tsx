@@ -118,6 +118,9 @@ interface BaseDrawerProps {
     /** When true, the drawer transforms into a compact card pushed upward,
      *  leaving the bottom portion of the column free for companion content. */
     cardMode?: boolean;
+    /** When true on mobile, the drawer floats as an inset card with margin,
+     *  full border-radius, and elevated shadow instead of sitting flush at the bottom. */
+    mobileFloating?: boolean;
 }
 
 export function BaseDrawer({
@@ -135,6 +138,7 @@ export function BaseDrawer({
     header,
     mobileFullScreen = false,
     cardMode = false,
+    mobileFloating = false,
 }: BaseDrawerProps) {
     const [drawerPosition, setDrawerPosition] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
@@ -304,7 +308,7 @@ export function BaseDrawer({
             {/* Drawer / Panel — single container that adapts to viewport */}
             <div
                 className={useMobileLayout
-                    ? `fixed left-0 right-0 ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
+                    ? `fixed ${mobileFloating ? 'left-3 right-3' : 'left-0 right-0'} ${zIndex} bg-themewhite3 ${isDragging ? '' : 'transition-all duration-300 ease-out'} ${mobileClassName} ${header ? 'flex flex-col' : ''}`
                     : `absolute ${desktopAlignClass} top-0 ${desktopWidthClass} ${zIndex}
                         flex flex-col rounded-md border border-tertiary/20
                         shadow-lg shadow-black/8 backdrop-blur-xl bg-themewhite3/95
@@ -313,13 +317,13 @@ export function BaseDrawer({
                 style={useMobileLayout ? {
                     height: cardMode ? '35dvh' : (mobileFullScreen ? '100dvh' : fullHeight),
                     maxHeight: cardMode ? '35dvh' : (mobileFullScreen ? '100dvh' : fullHeight),
-                    width: '100%',
-                    bottom: cardMode ? '55dvh' : 0,
+                    width: mobileFloating ? undefined : '100%',
+                    bottom: cardMode ? '55dvh' : (mobileFloating ? 12 : 0),
                     transform: `translateY(${100 - drawerPosition}%)`,
                     opacity: Math.min(1, drawerPosition / 60 + 0.2),
-                    borderRadius: cardMode ? '1.25rem' : (mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0'),
+                    borderRadius: (cardMode || mobileFloating) ? '1.25rem' : (mobileFullScreen ? '0' : '1.25rem 1.25rem 0 0'),
                     willChange: isDragging ? 'transform' : 'auto',
-                    boxShadow: cardMode
+                    boxShadow: (cardMode || mobileFloating)
                         ? '0 4px 30px rgba(0, 0, 0, 0.12)'
                         : (mobileFullScreen ? 'none' : '0 -4px 20px rgba(0, 0, 0, 0.1)'),
                     overflow: 'hidden',

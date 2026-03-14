@@ -19,7 +19,10 @@ import { LocationTagPhoto } from './LocationTagPhoto'
 import { CanvasEditOverlay } from './CanvasEditOverlay'
 import type { CanvasEditHandle } from './CanvasEditOverlay'
 import { ConfirmDialog } from '../ConfirmDialog'
+import { createLogger } from '../../Utilities/Logger'
 import type { LocalPropertyItem, LocalPropertyLocation, PropertyLocation, LocationTag } from '../../Types/PropertyTypes'
+
+const logger = createLogger('PropertyLocationMap')
 
 // ── LOD helpers (pure functions, no hooks) ────────────────────
 
@@ -59,6 +62,9 @@ function flattenToWorld(tagIndex: TagIndex, rootId: string): LocationTag[] {
 /** Drag distance threshold — below this we treat pointerup as a tap, not a pan */
 const TAP_THRESHOLD = 8
 
+/** Base canvas multiplier — canvas starts 3× viewport so panning works at zoom=1 */
+const BASE_CANVAS_SCALE = 3
+
 export interface MapNavHandle {
   navigateToZone: (targetId: string) => void
   resetZoom: () => void
@@ -90,7 +96,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const [pendingZoneDelete, setPendingZoneDelete] = useState<{ targetId: string; label: string } | null>(null)
   const editRef = useRef<CanvasEditHandle>(null)
   const dragRef = useRef<{ startX: number; startY: number; scrollX: number; scrollY: number; zoneId: string | null } | null>(null)
-  const lcaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lcaCleanupRef = useRef<(() => void) | null>(null)
   // Track edit selection count so toolbar re-renders when shift-selection changes
   const [editSelectionCount, setEditSelectionCount] = useState(0)
   // Nested edit: external name prompt state
@@ -100,6 +106,18 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
   const rootLocationId = store.rootLocationId
 
+  // ── Viewport size tracking for infinite canvas ──
+  const [vpSize, setVpSize] = useState({ w: 0, h: 0 })
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const obs = new ResizeObserver(([entry]) => {
+      setVpSize({ w: entry.contentRect.width, h: entry.contentRect.height })
+    })
+    obs.observe(el)
+    return () => obs.disconnect()
+  }, [])
+
   // Ref for locations — avoids stale async fetches when locations change mid-save
   const locationsRef = useRef(locations)
   locationsRef.current = locations
@@ -107,8 +125,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   const itemsRef = useRef(items)
   itemsRef.current = items
 
-  // ── Cleanup LCA animation timer on unmount ──
-  useEffect(() => () => { if (lcaTimerRef.current) clearTimeout(lcaTimerRef.current) }, [])
+  // ── Cleanup LCA animation listener on unmount ──
+  useEffect(() => () => { lcaCleanupRef.current?.() }, [])
 
   // ── Load tags and build index ──
   // Fires on rootLocationId (initial load) and tagVersion (sync, tree rename).
@@ -125,7 +143,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       .catch(() => { /* non-fatal */ })
 
     return () => { stale = true }
-  }, [clinicId, rootLocationId, store.tagVersion])
+  }, [clinicId, rootLocationId, store.tagVersion, locations])
 
   // ── Root canvas tags (for edit mode + empty-state check) ──
   const canvasTags: LocationTag[] = useMemo(() => {
@@ -145,13 +163,31 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     return allWorldTags.find((t) => t.target_id === editCanvasId) ?? null
   }, [editCanvasId, rootLocationId, allWorldTags])
 
-  // ── Visible tags — LOD filter: hide sub-zones until parent fills ≥80% of viewport ──
+  // ── Visible tags — LOD filter with dynamic depth based on selection ──
   const visibleTags = useMemo(() => {
     if (!rootLocationId) return allWorldTags
     const selectedId = store.selectedZoneId
 
     const byTargetId = new Map<string, LocationTag>()
     for (const t of allWorldTags) byTargetId.set(t.target_id, t)
+
+    // Compute depth of each tag (0 = root canvas children, 1 = first nested, etc.)
+    const depthOf = new Map<string, number>()
+    for (const tag of allWorldTags) {
+      let depth = 0
+      let canvasId = tag.location_id
+      while (canvasId && canvasId !== rootLocationId) {
+        depth++
+        const parentTag = byTargetId.get(canvasId)
+        if (!parentTag) break
+        canvasId = parentTag.location_id
+      }
+      depthOf.set(tag.target_id, depth)
+    }
+
+    // Dynamic visible depth: always show depth 0+1, expand when navigated deeper
+    const selectedDepth = selectedId ? (depthOf.get(selectedId) ?? 0) : 0
+    const visibleDepth = Math.max(1, selectedDepth + 1)
 
     // Build ancestor set so the selected zone + its parent chain are always visible
     const ancestorIds = new Set<string>()
@@ -166,7 +202,10 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     }
 
     return allWorldTags.filter((tag) => {
-      if (tag.location_id === rootLocationId) return true
+      const depth = depthOf.get(tag.target_id) ?? 0
+      // Show all zones up to the dynamic depth threshold
+      if (depth <= visibleDepth) return true
+      // Selected zone's children + ancestor chain (catches edges beyond threshold)
       if (tag.location_id === selectedId) return true
       if (ancestorIds.has(tag.target_id)) return true
 
@@ -177,35 +216,67 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     })
   }, [allWorldTags, rootLocationId, canvasScale, store.selectedZoneId])
 
-  // ── Zoom to a world-coord tag ──
-  const zoomToTag = useCallback(
-    (tag: LocationTag) => {
+  // ── Zoom to a world-coord rect { x, y, width, height } ──
+  const zoomToRect = useCallback(
+    (rect: { x: number; y: number; width: number; height: number }, smooth = true) => {
       const container = scrollRef.current
-      if (!container || !tag.width || !tag.height) return
+      if (!container || !rect.width || !rect.height) return
 
       const PADDING = 10
       const FILL = 0.80
 
       const vpW = container.clientWidth
       const vpH = container.clientHeight
-      const newScale = Math.min(FILL / tag.width, FILL / tag.height, 100)
+      const newScale = Math.min(FILL / rect.width, FILL / rect.height, 100)
 
-      // Force synchronous DOM commit so scrollWidth/Height reflect newScale
       flushSync(() => setCanvasScale(newScale))
 
-      // Read actual rendered canvas size
-      const canvasW = container.scrollWidth
-      const canvasH = container.scrollHeight
+      const contentW = container.scrollWidth - 2 * vpW
+      const contentH = container.scrollHeight - 2 * vpH
 
-      // Place tag top-left at PADDING,PADDING from viewport top-left
       container.scrollTo({
-        left: tag.x * canvasW - PADDING,
-        top: tag.y * canvasH - PADDING,
-        behavior: 'smooth',
+        left: vpW + rect.x * contentW - PADDING,
+        top: vpH + rect.y * contentH - PADDING,
+        behavior: smooth ? 'smooth' : 'instant',
       })
     },
     [],
   )
+
+  /** Convenience — zoom to a LocationTag */
+  const zoomToTag = useCallback(
+    (tag: LocationTag) => zoomToRect({ x: tag.x, y: tag.y, width: tag.width ?? 0, height: tag.height ?? 0 }),
+    [zoomToRect],
+  )
+
+  // ── Fit all zones on initial mount — recomputes when tagIndex first populates ──
+  const didInitialFitRef = useRef(false)
+  useEffect(() => {
+    if (didInitialFitRef.current || !rootLocationId || !tagIndex) return
+    const rootTags = tagIndex.byCanvas.get(rootLocationId) ?? []
+    if (rootTags.length === 0) {
+      const el = scrollRef.current
+      if (el) {
+        requestAnimationFrame(() => {
+          const vw = el.clientWidth
+          const vh = el.clientHeight
+          el.scrollLeft = vw / 2 + (el.scrollWidth - 2 * vw) / 2
+          el.scrollTop = vh / 2 + (el.scrollHeight - 2 * vh) / 2
+        })
+      }
+      return
+    }
+    didInitialFitRef.current = true
+    const minX = Math.min(...rootTags.map((t) => t.x))
+    const minY = Math.min(...rootTags.map((t) => t.y))
+    const maxX = Math.max(...rootTags.map((t) => t.x + (t.width ?? 0)))
+    const maxY = Math.max(...rootTags.map((t) => t.y + (t.height ?? 0)))
+    const margin = 0.04
+    zoomToRect(
+      { x: Math.max(0, minX - margin), y: Math.max(0, minY - margin), width: maxX - minX + margin * 2, height: maxY - minY + margin * 2 },
+      false,
+    )
+  }, [rootLocationId, tagIndex, zoomToRect])
 
   // ── Shared-parent zoom: zoom out to LCA, pause, then zoom in to target ──
   const zoomViaLCA = useCallback(
@@ -229,15 +300,38 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         return
       }
 
-      // Zoom out to LCA, wait, then zoom in to target
+      // Zoom out to LCA, then zoom in to target — driven by scrollend events
+      const container = scrollRef.current
+      lcaCleanupRef.current?.()
+
+      if (!container) {
+        zoomToTag(lcaTag)
+        zoomToTag(toTag)
+        return
+      }
+
       store.setTransitionState('zooming-out')
       zoomToTag(lcaTag)
-      if (lcaTimerRef.current) clearTimeout(lcaTimerRef.current)
-      lcaTimerRef.current = setTimeout(() => {
+
+      const onZoomOutEnd = () => {
+        container.removeEventListener('scrollend', onZoomOutEnd)
         store.setTransitionState('zooming-in')
         zoomToTag(toTag)
-        lcaTimerRef.current = setTimeout(() => store.setTransitionState('idle'), 400)
-      }, 450)
+
+        const onZoomInEnd = () => {
+          container.removeEventListener('scrollend', onZoomInEnd)
+          lcaCleanupRef.current = null
+          store.setTransitionState('idle')
+        }
+        container.addEventListener('scrollend', onZoomInEnd, { once: true })
+        lcaCleanupRef.current = () => {
+          container.removeEventListener('scrollend', onZoomInEnd)
+        }
+      }
+      container.addEventListener('scrollend', onZoomOutEnd, { once: true })
+      lcaCleanupRef.current = () => {
+        container.removeEventListener('scrollend', onZoomOutEnd)
+      }
     },
     [tagIndex, rootLocationId, allWorldTags, zoomToTag, store],
   )
@@ -266,25 +360,122 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     [store, allWorldTags, zoomToTag, zoomViaLCA],
   )
 
-  // ── Reset zoom ──
+  // ── Reset zoom — fit all top-level zones into view ──
   const handleResetZoom = useCallback(() => {
     store.selectZone(null)
-    setCanvasScale(1)
-    scrollRef.current?.scrollTo({ left: 0, top: 0, behavior: 'smooth' })
-  }, [store])
+
+    // Compute bounding box of all depth-0 zones
+    const rootTags = allWorldTags.filter((t) => t.location_id === rootLocationId)
+    if (rootTags.length > 0) {
+      const minX = Math.min(...rootTags.map((t) => t.x))
+      const minY = Math.min(...rootTags.map((t) => t.y))
+      const maxX = Math.max(...rootTags.map((t) => t.x + (t.width ?? 0)))
+      const maxY = Math.max(...rootTags.map((t) => t.y + (t.height ?? 0)))
+      // Add margin around the bbox so zones aren't flush against edges
+      const margin = 0.04
+      zoomToRect({
+        x: Math.max(0, minX - margin),
+        y: Math.max(0, minY - margin),
+        width: maxX - minX + margin * 2,
+        height: maxY - minY + margin * 2,
+      })
+    } else {
+      setCanvasScale(1)
+      requestAnimationFrame(() => {
+        const el = scrollRef.current
+        if (!el) return
+        const vw = el.clientWidth
+        const vh = el.clientHeight
+        el.scrollTo({
+          left: vw / 2 + (el.scrollWidth - 2 * vw) / 2,
+          top: vh / 2 + (el.scrollHeight - 2 * vh) / 2,
+          behavior: 'smooth',
+        })
+      })
+    }
+  }, [store, allWorldTags, rootLocationId, zoomToRect])
+
+  // ── Deferred navigation — handles cases where tags haven't loaded yet ──
+  const pendingNavRef = useRef<string | null>(null)
+
+  const executeNavigation = useCallback((targetId: string) => {
+    const tag = allWorldTags.find((t) => t.target_id === targetId)
+    if (!tag) return false
+
+    store.selectZone(targetId)
+
+    if (tag.location_id === rootLocationId) {
+      zoomToTag(tag)
+      return true
+    }
+
+    // Nested zone — zoom to parent for context, then scrollend-driven zoom to target
+    const parentTag = allWorldTags.find((t) => t.target_id === tag.location_id)
+    if (!parentTag) {
+      zoomToTag(tag)
+      return true
+    }
+
+    const container = scrollRef.current
+    lcaCleanupRef.current?.()
+
+    if (!container) {
+      zoomToTag(tag)
+      return true
+    }
+
+    store.setTransitionState('zooming-out')
+    zoomToTag(parentTag)
+
+    const onParentEnd = () => {
+      container.removeEventListener('scrollend', onParentEnd)
+      store.setTransitionState('zooming-in')
+      zoomToTag(tag)
+
+      const onTargetEnd = () => {
+        container.removeEventListener('scrollend', onTargetEnd)
+        lcaCleanupRef.current = null
+        store.setTransitionState('idle')
+      }
+      container.addEventListener('scrollend', onTargetEnd, { once: true })
+      lcaCleanupRef.current = () => {
+        container.removeEventListener('scrollend', onTargetEnd)
+      }
+    }
+    container.addEventListener('scrollend', onParentEnd, { once: true })
+    lcaCleanupRef.current = () => {
+      container.removeEventListener('scrollend', onParentEnd)
+    }
+
+    return true
+  }, [allWorldTags, rootLocationId, store, zoomToTag])
 
   // ── Imperative handle for external navigation (tree clicks, breadcrumbs) ──
   useImperativeHandle(ref, () => ({
     navigateToZone(targetId: string) {
-      const tag = allWorldTags.find((t) => t.target_id === targetId)
-      if (!tag) return
-      store.selectZone(targetId)
-      zoomToTag(tag)
+      if (!executeNavigation(targetId)) {
+        // Tags not loaded yet — defer until they arrive
+        pendingNavRef.current = targetId
+        store.selectZone(targetId)
+      } else {
+        pendingNavRef.current = null
+      }
     },
     resetZoom() {
       handleResetZoom()
     },
-  }), [allWorldTags, store, zoomToTag, handleResetZoom])
+  }), [executeNavigation, store, handleResetZoom])
+
+  // Process deferred navigation when tags load
+  useEffect(() => {
+    if (!pendingNavRef.current || !tagIndex) return
+    if (executeNavigation(pendingNavRef.current)) {
+      pendingNavRef.current = null
+    } else {
+      logger.warn('Deferred nav target not found in tags:', pendingNavRef.current)
+      pendingNavRef.current = null
+    }
+  }, [allWorldTags, executeNavigation, tagIndex])
 
   // ── Edit mode ──
   const handleEnterEdit = useCallback(async () => {
@@ -551,7 +742,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     photoInputRef.current?.click()
   }, [])
 
-  const isZoomed = canvasScale > 1
+  const isZoomed = canvasScale > 1 / BASE_CANVAS_SCALE
 
   // ── Toolbar expand/collapse spring (NavTop-style) ──
   const toolbarSpring = useSpring({
@@ -564,18 +755,26 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     const el = scrollRef.current
     if (!el) return
     const old = canvasScale
-    const next = Math.min(Math.max(old * factor, 1), 100)
+    const next = Math.min(Math.max(old * factor, 1 / BASE_CANVAS_SCALE), 100)
     if (next === old) return
 
-    // Point at center of viewport in canvas-space (0..1)
-    const cx = (el.scrollLeft + el.clientWidth / 2) / (el.scrollWidth || el.clientWidth)
-    const cy = (el.scrollTop + el.clientHeight / 2) / (el.scrollHeight || el.clientHeight)
+    const vpW = el.clientWidth
+    const vpH = el.clientHeight
+    const oldContentW = el.scrollWidth - 2 * vpW
+    const oldContentH = el.scrollHeight - 2 * vpH
+
+    // Point at center of viewport in content-space (0..1)
+    const cx = (el.scrollLeft + vpW / 2 - vpW) / (oldContentW || 1)
+    const cy = (el.scrollTop + vpH / 2 - vpH) / (oldContentH || 1)
 
     // Force synchronous DOM commit so scrollWidth/Height reflect new scale
     flushSync(() => setCanvasScale(next))
 
-    el.scrollLeft = cx * el.scrollWidth - el.clientWidth / 2
-    el.scrollTop = cy * el.scrollHeight - el.clientHeight / 2
+    const newContentW = el.scrollWidth - 2 * vpW
+    const newContentH = el.scrollHeight - 2 * vpH
+
+    el.scrollLeft = vpW + cx * newContentW - vpW / 2
+    el.scrollTop = vpH + cy * newContentH - vpH / 2
   }, [canvasScale])
 
   const handleZoomIn = useCallback(() => zoomBy(1.5), [zoomBy])
@@ -596,6 +795,69 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => el.removeEventListener('wheel', onWheel)
   }, [zoomBy])
+
+  // ── Multi-touch pinch-to-zoom (real touch devices) ──
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    let lastDist = 0
+    let lastCenter = { x: 0, y: 0 }
+
+    const getDistance = (t1: Touch, t2: Touch) =>
+      Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY)
+
+    const getCenter = (t1: Touch, t2: Touch) => ({
+      x: (t1.clientX + t2.clientX) / 2,
+      y: (t1.clientY + t2.clientY) / 2,
+    })
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        e.preventDefault()
+        lastDist = getDistance(e.touches[0], e.touches[1])
+        lastCenter = getCenter(e.touches[0], e.touches[1])
+      }
+    }
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 2) return
+      e.preventDefault()
+
+      const dist = getDistance(e.touches[0], e.touches[1])
+      const center = getCenter(e.touches[0], e.touches[1])
+
+      if (lastDist > 0) {
+        const factor = dist / lastDist
+        zoomBy(factor)
+      }
+
+      lastDist = dist
+      lastCenter = center
+    }
+
+    const onTouchEnd = () => {
+      lastDist = 0
+    }
+
+    el.addEventListener('touchstart', onTouchStart, { passive: false })
+    el.addEventListener('touchmove', onTouchMove, { passive: false })
+    el.addEventListener('touchend', onTouchEnd)
+
+    return () => {
+      el.removeEventListener('touchstart', onTouchStart)
+      el.removeEventListener('touchmove', onTouchMove)
+      el.removeEventListener('touchend', onTouchEnd)
+    }
+  }, [zoomBy])
+
+  // ── Computed canvas dimensions (pixel-based for infinite canvas) ──
+  const contentW = vpSize.w * canvasScale
+  const contentH = vpSize.h * canvasScale
+  const padX = vpSize.w   // 1 viewport width of padding on each side
+  const padY = vpSize.h
+  const totalW = contentW + padX * 2
+  const totalH = contentH + padY * 2
 
   const selectedZoneLabel = store.selectedZoneId
     ? allWorldTags.find((t) => t.target_id === store.selectedZoneId)?.label
@@ -618,32 +880,55 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         >
           {isEditing && parentBounds ? (
             /* ── Nested edit: dimmed background + scoped overlay at parent zone bounds ── */
-            <div
-              className="relative origin-top-left"
-              style={{ width: `${canvasScale * 100}%`, height: `${canvasScale * 100}%`, minHeight: '100%' }}
-            >
-              {/* Dimmed background showing all zones */}
-              <div className="absolute inset-0 opacity-40 pointer-events-none">
-                <LocationTagPhoto tags={visibleTags} selectedZoneId={null} onZoneTap={() => {}} scale={1} photoMap={photoMap} />
+            <div className="relative" style={{ width: totalW, height: totalH }}>
+              <div className="absolute" style={{ left: padX, top: padY, width: contentW, height: contentH }}>
+                <div className="relative w-full h-full">
+                  {/* Dimmed background showing all zones */}
+                  <div className="absolute inset-0 opacity-40 pointer-events-none">
+                    <LocationTagPhoto tags={visibleTags} selectedZoneId={null} onZoneTap={() => {}} scale={1} photoMap={photoMap} />
+                  </div>
+                  <div className="absolute inset-0 bg-black/20 pointer-events-none" />
+                  {/* Scoped edit overlay positioned at parent zone's world-space bounds */}
+                  <div
+                    className="absolute z-10 ring-2 ring-themeblue2 rounded-lg overflow-hidden"
+                    style={{
+                      left: `${parentBounds.x * 100}%`,
+                      top: `${parentBounds.y * 100}%`,
+                      width: `${(parentBounds.width ?? 0) * 100}%`,
+                      height: `${(parentBounds.height ?? 0) * 100}%`,
+                    }}
+                  >
+                    <CanvasEditOverlay
+                      tags={editCanvasTags}
+                      canvasId={editCanvasId!}
+                      drawMode={isDrawing}
+                      resizeMode={isResizing}
+                      moveMode={isMoving}
+                      scale={1}
+                      editRef={editRef}
+                      onSave={handleEditSave}
+                      onCancel={handleExitEdit}
+                      onDeleteZone={(targetId, label) => setPendingZoneDelete({ targetId, label })}
+                      onSelectionChange={setEditSelectionCount}
+                      photoMap={photoMap}
+                      externalNamePrompt
+                      onNamingChange={setNamingState}
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="absolute inset-0 bg-black/20 pointer-events-none" />
-              {/* Scoped edit overlay positioned at parent zone's world-space bounds */}
-              <div
-                className="absolute z-10 ring-2 ring-themeblue2 rounded-lg overflow-hidden"
-                style={{
-                  left: `${parentBounds.x * 100}%`,
-                  top: `${parentBounds.y * 100}%`,
-                  width: `${(parentBounds.width ?? 0) * 100}%`,
-                  height: `${(parentBounds.height ?? 0) * 100}%`,
-                }}
-              >
+            </div>
+          ) : isEditing ? (
+            /* ── Root edit: spacer + centered content ── */
+            <div className="relative" style={{ width: totalW, height: totalH }}>
+              <div className="absolute" style={{ left: padX, top: padY, width: contentW, height: contentH }}>
                 <CanvasEditOverlay
                   tags={editCanvasTags}
-                  canvasId={editCanvasId!}
+                  canvasId={editCanvasId || rootLocationId!}
                   drawMode={isDrawing}
                   resizeMode={isResizing}
                   moveMode={isMoving}
-                  scale={1}
+                  scale={canvasScale}
                   editRef={editRef}
                   onSave={handleEditSave}
                   onCancel={handleExitEdit}
@@ -655,48 +940,32 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                 />
               </div>
             </div>
-          ) : isEditing ? (
-            /* ── Root edit: current behavior ── */
-            <CanvasEditOverlay
-              tags={editCanvasTags}
-              canvasId={editCanvasId || rootLocationId!}
-              drawMode={isDrawing}
-              resizeMode={isResizing}
-              moveMode={isMoving}
-              scale={canvasScale}
-              editRef={editRef}
-              onSave={handleEditSave}
-              onCancel={handleExitEdit}
-              onDeleteZone={(targetId, label) => setPendingZoneDelete({ targetId, label })}
-              onSelectionChange={setEditSelectionCount}
-              photoMap={photoMap}
-              externalNamePrompt
-              onNamingChange={setNamingState}
-            />
           ) : (
-            <>
-              <LocationTagPhoto
-                tags={visibleTags}
-                selectedZoneId={store.selectedZoneId}
-                onZoneTap={handleZoneTap}
-                scale={canvasScale}
-                photoMap={photoMap}
-              />
+            <div className="relative" style={{ width: totalW, height: totalH }}>
+              <div className="absolute" style={{ left: padX, top: padY, width: contentW, height: contentH }}>
+                <LocationTagPhoto
+                  tags={visibleTags}
+                  selectedZoneId={store.selectedZoneId}
+                  onZoneTap={handleZoneTap}
+                  scale={canvasScale}
+                  photoMap={photoMap}
+                />
 
-              {!rootLocationId && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <p className="text-[10pt] text-tertiary/50">Loading canvas...</p>
-                </div>
-              )}
-              {rootLocationId && canvasTags.length === 0 && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="text-center space-y-1">
-                    <p className="text-[10pt] text-tertiary/60">No zones yet</p>
-                    <p className="text-[9pt] text-tertiary/40">Tap Edit to draw zones</p>
+                {!rootLocationId && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <p className="text-[10pt] text-tertiary/50">Loading canvas...</p>
                   </div>
-                </div>
-              )}
-            </>
+                )}
+                {rootLocationId && canvasTags.length === 0 && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="text-center space-y-1">
+                      <p className="text-[10pt] text-tertiary/60">No zones yet</p>
+                      <p className="text-[9pt] text-tertiary/40">Tap Edit to draw zones</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
 

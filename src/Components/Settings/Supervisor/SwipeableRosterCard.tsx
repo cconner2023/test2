@@ -1,6 +1,6 @@
-import { CheckCircle, Check, ClipboardCheck, Eye, Pencil } from 'lucide-react'
+import { Check, ClipboardCheck, Eye, Pencil } from 'lucide-react'
 import { SwipeableCard, type SwipeAction } from '../../SwipeableCard'
-import { formatMedicName, getExpirationStatus, certBadgeColors } from './supervisorHelpers'
+import { formatMedicName } from './supervisorHelpers'
 import { UserAvatar } from '../UserAvatar'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
@@ -74,9 +74,12 @@ export function SwipeableRosterCard({
           )}
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-primary">{formatMedicName(soldier)}</p>
-            {soldier.credential && (
-              <p className="text-[9pt] text-tertiary/50">{soldier.credential}</p>
-            )}
+            {(() => {
+              const allCreds = [soldier.credential, ...certs.map(c => c.title)].filter(Boolean)
+              return allCreds.length > 0 && (
+                <p className="text-[9pt] text-tertiary/50 truncate">{allCreds.join(', ')}</p>
+              )
+            })()}
           </div>
           {overdueCount > 0 && (
             <span className="shrink-0 px-2 py-0.5 rounded-full text-[9pt] font-bold bg-themeredred/15 text-themeredred">
@@ -84,25 +87,6 @@ export function SwipeableRosterCard({
             </span>
           )}
         </div>
-
-        {/* Cert badges (non-primary only; primary is already shown as credential) */}
-        {certs.filter(c => !c.is_primary).length > 0 && (
-          <div className="flex flex-wrap items-center gap-1 mt-2">
-            {certs.filter(c => !c.is_primary).map((cert) => {
-              const status = getExpirationStatus(cert.exp_date)
-              const color = certBadgeColors[status]
-              return (
-                <span
-                  key={cert.id}
-                  className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9pt] font-medium border ${color}`}
-                >
-                  {cert.title}
-                  {cert.verified && <CheckCircle size={8} />}
-                </span>
-              )
-            })}
-          </div>
-        )}
       </div>
     </SwipeableCard>
   )

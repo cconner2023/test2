@@ -30,8 +30,11 @@ import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
 import { playSendSound } from '../../lib/soundService'
 import { CalendarPanel } from '../Calendar/CalendarPanel'
+import { lazy, Suspense } from 'react'
 
-export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat' | 'messages-calendar'
+const ClinicAssociationPanel = lazy(() => import('./ClinicAssociationPanel').then(m => ({ default: m.ClinicAssociationPanel })))
+
+export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat' | 'messages-calendar' | 'messages-clinic-assoc'
 
 export interface MessagesPanelHandle {
   createGroup: () => void
@@ -1479,7 +1482,13 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   // Determine main content based on view
   let mainContent: React.ReactNode
 
-  if (view === 'messages-calendar') {
+  if (view === 'messages-clinic-assoc') {
+    mainContent = (
+      <Suspense fallback={<div className="flex items-center justify-center h-full"><LoadingSpinner /></div>}>
+        <ClinicAssociationPanel onBack={() => onBack?.()} />
+      </Suspense>
+    )
+  } else if (view === 'messages-calendar') {
     mainContent = (
       <CalendarPanel onBack={() => onBack?.()} />
     )

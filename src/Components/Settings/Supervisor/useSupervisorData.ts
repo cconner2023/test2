@@ -10,12 +10,9 @@ import {
   buildTestableTaskMap,
   buildCompetencyMatrix,
   computeTeamMetrics,
-  computeTrends,
   type FlatTask,
   type SoldierCompetency,
   type TeamMetrics,
-  type TrendPeriod,
-  type TrendBucket,
 } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
@@ -29,6 +26,8 @@ export interface SupervisorData {
   isSupervisor: boolean
   /** Current user's Supabase UID */
   currentUserId: string | null
+  /** Clinic display name */
+  clinicName: string | null
   /** Current user's profile as a ClinicMedic (for name resolution) */
   currentUserProfile: ClinicMedic | null
   /** Clinic medics (excluding the current user) */
@@ -51,14 +50,16 @@ export interface SupervisorData {
   updateCert: (certId: string, updates: Partial<Certification>) => void
   /** Remove a test from local state (after delete) */
   removeTest: (testId: string) => void
+  /** Add a cert to local state (after server insert) */
+  addCert: (cert: Certification) => void
+  /** Remove a cert from local state (after server delete) */
+  removeCert: (certId: string) => void
   /** Refresh certs + tests from server */
   refreshData: () => void
   /** Competency matrix for all soldiers */
   competencyMatrix: SoldierCompetency[]
   /** Aggregate team metrics */
   teamMetrics: TeamMetrics
-  /** Compute trend buckets for a given period */
-  computeTrendsForPeriod: (period: TrendPeriod, groupBy: 'week' | 'month', soldierId?: string) => TrendBucket[]
   /** Map of subject area -> testable tasks (only tasks with gradedSteps) */
   testableTaskMap: Map<string, FlatTask[]>
 }
@@ -76,6 +77,7 @@ export function useSupervisorData(): SupervisorData {
   // showing all-location medics before the supervisor's own clinic is known.
   const currentUserId = user?.id ?? null
   const isSupervisor = isSupervisorRole
+  const clinicName = authProfile.clinicName ?? null
   const loading = authLoading || (!!user && !userClinicId)
 
   const currentUserProfile = useMemo<ClinicMedic | null>(() => {
@@ -170,6 +172,14 @@ export function useSupervisorData(): SupervisorData {
     setTests(prev => prev.filter(t => t.id !== testId))
   }, [])
 
+  const addCert = useCallback((cert: Certification) => {
+    setCerts(prev => [cert, ...prev])
+  }, [])
+
+  const removeCert = useCallback((certId: string) => {
+    setCerts(prev => prev.filter(c => c.id !== certId))
+  }, [])
+
   // ─── Team Insights Computations ──────────────────────────────────────
   const testableTaskMapRef = useRef<Map<string, FlatTask[]> | null>(null)
   if (!testableTaskMapRef.current) {
@@ -187,16 +197,11 @@ export function useSupervisorData(): SupervisorData {
     [medics, tests, certs, testableTaskMap, overdueItems]
   )
 
-  const computeTrendsForPeriod = useCallback(
-    (period: TrendPeriod, groupBy: 'week' | 'month', soldierId?: string) =>
-      computeTrends(tests, period, groupBy, soldierId),
-    [tests]
-  )
-
   return {
     loading: loading || medicsLoading,
     isSupervisor,
     currentUserId,
+    clinicName,
     currentUserProfile,
     medics,
     allClinicUsers,
@@ -208,10 +213,11 @@ export function useSupervisorData(): SupervisorData {
     resolveName,
     updateCert,
     removeTest,
+    addCert,
+    removeCert,
     refreshData: fetchCertsAndTests,
     competencyMatrix,
     teamMetrics,
-    computeTrendsForPeriod,
     testableTaskMap,
   }
 }

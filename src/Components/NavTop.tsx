@@ -1,6 +1,6 @@
 // NavTop.tsx - Simplified version with grouped props
-import { Search, X, ChevronLeft, Info, Mail, Upload, BookOpen, Package, ClipboardCheck, UserCog, ChevronDown } from "lucide-react";
-import { useState, useRef, useEffect, useMemo } from "react";
+import { Search, X, ChevronLeft, Info, Mail, Upload, BookOpen, Package, ClipboardCheck, UserCog, ChevronDown, CheckCircle, Camera, ImagePlus } from "lucide-react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useSpring, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
 import { useAvatar } from "../Utilities/AvatarContext";
@@ -9,7 +9,7 @@ import { useMessagesContext } from "../Hooks/MessagesContext";
 import { getInitials } from "../Utilities/nameUtils";
 import { PROPERTY_MANAGEMENT_ENABLED } from "../lib/featureFlags";
 
-export function NavTop({ search, actions, ui }: NavTopProps) {
+export function NavTop({ search, import: importProps, actions, ui }: NavTopProps) {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
     const { profile, isAuthenticated, isSupervisorRole, isDevRole } = useAuth()
     const messagesCtx = useMessagesContext()
@@ -105,13 +105,35 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
         config: { tension: 260, friction: 24 },
     });
 
+    // Import expansion props
+    const {
+        isImportExpanded = false,
+        onImportExpandToggle,
+        onImportSubmit,
+        onImportScan,
+        onImportImage,
+    } = importProps ?? {};
+
+    const importInputRef = useRef<HTMLInputElement>(null);
+    const [importText, setImportText] = useState('');
+
+    // Either search or import can be expanded (mutually exclusive via store)
+    const isAnyExpanded = isSearchExpanded || isImportExpanded;
+
     // Desktop search spring: animates spacer / container flex + overlay reveal
     const desktopSearchSpring = useSpring({
-        spacerFlex: isSearchExpanded ? 0 : 1,
-        containerFlex: isSearchExpanded ? 1 : 0,
+        spacerFlex: isAnyExpanded ? 0 : 1,
+        containerFlex: isAnyExpanded ? 1 : 0,
         overlayOpacity: isSearchExpanded ? 1 : 0,
         overlayScale: isSearchExpanded ? 1 : 0.97,
-        buttonsOpacity: isSearchExpanded ? 0 : 1,
+        buttonsOpacity: isAnyExpanded ? 0 : 1,
+        config: { tension: 260, friction: 26 },
+    });
+
+    // Desktop import spring
+    const desktopImportSpring = useSpring({
+        overlayOpacity: isImportExpanded ? 1 : 0,
+        overlayScale: isImportExpanded ? 1 : 0.97,
         config: { tension: 260, friction: 26 },
     });
 
@@ -121,6 +143,30 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
             inputRef.current.focus();
         }
     }, [isSearchExpanded, inputRef]);
+
+    // Focus import input when it expands
+    useEffect(() => {
+        if (isImportExpanded && importInputRef.current) {
+            importInputRef.current.focus();
+        }
+    }, [isImportExpanded]);
+
+    // Clear import text when collapsing
+    useEffect(() => {
+        if (!isImportExpanded) setImportText('');
+    }, [isImportExpanded]);
+
+    const handleImportSubmit = useCallback(() => {
+        const text = importText.trim();
+        if (!text) return;
+        onImportSubmit?.(text);
+        setImportText('');
+    }, [importText, onImportSubmit]);
+
+    const handleImportCollapse = useCallback(() => {
+        setImportText('');
+        onImportExpandToggle?.();
+    }, [onImportExpandToggle]);
 
     // Handle mobile search icon click
     const handleMobileSearchClick = () => {
@@ -486,9 +532,9 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                         className="flex items-center gap-2"
                         style={{ opacity: desktopSearchSpring.buttonsOpacity }}
                     >
-                        {/* Import button */}
+                        {/* Import button — expands inline on desktop */}
                         <button
-                            onClick={onImportClick}
+                            onClick={onImportExpandToggle}
                             className={BUTTON_CLASSES.desktop}
                             aria-label="Import note"
                             title="Import note"
@@ -554,6 +600,75 @@ export function NavTop({ search, actions, ui }: NavTopProps) {
                                 <X className="w-5 h-5 stroke-themeblue1" />
                             </div>
                         </div>
+                    </animated.div>
+
+                    {/* Import overlay — spring-animated over sibling buttons */}
+                    <animated.div
+                        className="absolute inset-0 z-10 flex items-center bg-themewhite"
+                        style={{
+                            opacity: desktopImportSpring.overlayOpacity,
+                            transform: desktopImportSpring.overlayScale.to(s => `scale(${s})`),
+                            pointerEvents: isImportExpanded ? 'auto' : 'none',
+                        }}
+                    >
+                        <form
+                            onSubmit={(e) => { e.preventDefault(); handleImportSubmit(); }}
+                            className="flex items-center w-full rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite"
+                        >
+                            <div className="flex items-center gap-0.5 pl-2 shrink-0 text-tertiary/40">
+                                <button
+                                    type="button"
+                                    onClick={() => { handleImportCollapse(); onImportScan?.(); }}
+                                    className="p-1.5 hover:text-themeblue3 active:scale-95 transition-colors"
+                                    title="Scan barcode"
+                                >
+                                    <Camera size={16} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => { handleImportCollapse(); onImportImage?.(); }}
+                                    className="p-1.5 hover:text-themeblue3 active:scale-95 transition-colors"
+                                    title="Upload image"
+                                >
+                                    <ImagePlus size={16} />
+                                </button>
+                            </div>
+                            <input
+                                ref={importInputRef}
+                                type="text"
+                                placeholder="Paste barcode code"
+                                value={importText}
+                                onChange={(e) => setImportText(e.target.value)}
+                                className="text-tertiary bg-transparent outline-none text-[16px] w-full px-3 py-2 min-w-0"
+                            />
+                            <div className="flex items-center shrink-0 pr-1">
+                                {importText ? (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={() => setImportText('')}
+                                            className="p-1 text-tertiary/40 hover:text-tertiary active:scale-95 transition-colors"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="p-1 text-themeblue3 hover:text-themeblue3/80 active:scale-95 transition-colors"
+                                            title="Decode"
+                                        >
+                                            <CheckCircle size={22} />
+                                        </button>
+                                    </>
+                                ) : (
+                                    <div
+                                        className="flex items-center justify-center px-2 py-2 bg-themewhite2 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
+                                        onClick={handleImportCollapse}
+                                    >
+                                        <X className="w-5 h-5 stroke-themeblue1" />
+                                    </div>
+                                )}
+                            </div>
+                        </form>
                     </animated.div>
                 </animated.div>
             )}

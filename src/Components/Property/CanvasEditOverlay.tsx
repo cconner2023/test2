@@ -270,8 +270,8 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
         if (dx > threshold || dy > threshold) {
           // In resize mode, suppress move — only handles resize
           if (resizeMode) return
-          // Touch requires explicit move mode — otherwise let parent handle panning
-          if (isTouch && !moveMode) return
+          // Require explicit move mode for both touch and mouse
+          if (!moveMode) return
           // Start move drag
           const tag = editTags[down.idx]
           setDragAction({
@@ -308,6 +308,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
     (e: React.PointerEvent, idx: number, handle: ResizeHandle) => {
       e.stopPropagation()
       if (e.button !== 0) return
+      if (!resizeMode) return
       const tag = editTags[idx]
       setDragAction({
         type: 'resize',
@@ -317,7 +318,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
       })
       ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
     },
-    [editTags],
+    [editTags, resizeMode],
   )
 
   // Track which target_ids existed before editing (for cascade delete)
@@ -515,7 +516,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
       onNamingChange(null)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [namingIndex, externalNamePrompt])
+  }, [namingIndex, externalNamePrompt, editTags])
 
   const confirmNameExternal = useCallback((name: string) => {
     if (namingIndex === null) return
@@ -637,7 +638,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
             data-zone
             className={[
               'absolute overflow-hidden',
-              drawMode ? 'pointer-events-none' : 'cursor-move',
+              drawMode ? 'pointer-events-none' : moveMode ? 'cursor-move' : resizeMode ? 'cursor-default' : 'cursor-pointer',
               isComposite
                 ? ''
                 : [
@@ -702,10 +703,10 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
                 className={[
                   'absolute w-3.5 h-3.5 rounded-full bg-white border-2 z-10',
                   resizeMode ? 'border-themeyellow shadow-md' : 'border-themeblue3',
-                  handle === 'nw' ? '-top-1.5 -left-1.5 cursor-nw-resize' : '',
-                  handle === 'ne' ? '-top-1.5 -right-1.5 cursor-ne-resize' : '',
-                  handle === 'sw' ? '-bottom-1.5 -left-1.5 cursor-sw-resize' : '',
-                  handle === 'se' ? '-bottom-1.5 -right-1.5 cursor-se-resize' : '',
+                  handle === 'nw' ? `-top-1.5 -left-1.5 ${resizeMode ? 'cursor-nw-resize' : 'cursor-default'}` : '',
+                  handle === 'ne' ? `-top-1.5 -right-1.5 ${resizeMode ? 'cursor-ne-resize' : 'cursor-default'}` : '',
+                  handle === 'sw' ? `-bottom-1.5 -left-1.5 ${resizeMode ? 'cursor-sw-resize' : 'cursor-default'}` : '',
+                  handle === 'se' ? `-bottom-1.5 -right-1.5 ${resizeMode ? 'cursor-se-resize' : 'cursor-default'}` : '',
                 ].join(' ')}
                 onPointerDown={(e) => handleResizePointerDown(e, idx, handle)}
               />

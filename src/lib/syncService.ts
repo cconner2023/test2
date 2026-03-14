@@ -719,6 +719,9 @@ export function setupConnectivityListeners(
     try {
       callbacks?.onSyncStart?.()
 
+      // Heal records stuck as 'pending' from before the _sync_status fix
+      await healStuckPendingRecords(userId)
+
       // 1. Reconcile (pull server changes)
       const reconciledCompletions = await reconcileTrainingCompletionsWithServer(userId)
       callbacks?.onTrainingReconcileComplete?.(reconciledCompletions)

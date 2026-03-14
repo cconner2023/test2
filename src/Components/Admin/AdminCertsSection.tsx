@@ -7,15 +7,13 @@
  */
 
 import { useState } from 'react'
-import { Star, CheckCircle, X, Plus } from 'lucide-react'
+import { Star, X, Plus } from 'lucide-react'
 
 import type { Certification } from '../../Data/User'
 import type { AdminUser } from '../../lib/adminService'
 import { credentials } from '../../Data/User'
 import {
   updateCertification,
-  verifyCertification,
-  unverifyCertification,
   adminAddCertification,
   adminDeleteCertification,
   syncPrimaryToProfile,
@@ -59,15 +57,6 @@ export const AdminCertsSection = ({
   const [submitting, setSubmitting] = useState(false)
   const [addError, setAddError] = useState<string | null>(null)
 
-  const userMap = new Map(allUsers.map(u => [u.id, u]))
-
-  const resolveName = (id: string): string => {
-    const u = userMap.get(id)
-    return u
-      ? `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email
-      : id.slice(0, 8)
-  }
-
   const openEdit = (cert: Certification) => {
     setDeletingCertId(null)
     setAdding(false)
@@ -110,17 +99,6 @@ export const AdminCertsSection = ({
       setEditingCertId(null)
       onChanged()
     }
-  }
-
-  const handleVerify = async (certId: string) => {
-    if (!currentUserId) return
-    const result = await verifyCertification(certId, currentUserId)
-    if (result.success) onChanged()
-  }
-
-  const handleUnverify = async (certId: string) => {
-    const result = await unverifyCertification(certId)
-    if (result.success) onChanged()
   }
 
   const handleDelete = async (certId: string, wasPrimary: boolean) => {
@@ -195,7 +173,6 @@ export const AdminCertsSection = ({
                 {cert.title}
               </button>
               {cert.is_primary && <Star size={9} className="fill-current" />}
-              {cert.verified && <CheckCircle size={9} />}
               <button
                 onClick={() => {
                   setEditingCertId(null)
@@ -224,7 +201,6 @@ export const AdminCertsSection = ({
         (() => {
           const cert = certs.find(c => c.id === editingCertId)
           if (!cert) return null
-          const verifierName = cert.verified_by ? resolveName(cert.verified_by) : null
           return (
             <div className="mt-2 rounded-lg border border-themeblue2/30 bg-themewhite2 px-3 py-3 space-y-2.5">
               <p className="text-xs font-medium text-themeblue2 uppercase tracking-wide">
@@ -292,35 +268,6 @@ export const AdminCertsSection = ({
                 />
                 <span className="text-sm text-primary">Primary certification</span>
               </label>
-              {/* Verification status */}
-              <div className="flex items-center gap-2 text-xs">
-                {cert.verified ? (
-                  <>
-                    <span className="flex items-center gap-1 text-themegreen font-medium">
-                      <CheckCircle size={11} /> Verified
-                    </span>
-                    {verifierName && (
-                      <span className="text-tertiary/40">by {verifierName}</span>
-                    )}
-                    <button
-                      onClick={() => handleUnverify(cert.id)}
-                      className="text-tertiary/40 hover:text-themeredred transition-colors ml-auto"
-                    >
-                      Unverify
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-tertiary/50">Unverified</span>
-                    <button
-                      onClick={() => handleVerify(cert.id)}
-                      className="flex items-center gap-1 px-2 py-1 rounded-lg font-medium bg-themeblue3 text-white hover:bg-themeblue3/90 transition-colors ml-auto"
-                    >
-                      <CheckCircle size={11} /> Verify
-                    </button>
-                  </>
-                )}
-              </div>
               <div className="flex gap-2">
                 <button
                   onClick={handleSaveEdit}

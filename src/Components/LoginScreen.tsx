@@ -1,14 +1,14 @@
 import { useState, useCallback } from 'react'
-import { LogIn, KeyRound, Lock } from 'lucide-react'
+import { LogIn, KeyRound, Lock, UserPlus } from 'lucide-react'
 import { useAuthStore } from '../stores/useAuthStore'
-import { useNavigationStore } from '../stores/useNavigationStore'
 import { signIn } from '../lib/authService'
 import { supabase } from '../lib/supabase'
 import { PinKeypad } from './PinKeypad'
 import { ErrorDisplay } from './ErrorDisplay'
 import { TextInput, PasswordInput } from './FormInputs'
+import { AccountRequestForm } from './Settings/AccountRequestForm'
 
-type View = 'main' | 'reset' | 'resetToken' | 'pin'
+type View = 'main' | 'reset' | 'resetToken' | 'pin' | 'request'
 
 
 export function LoginScreen() {
@@ -110,9 +110,9 @@ export function LoginScreen() {
       <div className="min-h-full flex flex-col items-center justify-center py-8 px-4">
         <div className="w-full max-w-sm">
           {/* Branding */}
-          <div className="text-center mb-15">
-            <div className="relative w-17 h-17 mx-auto mb-2">
-              <svg className="relative w-17 h-17" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <div className={`text-center ${view === 'request' ? 'mb-6' : 'mb-15'}`}>
+            <div className={`relative mx-auto mb-2 ${view === 'request' ? 'w-10 h-10' : 'w-17 h-17'}`}>
+              <svg className="relative w-full h-full" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <g transform="translate(20,20)">
                   <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" />
                   <rect x="-3" y="-11" width="6" height="22" rx="1.5" className="fill-themeblue3" transform="rotate(60)" />
@@ -121,7 +121,7 @@ export function LoginScreen() {
               </svg>
             </div>
             <h1 className="text-xl font-semibold tracking-[2px] text-themeblue3 dark:text-themeblue1">
-              ADTMC <div className='text-[10pt]'>Medical Knowledge Repository and Operational Network</div>
+              ADTMC {view !== 'request' && <div className='text-[10pt]'>Medical Knowledge Repository and Operational Network</div>}
             </h1>
           </div>
 
@@ -184,13 +184,11 @@ export function LoginScreen() {
                   Continue as Guest
                 </button>
                 <button
-                  onClick={() => {
-                    continueAsGuest()
-                    useNavigationStore.getState().setShowSettings(true)
-                  }}
-                  className="flex-1 px-4 py-3 rounded-lg border-2 border-tertiary/10 text-primary
+                  onClick={() => switchView('request')}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-tertiary/10 text-primary
                          font-medium"
                 >
+                  <UserPlus size={16} />
                   Request Account
                 </button>
               </div>
@@ -321,6 +319,11 @@ export function LoginScreen() {
                 </button>
               </div>
             </>
+          )}
+
+          {/* ── Request Account ── */}
+          {view === 'request' && (
+            <AccountRequestForm onBack={() => switchView('main')} />
           )}
         </div>
       </div>

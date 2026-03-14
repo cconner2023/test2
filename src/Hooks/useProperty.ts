@@ -27,6 +27,8 @@ import {
   fetchItemLedger,
   fetchHolderDiscrepancies,
   syncLocationNameToTags,
+  fetchLocationTags,
+  upsertLocationTags,
 } from '../lib/propertyService'
 import { setupConnectivityListeners, healStuckPendingRecords } from '../lib/syncService'
 import { getLocalDiscrepanciesByStatus } from '../lib/offlineDb'
@@ -199,15 +201,61 @@ export function useProperty() {
     if (!userId) return
     const result = await updateLocation(id, updates, userId)
     if (result.success) {
+      // If parent changed, move zone tag from old canvas to new parent's canvas
+      if ('parent_id' in updates) {
+        const rootId = usePropertyStore.getState().rootLocationId
+        const oldLoc = locations.find((l) => l.id === id)
+        const oldCanvasId = oldLoc?.parent_id || rootId
+        const newCanvasId = updates.parent_id || rootId
+
+        if (oldCanvasId && newCanvasId && oldCanvasId !== newCanvasId) {
+          try {
+            // Remove tag from old canvas
+            const oldTags = await fetchLocationTags(oldCanvasId)
+            const movingTag = oldTags.find((t) => t.target_id === id)
+            const remainingTags = oldTags.filter((t) => t.target_id !== id)
+            await upsertLocationTags(oldCanvasId, remainingTags)
+
+            // Add tag to new canvas (grid placement like handleCreateLocation)
+            const newTags = await fetchLocationTags(newCanvasId)
+            const zoneCount = newTags.filter((t) => t.width != null && t.height != null && (t.width ?? 0) > 0 && (t.height ?? 0) > 0).length
+            const col = zoneCount % 3
+            const row = Math.floor(zoneCount / 3)
+            const tag = movingTag || {
+              location_id: newCanvasId,
+              target_type: 'location' as const,
+              target_id: id,
+              x: 0,
+              y: 0,
+              width: 0.28,
+              height: 0.28,
+              label: oldLoc?.name || '',
+              rects: null,
+            }
+            await upsertLocationTags(newCanvasId, [
+              ...newTags,
+              {
+                ...tag,
+                location_id: newCanvasId,
+                x: 0.04 + col * 0.32,
+                y: 0.04 + row * 0.32,
+                width: tag.width || 0.28,
+                height: tag.height || 0.28,
+              },
+            ])
+          } catch { /* non-fatal — tag will be recreated on next sync */ }
+        }
+      }
+
       await refreshLocations()
       // Sync renamed location → canvas tag labels
       if (updates.name) {
         await syncLocationNameToTags(id, updates.name)
-        usePropertyStore.getState().bumpTagVersion()
       }
+      usePropertyStore.getState().bumpTagVersion()
     }
     return result
-  }, [refreshLocations])
+  }, [locations, refreshLocations])
 
   const removeLocation = useCallback(async (id: string) => {
     const userId = userIdRef.current
@@ -241,6 +289,9 @@ export function useProperty() {
     for (const descId of descendantIds) {
       await deleteLocation(descId, userId)
     }
+
+    // Signal canvas to drop stale zone tags
+    usePropertyStore.getState().bumpTagVersion()
 
     if (!result.success) {
       await refreshLocations()

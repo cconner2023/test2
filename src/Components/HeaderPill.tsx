@@ -8,21 +8,35 @@ interface PillButtonProps {
     variant?: 'default' | 'danger'
     iconSize?: number
     compact?: boolean
+    disabled?: boolean
+    /** Tinted circle behind the icon (e.g. 'bg-themegreen/15 text-themegreen') */
+    circleBg?: string
 }
 
-export function PillButton({ icon: Icon, onClick, label, variant = 'default', iconSize = 24, compact }: PillButtonProps) {
+export function PillButton({ icon: Icon, onClick, label, variant = 'default', iconSize = 24, compact, disabled, circleBg }: PillButtonProps) {
+    const size = compact ? 'w-9 h-9' : 'w-11 h-11'
+
+    const color = circleBg
+        ? ''
+        : variant === 'danger'
+            ? 'text-themeredred hover:text-themeredred/80'
+            : 'text-tertiary hover:text-primary'
+
     return (
         <button
             onClick={onClick}
-            className={`${compact ? 'w-9 h-9' : 'w-11 h-11'} rounded-full flex items-center justify-center active:scale-95 transition-all duration-200 ${
-                variant === 'danger'
-                    ? 'text-themeredred hover:text-themeredred/80'
-                    : 'text-tertiary hover:text-primary'
-            }`}
+            disabled={disabled}
+            className={`${size} rounded-full flex items-center justify-center active:scale-95 transition-all duration-200 ${color} ${disabled ? 'opacity-30 pointer-events-none' : ''} ${circleBg ? '-m-0.5 z-10' : ''}`}
             aria-label={label}
             title={label}
         >
-            <Icon style={{ width: iconSize, height: iconSize }} />
+            {circleBg ? (
+                <div className={`w-full h-full rounded-full flex items-center justify-center ${circleBg}`}>
+                    <Icon style={{ width: iconSize, height: iconSize }} />
+                </div>
+            ) : (
+                <Icon style={{ width: iconSize, height: iconSize }} />
+            )}
         </button>
     )
 }

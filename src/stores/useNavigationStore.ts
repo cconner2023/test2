@@ -26,6 +26,7 @@ const PRESERVED_FIELDS = (s: NavigationState) => ({
     selectedSymptom: s.selectedSymptom,
     selectedGuideline: s.selectedGuideline,
     isSearchExpanded: s.isSearchExpanded,
+    isImportExpanded: s.isImportExpanded,
     isWriteNoteVisible: s.isWriteNoteVisible,
     writeNoteData: s.writeNoteData,
 });
@@ -57,6 +58,7 @@ interface NavigationState {
     showNoteImport: boolean
     showSettings: boolean
     isSearchExpanded: boolean
+    isImportExpanded: boolean
     showSymptomInfo: boolean
     showKnowledgeBase: boolean
     kbInitialView: string | null
@@ -88,6 +90,8 @@ interface NavigationActions {
     setShowSettings: (show: boolean) => void
     toggleSearchExpanded: () => void
     setSearchExpanded: (expanded: boolean) => void
+    toggleImportExpanded: () => void
+    setImportExpanded: (expanded: boolean) => void
     expandSearchOnMobile: () => void
     toggleSymptomInfo: () => void
     setShowSymptomInfo: (show: boolean) => void
@@ -114,6 +118,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     showNoteImport: false,
     showSettings: false,
     isSearchExpanded: false,
+    isImportExpanded: false,
     showSymptomInfo: false,
     showKnowledgeBase: false,
     kbInitialView: null,
@@ -137,7 +142,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         const handler = (e: MediaQueryListEvent) => {
             set({ isMobile: e.matches })
             if (!e.matches) {
-                set({ isMenuOpen: false, isSearchExpanded: false })
+                set({ isMenuOpen: false, isSearchExpanded: false, isImportExpanded: false })
             }
         }
         mql.addEventListener('change', handler)
@@ -253,13 +258,15 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         showSettings: show,
     })),
 
-    toggleSearchExpanded: () => set((s) => ({ isSearchExpanded: !s.isSearchExpanded })),
+    toggleSearchExpanded: () => set((s) => ({ isSearchExpanded: !s.isSearchExpanded, isImportExpanded: false })),
     setSearchExpanded: (expanded) => set({ isSearchExpanded: expanded }),
+    toggleImportExpanded: () => set((s) => ({ isImportExpanded: !s.isImportExpanded, isSearchExpanded: false })),
+    setImportExpanded: (expanded) => set({ isImportExpanded: expanded }),
 
     expandSearchOnMobile: () => {
         const s = get()
         if (!s.isMobile || s.isSearchExpanded) return
-        set({ isSearchExpanded: true })
+        set({ isSearchExpanded: true, isImportExpanded: false })
     },
 
     toggleSymptomInfo: () => set((s) => ({ showSymptomInfo: !s.showSymptomInfo })),

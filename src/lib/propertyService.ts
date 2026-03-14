@@ -479,13 +479,19 @@ export async function ensureRootLocation(
     }
   }
 
-  // Create the root location
-  const result = await createLocation(
-    { clinic_id: clinicId, parent_id: null, name: ROOT_LOCATION_NAME, photo_data: null, created_by: userId },
-    userId,
-  )
-  if (result.success) return result.location
-  throw new Error('Failed to create root location')
+  // Create the root location — retry once if IDB write fails on cold start
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await createLocation(
+      { clinic_id: clinicId, parent_id: null, name: ROOT_LOCATION_NAME, photo_data: null, created_by: userId },
+      userId,
+    )
+    if (result.success) return result.location
+    if (attempt === 0) {
+      logger.warn('Root location creation failed, retrying:', result.error)
+      await new Promise((r) => setTimeout(r, 300))
+    }
+  }
+  throw new Error('Failed to create root location after 2 attempts')
 }
 
 // ── Location Tags ────────────────────────────────────────────

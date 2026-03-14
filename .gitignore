@@ -13,7 +13,8 @@ public/workbox-*.js
 public/sw.*.js
 public/*.webmanifest  # Generated manifest
 
-
+.md
+*.md
 node_modules
 dist
 dist/

@@ -1,5 +1,5 @@
-import { useState, useCallback, useMemo } from 'react'
-import { Ban, X, BarChart3 } from 'lucide-react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
+import { Ban, X, Search, ClipboardCheck, Pencil, Trash2, UserPlus, Check } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -12,8 +12,15 @@ import { PersonnelRoster } from './Settings/Supervisor/PersonnelRoster'
 import { SoldierProfile } from './Settings/Supervisor/SoldierProfile'
 import { SoldierCertsEditor } from './Settings/Supervisor/SoldierCertsEditor'
 import { EvaluateFlow } from './Settings/Supervisor/EvaluateFlow'
-import { TeamInsights } from './Settings/Supervisor/TeamInsights'
+import { TeamReporting } from './Settings/Supervisor/TeamReporting'
+import { ClinicManagement } from './Settings/Supervisor/ClinicManagement'
+import { ClinicDetail } from './Settings/Supervisor/ClinicDetail'
+import { SupervisorAddMemberForm } from './Settings/Supervisor/SupervisorAddMemberForm'
 import { SupervisorTree, type TreeSelection } from './Settings/Supervisor/SupervisorTree'
+import { useNavigationStore } from '../stores/useNavigationStore'
+import { useAuthStore } from '../stores/useAuthStore'
+import { useClinicInvites } from '../Hooks/useClinicInvites'
+import { getClinicDetails, type ClinicDetails } from '../lib/supervisorService'
 import { LoadingSpinner } from './LoadingSpinner'
 import { useMinLoadTime } from '../Hooks/useMinLoadTime'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
@@ -26,6 +33,9 @@ type SupervisorView =
   | { screen: 'soldier-certs'; soldier: ClinicMedic }
   | { screen: 'evaluate-select-task'; soldier: ClinicMedic }
   | { screen: 'evaluate-go-nogo'; soldier: ClinicMedic; taskNumber: string; taskTitle: string }
+  | { screen: 'clinic-management' }
+  | { screen: 'clinic-detail'; clinicId: string }
+  | { screen: 'add-member'; clinicId: string }
 
 interface SupervisorDrawerProps {
   isVisible: boolean
@@ -37,8 +47,20 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const [treeSelection, setTreeSelection] = useState<TreeSelection>({ type: 'all-personnel' })
   const [selectedSoldierIds, setSelectedSoldierIds] = useState<Set<string>>(new Set())
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
+  const [showSearch, setShowSearch] = useState(false)
+  const [focusCertId, setFocusCertId] = useState<string | null>(null)
+  const [clinicEditing, setClinicEditing] = useState(false)
+  const [clinicSaveRequested, setClinicSaveRequested] = useState(false)
 
   const isMobile = useIsMobile()
+  const authClinicId = useAuthStore(s => s.clinicId)
+  const { activeCode } = useClinicInvites()
+  const [clinicDetails, setClinicDetails] = useState<ClinicDetails | null>(null)
+
+  useEffect(() => {
+    if (!authClinicId) return
+    getClinicDetails(authClinicId).then(setClinicDetails)
+  }, [authClinicId])
 
   // ── Data ───────────────────────────────────────────────────────────────────
 
@@ -49,21 +71,30 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     isSupervisor,
     currentUserId,
     medics,
-    certs,
-    tests,
+    clinicName,
     certsForSoldier,
     testsForSoldier,
     overdueItems,
     resolveName,
     updateCert,
     removeTest,
+    addCert,
+    removeCert,
     refreshData,
-    competencyMatrix,
     teamMetrics,
-    computeTrendsForPeriod,
     testableTaskMap,
   } = useSupervisorData()
   const loading = useMinLoadTime(_loading)
+
+  const readinessForSoldier = useCallback((soldierId: string): number => {
+    const entry = teamMetrics.soldierReadiness.find(s => s.soldierId === soldierId)
+    return entry?.readinessPercent ?? 0
+  }, [teamMetrics.soldierReadiness])
+
+  const getOverdueCount = useCallback((userId: string) => {
+    const { expiredCerts, failedTests } = overdueItems(userId)
+    return expiredCerts.length + failedTests.length
+  }, [overdueItems])
 
   // ── Slide Animation ────────────────────────────────────────────────────────
 
@@ -93,6 +124,14 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const handleModifyCerts = useCallback((soldier: ClinicMedic) => {
     setSelectedSoldierIds(new Set())
     handleSlideAnimation('left')
+    setFocusCertId(null)
+    setView({ screen: 'soldier-certs', soldier })
+  }, [handleSlideAnimation])
+
+  const handleNavigateToCert = useCallback((soldier: ClinicMedic, certId: string) => {
+    setSelectedSoldierIds(new Set())
+    handleSlideAnimation('left')
+    setFocusCertId(certId)
     setView({ screen: 'soldier-certs', soldier })
   }, [handleSlideAnimation])
 
@@ -123,8 +162,25 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     if (view.screen === 'evaluate-go-nogo') {
       handleSlideAnimation('right')
       setView({ screen: 'evaluate-select-task', soldier: view.soldier })
+    } else if (view.screen === 'add-member') {
+      handleSlideAnimation('right')
+      setView({ screen: 'clinic-detail', clinicId: view.clinicId })
+    } else if (view.screen === 'clinic-detail') {
+      handleSlideAnimation('right')
+      setClinicEditing(false)
+      if (isMobile) {
+        setView({ screen: 'main' })
+        setTreeSelection({ type: 'all-personnel' })
+      } else {
+        setView({ screen: 'clinic-management' })
+      }
+    } else if (view.screen === 'clinic-management') {
+      handleSlideAnimation('right')
+      setView({ screen: 'main' })
+      if (isMobile) setTreeSelection({ type: 'all-personnel' })
     } else if (view.screen !== 'main') {
       handleSlideAnimation('right')
+      setFocusCertId(null)
       setView({ screen: 'main' })
     } else if (isMobile && treeSelection.type !== 'all-personnel') {
       handleSlideAnimation('right')
@@ -137,48 +193,75 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     setTreeSelection({ type: 'all-personnel' })
     setSelectedSoldierIds(new Set())
     setSlideDirection('')
+    setClinicEditing(false)
     onClose()
   }, [onClose])
 
   const handleTreeSelect = useCallback((selection: TreeSelection) => {
     setTreeSelection(selection)
     setSelectedSoldierIds(new Set())
-  }, [])
+    if (selection.type === 'clinic') {
+      setView({ screen: 'clinic-detail', clinicId: selection.clinicId })
+    } else if (selection.type === 'clinic-management') {
+      setView({ screen: 'clinic-management' })
+    } else if (view.screen === 'clinic-management' || view.screen === 'clinic-detail' || view.screen === 'add-member') {
+      setView({ screen: 'main' })
+    }
+  }, [view])
 
-  const getOverdueCount = useCallback((userId: string) => {
-    const { expiredCerts, failedTests } = overdueItems(userId)
-    return expiredCerts.length + failedTests.length
-  }, [overdueItems])
+  const handleSelectClinic = useCallback((clinicId: string) => {
+    handleSlideAnimation('left')
+    setView({ screen: 'clinic-detail', clinicId })
+  }, [handleSlideAnimation])
+
+  const refreshClinicDetails = useCallback(() => {
+    if (authClinicId) getClinicDetails(authClinicId).then(setClinicDetails)
+  }, [authClinicId])
 
   // ── Swipe Back (mobile) ────────────────────────────────────────────────────
 
+  const canSwipeBack = view.screen !== 'main' || (isMobile && treeSelection.type !== 'all-personnel')
   const swipeHandlers = useSwipeBack(
     useMemo(() => {
-      if (view.screen !== 'main') return handleBack
-      if (isMobile && treeSelection.type !== 'all-personnel') return handleBack
+      if (canSwipeBack) return handleBack
       return undefined
-    }, [view, isMobile, treeSelection, handleBack]),
-    view.screen !== 'main' || (isMobile && treeSelection.type !== 'all-personnel'),
+    }, [canSwipeBack, handleBack]),
+    canSwipeBack,
   )
 
   // ── Header Actions ─────────────────────────────────────────────────────────
 
+  const selectedSoldier = useMemo(() => {
+    if (view.screen === 'main' && treeSelection.type === 'soldier') {
+      return medics.find(m => m.id === treeSelection.soldierId) ?? null
+    }
+    return null
+  }, [view, treeSelection, medics])
+
   const mainHeaderActions = useMemo(() => {
     if (view.screen !== 'main') return undefined
 
-    // Mobile on roster: double-pill with Team Insights + Close
+    // Roster view (mobile): Search + Close
     if (isMobile && treeSelection.type === 'all-personnel') {
       return (
         <HeaderPill>
           <PillButton
-            icon={BarChart3}
+            icon={Search}
             iconSize={20}
-            onClick={() => {
-              handleSlideAnimation('left')
-              setTreeSelection({ type: 'team-insights' })
-            }}
-            label="Team Insights"
+            onClick={() => setShowSearch(prev => !prev)}
+            label="Search"
           />
+          <PillButton icon={X} onClick={handleClose} label="Close" />
+        </HeaderPill>
+      )
+    }
+
+    // Desktop soldier selected: Evaluate + Edit Certs + Close
+    if (!isMobile && selectedSoldier) {
+      return (
+        <HeaderPill>
+          <PillButton icon={ClipboardCheck} iconSize={20} onClick={() => handleEvaluate(selectedSoldier)} label="Evaluate" />
+          <PillButton icon={Pencil} iconSize={20} onClick={() => handleModifyCerts(selectedSoldier)} label="Edit Certs" />
           <PillButton icon={X} onClick={handleClose} label="Close" />
         </HeaderPill>
       )
@@ -190,7 +273,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         <PillButton icon={X} onClick={handleClose} label="Close" />
       </HeaderPill>
     )
-  }, [view, isMobile, treeSelection, handleClose, handleSlideAnimation])
+  }, [view, treeSelection, isMobile, handleClose, selectedSoldier, handleEvaluate, handleModifyCerts])
 
   // ── Header Config ──────────────────────────────────────────────────────────
 
@@ -203,6 +286,8 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             'all-personnel': 'Supervisor',
             'soldier': 'Soldier Profile',
             'team-insights': 'Team Insights',
+            'clinic-management': 'Clinics',
+            'clinic': 'Clinic Detail',
           }
           return {
             title: titleMap[treeSelection.type] || 'Supervisor',
@@ -218,6 +303,72 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
           hideDefaultClose: !!mainHeaderActions,
         }
       }
+      case 'clinic-management':
+        return {
+          title: 'Clinics',
+          showBack: true,
+          onBack: handleBack,
+        }
+      case 'clinic-detail': {
+        const clinicDetailPills = (
+          <HeaderPill>
+            <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
+              clinicEditing ? 'max-w-33 opacity-100' : 'max-w-0 opacity-0'
+            }`}>
+              <PillButton
+                icon={Trash2}
+                iconSize={18}
+                onClick={() => {/* delete handled inline */}}
+                label="Delete"
+              />
+              <PillButton
+                icon={UserPlus}
+                iconSize={18}
+                onClick={() => {
+                  handleSlideAnimation('left')
+                  setView({ screen: 'add-member', clinicId: view.clinicId })
+                }}
+                label="Add"
+              />
+              <PillButton icon={X} iconSize={18} onClick={() => setClinicEditing(false)} label="Cancel" />
+            </div>
+            <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
+              !clinicEditing ? 'max-w-11 opacity-100' : 'max-w-0 opacity-0'
+            }`}>
+              <PillButton
+                icon={Pencil}
+                iconSize={18}
+                onClick={() => setClinicEditing(true)}
+                label="Edit"
+              />
+            </div>
+            {clinicEditing ? (
+              <PillButton
+                icon={Check}
+                iconSize={18}
+                circleBg="bg-themeblue3 text-white"
+                onClick={() => setClinicSaveRequested(true)}
+                label="Save"
+              />
+            ) : (
+              <PillButton icon={X} onClick={handleClose} label="Close" />
+            )}
+          </HeaderPill>
+        )
+        return {
+          title: clinicName ?? 'Clinic',
+          showBack: true,
+          onBack: handleBack,
+          rightContent: clinicDetailPills,
+          hideDefaultClose: true,
+        }
+      }
+      case 'add-member':
+        return {
+          title: 'Add Personnel',
+          showBack: true,
+          onBack: handleBack,
+        }
       case 'soldier-certs':
         return {
           title: 'Certifications',
@@ -237,7 +388,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
           onBack: handleBack,
         }
     }
-  }, [view, isMobile, treeSelection, handleBack, mainHeaderActions])
+  }, [view, isMobile, treeSelection, handleBack, mainHeaderActions, handleClose, clinicName, handleSlideAnimation, clinicEditing])
 
   // ── Subview Wrapper ────────────────────────────────────────────────────────
 
@@ -249,11 +400,45 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     </div>
   )
 
+  // ── Clinic card data (for the card list) ─────────────────────────────────
+
+  const clinicCards = useMemo(() => {
+    if (!authClinicId) return []
+    return [{
+      id: authClinicId,
+      name: clinicName ?? 'My Clinic',
+      personnelCount: medics.length,
+      uics: clinicDetails?.uics ?? [],
+      location: clinicDetails?.location ?? null,
+      activeCode,
+    }]
+  }, [authClinicId, clinicName, medics.length, clinicDetails, activeCode])
+
   // ── Content Rendering ──────────────────────────────────────────────────────
 
   const renderTreeContent = () => {
     switch (treeSelection.type) {
       case 'all-personnel':
+        // Desktop: tree handles navigation, show team dashboard in right pane
+        if (!isMobile) {
+          return (
+            <div className="px-5 py-5 pb-8">
+              <TeamReporting
+                metrics={teamMetrics}
+                medics={medics}
+                resolveName={resolveName}
+                onViewSoldier={handleViewProfile}
+                testableTaskMap={testableTaskMap}
+                clinicName={clinicName}
+                onNavigateToTask={(taskId) => {
+                  handleClose()
+                  setTimeout(() => useNavigationStore.getState().setShowTrainingDrawer(taskId), 300)
+                }}
+              />
+            </div>
+          )
+        }
+        // Mobile: swipeable roster cards
         return (
           <PersonnelRoster
             medics={medics}
@@ -264,6 +449,21 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             onEvaluate={handleEvaluate}
             onView={handleViewProfile}
             onModify={handleModifyCerts}
+            showSearch={showSearch}
+            clinicName={clinicName}
+            teamMetrics={teamMetrics}
+            onViewInsights={() => {
+              handleSlideAnimation('left')
+              setTreeSelection({ type: 'team-insights' })
+            }}
+            onManageClinic={() => {
+              handleSlideAnimation('left')
+              if (authClinicId) {
+                setView({ screen: 'clinic-detail', clinicId: authClinicId })
+              } else {
+                setView({ screen: 'clinic-management' })
+              }
+            }}
           />
         )
 
@@ -275,10 +475,10 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             soldier={soldier}
             certs={certsForSoldier(soldier.id)}
             tests={testsForSoldier(soldier.id)}
-            overdueItems={overdueItems(soldier.id)}
+            readinessPercent={readinessForSoldier(soldier.id)}
             currentUserId={currentUserId}
             resolveName={resolveName}
-            onUpdateCert={updateCert}
+            onNavigateToCert={(certId) => handleNavigateToCert(soldier, certId)}
             onRemoveTest={removeTest}
           />
         )
@@ -286,14 +486,54 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
       case 'team-insights':
         return (
-          <TeamInsights
-            medics={medics}
-            teamMetrics={teamMetrics}
-            computeTrends={computeTrendsForPeriod}
-            resolveName={resolveName}
-            onViewSoldier={handleViewProfile}
-          />
+          <div className="h-full overflow-y-auto px-4 py-3 md:px-5 md:py-5 pb-8">
+            <TeamReporting
+              metrics={teamMetrics}
+              medics={medics}
+              resolveName={resolveName}
+              onViewSoldier={handleViewProfile}
+              testableTaskMap={testableTaskMap}
+              clinicName={clinicName}
+              onNavigateToTask={(taskId) => {
+                handleClose()
+                setTimeout(() => useNavigationStore.getState().setShowTrainingDrawer(taskId), 300)
+              }}
+            />
+          </div>
         )
+
+      case 'clinic-management':
+        return (
+          <div className="h-full overflow-y-auto px-4 py-3 md:px-5 md:py-5 pb-8">
+            <ClinicManagement
+              clinics={clinicCards}
+              onSelect={handleSelectClinic}
+            />
+          </div>
+        )
+
+      case 'clinic': {
+        const card = clinicCards.find(c => c.id === treeSelection.clinicId)
+        return authClinicId ? subViewWrapper(
+          <ClinicDetail
+            clinicId={treeSelection.clinicId}
+            clinicName={card?.name ?? 'Clinic'}
+            clinicUics={card?.uics ?? []}
+            clinicLocation={card?.location ?? null}
+            activeCode={activeCode}
+            medics={medics}
+            editing={clinicEditing}
+            onEditingChange={setClinicEditing}
+            saveRequested={clinicSaveRequested}
+            onSaveComplete={() => setClinicSaveRequested(false)}
+            onAddMember={() => {
+              handleSlideAnimation('left')
+              setView({ screen: 'add-member', clinicId: treeSelection.clinicId })
+            }}
+            onClinicUpdated={refreshClinicDetails}
+          />
+        ) : null
+      }
     }
   }
 
@@ -324,8 +564,10 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             soldier={view.soldier}
             certs={certsForSoldier(view.soldier.id)}
             currentUserId={currentUserId}
-            resolveName={resolveName}
             onUpdateCert={updateCert}
+            onAddCert={addCert}
+            onRemoveCert={removeCert}
+            initialEditCertId={focusCertId}
           />
         ) : null
 
@@ -341,10 +583,52 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
           />
         )
 
+      case 'clinic-management':
+        return subViewWrapper(
+          <ClinicManagement
+            clinics={clinicCards}
+            onSelect={handleSelectClinic}
+          />
+        )
+
+      case 'clinic-detail':
+        return authClinicId ? subViewWrapper(
+          <ClinicDetail
+            clinicId={view.clinicId}
+            clinicName={clinicName ?? 'My Clinic'}
+            clinicUics={clinicDetails?.uics ?? []}
+            clinicLocation={clinicDetails?.location ?? null}
+            activeCode={activeCode}
+            medics={medics}
+            editing={clinicEditing}
+            onEditingChange={setClinicEditing}
+            saveRequested={clinicSaveRequested}
+            onSaveComplete={() => setClinicSaveRequested(false)}
+            onAddMember={() => {
+              handleSlideAnimation('left')
+              setView({ screen: 'add-member', clinicId: view.clinicId })
+            }}
+            onClinicUpdated={refreshClinicDetails}
+          />
+        ) : null
+
+      case 'add-member':
+        return subViewWrapper(
+          <SupervisorAddMemberForm
+            clinicId={view.clinicId}
+            onBack={handleBack}
+            onSaved={() => {
+              handleSlideAnimation('right')
+              setView({ screen: 'clinic-detail', clinicId: view.clinicId })
+              refreshData()
+            }}
+          />
+        )
+
       case 'main':
       default:
-        // team-insights & all-personnel manage their own scroll/layout (action bar pinned outside scroll, like admin lists)
-        if (treeSelection.type === 'team-insights' || treeSelection.type === 'all-personnel') return renderTreeContent()
+        // team-insights, all-personnel, and clinic-management manage their own scroll/layout
+        if (treeSelection.type === 'team-insights' || treeSelection.type === 'all-personnel' || treeSelection.type === 'clinic-management' || treeSelection.type === 'clinic') return renderTreeContent()
         return subViewWrapper(renderTreeContent())
     }
   }
@@ -360,17 +644,19 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       desktopWidth="w-[90%]"
       header={headerConfig}
     >
-      <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && (view.screen !== 'main' || treeSelection.type !== 'all-personnel') ? swipeHandlers : undefined}>
+      <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && canSwipeBack ? swipeHandlers : undefined}>
         <div className="h-full relative">
           {/* Desktop: split pane layout */}
-          {!isMobile && view.screen === 'main' && !loading && isSupervisor ? (
+          {!isMobile && !loading && isSupervisor ? (
             <div className="flex h-full">
-              <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
-                <div className="flex-1 overflow-y-auto">
+              <div className="w-65 shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
+                <div className="flex-1 min-h-0">
                   <SupervisorTree
                     medics={medics}
+                    clinics={clinicCards}
                     selection={treeSelection}
                     onSelect={handleTreeSelect}
+                    readinessForSoldier={readinessForSoldier}
                   />
                 </div>
               </div>

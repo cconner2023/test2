@@ -239,10 +239,7 @@ export const ToggleOption: React.FC<{
     </div>
 );
 
-// ---------------------------------------------------------------------------
 // Status helpers — map share/export status strings to icon states.
-// ---------------------------------------------------------------------------
-
 export function shareStatusToIconStatus(status: string): 'idle' | 'busy' | 'done' {
     if (status === 'shared' || status === 'copied') return 'done';
     if (status === 'generating' || status === 'sharing') return 'busy';
@@ -255,10 +252,8 @@ export function exportStatusToIconStatus(status: string): 'idle' | 'busy' | 'don
     return 'idle';
 }
 
-// ---------------------------------------------------------------------------
 // ProgressDots — Step indicator dots for multi-page wizards.
 // Used by WriteNotePage (via BaseDrawer's progressDots slot) and TC3MobileWizard.
-// ---------------------------------------------------------------------------
 
 export const ProgressDots = ({
     pages,
@@ -284,10 +279,8 @@ export const ProgressDots = ({
     </div>
 );
 
-// ---------------------------------------------------------------------------
 // NoteHPIEditor — HPI textarea with text expander, template overlay, PII banner.
 // Shared note-wizard UI component.
-// ---------------------------------------------------------------------------
 
 export const NoteHPIEditor = ({
     inputRef, note, setNote, setCursorPosition,
@@ -361,11 +354,8 @@ export const NoteHPIEditor = ({
         <PIIWarningBanner warnings={piiWarnings} />
     </div>
 );
-
-// ---------------------------------------------------------------------------
 // NoteWizardFooter — Next button footer.
 // Shared note-wizard UI component.
-// ---------------------------------------------------------------------------
 
 export const NoteWizardFooter = ({
     currentPage, visiblePages, slideDirection,

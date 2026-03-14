@@ -8,9 +8,6 @@ import { useSwipeBack } from '../../Hooks/useSwipeBack';
 import { ReleaseNotesPanel } from './ReleaseNotesPanel';
 import { UserProfileDisplay } from './UserProfileDisplay';
 import { ProfileChangeRequestForm } from './ProfileChangeRequestForm';
-import { AccountRequestForm } from './AccountRequestForm';
-import { GuestOptionsPanel } from './GuestOptionsPanel';
-import { LoginPanel } from './LoginPanel';
 import { PinSetupPanel } from './PinSetupPanel';
 import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { FeedbackPanel } from './FeedbackPanel';
@@ -21,6 +18,7 @@ import { ChangePasswordPanel } from './ChangePasswordPanel';
 import { CertificationsPanel } from './CertificationsPanel';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../Hooks/useAuth';
+import { useAuthStore } from '../../stores/useAuthStore';
 import { clearAllUserData } from '../../lib/offlineDb';
 import { clearServiceWorkerCaches } from '../../lib/cacheService';
 import { deleteOwnAccount } from '../../lib/authService';
@@ -50,7 +48,7 @@ export const Settings = ({
     initialPanel,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'guest-options' | 'login' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'lora' | 'sessions-devices'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'lora' | 'sessions-devices'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
@@ -188,8 +186,6 @@ export const Settings = ({
                 };
             case 'profile-change-request':
                 return { title: 'Request Changes', ...backTo('user-profile-details') };
-            case 'login':
-                return { title: 'Sign In', ...backTo('guest-options') };
             // Sub-panels of the profile hub go back to user-profile
             case 'user-profile-details': return { title: 'User Information', ...backTo('user-profile') };
             case 'change-password':     return { title: 'Change Password', ...backTo('user-profile') };
@@ -200,7 +196,6 @@ export const Settings = ({
             case 'user-profile':        return { title: 'Profile', ...backTo() };
             case 'lora':                return { title: 'LoRa Mesh', ...backTo() };
             case 'sessions-devices':    return { title: 'Sessions & Devices', ...backTo('pin-setup') };
-            case 'guest-options':       return { title: 'Sign In', ...backTo() };
             case 'pin-setup':           return { title: 'Security', ...backTo() };
             case 'notification-settings': return { title: 'Notifications', ...backTo() };
             case 'feedback':            return { title: 'Feedback', ...backTo() };
@@ -240,7 +235,7 @@ export const Settings = ({
                                             ? (profile.credential
                                                 ? `${profile.credential}${profile.component ? ' \u00b7 ' + profile.component : ''}`
                                                 : 'Tap to set up')
-                                            : 'Tap to sign in or request account'
+                                            : 'Tap to sign in'
                                     }
                                     displayClinic={
                                         isAuthenticated
@@ -254,7 +249,9 @@ export const Settings = ({
                                     onAvatarClick={() => handleItemClick(PANEL.AVATAR_PICKER, handleClose)}
                                     onProfileClick={() => {
                                         if (!isAuthenticated) {
-                                            handleItemClick(PANEL.GUEST_OPTIONS, handleClose);
+                                            // Exit guest mode to show the LoginScreen
+                                            useAuthStore.setState({ isGuest: false });
+                                            handleClose();
                                         } else {
                                             handleItemClick(PANEL.USER_PROFILE, handleClose);
                                         }
@@ -263,27 +260,23 @@ export const Settings = ({
                                 />
                             ),
                             'user-profile': (
-                                isAuthenticated === false ? (
-                                    <AccountRequestForm />
-                                ) : (
-                                    <ProfilePage
-                                        onAvatarClick={() => handleItemClick(PANEL.AVATAR_PICKER, handleClose)}
-                                        onNavigate={(panel) => {
-                                            handleSlideAnimation('left');
-                                            setActivePanel(panel);
-                                        }}
-                                        onSignOut={async () => { await clearAllUserData(); await clearServiceWorkerCaches(); await signOut(); handleClose(); }}
-                                        onDeleteAccount={async () => {
-                                            const result = await deleteOwnAccount();
-                                            if (!result.success) return result;
-                                            await clearAllUserData();
-                                            await clearServiceWorkerCaches();
-                                            await signOut();
-                                            handleClose();
-                                            return { success: true };
-                                        }}
-                                    />
-                                )
+                                <ProfilePage
+                                    onAvatarClick={() => handleItemClick(PANEL.AVATAR_PICKER, handleClose)}
+                                    onNavigate={(panel) => {
+                                        handleSlideAnimation('left');
+                                        setActivePanel(panel);
+                                    }}
+                                    onSignOut={async () => { await clearAllUserData(); await clearServiceWorkerCaches(); await signOut(); handleClose(); }}
+                                    onDeleteAccount={async () => {
+                                        const result = await deleteOwnAccount();
+                                        if (!result.success) return result;
+                                        await clearAllUserData();
+                                        await clearServiceWorkerCaches();
+                                        await signOut();
+                                        handleClose();
+                                        return { success: true };
+                                    }}
+                                />
                             ),
                             'user-profile-details': (
                                 <UserProfileDisplay
@@ -317,27 +310,6 @@ export const Settings = ({
                                 />
                             ),
                             'release-notes':        <ReleaseNotesPanel />,
-                            'guest-options': (
-                                <GuestOptionsPanel
-                                    onSignIn={() => handleItemClick(PANEL.LOGIN, handleClose)}
-                                    onRequestAccount={() => {
-                                        handleSlideAnimation('left');
-                                        setActivePanel('user-profile');
-                                    }}
-                                />
-                            ),
-                            'login': (
-                                <LoginPanel
-                                    onSuccess={() => {
-                                        handleSlideAnimation('right');
-                                        setActivePanel('main');
-                                    }}
-                                    onRequestAccount={() => {
-                                        handleSlideAnimation('left');
-                                        setActivePanel('user-profile');
-                                    }}
-                                />
-                            ),
                             'feedback':             <FeedbackPanel />,
                             'privacy-policy':       <PrivacyPolicyPanel />,
                             'note-content':         <NoteContentPanel />,

@@ -33,7 +33,11 @@ function getSavedToken(): { email: string; token: string } | null {
   return null
 }
 
-export const AccountRequestForm = () => {
+interface AccountRequestFormProps {
+  onBack?: () => void
+}
+
+export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
   const [email, setEmail] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
@@ -160,8 +164,7 @@ export const AccountRequestForm = () => {
 
   if (requestStatus) {
     return (
-      <div className="h-full overflow-y-auto">
-        <div className="px-4 py-3 md:p-5">
+      <div>
           <h2 className="text-lg font-semibold text-primary mb-4">Account Request Status</h2>
 
           <div className={`p-4 rounded-lg border ${getStatusColor(requestStatus.status)}`}>
@@ -222,106 +225,100 @@ export const AccountRequestForm = () => {
               setRequestStatus(null)
               setSubmitted(false)
             }}
-            className="mt-4 px-4 py-2 rounded-lg bg-themeblue3 text-white font-medium
-                     hover:bg-themeblue3/90 transition-colors"
+            className="mt-4 w-full px-4 py-2 rounded-lg bg-themeblue3 text-white font-medium
+                     transition-colors"
           >
             Back
           </button>
-        </div>
       </div>
     )
   }
 
   if (submitted) {
     return (
-      <div className="h-full overflow-y-auto">
-        <div className="px-4 py-3 md:p-5">
-          <div className="text-center py-8">
-            <h2 className="text-xl font-semibold text-primary mb-2">Request Submitted!</h2>
-            <p className="text-tertiary/70 mb-4">
-              Your account request has been submitted. An administrator will review it shortly.
+      <div className="text-center">
+        <h2 className="text-xl font-semibold text-primary mb-2">Request Submitted!</h2>
+        <p className="text-tertiary/70 mb-4">
+          Your account request has been submitted. An administrator will review it shortly.
+        </p>
+
+        {statusCheckToken && (
+          <div className="mb-6 p-4 rounded-lg bg-themeblue2/10 border border-themeblue2/20 text-left">
+            <p className="text-sm font-medium text-themeblue3 mb-2">
+              Save your status check token:
             </p>
-
-            {statusCheckToken && (
-              <div className="mb-6 p-4 rounded-lg bg-themeblue2/10 border border-themeblue2/20 text-left">
-                <p className="text-sm font-medium text-themeblue3 mb-2">
-                  Save your status check token:
-                </p>
-                <code className="block p-2 bg-themewhite rounded border border-themeblue2/20 text-xs font-mono text-themeblue3 break-all select-all">
-                  {statusCheckToken}
-                </code>
-                <p className="text-xs text-themeblue2 mt-2">
-                  You will need this token along with your email to check your request status.
-                  It has been saved to your browser, but you should copy it somewhere safe in case
-                  you clear your browser data.
-                </p>
-              </div>
-            )}
-
-            <button
-              onClick={() => handleCheckStatus()}
-              className="px-4 py-2 rounded-lg bg-themeblue3 text-white font-medium
-                       hover:bg-themeblue3/90 transition-colors"
-            >
-              Check Request Status
-            </button>
+            <code className="block p-2 bg-themewhite rounded border border-themeblue2/20 text-xs font-mono text-themeblue3 break-all select-all">
+              {statusCheckToken}
+            </code>
+            <p className="text-xs text-themeblue2 mt-2">
+              You will need this token along with your email to check your request status.
+              It has been saved to your browser, but you should copy it somewhere safe in case
+              you clear your browser data.
+            </p>
           </div>
-        </div>
+        )}
+
+        <button
+          onClick={() => handleCheckStatus()}
+          className="w-full px-4 py-2 rounded-lg bg-themeblue3 text-white font-medium
+                   transition-colors"
+        >
+          Check Request Status
+        </button>
       </div>
     )
   }
 
   return (
-    <div className="h-full overflow-y-auto">
-      <div className="px-4 py-3 md:p-5">
-        <h2 className="text-lg font-semibold text-primary mb-2">Request an Account</h2>
-        <p className="text-xs text-tertiary/60 mb-4">
-          An account lets you log training completion and store your preferences. No patient data is collected.
-        </p>
+    <div>
+      <p className="text-xs text-tertiary/60 mb-4">
+        An account lets you log training completion and store your preferences. No patient data is collected.
+      </p>
 
-        {error && <ErrorDisplay message={error} />}
+      {error && <ErrorDisplay message={error} />}
 
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="md:col-span-2">
-            <TextInput label="Email" value={email} onChange={setEmail} placeholder="your.email@mail.mil" type="email" required />
-          </div>
+      <form onSubmit={handleSubmit} className="space-y-3">
+        <TextInput label="Email" value={email} onChange={setEmail} placeholder="your.email@mail.mil" type="email" required />
 
+        <div className="grid grid-cols-2 gap-3">
           <TextInput label="First Name" value={firstName} onChange={setFirstName} required />
           <TextInput label="Last Name" value={lastName} onChange={setLastName} required />
+        </div>
 
+        <div className="grid grid-cols-2 gap-3">
           <div className="w-20">
             <TextInput label="MI" value={middleInitial} onChange={setMiddleInitial} maxLength={1} />
           </div>
           <TextInput label="UIC" value={uic} onChange={setUic} placeholder="Unit Identification Code" required />
+        </div>
 
-          <SelectInput label="Medical Credential" value={credential} onChange={setCredential} options={credentials} placeholder="Select credential" required />
-          <SelectInput label="Component" value={component} onChange={handleComponentChange} options={components} placeholder="Select component" required />
+        <SelectInput label="Medical Credential" value={credential} onChange={setCredential} options={credentials} placeholder="Select credential" required />
+        <SelectInput label="Component" value={component} onChange={handleComponentChange} options={components} placeholder="Select component" required />
 
-          {component && (
-            <SelectInput label="Rank" value={rank} onChange={setRank} options={componentRanks} placeholder="Select rank" required />
-          )}
+        {component && (
+          <SelectInput label="Rank" value={rank} onChange={setRank} options={componentRanks} placeholder="Select rank" required />
+        )}
 
-          <div className={component ? '' : 'md:col-span-2'}>
-            <TextInput label="Notes (optional)" value={notes} onChange={setNotes} placeholder="Anything else we should know?" />
-          </div>
+        <TextInput label="Notes (optional)" value={notes} onChange={setNotes} placeholder="Anything else we should know?" />
 
-          <div className="md:col-span-2">
-            <TextInput label="Password" value={password} onChange={setPassword} type="password" placeholder="Min 12 chars, upper, lower, digit, special" required />
-          </div>
-          <div className="md:col-span-2">
-            <TextInput label="Confirm Password" value={confirmPassword} onChange={setConfirmPassword} type="password" placeholder="Re-enter password" required />
-          </div>
+        <TextInput label="Password" value={password} onChange={setPassword} type="password" placeholder="Min 12 chars, upper, lower, digit, special" required />
+        <TextInput label="Confirm Password" value={confirmPassword} onChange={setConfirmPassword} type="password" placeholder="Re-enter password" required />
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="md:col-span-2 w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
-                     hover:bg-themeblue3/90 transition-colors disabled:opacity-50"
-          >
-            {submitting ? 'Submitting...' : 'Submit Request'}
-          </button>
-        </form>
-      </div>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
+                   transition-colors disabled:opacity-50"
+        >
+          {submitting ? 'Submitting...' : 'Submit Request'}
+        </button>
+      </form>
+
+      {onBack && (
+        <button onClick={onBack} className="w-full text-xs text-themeblue2 hover:underline mt-3">
+          Back to sign in
+        </button>
+      )}
     </div>
   )
 }

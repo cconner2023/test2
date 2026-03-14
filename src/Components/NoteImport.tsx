@@ -1,6 +1,6 @@
 // components/NoteImport.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Camera, ScanLine, User, ImagePlus } from 'lucide-react';
+import { X, Camera, ScanLine, User, ImagePlus, CheckCircle } from 'lucide-react';
 import { profileAvatars } from '../Data/ProfileAvatars';
 import { supabase } from '../lib/supabase';
 import {
@@ -27,6 +27,8 @@ interface NoteImportProps {
     isVisible: boolean;
     onClose: () => void;
     initialViewState?: ViewState;
+    initialBarcodeText?: string;
+    autoPickImage?: boolean;
     isMobile?: boolean;
 }
 
@@ -44,10 +46,14 @@ const NoteImportContent = ({
     state,
     setState,
     isMobile = false,
+    onClose,
+    autoPickImage,
 }: {
     state: ContentState;
     setState: React.Dispatch<React.SetStateAction<ContentState>>;
     isMobile?: boolean;
+    onClose?: () => void;
+    autoPickImage?: boolean;
 }) => {
     const inputRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -185,6 +191,17 @@ const NoteImportContent = ({
     // Intercept clipboard paste for images (text pastes flow through to the input normally)
     useImagePaste(state.viewState === 'input', handleImageDecode);
 
+    // Auto-open file picker when requested (e.g. from NavTop ImagePlus button)
+    const autoPickedRef = useRef(false);
+    useEffect(() => {
+        if (autoPickImage && state.viewState === 'input' && !autoPickedRef.current) {
+            autoPickedRef.current = true;
+            // Small delay to let the drawer render the file input first
+            setTimeout(() => fileInputRef.current?.click(), 100);
+        }
+        if (!autoPickImage) autoPickedRef.current = false;
+    }, [autoPickImage, state.viewState]);
+
     // File input change handler
     const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -240,61 +257,78 @@ const NoteImportContent = ({
         <div className="flex flex-col h-full">
             {/* ── Input view ────────────────────────────────── */}
             {state.viewState === 'input' && (
-                <div className="flex flex-col p-4 md:p-6 h-max min-h-20">
-                    <div className="mb-4 relative">
-                        <div className="relative">
+                <div className="flex items-center gap-2 p-3 md:p-4">
+                    {onClose && (
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="shrink-0 p-1.5 text-tertiary/50 hover:text-tertiary active:scale-95 transition-colors"
+                            title="Close"
+                        >
+                            <X size={18} />
+                        </button>
+                    )}
+                    <form
+                        onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}
+                        className="flex-1 min-w-0"
+                    >
+                        <div className="relative flex items-center">
+                            {/* Left icons — input sources */}
+                            <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                                <button
+                                    type="button"
+                                    onClick={handleStartScan}
+                                    className="p-1.5 text-tertiary/50 hover:text-themeblue3 active:scale-95 transition-colors"
+                                    title="Scan barcode"
+                                >
+                                    <Camera size={16} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => fileInputRef.current?.click()}
+                                    disabled={isDecodingImage}
+                                    className="p-1.5 text-tertiary/50 hover:text-themeblue3 active:scale-95 transition-colors disabled:opacity-40"
+                                    title={isDecodingImage ? 'Reading image...' : 'Upload image'}
+                                >
+                                    <ImagePlus size={16} />
+                                </button>
+                            </div>
                             <input
                                 ref={inputRef}
                                 type="text"
                                 value={state.inputText}
                                 onChange={(e) => setState(prev => ({ ...prev, inputText: e.target.value }))}
-                                className="w-full rounded-full p-2 pl-10 border border-themegray1 focus:bg-themewhite2 text-sm focus:outline-none bg-themewhite text-tertiary pr-10"
-                                placeholder="Enter barcode string or scan"
+                                className="w-full rounded-full py-2.5 pl-[4.5rem] pr-10 border border-themegray1 focus:border-themeblue2 focus:outline-none text-sm bg-themewhite text-tertiary"
+                                placeholder="Paste code or scan"
                             />
-                            {state.inputText && (
-                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setState(prev => ({ ...prev, inputText: '' }))}
-                                        className="p-1 text-tertiary"
-                                        title="Clear input"
-                                    >
-                                        <X size={16} />
-                                    </button>
-                                </div>
-                            )}
-                        </div>
-                        {state.scanError && (
-                            <div className="ml-2 mt-2 text-sm text-themeredred">
-                                {state.scanError}
+                            {/* Right icon — clear or decode */}
+                            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center">
+                                {state.inputText ? (
+                                    <div className="flex items-center gap-0.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => setState(prev => ({ ...prev, inputText: '' }))}
+                                            className="p-1 text-tertiary/40 hover:text-tertiary active:scale-95 transition-colors"
+                                            title="Clear"
+                                        >
+                                            <X size={14} />
+                                        </button>
+                                        <button
+                                            type="submit"
+                                            className="p-1 text-themeblue3 hover:text-themeblue3/80 active:scale-95 transition-colors"
+                                            title="Decode"
+                                        >
+                                            <CheckCircle size={22} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <span className="p-1 text-tertiary/20">
+                                        <CheckCircle size={22} />
+                                    </span>
+                                )}
                             </div>
-                        )}
-                    </div>
-                    <div className="flex gap-3 justify-between">
-                        <div className="flex gap-2">
-                            <button
-                                onClick={handleStartScan}
-                                className="flex items-center gap-2 px-4 py-2 bg-themewhite2 text-secondary rounded-full text-sm font-medium hover:bg-themewhite transition-colors"
-                            >
-                                <Camera size={16} />
-                                Scan
-                            </button>
-                            <button
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isDecodingImage}
-                                className="flex items-center gap-2 px-4 py-2 bg-themewhite2 text-secondary rounded-full text-sm font-medium hover:bg-themewhite transition-colors disabled:opacity-50"
-                            >
-                                <ImagePlus size={16} />
-                                {isDecodingImage ? 'Reading...' : 'Image'}
-                            </button>
                         </div>
-                        <TextButton
-                            text="Decode"
-                            onClick={handleSubmit}
-                            variant='dispo-specific'
-                            className='bg-themeblue3 text-white rounded-full'
-                        />
-                    </div>
+                    </form>
                     <input
                         ref={fileInputRef}
                         type="file"
@@ -302,6 +336,11 @@ const NoteImportContent = ({
                         onChange={handleFileSelect}
                         className="hidden"
                     />
+                    {state.scanError && (
+                        <div className="mt-1.5 ml-2 text-xs text-themeredred">
+                            {state.scanError}
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -417,7 +456,7 @@ const NoteImportContent = ({
     );
 };
 
-export function NoteImport({ isVisible, onClose, initialViewState, isMobile }: NoteImportProps) {
+export function NoteImport({ isVisible, onClose, initialViewState, initialBarcodeText, autoPickImage, isMobile }: NoteImportProps) {
     // Lifted content state - persists across mobile/desktop layout changes
     const [contentState, setContentState] = useState<ContentState>({
         viewState: initialViewState || 'input',
@@ -427,24 +466,63 @@ export function NoteImport({ isVisible, onClose, initialViewState, isMobile }: N
         copiedTarget: null,
     });
 
+    const { importFromBarcode } = useNoteImport();
+    const autoDecodeRef = useRef(false);
+
     // Reset content state when opening
     useEffect(() => {
         if (isVisible) {
+            autoDecodeRef.current = false;
             setContentState({
                 viewState: initialViewState || 'input',
-                inputText: '',
+                inputText: initialBarcodeText || '',
                 preview: null,
                 scanError: '',
                 copiedTarget: null,
             });
         }
-    }, [isVisible, initialViewState]);
+    }, [isVisible, initialViewState, initialBarcodeText]);
+
+    // Auto-decode when opened with a barcode from the inline NavTop input
+    useEffect(() => {
+        if (!isVisible || !initialBarcodeText || autoDecodeRef.current) return;
+        autoDecodeRef.current = true;
+
+        (async () => {
+            try {
+                let payload = initialBarcodeText;
+                if (isEncryptedBarcode(initialBarcodeText)) {
+                    const decrypted = await decryptBarcode(initialBarcodeText);
+                    if (!decrypted) {
+                        setContentState(prev => ({
+                            ...prev,
+                            scanError: 'Sign in and connect to sync encryption key',
+                            viewState: 'input',
+                        }));
+                        return;
+                    }
+                    payload = decrypted;
+                }
+                const preview = importFromBarcode(payload);
+                setContentState(prev => ({ ...prev, preview, viewState: 'decoded' }));
+            } catch (error: any) {
+                setContentState(prev => ({
+                    ...prev,
+                    scanError: error.message || 'Failed to decode barcode',
+                    viewState: 'input',
+                }));
+            }
+        })();
+    }, [isVisible, initialBarcodeText, importFromBarcode]);
 
     const isDecoded = contentState.viewState === 'decoded';
+    const isInput = contentState.viewState === 'input';
 
     const title = isDecoded ? 'Screening Note'
         : contentState.viewState === 'scanning' ? 'Scan Barcode'
             : 'Import Note';
+
+    const drawerHeight = isInput ? 'auto' : '90dvh';
 
     const handleBack = useCallback(() => {
         setContentState(prev => ({ ...prev, viewState: 'input', scanError: '', preview: null }));
@@ -454,19 +532,24 @@ export function NoteImport({ isVisible, onClose, initialViewState, isMobile }: N
         <BaseDrawer
             isVisible={isVisible}
             onClose={onClose}
-            fullHeight="90dvh"
+            fullHeight={drawerHeight}
             desktopPosition="right"
-            header={{
+            mobileFloating={isInput}
+            header={isInput ? undefined : {
                 title,
                 showBack: isDecoded,
                 onBack: isDecoded ? handleBack : undefined,
             }}
         >
-            <NoteImportContent
-                state={contentState}
-                setState={setContentState}
-                isMobile={isMobile}
-            />
+            {(handleClose) => (
+                <NoteImportContent
+                    state={contentState}
+                    setState={setContentState}
+                    isMobile={isMobile}
+                    onClose={handleClose}
+                    autoPickImage={autoPickImage}
+                />
+            )}
         </BaseDrawer>
     );
 }

@@ -1,332 +1,256 @@
-import { useState } from 'react';
-import { Award, Plus, Star, Trash2, ChevronDown, ChevronUp, CheckCircle, AlertCircle, Clock, Minus } from 'lucide-react';
-import { EmptyState } from '../EmptyState';
-import { useCertifications } from '../../Hooks/useCertifications';
-import { credentials } from '../../Data/User';
-import { LoadingSpinner } from '../LoadingSpinner';
-import { useMinLoadTime } from '../../Hooks/useMinLoadTime';
-import type { Certification } from '../../Data/User';
+import { useState, useCallback } from 'react'
+import { Award, Plus, Trash2, Pencil } from 'lucide-react'
+import { EmptyState } from '../EmptyState'
+import { SwipeableCard, type SwipeAction } from '../SwipeableCard'
+import { useCertifications } from '../../Hooks/useCertifications'
+import { credentials } from '../../Data/User'
+import { LoadingSpinner } from '../LoadingSpinner'
+import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
+import { getExpirationStatus } from './Supervisor/supervisorHelpers'
+import { TextInput } from '../FormInputs'
+import type { CertInput } from '../../lib/certificationService'
+import type { Certification } from '../../Data/User'
 
-type ExpirationStatus = 'valid' | 'expiring' | 'expired' | 'none';
+const emptyForm = { title: '', cert_number: '', issue_date: '', exp_date: '', is_primary: false }
 
-function getExpirationStatus(expDate: string | null): ExpirationStatus {
-    if (!expDate) return 'none';
-    const now = new Date();
-    const exp = new Date(expDate);
-    const diffMs = exp.getTime() - now.getTime();
-    const diffDays = diffMs / (1000 * 60 * 60 * 24);
-    if (diffDays < 0) return 'expired';
-    if (diffDays <= 90) return 'expiring';
-    return 'valid';
+function statusLabel(s: string) {
+  switch (s) {
+    case 'valid': return { text: 'Valid', cls: 'text-themegreen bg-themegreen/10' }
+    case 'expiring': return { text: 'Expiring', cls: 'text-themeyellow bg-themeyellow/10' }
+    case 'expired': return { text: 'Expired', cls: 'text-themeredred bg-themeredred/10' }
+    default: return { text: 'No Date', cls: 'text-tertiary/50 bg-tertiary/5' }
+  }
 }
 
-const expirationStyles: Record<ExpirationStatus, { bg: string; text: string; label: string }> = {
-    valid: { bg: 'bg-themegreen/10', text: 'text-themegreen', label: 'Valid' },
-    expiring: { bg: 'bg-themeyellow/10', text: 'text-themeyellow', label: 'Expiring Soon' },
-    expired: { bg: 'bg-themeredred/10', text: 'text-themeredred', label: 'Expired' },
-    none: { bg: 'bg-tertiary/5', text: 'text-tertiary/50', label: 'No Expiration' },
-};
-
-function CertCard({
-    cert,
-    onRemove,
-    onTogglePrimary,
-}: {
-    cert: Certification;
-    onRemove: (id: string, wasPrimary: boolean) => void;
-    onTogglePrimary: (id: string, currentlyPrimary: boolean) => void;
-}) {
-    const [confirming, setConfirming] = useState(false);
-    const expStatus = getExpirationStatus(cert.exp_date);
-    const style = expirationStyles[expStatus];
-
-    return (
-        <div className="rounded-xl border border-tertiary/10 bg-themewhite2 overflow-hidden">
-            <div className="px-4 py-3">
-                {/* Title row */}
-                <div className="flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                        <p className="text-sm font-semibold text-primary truncate">{cert.title}</p>
-                        {cert.is_primary && (
-                            <Star size={14} className="text-themeyellow shrink-0 fill-themeyellow" />
-                        )}
-                    </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                        {/* Verified badge */}
-                        {cert.verified ? (
-                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-themegreen/10 text-themegreen text-[9pt] font-medium">
-                                <CheckCircle size={12} /> Verified
-                            </span>
-                        ) : (
-                            <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-tertiary/5 text-tertiary/50 text-[9pt] font-medium">
-                                <AlertCircle size={12} /> Unverified
-                            </span>
-                        )}
-                    </div>
-                </div>
-
-                {/* Details */}
-                <div className="mt-2 space-y-1">
-                    {cert.cert_number && (
-                        <p className="text-xs text-tertiary/60">
-                            Cert #: <span className="font-medium text-primary/80">{cert.cert_number}</span>
-                        </p>
-                    )}
-                    <div className="flex items-center gap-3 text-xs text-tertiary/60">
-                        {cert.issue_date && (
-                            <span>Issued: {new Date(cert.issue_date + 'T00:00:00').toLocaleDateString()}</span>
-                        )}
-                        {cert.exp_date && (
-                            <span>Expires: {new Date(cert.exp_date + 'T00:00:00').toLocaleDateString()}</span>
-                        )}
-                    </div>
-                </div>
-
-                {/* Expiration badge */}
-                <div className="mt-2 flex items-center gap-2">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9pt] font-medium ${style.bg} ${style.text}`}>
-                        {expStatus === 'none' ? <Minus size={10} /> : <Clock size={10} />}
-                        {style.label}
-                    </span>
-                </div>
-
-                {/* Actions */}
-                <div className="mt-3 flex items-center gap-2 border-t border-tertiary/5 pt-2.5">
-                    <button
-                        onClick={() => onTogglePrimary(cert.id, cert.is_primary)}
-                        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors
-                            ${cert.is_primary
-                                ? 'bg-themeyellow/10 text-themeyellow hover:bg-themeyellow/20'
-                                : 'bg-tertiary/5 text-tertiary/60 hover:bg-tertiary/10'
-                            }`}
-                    >
-                        <Star size={12} className={cert.is_primary ? 'fill-themeyellow' : ''} />
-                        {cert.is_primary ? 'Primary' : 'Set Primary'}
-                    </button>
-
-                    {confirming ? (
-                        <div className="flex items-center gap-1.5 ml-auto">
-                            <button
-                                onClick={() => { onRemove(cert.id, cert.is_primary); setConfirming(false); }}
-                                className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-themeredred text-white hover:bg-themeredred/90 transition-colors"
-                            >
-                                Confirm
-                            </button>
-                            <button
-                                onClick={() => setConfirming(false)}
-                                className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-tertiary/10 text-primary hover:bg-tertiary/15 transition-colors"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    ) : (
-                        <button
-                            onClick={() => setConfirming(true)}
-                            className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium
-                                       bg-tertiary/5 text-tertiary/50 hover:bg-themeredred/10 hover:text-themeredred transition-colors ml-auto"
-                        >
-                            <Trash2 size={12} /> Remove
-                        </button>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
+function formatDate(dateStr: string): string {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric',
+  })
 }
 
-function AddCertForm({ onAdd }: { onAdd: (input: {
-    title: string;
-    cert_number?: string | null;
-    issue_date?: string | null;
-    exp_date?: string | null;
-    is_primary?: boolean;
-}) => Promise<{ success: boolean; error?: string }> }) {
-    const [open, setOpen] = useState(false);
-    const [title, setTitle] = useState('');
-    const [certNumber, setCertNumber] = useState('');
-    const [issueDate, setIssueDate] = useState('');
-    const [expDate, setExpDate] = useState('');
-    const [isPrimary, setIsPrimary] = useState(false);
-    const [submitting, setSubmitting] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const reset = () => {
-        setTitle('');
-        setCertNumber('');
-        setIssueDate('');
-        setExpDate('');
-        setIsPrimary(false);
-        setError(null);
-    };
-
-    const handleSubmit = async () => {
-        if (!title.trim()) { setError('Title is required'); return; }
-        setSubmitting(true);
-        setError(null);
-
-        const result = await onAdd({
-            title: title.trim(),
-            cert_number: certNumber.trim() || null,
-            issue_date: issueDate || null,
-            exp_date: expDate || null,
-            is_primary: isPrimary,
-        });
-
-        setSubmitting(false);
-        if (result.success) {
-            reset();
-            setOpen(false);
-        } else {
-            setError(result.error || 'Failed to add certification');
-        }
-    };
-
-    return (
-        <div className="rounded-xl border border-tertiary/10 overflow-hidden">
-            <button
-                onClick={() => setOpen(!open)}
-                className="flex items-center justify-between w-full px-4 py-3 hover:bg-themewhite2 transition-colors"
-            >
-                <span className="flex items-center gap-2 text-sm font-medium text-themeblue2">
-                    <Plus size={16} /> Add Certification
-                </span>
-                {open ? <ChevronUp size={16} className="text-tertiary/40" /> : <ChevronDown size={16} className="text-tertiary/40" />}
-            </button>
-
-            {open && (
-                <div className="px-4 pb-4 space-y-3 border-t border-tertiary/10">
-                    <div className="pt-3">
-                        {/* Title with datalist suggestions */}
-                        <label className="block">
-                            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-                                Title <span className="text-themeredred">*</span>
-                            </span>
-                            <input
-                                type="text"
-                                list="cert-suggestions"
-                                value={title}
-                                onChange={(e) => setTitle(e.target.value)}
-                                placeholder="e.g. EMT-B, ACLS, BSN"
-                                className="mt-1 w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-base
-                                           border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                                           transition-colors placeholder:text-tertiary/30"
-                            />
-                            <datalist id="cert-suggestions">
-                                {credentials.map(c => <option key={c} value={c} />)}
-                            </datalist>
-                        </label>
-                    </div>
-
-                    {/* Cert Number */}
-                    <label className="block">
-                        <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Cert Number</span>
-                        <input
-                            type="text"
-                            value={certNumber}
-                            onChange={(e) => setCertNumber(e.target.value)}
-                            placeholder="Optional"
-                            className="mt-1 w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-base
-                                       border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                                       transition-colors placeholder:text-tertiary/30"
-                        />
-                    </label>
-
-                    {/* Dates row */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <label className="block">
-                            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Issue Date</span>
-                            <input
-                                type="date"
-                                value={issueDate}
-                                onChange={(e) => setIssueDate(e.target.value)}
-                                className="mt-1 w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-base
-                                           border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                                           transition-colors"
-                            />
-                        </label>
-                        <label className="block">
-                            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Exp Date</span>
-                            <input
-                                type="date"
-                                value={expDate}
-                                onChange={(e) => setExpDate(e.target.value)}
-                                className="mt-1 w-full px-3 py-2.5 rounded-lg bg-themewhite2 text-primary text-base
-                                           border border-tertiary/10 focus:border-themeblue2 focus:outline-none
-                                           transition-colors"
-                            />
-                        </label>
-                    </div>
-
-                    {/* Primary checkbox */}
-                    <label className="flex items-center gap-2 py-1 cursor-pointer">
-                        <input
-                            type="checkbox"
-                            checked={isPrimary}
-                            onChange={(e) => setIsPrimary(e.target.checked)}
-                            className="rounded border-tertiary/20 text-themeblue2 focus:ring-themeblue2/30"
-                        />
-                        <span className="text-sm text-primary">Primary certification (shown on signature line)</span>
-                    </label>
-
-                    {error && (
-                        <p className="text-xs text-themeredred">{error}</p>
-                    )}
-
-                    <button
-                        onClick={handleSubmit}
-                        disabled={submitting || !title.trim()}
-                        className="w-full py-2.5 rounded-xl bg-themeblue3 text-white text-sm font-semibold
-                                   hover:bg-themeblue3/90 active:scale-95 transition-all
-                                   disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                        {submitting ? 'Adding...' : 'Add Certification'}
-                    </button>
-                </div>
-            )}
-        </div>
-    );
-}
+const inputClasses = 'w-full px-3 py-2.5 rounded-lg text-primary text-base border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all placeholder:text-tertiary/30'
 
 export const CertificationsPanel = () => {
-    const { certs, loading, addCert, removeCert, togglePrimaryCert } = useCertifications();
-    const showLoading = useMinLoadTime(loading);
+  const { certs, loading, addCert, updateCert, removeCert } = useCertifications()
+  const showLoading = useMinLoadTime(loading)
 
-    return (
-        <div className="h-full overflow-y-auto">
-            <div className="px-4 py-3 md:p-5">
-                <div className="mb-5">
-                    <h2 className="text-lg font-semibold text-primary">Certifications</h2>
-                    <p className="text-sm text-tertiary/60 mt-1">
-                        Manage your credentials and certification status.
-                    </p>
-                </div>
+  const [mode, setMode] = useState<'view' | 'editing' | 'adding'>('view')
+  const [editingCertId, setEditingCertId] = useState<string | null>(null)
+  const [form, setForm] = useState(emptyForm)
+  const [saving, setSaving] = useState(false)
+  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
 
-                {showLoading ? (
-                    <LoadingSpinner label="Loading certifications..." className="py-12 text-tertiary" />
-                ) : (
-                    <div className="space-y-3">
-                        {/* Cert list */}
-                        {certs.length === 0 && (
-                            <EmptyState
-                                icon={<Award size={28} />}
-                                title="No certifications added yet"
-                            />
-                        )}
+  const resetForm = useCallback(() => {
+    setForm(emptyForm)
+    setMode('view')
+    setEditingCertId(null)
+    setSaving(false)
+  }, [])
 
-                        {certs.map((cert) => (
-                            <CertCard
-                                key={cert.id}
-                                cert={cert}
-                                onRemove={removeCert}
-                                onTogglePrimary={togglePrimaryCert}
-                            />
-                        ))}
+  const handleAdd = useCallback(async () => {
+    if (!form.title.trim()) return
+    setSaving(true)
 
-                        {/* Add form */}
-                        <AddCertForm onAdd={addCert} />
-                    </div>
-                )}
-            </div>
+    const input: CertInput = {
+      title: form.title,
+      cert_number: form.cert_number || null,
+      issue_date: form.issue_date || null,
+      exp_date: form.exp_date || null,
+      is_primary: form.is_primary,
+    }
+
+    const result = await addCert(input)
+    if (result.success) {
+      resetForm()
+    } else {
+      setSaving(false)
+    }
+  }, [form, addCert, resetForm])
+
+  const handleEdit = useCallback(async (certId: string) => {
+    if (!form.title.trim()) return
+    setSaving(true)
+
+    const fields: Partial<CertInput> = {
+      title: form.title,
+      cert_number: form.cert_number || null,
+      issue_date: form.issue_date || null,
+      exp_date: form.exp_date || null,
+      is_primary: form.is_primary,
+    }
+
+    const result = await updateCert(certId, fields)
+    if (result.success) {
+      resetForm()
+    } else {
+      setSaving(false)
+    }
+  }, [form, updateCert, resetForm])
+
+  const handleDelete = useCallback(async (certId: string, wasPrimary: boolean) => {
+    setSaving(true)
+    const result = await removeCert(certId, wasPrimary)
+    setSaving(false)
+    if (result.success) setOpenSwipeId(null)
+  }, [removeCert])
+
+  const startEditing = useCallback((cert: Certification) => {
+    setOpenSwipeId(null)
+    setMode('editing')
+    setEditingCertId(cert.id)
+    setForm({
+      title: cert.title,
+      cert_number: cert.cert_number ?? '',
+      issue_date: cert.issue_date ?? '',
+      exp_date: cert.exp_date ?? '',
+      is_primary: cert.is_primary,
+    })
+  }, [])
+
+  const buildActions = useCallback((cert: Certification): SwipeAction[] => [
+    { key: 'edit', label: 'Edit', icon: Pencil, iconBg: 'bg-themeblue2/15', iconColor: 'text-themeblue2', onAction: () => startEditing(cert) },
+    { key: 'delete', label: 'Delete', icon: Trash2, iconBg: 'bg-themeredred/15', iconColor: 'text-themeredred', onAction: () => handleDelete(cert.id, cert.is_primary) },
+  ], [startEditing, handleDelete])
+
+  const renderEditCard = (certId: string | null) => (
+    <div className="rounded-lg border border-themeblue2/30 bg-themewhite2 px-4 py-3">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          list="cert-title-suggestions"
+          value={form.title}
+          onChange={(e) => setForm(f => ({ ...f, title: e.target.value }))}
+          placeholder="Certification title"
+          className={inputClasses}
+        />
+        <label className="flex items-center gap-1.5 cursor-pointer shrink-0">
+          <input type="checkbox" checked={form.is_primary}
+            onChange={(e) => setForm(f => ({ ...f, is_primary: e.target.checked }))}
+            className="rounded border-tertiary/20 text-themeblue2 focus:ring-themeblue2" />
+          <span className="text-[10px] text-tertiary/50">Primary</span>
+        </label>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2 mt-3">
+        <div>
+          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Cert Number</span>
+          <div className="mt-1">
+            <TextInput
+              value={form.cert_number}
+              onChange={(val) => setForm(f => ({ ...f, cert_number: val }))}
+              placeholder="Cert #"
+            />
+          </div>
         </div>
-    );
-};
+        <div>
+          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Issue Date</span>
+          <input type="date" value={form.issue_date}
+            onChange={(e) => setForm(f => ({ ...f, issue_date: e.target.value }))}
+            className={`mt-1 ${inputClasses}`} />
+        </div>
+        <div>
+          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Expiry Date</span>
+          <input type="date" value={form.exp_date}
+            onChange={(e) => setForm(f => ({ ...f, exp_date: e.target.value }))}
+            className={`mt-1 ${inputClasses}`} />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-tertiary/5">
+        <button
+          onClick={() => mode === 'adding' ? handleAdd() : certId && handleEdit(certId)}
+          disabled={saving || !form.title.trim()}
+          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-themeblue3 text-white disabled:opacity-50 active:scale-95 transition-all">
+          {saving ? 'Saving...' : mode === 'adding' ? 'Add' : 'Save'}
+        </button>
+        <button onClick={resetForm} disabled={saving}
+          className="px-3 py-1.5 rounded-lg text-xs font-medium bg-tertiary/10 text-primary active:scale-95 transition-all">
+          Cancel
+        </button>
+      </div>
+
+      <datalist id="cert-title-suggestions">
+        {credentials.map(c => <option key={c} value={c} />)}
+      </datalist>
+    </div>
+  )
+
+  return (
+    <div className="h-full overflow-y-auto">
+      <div className="px-4 py-3 md:p-5">
+        <div className="mb-5">
+          <h2 className="text-lg font-semibold text-primary">Certifications</h2>
+          <p className="text-sm text-tertiary/60 mt-1">
+            Manage your credentials and certification status.
+          </p>
+        </div>
+
+        {showLoading ? (
+          <LoadingSpinner label="Loading certifications..." className="py-12 text-tertiary" />
+        ) : (
+          <div>
+            {mode === 'adding' && renderEditCard(null)}
+
+            {certs.length === 0 && mode !== 'adding' ? (
+              <EmptyState
+                icon={<Award size={28} />}
+                title="No certifications added yet"
+              />
+            ) : (
+              <div className="space-y-3">
+                {certs.map((cert) => {
+                  const status = getExpirationStatus(cert.exp_date)
+                  const badge = statusLabel(status)
+                  const isEditing = mode === 'editing' && editingCertId === cert.id
+
+                  if (isEditing) {
+                    return <div key={cert.id}>{renderEditCard(cert.id)}</div>
+                  }
+
+                  return (
+                    <SwipeableCard
+                      key={cert.id}
+                      actions={buildActions(cert)}
+                      isOpen={openSwipeId === cert.id}
+                      enabled={mode === 'view'}
+                      onOpen={() => setOpenSwipeId(cert.id)}
+                      onClose={() => setOpenSwipeId(null)}
+                      onTap={() => setOpenSwipeId(openSwipeId === cert.id ? null : cert.id)}
+                    >
+                      <div className="rounded-lg border border-tertiary/10 bg-themewhite2 px-4 py-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <p className="text-sm font-medium text-primary truncate">{cert.title}</p>
+                            {cert.is_primary && (
+                              <span className="text-[9px] font-medium text-themeblue2 bg-themeblue2/10 px-1.5 py-0.5 rounded uppercase tracking-wide shrink-0">Primary</span>
+                            )}
+                          </div>
+                          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded shrink-0 ${badge.cls}`}>{badge.text}</span>
+                        </div>
+
+                        <div className="flex items-center justify-between mt-1.5 text-xs text-tertiary/50">
+                          <span>{cert.cert_number ? `#${cert.cert_number}` : 'No cert number'}</span>
+                          <span>{cert.exp_date ? `Exp: ${formatDate(cert.exp_date)}` : 'No expiry'}</span>
+                        </div>
+                      </div>
+                    </SwipeableCard>
+                  )
+                })}
+              </div>
+            )}
+
+            {mode === 'view' && (
+              <button
+                onClick={() => { setMode('adding'); setForm(emptyForm) }}
+                className="w-full flex items-center justify-center gap-1.5 py-2.5 mt-3 rounded-lg border border-dashed border-tertiary/20 text-xs text-tertiary/50 hover:border-themeblue2 hover:text-themeblue2 transition-colors active:scale-95"
+              >
+                <Plus size={14} />
+                Add Certification
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}

@@ -15,6 +15,17 @@ interface SearchProps {
 }
 
 /**
+ * Import/barcode-related props grouped together
+ */
+interface ImportProps {
+  isImportExpanded?: boolean
+  onImportExpandToggle?: () => void
+  onImportSubmit?: (barcodeText: string) => void
+  onImportScan?: () => void
+  onImportImage?: () => void
+}
+
+/**
  * Navigation action handlers grouped together
  */
 interface NavigationActions {
@@ -46,6 +57,7 @@ interface UIState {
  */
 export interface NavTopProps {
   search: SearchProps
+  import?: ImportProps
   actions: NavigationActions
   ui: UIState
 }

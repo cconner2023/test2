@@ -1,7 +1,6 @@
 import { useMemo } from 'react'
-import { TrendingUp, TrendingDown, Minus, AlertTriangle } from 'lucide-react'
+import { AlertTriangle, Building2 } from 'lucide-react'
 import { formatMedicName } from './supervisorHelpers'
-import { subjectAreaIcons } from '../../../Data/TrainingConstants'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { TeamMetrics } from './supervisorHelpers'
 
@@ -10,6 +9,9 @@ interface TeamReportingProps {
   medics: ClinicMedic[]
   resolveName: (id: string | null) => string
   onViewSoldier: (soldier: ClinicMedic) => void
+  testableTaskMap: Map<string, { taskId: string }[]>
+  onNavigateToTask?: (taskId: string) => void
+  clinicName?: string | null
 }
 
 function readinessColor(pct: number): string {
@@ -29,9 +31,10 @@ export function TeamReporting({
   medics,
   resolveName,
   onViewSoldier,
+  testableTaskMap,
+  onNavigateToTask,
+  clinicName,
 }: TeamReportingProps) {
-  const evalDelta = metrics.evaluationsThisPeriod - metrics.evaluationsLastPeriod
-
   const sortedSoldiers = useMemo(() => {
     return [...metrics.soldierReadiness].sort((a, b) => a.readinessPercent - b.readinessPercent)
   }, [metrics.soldierReadiness])
@@ -51,38 +54,33 @@ export function TeamReporting({
 
   return (
     <div className="space-y-5">
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-lg border border-tertiary/10 bg-themewhite2 p-4">
-          <p className={`text-2xl font-bold ${readinessTextColor(metrics.teamReadinessPercent)}`}>
-            {metrics.teamReadinessPercent}%
-          </p>
-          <p className="text-[11px] text-tertiary/60 mt-0.5">Team Readiness</p>
+      {/* Clinic Overview Card */}
+      <div className="rounded-xl bg-themewhite2 px-4 py-3 mb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+            <Building2 size={16} className="text-tertiary/50" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-primary truncate">{clinicName ?? 'My Clinic'}</p>
+            <p className="text-[9pt] text-tertiary/50">{medics.length} personnel</p>
+          </div>
         </div>
-        <div className="rounded-lg border border-tertiary/10 bg-themewhite2 p-4">
-          <p className={`text-2xl font-bold ${readinessTextColor(metrics.certCompliancePercent)}`}>
-            {metrics.certCompliancePercent}%
-          </p>
-          <p className="text-[11px] text-tertiary/60 mt-0.5">Cert Compliance</p>
+        <div className="flex flex-col gap-1.5 mt-2 ml-11">
+          <div className="flex items-center gap-2">
+            <span className="text-[9pt] text-tertiary/50 w-18 shrink-0">Readiness</span>
+            <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
+              <div className={`h-full rounded-full ${readinessColor(metrics.teamReadinessPercent)}`} style={{ width: `${metrics.teamReadinessPercent}%` }} />
+            </div>
+            <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(metrics.teamReadinessPercent)}`}>{metrics.teamReadinessPercent}%</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[9pt] text-tertiary/50 w-18 shrink-0">Compliance</span>
+            <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
+              <div className={`h-full rounded-full ${readinessColor(metrics.certCompliancePercent)}`} style={{ width: `${metrics.certCompliancePercent}%` }} />
+            </div>
+            <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(metrics.certCompliancePercent)}`}>{metrics.certCompliancePercent}%</span>
+          </div>
         </div>
-      </div>
-
-      <div className="rounded-lg border border-tertiary/10 bg-themewhite2 p-4">
-        <div className="flex items-center gap-2">
-          <p className="text-2xl font-bold text-primary">{metrics.evaluationsThisPeriod}</p>
-          {evalDelta !== 0 && (
-            <span className={`flex items-center gap-0.5 text-xs font-medium ${evalDelta > 0 ? 'text-themegreen' : 'text-themeredred'}`}>
-              {evalDelta > 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-              {evalDelta > 0 ? '+' : ''}{evalDelta}
-            </span>
-          )}
-          {evalDelta === 0 && (
-            <span className="flex items-center gap-0.5 text-xs font-medium text-tertiary/50">
-              <Minus size={12} />0
-            </span>
-          )}
-        </div>
-        <p className="text-[11px] text-tertiary/60 mt-0.5">Evaluations (30d)</p>
       </div>
 
       {/* Soldier Readiness */}
@@ -98,9 +96,9 @@ export function TeamReporting({
               <button
                 key={entry.soldierId}
                 onClick={() => onViewSoldier(soldier)}
-                className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-themewhite2 transition-colors text-left"
+                className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-themewhite2 text-left active:scale-95 transition-all"
               >
-                <span className="text-sm text-primary font-medium min-w-0 truncate flex-shrink-0 w-28">
+                <span className="text-sm text-primary min-w-0 truncate shrink-0 w-36">
                   {formatMedicName(soldier)}
                 </span>
                 <div className="flex-1 min-w-0">
@@ -138,14 +136,15 @@ export function TeamReporting({
         </h3>
         <div className="space-y-2">
           {sortedGaps.map((gap) => (
-            <div
+            <button
               key={gap.areaName}
-              className="w-full flex items-center gap-3 p-2.5 rounded-lg"
+              onClick={() => {
+                const tasks = testableTaskMap.get(gap.areaName)
+                if (tasks?.[0] && onNavigateToTask) onNavigateToTask(tasks[0].taskId)
+              }}
+              className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-themewhite2 text-left active:scale-95 transition-all"
             >
-              <span className="text-tertiary/50 flex-shrink-0">
-                {subjectAreaIcons[gap.areaName]}
-              </span>
-              <span className="text-sm text-primary min-w-0 truncate flex-shrink-0 w-36">
+              <span className="text-sm text-primary min-w-0 truncate shrink-0 w-36">
                 {gap.areaName}
               </span>
               <div className="flex-1 min-w-0">
@@ -165,7 +164,7 @@ export function TeamReporting({
               <span className={`text-xs font-medium w-9 text-right ${readinessTextColor(gap.coveragePercent)}`}>
                 {gap.coveragePercent}%
               </span>
-            </div>
+            </button>
           ))}
         </div>
       </div>
