@@ -391,7 +391,7 @@ function AppContent() {
     <AvatarProvider value={avatarState}>
     <MessagesProvider>
     <CallProvider>
-    <div className='bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden' style={{ height: '100dvh' }}>
+    <div className='bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden' style={{ height: '100%' }}>
       <div id="app-drawer-root" className="max-w-315 shrink w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full relative md:bg-themewhite md:pb-10">
 
         {/* Viewport strip — SideNav + content side by side, pans right to reveal nav */}
