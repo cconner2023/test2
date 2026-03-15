@@ -95,6 +95,18 @@ registerRoute(
   })
 );
 
+// OpenStreetMap tiles — cached on first view for offline map access
+registerRoute(
+  ({ url }) => url.hostname.includes('tile.openstreetmap.org'),
+  new CacheFirst({
+    cacheName: 'map-tiles',
+    plugins: [
+      new ExpirationPlugin({ maxEntries: 2000, maxAgeSeconds: 30 * 24 * 60 * 60 }),
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+    ],
+  })
+);
+
 // ─── Push notifications ──────────────────────────────────────────────
 
 self.addEventListener('push', (event) => {

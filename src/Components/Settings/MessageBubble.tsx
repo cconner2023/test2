@@ -1,5 +1,5 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
-import { Check, X, CheckCircle2, Circle, Copy, Pencil, Reply, Trash2, Clock, MessageSquare } from 'lucide-react'
+import { Check, X, CheckCircle2, Circle, Copy, Pencil, Reply, Trash2, Clock, MessageSquare, Play, Pause } from 'lucide-react'
 import { GESTURE_THRESHOLDS } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
@@ -63,6 +63,43 @@ function useDecryptedImage(path: string | undefined, key: string | undefined) {
   return { url, loading }
 }
 
+/** Lazy-load and decrypt an audio attachment, caching the object URL. */
+function useDecryptedAudio(path: string | undefined, key: string | undefined) {
+  const [url, setUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!path || !key) return
+
+    let revoked = false
+    setLoading(true)
+
+    downloadDecryptedAttachment(path, key).then(result => {
+      if (revoked) return
+      if (result.ok) {
+        const objectUrl = URL.createObjectURL(result.data)
+        setUrl(objectUrl)
+      }
+    }).catch(() => {}).finally(() => {
+      if (!revoked) setLoading(false)
+    })
+
+    return () => {
+      revoked = true
+      setUrl(prev => { if (prev) URL.revokeObjectURL(prev); return null })
+    }
+  }, [path, key])
+
+  return { url, loading }
+}
+
+/** Format seconds to m:ss display. */
+function formatDuration(seconds: number): string {
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
 export function MessageBubble({
   message,
   isOwn,
@@ -91,6 +128,9 @@ export function MessageBubble({
   const rowRef = useRef<HTMLDivElement>(null)
   const [showFullImage, setShowFullImage] = useState(false)
   const [swipeOpen, setSwipeOpen] = useState(false)
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [playProgress, setPlayProgress] = useState(0)
 
   const ACTION_WIDTH = 192
   const swipeEnabled = !isEditing && !selectionMode
@@ -112,10 +152,16 @@ export function MessageBubble({
 
   const imageContent = message.content?.type === 'image' ? message.content : null
   const isImage = !!imageContent
+  const voiceContent = message.content?.type === 'voice' ? message.content : null
+  const isVoice = !!voiceContent
 
   const { url: fullImageUrl, loading: imageLoading } = useDecryptedImage(
     imageContent?.path,
     imageContent?.key,
+  )
+  const { url: audioUrl, loading: audioLoading } = useDecryptedAudio(
+    voiceContent?.path,
+    voiceContent?.key,
   )
 
   // ── Direct DOM touch handling ──
@@ -287,6 +333,80 @@ export function MessageBubble({
       )
     }
 
+    if (isVoice && voiceContent) {
+      const waveform = voiceContent.waveform ?? []
+      const totalBars = waveform.length || 48
+
+      const handlePlayPause = (e: React.MouseEvent) => {
+        e.stopPropagation()
+        const audio = audioRef.current
+        if (!audio) return
+        if (isPlaying) {
+          audio.pause()
+        } else {
+          audio.play()
+        }
+      }
+
+      return (
+        <div className="flex items-center gap-2.5 min-w-[200px]" onClick={e => e.stopPropagation()}>
+          {audioUrl && (
+            <audio
+              ref={audioRef}
+              src={audioUrl}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              onEnded={() => { setIsPlaying(false); setPlayProgress(0) }}
+              onTimeUpdate={() => {
+                const audio = audioRef.current
+                if (audio && audio.duration) {
+                  setPlayProgress(audio.currentTime / audio.duration)
+                }
+              }}
+            />
+          )}
+
+          <button
+            onClick={handlePlayPause}
+            disabled={!audioUrl}
+            className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all
+                       ${isOwn ? 'bg-white/20' : 'bg-themeblue2/10'}
+                       ${!audioUrl ? 'opacity-40' : ''}`}
+          >
+            {audioLoading ? (
+              <div className={`w-3.5 h-3.5 rounded-full border-2 border-t-transparent animate-spin
+                             ${isOwn ? 'border-white/60' : 'border-themeblue2/60'}`} />
+            ) : isPlaying ? (
+              <Pause size={14} className={isOwn ? 'text-white' : 'text-themeblue2'} />
+            ) : (
+              <Play size={14} className={`${isOwn ? 'text-white' : 'text-themeblue2'} ml-0.5`} />
+            )}
+          </button>
+
+          <div className="flex-1 flex items-center gap-px h-6">
+            {waveform.map((amp, i) => {
+              const filled = i / totalBars < playProgress
+              return (
+                <div
+                  key={i}
+                  className={`flex-1 rounded-full transition-colors duration-150
+                             ${filled
+                               ? (isOwn ? 'bg-white' : 'bg-themeblue2')
+                               : (isOwn ? 'bg-white/30' : 'bg-primary/15')
+                             }`}
+                  style={{ height: `${Math.max(12, amp * 100)}%` }}
+                />
+              )
+            })}
+          </div>
+
+          <span className={`text-[10px] tabular-nums shrink-0 ${isOwn ? 'text-white/70' : 'text-tertiary/50'}`}>
+            {formatDuration(isPlaying && audioRef.current ? audioRef.current.currentTime : voiceContent.duration)}
+          </span>
+        </div>
+      )
+    }
+
     return <p className="text-sm whitespace-pre-wrap break-words">{message.plaintext}</p>
   }
 
@@ -361,7 +481,7 @@ export function MessageBubble({
             {/* Visual bubble */}
             <div className={`${selectionMode ? 'max-w-[80%]' : 'max-w-[75%]'}`}>
               <div
-                className={`rounded-2xl ${isImage ? 'p-1.5' : 'px-3.5 py-2'}
+                className={`rounded-2xl ${isImage && !isVoice ? 'p-1.5' : 'px-3.5 py-2'}
                            ${isOwn ? 'bg-themeblue2 text-white rounded-br-md' : 'bg-themewhite2 text-primary rounded-bl-md'}
                            ${selected ? (isOwn ? 'ring-2 ring-inset ring-white/50' : 'ring-2 ring-inset ring-themeblue2/50') : ''}`}
               >
@@ -388,7 +508,7 @@ export function MessageBubble({
                   </div>
                 )}
                 {renderContent()}
-                <div className={`flex items-center gap-1 mt-0.5 ${isImage ? 'px-1.5' : ''} ${isOwn ? 'text-white/60' : 'text-tertiary/40'}`}>
+                <div className={`flex items-center gap-1 mt-0.5 ${isImage && !isVoice ? 'px-1.5' : ''} ${isOwn ? 'text-white/60' : 'text-tertiary/40'}`}>
                   <p className="text-[9px]">{formatTime(message.createdAt)}</p>
                   {isOwn && message.messageType === 'request' && (
                     <span className="text-[9px] italic">Pending</span>

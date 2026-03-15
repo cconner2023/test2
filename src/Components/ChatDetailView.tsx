@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
-import { Send, Trash2, Forward, Reply, X, ImagePlus, ArrowLeft, MessageSquare } from 'lucide-react'
+import { ArrowUp, Trash2, Forward, Reply, X, Plus, ArrowLeft, MessageSquare, Mic } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MessageBubble } from './Settings/MessageBubble'
 import { MessageContextMenu } from './Settings/MessageContextMenu'
@@ -8,6 +8,8 @@ import { useAuth } from '../Hooks/useAuth'
 import { useImagePaste } from '../Hooks/useImagePaste'
 import { useIOSKeyboard } from '../Hooks/useIOSKeyboard'
 import { useChatInteractions } from '../Hooks/useChatInteractions'
+import { useVoiceRecorder } from '../Hooks/useVoiceRecorder'
+import type { VoiceRecordingResult } from '../Hooks/useVoiceRecorder'
 import { playSendSound } from '../lib/soundService'
 import type { DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { UnavailableReason } from '../Hooks/usePeerAvailability'
@@ -27,6 +29,7 @@ export interface ChatDetailViewProps {
   medics: ClinicMedic[]
   sendMessage: (id: string, text: string, threadId?: string) => Promise<boolean>
   sendImage: (id: string, file: File) => Promise<boolean>
+  sendVoice?: (id: string, recording: VoiceRecordingResult) => Promise<boolean>
   editMessage: (id: string, msgId: string, text: string) => void
   deleteMessages: (id: string, msgIds: string[]) => void
   markAsRead: (id: string) => void
@@ -141,6 +144,7 @@ export function ChatDetailView({
   medics,
   sendMessage,
   sendImage,
+  sendVoice,
   editMessage,
   deleteMessages,
   markAsRead,
@@ -188,6 +192,11 @@ export function ChatDetailView({
     inputRef,
     sendMessage,
   })
+
+  const {
+    isRecording, duration: recDuration, amplitude,
+    startRecording, stopRecording, cancelRecording,
+  } = useVoiceRecorder()
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -253,6 +262,14 @@ export function ChatDetailView({
     e.target.value = ''
   }, [sendImage, conversationId])
 
+  const handleSendVoice = useCallback(async () => {
+    const result = await stopRecording()
+    if (result && sendVoice) {
+      const success = await sendVoice(conversationId, result)
+      if (success) playSendSound()
+    }
+  }, [stopRecording, sendVoice, conversationId])
+
   // Availability logic
   const unavailableParticipants = participants.filter(p => !p.available)
   const allUnavailable = participants.length > 0 && unavailableParticipants.length === participants.length
@@ -266,6 +283,10 @@ export function ChatDetailView({
     !requestFlow || requestFlow.status === 'accepted' || !!isSelfChat
   )
 
+  const canSendVoice = !!sendVoice && !activeThreadId && (
+    !requestFlow || requestFlow.status === 'accepted' || !!isSelfChat
+  )
+
   const placeholder = activeThreadId ? 'Reply in thread...'
     : requestFlow?.status === 'sent' ? 'Waiting for response...'
     : 'Type a message...'
@@ -275,7 +296,7 @@ export function ChatDetailView({
   const renderInputArea = () => {
     if (hasSelection) {
       return (
-        <div className="shrink-0 px-4 py-3 border-t border-primary/10">
+        <div className="shrink-0 px-4 py-3">
           <div className="flex items-center justify-around">
             <button onClick={handleReply} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
               <Reply size={18} className="text-tertiary" />
@@ -304,7 +325,7 @@ export function ChatDetailView({
 
     if (requestFlow?.status === 'received') {
       return (
-        <div className="shrink-0 px-4 py-3 border-t border-primary/10">
+        <div className="shrink-0 px-4 py-3">
           <p className="text-sm text-center text-tertiary/70 mb-2">
             {requestFlow.peerName ?? 'This user'} wants to message you
           </p>
@@ -327,7 +348,7 @@ export function ChatDetailView({
     }
 
     return (
-      <div className="shrink-0 border-t border-primary/10">
+      <div className="shrink-0">
         {someUnavailable && <UnavailableBanner participants={participants} />}
 
         {replyingTo && !activeThreadId && (
@@ -349,34 +370,85 @@ export function ChatDetailView({
 
         <div className={`px-4 pt-3 ${isKeyboardOpen ? 'pb-3' : 'pb-8'} md:pb-3`}>
           <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-          <div className="flex items-center gap-2">
-            {canUploadImage && (
+
+          {isRecording ? (
+            /* Recording state: cancel | indicator | send */
+            <div className="flex items-center gap-2">
               <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={sending}
-                className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-primary/5 active:scale-95 transition-all shrink-0 disabled:opacity-30"
+                onClick={cancelRecording}
+                className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center active:scale-95 transition-all shrink-0"
               >
-                <ImagePlus size={20} className="text-tertiary/60" />
+                <X size={18} className="text-tertiary" />
               </button>
-            )}
-            <input
-              ref={inputRef}
-              type="text"
-              value={text}
-              onChange={e => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={placeholder}
-              className="flex-1 px-4 py-2.5 rounded-full bg-themewhite2 text-sm text-primary placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
-              disabled={inputDisabled}
-            />
-            <button
-              onClick={handleSend}
-              disabled={!text.trim() || inputDisabled}
-              className="w-10 h-10 rounded-full bg-themeblue2 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0"
-            >
-              <Send size={16} className="text-white ml-0.5" />
-            </button>
-          </div>
+
+              <div className="flex-1 flex items-center gap-2.5 px-3.5 py-2.5 rounded-full border border-themeredred/20 bg-themeredred/5">
+                <div className="w-2 h-2 rounded-full bg-themeredred animate-pulse shrink-0" />
+                <span className="text-sm font-medium text-themeredred tabular-nums">
+                  {Math.floor(recDuration / 60)}:{String(Math.floor(recDuration % 60)).padStart(2, '0')}
+                </span>
+                <div className="flex-1 flex items-center gap-px h-4">
+                  {Array.from({ length: 24 }, (_, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 rounded-full bg-themeredred/40 transition-all duration-75"
+                      style={{ height: `${Math.max(8, (i < 12 ? amplitude : amplitude * 0.6) * 100)}%` }}
+                    />
+                  ))}
+                </div>
+              </div>
+
+              <button
+                onClick={handleSendVoice}
+                className="animate-spring-in w-10 h-10 rounded-full bg-themeredred flex items-center justify-center active:scale-95 transition-all shrink-0"
+              >
+                <ArrowUp size={18} className="text-white" />
+              </button>
+            </div>
+          ) : (
+            /* Normal state: image | input | mic/send */
+            <div className="flex items-center gap-2">
+              {canUploadImage && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={sending}
+                  className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0"
+                >
+                  <Plus size={18} className="text-tertiary/60" />
+                </button>
+              )}
+              <div className="chat-input-bar relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite
+                  focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  value={text}
+                  onChange={e => setText(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder={placeholder}
+                  className="w-full bg-transparent outline-none text-[16px] text-tertiary px-3.5 py-2.5
+                      rounded-full min-w-0 placeholder:text-tertiary/30"
+                  disabled={inputDisabled}
+                />
+              </div>
+              {text.trim() ? (
+                <button
+                  onClick={handleSend}
+                  disabled={inputDisabled}
+                  className="animate-spring-in w-10 h-10 rounded-full bg-themeblue3 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0"
+                >
+                  <ArrowUp size={18} className="text-white" />
+                </button>
+              ) : canSendVoice ? (
+                <button
+                  onClick={startRecording}
+                  disabled={inputDisabled}
+                  className="w-10 h-10 rounded-full bg-primary/5 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0"
+                >
+                  <Mic size={18} className="text-tertiary/60" />
+                </button>
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
     )
@@ -435,7 +507,7 @@ export function ChatDetailView({
   if (activeThreadId) {
     return (
       <div className="flex flex-col h-full relative" style={isKeyboardOpen ? { height: `calc(100% - ${keyboardHeight}px)` } : undefined}>
-        <div className="sticky top-0 z-10 shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center gap-3 backdrop-blur-xl bg-themewhite3/80 md:backdrop-blur-none md:bg-transparent">
+        <div className="sticky top-0 z-10 shrink-0 px-4 py-2.5 flex items-center gap-3 backdrop-blur-xl bg-themewhite3/80 md:backdrop-blur-none md:bg-transparent">
           <button onClick={() => setActiveThreadId(null)} className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
             <ArrowLeft size={18} className="text-tertiary" />
           </button>
@@ -450,6 +522,7 @@ export function ChatDetailView({
             x={contextMenu.x} y={contextMenu.y}
             isOwn={contextMsg.senderId === userId}
             isImage={contextMsg.content?.type === 'image'}
+            isVoice={contextMsg.content?.type === 'voice'}
             onCopy={handleCopy} onEdit={handleStartEdit} onSave={handleSaveImage}
             onClose={closeContextMenu}
           />
@@ -471,6 +544,7 @@ export function ChatDetailView({
           x={contextMenu.x} y={contextMenu.y}
           isOwn={contextMsg.senderId === userId}
           isImage={contextMsg.content?.type === 'image'}
+          isVoice={contextMsg.content?.type === 'voice'}
           onCopy={handleCopy} onEdit={handleStartEdit} onSave={handleSaveImage}
           onClose={closeContextMenu}
         />

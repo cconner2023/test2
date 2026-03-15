@@ -39,6 +39,7 @@ interface NavigationActions {
   onMessagesClick?: () => void
   onPropertyClick?: () => void
   onLoRaClick?: () => void
+  onMapOverlayClick?: () => void
   onSupervisorClick?: () => void
   onAdminClick?: () => void
 }

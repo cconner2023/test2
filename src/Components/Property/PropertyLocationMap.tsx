@@ -80,9 +80,11 @@ interface PropertyLocationMapProps {
   onEditItem?: (id: string, updates: { location_id?: string | null }) => Promise<unknown>
   onUpdateLocation?: (id: string, updates: Partial<PropertyLocation>) => Promise<unknown>
   onSelectItem?: (item: LocalPropertyItem) => void
+  /** Extra controls rendered below the edit toolbar (e.g. CSV pill) */
+  floatingControls?: React.ReactNode
 }
 
-export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, clinicName, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem }, ref) {
+export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, clinicName, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, floatingControls }, ref) {
   const store = usePropertyStore()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [tagIndex, setTagIndex] = useState<TagIndex | null>(null)
@@ -851,6 +853,21 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     }
   }, [zoomBy])
 
+  // ── Prevent iOS native scroll during move/resize gestures ──
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el || (!isMoving && !isResizing)) return
+
+    const prevent = (e: TouchEvent) => {
+      // Allow two-finger pinch through
+      if (e.touches.length >= 2) return
+      e.preventDefault()
+    }
+
+    el.addEventListener('touchmove', prevent, { passive: false })
+    return () => el.removeEventListener('touchmove', prevent)
+  }, [isMoving, isResizing])
+
   // ── Computed canvas dimensions (pixel-based for infinite canvas) ──
   const contentW = vpSize.w * canvasScale
   const contentH = vpSize.h * canvasScale
@@ -873,6 +890,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         <div
           ref={scrollRef}
           className={`absolute inset-0 overflow-auto bg-themewhite2 border border-tertiary/15 rounded-lg ${isEditing ? (isDrawing ? 'cursor-crosshair' : isResizing ? 'cursor-nwse-resize' : isMoving ? 'cursor-move' : 'cursor-default') : 'cursor-grab'}`}
+          style={(isMoving || isResizing) ? { touchAction: 'none' } : undefined}
           onPointerDown={handlePanStart}
           onPointerMove={handlePanMove}
           onPointerUp={handlePanEnd}
@@ -1120,6 +1138,9 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                 </button>
               </div>
             </div>
+          )}
+          {floatingControls && (
+            <div className="mt-2 flex justify-end">{floatingControls}</div>
           )}
         </div>
       </div>

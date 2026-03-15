@@ -967,7 +967,7 @@ export function ClinicPanel({
                         />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-primary truncate">
-                            {staged.rank && <span className="text-tertiary/50">{staged.rank} </span>}
+                            {staged.rank && <span>{staged.rank} </span>}
                             {staged.lastName}, {staged.firstName}
                           </p>
                           {staged.credential && (
@@ -1001,7 +1001,7 @@ export function ClinicPanel({
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate text-primary">
                             {member.rank && (
-                              <span className="text-tertiary/50">{member.rank} </span>
+                              <span>{member.rank} </span>
                             )}
                             {member.lastName}, {member.firstName}
                             {member.middleInitial ? ` ${member.middleInitial}.` : ''}

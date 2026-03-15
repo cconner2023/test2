@@ -8,6 +8,7 @@
  * Wire format uses short keys to minimize ciphertext size:
  *   Text:  { t: "t", d: "hello" }
  *   Image: { t: "i", mime, key, path, w, h, thumb? }
+ *   Voice: { t: "v", mime, key, path, dur, wf }
  */
 
 // ---- Content Types ----
@@ -41,7 +42,17 @@ export interface ImageContent {
   replyTo?: ReplyTo
 }
 
-export type MessageContent = TextContent | ImageContent
+export interface VoiceContent {
+  type: 'voice'
+  mime: string
+  key: string
+  path: string
+  duration: number
+  waveform: number[]
+  replyTo?: ReplyTo
+}
+
+export type MessageContent = TextContent | ImageContent | VoiceContent
 
 // ---- Compact wire shapes ----
 
@@ -68,7 +79,17 @@ interface WireImage {
   rt?: WireReplyTo
 }
 
-type WireContent = WireText | WireImage
+interface WireVoice {
+  t: 'v'
+  mime: string
+  key: string
+  path: string
+  dur: number
+  wf: number[]
+  rt?: WireReplyTo
+}
+
+type WireContent = WireText | WireImage | WireVoice
 
 // ---- Serialization ----
 
@@ -86,17 +107,29 @@ export function serializeContent(content: MessageContent): string {
     return JSON.stringify(wire)
   }
 
-  const wire: WireImage = {
-    t: 'i',
+  if (content.type === 'image') {
+    const wire: WireImage = {
+      t: 'i',
+      mime: content.mime,
+      key: content.key,
+      path: content.path,
+      w: content.width,
+      h: content.height,
+    }
+    if (content.thumbnail) wire.thumb = content.thumbnail
+    if (content.replyTo) wire.rt = toWireReplyTo(content.replyTo)
+    return JSON.stringify(wire)
+  }
+
+  const wire: WireVoice = {
+    t: 'v',
     mime: content.mime,
     key: content.key,
     path: content.path,
-    w: content.width,
-    h: content.height,
+    dur: content.duration,
+    wf: content.waveform,
   }
-  if (content.thumbnail) wire.thumb = content.thumbnail
   if (content.replyTo) wire.rt = toWireReplyTo(content.replyTo)
-
   return JSON.stringify(wire)
 }
 
@@ -142,6 +175,22 @@ export function parseMessageContent(raw: string): ParsedContent {
           width: wire.w,
           height: wire.h,
           thumbnail: wire.thumb,
+          ...(replyTo && { replyTo }),
+        },
+        replyTo,
+      }
+    }
+
+    if (wire.t === 'v') {
+      return {
+        plaintext: 'Voice message',
+        content: {
+          type: 'voice',
+          mime: wire.mime,
+          key: wire.key,
+          path: wire.path,
+          duration: wire.dur,
+          waveform: wire.wf,
           ...(replyTo && { replyTo }),
         },
         replyTo,

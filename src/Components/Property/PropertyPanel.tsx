@@ -483,14 +483,14 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
           onEditItem={property.editItem}
           onUpdateLocation={property.editLocation}
           onSelectItem={handleSelectItem}
+          floatingControls={
+            <VerticalPill>
+              <PillButton icon={Upload} label="Import CSV" onClick={() => fileInputRef.current?.click()} />
+              <PillButton icon={Download} label="Export CSV" onClick={() => exportPropertyCSV(property.items, visibleLocations)} />
+              <PillButton icon={FileSpreadsheet} label="Download Template" onClick={downloadCSVTemplate} />
+            </VerticalPill>
+          }
         />
-        <div className="absolute top-3 left-3 z-30">
-          <VerticalPill>
-            <PillButton icon={Upload} label="Import CSV" onClick={() => fileInputRef.current?.click()} />
-            <PillButton icon={Download} label="Export CSV" onClick={() => exportPropertyCSV(property.items, visibleLocations)} />
-            <PillButton icon={FileSpreadsheet} label="Download Template" onClick={downloadCSVTemplate} />
-          </VerticalPill>
-        </div>
         {csvImport && (
           <PropertyCSVImport
             rows={csvImport.rows}

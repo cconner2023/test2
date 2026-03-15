@@ -55,13 +55,14 @@ import {
   serializeContent,
   parseMessageContent,
 } from '../lib/signal/messageContent'
-import type { MessageContent, ImageContent, ReplyTo } from '../lib/signal/messageContent'
+import type { MessageContent, ImageContent, VoiceContent, ReplyTo } from '../lib/signal/messageContent'
 import { uploadEncryptedAttachment } from '../lib/signal/attachmentService'
 import { createBackup, markHydrationComplete } from '../lib/signal/backupService'
 import { ok as okResult, err as errResult, type Result } from '../lib/result'
 import { errorBus } from '../lib/errorBus'
 import { ErrorCode } from '../lib/errorCodes'
 import { resizeImage, getImageDimensions, generateThumbnail, dataUrlToBlob } from '../Utilities/imageUtils'
+import type { VoiceRecordingResult } from '../Utilities/voiceUtils'
 import type { DecryptedSignalMessage, PeerDevice, FanOutMessageInput, SyncMessagePayload } from '../lib/signal/transportTypes'
 import type { PublicKeyBundle } from '../lib/signal/types'
 import type { PeerBundleRpcResult } from '../lib/signal/transportTypes'
@@ -304,6 +305,8 @@ export interface UseMessagesReturn {
   sendMessage: (peerId: string, text: string, threadId?: string) => Promise<boolean>
   /** Send an image to a peer. Compresses, encrypts, uploads, and sends via Signal. */
   sendImage: (peerId: string, file: File) => Promise<boolean>
+  /** Send a voice note to a peer. Encrypts, uploads, and sends via Signal. */
+  sendVoice: (peerId: string, recording: VoiceRecordingResult) => Promise<boolean>
   /** Accept a message request from a peer, opening the conversation. */
   acceptRequest: (peerId: string) => Promise<void>
   /** Get the request status for a given peer. */
@@ -326,6 +329,8 @@ export interface UseMessagesReturn {
   sendGroupMessage: (groupId: string, text: string, threadId?: string) => Promise<boolean>
   /** Send an image to a group. */
   sendGroupImage: (groupId: string, file: File) => Promise<boolean>
+  /** Send a voice note to a group. */
+  sendGroupVoice: (groupId: string, recording: VoiceRecordingResult) => Promise<boolean>
   /** Create a new group. */
   createGroup: (name: string, memberIds: string[]) => Promise<string | null>
   /** Leave a group. */
@@ -953,6 +958,146 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage])
 
+  const sendVoice = useCallback(async (peerId: string, recording: VoiceRecordingResult): Promise<boolean> => {
+    if (!userId || !localDeviceId) return false
+
+    // Self-notes path
+    if (peerId === userId) {
+      const localId = crypto.randomUUID()
+      const originId = crypto.randomUUID()
+      const now = new Date().toISOString()
+      setSending(true)
+      try {
+        const placeholderContent: VoiceContent = {
+          type: 'voice', mime: recording.mime, key: '', path: '',
+          duration: recording.duration, waveform: recording.waveform,
+        }
+        addMessage({
+          id: localId, senderId: userId, recipientId: userId,
+          plaintext: 'Voice message', content: placeholderContent,
+          messageType: 'message', createdAt: now, readAt: now,
+          status: 'sending', originId,
+        })
+
+        const uploadResult = await uploadEncryptedAttachment(userId, recording.blob)
+        if (!uploadResult.ok) {
+          logger.error('Self-note voice upload failed:', uploadResult.error)
+          removeOptimisticMessage(userId, localId)
+          return false
+        }
+
+        const { path, key } = uploadResult.data
+        const voiceContent: VoiceContent = {
+          type: 'voice', mime: recording.mime, key, path,
+          duration: recording.duration, waveform: recording.waveform,
+        }
+
+        setConversations(prev => {
+          const msgs = prev[userId]
+          if (!msgs) return prev
+          return { ...prev, [userId]: msgs.map(m => m.id === localId ? { ...m, content: voiceContent } : m) }
+        })
+
+        const serialized = serializeContent(voiceContent)
+        const devicesResult = await fetchOwnDevices(userId)
+        const otherDevices = devicesResult.ok
+          ? devicesResult.data.filter(d => d.deviceId !== localDeviceId)
+          : []
+
+        if (otherDevices.length > 0) {
+          const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serialized, userId)
+          if (fanOutInputs.length > 0) {
+            const sendResult = await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, undefined, originId)
+            if (!sendResult.ok) {
+              logger.error('Self-note voice fan-out failed:', sendResult.error)
+            }
+          }
+        }
+
+        const confirmedId = crypto.randomUUID()
+        updateMessageStatus(userId, localId, confirmedId)
+
+        saveMessage({
+          id: confirmedId, senderId: userId, recipientId: userId,
+          plaintext: 'Voice message', content: voiceContent,
+          messageType: 'message', createdAt: now, readAt: now, originId,
+        }, userId).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.sendSelfNoteVoice', message: 'Failed to save self-note voice locally', timestamp: Date.now(), metadata: { error: e } }))
+
+        return true
+      } catch (e) {
+        logger.error('Self-note voice error:', e instanceof Error ? e.message : e)
+        removeOptimisticMessage(userId, localId)
+        return false
+      } finally {
+        setSending(false)
+      }
+    }
+
+    // Regular peer path
+    const status = getRequestStatus(conversationsRef.current[peerId], userId)
+    if (status !== 'accepted' && status !== 'received') {
+      logger.warn('Cannot send voice: conversation not yet accepted')
+      return false
+    }
+
+    let localId: string | null = null
+    const originId = crypto.randomUUID()
+    setSending(true)
+    try {
+      localId = crypto.randomUUID()
+      const placeholderContent: VoiceContent = {
+        type: 'voice', mime: recording.mime, key: '', path: '',
+        duration: recording.duration, waveform: recording.waveform,
+      }
+      addMessage({
+        id: localId, senderId: userId, recipientId: peerId,
+        plaintext: 'Voice message', content: placeholderContent,
+        messageType: 'message', createdAt: new Date().toISOString(),
+        readAt: null, status: 'sending', originId,
+      })
+
+      const uploadResult = await uploadEncryptedAttachment(userId, recording.blob)
+      if (!uploadResult.ok) {
+        logger.error('Voice upload failed:', uploadResult.error)
+        removeOptimisticMessage(peerId, localId)
+        return false
+      }
+
+      const { path, key } = uploadResult.data
+      const voiceContent: VoiceContent = {
+        type: 'voice', mime: recording.mime, key, path,
+        duration: recording.duration, waveform: recording.waveform,
+      }
+
+      setConversations(prev => {
+        const msgs = prev[peerId]
+        if (!msgs) return prev
+        return { ...prev, [peerId]: msgs.map(m => m.id === localId ? { ...m, content: voiceContent } : m) }
+      })
+
+      const serialized = serializeContent(voiceContent)
+      const result = await encryptAndSendToPeer(userId, localDeviceId, peerId, serialized, 'message', undefined, originId)
+      if (!result.ok) {
+        logger.error('Failed to send voice:', result.error)
+        removeOptimisticMessage(peerId, localId)
+        return false
+      }
+
+      updateMessageStatus(peerId, localId, result.data)
+      sendSyncToOwnDevices(userId, localDeviceId, {
+        forPeerId: peerId, serialized, originalMessageType: 'message',
+        originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
+      }, undefined, originId).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendVoice', message: 'Failed to sync voice to own devices', timestamp: Date.now(), metadata: { error: e } }))
+      return true
+    } catch (e) {
+      logger.error('sendVoice error:', e instanceof Error ? e.message : e)
+      if (localId) removeOptimisticMessage(peerId, localId)
+      return false
+    } finally {
+      setSending(false)
+    }
+  }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage])
+
   /** Fetch conversation history — no-op, IDB + catch-up handle hydration. */
   const fetchHistory = useCallback(async (peerId: string) => {
     logger.debug('fetchHistory: no-op (IDB + catch-up handle hydration)')
@@ -1368,6 +1513,75 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage])
 
+  const sendGroupVoice = useCallback(async (groupId: string, recording: VoiceRecordingResult): Promise<boolean> => {
+    if (!userId || !localDeviceId) return false
+
+    let localId: string | null = null
+    const originId = crypto.randomUUID()
+    setSending(true)
+    try {
+      localId = crypto.randomUUID()
+      const placeholderContent: VoiceContent = {
+        type: 'voice', mime: recording.mime, key: '', path: '',
+        duration: recording.duration, waveform: recording.waveform,
+      }
+      addMessage({
+        id: localId, senderId: userId, recipientId: groupId,
+        plaintext: 'Voice message', content: placeholderContent,
+        messageType: 'message', createdAt: new Date().toISOString(),
+        readAt: new Date().toISOString(), status: 'sending',
+        groupId, originId,
+      })
+
+      const uploadResult = await uploadEncryptedAttachment(userId, recording.blob)
+      if (!uploadResult.ok) {
+        logger.error('Group voice upload failed:', uploadResult.error)
+        removeOptimisticMessage(groupId, localId)
+        return false
+      }
+
+      const { path, key } = uploadResult.data
+      const voiceContent: VoiceContent = {
+        type: 'voice', mime: recording.mime, key, path,
+        duration: recording.duration, waveform: recording.waveform,
+      }
+
+      setConversations(prev => {
+        const msgs = prev[groupId]
+        if (!msgs) return prev
+        return { ...prev, [groupId]: msgs.map(m => m.id === localId ? { ...m, content: voiceContent } : m) }
+      })
+
+      const serialized = serializeContent(voiceContent)
+
+      const membersResult = await fetchGroupMembersRpc(groupId)
+      if (!membersResult.ok) {
+        logger.error('Failed to fetch group members for voice:', membersResult.error)
+        removeOptimisticMessage(groupId, localId)
+        return false
+      }
+
+      const result = await encryptAndSendToGroupMembers(userId, localDeviceId, groupId, serialized, originId, membersResult.data)
+      if (!result.ok) {
+        removeOptimisticMessage(groupId, localId)
+        return false
+      }
+
+      updateMessageStatus(groupId, localId, result.data)
+      sendSyncToOwnDevices(userId, localDeviceId, {
+        forPeerId: groupId, serialized, originalMessageType: 'message',
+        originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
+      }, groupId, originId).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendGroupVoice', message: 'Failed to sync group voice to own devices', timestamp: Date.now(), metadata: { error: e } }))
+      return true
+    } catch (e) {
+      logger.error('sendGroupVoice error:', e instanceof Error ? e.message : e)
+      if (localId) removeOptimisticMessage(groupId, localId)
+      return false
+    } finally {
+      setSending(false)
+    }
+  }, [userId, localDeviceId, addMessage, updateMessageStatus, removeOptimisticMessage])
+
   /** Create a new group. Returns the groupId on success, null on failure. */
   const createGroup = useCallback(async (name: string, memberIds: string[]): Promise<string | null> => {
     const result = await createGroupRpc({ name, memberIds })
@@ -1468,6 +1682,7 @@ export function useMessages(): UseMessagesReturn {
     unreadCounts,
     sendMessage,
     sendImage,
+    sendVoice,
     acceptRequest,
     getRequestStatusForPeer,
     fetchHistory,
@@ -1479,6 +1694,7 @@ export function useMessages(): UseMessagesReturn {
     groups,
     sendGroupMessage,
     sendGroupImage,
+    sendGroupVoice,
     createGroup,
     leaveGroup: leaveGroupFn,
     renameGroup: renameGroupFn,

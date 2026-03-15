@@ -438,6 +438,7 @@ function ChatDetail({
   medics,
   sendMessage,
   sendImage,
+  sendVoice,
   sending,
   markAsRead,
   fetchHistory,
@@ -459,6 +460,7 @@ function ChatDetail({
   medics: ClinicMedic[]
   sendMessage: (peerId: string, text: string, threadId?: string) => Promise<boolean>
   sendImage: (peerId: string, file: File) => Promise<boolean>
+  sendVoice: (peerId: string, recording: any) => Promise<boolean>
   sending: boolean
   markAsRead: (peerId: string) => void
   fetchHistory: (peerId: string) => Promise<void>
@@ -497,7 +499,7 @@ function ChatDetail({
   const canCall = !isSelf && requestStatus === 'accepted' && (onStartCall || onStartVideoCall)
 
   const mobileHeader = (
-    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-primary/10 flex items-center backdrop-blur-xl bg-themewhite3/80">
+    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] flex items-center backdrop-blur-xl bg-themewhite3/80">
       <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
         <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
           <ChevronLeft className="w-6 h-6 text-tertiary" />
@@ -537,7 +539,7 @@ function ChatDetail({
   )
 
   const desktopHeader = (
-    <div className="hidden md:flex shrink-0 px-4 h-10 border-b border-primary/10 items-center justify-between">
+    <div className="hidden md:flex shrink-0 px-4 h-10 items-center justify-between">
       <p className="text-sm font-medium text-primary truncate">
         {peerName ?? (isSelf ? 'Notes' : 'Chat')}
       </p>
@@ -565,6 +567,7 @@ function ChatDetail({
       medics={medics}
       sendMessage={sendMessage}
       sendImage={sendImage}
+      sendVoice={sendVoice}
       editMessage={editMessage}
       deleteMessages={deleteMessages}
       markAsRead={markAsRead}
@@ -597,6 +600,7 @@ function GroupChatDetail({
   medics,
   sendGroupMessage,
   sendGroupImage,
+  sendGroupVoice,
   sending,
   markAsRead,
   fetchGroupHistory,
@@ -616,6 +620,7 @@ function GroupChatDetail({
   medics: ClinicMedic[]
   sendGroupMessage: (groupId: string, text: string, threadId?: string) => Promise<boolean>
   sendGroupImage: (groupId: string, file: File) => Promise<boolean>
+  sendGroupVoice: (groupId: string, recording: any) => Promise<boolean>
   sending: boolean
   markAsRead: (peerId: string) => void
   fetchGroupHistory: (groupId: string) => Promise<void>
@@ -685,7 +690,7 @@ function GroupChatDetail({
   }, [leaveGroup, onBack])
 
   const mobileHeader = (
-    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-primary/10 flex items-center backdrop-blur-xl bg-themewhite3/80">
+    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] flex items-center backdrop-blur-xl bg-themewhite3/80">
       <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
         <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
           <ChevronLeft className="w-6 h-6 text-tertiary" />
@@ -704,7 +709,7 @@ function GroupChatDetail({
   )
 
   const desktopHeader = (
-    <div className="hidden md:flex shrink-0 px-4 h-10 border-b border-primary/10 items-center justify-between">
+    <div className="hidden md:flex shrink-0 px-4 h-10 items-center justify-between">
       <div className="flex items-center gap-2 min-w-0">
         <div className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
           <Users size={14} className="text-themeblue2" />
@@ -727,6 +732,7 @@ function GroupChatDetail({
       medics={medics}
       sendMessage={sendGroupMessage}
       sendImage={sendGroupImage}
+      sendVoice={sendGroupVoice}
       editMessage={editMessage}
       deleteMessages={deleteMessages}
       markAsRead={markAsRead}
@@ -797,10 +803,10 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   }
 
   const {
-    conversations, unreadCounts, sendMessage, sendImage, sending,
+    conversations, unreadCounts, sendMessage, sendImage, sendVoice, sending,
     markAsRead, fetchHistory, acceptRequest, editMessage, deleteMessages,
     deleteConversation,
-    getRequestStatusForPeer, groups, sendGroupMessage, sendGroupImage,
+    getRequestStatusForPeer, groups, sendGroupMessage, sendGroupImage, sendGroupVoice,
     createGroup, leaveGroup, renameGroup, addGroupMember, removeGroupMember,
     fetchGroupMembers, fetchGroupHistory,
   } = messagesCtx
@@ -817,6 +823,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         medics={medics}
         sendGroupMessage={sendGroupMessage}
         sendGroupImage={sendGroupImage}
+        sendGroupVoice={sendGroupVoice}
         sending={sending}
         markAsRead={markAsRead}
         fetchGroupHistory={fetchGroupHistory}
@@ -844,6 +851,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         medics={medics}
         sendMessage={sendMessage}
         sendImage={sendImage}
+        sendVoice={sendVoice}
         sending={sending}
         markAsRead={markAsRead}
         fetchHistory={fetchHistory}

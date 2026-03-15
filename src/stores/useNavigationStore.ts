@@ -45,6 +45,7 @@ const CLOSE_ALL_DRAWERS = {
     showMessagesDrawer: false,
     showPropertyDrawer: false,
     showLoRaDrawer: false,
+    showMapOverlayDrawer: false,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     isMenuOpen: false,
@@ -72,6 +73,7 @@ interface NavigationState {
     showMessagesDrawer: boolean
     showPropertyDrawer: boolean
     showLoRaDrawer: boolean
+    showMapOverlayDrawer: boolean
     showAdminDrawer: boolean
     showSupervisorDrawer: boolean
     isMobile: boolean
@@ -102,6 +104,7 @@ interface NavigationActions {
     setShowMessagesDrawer: (show: boolean) => void
     setShowPropertyDrawer: (show: boolean) => void
     setShowLoRaDrawer: (show: boolean) => void
+    setShowMapOverlayDrawer: (show: boolean) => void
     setShowAdminDrawer: (show: boolean) => void
     setShowSupervisorDrawer: (show: boolean) => void
     openWriteNote: (data: WriteNoteData) => void
@@ -134,6 +137,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     showMessagesDrawer: false,
     showPropertyDrawer: false,
     showLoRaDrawer: false,
+    showMapOverlayDrawer: false,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     isMobile: typeof window !== 'undefined'
@@ -313,6 +317,12 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
         ...PRESERVED_FIELDS(s),
         showLoRaDrawer: show,
+    })),
+
+    setShowMapOverlayDrawer: (show) => set((s) => ({
+        ...(show ? CLOSE_ALL_DRAWERS : {}),
+        ...PRESERVED_FIELDS(s),
+        showMapOverlayDrawer: show,
     })),
 
     setShowAdminDrawer: (show) => set((s) => ({

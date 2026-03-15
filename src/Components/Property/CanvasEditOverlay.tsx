@@ -655,6 +655,7 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
               width: `${tag.width * 100}%`,
               height: `${tag.height * 100}%`,
               ...(isComposite ? { clipPath: `url(#ebb-${idx})` } : {}),
+              ...((moveMode || resizeMode) ? { touchAction: 'none' } : {}),
             }}
             onPointerDown={(e) => handleZonePointerDown(e, idx)}
             onPointerMove={handleZonePointerMove}
@@ -701,15 +702,22 @@ export const CanvasEditOverlay = memo(function CanvasEditOverlay({
                 key={handle}
                 data-handle
                 className={[
-                  'absolute w-3.5 h-3.5 rounded-full bg-white border-2 z-10',
-                  resizeMode ? 'border-themeyellow shadow-md' : 'border-themeblue3',
-                  handle === 'nw' ? `-top-1.5 -left-1.5 ${resizeMode ? 'cursor-nw-resize' : 'cursor-default'}` : '',
-                  handle === 'ne' ? `-top-1.5 -right-1.5 ${resizeMode ? 'cursor-ne-resize' : 'cursor-default'}` : '',
-                  handle === 'sw' ? `-bottom-1.5 -left-1.5 ${resizeMode ? 'cursor-sw-resize' : 'cursor-default'}` : '',
-                  handle === 'se' ? `-bottom-1.5 -right-1.5 ${resizeMode ? 'cursor-se-resize' : 'cursor-default'}` : '',
+                  'absolute z-10 flex items-center justify-center',
+                  // 44px touch target, positioned so the visual dot stays at the corner
+                  'w-11 h-11',
+                  handle === 'nw' ? `-top-5 -left-5 ${resizeMode ? 'cursor-nw-resize' : 'cursor-default'}` : '',
+                  handle === 'ne' ? `-top-5 -right-5 ${resizeMode ? 'cursor-ne-resize' : 'cursor-default'}` : '',
+                  handle === 'sw' ? `-bottom-5 -left-5 ${resizeMode ? 'cursor-sw-resize' : 'cursor-default'}` : '',
+                  handle === 'se' ? `-bottom-5 -right-5 ${resizeMode ? 'cursor-se-resize' : 'cursor-default'}` : '',
                 ].join(' ')}
+                style={{ touchAction: 'none' }}
                 onPointerDown={(e) => handleResizePointerDown(e, idx, handle)}
-              />
+              >
+                <div className={[
+                  'w-3.5 h-3.5 rounded-full bg-white border-2 pointer-events-none',
+                  resizeMode ? 'border-themeyellow shadow-md' : 'border-themeblue3',
+                ].join(' ')} />
+              </div>
             ))}
           </div>
           )

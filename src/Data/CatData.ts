@@ -2,44 +2,62 @@ import type { catDataTypes, sideMenuDataType, subjectAreaArray, subjectAreaArray
 import { stp68wTraining } from './TrainingTaskList';
 
 export const menuData: sideMenuDataType[] = [
-    {
-        text: "Import Note",
-        icon: 'import',
-        action: 'import'
-    },
+    // Core — daily-use destinations
     {
         text: "Knowledge Base",
         icon: 'knowledgebase',
-        action: 'knowledgebase'
+        action: 'knowledgebase',
+        group: 'core'
     },
+    {
+        text: "Import Note",
+        icon: 'import',
+        action: 'import',
+        group: 'core'
+    },
+    // Field — operational / tactical tools
     {
         text: "Property Book",
         icon: 'property',
         action: 'property',
+        group: 'field',
         gateKey: 'property'
+    },
+    {
+        text: "Map Overlay",
+        icon: 'mapOverlay',
+        action: 'mapOverlay',
+        group: 'field',
+        gateKey: 'mapOverlay'
     },
     {
         text: "WhisperNet",
         icon: 'lora',
         action: 'lora',
+        group: 'field',
         gateKey: 'lora'
     },
+    // Management — role-gated
     {
         text: 'Supervisor',
         icon: 'supervisor',
         action: 'supervisor',
+        group: 'management',
         gateKey: 'supervisor'
     },
     {
         text: 'Admin',
         icon: 'admin',
         action: 'admin',
+        group: 'management',
         gateKey: 'admin'
     },
+    // System — always last
     {
         text: 'Settings',
         icon: 'settings',
-        action: 'settings'
+        action: 'settings',
+        group: 'system'
     }
 ]
 

@@ -7,13 +7,14 @@ interface MessageContextMenuProps {
   y: number
   isOwn: boolean
   isImage?: boolean
+  isVoice?: boolean
   onCopy: () => void
   onEdit: () => void
   onSave?: () => void
   onClose: () => void
 }
 
-export function MessageContextMenu({ x, y, isOwn, isImage, onCopy, onEdit, onSave, onClose }: MessageContextMenuProps) {
+export function MessageContextMenu({ x, y, isOwn, isImage, isVoice, onCopy, onEdit, onSave, onClose }: MessageContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Dismiss on click-away
@@ -49,7 +50,7 @@ export function MessageContextMenu({ x, y, isOwn, isImage, onCopy, onEdit, onSav
     <div ref={menuRef} style={style}
       className="min-w-[120px] rounded-xl bg-themewhite2 shadow-lg border border-primary/10 py-1"
     >
-      {isImage ? (
+      {isImage || isVoice ? (
         // Image messages: show Save instead of Copy/Edit
         <>
           {onSave && (

@@ -1,22 +1,23 @@
-import { BookOpen, Mail, Package, Radio } from "lucide-react";
+import { BookOpen, Mail, Package, Radio, Map } from "lucide-react";
 import { useMemo } from "react";
 import { useAvatar } from "../Utilities/AvatarContext";
 import { useAuth } from "../Hooks/useAuth";
 import { useMessagesContext } from "../Hooks/MessagesContext";
 import { getInitials } from "../Utilities/nameUtils";
-import { PROPERTY_MANAGEMENT_ENABLED, LORA_MESH_ENABLED } from "../lib/featureFlags";
+import { PROPERTY_MANAGEMENT_ENABLED, LORA_MESH_ENABLED, MAP_OVERLAY_ENABLED } from "../lib/featureFlags";
 
 interface NavBarProps {
     onKnowledgeBaseClick: () => void
     onMessagesClick: () => void
     onPropertyClick: () => void
     onLoRaClick: () => void
+    onMapOverlayClick: () => void
     onAvatarClick: () => void
 }
 
 const BTN = "h-8 flex items-center justify-center px-3 lg:px-4 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300 gap-2";
 
-export function NavBar({ onKnowledgeBaseClick, onMessagesClick, onPropertyClick, onLoRaClick, onAvatarClick }: NavBarProps) {
+export function NavBar({ onKnowledgeBaseClick, onMessagesClick, onPropertyClick, onLoRaClick, onMapOverlayClick, onAvatarClick }: NavBarProps) {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
     const { profile, isAuthenticated, isDevRole } = useAuth()
     const messagesCtx = useMessagesContext()
@@ -80,6 +81,14 @@ export function NavBar({ onKnowledgeBaseClick, onMessagesClick, onPropertyClick,
                 <button onClick={onLoRaClick} className={BTN} aria-label="WhisperNet" title="WhisperNet">
                     <Radio className="w-4 h-4 stroke-themeblue1" />
                     <span className="hidden lg:inline text-[10pt] text-tertiary">WhisperNet</span>
+                </button>
+            )}
+
+            {/* Map Overlay — gated on auth + feature flag or dev role */}
+            {isAuthenticated && (MAP_OVERLAY_ENABLED || isDevRole) && (
+                <button onClick={onMapOverlayClick} className={BTN} aria-label="Map Overlay" title="Map Overlay">
+                    <Map className="w-4 h-4 stroke-themeblue1" />
+                    <span className="hidden lg:inline text-[10pt] text-tertiary">Map</span>
                 </button>
             )}
         </div>

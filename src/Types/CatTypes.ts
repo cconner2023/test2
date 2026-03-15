@@ -86,10 +86,13 @@ export type SearchResultType = {
     };
 }
 
+export type MenuGroup = 'core' | 'field' | 'management' | 'system'
+
 export interface sideMenuDataType {
     text: string,
     icon: string,
     action: string,
-    gateKey?: 'authenticated' | 'property' | 'supervisor' | 'admin' | 'lora',
+    group: MenuGroup,
+    gateKey?: 'authenticated' | 'property' | 'supervisor' | 'admin' | 'lora' | 'mapOverlay',
     badge?: boolean
 }

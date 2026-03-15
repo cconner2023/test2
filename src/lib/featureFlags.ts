@@ -15,3 +15,10 @@ export const PROPERTY_MANAGEMENT_ENABLED = true;
  * of Signal Protocol messages when Supabase is unreachable.
  */
 export const LORA_MESH_ENABLED = true;
+
+/**
+ * MAP_OVERLAY_ENABLED: When true, the MGRS Map & Tactical Overlay module
+ * is available. Provides MGRS conversion, waypoint/route plotting, and
+ * offline-capable map viewing for evacuation and mission planning.
+ */
+export const MAP_OVERLAY_ENABLED = true;

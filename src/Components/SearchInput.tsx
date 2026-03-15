@@ -5,6 +5,7 @@ import { useRef } from 'react'
 interface SearchInputProps {
     value: string
     onChange: (value: string) => void
+    onSubmit?: () => void
     placeholder?: string
     className?: string
     autoFocus?: boolean
@@ -13,6 +14,7 @@ interface SearchInputProps {
 export const SearchInput = ({
     value,
     onChange,
+    onSubmit,
     placeholder = 'Search...',
     className = '',
     autoFocus = false,
@@ -31,12 +33,24 @@ export const SearchInput = ({
                 type="search"
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && onSubmit) { e.preventDefault(); onSubmit() } }}
                 placeholder={placeholder}
                 autoFocus={autoFocus}
                 className="w-full bg-transparent outline-none text-[16px] text-tertiary pl-9 pr-2 py-2
                     rounded-l-full min-w-0 placeholder:text-tertiary/30
                     [&::-webkit-search-cancel-button]:hidden"
             />
+            {hasValue && onSubmit && (
+                <button
+                    type="button"
+                    onClick={onSubmit}
+                    className="w-7 h-7 shrink-0 rounded-full flex items-center justify-center
+                        bg-themeblue3 text-white active:scale-95 transition-all"
+                    aria-label="Submit search"
+                >
+                    <Search size={13} />
+                </button>
+            )}
             {hasValue && (
                 <button
                     type="button"

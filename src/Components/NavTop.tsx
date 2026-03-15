@@ -1,5 +1,5 @@
 // NavTop.tsx - Simplified version with grouped props
-import { Search, X, ChevronLeft, Info, Mail, Upload, BookOpen, Package, ClipboardCheck, UserCog, ChevronDown, CheckCircle, Camera, ImagePlus, Radio } from "lucide-react";
+import { Search, X, ChevronLeft, Info, Mail, Upload, BookOpen, Package, ClipboardCheck, UserCog, ChevronDown, CheckCircle, Camera, ImagePlus, Radio, Map } from "lucide-react";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useSpring, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
@@ -7,7 +7,7 @@ import { useAvatar } from "../Utilities/AvatarContext";
 import { useAuth } from "../Hooks/useAuth";
 import { useMessagesContext } from "../Hooks/MessagesContext";
 import { getInitials } from "../Utilities/nameUtils";
-import { PROPERTY_MANAGEMENT_ENABLED, LORA_MESH_ENABLED } from "../lib/featureFlags";
+import { PROPERTY_MANAGEMENT_ENABLED, LORA_MESH_ENABLED, MAP_OVERLAY_ENABLED } from "../lib/featureFlags";
 
 export function NavTop({ search, import: importProps, actions, ui }: NavTopProps) {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
@@ -40,6 +40,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
         onMessagesClick,
         onPropertyClick,
         onLoRaClick,
+        onMapOverlayClick,
         onSupervisorClick,
         onAdminClick,
     } = actions
@@ -281,7 +282,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                         </div>
                     )}
 
-                    {/* Desktop buttons - avatar + back + medications + training + property */}
+                    {/* Desktop buttons - avatar + back + roles + knowledgebase + property */}
                     {!isMobile && (
                         <div className="flex justify-center items-center shrink-0 gap-2">
                             {/* Avatar — opens Settings */}
@@ -631,6 +632,18 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                 title="WhisperNet"
                             >
                                 <Radio className="w-4 h-4 stroke-themeblue1" />
+                            </button>
+                        )}
+
+                        {/* Map Overlay — icon only, gated on auth + feature flag */}
+                        {isAuthenticated && (MAP_OVERLAY_ENABLED || isDevRole) && (
+                            <button
+                                onClick={onMapOverlayClick}
+                                className={BUTTON_CLASSES.desktop}
+                                aria-label="Map Overlay"
+                                title="Map Overlay"
+                            >
+                                <Map className="w-4 h-4 stroke-themeblue1" />
                             </button>
                         )}
 
