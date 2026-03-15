@@ -651,7 +651,18 @@ input, select, textarea {
   transition: flex 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* ── Leaflet Map Overlay — theme-aware overrides ── */
+/* ── Leaflet Map Overlay — fix Tailwind 4 preflight conflicts ── */
+
+.leaflet-container {
+  touch-action: none;
+}
+
+.leaflet-tile-pane img,
+.leaflet-marker-icon,
+.leaflet-marker-shadow {
+  max-width: none !important;
+  max-height: none !important;
+}
 
 .leaflet-tooltip-tactical {
   background: var(--color-themeblue3, rgba(0,66,92,0.95));

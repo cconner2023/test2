@@ -21,4 +21,4 @@ export const LORA_MESH_ENABLED = true;
  * is available. Provides MGRS conversion, waypoint/route plotting, and
  * offline-capable map viewing for evacuation and mission planning.
  */
-export const MAP_OVERLAY_ENABLED = true;
+export const MAP_OVERLAY_ENABLED = false;

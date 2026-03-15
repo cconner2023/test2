@@ -18,6 +18,7 @@ import { ColumnA } from './Components/ColumnA'
 import { TC3DesktopLayout } from './Components/TC3/TC3DesktopLayout'
 import { TC3MobileWizard } from './Components/TC3/TC3MobileWizard'
 
+import { useStableViewport } from './Hooks/useStableViewport'
 import { useNoteImport } from './Hooks/useNoteImport'
 import { isEncryptedBarcode, decryptBarcode } from './Utilities/NoteCodec'
 import { useProfileAvatar } from './Hooks/useProfileAvatar'
@@ -71,6 +72,7 @@ function AppContent() {
   // Initialise the Zustand auth store listener (once per mount)
   useEffect(() => useAuthStore.getState().init(), [])
 
+  const stableHeight = useStableViewport()
   const navigation = useNavigation()
   const search = useSearch()
   const { user } = useAuth()
@@ -391,7 +393,7 @@ function AppContent() {
     <AvatarProvider value={avatarState}>
     <MessagesProvider>
     <CallProvider>
-    <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
+    <div className='bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden' style={{ height: stableHeight }}>
       <div id="app-drawer-root" className="max-w-315 shrink w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full relative md:bg-themewhite md:pb-10">
 
         {/* Viewport strip — SideNav + content side by side, pans right to reveal nav */}

@@ -137,7 +137,11 @@ export const MapView = forwardRef<MapViewHandle, MapViewProps>(function MapView(
 
     mapRef.current = map;
 
+    // Leaflet caches container size on init — re-measure after drawer animation settles
+    const resizeTimer = setTimeout(() => map.invalidateSize(), 350);
+
     return () => {
+      clearTimeout(resizeTimer);
       map.remove();
       mapRef.current = null;
     };

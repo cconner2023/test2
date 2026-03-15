@@ -53,9 +53,13 @@ const ThemedGridLayer = L.GridLayer.extend({
 
     img.onload = () => {
       ctx.drawImage(img, 0, 0, size.x, size.y);
-      const imageData = ctx.getImageData(0, 0, size.x, size.y);
-      recolorPixels(imageData.data, colors);
-      ctx.putImageData(imageData, 0, 0);
+      try {
+        const imageData = ctx.getImageData(0, 0, size.x, size.y);
+        recolorPixels(imageData.data, colors);
+        ctx.putImageData(imageData, 0, 0);
+      } catch {
+        // CORS tainted canvas — show the uncolored tile rather than blank
+      }
       done(undefined, tile);
     };
 
