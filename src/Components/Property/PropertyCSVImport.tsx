@@ -74,12 +74,12 @@ export function PropertyCSVImport({ rows, errors, locations, clinicId, onImport,
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {/* Parse errors */}
           {errors.length > 0 && (
-            <div className="rounded-md bg-red-500/10 p-3 space-y-1">
-              <p className="text-xs font-medium text-red-400 flex items-center gap-1">
+            <div className="rounded-md bg-themeredred/10 p-3 space-y-1">
+              <p className="text-xs font-medium text-themeredred flex items-center gap-1">
                 <AlertCircle size={12} /> {errors.length} row{errors.length > 1 ? 's' : ''} skipped
               </p>
               {errors.map((e, i) => (
-                <p key={i} className="text-xs text-red-300">{e}</p>
+                <p key={i} className="text-xs text-themeredred/70">{e}</p>
               ))}
             </div>
           )}

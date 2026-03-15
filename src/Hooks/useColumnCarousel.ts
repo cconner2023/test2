@@ -26,6 +26,10 @@ interface UseColumnCarouselOptions {
   onSwipeBack?: () => void
   /** Callback when swipe-forward completes (panel increases) */
   onSwipeForward?: () => void
+  /** Called during active drag at panel 0 going right — drives menu slide */
+  onEdgeDrag?: (offset: number) => void
+  /** Called on release at panel 0 after right drag — commits or cancels menu slide */
+  onEdgeDragEnd?: (offset: number, velocity: number) => void
 }
 
 /**
@@ -40,6 +44,8 @@ export function useColumnCarousel({
   syncKey,
   onSwipeBack,
   onSwipeForward,
+  onEdgeDrag,
+  onEdgeDragEnd,
 }: UseColumnCarouselOptions) {
   const [isSwiping, setIsSwiping] = useState(false)
   const panelRef = useRef(panelIndex)
@@ -141,24 +147,40 @@ export function useColumnCarousel({
       const dragPercent = (mx / containerWidth) * 100
       const currentBase = -panel * panelPercent
 
+      // At panel 0, dragging right → delegate to menu slide system
+      const isEdgeDrag = panel === 0 && mx > 0 && onEdgeDrag
+
       if (active) {
         setIsSwiping(true)
 
-        // Clamp drag: don't allow going past first or last panel
-        const rawX = currentBase + dragPercent
-        const minX = -(panelCount - 1) * panelPercent
-        const maxX = 0
+        if (isEdgeDrag) {
+          // Keep carousel pinned at panel 0, let menu slide track the finger
+          api.start({ x: 0, immediate: true })
+          onEdgeDrag(mx)
+        } else {
+          // Clamp drag: don't allow going past first or last panel
+          const rawX = currentBase + dragPercent
+          const minX = -(panelCount - 1) * panelPercent
+          const maxX = 0
 
-        // Apply edge resistance
-        let clampedX = rawX
-        if (rawX > maxX) {
-          clampedX = maxX + (rawX - maxX) * GESTURE_THRESHOLDS.EDGE_RESISTANCE
-        } else if (rawX < minX) {
-          clampedX = minX + (rawX - minX) * GESTURE_THRESHOLDS.EDGE_RESISTANCE
+          // Apply edge resistance at last panel
+          let clampedX = rawX
+          if (rawX > maxX) {
+            clampedX = maxX + (rawX - maxX) * GESTURE_THRESHOLDS.EDGE_RESISTANCE
+          } else if (rawX < minX) {
+            clampedX = minX + (rawX - minX) * GESTURE_THRESHOLDS.EDGE_RESISTANCE
+          }
+
+          api.start({ x: clampedX, immediate: true })
+        }
+      } else {
+        if (isEdgeDrag && onEdgeDragEnd) {
+          // Let menu slide decide whether to open or snap back
+          setIsSwiping(false)
+          onEdgeDragEnd(mx, vx)
+          return
         }
 
-        api.start({ x: clampedX, immediate: true })
-      } else {
         // Determine if we should navigate
         const absDrag = Math.abs(mx)
         const fraction = absDrag / containerWidth

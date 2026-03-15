@@ -23,6 +23,7 @@ interface ImportProps {
   onImportSubmit?: (barcodeText: string) => void
   onImportScan?: () => void
   onImportImage?: () => void
+  importError?: string
 }
 
 /**
@@ -37,6 +38,7 @@ interface NavigationActions {
   onInfoClick?: () => void
   onMessagesClick?: () => void
   onPropertyClick?: () => void
+  onLoRaClick?: () => void
   onSupervisorClick?: () => void
   onAdminClick?: () => void
 }

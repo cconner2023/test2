@@ -1,20 +1,16 @@
 import { useState } from 'react'
-import { ChevronRight, ChevronDown, Building2 } from 'lucide-react'
+import { ChevronRight, ChevronDown } from 'lucide-react'
 import { formatMedicName } from './supervisorHelpers'
 import { UserAvatar } from '../UserAvatar'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
-import type { ClinicCardData } from './ClinicManagement'
 
 export type TreeSelection =
   | { type: 'all-personnel' }
   | { type: 'soldier'; soldierId: string }
   | { type: 'team-insights' }
-  | { type: 'clinic-management' }
-  | { type: 'clinic'; clinicId: string }
 
 interface SupervisorTreeProps {
   medics: ClinicMedic[]
-  clinics: ClinicCardData[]
   selection: TreeSelection
   onSelect: (selection: TreeSelection) => void
   readinessForSoldier: (soldierId: string) => number
@@ -28,18 +24,15 @@ function readinessColor(pct: number): string {
 
 export function SupervisorTree({
   medics,
-  clinics,
   selection,
   onSelect,
   readinessForSoldier,
 }: SupervisorTreeProps) {
   const [personnelCollapsed, setPersonnelCollapsed] = useState(false)
-  const [clinicsCollapsed, setClinicsCollapsed] = useState(false)
 
   const isActive = (sel: TreeSelection): boolean => {
     if (sel.type !== selection.type) return false
     if (sel.type === 'soldier' && selection.type === 'soldier') return sel.soldierId === selection.soldierId
-    if (sel.type === 'clinic' && selection.type === 'clinic') return sel.clinicId === selection.clinicId
     return true
   }
 
@@ -104,48 +97,6 @@ export function SupervisorTree({
             </div>
           )
         })}
-
-        {/* Clinics */}
-        <div className="shrink-0 px-4 py-3 border-t border-primary/10 mt-1 flex items-center justify-between">
-          <p className="text-xs font-medium text-tertiary/70 uppercase tracking-wide">Clinics</p>
-          {clinics.length > 0 && (
-            <span className="text-xs px-2 py-0.5 rounded-full bg-tertiary/10 text-tertiary/70 font-medium">
-              {clinics.length}
-            </span>
-          )}
-        </div>
-
-        {/* Clinics expand/collapse */}
-        <button
-          className="flex items-center gap-2 py-2 px-4 w-full text-left hover:bg-secondary/5 transition-colors"
-          onClick={() => setClinicsCollapsed(!clinicsCollapsed)}
-        >
-          <div className="p-0.5 rounded hover:bg-secondary/10 text-tertiary shrink-0">
-            {clinicsCollapsed ? <ChevronRight size={16} /> : <ChevronDown size={16} />}
-          </div>
-          <span className="text-xs font-medium text-primary truncate flex-1">All Clinics</span>
-        </button>
-
-        {/* Individual clinic cards */}
-        {!clinicsCollapsed && clinics.map((clinic) => (
-          <div
-            key={clinic.id}
-            role="button"
-            tabIndex={0}
-            className={`flex items-center gap-3 py-3 px-4 transition-colors cursor-pointer active:scale-95 ${nodeClass({ type: 'clinic', clinicId: clinic.id })}`}
-            onClick={() => onSelect({ type: 'clinic', clinicId: clinic.id })}
-            onKeyDown={(e) => { if (e.key === 'Enter') onSelect({ type: 'clinic', clinicId: clinic.id }) }}
-          >
-            <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-              <Building2 size={16} className="text-tertiary/50" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-primary truncate">{clinic.name}</p>
-              <p className="text-[10px] text-tertiary/50">{clinic.personnelCount} personnel</p>
-            </div>
-            <ChevronRight size={14} className="text-tertiary/30 shrink-0" />
-          </div>
-        ))}
 
       </div>
     </div>

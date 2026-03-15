@@ -81,7 +81,7 @@ export function MessageNotificationToast({ notification, onDismiss, onTap }: Pro
   }
 
   return (
-    <div className="fixed inset-x-0 top-0 z-[80] pointer-events-none" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="fixed inset-x-0 top-0 z-[80] pointer-events-none" role="status" aria-live="polite" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
       <div
         ref={bannerRef}
         onClick={handleClick}

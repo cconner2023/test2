@@ -19,6 +19,7 @@ interface SwipeableCardProps {
   onClose: () => void
   onTap?: () => void
   onContextMenu?: (e: React.MouseEvent) => void
+  onLongPress?: (x: number, y: number) => void
 }
 
 const ACTION_WIDTHS: Record<number, number> = { 1: 72, 2: 104, 3: 156 }
@@ -32,6 +33,7 @@ export function SwipeableCard({
   onClose,
   onTap,
   onContextMenu,
+  onLongPress,
 }: SwipeableCardProps) {
   const actionWidth = ACTION_WIDTHS[actions.length] ?? 156
 
@@ -49,6 +51,7 @@ export function SwipeableCard({
     onOpen,
     onClose,
     onTap,
+    onLongPress,
   })
 
   if (!swipeEnabled) {

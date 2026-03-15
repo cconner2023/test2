@@ -24,13 +24,19 @@ export function ConfirmDialog({
   if (!visible) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/20">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="confirm-dialog-title"
+      aria-describedby={subtitle ? 'confirm-dialog-message' : undefined}
+    >
       <div className="bg-themewhite rounded-2xl shadow-xl px-6 py-5 mx-6 max-w-sm w-full">
-        <p className="text-sm font-medium text-primary text-center mb-1">
+        <p id="confirm-dialog-title" className="text-sm font-medium text-primary text-center mb-1">
           {title}
         </p>
         {subtitle && (
-          <p className="text-xs text-tertiary text-center mb-3">{subtitle}</p>
+          <p id="confirm-dialog-message" className="text-xs text-tertiary text-center mb-3">{subtitle}</p>
         )}
         {!subtitle && <div className="mb-3" />}
         <div className="flex items-center gap-3">

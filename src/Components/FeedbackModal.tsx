@@ -10,7 +10,7 @@ export const FeedbackModal = ({ visible, variant, title, subtitle }: {
   if (!visible) return null
   const isSuccess = variant === 'success'
   return (
-    <div className="fixed inset-0 z-60 flex items-center justify-center pointer-events-none">
+    <div className="fixed inset-0 z-60 flex items-center justify-center pointer-events-none" role="status" aria-live="polite">
       <div className="bg-themewhite rounded-2xl shadow-2xl border border-tertiary/10 px-8 py-6 flex flex-col items-center gap-3 animate-[fadeInScale_0.3s_ease-out]">
         <div className={`w-12 h-12 rounded-full ${isSuccess ? 'bg-themegreen/15' : 'bg-themeyellow/15'} flex items-center justify-center`}>
           <svg className={`w-6 h-6 ${isSuccess ? 'text-themegreen' : 'text-themeyellow'}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">

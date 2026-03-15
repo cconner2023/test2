@@ -1,6 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { ChevronRight, Lock, BookOpen } from 'lucide-react'
-import { SearchInput } from '../../SearchInput'
 import { isTaskTestable } from '../../../Data/TrainingData'
 import { subjectAreaIcons, skillLevelLabels } from '../../../Data/TrainingConstants'
 import { buildTestableTasksByCategory } from './supervisorHelpers'
@@ -8,11 +7,12 @@ import { buildTestableTasksByCategory } from './supervisorHelpers'
 export function SelectTaskStep({
   onSelectTask,
   medicName,
+  searchQuery = '',
 }: {
   onSelectTask: (taskNumber: string, taskTitle: string) => void
   medicName: string
+  searchQuery?: string
 }) {
-  const [searchQuery, setSearchQuery] = useState('')
 
   const allByCategory = useMemo(() => buildTestableTasksByCategory(), [])
 
@@ -43,14 +43,6 @@ export function SelectTaskStep({
       <p className="text-xs text-tertiary/60 mb-3">
         Testing <span className="font-medium text-primary">{medicName}</span> &mdash; select a task:
       </p>
-
-      {/* Search Bar */}
-      <SearchInput
-        value={searchQuery}
-        onChange={setSearchQuery}
-        placeholder="Search tasks..."
-        className="mb-3"
-      />
 
       {isSearching && (
         <p className="text-[10px] text-tertiary/50 mb-2">

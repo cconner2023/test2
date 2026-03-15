@@ -1,6 +1,6 @@
 // components/NoteImport.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Camera, ScanLine, User, ImagePlus, CheckCircle } from 'lucide-react';
+import { X, Camera, ScanLine, User, ImagePlus, CheckCircle, AlertCircle } from 'lucide-react';
 import { profileAvatars } from '../Data/ProfileAvatars';
 import { supabase } from '../lib/supabase';
 import {
@@ -118,7 +118,7 @@ const NoteImportContent = ({
     // Handle scanner error
     useEffect(() => {
         if (scannerError) {
-            setState(prev => ({ ...prev, scanError: scannerError, viewState: 'input' }));
+            setState(prev => ({ ...prev, scanError: scannerError, viewState: 'decoded' }));
         }
     }, [scannerError, setState]);
 
@@ -376,6 +376,19 @@ const NoteImportContent = ({
                 </div>
             )}
 
+            {/* ── Decode error (no preview) ─────────────────── */}
+            {state.viewState === 'decoded' && !preview && state.scanError && (
+                <div className="flex flex-col items-center justify-center flex-1 px-6">
+                    <div className="rounded-xl bg-themeredred/5 border border-themeredred/20 p-4 w-full max-w-sm space-y-2">
+                        <div className="flex items-center gap-2">
+                            <AlertCircle size={16} className="text-themeredred shrink-0" />
+                            <span className="text-sm font-medium text-themeredred">Unable to decode</span>
+                        </div>
+                        <p className="text-xs text-tertiary pl-6">{state.scanError}</p>
+                    </div>
+                </div>
+            )}
+
             {/* ── Decoded review view ──────────────────────── */}
             {state.viewState === 'decoded' && preview && (
                 <>
@@ -474,7 +487,7 @@ export function NoteImport({ isVisible, onClose, initialViewState, initialBarcod
         if (isVisible) {
             autoDecodeRef.current = false;
             setContentState({
-                viewState: initialViewState || 'input',
+                viewState: initialViewState || (initialBarcodeText ? 'decoded' : 'input'),
                 inputText: initialBarcodeText || '',
                 preview: null,
                 scanError: '',
@@ -497,7 +510,6 @@ export function NoteImport({ isVisible, onClose, initialViewState, initialBarcod
                         setContentState(prev => ({
                             ...prev,
                             scanError: 'Sign in and connect to sync encryption key',
-                            viewState: 'input',
                         }));
                         return;
                     }
@@ -509,7 +521,6 @@ export function NoteImport({ isVisible, onClose, initialViewState, initialBarcod
                 setContentState(prev => ({
                     ...prev,
                     scanError: error.message || 'Failed to decode barcode',
-                    viewState: 'input',
                 }));
             }
         })();
@@ -524,21 +535,15 @@ export function NoteImport({ isVisible, onClose, initialViewState, initialBarcod
 
     const drawerHeight = isInput ? 'auto' : '90dvh';
 
-    const handleBack = useCallback(() => {
-        setContentState(prev => ({ ...prev, viewState: 'input', scanError: '', preview: null }));
-    }, []);
-
     return (
         <BaseDrawer
             isVisible={isVisible}
             onClose={onClose}
             fullHeight={drawerHeight}
             desktopPosition="right"
-            mobileFloating={isInput}
+            mobileFloating={false}
             header={isInput ? undefined : {
                 title,
-                showBack: isDecoded,
-                onBack: isDecoded ? handleBack : undefined,
             }}
         >
             {(handleClose) => (

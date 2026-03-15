@@ -56,7 +56,7 @@ const InstallPrompt: React.FC = () => {
                                 <div className="flex justify-end mt-3">
                                     <button
                                         onClick={dismiss}
-                                        className="px-4 py-2 rounded-xl text-sm font-medium text-tertiary bg-themewhite2 hover:bg-themegray1/40 active:scale-[0.97] transition-all"
+                                        className="px-4 py-2 rounded-xl text-sm font-medium text-tertiary bg-themewhite2 hover:bg-themegray1/40 active:scale-95 transition-all"
                                     >
                                         Got it
                                     </button>
@@ -67,14 +67,14 @@ const InstallPrompt: React.FC = () => {
                             <div className="flex items-center gap-2.5 mt-4">
                                 <button
                                     onClick={dismiss}
-                                    className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-tertiary bg-themewhite2 hover:bg-themegray1/40 active:scale-[0.97] transition-all"
+                                    className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-tertiary bg-themewhite2 hover:bg-themegray1/40 active:scale-95 transition-all"
                                 >
                                     Not Now
                                 </button>
                                 <button
                                     onClick={install}
                                     disabled={isInstalling}
-                                    className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-themegreen hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                    className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-themegreen hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                                 >
                                     {isInstalling ? (
                                         <>

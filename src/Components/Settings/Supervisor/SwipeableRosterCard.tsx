@@ -1,4 +1,4 @@
-import { Check, ClipboardCheck, Eye, Pencil } from 'lucide-react'
+import { ClipboardCheck, Eye, Pencil } from 'lucide-react'
 import { SwipeableCard, type SwipeAction } from '../../SwipeableCard'
 import { formatMedicName } from './supervisorHelpers'
 import { UserAvatar } from '../UserAvatar'
@@ -10,13 +10,11 @@ interface SwipeableRosterCardProps {
   certs: Certification[]
   overdueCount: number
   isOpen: boolean
-  isSelected: boolean
-  multiSelectMode: boolean
   onOpen: () => void
   onClose: () => void
   onTap?: () => void
   onContextMenu?: (e: React.MouseEvent) => void
-  onToggleMultiSelect?: () => void
+  onLongPress?: (x: number, y: number) => void
   onEvaluate: () => void
   onView: () => void
   onModify: () => void
@@ -27,13 +25,11 @@ export function SwipeableRosterCard({
   certs,
   overdueCount,
   isOpen,
-  isSelected,
-  multiSelectMode,
   onOpen,
   onClose,
   onTap,
   onContextMenu,
-  onToggleMultiSelect,
+  onLongPress,
   onEvaluate,
   onView,
   onModify,
@@ -44,34 +40,21 @@ export function SwipeableRosterCard({
     { key: 'modify', label: 'Modify', icon: Pencil, iconBg: 'bg-themeyellow/15', iconColor: 'text-themeyellow', onAction: onModify },
   ]
 
-  const handleTap = () => {
-    if (multiSelectMode) { onToggleMultiSelect?.(); return }
-    onTap?.()
-  }
-
   return (
     <SwipeableCard
       actions={actions}
       isOpen={isOpen}
-      enabled={!multiSelectMode}
+      enabled
       onOpen={onOpen}
       onClose={onClose}
-      onTap={handleTap}
+      onTap={onTap}
       onContextMenu={onContextMenu}
+      onLongPress={onLongPress}
     >
-      <div
-        className={`relative rounded-xl px-4 py-3 select-none transition-colors bg-themewhite2
-          ${isSelected ? 'ring-1 ring-inset ring-themeblue2/30' : ''}`}
-      >
+      <div className="relative rounded-xl px-4 py-3 select-none bg-themewhite2">
         {/* Soldier info */}
         <div className="flex items-center gap-3">
-          {isSelected ? (
-            <div className="w-8 h-8 rounded-full flex items-center justify-center bg-themeblue2 shrink-0">
-              <Check size={14} className="text-white" />
-            </div>
-          ) : (
-            <UserAvatar avatarId={soldier.avatarId} firstName={soldier.firstName} lastName={soldier.lastName} className="w-8 h-8" />
-          )}
+          <UserAvatar avatarId={soldier.avatarId} firstName={soldier.firstName} lastName={soldier.lastName} className="w-8 h-8" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-primary">{formatMedicName(soldier)}</p>
             {(() => {

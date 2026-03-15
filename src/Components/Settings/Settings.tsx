@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, Radio, X } from 'lucide-react';
+import { Moon, Sun, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Pencil, Check } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -28,9 +28,10 @@ import { MainSettingsPanel } from './MainSettingsPanel';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
 import { ContentWrapper } from './ContentWrapper';
 import { HeaderPill, PillButton } from '../HeaderPill';
-import { LoRaPanel } from './LoRaPanel';
 import { SessionsDevicesPanel } from './SessionsDevicesPanel';
-import { LORA_MESH_ENABLED } from '../../lib/featureFlags';
+import { ClinicPanel } from './ClinicPanel';
+import { ConfirmDialog } from '../ConfirmDialog';
+
 
 interface SettingsDrawerProps {
     isVisible: boolean;
@@ -48,12 +49,39 @@ export const Settings = ({
     initialPanel,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'lora' | 'sessions-devices'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
-    const { user, signOut, isAuthenticated, isDevRole } = useAuth();
+    const { user, signOut, isAuthenticated, isDevRole, isSupervisorRole, clinicId } = useAuth();
+    const [clinicEditing, setClinicEditing] = useState(false);
+    const [clinicSaveRequested, setClinicSaveRequested] = useState(false);
+    const [clinicDeleteSelection, setClinicDeleteSelection] = useState<Set<string>>(new Set());
+    const [clinicAddingMember, setClinicAddingMember] = useState(false);
+    const [clinicHasPending, setClinicHasPending] = useState(false);
+    const [showUnsavedGuard, setShowUnsavedGuard] = useState(false);
+    const pendingGuardActionRef = useRef<(() => void) | null>(null);
+
+    const guardedClinicAction = useCallback((action: () => void) => {
+        if (clinicHasPending) {
+            pendingGuardActionRef.current = action;
+            setShowUnsavedGuard(true);
+        } else {
+            action();
+        }
+    }, [clinicHasPending]);
+
+    const handleGuardConfirm = useCallback(() => {
+        setShowUnsavedGuard(false);
+        pendingGuardActionRef.current?.();
+        pendingGuardActionRef.current = null;
+    }, []);
+
+    const handleGuardCancel = useCallback(() => {
+        setShowUnsavedGuard(false);
+        pendingGuardActionRef.current = null;
+    }, []);
 
     // Supabase realtime WebSocket for device status — active only while settings is open
     useEffect(() => {
@@ -116,8 +144,12 @@ export const Settings = ({
 
         const items: SettingsItem[] = [];
 
-        if (isAuthenticated && (LORA_MESH_ENABLED || isDevRole)) {
-            items.push(opt(PANEL.LORA, <Radio size={20} />, 'LoRa Mesh'));
+        // CLINICS section — each clinic the user belongs to gets its own tile
+        if (isAuthenticated) {
+            items.push(
+                { type: 'header', label: 'Clinics' },
+                opt(PANEL.CLINIC, <Building2 size={20} />, profile.clinicName || 'My Clinic'),
+            );
         }
 
         // PREFERENCES section
@@ -138,7 +170,7 @@ export const Settings = ({
         );
 
         return items;
-    }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isAuthenticated]);
+    }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, profile.clinicName]);
 
     // Swipe-back for sub-panels (mobile touch only)
     const swipeHandlers = useSwipeBack(
@@ -155,14 +187,21 @@ export const Settings = ({
             if (activePanel === 'sessions-devices') {
                 return () => { handleSlideAnimation('right'); setActivePanel('pin-setup'); };
             }
+            // clinic panel resets editing state on back
+            if (activePanel === 'clinic') {
+                const doBack = () => { handleSlideAnimation('right'); setClinicEditing(false); setClinicDeleteSelection(new Set()); setClinicAddingMember(false); setActivePanel('main'); };
+                return () => guardedClinicAction(doBack);
+            }
             return () => { handleSlideAnimation('right'); setActivePanel('main'); };
-        }, [activePanel, handleSlideAnimation]),
+        }, [activePanel, handleSlideAnimation, guardedClinicAction]),
         activePanel !== 'main',
     );
 
     const handleClose = useCallback(() => {
         setActivePanel('main');
         setSlideDirection('');
+        setClinicEditing(false);
+        setClinicDeleteSelection(new Set());
         onClose();
     }, [onClose]);
 
@@ -194,17 +233,63 @@ export const Settings = ({
             case 'release-notes':       return { title: 'Release Notes', ...backTo() };
             case 'avatar-picker':       return { title: 'Choose Avatar', ...backTo() };
             case 'user-profile':        return { title: 'Profile', ...backTo() };
-            case 'lora':                return { title: 'LoRa Mesh', ...backTo() };
             case 'sessions-devices':    return { title: 'Sessions & Devices', ...backTo('pin-setup') };
             case 'pin-setup':           return { title: 'Security', ...backTo() };
             case 'notification-settings': return { title: 'Notifications', ...backTo() };
             case 'feedback':            return { title: 'Feedback', ...backTo() };
             case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
             case 'note-content':        return { title: 'Note Content', ...backTo() };
-        }
-    }, [activePanel, backTo, handleClose]);
+            case 'clinic': {
+                const doClinicBack = () => { handleSlideAnimation('right'); setClinicEditing(false); setClinicDeleteSelection(new Set()); setActivePanel('main'); };
+                const clinicBackTo = {
+                    showBack: true as const,
+                    onBack: () => guardedClinicAction(doClinicBack),
+                };
+                if (isSupervisorRole) {
+                    const clinicPills = (
+                        <HeaderPill>
+                            <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
+                                clinicEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0'
+                            }`}>
+                                <PillButton icon={X} iconSize={18} onClick={() => guardedClinicAction(() => { setClinicEditing(false); setClinicDeleteSelection(new Set()); setClinicAddingMember(false); })} label="Cancel" />
+                            </div>
+                            <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
+                                !clinicEditing ? 'max-w-22 opacity-100' : 'max-w-0 opacity-0'
+                            }`}>
+                                <PillButton
+                                    icon={Pencil}
+                                    iconSize={18}
+                                    onClick={() => setClinicEditing(true)}
+                                    label="Edit"
+                                />
+                            </div>
+                            {clinicEditing ? (
+                                <PillButton
+                                    icon={Check}
+                                    iconSize={18}
+                                    circleBg="bg-themeblue3 text-white"
+                                    onClick={() => setClinicSaveRequested(true)}
+                                    label="Save"
+                                />
+                            ) : (
+                                <PillButton icon={X} onClick={() => guardedClinicAction(handleClose)} label="Close" />
+                            )}
+                        </HeaderPill>
+                    );
+                    return {
+                        title: 'My Clinic',
+                        ...clinicBackTo,
+                        rightContent: clinicPills,
+                        hideDefaultClose: true,
+                    };
+                }
+                return { title: 'My Clinic', ...clinicBackTo };
+            }
 
-    return (
+        }
+    }, [activePanel, backTo, handleClose, isSupervisorRole, clinicEditing, handleSlideAnimation, guardedClinicAction]);
+
+    return (<>
         <BaseDrawer
             isVisible={isVisible}
             onClose={handleClose}
@@ -236,15 +321,6 @@ export const Settings = ({
                                                 ? `${profile.credential}${profile.component ? ' \u00b7 ' + profile.component : ''}`
                                                 : 'Tap to set up')
                                             : 'Tap to sign in'
-                                    }
-                                    displayClinic={
-                                        isAuthenticated
-                                            ? (profile.clinicName
-                                                ? `${profile.clinicName}${profile.uic ? ' \u00b7 ' + profile.uic : ''}`
-                                                : profile.uic
-                                                    ? `UIC: ${profile.uic}`
-                                                    : undefined)
-                                            : undefined
                                     }
                                     onAvatarClick={() => handleItemClick(PANEL.AVATAR_PICKER, handleClose)}
                                     onProfileClick={() => {
@@ -323,18 +399,37 @@ export const Settings = ({
                                     } : undefined}
                                 />
                             ),
+                            'clinic': (
+                                <ClinicPanel
+                                    clinicEditing={clinicEditing}
+                                    onEditingChange={(v) => { setClinicEditing(v); if (!v) setClinicDeleteSelection(new Set()); }}
+                                    saveRequested={clinicSaveRequested}
+                                    onSaveComplete={() => setClinicSaveRequested(false)}
+                                    deleteSelection={clinicDeleteSelection}
+                                    onDeleteSelectionChange={setClinicDeleteSelection}
+                                    addingMember={clinicAddingMember}
+                                    onAddingMemberChange={setClinicAddingMember}
+                                    onPendingChangesChange={setClinicHasPending}
+                                />
+                            ),
                         };
                         return panelMap[activePanel] ?? null;
                     })()}
 
                     {/* Pre-mounted panels — data loads when Settings opens, hidden until active */}
-                    {isAuthenticated && (LORA_MESH_ENABLED || isDevRole) && (
-                        <div className="h-full" style={{ display: activePanel === 'lora' ? undefined : 'none' }}>
-                            <LoRaPanel />
-                        </div>
-                    )}
                 </ContentWrapper>
             )}
         </BaseDrawer>
+        <ConfirmDialog
+            visible={showUnsavedGuard}
+            title="Unsaved changes"
+            subtitle="You have staged changes that haven't been saved. Discard them?"
+            confirmLabel="Discard"
+            cancelLabel="Keep editing"
+            variant="warning"
+            onConfirm={handleGuardConfirm}
+            onCancel={handleGuardCancel}
+        />
+    </>
     );
 };

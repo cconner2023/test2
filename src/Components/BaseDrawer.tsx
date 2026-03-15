@@ -68,7 +68,7 @@ function DrawerHeader({
                             {title}
                         </h2>
                         {badge && (
-                            <span className="text-xs text-tertiary/60 bg-tertiary/10 px-2 py-0.5 rounded-full shrink-0">
+                            <span className="text-[11px] font-semibold text-themeyellow bg-themeyellow/15 px-2 py-0.5 rounded-full shrink-0 tracking-wide">
                                 {badge}
                             </span>
                         )}
@@ -336,6 +336,9 @@ export function BaseDrawer({
                     transformOrigin: desktopPosition === 'left' ? 'top left' : 'top right',
                     pointerEvents: desktopOpen ? 'auto' : 'none',
                 }}
+                role="dialog"
+                aria-modal="true"
+                aria-label={header?.title}
                 {...(useMobileLayout && !header ? bindDrawerDrag() : {})}
                 onClick={useMobileLayout ? undefined : (e) => e.stopPropagation()}
             >

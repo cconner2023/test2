@@ -7,8 +7,9 @@ export interface ReleaseNoteTypes {
 }
 
 export const ReleaseNotes: ReleaseNoteTypes[] = [
-    { version: '2.6.3', type: 'started', text: 'extend comms to outside units and parent clinics' },
-    { version: '2.6.3', type: 'started', text: 'LoRa architecture for offline messaging and relay' },
+    { version: '2.6.3', type: 'started', text: 'WhisperNet — offline mesh messaging and guardian node relay' },
+    { version: '2.6.3', type: 'added', text: 'manage users in your clinic, and associate your clinic with others via QR' },
+    { version: '2.6.3', type: 'added', text: 'extend comms to outside units and parent clinics' },
     { version: '2.6.3', type: 'added', text: 'User credentials managed and updated by supervisors' },
     { version: '2.6.3', type: 'added', text: 'Messaging system architecture for units - ratcheting using signal open-source. Messages persist across devices' },
     { version: '2.6.3', type: 'changed', text: 'text expander for HPI and physical exams. Make your own templates' },

@@ -59,6 +59,8 @@ import type { MessageContent, ImageContent, ReplyTo } from '../lib/signal/messag
 import { uploadEncryptedAttachment } from '../lib/signal/attachmentService'
 import { createBackup, markHydrationComplete } from '../lib/signal/backupService'
 import { ok as okResult, err as errResult, type Result } from '../lib/result'
+import { errorBus } from '../lib/errorBus'
+import { ErrorCode } from '../lib/errorCodes'
 import { resizeImage, getImageDimensions, generateThumbnail, dataUrlToBlob } from '../Utilities/imageUtils'
 import type { DecryptedSignalMessage, PeerDevice, FanOutMessageInput, SyncMessagePayload } from '../lib/signal/transportTypes'
 import type { PublicKeyBundle } from '../lib/signal/types'
@@ -429,7 +431,7 @@ export function useMessages(): UseMessagesReturn {
 
     // Persist to IndexedDB (fire-and-forget)
     if (userId) {
-      saveMessage(msg, userId).catch(() => {})
+      saveMessage(msg, userId).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.addMessage', message: 'Failed to save message locally', timestamp: Date.now(), metadata: { error: e } }))
     }
   }, [userId])
 
@@ -437,7 +439,7 @@ export function useMessages(): UseMessagesReturn {
   const handleIncomingMessage = useCallback((msg: DecryptedSignalMessage) => {
     if (msg.senderId === userId && msg.recipientId === userId && !msg.readAt) {
       msg.readAt = new Date().toISOString()
-      markMessagesRead([msg.id]).catch(() => {})
+      markMessagesRead([msg.id]).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.handleIncomingMessage', message: 'Failed to mark self-note as read', timestamp: Date.now(), metadata: { error: e } }))
     }
     addMessage(msg)
 
@@ -579,7 +581,7 @@ export function useMessages(): UseMessagesReturn {
           // Persist confirmed message to IDB directly from the updater where we
           // have the data. db.put is idempotent so harmless if called twice.
           if (userId) {
-            saveMessage(confirmed, userId).catch(() => {})
+            saveMessage(confirmed, userId).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.updateMessageStatus', message: 'Failed to persist confirmed message', timestamp: Date.now(), metadata: { error: e } }))
           }
           return confirmed
         }
@@ -679,7 +681,7 @@ export function useMessages(): UseMessagesReturn {
           readAt: now,
           originId,
           ...(replyTo && { threadId: replyTo.messageId, replyPreview: replyTo.preview }),
-        }, userId).catch(() => {})
+        }, userId).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.sendSelfNote', message: 'Failed to save self-note locally', timestamp: Date.now(), metadata: { error: e } }))
 
         return true
       } catch (e) {
@@ -728,7 +730,7 @@ export function useMessages(): UseMessagesReturn {
         sendSyncToOwnDevices(userId, localDeviceId, {
           forPeerId: peerId, serialized, originalMessageType: 'request',
           originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
-        }, undefined, originId).catch(() => {})
+        }, undefined, originId).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendRequest', message: 'Failed to sync request to own devices', timestamp: Date.now(), metadata: { error: e } }))
         return true
       } catch (e) {
         logger.error('sendMessage (request) error:', e instanceof Error ? e.message : e)
@@ -771,7 +773,7 @@ export function useMessages(): UseMessagesReturn {
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: peerId, serialized, originalMessageType: 'message',
         originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
-      }, undefined, originId).catch(() => {})
+      }, undefined, originId).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendMessage', message: 'Failed to sync message to own devices', timestamp: Date.now(), metadata: { error: e } }))
       return true
     } catch (e) {
       logger.error('sendMessage error:', e instanceof Error ? e.message : e)
@@ -863,7 +865,7 @@ export function useMessages(): UseMessagesReturn {
           createdAt: now,
           readAt: now,
           originId,
-        }, userId).catch(() => {})
+        }, userId).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.sendSelfNoteImage', message: 'Failed to save self-note image locally', timestamp: Date.now(), metadata: { error: e } }))
 
         return true
       } catch (e) {
@@ -940,7 +942,7 @@ export function useMessages(): UseMessagesReturn {
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: peerId, serialized, originalMessageType: 'message',
         originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
-      }, undefined, originId).catch(() => {})
+      }, undefined, originId).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendImage', message: 'Failed to sync image to own devices', timestamp: Date.now(), metadata: { error: e } }))
       return true
     } catch (e) {
       logger.error('sendImage error:', e instanceof Error ? e.message : e)
@@ -984,7 +986,7 @@ export function useMessages(): UseMessagesReturn {
       })
 
       // Persist readAt to IndexedDB (fire-and-forget)
-      updateReadAt(unreadIds, readAtTs).catch(() => {})
+      updateReadAt(unreadIds, readAtTs).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.markConversationRead', message: 'Failed to persist read status locally', timestamp: Date.now(), metadata: { error: e } }))
 
       // Update local state to reflect read status
       setConversations(prev => {
@@ -1088,7 +1090,7 @@ export function useMessages(): UseMessagesReturn {
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: peerId, serialized, originalMessageType: 'request-accepted',
         originalTimestamp: new Date().toISOString(), originalMessageId: messageId,
-      }).catch(() => {})
+      }).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.acceptRequest', message: 'Failed to sync accept to own devices', timestamp: Date.now(), metadata: { error: e } }))
     } catch (e) {
       logger.error('acceptRequest error:', e instanceof Error ? e.message : e)
     } finally {
@@ -1111,7 +1113,7 @@ export function useMessages(): UseMessagesReturn {
     })
 
     // Persist to IndexedDB (fire-and-forget)
-    updateMessageText(messageId, newText).catch(() => {})
+    updateMessageText(messageId, newText).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.editMessage', message: 'Failed to persist message edit locally', timestamp: Date.now(), metadata: { error: e } }))
   }, [])
 
   /** Delete messages via protocol-level 'delete' messages (state + IndexedDB + peer notification). */
@@ -1274,7 +1276,7 @@ export function useMessages(): UseMessagesReturn {
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: groupId, serialized, originalMessageType: 'message',
         originalTimestamp: now, originalMessageId: result.data,
-      }, groupId, originId).catch(() => {})
+      }, groupId, originId).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendGroupMessage', message: 'Failed to sync group message to own devices', timestamp: Date.now(), metadata: { error: e } }))
       return true
     } catch (e) {
       logger.error('sendGroupMessage error:', e instanceof Error ? e.message : e)
@@ -1355,7 +1357,7 @@ export function useMessages(): UseMessagesReturn {
       sendSyncToOwnDevices(userId, localDeviceId, {
         forPeerId: groupId, serialized, originalMessageType: 'message',
         originalTimestamp: new Date().toISOString(), originalMessageId: result.data,
-      }, groupId, originId).catch(() => {})
+      }, groupId, originId).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.sendGroupImage', message: 'Failed to sync group image to own devices', timestamp: Date.now(), metadata: { error: e } }))
       return true
     } catch (e) {
       logger.error('sendGroupImage error:', e instanceof Error ? e.message : e)

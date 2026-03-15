@@ -171,7 +171,119 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
   return { profile, roles, clinicId, needsPasswordSetup }
 }
 
-export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
+export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
+  const handleSignedOut = (wasPrimary: boolean) => {
+    stopHeartbeat()
+
+    // NOTE: Supabase key cleanup (unregisterDevice + deleteKeyBundle) is done
+    // in signOut() BEFORE the auth token is invalidated.  By this point the
+    // token is already dead, so we only clear local state here.
+
+    set({
+      user: null,
+      isGuest: false,
+      profile: {},
+      roles: [],
+      clinicId: null,
+      isDevRole: false,
+      isSupervisorRole: false,
+      deviceRole: null,
+    })
+    clearProfileStorage()
+    removePin()
+    removeBiometric()
+    clearPasswordVerification().catch(() => {})
+    clearServiceWorkerCaches().catch(() => {})
+
+    // Clear vault wrapping key
+    clearVaultKey()
+    // Aggressively clear backup state first (detaches onMessageSaved callback)
+    clearBackupKey()
+    // Clear in-memory session cache
+    clearAllSessions()
+
+    if (wasPrimary) {
+      // Primary logout: destroy entire IDB databases (nuke containers + encryption key).
+      // This ensures no residual data survives — a full clean slate.
+      destroySignalKeys().catch(() => {})
+      destroyMessageStore().catch(() => {})
+      destroyOutboundQueue().catch(() => {})
+      destroySecureStore().catch(() => {})
+    } else {
+      // Linked/provisional logout: purge data from stores but keep
+      // database containers and the device encryption key intact so
+      // the device can re-authenticate cleanly on next login.
+      clearSignalKeys().catch(() => {})
+      clearMessageStore().catch(() => {})
+      clearOutboundQueue().catch(() => {})
+    }
+
+    if (LORA_MESH_ENABLED) {
+      import('../lib/lora/loraDb').then(m => m.clearLoraDb()).catch(() => {})
+    }
+    clearClinicUsersCache().catch(() => {})
+    useCallStore.getState().reset()
+
+    // Aggressively wipe browser storage
+    try { localStorage.clear() } catch { /* ignore */ }
+    try { sessionStorage.clear() } catch { /* ignore */ }
+  }
+
+  const handleSignedIn = (userId: string, session: { access_token: string }, event: string) => {
+    // Detect password recovery flow (user clicked reset-password email link)
+    if (event === 'PASSWORD_RECOVERY') {
+      set({ isPasswordRecovery: true })
+      // Ensure profile is fetched for recovery logins (token-based new users)
+      startHeartbeat(userId)
+      get().refreshProfile()
+    }
+    // Keep cleanup handler's token in sync for pagehide
+    if (session.access_token) {
+      updateCleanupToken(session.access_token)
+    }
+    // Persist Supabase auth to IDB for service worker (sign-in + token refresh)
+    if (session.access_token) {
+      const url = import.meta.env.VITE_SUPABASE_URL as string
+      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
+      persistSupabaseAuth(url, session.access_token, anonKey).catch(() => {})
+    }
+    // Fetch profile in the background on sign-in or session resume
+    if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+      startHeartbeat(userId)
+      get().refreshProfile()
+
+      // Initialize Signal Protocol keys independently of profile fetch.
+      // This must not be gated behind refreshProfile so that keys are
+      // generated even when the profile fetch fails (e.g., brief network
+      // hiccup on PWA resume). initSignalBundle is idempotent.
+      initSignalBundle(userId).then(initResult => {
+        if (initResult) {
+          set({ deviceRole: initResult.role })
+          startHeartbeat(userId, initResult.deviceId)
+          updateCleanupDeviceId(initResult.deviceId)
+          updateCleanupIsPrimary(initResult.role === 'primary')
+
+          // Process vault messages (deferred messages from offline period)
+          processVaultMessages(userId).catch(() => {})
+
+          // Initialize LoRa mesh subsystem (lazy — no-ops if flag is off)
+          initLoRaMesh(userId).catch(() => {})
+
+          // Server-side encrypted backup: restore first on non-primary, then
+          // all devices schedule ongoing backups so the server row stays fresh.
+          if (initResult.role === 'linked' || initResult.role === 'provisional') {
+            restoreBackup(userId)
+              .then(() => scheduleBackup(userId))
+              .catch(() => scheduleBackup(userId))
+          } else {
+            scheduleBackup(userId)
+          }
+        }
+      }).catch(() => {})
+    }
+  }
+
+  return {
   user: null,
   loading: true,
   isGuest: false,
@@ -203,116 +315,12 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        // Capture role BEFORE clearing state (set() below nulls it)
+        // Capture role BEFORE clearing state (handleSignedOut nulls it)
         const wasPrimary = get().deviceRole === 'primary'
-
-        stopHeartbeat()
-
-        // NOTE: Supabase key cleanup (unregisterDevice + deleteKeyBundle) is done
-        // in signOut() BEFORE the auth token is invalidated.  By this point the
-        // token is already dead, so we only clear local state here.
-
-        set({
-          user: null,
-          isGuest: false,
-          profile: {},
-          roles: [],
-          clinicId: null,
-          isDevRole: false,
-          isSupervisorRole: false,
-          deviceRole: null,
-        })
-        clearProfileStorage()
-        removePin()
-        removeBiometric()
-        clearPasswordVerification().catch(() => {})
-        clearServiceWorkerCaches().catch(() => {})
-
-        // Clear vault wrapping key
-        clearVaultKey()
-        // Aggressively clear backup state first (detaches onMessageSaved callback)
-        clearBackupKey()
-        // Clear in-memory session cache
-        clearAllSessions()
-
-        if (wasPrimary) {
-          // Primary logout: destroy entire IDB databases (nuke containers + encryption key).
-          // This ensures no residual data survives — a full clean slate.
-          destroySignalKeys().catch(() => {})
-          destroyMessageStore().catch(() => {})
-          destroyOutboundQueue().catch(() => {})
-          destroySecureStore().catch(() => {})
-        } else {
-          // Linked/provisional logout: purge data from stores but keep
-          // database containers and the device encryption key intact so
-          // the device can re-authenticate cleanly on next login.
-          clearSignalKeys().catch(() => {})
-          clearMessageStore().catch(() => {})
-          clearOutboundQueue().catch(() => {})
-        }
-
-        if (LORA_MESH_ENABLED) {
-          import('../lib/lora/loraDb').then(m => m.clearLoraDb()).catch(() => {})
-        }
-        clearClinicUsersCache().catch(() => {})
-        useCallStore.getState().reset()
-
-        // Aggressively wipe browser storage
-        try { localStorage.clear() } catch { /* ignore */ }
-        try { sessionStorage.clear() } catch { /* ignore */ }
+        handleSignedOut(wasPrimary)
       } else if (session?.user) {
         set({ user: session.user, isGuest: false })
-        // Detect password recovery flow (user clicked reset-password email link)
-        if (event === 'PASSWORD_RECOVERY') {
-          set({ isPasswordRecovery: true })
-          // Ensure profile is fetched for recovery logins (token-based new users)
-          startHeartbeat(session.user.id)
-          get().refreshProfile()
-        }
-        // Keep cleanup handler's token in sync for pagehide
-        if (session.access_token) {
-          updateCleanupToken(session.access_token)
-        }
-        // Persist Supabase auth to IDB for service worker (sign-in + token refresh)
-        if (session.access_token) {
-          const url = import.meta.env.VITE_SUPABASE_URL as string
-          const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
-          persistSupabaseAuth(url, session.access_token, anonKey).catch(() => {})
-        }
-        // Fetch profile in the background on sign-in or session resume
-        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-          startHeartbeat(session.user.id)
-          get().refreshProfile()
-
-          // Initialize Signal Protocol keys independently of profile fetch.
-          // This must not be gated behind refreshProfile so that keys are
-          // generated even when the profile fetch fails (e.g., brief network
-          // hiccup on PWA resume). initSignalBundle is idempotent.
-          initSignalBundle(session.user.id).then(initResult => {
-            if (initResult) {
-              set({ deviceRole: initResult.role })
-              startHeartbeat(session.user.id, initResult.deviceId)
-              updateCleanupDeviceId(initResult.deviceId)
-              updateCleanupIsPrimary(initResult.role === 'primary')
-
-              // Process vault messages (deferred messages from offline period)
-              processVaultMessages(session.user.id).catch(() => {})
-
-              // Initialize LoRa mesh subsystem (lazy — no-ops if flag is off)
-              initLoRaMesh(session.user.id).catch(() => {})
-
-              // Server-side encrypted backup: restore first on non-primary, then
-              // all devices schedule ongoing backups so the server row stays fresh.
-              if (initResult.role === 'linked' || initResult.role === 'provisional') {
-                restoreBackup(session.user.id)
-                  .then(() => scheduleBackup(session.user.id))
-                  .catch(() => scheduleBackup(session.user.id))
-              } else {
-                scheduleBackup(session.user.id)
-              }
-            }
-          }).catch(() => {})
-        }
+        handleSignedIn(session.user.id, session, event)
       }
       if (event === 'INITIAL_SESSION') {
         set({ loading: false })
@@ -402,7 +410,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => ({
       // Profile fetch failed — keep existing state
     }
   },
-}))
+}})
 
 /** Derived selector: true when a real user is authenticated. */
 export const selectIsAuthenticated = (state: AuthState) => !!state.user

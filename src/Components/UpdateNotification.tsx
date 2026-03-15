@@ -127,14 +127,14 @@ const UpdateNotification: React.FC<{ onVisibilityChange?: (visible: boolean) => 
                         <div className="flex items-center gap-2.5 mt-4">
                             <button
                                 onClick={handleDismiss}
-                                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-tertiary bg-themewhite2 hover:bg-themegray1/40 active:scale-[0.97] transition-all"
+                                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-tertiary bg-themewhite2 hover:bg-themegray1/40 active:scale-95 transition-all"
                             >
                                 Later
                             </button>
                             <button
                                 onClick={handleUpdate}
                                 disabled={isUpdating}
-                                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-themeblue3 hover:opacity-90 active:scale-[0.97] transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                                className="flex-1 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-themeblue3 hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
                             >
                                 {isUpdating ? (
                                     <>

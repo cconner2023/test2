@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { generateInvite, redeemInvite, approveInvite, rejectInvite, emergencyAssociate, getInvites, type ClinicInvite } from '../lib/clinicAssociationService'
+import { generateInvite, redeemInvite, approveInvite, rejectInvite, revokeAssociation, getInvites, type ClinicInvite } from '../lib/clinicAssociationService'
 import { loadCachedInvites, saveCachedInvites } from '../lib/clinicInviteCache'
 import { createLogger } from '../Utilities/Logger'
 
@@ -99,8 +99,8 @@ export function useClinicInvites() {
     return result
   }, [refresh])
 
-  const handleEmergencyAssociate = useCallback(async (peerClinicId: string, justification: string) => {
-    const result = await emergencyAssociate(peerClinicId, justification)
+  const handleRevokeAssociation = useCallback(async (inviteId: string) => {
+    const result = await revokeAssociation(inviteId)
     if (result.success) {
       await refresh()
     }
@@ -117,6 +117,6 @@ export function useClinicInvites() {
     redeemInvite: handleRedeemInvite,
     approveInvite: handleApproveInvite,
     rejectInvite: handleRejectInvite,
-    emergencyAssociate: handleEmergencyAssociate,
+    revokeAssociation: handleRevokeAssociation,
   }
 }

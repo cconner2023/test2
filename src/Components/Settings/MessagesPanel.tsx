@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
-import { Send, Trash2, Forward, Reply, X, ImagePlus, Phone, Video, ArrowLeft, MessageSquare, Users, Info, ChevronLeft, Pin } from 'lucide-react'
-import { ConfirmDialog } from '../ConfirmDialog'
+import { Trash2, Phone, Video, MessageSquare, Users, Info, ChevronLeft, Pin } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
@@ -9,8 +8,6 @@ import { ContactListItem } from './ContactListItem'
 import { GroupListItem } from './GroupListItem'
 import { CreateGroupModal } from './CreateGroupModal'
 import { GroupInfoPanel } from './GroupInfoPanel'
-import { MessageBubble } from './MessageBubble'
-import { MessageContextMenu } from './MessageContextMenu'
 import { UserAvatar } from './UserAvatar'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
@@ -18,23 +15,16 @@ import { ProvisionalDeviceModal } from './ProvisionalDeviceModal'
 import { useAuth } from '../../Hooks/useAuth'
 import { useCallActions } from '../../Hooks/CallContext'
 import { useAvatar } from '../../Utilities/AvatarContext'
-import { useImagePaste } from '../../Hooks/useImagePaste'
-import { useIOSKeyboard } from '../../Hooks/useIOSKeyboard'
 import { CardContextMenu } from '../CardContextMenu'
 import { SwipeableCard, type SwipeAction as SwipeCardAction } from '../SwipeableCard'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
-import { useChatInteractions } from '../../Hooks/useChatInteractions'
 import { usePeerAvailability, type UnavailableReason } from '../../Hooks/usePeerAvailability'
+import { ChatDetailView, type ParticipantStatus } from '../ChatDetailView'
 import type { ClinicMedic } from '../../Types/SupervisorTestTypes'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import type { GroupInfo, GroupMember } from '../../lib/signal/groupTypes'
-import { playSendSound } from '../../lib/soundService'
-import { CalendarPanel } from '../Calendar/CalendarPanel'
-import { lazy, Suspense } from 'react'
 
-const ClinicAssociationPanel = lazy(() => import('./ClinicAssociationPanel').then(m => ({ default: m.ClinicAssociationPanel })))
-
-export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat' | 'messages-calendar' | 'messages-clinic-assoc'
+export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat'
 
 export interface MessagesPanelHandle {
   createGroup: () => void
@@ -192,7 +182,7 @@ function ConversationPane({
             )}
             {searchResults.groups.length > 0 && (
               <>
-                <p className="text-[10px] text-tertiary/50 px-3 mb-1 uppercase tracking-wide">Groups</p>
+                <p className="text-xs text-tertiary/50 px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
                 {searchResults.groups.map(group => (
                   <GroupListItem
                     key={group.groupId}
@@ -206,7 +196,7 @@ function ConversationPane({
             )}
             {searchResults.medics.length > 0 && (
               <>
-                <p className="text-[10px] text-tertiary/50 px-3 mb-1 mt-2 uppercase tracking-wide">Contacts</p>
+                <p className="text-xs text-tertiary/50 px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">Contacts</p>
                 {searchResults.medics.map(medic => (
                   <ContactListItem
                     key={medic.id}
@@ -222,7 +212,7 @@ function ConversationPane({
             )}
             {searchResults.messages.length > 0 && (
               <>
-                <p className="text-[10px] text-tertiary/50 px-3 mb-1 mt-2 uppercase tracking-wide">Messages</p>
+                <p className="text-xs text-tertiary/50 px-3 mb-1 mt-2 uppercase tracking-wider font-semibold">Messages</p>
                 {searchResults.messages.map(match => {
                   if (match.type === 'group' && match.group) {
                     return (
@@ -266,7 +256,7 @@ function ConversationPane({
             )}
             {recentEntries.length > 0 && (
               <>
-                <p className="text-[10px] text-tertiary/50 px-3 mb-1 mt-1 uppercase tracking-wide">Recent</p>
+                <p className="text-xs text-tertiary/50 px-3 mb-1 mt-1 uppercase tracking-wider font-semibold">Recent</p>
                 {recentEntries.map(entry => {
                   const msgs = conversations[entry.key]
                   const lastMsg = msgs?.filter(m => m.messageType !== 'request-accepted' && !m.threadId).at(-1)
@@ -347,7 +337,7 @@ function ConversationPane({
 
             {/* Contacts: My Clinic */}
             <div className="flex items-center gap-1.5 px-3 py-1.5">
-              <p className="text-[10px] text-tertiary/50 uppercase tracking-wide">My Clinic</p>
+              <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">My Clinic</p>
               <span className="text-[9px] text-tertiary/30 ml-auto">{ownClinicMedics.length}</span>
             </div>
             {ownClinicMedics.map(medic => (
@@ -366,7 +356,7 @@ function ConversationPane({
             {nearbyClinicNames.map(clinicName => (
               <div key={clinicName}>
                 <div className="flex items-center gap-1.5 px-3 py-1.5">
-                  <p className="text-[10px] text-tertiary/50 uppercase tracking-wide">{clinicName}</p>
+                  <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">{clinicName}</p>
                   <span className="text-[9px] text-tertiary/30 ml-auto">{nearbyByClinic[clinicName].length}</span>
                 </div>
                 {nearbyByClinic[clinicName].map(medic => (
@@ -387,7 +377,7 @@ function ConversationPane({
             {sortedGroups.length > 0 && (
               <>
                 <div className="mx-3 my-2 border-b border-primary/10" />
-                <p className="text-[10px] text-tertiary/50 px-3 mb-1 uppercase tracking-wide">Groups</p>
+                <p className="text-xs text-tertiary/50 px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
                 {sortedGroups.map(group => (
                   <GroupListItem
                     key={group.groupId}
@@ -438,61 +428,9 @@ function ConversationPane({
   )
 }
 
-// ── Forward Contact Picker ────────────────────────────────────────────────
+// ── (ForwardPicker moved to ChatDetailView.tsx) ──
 
-function ForwardPicker({
-  conversations,
-  currentPeerId,
-  medics,
-  onSelect,
-  onCancel,
-}: {
-  conversations: Record<string, DecryptedSignalMessage[]>
-  currentPeerId: string
-  medics: ClinicMedic[]
-  onSelect: (medic: ClinicMedic) => void
-  onCancel: () => void
-}) {
-  const { user } = useAuth()
-  const userId = user?.id ?? null
-
-  // Exclude self and the current peer from forward targets
-  const targets = medics.filter(m => m.id !== currentPeerId && m.id !== userId)
-
-  // Sort: those with existing conversations first
-  const sorted = [...targets].sort((a, b) => {
-    const aHas = conversations[a.id] ? 1 : 0
-    const bHas = conversations[b.id] ? 1 : 0
-    if (aHas !== bHas) return bHas - aHas
-    return (a.lastName ?? '').localeCompare(b.lastName ?? '')
-  })
-
-  return (
-    <div className="absolute inset-0 z-10 bg-themewhite3 flex flex-col">
-      <div className="shrink-0 px-4 py-3 border-b border-primary/10 flex items-center justify-between">
-        <p className="text-sm font-medium text-primary">Forward to...</p>
-        <button onClick={onCancel} className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
-          <X size={18} className="text-tertiary" />
-        </button>
-      </div>
-      <div className="flex-1 overflow-y-auto px-2 py-2">
-        {sorted.length === 0 ? (
-          <p className="text-sm text-tertiary/50 text-center py-8">No contacts to forward to</p>
-        ) : (
-          sorted.map(medic => (
-            <ContactListItem
-              key={medic.id}
-              medic={medic}
-              onClick={() => onSelect(medic)}
-            />
-          ))
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ── Chat Detail (1:1) ────────────────────────────────────────────────────────────
+// ── Chat Detail (1:1) — thin wrapper over ChatDetailView ──────────────────
 
 function ChatDetail({
   peerId,
@@ -514,8 +452,7 @@ function ChatDetail({
   peerAvatarId,
   peerFirstName,
   peerLastName,
-  peerUnavailable,
-  peerUnavailableReason,
+  unavailableIds,
 }: {
   peerId: string
   conversations: Record<string, DecryptedSignalMessage[]>
@@ -536,489 +473,122 @@ function ChatDetail({
   peerAvatarId?: string | null
   peerFirstName?: string | null
   peerLastName?: string | null
-  peerUnavailable?: boolean
-  peerUnavailableReason?: UnavailableReason
+  unavailableIds: Map<string, UnavailableReason>
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? ''
-  const [text, setText] = useState('')
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const { keyboardHeight, isKeyboardOpen } = useIOSKeyboard()
-
-  const messages = conversations[peerId] ?? []
-
-  const {
-    contextMenu,
-    contextMsg,
-    handleLongPress,
-    handleCopy,
-    handleStartEdit,
-    handleSaveImage,
-    closeContextMenu,
-    editingMessageId,
-    editText,
-    setEditText,
-    handleSaveEdit,
-    handleCancelEdit,
-    selectedIds,
-    hasSelection,
-    canDeleteSelection,
-    handleTap,
-    clearSelection,
-    showForwardPicker,
-    handleForwardStart,
-    handleForwardSelect,
-    closeForwardPicker,
-    replyingTo,
-    setReplyingTo,
-    handleReply,
-    activeThreadId,
-    setActiveThreadId,
-    handleOpenThread,
-    pendingDelete,
-    handleDelete,
-    handleConfirmDelete,
-    closePendingDelete,
-    handleSwipeAction,
-    threadReplyCounts,
-    threadMessages,
-    mainViewMessages,
-  } = useChatInteractions({
-    conversationKey: peerId,
-    userId,
-    messages,
-    editMessage,
-    deleteMessages,
-    inputRef,
-    sendMessage,
-  })
-
-  // Auto-scroll to bottom when messages change (scoped to container only)
-  useEffect(() => {
-    const el = scrollRef.current
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-  }, [activeThreadId ? messages.length : mainViewMessages.length])
-
-  // Auto-scroll to bottom when iOS keyboard opens
-  useEffect(() => {
-    if (isKeyboardOpen && scrollRef.current) {
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-      })
-    }
-  }, [isKeyboardOpen])
-
-  // Mark as read when chat opens and fetch history
-  useEffect(() => {
-    markAsRead(peerId)
-    fetchHistory(peerId)
-  }, [peerId, markAsRead, fetchHistory])
-
-  // Clear selection and threading state when switching peers
-  useEffect(() => {
-    clearSelection()
-    closeForwardPicker()
-    setReplyingTo(null)
-    setActiveThreadId(null)
-  }, [peerId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Accept pasted images (disabled while a send is in progress)
-  const handlePastedImage = useCallback(async (file: File) => {
-    const success = await sendImage(peerId, file)
-    if (success) playSendSound()
-  }, [sendImage, peerId])
-  useImagePaste(!sending, handlePastedImage)
-
-  const handleSend = useCallback(async () => {
-    const trimmed = text.trim()
-    if (!trimmed || sending) return
-
-    // Determine threadId: explicit thread view or reply-to banner
-    const threadId = activeThreadId ?? replyingTo?.id ?? undefined
-
-    setText('')
-    setReplyingTo(null)
-    const success = await sendMessage(peerId, trimmed, threadId)
-    if (success) {
-      playSendSound()
-    } else {
-      setText(trimmed)
-    }
-    inputRef.current?.focus()
-  }, [text, sending, sendMessage, peerId, activeThreadId, replyingTo])
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  }, [handleSend])
-
-  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const success = await sendImage(peerId, file)
-      if (success) playSendSound()
-    }
-    // Reset so the same file can be re-selected
-    e.target.value = ''
-  }, [sendImage, peerId])
-
   const isSelf = peerId === userId
-  const inputDisabled = sending || requestStatus === 'sent' || (!!peerUnavailable && !isSelf)
+
+  const participants = useMemo<ParticipantStatus[]>(() => {
+    if (isSelf) return []
+    return [{
+      userId: peerId,
+      displayName: peerName ?? 'Unknown',
+      available: !unavailableIds.has(peerId),
+      reason: unavailableIds.get(peerId),
+    }]
+  }, [peerId, peerName, unavailableIds, isSelf])
+
+  const resolveAvatar = useCallback((msg: DecryptedSignalMessage, isOwn: boolean) => {
+    if (isOwn) return undefined
+    return <UserAvatar avatarId={peerAvatarId} firstName={peerFirstName} lastName={peerLastName} className="w-7 h-7" />
+  }, [peerAvatarId, peerFirstName, peerLastName])
+
   const canCall = !isSelf && requestStatus === 'accepted' && (onStartCall || onStartVideoCall)
 
-  // Shared input area renderer (used in both main view and thread view)
-  const renderInputArea = () => {
-    if (hasSelection) {
-      return (
-        <div className="shrink-0 px-4 py-3 border-t border-primary/10">
-          <div className="flex items-center justify-around">
-            <button onClick={handleReply} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
-              <Reply size={18} className="text-tertiary" />
-              <span className="text-[10px] text-tertiary">Reply</span>
-            </button>
-            <button onClick={handleForwardStart} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
-              <Forward size={18} className="text-tertiary" />
-              <span className="text-[10px] text-tertiary">Forward</span>
-            </button>
-            {canDeleteSelection && (
-              <button onClick={handleDelete} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
-                <Trash2 size={18} className="text-red-400" />
-                <span className="text-[10px] text-red-400">Delete</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )
-    }
-
-    if (peerUnavailable && !isSelf) {
-      const unavailableMessage = peerUnavailableReason === 'no_keys'
-        ? `${peerName ?? 'This user'} hasn't set up messaging keys yet. Messages can't be delivered until they log in.`
-        : `${peerName ?? 'This user'} hasn't set up a device yet. Messages can't be delivered until they log in.`
-      return (
-        <div className="shrink-0 px-4 py-3 border-t border-primary/10">
-          <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-themeyellow/10">
-            <div className="w-2 h-2 rounded-full bg-themeyellow shrink-0" />
-            <p className="text-xs text-themeyellow">
-              {unavailableMessage}
-            </p>
-          </div>
-        </div>
-      )
-    }
-
-    if (requestStatus === 'received') {
-      return (
-        <div className="shrink-0 px-4 py-3 border-t border-primary/10">
-          <p className="text-sm text-center text-tertiary/70 mb-2">
-            {peerName ?? 'This user'} wants to message you
-          </p>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onBack}
-              className="flex-1 py-2.5 rounded-full border border-primary/15 text-sm font-medium
-                         text-tertiary active:scale-95 transition-all"
-            >
-              Decline
-            </button>
-            <button
-              onClick={() => acceptRequest(peerId)}
-              className="flex-1 py-2.5 rounded-full bg-themeblue3 text-sm font-medium
-                         text-white active:scale-95 transition-all"
-            >
-              Accept
-            </button>
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div className="shrink-0 border-t border-primary/10">
-        {/* Replying-to banner */}
-        {replyingTo && !activeThreadId && (
-          <div className="px-4 pt-2 flex items-center gap-2">
-            <div className="flex-1 flex items-center gap-2 min-w-0 bg-themewhite2 rounded-lg px-3 py-1.5">
-              <div className="w-0.5 self-stretch rounded-full bg-themeblue2 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-themeblue2">Replying to</p>
-                <p className="text-[11px] text-tertiary/60 truncate">
-                  {(replyingTo.plaintext || 'Photo').slice(0, 60)}
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => setReplyingTo(null)}
-              className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all shrink-0"
-            >
-              <X size={14} className="text-tertiary/50" />
-            </button>
-          </div>
-        )}
-
-        {/* Input row — extra bottom padding on mobile */}
-        <div className={`px-4 pt-3 ${isKeyboardOpen ? 'pb-3' : 'pb-8'} md:pb-3`}>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-          <div className="flex items-center gap-2">
-            {(requestStatus === 'accepted' || isSelf) && !activeThreadId && (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={sending}
-                className="w-10 h-10 rounded-full flex items-center justify-center
-                           hover:bg-primary/5 active:scale-95 transition-all shrink-0
-                           disabled:opacity-30"
-              >
-                <ImagePlus size={20} className="text-tertiary/60" />
-              </button>
-            )}
-            <input
-              ref={inputRef}
-              type="text"
-              value={text}
-              onChange={e => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={
-                activeThreadId ? 'Reply in thread...'
-                  : requestStatus === 'sent' ? 'Waiting for response...'
-                  : 'Type a message...'
-              }
-              className="flex-1 px-4 py-2.5 rounded-full bg-themewhite2 text-sm text-primary
-                         placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
-              disabled={inputDisabled}
-            />
-            <button
-              onClick={handleSend}
-              disabled={!text.trim() || inputDisabled}
-              className="w-10 h-10 rounded-full bg-themeblue2 flex items-center justify-center
-                         disabled:opacity-30 active:scale-95 transition-all shrink-0"
-            >
-              <Send size={16} className="text-white ml-0.5" />
-            </button>
-          </div>
-        </div>
+  const mobileHeader = (
+    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-primary/10 flex items-center backdrop-blur-xl bg-themewhite3/80">
+      <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
+        <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
+          <ChevronLeft className="w-6 h-6 text-tertiary" />
+        </button>
       </div>
-    )
-  }
-
-  // Render message list (shared between main and thread views)
-  const renderMessageList = (msgs: DecryptedSignalMessage[], emptyText: string) => (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3"
-      onScroll={closeContextMenu}
-    >
-      {msgs.length === 0 ? (
-        <div className="flex items-center justify-center h-full">
-          <p className="text-sm text-tertiary/40">{emptyText}</p>
+      <p className="flex-1 text-sm font-medium text-primary truncate text-center mx-3">
+        {peerName ?? (isSelf ? 'Notes' : 'Chat')}
+      </p>
+      {canCall ? (
+        <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5 shrink-0">
+          {onStartVideoCall && (
+            <>
+              <button
+                onClick={onStartVideoCall}
+                className="w-10 h-10 rounded-full flex items-center justify-center text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
+                aria-label="Video call" title="Video call"
+              >
+                <Video className="w-[18px] h-[18px]" />
+              </button>
+              {onStartCall && <div className="w-px h-5 bg-tertiary/15" />}
+            </>
+          )}
+          {onStartCall && (
+            <button
+              onClick={onStartCall}
+              className="w-10 h-10 rounded-full flex items-center justify-center text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
+              aria-label="Voice call" title="Voice call"
+            >
+              <Phone className="w-[18px] h-[18px]" />
+            </button>
+          )}
         </div>
       ) : (
-        msgs.map((msg, idx) => {
-          const own = msg.senderId === userId
-          const isThreadRoot = activeThreadId && msg.id === activeThreadId && idx === 0
-          return (
-            <div key={msg.id}>
-              <MessageBubble
-                message={msg}
-                isOwn={own}
-                avatar={!own ? <UserAvatar avatarId={peerAvatarId} firstName={peerFirstName} lastName={peerLastName} className="w-7 h-7" /> : undefined}
-                selected={selectedIds.has(msg.id)}
-                selectionMode={hasSelection}
-                onTap={handleTap}
-                onLongPress={handleLongPress}
-                onSwipeAction={handleSwipeAction}
-                isEditing={editingMessageId === msg.id}
-                editText={editingMessageId === msg.id ? editText : undefined}
-                onEditTextChange={setEditText}
-                onSaveEdit={handleSaveEdit}
-                onCancelEdit={handleCancelEdit}
-                threadReplyCount={!activeThreadId ? threadReplyCounts[msg.id] : undefined}
-                onOpenThread={handleOpenThread}
-              />
-              {/* Separator after thread root in thread view */}
-              {isThreadRoot && msgs.length > 1 && (
-                <div className="flex items-center gap-2 my-2 px-2">
-                  <div className="flex-1 border-b border-primary/10" />
-                  <span className="text-[10px] text-tertiary/40 shrink-0">
-                    {msgs.length - 1} {msgs.length - 1 === 1 ? 'reply' : 'replies'}
-                  </span>
-                  <div className="flex-1 border-b border-primary/10" />
-                </div>
-              )}
-            </div>
-          )
-        })
+        <div className="w-12 shrink-0" />
       )}
     </div>
   )
 
-  // ── Thread view ──────────────────────────────────────────────────────
-  if (activeThreadId) {
-    return (
-      <div className="flex flex-col h-full relative" style={isKeyboardOpen ? { height: `calc(100% - ${keyboardHeight}px)` } : undefined}>
-        {/* Thread header */}
-        <div className="sticky top-0 z-10 shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center gap-3 backdrop-blur-xl bg-themewhite3/80 md:backdrop-blur-none md:bg-transparent">
-          <button
-            onClick={() => setActiveThreadId(null)}
-            className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
-          >
-            <ArrowLeft size={18} className="text-tertiary" />
-          </button>
-          <div className="flex items-center gap-1.5">
-            <MessageSquare size={14} className="text-themeblue2" />
-            <p className="text-sm font-medium text-primary">Thread</p>
-          </div>
+  const desktopHeader = (
+    <div className="hidden md:flex shrink-0 px-4 h-10 border-b border-primary/10 items-center justify-between">
+      <p className="text-sm font-medium text-primary truncate">
+        {peerName ?? (isSelf ? 'Notes' : 'Chat')}
+      </p>
+      {canCall && (
+        <div className="flex items-center gap-1">
+          {onStartVideoCall && (
+            <button onClick={onStartVideoCall} className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all" title="Video call">
+              <Video size={16} className="text-themeblue2" />
+            </button>
+          )}
+          {onStartCall && (
+            <button onClick={onStartCall} className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all" title="Voice call">
+              <Phone size={16} className="text-themeblue2" />
+            </button>
+          )}
         </div>
-
-        {renderMessageList(threadMessages, 'No messages in this thread')}
-
-        {/* Context menu popup */}
-        {contextMenu && contextMsg && (
-          <MessageContextMenu
-            x={contextMenu.x}
-            y={contextMenu.y}
-            isOwn={contextMsg.senderId === userId}
-            isImage={contextMsg.content?.type === 'image'}
-            onCopy={handleCopy}
-            onEdit={handleStartEdit}
-            onSave={handleSaveImage}
-            onClose={closeContextMenu}
-          />
-        )}
-
-        {renderInputArea()}
-      </div>
-    )
-  }
-
-  // ── Main view ────────────────────────────────────────────────────────
-  return (
-    <div className="flex flex-col h-full relative" style={isKeyboardOpen ? { height: `calc(100% - ${keyboardHeight}px)` } : undefined}>
-      {/* Mobile conversation header — circle buttons matching NavTop */}
-      <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-primary/10 flex items-center backdrop-blur-xl bg-themewhite3/80">
-        <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
-          <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
-            <ChevronLeft className="w-6 h-6 text-tertiary" />
-          </button>
-        </div>
-        <p className="flex-1 text-sm font-medium text-primary truncate text-center mx-3">
-          {peerName ?? (isSelf ? 'Notes' : 'Chat')}
-        </p>
-        {canCall ? (
-          <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5 shrink-0">
-            {onStartVideoCall && (
-              <>
-                <button
-                  onClick={onStartVideoCall}
-                  className="w-10 h-10 rounded-full flex items-center justify-center
-                             text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
-                  aria-label="Video call"
-                  title="Video call"
-                >
-                  <Video className="w-[18px] h-[18px]" />
-                </button>
-                {onStartCall && <div className="w-px h-5 bg-tertiary/15" />}
-              </>
-            )}
-            {onStartCall && (
-              <button
-                onClick={onStartCall}
-                className="w-10 h-10 rounded-full flex items-center justify-center
-                           text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
-                aria-label="Voice call"
-                title="Voice call"
-              >
-                <Phone className="w-[18px] h-[18px]" />
-              </button>
-            )}
-          </div>
-        ) : (
-          <div className="w-12 shrink-0" />
-        )}
-      </div>
-
-      {/* Desktop header */}
-      <div className="hidden md:flex shrink-0 px-4 h-10 border-b border-primary/10 items-center justify-between">
-        <p className="text-sm font-medium text-primary truncate">
-          {peerName ?? (isSelf ? 'Notes' : 'Chat')}
-        </p>
-        {canCall && (
-          <div className="flex items-center gap-1">
-            {onStartVideoCall && (
-              <button
-                onClick={onStartVideoCall}
-                className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
-                title="Video call"
-              >
-                <Video size={16} className="text-themeblue2" />
-              </button>
-            )}
-            {onStartCall && (
-              <button
-                onClick={onStartCall}
-                className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
-                title="Voice call"
-              >
-                <Phone size={16} className="text-themeblue2" />
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {renderMessageList(
-        mainViewMessages,
-        peerId === userId ? 'Write a note...' : 'No messages yet. Say hello!',
-      )}
-
-      {/* Context menu popup (rendered via portal) */}
-      {contextMenu && contextMsg && (
-        <MessageContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          isOwn={contextMsg.senderId === userId}
-          isImage={contextMsg.content?.type === 'image'}
-          onCopy={handleCopy}
-          onEdit={handleStartEdit}
-          onSave={handleSaveImage}
-          onClose={closeContextMenu}
-        />
-      )}
-
-      {renderInputArea()}
-
-      {/* Delete confirmation popup */}
-      <ConfirmDialog
-        visible={!!pendingDelete}
-        title="Permanently delete? This cannot be undone."
-        confirmLabel="Delete"
-        variant="danger"
-        onConfirm={handleConfirmDelete}
-        onCancel={closePendingDelete}
-      />
-
-      {/* Forward contact picker overlay */}
-      {showForwardPicker && (
-        <ForwardPicker
-          conversations={conversations}
-          currentPeerId={peerId}
-          medics={medics}
-          onSelect={handleForwardSelect}
-          onCancel={closeForwardPicker}
-        />
       )}
     </div>
+  )
+
+  return (
+    <ChatDetailView
+      conversationId={peerId}
+      conversations={conversations}
+      medics={medics}
+      sendMessage={sendMessage}
+      sendImage={sendImage}
+      editMessage={editMessage}
+      deleteMessages={deleteMessages}
+      markAsRead={markAsRead}
+      fetchHistory={fetchHistory}
+      sending={sending}
+      onBack={onBack}
+      participants={participants}
+      resolveAvatar={resolveAvatar}
+      requestFlow={isSelf ? undefined : {
+        status: requestStatus,
+        peerName,
+        onAccept: () => acceptRequest(peerId),
+        onDecline: () => onBack?.(),
+      }}
+      isSelfChat={isSelf}
+      showForward
+      emptyText={isSelf ? 'Write a note...' : 'No messages yet. Say hello!'}
+      mobileHeader={mobileHeader}
+      desktopHeader={desktopHeader}
+    />
   )
 }
 
-// ── Group Chat Detail ──────────────────────────────────────────────────────
+// ── Group Chat Detail — thin wrapper over ChatDetailView ──────────────────
 
 function GroupChatDetail({
   groupId,
@@ -1038,6 +608,7 @@ function GroupChatDetail({
   addGroupMember,
   removeGroupMember,
   fetchGroupMembers,
+  unavailableIds,
 }: {
   groupId: string
   group: GroupInfo
@@ -1056,64 +627,17 @@ function GroupChatDetail({
   addGroupMember: (groupId: string, userId: string) => Promise<void>
   removeGroupMember: (groupId: string, userId: string) => Promise<void>
   fetchGroupMembers: (groupId: string) => Promise<GroupMember[]>
+  unavailableIds: Map<string, UnavailableReason>
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? ''
-  const [text, setText] = useState('')
-  const scrollRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [showGroupInfo, setShowGroupInfo] = useState(false)
-  const { keyboardHeight, isKeyboardOpen } = useIOSKeyboard()
-
-  // Cache members for sender name resolution
   const [membersCache, setMembersCache] = useState<GroupMember[]>([])
 
-  const messages = conversations[groupId] ?? []
+  useEffect(() => {
+    fetchGroupMembers(groupId).then(setMembersCache)
+  }, [groupId, fetchGroupMembers])
 
-  const {
-    contextMenu,
-    contextMsg,
-    handleLongPress,
-    handleCopy,
-    handleStartEdit,
-    handleSaveImage,
-    closeContextMenu,
-    editingMessageId,
-    editText,
-    setEditText,
-    handleSaveEdit,
-    handleCancelEdit,
-    selectedIds,
-    hasSelection,
-    canDeleteSelection,
-    handleTap,
-    clearSelection,
-    replyingTo,
-    setReplyingTo,
-    handleReply,
-    activeThreadId,
-    setActiveThreadId,
-    handleOpenThread,
-    pendingDelete,
-    handleDelete,
-    handleConfirmDelete,
-    closePendingDelete,
-    handleSwipeAction,
-    threadReplyCounts,
-    threadMessages,
-    mainViewMessages,
-  } = useChatInteractions({
-    conversationKey: groupId,
-    userId,
-    messages,
-    editMessage,
-    deleteMessages,
-    inputRef,
-    sendMessage: async (peerId, text) => sendGroupMessage(peerId, text),
-  })
-
-  // Build sender name lookup from cached members
   const senderNameMap = useMemo(() => {
     const map: Record<string, string> = {}
     for (const m of membersCache) {
@@ -1125,295 +649,97 @@ function GroupChatDetail({
     return map
   }, [membersCache])
 
-  useEffect(() => {
-    const el = scrollRef.current
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-  }, [activeThreadId ? messages.length : mainViewMessages.length])
+  const participants = useMemo<ParticipantStatus[]>(() => {
+    return membersCache
+      .filter(m => m.userId !== userId)
+      .map(m => ({
+        userId: m.userId,
+        displayName: senderNameMap[m.userId] ?? 'Unknown',
+        available: !unavailableIds.has(m.userId),
+        reason: unavailableIds.get(m.userId),
+      }))
+  }, [membersCache, userId, senderNameMap, unavailableIds])
 
-  // Auto-scroll to bottom when iOS keyboard opens
-  useEffect(() => {
-    if (isKeyboardOpen && scrollRef.current) {
-      requestAnimationFrame(() => {
-        scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
-      })
-    }
-  }, [isKeyboardOpen])
+  const resolveAvatar = useCallback((msg: DecryptedSignalMessage, isOwn: boolean) => {
+    if (isOwn) return undefined
+    const senderMedic = medics.find(m => m.id === msg.senderId)
+    const senderMember = membersCache.find(m => m.userId === msg.senderId)
+    return (
+      <UserAvatar
+        avatarId={senderMedic?.avatarId ?? senderMember?.avatarId}
+        firstName={senderMedic?.firstName ?? senderMember?.firstName}
+        lastName={senderMedic?.lastName ?? senderMember?.lastName}
+        className="w-7 h-7"
+      />
+    )
+  }, [medics, membersCache])
 
-  useEffect(() => {
-    markAsRead(groupId)
-    fetchGroupHistory(groupId)
-    // Load members for sender name display
-    fetchGroupMembers(groupId).then(setMembersCache)
-  }, [groupId, markAsRead, fetchGroupHistory, fetchGroupMembers])
-
-  useEffect(() => {
-    clearSelection()
-    setReplyingTo(null)
-    setActiveThreadId(null)
-  }, [groupId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handlePastedImage = useCallback(async (file: File) => {
-    const success = await sendGroupImage(groupId, file)
-    if (success) playSendSound()
-  }, [sendGroupImage, groupId])
-  useImagePaste(!sending, handlePastedImage)
-
-  const handleSend = useCallback(async () => {
-    const trimmed = text.trim()
-    if (!trimmed || sending) return
-    const threadId = activeThreadId ?? replyingTo?.id ?? undefined
-    setText('')
-    setReplyingTo(null)
-    const success = await sendGroupMessage(groupId, trimmed, threadId)
-    if (success) {
-      playSendSound()
-    } else {
-      setText(trimmed)
-    }
-    inputRef.current?.focus()
-  }, [text, sending, sendGroupMessage, groupId, activeThreadId, replyingTo])
-
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
-  }, [handleSend])
-
-  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      const success = await sendGroupImage(groupId, file)
-      if (success) playSendSound()
-    }
-    e.target.value = ''
-  }, [sendGroupImage, groupId])
+  const resolveSenderName = useCallback((msg: DecryptedSignalMessage) => {
+    if (msg.senderId === userId) return undefined
+    return senderNameMap[msg.senderId]
+  }, [senderNameMap, userId])
 
   const handleLeave = useCallback(async (gid: string) => {
     await leaveGroup(gid)
     onBack?.()
   }, [leaveGroup, onBack])
 
-  // Render group input area (no request flow)
-  const renderInputArea = () => {
-    if (hasSelection) {
-      return (
-        <div className="shrink-0 px-4 py-3 border-t border-primary/10">
-          <div className="flex items-center justify-around">
-            <button onClick={handleReply} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
-              <Reply size={18} className="text-tertiary" />
-              <span className="text-[10px] text-tertiary">Reply</span>
-            </button>
-            {canDeleteSelection && (
-              <button onClick={handleDelete} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
-                <Trash2 size={18} className="text-red-400" />
-                <span className="text-[10px] text-red-400">Delete</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )
-    }
-
-    return (
-      <div className="shrink-0 border-t border-primary/10">
-        {replyingTo && !activeThreadId && (
-          <div className="px-4 pt-2 flex items-center gap-2">
-            <div className="flex-1 flex items-center gap-2 min-w-0 bg-themewhite2 rounded-lg px-3 py-1.5">
-              <div className="w-0.5 self-stretch rounded-full bg-themeblue2 shrink-0" />
-              <div className="min-w-0">
-                <p className="text-[10px] font-medium text-themeblue2">Replying to</p>
-                <p className="text-[11px] text-tertiary/60 truncate">
-                  {(replyingTo.plaintext || 'Photo').slice(0, 60)}
-                </p>
-              </div>
-            </div>
-            <button onClick={() => setReplyingTo(null)} className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all shrink-0">
-              <X size={14} className="text-tertiary/50" />
-            </button>
-          </div>
-        )}
-        <div className={`px-4 pt-3 ${isKeyboardOpen ? 'pb-3' : 'pb-8'} md:pb-3`}>
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
-          <div className="flex items-center gap-2">
-            {!activeThreadId && (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={sending}
-                className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-primary/5 active:scale-95 transition-all shrink-0 disabled:opacity-30"
-              >
-                <ImagePlus size={20} className="text-tertiary/60" />
-              </button>
-            )}
-            <input
-              ref={inputRef}
-              type="text"
-              value={text}
-              onChange={e => setText(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder={activeThreadId ? 'Reply in thread...' : 'Type a message...'}
-              className="flex-1 px-4 py-2.5 rounded-full bg-themewhite2 text-sm text-primary placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
-              disabled={sending}
-            />
-            <button
-              onClick={handleSend}
-              disabled={!text.trim() || sending}
-              className="w-10 h-10 rounded-full bg-themeblue2 flex items-center justify-center disabled:opacity-30 active:scale-95 transition-all shrink-0"
-            >
-              <Send size={16} className="text-white ml-0.5" />
-            </button>
-          </div>
-        </div>
+  const mobileHeader = (
+    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-primary/10 flex items-center backdrop-blur-xl bg-themewhite3/80">
+      <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
+        <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
+          <ChevronLeft className="w-6 h-6 text-tertiary" />
+        </button>
       </div>
-    )
-  }
-
-  const renderMessageList = (msgs: DecryptedSignalMessage[], emptyText: string) => (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3" onScroll={closeContextMenu}>
-      {msgs.length === 0 ? (
-        <div className="flex items-center justify-center h-full">
-          <p className="text-sm text-tertiary/40">{emptyText}</p>
-        </div>
-      ) : (
-        msgs.map((msg, idx) => {
-          const own = msg.senderId === userId
-          const isThreadRoot = activeThreadId && msg.id === activeThreadId && idx === 0
-          // Resolve sender avatar info from medics or cached members
-          const senderMedic = !own ? medics.find(m => m.id === msg.senderId) : null
-          const senderMember = !own ? membersCache.find(m => m.userId === msg.senderId) : null
-          return (
-            <div key={msg.id}>
-              <MessageBubble
-                message={msg}
-                isOwn={own}
-                avatar={!own ? (
-                  <UserAvatar
-                    avatarId={senderMedic?.avatarId ?? senderMember?.avatarId}
-                    firstName={senderMedic?.firstName ?? senderMember?.firstName}
-                    lastName={senderMedic?.lastName ?? senderMember?.lastName}
-                    className="w-7 h-7"
-                  />
-                ) : undefined}
-                senderName={!own ? senderNameMap[msg.senderId] : undefined}
-                selected={selectedIds.has(msg.id)}
-                selectionMode={hasSelection}
-                onTap={handleTap}
-                onLongPress={handleLongPress}
-                onSwipeAction={handleSwipeAction}
-                isEditing={editingMessageId === msg.id}
-                editText={editingMessageId === msg.id ? editText : undefined}
-                onEditTextChange={setEditText}
-                onSaveEdit={handleSaveEdit}
-                onCancelEdit={handleCancelEdit}
-                threadReplyCount={!activeThreadId ? threadReplyCounts[msg.id] : undefined}
-                onOpenThread={handleOpenThread}
-              />
-              {isThreadRoot && msgs.length > 1 && (
-                <div className="flex items-center gap-2 my-2 px-2">
-                  <div className="flex-1 border-b border-primary/10" />
-                  <span className="text-[10px] text-tertiary/40 shrink-0">
-                    {msgs.length - 1} {msgs.length - 1 === 1 ? 'reply' : 'replies'}
-                  </span>
-                  <div className="flex-1 border-b border-primary/10" />
-                </div>
-              )}
-            </div>
-          )
-        })
-      )}
+      <div className="flex-1 min-w-0 text-center mx-3">
+        <p className="text-sm font-medium text-primary truncate">{group.name}</p>
+        <p className="text-[10px] text-tertiary/40">{group.memberCount} members</p>
+      </div>
+      <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
+        <button onClick={() => setShowGroupInfo(true)} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
+          <Info className="w-5 h-5 text-tertiary" />
+        </button>
+      </div>
     </div>
   )
 
-  // Thread view
-  if (activeThreadId) {
-    return (
-      <div className="flex flex-col h-full relative" style={isKeyboardOpen ? { height: `calc(100% - ${keyboardHeight}px)` } : undefined}>
-        <div className="sticky top-0 z-10 shrink-0 px-4 py-2.5 border-b border-primary/10 flex items-center gap-3 backdrop-blur-xl bg-themewhite3/80 md:backdrop-blur-none md:bg-transparent">
-          <button onClick={() => setActiveThreadId(null)} className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
-            <ArrowLeft size={18} className="text-tertiary" />
-          </button>
-          <div className="flex items-center gap-1.5">
-            <MessageSquare size={14} className="text-themeblue2" />
-            <p className="text-sm font-medium text-primary">Thread</p>
-          </div>
+  const desktopHeader = (
+    <div className="hidden md:flex shrink-0 px-4 h-10 border-b border-primary/10 items-center justify-between">
+      <div className="flex items-center gap-2 min-w-0">
+        <div className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
+          <Users size={14} className="text-themeblue2" />
         </div>
-        {renderMessageList(threadMessages, 'No messages in this thread')}
-        {contextMenu && contextMsg && (
-          <MessageContextMenu
-            x={contextMenu.x} y={contextMenu.y}
-            isOwn={contextMsg.senderId === userId}
-            isImage={contextMsg.content?.type === 'image'}
-            onCopy={handleCopy} onEdit={handleStartEdit} onSave={handleSaveImage}
-            onClose={closeContextMenu}
-          />
-        )}
-        {renderInputArea()}
-      </div>
-    )
-  }
-
-  // Main group chat view
-  return (
-    <div className="flex flex-col h-full relative" style={isKeyboardOpen ? { height: `calc(100% - ${keyboardHeight}px)` } : undefined}>
-      {/* Mobile group header — circle buttons matching NavTop */}
-      <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] border-b border-primary/10 flex items-center backdrop-blur-xl bg-themewhite3/80">
-        <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
-          <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
-            <ChevronLeft className="w-6 h-6 text-tertiary" />
-          </button>
-        </div>
-        <div className="flex-1 min-w-0 text-center mx-3">
+        <div className="min-w-0">
           <p className="text-sm font-medium text-primary truncate">{group.name}</p>
           <p className="text-[10px] text-tertiary/40">{group.memberCount} members</p>
         </div>
-        <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
-          <button onClick={() => setShowGroupInfo(true)} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
-            <Info className="w-5 h-5 text-tertiary" />
-          </button>
-        </div>
       </div>
+      <button onClick={() => setShowGroupInfo(true)} className="p-2 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
+        <Info size={18} className="text-tertiary" />
+      </button>
+    </div>
+  )
 
-      {/* Desktop group header */}
-      <div className="hidden md:flex shrink-0 px-4 h-10 border-b border-primary/10 items-center justify-between">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
-            <Users size={14} className="text-themeblue2" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-primary truncate">{group.name}</p>
-            <p className="text-[10px] text-tertiary/40">{group.memberCount} members</p>
-          </div>
-        </div>
-        <button
-          onClick={() => setShowGroupInfo(true)}
-          className="p-2 rounded-full hover:bg-primary/5 active:scale-95 transition-all"
-        >
-          <Info size={18} className="text-tertiary" />
-        </button>
-      </div>
-
-      {renderMessageList(mainViewMessages, 'No messages yet. Start the conversation!')}
-
-      {contextMenu && contextMsg && (
-        <MessageContextMenu
-          x={contextMenu.x} y={contextMenu.y}
-          isOwn={contextMsg.senderId === userId}
-          isImage={contextMsg.content?.type === 'image'}
-          onCopy={handleCopy} onEdit={handleStartEdit} onSave={handleSaveImage}
-          onClose={closeContextMenu}
-        />
-      )}
-
-      {renderInputArea()}
-
-      {/* Delete confirmation popup */}
-      <ConfirmDialog
-        visible={!!pendingDelete}
-        title="Permanently delete? This cannot be undone."
-        confirmLabel="Delete"
-        variant="danger"
-        onConfirm={handleConfirmDelete}
-        onCancel={closePendingDelete}
-      />
-
-      {/* Group info overlay */}
+  return (
+    <ChatDetailView
+      conversationId={groupId}
+      conversations={conversations}
+      medics={medics}
+      sendMessage={sendGroupMessage}
+      sendImage={sendGroupImage}
+      editMessage={editMessage}
+      deleteMessages={deleteMessages}
+      markAsRead={markAsRead}
+      fetchHistory={fetchGroupHistory}
+      sending={sending}
+      onBack={onBack}
+      participants={participants}
+      resolveAvatar={resolveAvatar}
+      resolveSenderName={resolveSenderName}
+      emptyText="No messages yet. Start the conversation!"
+      mobileHeader={mobileHeader}
+      desktopHeader={desktopHeader}
+    >
       {showGroupInfo && (
         <GroupInfoPanel
           group={group}
@@ -1427,7 +753,7 @@ function GroupChatDetail({
           fetchMembers={fetchGroupMembers}
         />
       )}
-    </div>
+    </ChatDetailView>
   )
 }
 
@@ -1482,17 +808,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   // Determine main content based on view
   let mainContent: React.ReactNode
 
-  if (view === 'messages-clinic-assoc') {
-    mainContent = (
-      <Suspense fallback={<div className="flex items-center justify-center h-full"><LoadingSpinner /></div>}>
-        <ClinicAssociationPanel onBack={() => onBack?.()} />
-      </Suspense>
-    )
-  } else if (view === 'messages-calendar') {
-    mainContent = (
-      <CalendarPanel onBack={() => onBack?.()} />
-    )
-  } else if (view === 'messages-group-chat' && selectedGroupId && groups[selectedGroupId]) {
+  if (view === 'messages-group-chat' && selectedGroupId && groups[selectedGroupId]) {
     mainContent = (
       <GroupChatDetail
         groupId={selectedGroupId}
@@ -1512,6 +828,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         addGroupMember={addGroupMember}
         removeGroupMember={removeGroupMember}
         fetchGroupMembers={fetchGroupMembers}
+        unavailableIds={unavailableIds}
       />
     )
   } else if (view === 'messages-chat' && selectedPeerId) {
@@ -1541,8 +858,7 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         peerAvatarId={peer?.avatarId}
         peerFirstName={peer?.firstName}
         peerLastName={peer?.lastName}
-        peerUnavailable={unavailableIds.has(selectedPeerId)}
-        peerUnavailableReason={unavailableIds.get(selectedPeerId)}
+        unavailableIds={unavailableIds}
       />
     )
   } else {

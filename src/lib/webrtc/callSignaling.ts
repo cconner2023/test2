@@ -18,6 +18,8 @@
 
 import { supabase } from '../supabase'
 import { createLogger } from '../../Utilities/Logger'
+import { errorBus } from '../errorBus'
+import { ErrorCode } from '../errorCodes'
 import { createSignalingCrypto, type SignalingCrypto } from './signalingCrypto'
 import type {
   CallMode,
@@ -126,7 +128,9 @@ export function createCallSignaling(channelName: string): CallSignaling {
       }
     }
 
-    channel.send({ type: 'broadcast', event: 'call-signal', payload: envelope }).catch(() => {})
+    channel.send({ type: 'broadcast', event: 'call-signal', payload: envelope }).catch((err) => {
+      errorBus.emit({ code: ErrorCode.NETWORK_ERROR, message: `Call signal broadcast failed: ${err}`, source: 'callSignaling.broadcast', timestamp: Date.now() })
+    })
   }
 
   const sendAnswer: CallSignaling['sendAnswer'] = (answer) => {
@@ -156,7 +160,9 @@ export function createCallSignaling(channelName: string): CallSignaling {
   const setPeerEphemeralKey: CallSignaling['setPeerEphemeralKey'] = (key) => {
     if (!peerKeyReceived) {
       peerKeyReceived = true
-      cryptoReady.then(c => c.setPeerKey(key)).catch(() => {})
+      cryptoReady.then(c => c.setPeerKey(key)).catch((err) => {
+        errorBus.emit({ code: ErrorCode.ENCRYPTION_FAILED, message: `Failed to set peer ephemeral key: ${err}`, source: 'callSignaling.setPeerEphemeralKey', timestamp: Date.now() })
+      })
     }
   }
 

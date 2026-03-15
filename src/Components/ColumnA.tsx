@@ -11,9 +11,11 @@ import {
 
 interface ColumnAProps {
   onNavigate: (result: SearchResultType) => void
+  onEdgeDrag?: (offset: number) => void
+  onEdgeDragEnd?: (offset: number, velocity: number) => void
 }
 
-export const ColumnA = memo(function ColumnA({ onNavigate }: ColumnAProps) {
+export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDragEnd }: ColumnAProps) {
   const selectedCategory = useNavigationStore((s) => s.selectedCategory)
   const selectedSymptom = useNavigationStore((s) => s.selectedSymptom)
   const isMobile = useNavigationStore((s) => s.isMobile)
@@ -37,6 +39,8 @@ export const ColumnA = memo(function ColumnA({ onNavigate }: ColumnAProps) {
     isVisible,
     syncKey: carouselSyncKey,
     onSwipeBack: handleBackClick,
+    onEdgeDrag,
+    onEdgeDragEnd,
   })
 
   // Scroll-to-top ref for subcategory panel when category changes

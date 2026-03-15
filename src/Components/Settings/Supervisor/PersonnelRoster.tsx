@@ -1,10 +1,8 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { Users, ClipboardCheck, Eye, Pencil, ChevronRight, Building2 } from 'lucide-react'
 import { EmptyState } from '../../EmptyState'
-import { SearchInput } from '../../SearchInput'
 import { SwipeableRosterCard } from './SwipeableRosterCard'
 import { CardContextMenu } from '../../CardContextMenu'
-import { CardActionBar, type ActionBarAction } from '../../CardActionBar'
 import { formatMedicName } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
@@ -26,41 +24,29 @@ interface PersonnelRosterProps {
   medics: ClinicMedic[]
   certsForSoldier: (userId: string) => Certification[]
   overdueCount: (userId: string) => number
-  selectedSoldierIds: Set<string>
-  onSelectSoldiers: (ids: Set<string>) => void
   onEvaluate: (soldier: ClinicMedic) => void
   onView: (soldier: ClinicMedic) => void
   onModify: (soldier: ClinicMedic) => void
-  showSearch?: boolean
+  searchQuery?: string
   clinicName?: string | null
   teamMetrics?: TeamMetrics
   onViewInsights?: () => void
-  onManageClinic?: () => void
 }
 
 export function PersonnelRoster({
   medics,
   certsForSoldier,
   overdueCount,
-  selectedSoldierIds,
-  onSelectSoldiers,
   onEvaluate,
   onView,
   onModify,
-  showSearch = false,
+  searchQuery = '',
   clinicName,
   teamMetrics,
   onViewInsights,
-  onManageClinic,
 }: PersonnelRosterProps) {
-  const [searchQuery, setSearchQuery] = useState('')
   const [openCardId, setOpenCardId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ soldierId: string; x: number; y: number } | null>(null)
-
-  // Clear search when search panel is hidden
-  useEffect(() => { if (!showSearch) setSearchQuery('') }, [showSearch])
-
-  const multiSelectMode = selectedSoldierIds.size > 0
 
   const filteredMedics = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
@@ -71,15 +57,6 @@ export function PersonnelRoster({
       return name.includes(q) || cred.includes(q)
     })
   }, [medics, searchQuery])
-
-  const handleToggleMultiSelect = useCallback((soldierId: string) => {
-    onSelectSoldiers((() => {
-      const next = new Set(selectedSoldierIds)
-      if (next.has(soldierId)) next.delete(soldierId)
-      else next.add(soldierId)
-      return next
-    })())
-  }, [selectedSoldierIds, onSelectSoldiers])
 
   const getSoldierById = useCallback((id: string) => {
     return medics.find(m => m.id === id)
@@ -92,33 +69,6 @@ export function PersonnelRoster({
         title="No medics found in your clinic"
       />
     )
-  }
-
-  // Bottom bar actions differ by selection count
-  const singleSelected = selectedSoldierIds.size === 1
-  const barActions: ActionBarAction[] = []
-  if (singleSelected) {
-    const soldier = getSoldierById([...selectedSoldierIds][0])
-    if (soldier) {
-      barActions.push(
-        { key: 'view', label: 'View', icon: Eye, iconBg: 'bg-themegreen/15', iconColor: 'text-themegreen', onAction: () => { onSelectSoldiers(new Set()); onView(soldier) } },
-        { key: 'evaluate', label: 'Evaluate', icon: ClipboardCheck, iconBg: 'bg-themeblue2/15', iconColor: 'text-themeblue2', onAction: () => { onSelectSoldiers(new Set()); onEvaluate(soldier) } },
-      )
-    }
-  } else {
-    barActions.push({
-      key: 'evaluate',
-      label: 'Evaluate',
-      icon: ClipboardCheck,
-      iconBg: 'bg-themeblue2/15',
-      iconColor: 'text-themeblue2',
-      onAction: () => {
-        const ids = [...selectedSoldierIds]
-        onSelectSoldiers(new Set())
-        const first = getSoldierById(ids[0])
-        if (first) onEvaluate(first)
-      },
-    })
   }
 
   return (
@@ -139,14 +89,6 @@ export function PersonnelRoster({
                 <p className="text-sm font-semibold text-primary truncate">{clinicName ?? 'My Clinic'}</p>
                 <p className="text-[9pt] text-tertiary/50">{medics.length} personnel</p>
               </div>
-              {onManageClinic && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); onManageClinic() }}
-                  className="p-1.5 rounded-lg hover:bg-tertiary/10 text-tertiary/40 hover:text-themeblue3 transition-colors active:scale-95 shrink-0"
-                >
-                  <Pencil size={14} />
-                </button>
-              )}
               <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
             </div>
             <div className="flex flex-col gap-1.5 mt-2 ml-11">
@@ -168,17 +110,6 @@ export function PersonnelRoster({
           </button>
         )}
 
-        {/* Search — toggled by header pill */}
-        {showSearch && (
-          <SearchInput
-            value={searchQuery}
-            onChange={setSearchQuery}
-            placeholder="Search personnel..."
-            className="mb-3"
-            autoFocus
-          />
-        )}
-
         {searchQuery.trim() && (
           <p className="text-[10px] text-tertiary/50 mb-2">
             {filteredMedics.length} result{filteredMedics.length !== 1 ? 's' : ''}
@@ -196,19 +127,13 @@ export function PersonnelRoster({
                 certs={certsForSoldier(soldier.id)}
                 overdueCount={overdueCount(soldier.id)}
                 isOpen={openCardId === soldier.id}
-                isSelected={selectedSoldierIds.has(soldier.id)}
-                multiSelectMode={multiSelectMode}
                 onOpen={() => { setOpenCardId(soldier.id) }}
                 onClose={() => setOpenCardId(prev => prev === soldier.id ? null : prev)}
                 onContextMenu={(e) => { e.preventDefault(); setContextMenu({ soldierId: soldier.id, x: e.clientX, y: e.clientY }) }}
-                onToggleMultiSelect={() => handleToggleMultiSelect(soldier.id)}
+                onLongPress={(x, y) => { setContextMenu({ soldierId: soldier.id, x, y }) }}
                 onTap={() => {
                   setOpenCardId(null)
-                  // Single-tap selects (shows bottom bar)
-                  if (!multiSelectMode) {
-                    const isTogglingOff = selectedSoldierIds.has(soldier.id)
-                    onSelectSoldiers(isTogglingOff ? new Set() : new Set([soldier.id]))
-                  }
+                  onView(soldier)
                 }}
                 onEvaluate={() => onEvaluate(soldier)}
                 onView={() => onView(soldier)}
@@ -219,18 +144,7 @@ export function PersonnelRoster({
         )}
       </div>
 
-      {/* Multi-select action bar — pinned at bottom, outside scroll */}
-      {multiSelectMode && (
-        <div className="shrink-0">
-          <CardActionBar
-            selectedCount={selectedSoldierIds.size}
-            onClear={() => onSelectSoldiers(new Set())}
-            actions={barActions}
-          />
-        </div>
-      )}
-
-      {/* Right-click context menu */}
+      {/* Right-click / long-press context menu */}
       {contextMenu && (() => {
         const soldier = getSoldierById(contextMenu.soldierId)
         if (!soldier) return null

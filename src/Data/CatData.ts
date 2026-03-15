@@ -19,6 +19,12 @@ export const menuData: sideMenuDataType[] = [
         gateKey: 'property'
     },
     {
+        text: "WhisperNet",
+        icon: 'lora',
+        action: 'lora',
+        gateKey: 'lora'
+    },
+    {
         text: 'Supervisor',
         icon: 'supervisor',
         action: 'supervisor',

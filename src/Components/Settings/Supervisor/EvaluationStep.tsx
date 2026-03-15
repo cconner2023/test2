@@ -126,7 +126,7 @@ export function EvaluationStep({
                     <div className="flex gap-2 mt-2 ml-8">
                       <button
                         onClick={() => toggleResult(step.number, 'GO')}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.97]
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-95
                           ${currentResult === 'GO'
                             ? 'bg-themegreen text-white'
                             : 'bg-themegreen/10 text-themegreen border border-themegreen/20 hover:bg-themegreen/20'
@@ -136,7 +136,7 @@ export function EvaluationStep({
                       </button>
                       <button
                         onClick={() => toggleResult(step.number, 'NO_GO')}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-[0.97]
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-95
                           ${currentResult === 'NO_GO'
                             ? 'bg-themeredred text-white'
                             : 'bg-themeredred/10 text-themeredred border border-themeredred/20 hover:bg-themeredred/20'

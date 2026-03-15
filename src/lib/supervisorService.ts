@@ -225,6 +225,26 @@ export async function createClinicUser(userData: {
   }
 }
 
+// ─── Disassociate Clinic ──────────────────────────────────────────────────
+
+export async function disassociateClinic(
+  clinicId: string,
+  peerClinicId: string
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('disassociate_clinic', {
+      p_clinic_id: clinicId,
+      p_peer_clinic_id: peerClinicId,
+    })
+
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to disassociate clinic:', error)
+    return fail(getErrorMessage(error))
+  }
+}
+
 // ─── Get Clinic Encryption Key ─────────────────────────────────────────────
 
 export async function getClinicEncryptionKey(
@@ -245,8 +265,10 @@ export async function getClinicEncryptionKey(
 // ─── Get Clinic Details (UICs + decrypted location) ───────────────────────
 
 export interface ClinicDetails {
+  name: string | null
   uics: string[]
   location: string | null
+  associatedClinicIds: string[]
 }
 
 export async function getClinicDetails(
@@ -255,11 +277,11 @@ export async function getClinicDetails(
   try {
     const { data } = await supabase
       .from('clinics')
-      .select('uics, location, encryption_key')
+      .select('name, uics, location, encryption_key, associated_clinic_ids')
       .eq('id', clinicId)
       .single()
 
-    if (!data) return { uics: [], location: null }
+    if (!data) return { name: null, uics: [], location: null, associatedClinicIds: [] }
 
     let location: string | null = data.location ?? null
     if (location && data.encryption_key) {
@@ -271,10 +293,47 @@ export async function getClinicDetails(
     }
 
     return {
+      name: data.name ?? null,
       uics: data.uics ?? [],
       location,
+      associatedClinicIds: data.associated_clinic_ids ?? [],
     }
   } catch {
-    return { uics: [], location: null }
+    return { name: null, uics: [], location: null, associatedClinicIds: [] }
+  }
+}
+
+// ─── Update Member Profile ────────────────────────────────────────────────
+
+export async function updateMemberProfile(
+  userId: string,
+  profileData: {
+    firstName?: string
+    lastName?: string
+    middleInitial?: string
+    credential?: string
+    component?: string
+    rank?: string
+    uic?: string
+  }
+): Promise<ServiceResult> {
+  try {
+    const { error } = await supabase.rpc('update_user_profile', {
+      p_target_user_id: userId,
+      p_as_role: 'supervisor',
+      p_first_name: profileData.firstName || undefined,
+      p_last_name: profileData.lastName || undefined,
+      p_middle_initial: profileData.middleInitial ?? undefined,
+      p_credential: profileData.credential ?? undefined,
+      p_component: profileData.component ?? undefined,
+      p_rank: profileData.rank ?? undefined,
+      p_uic: profileData.uic || undefined,
+    })
+
+    if (error) return fail(error.message)
+    return succeed()
+  } catch (error) {
+    logger.error('Failed to update member profile:', error)
+    return fail(getErrorMessage(error))
   }
 }

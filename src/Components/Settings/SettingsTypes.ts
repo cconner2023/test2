@@ -23,6 +23,8 @@ export const PANEL = {
     CERTIFICATIONS: 23,
     LORA: 26,
     SESSIONS_DEVICES: 27,
+    CLINIC: 28,
+    CLINIC_ADD_MEMBER: 29,
 } as const;
 
 export type PanelId = (typeof PANEL)[keyof typeof PANEL];
@@ -43,6 +45,8 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
     [PANEL.CERTIFICATIONS]: 'certifications',
     [PANEL.LORA]: 'lora',
     [PANEL.SESSIONS_DEVICES]: 'sessions-devices',
+    [PANEL.CLINIC]: 'clinic',
+    [PANEL.CLINIC_ADD_MEMBER]: 'clinic-add-member',
 };
 
 export type SettingsItem =

@@ -9,6 +9,7 @@ interface EvaluateFlowProps {
   /** When set, we're in GO/NO GO evaluation mode for this specific task */
   taskNumber: string | null
   taskTitle: string | null
+  searchQuery?: string
   onSelectTask: (taskNumber: string, taskTitle: string) => void
   onSubmit: (stepResults: StepResult[], notes: string) => void
 }
@@ -17,6 +18,7 @@ export function EvaluateFlow({
   soldier,
   taskNumber,
   taskTitle,
+  searchQuery,
   onSelectTask,
   onSubmit,
 }: EvaluateFlowProps) {
@@ -37,6 +39,7 @@ export function EvaluateFlow({
     <SelectTaskStep
       onSelectTask={onSelectTask}
       medicName={medicName}
+      searchQuery={searchQuery}
     />
   )
 }

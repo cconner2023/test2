@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react'
+import { animated } from '@react-spring/web'
 import './App.css'
 import { NavTop } from './Components/NavTop'
 import { SideNav } from './Components/SideNav'
@@ -10,12 +11,15 @@ import type { SearchResultType } from './Types/CatTypes'
 import { useSearch } from './Hooks/useSearch'
 import { useNavigation } from './Hooks/useNavigation'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
+import { useMenuSlide, MENU_NAV_WIDTH } from './Hooks/useMenuSlide'
 import UpdateNotification from './Components/UpdateNotification'
 import InstallPrompt from './Components/InstallPrompt'
 import { ColumnA } from './Components/ColumnA'
 import { TC3DesktopLayout } from './Components/TC3/TC3DesktopLayout'
 import { TC3MobileWizard } from './Components/TC3/TC3MobileWizard'
 
+import { useNoteImport } from './Hooks/useNoteImport'
+import { isEncryptedBarcode, decryptBarcode } from './Utilities/NoteCodec'
 import { useProfileAvatar } from './Hooks/useProfileAvatar'
 import { useAuth } from './Hooks/useAuth'
 import { useAuthStore } from './stores/useAuthStore'
@@ -35,6 +39,7 @@ const MessagesDrawer = lazy(() => import('./Components/MessagesDrawer').then(m =
 const PropertyDrawer = lazy(() => import('./Components/PropertyDrawer').then(m => ({ default: m.PropertyDrawer })))
 const AdminDrawer = lazy(() => import('./Components/AdminDrawer').then(m => ({ default: m.AdminDrawer })))
 const SupervisorDrawer = lazy(() => import('./Components/SupervisorDrawer').then(m => ({ default: m.SupervisorDrawer })))
+const LoRaDrawer = lazy(() => import('./Components/LoRaDrawer').then(m => ({ default: m.LoRaDrawer })))
 const WriteNotePage = lazy(() => import('./Components/WriteNotePage').then(m => ({ default: m.WriteNotePage })))
 const SymptomInfoDrawer = lazy(() => import('./Components/SymptomInfoDrawer').then(m => ({ default: m.SymptomInfoDrawer })))
 const NoteImport = lazy(() => import('./Components/NoteImport').then(m => ({ default: m.NoteImport })))
@@ -71,6 +76,16 @@ function AppContent() {
   const avatarState = useProfileAvatar(user?.id)
   const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
 
+  // ── Menu slide gesture (mobile only) ──
+  const menuSlide = useMenuSlide({
+    enabled: navigation.isMobile,
+    isOpen: navigation.isMenuOpen,
+    onOpen: useCallback(() => {
+      if (!navigation.isMenuOpen) navigation.toggleMenu()
+    }, [navigation.isMenuOpen, navigation.toggleMenu]),
+    onClose: navigation.closeMenu,
+  })
+
   // ── Settings/training targeting state (lightweight replacement for useActiveNote) ──
   const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'user-profile'>('main')
   const [initialTrainingTaskId, setInitialTrainingTaskId] = useState<string | null>(null)
@@ -83,7 +98,10 @@ function AppContent() {
   )
   const [importInitialBarcode, setImportInitialBarcode] = useState<string | undefined>()
   const [importAutoPickImage, setImportAutoPickImage] = useState(false)
+  const [importError, setImportError] = useState('')
+  const importErrorTimer = useRef<number>(0)
   const importWasOpenedRef = useRef(false)
+  const { importFromBarcode } = useNoteImport()
 
   // PWA App Shortcut / Post-update: open the appropriate view on mount
   useEffect(() => {
@@ -111,13 +129,42 @@ function AppContent() {
     }
   }, [navigation.showNoteImport, importInitialView, importInitialBarcode, importAutoPickImage])
 
-  // Desktop inline import: collapse navbar input → open drawer with barcode to decode
-  const handleInlineImportSubmit = useCallback((barcodeText: string) => {
-    navigation.setImportExpanded(false)
-    setImportInitialBarcode(barcodeText)
-    setImportInitialView(undefined)
-    navigation.setShowNoteImport(true)
-  }, [navigation.setImportExpanded, navigation.setShowNoteImport])
+  const showImportError = useCallback((msg: string) => {
+    clearTimeout(importErrorTimer.current)
+    setImportError(msg)
+    importErrorTimer.current = window.setTimeout(() => setImportError(''), 3000)
+  }, [])
+
+  // Inline import submit: on mobile, decode first and only open drawer on success.
+  // On desktop, pass through to drawer for decode.
+  const handleInlineImportSubmit = useCallback(async (barcodeText: string) => {
+    setImportError('')
+    if (navigation.isMobile) {
+      try {
+        let payload = barcodeText
+        if (isEncryptedBarcode(barcodeText)) {
+          const decrypted = await decryptBarcode(barcodeText)
+          if (!decrypted) {
+            showImportError('Sign in and connect to sync encryption key')
+            return
+          }
+          payload = decrypted
+        }
+        importFromBarcode(payload) // throws on bad input
+        navigation.setImportExpanded(false)
+        setImportInitialBarcode(barcodeText)
+        setImportInitialView(undefined)
+        navigation.setShowNoteImport(true)
+      } catch {
+        showImportError('Unrecognized code — check the text and try again')
+      }
+    } else {
+      navigation.setImportExpanded(false)
+      setImportInitialBarcode(barcodeText)
+      setImportInitialView(undefined)
+      navigation.setShowNoteImport(true)
+    }
+  }, [navigation.isMobile, navigation.setImportExpanded, navigation.setShowNoteImport, importFromBarcode])
 
   const openTrainingTask = useCallback((taskId: string) => {
     setInitialTrainingTaskId(taskId)
@@ -144,6 +191,10 @@ function AppContent() {
     navigation.setShowPropertyDrawer(true)
   }, [navigation.setShowPropertyDrawer])
 
+  const handleLoRaClick = useCallback(() => {
+    navigation.setShowLoRaDrawer(true)
+  }, [navigation.setShowLoRaDrawer])
+
   const handleAdminClick = useCallback(() => {
     navigation.setShowAdminDrawer(true)
   }, [navigation.setShowAdminDrawer])
@@ -155,7 +206,11 @@ function AppContent() {
   const handleMenuItemClick = useCallback((action: string) => {
     switch (action) {
       case 'import':
-        navigation.setShowNoteImport(true)
+        if (navigation.isMobile) {
+          navigation.toggleImportExpanded()
+        } else {
+          navigation.setShowNoteImport(true)
+        }
         break
       case 'knowledgebase':
         handleKnowledgeBaseClick()
@@ -172,6 +227,9 @@ function AppContent() {
       case 'admin':
         handleAdminClick()
         break
+      case 'lora':
+        handleLoRaClick()
+        break
       case 'settings':
         navigation.setShowSettings(true)
         break
@@ -180,7 +238,7 @@ function AppContent() {
         navigation.setShowSettings(true)
         break
     }
-  }, [navigation.setShowNoteImport, navigation.setShowSettings, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleSupervisorClick, handleAdminClick])
+  }, [navigation.isMobile, navigation.toggleImportExpanded, navigation.setShowNoteImport, navigation.setShowSettings, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleLoRaClick, handleSupervisorClick, handleAdminClick])
 
   // Callback for notification toast tap — opens MessagesDrawer to the target conversation
   const handleNotificationTap = useCallback((n: MessageNotification) => {
@@ -326,125 +384,165 @@ function AppContent() {
     <MessagesProvider>
     <CallProvider>
     <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
-      <div id="app-drawer-root" className="flex max-w-315 shrink flex-col w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full space-y-1 relative md:bg-themewhite md:pb-10">
-        {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
-        <div className={`${navigation.isMobile
-          ? 'absolute top-0 left-0 right-0 z-30 pt-[env(safe-area-inset-top)] backdrop-blur-xs bg-themewhite/10'
-          : 'relative'
-          } h-13.75 w-full rounded-t-md flex justify-end`}
-          style={navigation.isMobile ? { height: 'calc(env(safe-area-inset-top, 0px) + 3.4375rem)' } : undefined}>
-          <NavTop
-            search={{
-              searchInput: search.searchInput,
-              onSearchChange: handleSearchChange,
-              onSearchFocus: navigation.expandSearchOnMobile,
-              onSearchClear: () => search.clearSearch(),
-              onSearchCollapse: () => navigation.setSearchExpanded(false),
-              searchInputRef: searchInputRef,
-              isSearchExpanded: navigation.isSearchExpanded,
-              onSearchExpandToggle: navigation.toggleSearchExpanded,
-            }}
-            import={{
-              isImportExpanded: navigation.isImportExpanded,
-              onImportExpandToggle: navigation.toggleImportExpanded,
-              onImportSubmit: handleInlineImportSubmit,
-              onImportScan: () => { navigation.setImportExpanded(false); setImportInitialView('scanning'); navigation.setShowNoteImport(true); },
-              onImportImage: () => { navigation.setImportExpanded(false); setImportAutoPickImage(true); navigation.setShowNoteImport(true); },
-            }}
-            actions={{
-              onBackClick: handleBackClick,
-              onMenuClick: navigation.toggleMenu,
-              onImportClick: () => navigation.setShowNoteImport(true),
-              onKnowledgeBaseClick: handleKnowledgeBaseClick,
-              onSettingsClick: () => navigation.setShowSettings(true),
-              onInfoClick: navigation.toggleSymptomInfo,
-              onMessagesClick: handleMessagesClick,
-              onPropertyClick: handlePropertyClick,
-              onSupervisorClick: handleSupervisorClick,
-              onAdminClick: handleAdminClick,
-            }}
-            ui={{
-              showBack: navigation.shouldShowBackButton(!!search.searchInput.trim()),
-              showMenu: navigation.shouldShowMenuButton(!!search.searchInput.trim()),
-              dynamicTitle: title,
-              isMobile: navigation.isMobile,
-              isAlgorithmView: navigation.showQuestionCard,
-            }}
-          />
-        </div>
+      <div id="app-drawer-root" className="max-w-315 shrink w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full relative md:bg-themewhite md:pb-10">
 
-        {/* Content area — TC3 mode uses dedicated layouts; normal mode uses 2-column grid */}
-        <div className="md:flex-1 h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
-          {tc3Mode ? (
-            // TC3 mode: mobile wizard or desktop 2-column front/back layout
-            navigation.isMobile ? (
-              <TC3MobileWizard />
-            ) : (
-              <TC3DesktopLayout />
-            )
-          ) : (
-          <div
-            className={`h-full grid gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${navigation.mobileGridClass} md:grid-cols-[0.45fr_0.55fr]`}
-            {...(navigation.isMobile && navigation.isMobileColumnB ? swipe.touchHandlers : {})}
-          >
-            {/* Column A: Navigation carousel (ADTMC) */}
-            <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
-              <ColumnA onNavigate={handleNavigationClick} />
+        {/* Viewport strip — SideNav + content side by side, pans right to reveal nav */}
+        <animated.div
+          className="flex h-full"
+          style={navigation.isMobile ? {
+            width: `calc(100% + ${MENU_NAV_WIDTH}px)`,
+            transform: menuSlide.springX.to((x: number) => `translateX(${x - MENU_NAV_WIDTH}px)`),
+            willChange: 'transform',
+          } : { width: '100%' }}
+        >
+          {/* SideNav — same level, left of content */}
+          {navigation.isMobile && (
+            <div className="h-full shrink-0" style={{ width: MENU_NAV_WIDTH }}>
+              <SideNav
+                onClose={navigation.closeMenu}
+                onMenuItemClick={handleMenuItemClick}
+              />
             </div>
-
-            {/* Column B: Content — algorithm, search, or empty */}
-            <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
-              <div key={desktopContentKey} className="h-full animate-desktopContentIn md:pt-3">
-                {!navigation.isMobile && search.searchInput ? (
-                  <div className="h-full overflow-y-auto">
-                    <div className="px-2 min-h-full">
-                      <SearchResults
-                        results={search.searchResults}
-                        searchTerm={search.searchInput}
-                        onResultClick={handleNavigationClick}
-                        isSearching={search.isSearching}
-                      />
-                    </div>
-                  </div>
-                ) : navigation.selectedSymptom && navigation.showQuestionCard ? (
-                  <div className="h-full overflow-hidden">
-                    <ErrorBoundary>
-                    <AlgorithmPage
-                      key={`algo-${navigation.selectedSymptom.icon}`}
-                    />
-                    </ErrorBoundary>
-                  </div>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-secondary text-sm">
-                    Select a symptom to see algorithm
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
           )}
 
-          {/* Mobile search overlay — rendered on top of grid when searching */}
-          {navigation.isMobile && search.searchInput && (
-            <div className="absolute inset-0 z-20 bg-themewhite animate-fadeIn">
-              <div className="h-full overflow-y-auto">
-                <div className="px-2 min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
-                  <SearchResults
-                    results={search.searchResults}
-                    searchTerm={search.searchInput}
-                    onResultClick={handleNavigationClick}
-                    isSearching={search.isSearching}
-                  />
+          {/* Content — takes full viewport width */}
+          <div className="flex flex-col h-full flex-1 min-w-0 relative">
+          {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
+          <div className={`${navigation.isMobile
+            ? 'absolute top-0 left-0 right-0 z-30 pt-[env(safe-area-inset-top)] backdrop-blur-xs bg-themewhite/10'
+            : 'relative'
+            } h-13.75 w-full rounded-t-md flex justify-end`}
+            style={navigation.isMobile ? { height: 'calc(env(safe-area-inset-top, 0px) + 3.4375rem)' } : undefined}>
+            <NavTop
+              search={{
+                searchInput: search.searchInput,
+                onSearchChange: handleSearchChange,
+                onSearchFocus: navigation.expandSearchOnMobile,
+                onSearchClear: () => search.clearSearch(),
+                onSearchCollapse: () => navigation.setSearchExpanded(false),
+                searchInputRef: searchInputRef,
+                isSearchExpanded: navigation.isSearchExpanded,
+                onSearchExpandToggle: navigation.toggleSearchExpanded,
+              }}
+              import={{
+                isImportExpanded: navigation.isImportExpanded,
+                onImportExpandToggle: navigation.toggleImportExpanded,
+                onImportSubmit: handleInlineImportSubmit,
+                onImportScan: () => { setImportError(''); navigation.setImportExpanded(false); setImportInitialView('scanning'); navigation.setShowNoteImport(true); },
+                onImportImage: () => { setImportError(''); navigation.setImportExpanded(false); setImportAutoPickImage(true); navigation.setShowNoteImport(true); },
+                importError,
+              }}
+              actions={{
+                onBackClick: handleBackClick,
+                onMenuClick: navigation.toggleMenu,
+                onImportClick: () => navigation.setShowNoteImport(true),
+                onKnowledgeBaseClick: handleKnowledgeBaseClick,
+                onSettingsClick: () => navigation.setShowSettings(true),
+                onInfoClick: navigation.toggleSymptomInfo,
+                onMessagesClick: handleMessagesClick,
+                onPropertyClick: handlePropertyClick,
+                onSupervisorClick: handleSupervisorClick,
+                onAdminClick: handleAdminClick,
+                onLoRaClick: handleLoRaClick,
+              }}
+              ui={{
+                showBack: navigation.shouldShowBackButton(!!search.searchInput.trim()),
+                showMenu: navigation.shouldShowMenuButton(!!search.searchInput.trim()),
+                dynamicTitle: title,
+                isMobile: navigation.isMobile,
+                isAlgorithmView: navigation.showQuestionCard,
+              }}
+            />
+          </div>
+
+          {/* Content area — TC3 mode uses dedicated layouts; normal mode uses 2-column grid */}
+          <div className="md:flex-1 h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
+            {tc3Mode ? (
+              // TC3 mode: mobile wizard or desktop 2-column front/back layout
+              navigation.isMobile ? (
+                <TC3MobileWizard />
+              ) : (
+                <TC3DesktopLayout />
+              )
+            ) : (
+            <div
+              className={`h-full grid gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${navigation.mobileGridClass} md:grid-cols-[0.45fr_0.55fr]`}
+              {...(navigation.isMobile && navigation.isMobileColumnB ? swipe.touchHandlers : {})}
+            >
+              {/* Column A: Navigation carousel (ADTMC) */}
+              <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
+                <ColumnA
+                  onNavigate={handleNavigationClick}
+                  onEdgeDrag={navigation.isMobile ? menuSlide.onEdgeDrag : undefined}
+                  onEdgeDragEnd={navigation.isMobile ? menuSlide.onEdgeDragEnd : undefined}
+                />
+              </div>
+
+              {/* Column B: Content — algorithm, search, or empty */}
+              <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
+                <div key={desktopContentKey} className="h-full animate-desktopContentIn md:pt-3">
+                  {!navigation.isMobile && search.searchInput ? (
+                    <div className="h-full overflow-y-auto">
+                      <div className="px-2 min-h-full">
+                        <SearchResults
+                          results={search.searchResults}
+                          searchTerm={search.searchInput}
+                          onResultClick={handleNavigationClick}
+                          isSearching={search.isSearching}
+                        />
+                      </div>
+                    </div>
+                  ) : navigation.selectedSymptom && navigation.showQuestionCard ? (
+                    <div className="h-full overflow-hidden">
+                      <ErrorBoundary>
+                      <AlgorithmPage
+                        key={`algo-${navigation.selectedSymptom.icon}`}
+                      />
+                      </ErrorBoundary>
+                    </div>
+                  ) : (
+                    <div className="h-full flex items-center justify-center text-secondary text-sm">
+                      Select a symptom to see algorithm
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
+            )}
+
+            {/* Mobile search overlay — rendered on top of grid when searching */}
+            {navigation.isMobile && search.searchInput && (
+              <div className="absolute inset-0 z-20 bg-themewhite animate-fadeIn">
+                <div className="h-full overflow-y-auto">
+                  <div className="px-2 min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
+                    <SearchResults
+                      results={search.searchResults}
+                      searchTerm={search.searchInput}
+                      onResultClick={handleNavigationClick}
+                      isSearching={search.isSearching}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Menu backdrop — overlays content when menu is open, handles tap/drag to close */}
+          {navigation.isMobile && (
+            <animated.div
+              className="absolute inset-0 z-40 bg-black"
+              style={{
+                opacity: menuSlide.backdropOpacity,
+                pointerEvents: navigation.isMenuOpen ? 'auto' : 'none',
+                touchAction: navigation.isMenuOpen ? 'none' : 'auto',
+              }}
+              {...menuSlide.closeHandlers}
+            />
           )}
-        </div>
-        <SideNav
-          isOpen={navigation.isMenuOpen && navigation.isMobile}
-          onClose={navigation.closeMenu}
-          onMenuItemClick={handleMenuItemClick}
-        />
+          </div>
+        </animated.div>
+
+        {/* ── Drawers — outside the transform wrapper so position:fixed works correctly ── */}
         <ErrorBoundary>
         <Suspense fallback={null}>
         <NoteImport
@@ -516,6 +614,14 @@ function AppContent() {
         <PropertyDrawer
           isVisible={navigation.showPropertyDrawer}
           onClose={() => navigation.setShowPropertyDrawer(false)}
+        />
+        </Suspense>
+        </ErrorBoundary>
+        <ErrorBoundary>
+        <Suspense fallback={null}>
+        <LoRaDrawer
+          isVisible={navigation.showLoRaDrawer}
+          onClose={() => navigation.setShowLoRaDrawer(false)}
         />
         </Suspense>
         </ErrorBoundary>

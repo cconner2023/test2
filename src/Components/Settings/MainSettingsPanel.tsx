@@ -9,7 +9,6 @@ export interface MainSettingsPanelProps {
     onItemClick: (id: PanelId) => void;
     displayName: string;
     displaySub: string;
-    displayClinic?: string;
     onAvatarClick: () => void;
     onProfileClick: () => void;
     isConnected?: boolean;
@@ -20,7 +19,6 @@ export const MainSettingsPanel = ({
     onItemClick,
     displayName,
     displaySub,
-    displayClinic,
     onAvatarClick,
     onProfileClick,
     isConnected,
@@ -70,9 +68,6 @@ export const MainSettingsPanel = ({
                         >
                             <p className="text-base font-semibold text-primary md:text-[12pt]">{displayName}</p>
                             <p className="text-xs text-tertiary md:text-sm">{displaySub}</p>
-                            {displayClinic && (
-                                <p className="text-xs text-tertiary md:text-sm mt-0.5">{displayClinic}</p>
-                            )}
                         </button>
                         <ChevronRight size={20} className="text-tertiary/40 shrink-0 ml-2" />
                     </div>
@@ -127,7 +122,7 @@ export const MainSettingsPanel = ({
                                                rounded-lg px-2 py-2 border transition-all
                                                ${item.disabled
                                             ? 'border-tertiary/10 bg-themewhite2/50 opacity-50 cursor-not-allowed'
-                                            : 'border-tertiary/15 bg-themewhite2 hover:bg-themeblue2/10 hover:border-themeblue2/25 active:scale-[0.97] group'
+                                            : 'border-tertiary/15 bg-themewhite2 hover:bg-themeblue2/10 hover:border-themeblue2/25 active:scale-95 group'
                                         }`}
                                 >
                                     <div className={`relative ${item.disabled ? 'text-tertiary/40' : item.color} ${!item.disabled ? 'group-hover:scale-110' : ''} transition-transform`}>

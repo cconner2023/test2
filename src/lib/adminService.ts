@@ -555,17 +555,12 @@ export async function createClinic(data: {
  * Adds `clinicId` to every clinic in `added`, removes it from every clinic in `removed`.
  */
 async function syncAssociatedClinics(clinicId: string, removed: string[], added: string[]) {
-  // Remove this clinic from clinics that were un-associated
+  // Disassociate via RPC (bi-directional, audited, marks invites as revoked)
   for (const peerId of removed) {
-    const { data: peer } = await supabase
-      .from('clinics')
-      .select('associated_clinic_ids')
-      .eq('id', peerId)
-      .single()
-    if (peer) {
-      const updated = (peer.associated_clinic_ids || []).filter((id: string) => id !== clinicId)
-      await supabase.from('clinics').update({ associated_clinic_ids: updated }).eq('id', peerId)
-    }
+    await supabase.rpc('disassociate_clinic', {
+      p_clinic_id: clinicId,
+      p_peer_clinic_id: peerId,
+    })
   }
   // Add this clinic to newly associated clinics
   for (const peerId of added) {
@@ -701,8 +696,9 @@ export async function updateUserProfile(
     const { data: { user: currentUser } } = await supabase.auth.getUser()
     if (!currentUser) return fail('Not authenticated')
 
-    const { error } = await supabase.rpc('admin_update_profile', {
+    const { error } = await supabase.rpc('update_user_profile', {
       p_target_user_id: userId,
+      p_as_role: 'dev',
       p_first_name: profileData.firstName || undefined,
       p_last_name: profileData.lastName || undefined,
       p_middle_initial: profileData.middleInitial ?? undefined,

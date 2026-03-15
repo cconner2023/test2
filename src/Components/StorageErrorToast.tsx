@@ -45,6 +45,7 @@ const StorageErrorToast: React.FC<StorageErrorToastProps> = ({ message, onDismis
                     setTimeout(onDismiss, UI_TIMING.SLIDE_ANIMATION);
                 }}
                 role="alert"
+                aria-live="assertive"
             >
                 <div className="w-10 h-10 rounded-full bg-themeredred/15 flex items-center justify-center flex-shrink-0">
                     <AlertTriangle className="h-5 w-5 text-themeredred" />

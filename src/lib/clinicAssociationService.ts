@@ -134,26 +134,24 @@ export async function rejectInvite(
   }
 }
 
-/** Emergency association — bypasses the invite flow with a justification. */
-export async function emergencyAssociate(
-  peerClinicId: string,
-  justification: string
+/** Revoke an accepted clinic association, removing the cross-clinic link. */
+export async function revokeAssociation(
+  inviteId: string
 ): Promise<ServiceResult> {
   try {
-    const { error } = await supabase.rpc('emergency_associate_clinic', {
-      p_peer_clinic_id: peerClinicId,
-      p_justification: justification,
+    const { error } = await supabase.rpc('revoke_clinic_association', {
+      p_invite_id: inviteId,
     })
 
     if (error) {
-      logger.error('Failed to create emergency association:', error.message)
+      logger.error('Failed to revoke association:', error.message)
       return fail(error.message)
     }
 
     return succeed()
   } catch (error) {
     const msg = rpcError(error)
-    logger.error('Failed to create emergency association:', msg)
+    logger.error('Failed to revoke association:', msg)
     return fail(msg)
   }
 }

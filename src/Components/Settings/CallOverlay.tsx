@@ -85,7 +85,7 @@ export function CallOverlay() {
   const isVideo = callMode === 'video'
 
   return (
-    <div className="fixed inset-0 z-[100] bg-gray-900/95 flex flex-col items-center justify-between py-20 px-6">
+    <div className="fixed inset-0 z-[100] bg-black/95 flex flex-col items-center justify-between py-20 px-6">
       {/* Video: remote stream full-area background */}
       {isVideo && isActive && (
         <div className="absolute inset-0 z-0">
@@ -98,10 +98,10 @@ export function CallOverlay() {
 
       {/* Video: local PiP overlay (bottom-right, above controls) */}
       {isVideo && isActive && (
-        <div className="absolute top-4 right-4 z-10 w-28 h-40 rounded-xl overflow-hidden bg-gray-800 shadow-lg border border-white/10">
+        <div className="absolute top-4 right-4 z-10 w-28 h-40 rounded-xl overflow-hidden bg-tertiary/80 shadow-lg border border-white/10">
           {isVideoOff ? (
             <div className="w-full h-full flex items-center justify-center">
-              <VideoOff size={24} className="text-gray-500" />
+              <VideoOff size={24} className="text-tertiary" />
             </div>
           ) : (
             <VideoElement
@@ -126,7 +126,7 @@ export function CallOverlay() {
         <h2 className={`text-xl font-semibold text-white ${isVideo && isActive ? 'drop-shadow-lg' : ''}`}>
           {peer.displayName}
         </h2>
-        <p className={`text-sm ${isVideo && isActive ? 'text-white/80 drop-shadow-lg' : 'text-gray-400'}`}>
+        <p className={`text-sm ${isVideo && isActive ? 'text-white/80 drop-shadow-lg' : 'text-tertiary'}`}>
           {status === 'connected' ? formatElapsed(elapsed) : statusText(status, direction, endReason, callMode)}
         </p>
       </div>
@@ -138,10 +138,10 @@ export function CallOverlay() {
           <button
             onClick={() => actions?.toggleMute()}
             className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors
-                       ${isMuted ? 'bg-red-500/20' : 'bg-tertiary/80'}`}
+                       ${isMuted ? 'bg-themeredred/20' : 'bg-tertiary/80'}`}
           >
             {isMuted ? (
-              <MicOff size={24} className="text-red-400" />
+              <MicOff size={24} className="text-themeredred" />
             ) : (
               <Mic size={24} className="text-white" />
             )}
@@ -153,10 +153,10 @@ export function CallOverlay() {
           <button
             onClick={() => actions?.toggleVideo()}
             className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors
-                       ${isVideoOff ? 'bg-red-500/20' : 'bg-tertiary/80'}`}
+                       ${isVideoOff ? 'bg-themeredred/20' : 'bg-tertiary/80'}`}
           >
             {isVideoOff ? (
-              <VideoOff size={24} className="text-red-400" />
+              <VideoOff size={24} className="text-themeredred" />
             ) : (
               <Video size={24} className="text-white" />
             )}
@@ -167,7 +167,7 @@ export function CallOverlay() {
         {isIncoming && isRinging && (
           <button
             onClick={() => actions?.acceptCall()}
-            className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center
+            className="w-16 h-16 rounded-full bg-themegreen flex items-center justify-center
                        active:scale-95 transition-transform"
           >
             {isVideo ? (
@@ -188,7 +188,7 @@ export function CallOverlay() {
                 actions?.hangUp()
               }
             }}
-            className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center
+            className="w-16 h-16 rounded-full bg-themeredred flex items-center justify-center
                        active:scale-95 transition-transform"
           >
             <PhoneOff size={28} className="text-white" />

@@ -8,6 +8,7 @@ interface UseSwipeGestureProps {
   onOpen: () => void
   onClose: () => void
   onTap?: () => void
+  onLongPress?: (x: number, y: number) => void
 }
 
 export function useSwipeGesture({
@@ -17,6 +18,7 @@ export function useSwipeGesture({
   onOpen,
   onClose,
   onTap,
+  onLongPress,
 }: UseSwipeGestureProps) {
   const rowRef = useRef<HTMLDivElement>(null)
   const touchRef = useRef<{
@@ -24,8 +26,10 @@ export function useSwipeGesture({
     startY: number
     swiping: boolean
     dirDecided: boolean
+    longPressFired: boolean
   } | null>(null)
   const wasTouchRef = useRef(false)
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const openThreshold = actionWidth * 0.3
 
@@ -40,11 +44,30 @@ export function useSwipeGesture({
     snapTo(isOpen ? -actionWidth : 0)
   }, [isOpen, snapTo, actionWidth])
 
+  const clearLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }, [])
+
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     wasTouchRef.current = true
     const t = e.touches[0]
-    touchRef.current = { startX: t.clientX, startY: t.clientY, swiping: false, dirDecided: false }
-  }, [])
+    touchRef.current = { startX: t.clientX, startY: t.clientY, swiping: false, dirDecided: false, longPressFired: false }
+    clearLongPress()
+    if (onLongPress) {
+      const x = t.clientX
+      const y = t.clientY
+      longPressTimerRef.current = setTimeout(() => {
+        const state = touchRef.current
+        if (state && !state.swiping && !state.dirDecided) {
+          state.longPressFired = true
+          onLongPress(x, y)
+        }
+      }, 500)
+    }
+  }, [onLongPress, clearLongPress])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     const state = touchRef.current
@@ -56,6 +79,7 @@ export function useSwipeGesture({
     if (!state.dirDecided) {
       if (Math.abs(dx) < GESTURE_THRESHOLDS.DIRECTION_LOCK && Math.abs(dy) < GESTURE_THRESHOLDS.DIRECTION_LOCK) return
       state.dirDecided = true
+      clearLongPress()
       if (Math.abs(dy) > Math.abs(dx)) { touchRef.current = null; return }
       if (!enabled) { touchRef.current = null; return }
       state.swiping = true
@@ -69,12 +93,15 @@ export function useSwipeGesture({
       el.style.transition = 'none'
       el.style.transform = `translateX(${offset}px)`
     }
-  }, [isOpen, enabled, actionWidth])
+  }, [isOpen, enabled, actionWidth, clearLongPress])
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    clearLongPress()
     const state = touchRef.current
     if (!state) return
     touchRef.current = null
+
+    if (state.longPressFired) return
 
     if (state.swiping) {
       const dx = e.changedTouches[0].clientX - state.startX
@@ -90,12 +117,13 @@ export function useSwipeGesture({
       if (isOpen) { snapTo(0); onClose() }
       else { onTap?.() }
     }
-  }, [isOpen, snapTo, onOpen, onClose, onTap, actionWidth, openThreshold])
+  }, [isOpen, snapTo, onOpen, onClose, onTap, actionWidth, openThreshold, clearLongPress])
 
   const handleTouchCancel = useCallback(() => {
+    clearLongPress()
     touchRef.current = null
     snapTo(isOpen ? -actionWidth : 0)
-  }, [isOpen, snapTo, actionWidth])
+  }, [isOpen, snapTo, actionWidth, clearLongPress])
 
   const handleClick = useCallback(() => {
     if (wasTouchRef.current) { wasTouchRef.current = false; return }

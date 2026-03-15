@@ -24,6 +24,8 @@ import type { SealedEnvelope } from '../lib/signal/sealedSender'
 import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { SyncMessagePayload } from '../lib/signal/transportTypes'
 import { parseMessageContent } from '../lib/signal/messageContent'
+import { errorBus } from '../lib/errorBus'
+import { ErrorCode } from '../lib/errorCodes'
 
 const logger = createLogger('RealtimeSignal')
 
@@ -233,10 +235,10 @@ export function useSignalMessages({
           if (decrypted.messageType === 'delete') {
             try {
               const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
-              await deleteMessagesByOriginIdFromDb(originIds).catch(() => {})
+              await deleteMessagesByOriginIdFromDb(originIds).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useSignalMessages.catchUp', message: 'Failed to delete messages from local DB', timestamp: Date.now(), metadata: { error: e } }))
               onDeleteRef.current?.(originIds)
-              hardDeleteByOriginId(originIds).catch(() => {})
-              await hardDeleteMessages([decrypted.id]).catch(() => {})
+              hardDeleteByOriginId(originIds).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.catchUp', message: 'Failed to hard-delete origin messages from server', timestamp: Date.now(), metadata: { error: e } }))
+              await hardDeleteMessages([decrypted.id]).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.catchUp', message: 'Failed to hard-delete processed message from server', timestamp: Date.now(), metadata: { error: e } }))
               if (userIdRef.current) scheduleBackup(userIdRef.current)
             } catch { /* ignore parse errors */ }
           } else {
@@ -247,7 +249,7 @@ export function useSignalMessages({
 
       // Mark all processed rows as read so they aren't re-fetched
       if (processedRowIds.length > 0) {
-        markMessagesRead(processedRowIds).catch(() => {})
+        markMessagesRead(processedRowIds).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.catchUp', message: 'Failed to mark catch-up messages as read', timestamp: Date.now(), metadata: { error: e } }))
       }
     })()
   }, [isAuthenticated, userId, localDeviceId, catchUpTrigger])
@@ -270,10 +272,10 @@ export function useSignalMessages({
         if (decrypted.messageType === 'delete') {
           try {
             const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
-            deleteMessagesByOriginIdFromDb(originIds).catch(() => {})
+            deleteMessagesByOriginIdFromDb(originIds).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useSignalMessages.loRa', message: 'Failed to delete messages from local DB', timestamp: Date.now(), metadata: { error: e } }))
             onDeleteRef.current?.(originIds)
-            hardDeleteByOriginId(originIds).catch(() => {})
-            hardDeleteMessages([decrypted.id]).catch(() => {})
+            hardDeleteByOriginId(originIds).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.loRa', message: 'Failed to hard-delete origin messages from server', timestamp: Date.now(), metadata: { error: e } }))
+            hardDeleteMessages([decrypted.id]).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.loRa', message: 'Failed to hard-delete processed message from server', timestamp: Date.now(), metadata: { error: e } }))
             if (userIdRef.current) scheduleBackup(userIdRef.current)
           } catch { /* ignore parse errors */ }
           return
@@ -308,10 +310,10 @@ export function useSignalMessages({
         if (decrypted.messageType === 'delete') {
           try {
             const { originIds } = JSON.parse(decrypted.plaintext) as { originIds: string[] }
-            deleteMessagesByOriginIdFromDb(originIds).catch(() => {})
+            deleteMessagesByOriginIdFromDb(originIds).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useSignalMessages.realtime', message: 'Failed to delete messages from local DB', timestamp: Date.now(), metadata: { error: e } }))
             onDeleteRef.current?.(originIds)
-            hardDeleteByOriginId(originIds).catch(() => {})
-            hardDeleteMessages([decrypted.id]).catch(() => {})
+            hardDeleteByOriginId(originIds).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.realtime', message: 'Failed to hard-delete origin messages from server', timestamp: Date.now(), metadata: { error: e } }))
+            hardDeleteMessages([decrypted.id]).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.realtime', message: 'Failed to hard-delete processed message from server', timestamp: Date.now(), metadata: { error: e } }))
             if (userIdRef.current) scheduleBackup(userIdRef.current)
           } catch { /* ignore parse errors */ }
           return

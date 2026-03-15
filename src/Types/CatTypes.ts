@@ -90,6 +90,6 @@ export interface sideMenuDataType {
     text: string,
     icon: string,
     action: string,
-    gateKey?: 'authenticated' | 'property' | 'supervisor' | 'admin',
+    gateKey?: 'authenticated' | 'property' | 'supervisor' | 'admin' | 'lora',
     badge?: boolean
 }

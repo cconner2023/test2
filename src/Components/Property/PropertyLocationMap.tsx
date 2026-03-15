@@ -1152,7 +1152,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                 <button
                   key={location.id}
                   onClick={() => tag ? handleZoneTap(location.id) : store.selectZone(location.id)}
-                  className="rounded-lg border border-themeblue3/20 bg-themeblue3/5 overflow-hidden active:scale-[0.97] transition-all group relative"
+                  className="rounded-lg border border-themeblue3/20 bg-themeblue3/5 overflow-hidden active:scale-95 transition-all group relative"
                 >
                   {location.photo_data ? (
                     <img src={location.photo_data} alt={location.name} className="w-full h-16 object-cover" draggable={false} />
@@ -1177,7 +1177,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
                 <button
                   key={item.id}
                   onClick={() => onSelectItem?.(item)}
-                  className="rounded-lg border border-tertiary/15 bg-themewhite2 overflow-hidden active:scale-[0.97] transition-all"
+                  className="rounded-lg border border-tertiary/15 bg-themewhite2 overflow-hidden active:scale-95 transition-all"
                 >
                   {item.photo_url ? (
                     <img src={item.photo_url} alt={item.name} className="w-full h-16 object-cover" draggable={false} />

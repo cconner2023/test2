@@ -44,6 +44,7 @@ const CLOSE_ALL_DRAWERS = {
     trainingDrawerTaskId: null as string | null,
     showMessagesDrawer: false,
     showPropertyDrawer: false,
+    showLoRaDrawer: false,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     isMenuOpen: false,
@@ -70,6 +71,7 @@ interface NavigationState {
     trainingDrawerTaskId: string | null
     showMessagesDrawer: boolean
     showPropertyDrawer: boolean
+    showLoRaDrawer: boolean
     showAdminDrawer: boolean
     showSupervisorDrawer: boolean
     isMobile: boolean
@@ -99,6 +101,7 @@ interface NavigationActions {
     setShowTrainingDrawer: (taskId: string | null) => void
     setShowMessagesDrawer: (show: boolean) => void
     setShowPropertyDrawer: (show: boolean) => void
+    setShowLoRaDrawer: (show: boolean) => void
     setShowAdminDrawer: (show: boolean) => void
     setShowSupervisorDrawer: (show: boolean) => void
     openWriteNote: (data: WriteNoteData) => void
@@ -130,6 +133,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     trainingDrawerTaskId: null,
     showMessagesDrawer: false,
     showPropertyDrawer: false,
+    showLoRaDrawer: false,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
     isMobile: typeof window !== 'undefined'
@@ -303,6 +307,12 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
         ...PRESERVED_FIELDS(s),
         showPropertyDrawer: show,
+    })),
+
+    setShowLoRaDrawer: (show) => set((s) => ({
+        ...(show ? CLOSE_ALL_DRAWERS : {}),
+        ...PRESERVED_FIELDS(s),
+        showLoRaDrawer: show,
     })),
 
     setShowAdminDrawer: (show) => set((s) => ({
