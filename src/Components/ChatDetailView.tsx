@@ -168,7 +168,7 @@ export function ChatDetailView({
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const { keyboardHeight, isKeyboardOpen } = useIOSKeyboard()
+  const { isKeyboardOpen } = useIOSKeyboard()
 
   const messages = conversations[conversationId] ?? []
 
@@ -506,7 +506,7 @@ export function ChatDetailView({
 
   if (activeThreadId) {
     return (
-      <div className="flex flex-col h-full relative" style={isKeyboardOpen ? { height: `calc(100% - ${keyboardHeight}px)` } : undefined}>
+      <div className="flex flex-col h-full relative">
         <div className="sticky top-0 z-10 shrink-0 px-4 py-2.5 flex items-center gap-3 backdrop-blur-xl bg-themewhite3/80 md:backdrop-blur-none md:bg-transparent">
           <button onClick={() => setActiveThreadId(null)} className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
             <ArrowLeft size={18} className="text-tertiary" />
@@ -535,7 +535,7 @@ export function ChatDetailView({
   // ── Main view ───────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-full relative" style={isKeyboardOpen ? { height: `calc(100% - ${keyboardHeight}px)` } : undefined}>
+    <div className="flex flex-col h-full relative">
       {mobileHeader}
       {desktopHeader}
       {renderMessageList(mainViewMessages, emptyText)}
