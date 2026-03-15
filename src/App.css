@@ -139,15 +139,15 @@ input, textarea, [contenteditable="true"] {
 }
 
 
-html, body {
-  position: fixed;
-  inset: 0;
-  overflow: hidden !important;
-  overscroll-behavior: none !important;
-}
-
 body {
   background-color: var(--color-themewhite);
+  width: 100vw;
+}
+
+html {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+  -webkit-overflow-scrolling: auto !important;
 }
 
 input, select, textarea {
