@@ -1,13 +1,15 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, Compass, Move, MapPin, Route, Pencil, Trash2, Check, X, Save } from 'lucide-react';
+import { ChevronLeft, Compass, Move, MapPin, Route, Pencil, Trash2, Check, X } from 'lucide-react';
 import { LoadingSpinner } from '../LoadingSpinner';
 import { forward } from 'mgrs';
 import { BaseDrawer } from '../BaseDrawer';
+import { HeaderPill, PillButton } from '../HeaderPill';
 import { ContentWrapper } from '../Settings/ContentWrapper';
 import { SearchInput } from '../SearchInput';
 import { ErrorDisplay } from '../ErrorDisplay';
 import { useGeolocation } from '../../Hooks/useGeolocation';
+import { useIsMobile } from '../../Hooks/useIsMobile';
 import { useAuth } from '../../Hooks/useAuth';
 import { getOverlays, saveOverlay, deleteOverlay } from '../../lib/mapOverlayService';
 import type { OverlayFeature, DrawMode } from '../../Types/MapOverlayTypes';
@@ -40,6 +42,7 @@ function featureMgrs(feature: OverlayFeature): string {
 }
 
 export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
+  const isMobile = useIsMobile();
   const { user, clinicId } = useAuth();
 
   const [view, setView] = useState<ViewState>('list');
@@ -252,18 +255,59 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     setDrawMode('pan');
   }, []);
 
+  const handleSaveConfirm = useCallback(async () => {
+    if (!overlayId || !user || !clinicId) return;
+    const name = overlayName.trim();
+    if (!name) return;
+
+    const result = await saveOverlay({
+      overlayId,
+      clinicId,
+      userId: user.id,
+      name,
+      center: mapCenter,
+      zoom: mapZoom,
+      features,
+    });
+
+    if (result.ok) {
+      setOverlays(prev => {
+        const idx = prev.findIndex(o => o.id === result.data.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = result.data;
+          return next;
+        }
+        return [...prev, result.data];
+      });
+      setSavingOverlayName(false);
+    } else {
+      setSaveError(result.error);
+    }
+  }, [overlayId, user, clinicId, overlayName, mapCenter, mapZoom, features]);
+
+  const handleSaveClick = useCallback(() => {
+    if (!overlayName.trim()) {
+      setSavingOverlayName(true);
+      return;
+    }
+    handleSaveConfirm();
+  }, [overlayName, handleSaveConfirm]);
+
   const handleToggleEditing = useCallback(() => {
     if (isEditing) {
       if (drawMode === 'route' && inProgressFeatureId.current) {
         finishRoute();
       }
+      // Save on close — batch changes
+      handleSaveClick();
       setDrawMode('pan');
       setSelectedFeatureId(null);
       setNamingFeatureId(null);
       setEditingFeatureId(null);
     }
     setIsEditing(prev => !prev);
-  }, [isEditing, drawMode, finishRoute]);
+  }, [isEditing, drawMode, finishRoute, handleSaveClick]);
 
   // ── Feature click ──
   const handleFeatureClick = useCallback((featureId: string) => {
@@ -313,46 +357,6 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     setSelectedFeatureId(null);
   }, [selectedFeatureId]);
 
-  // ── Save overlay ──
-  const handleSaveClick = useCallback(() => {
-    if (!overlayName.trim()) {
-      setSavingOverlayName(true);
-      return;
-    }
-    handleSaveConfirm();
-  }, [overlayName]);
-
-  const handleSaveConfirm = useCallback(async () => {
-    if (!overlayId || !user || !clinicId) return;
-    const name = overlayName.trim();
-    if (!name) return;
-
-    const result = await saveOverlay({
-      overlayId,
-      clinicId,
-      userId: user.id,
-      name,
-      center: mapCenter,
-      zoom: mapZoom,
-      features,
-    });
-
-    if (result.ok) {
-      setOverlays(prev => {
-        const idx = prev.findIndex(o => o.id === result.data.id);
-        if (idx >= 0) {
-          const next = [...prev];
-          next[idx] = result.data;
-          return next;
-        }
-        return [...prev, result.data];
-      });
-      setSavingOverlayName(false);
-    } else {
-      setSaveError(result.error);
-    }
-  }, [overlayId, user, clinicId, overlayName, mapCenter, mapZoom, features]);
-
   // ── Search handler ──
   const handleSearchSubmit = useCallback(async () => {
     if (!searchQuery.trim() || searchPending) return;
@@ -381,6 +385,7 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     <BaseDrawer
       isVisible={isVisible}
       onClose={onClose}
+      mobileFullScreen
       fullHeight="95dvh"
       header={view === 'list' ? {
         title: 'Map Overlay',
@@ -391,6 +396,20 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
         {/* ── List view ── */}
         {view === 'list' && (
           <div className="flex flex-col h-full">
+            {/* Mobile blurred header */}
+            {isMobile && (
+              <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center backdrop-blur-xl bg-themewhite3/80">
+                <HeaderPill>
+                  <PillButton icon={Compass} onClick={handleOpenConverter} label="MGRS" />
+                </HeaderPill>
+                <p className="flex-1 text-sm font-medium text-primary truncate text-center mx-3">
+                  Map Overlay
+                </p>
+                <HeaderPill>
+                  <PillButton icon={X} onClick={onClose} label="Close" />
+                </HeaderPill>
+              </div>
+            )}
             {loading ? (
               <div className="flex-1 flex items-center justify-center">
                 <LoadingSpinner size="lg" className="text-themeblue3" />
@@ -403,122 +422,136 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                 onNewOverlay={handleNewOverlay}
               />
             )}
-            <div className="px-4 pb-6">
-              <button
-                type="button"
-                onClick={handleOpenConverter}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
-                  border border-tertiary/15 bg-themewhite2 text-sm font-medium text-secondary
-                  active:scale-95 transition-all duration-300"
-              >
-                <Compass size={16} />
-                MGRS Converter
-              </button>
-            </div>
+            {!isMobile && (
+              <div className="px-4 pb-6">
+                <button
+                  type="button"
+                  onClick={handleOpenConverter}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl
+                    border border-tertiary/15 bg-themewhite2 text-sm font-medium text-secondary
+                    active:scale-95 transition-all duration-300"
+                >
+                  <Compass size={16} />
+                  MGRS Converter
+                </button>
+              </div>
+            )}
           </div>
         )}
 
         {/* ── Viewer ── */}
         {view === 'viewer' && (
-          <div className="flex flex-col h-full">
+          <div className="flex flex-col h-full relative">
             {/* Error feedback */}
             {saveError && (
-              <div className="px-4 pt-2">
+              <div className={`px-4 pt-2 ${isMobile ? 'absolute top-14 left-0 right-0 z-[1002]' : ''}`}>
                 <ErrorDisplay type="error" message={saveError} />
               </div>
             )}
 
             {/* Sub-header: back + search/spacer + toolbar pill */}
-            <div className="flex items-center gap-2 px-3 py-2 border-b border-tertiary/10">
-              <button
-                type="button"
-                onClick={handleBack}
-                className="p-1.5 shrink-0 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
-                aria-label="Back to list"
-              >
-                <ChevronLeft size={20} className="text-tertiary" />
-              </button>
+            <div className={
+              isMobile
+                ? 'absolute top-0 left-0 right-0 z-[1001] flex items-center gap-2 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))]'
+                : 'flex items-center gap-2 px-3 py-2 border-b border-tertiary/10'
+            }>
+              {isMobile ? (
+                <HeaderPill>
+                  <PillButton icon={ChevronLeft} onClick={handleBack} label="Back to list" />
+                </HeaderPill>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="p-1.5 shrink-0 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
+                  aria-label="Back to list"
+                >
+                  <ChevronLeft size={20} className="text-tertiary" />
+                </button>
+              )}
 
-              {/* Search — hidden when toolbar is expanded */}
-              {!isEditing && (
+              {/* Search — collapses when toolbar is expanded */}
+              <animated.div
+                className="min-w-0 overflow-hidden"
+                style={{
+                  flex: toolbarSpring.progress.to((p: number) => `${1 - p} 1 0%`),
+                  opacity: toolbarSpring.progress.to((p: number) => 1 - p),
+                }}
+              >
                 <SearchInput
                   value={searchQuery}
                   onChange={setSearchQuery}
                   onSubmit={handleSearchSubmit}
                   placeholder="Address, grid, or lat/lng..."
-                  className="flex-1"
+                  className="w-full"
                 />
-              )}
-              {isEditing && <div className="flex-1" />}
+              </animated.div>
 
-              {/* Toolbar pill — right side, expands leftward */}
-              <div className="relative shrink-0">
+              {/* Toolbar pill — right side, expands to fill search area */}
+              <animated.div
+                className="relative"
+                style={{
+                  flex: toolbarSpring.progress.to((p: number) => `${p} 0 auto`),
+                }}
+              >
                 <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 flex items-center shadow-sm">
+                  {/* Tools — Pan (left anchor) through Save (right anchor), spread evenly */}
                   <animated.div
-                    className="flex items-center overflow-hidden"
+                    className="flex items-center overflow-hidden justify-between"
                     style={{
-                      maxWidth: toolbarSpring.progress.to((p: number) => `${p * 260}px`),
+                      flex: toolbarSpring.progress.to((p: number) => `${p} 1 0%`),
+                      maxWidth: toolbarSpring.progress.to((p: number) => `${p * 600}px`),
                       opacity: toolbarSpring.progress,
                     }}
                   >
-                    {/* Pan */}
+                    {/* Pan — left anchor */}
                     <button
                       onClick={() => handleModeChange('pan')}
-                      className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'pan' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                      className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'pan' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
                       title="Pan"
                     >
-                      <Move size={15} />
+                      <Move size={18} />
                     </button>
                     {/* Drop Pin */}
                     <button
                       onClick={() => handleModeChange('pin')}
-                      className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'pin' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                      className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'pin' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
                       title="Drop pin"
                     >
-                      <MapPin size={15} />
+                      <MapPin size={18} />
                     </button>
                     {/* Route */}
                     <button
                       onClick={() => handleModeChange('route')}
-                      className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'route' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                      className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'route' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
                       title="Route"
                     >
-                      <Route size={15} />
+                      <Route size={18} />
                     </button>
-                    <div className="h-5 w-px shrink-0 bg-tertiary/15" />
                     {/* Edit */}
                     <button
                       onClick={() => handleModeChange('edit')}
-                      className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'edit' ? 'bg-themeyellow text-white' : 'text-tertiary hover:text-primary'}`}
+                      className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'edit' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
                       title="Edit feature"
                     >
-                      <Pencil size={15} />
+                      <Pencil size={18} />
                     </button>
                     {/* Delete — disabled until feature selected */}
                     <button
                       onClick={handleDeleteSelected}
                       disabled={!selectedFeatureId}
-                      className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
+                      className="w-11 h-11 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
                       title="Delete selected"
                     >
-                      <Trash2 size={15} />
-                    </button>
-                    <div className="h-5 w-px shrink-0 bg-tertiary/15" />
-                    {/* Save */}
-                    <button
-                      onClick={handleSaveClick}
-                      className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
-                      title="Save overlay"
-                    >
-                      <Save size={15} />
+                      <Trash2 size={18} />
                     </button>
                   </animated.div>
 
-                  {/* Anchored edit/check toggle */}
+                  {/* Edit/Save toggle — always anchored far right */}
                   <button
                     onClick={handleToggleEditing}
-                    className={`w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all ${isEditing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
-                    title={isEditing ? 'Done' : 'Edit'}
+                    className={`w-11 h-11 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${isEditing ? 'bg-themegreen text-white' : 'text-tertiary hover:text-primary'}`}
+                    title={isEditing ? 'Save' : 'Edit'}
                   >
                     {isEditing ? <Check size={18} /> : <Pencil size={18} />}
                   </button>
@@ -593,7 +626,7 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                     </div>
                   </div>
                 )}
-              </div>
+              </animated.div>
             </div>
 
             {/* Map area */}
@@ -608,6 +641,7 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                 onMoveEnd={handleMoveEnd}
                 gpsPosition={gpsPosition}
                 showGrid={showGrid}
+                controlsTopOffset={isMobile ? 56 : 0}
               />
 
               {/* Search spinner overlay */}
@@ -620,7 +654,7 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
 
               {/* Route finish button */}
               {isRouteInProgress && (
-                <div className="absolute top-3 left-3 z-[1000]">
+                <div className={`absolute left-3 z-[1000] ${isMobile ? 'top-[68px]' : 'top-3'}`}>
                   <button
                     type="button"
                     onClick={finishRoute}
@@ -669,17 +703,29 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
         {/* ── Converter view ── */}
         {view === 'converter' && (
           <div className="flex flex-col h-full">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
-              <button
-                type="button"
-                onClick={handleBack}
-                className="p-1.5 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
-                aria-label="Back to list"
-              >
-                <ChevronLeft size={20} className="text-tertiary" />
-              </button>
-              <span className="text-sm font-medium text-primary">MGRS Converter</span>
-            </div>
+            {isMobile ? (
+              <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center backdrop-blur-xl bg-themewhite3/80">
+                <HeaderPill>
+                  <PillButton icon={ChevronLeft} onClick={handleBack} label="Back to list" />
+                </HeaderPill>
+                <p className="flex-1 text-sm font-medium text-primary truncate text-center mx-3">
+                  MGRS Converter
+                </p>
+                <div className="w-12 shrink-0" />
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-tertiary/10">
+                <button
+                  type="button"
+                  onClick={handleBack}
+                  className="p-1.5 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
+                  aria-label="Back to list"
+                >
+                  <ChevronLeft size={20} className="text-tertiary" />
+                </button>
+                <span className="text-sm font-medium text-primary">MGRS Converter</span>
+              </div>
+            )}
             <div className="flex-1 overflow-y-auto px-4 py-4">
               <MGRSConverter />
             </div>

@@ -280,11 +280,11 @@ export function ChatDetailView({
     || (allUnavailable && !isSelfChat)
 
   const canUploadImage = !activeThreadId && (
-    !requestFlow || requestFlow.status === 'accepted' || !!isSelfChat
+    !requestFlow || requestFlow.status === 'accepted' || requestFlow.status === 'none' || !!isSelfChat
   )
 
   const canSendVoice = !!sendVoice && !activeThreadId && (
-    !requestFlow || requestFlow.status === 'accepted' || !!isSelfChat
+    !requestFlow || requestFlow.status === 'accepted' || requestFlow.status === 'none' || !!isSelfChat
   )
 
   const placeholder = activeThreadId ? 'Reply in thread...'
@@ -466,8 +466,36 @@ export function ChatDetailView({
         msgs.map((msg, idx) => {
           const own = msg.senderId === userId
           const isThreadRoot = activeThreadId && msg.id === activeThreadId && idx === 0
+
+          // Date separator: show when the day changes between messages
+          let dateSeparator: React.ReactNode = null
+          const msgDate = new Date(msg.createdAt)
+          const prevDate = idx > 0 ? new Date(msgs[idx - 1].createdAt) : null
+          const showDate = idx === 0 || !prevDate
+            || msgDate.getFullYear() !== prevDate.getFullYear()
+            || msgDate.getMonth() !== prevDate.getMonth()
+            || msgDate.getDate() !== prevDate.getDate()
+          if (showDate) {
+            const today = new Date()
+            const yesterday = new Date()
+            yesterday.setDate(yesterday.getDate() - 1)
+            const isToday = msgDate.toDateString() === today.toDateString()
+            const isYesterday = msgDate.toDateString() === yesterday.toDateString()
+            const label = isToday ? 'Today'
+              : isYesterday ? 'Yesterday'
+              : msgDate.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
+            dateSeparator = (
+              <div className="flex items-center gap-3 my-3">
+                <div className="flex-1 border-b border-primary/8" />
+                <span className="text-[10px] font-medium text-tertiary/40 shrink-0">{label}</span>
+                <div className="flex-1 border-b border-primary/8" />
+              </div>
+            )
+          }
+
           return (
             <div key={msg.id}>
+              {dateSeparator}
               <MessageBubble
                 message={msg}
                 isOwn={own}

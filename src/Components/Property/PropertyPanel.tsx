@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
-import { Plus, Upload, Download, FileSpreadsheet, Eye, ArrowRightLeft, Trash2, AlertTriangle } from 'lucide-react'
+import { Plus, Upload, Download, FileSpreadsheet, Eye, ArrowRightLeft, Trash2, AlertTriangle, X, Check } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useProperty } from '../../Hooks/useProperty'
@@ -13,6 +13,8 @@ import { PropertyItemRow } from './PropertyItemRow'
 import { PropertyItemDetail } from './PropertyItemDetail'
 import { PropertyItemForm } from './PropertyItemForm'
 import { PropertyLocationTree } from './PropertyLocationTree'
+import { PropertyLocationList } from './PropertyLocationList'
+import type { PropertyLocationListHandle } from './PropertyLocationList'
 import { CustodyTransferForm } from './CustodyTransferForm'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
@@ -58,9 +60,13 @@ interface PropertyPanelProps {
   onRegisterAddLocation?: (trigger: () => void) => void
   /** Called whenever the active canvas location changes with edit/delete handlers for the drawer header */
   onRegisterLocationActions?: (actions: LocationEditActions | null) => void
+  /** Called when drill-down path changes so PropertyDrawer can update header */
+  onDrilldownChange?: (path: Array<{ id: string; name: string }>) => void
+  /** Ref to the PropertyLocationList so drawer can call popPath() imperatively */
+  locationListRef?: React.Ref<PropertyLocationListHandle>
 }
 
-export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '', onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onRegisterLocationActions }: PropertyPanelProps) {
+export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '', onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onRegisterLocationActions, onDrilldownChange, locationListRef }: PropertyPanelProps) {
   const { user } = useAuth()
   const property = useProperty()
   const showLoading = useMinLoadTime(property.isLoading)
@@ -528,7 +534,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
           <>
             {/* Mobile new-location inline form — triggered by header FolderPlus button */}
             {showNewLocation && (
-              <div className="px-4 py-3 border-b border-primary/10 bg-themewhite2/50">
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-primary/10 bg-themewhite2/50">
                 <input
                   type="text"
                   value={newLocationName}
@@ -539,38 +545,38 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
                   }}
                   placeholder="Location name"
                   autoFocus
-                  className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
+                  className="flex-1 min-w-0 px-3 py-2.5 rounded-lg text-primary text-base border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all placeholder:text-tertiary/30"
                 />
-                <div className="flex items-center gap-2 mt-2">
-                  <button
-                    onClick={() => setShowNewLocation(false)}
-                    className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleCreateLocation}
-                    disabled={!newLocationName.trim()}
-                    className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white disabled:opacity-30 active:scale-95 transition-all"
-                  >
-                    Create
-                  </button>
-                </div>
+                <button
+                  onClick={() => setShowNewLocation(false)}
+                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                >
+                  <X size={18} />
+                </button>
+                <button
+                  onClick={handleCreateLocation}
+                  disabled={!newLocationName.trim()}
+                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                >
+                  <Check size={18} />
+                </button>
               </div>
             )}
-            <PropertyLocationTree
+            <PropertyLocationList
+              ref={locationListRef}
               locations={visibleLocations}
               items={property.items}
               clinicName={clinicName}
-              onSelectLocation={handleTreeSelectLocation}
+              searchQuery={searchQuery}
               onSelectItem={handleSelectItem}
-              onMoveLocation={handleMoveLocation}
-              onMoveItem={handleMoveItem}
-              onSelectAll={handleSelectAllLocations}
-              allSelected={false}
               onEditLocation={(loc) => { setRenamingLocation({ id: loc.id, name: loc.name }) }}
               onDeleteLocation={(locId) => property.removeLocation(locId)}
               onDeleteItem={(item) => setPendingDelete({ kind: 'single', item })}
+              onViewOnMap={(locationId) => {
+                onMobileLocationViewChange?.(true)
+                setTimeout(() => mapRef.current?.navigateToZone(locationId), 60)
+              }}
+              onDrilldownChange={onDrilldownChange}
             />
           </>
         ) : (
@@ -741,7 +747,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
             </div>
           </div>
           {showNewLocation && (
-            <div className="shrink-0 px-6 py-3 border-b border-primary/10">
+            <div className="shrink-0 flex items-center gap-2 px-6 py-3 border-b border-primary/10">
               <input
                 type="text"
                 value={newLocationName}
@@ -752,27 +758,25 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
                 }}
                 placeholder="Location name"
                 autoFocus
-                className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
+                className="flex-1 min-w-0 px-3 py-2.5 rounded-lg text-primary text-base border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all placeholder:text-tertiary/30"
               />
-              <div className="flex items-center gap-2 mt-2">
-                <button
-                  onClick={() => setShowNewLocation(false)}
-                  className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateLocation}
-                  disabled={!newLocationName.trim()}
-                  className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white disabled:opacity-30 active:scale-95 transition-all"
-                >
-                  Create
-                </button>
-              </div>
+              <button
+                onClick={() => setShowNewLocation(false)}
+                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+              >
+                <X size={18} />
+              </button>
+              <button
+                onClick={handleCreateLocation}
+                disabled={!newLocationName.trim()}
+                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+              >
+                <Check size={18} />
+              </button>
             </div>
           )}
           {renamingLocation && (
-            <div className="shrink-0 px-6 py-3 border-b border-primary/10">
+            <div className="shrink-0 flex items-center gap-2 px-6 py-3 border-b border-primary/10">
               <input
                 type="text"
                 value={renamingLocation.name}
@@ -784,30 +788,28 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
                   }
                   if (e.key === 'Escape') setRenamingLocation(null)
                 }}
-                placeholder="Location name"
+                placeholder="Rename location"
                 autoFocus
-                className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary placeholder:text-tertiary/40 outline-none focus:ring-1 focus:ring-themeblue2/40 transition-all"
+                className="flex-1 min-w-0 px-3 py-2.5 rounded-lg text-primary text-base border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all placeholder:text-tertiary/30"
               />
-              <div className="flex items-center gap-2 mt-2">
-                <button
-                  onClick={() => setRenamingLocation(null)}
-                  className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => {
-                    if (renamingLocation.name.trim()) {
-                      property.editLocation(renamingLocation.id, { name: renamingLocation.name.trim() })
-                      setRenamingLocation(null)
-                    }
-                  }}
-                  disabled={!renamingLocation.name.trim()}
-                  className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white disabled:opacity-30 active:scale-95 transition-all"
-                >
-                  Rename
-                </button>
-              </div>
+              <button
+                onClick={() => setRenamingLocation(null)}
+                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+              >
+                <X size={18} />
+              </button>
+              <button
+                onClick={() => {
+                  if (renamingLocation.name.trim()) {
+                    property.editLocation(renamingLocation.id, { name: renamingLocation.name.trim() })
+                    setRenamingLocation(null)
+                  }
+                }}
+                disabled={!renamingLocation.name.trim()}
+                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+              >
+                <Check size={18} />
+              </button>
             </div>
           )}
           <div className="flex-1 overflow-y-auto">

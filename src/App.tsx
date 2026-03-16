@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react'
-import { animated } from '@react-spring/web'
+import { animated, to } from '@react-spring/web'
 import './App.css'
 import { NavTop } from './Components/NavTop'
 import { SideNav } from './Components/SideNav'
@@ -12,6 +12,7 @@ import { useSearch } from './Hooks/useSearch'
 import { useNavigation } from './Hooks/useNavigation'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
 import { useMenuSlide, MENU_NAV_WIDTH } from './Hooks/useMenuSlide'
+import { useMessagesSlide } from './Hooks/useMessagesSlide'
 import UpdateNotification from './Components/UpdateNotification'
 import InstallPrompt from './Components/InstallPrompt'
 import { ColumnA } from './Components/ColumnA'
@@ -94,6 +95,20 @@ function AppContent() {
   const [initialPeerId, setInitialPeerId] = useState<string | null>(null)
   const [initialGroupId, setInitialGroupId] = useState<string | null>(null)
   const [initialPeerName, setInitialPeerName] = useState<string | null>(null)
+
+  // ── Messages slide (mobile only — mirrors menuSlide from the right) ──
+  const handleMessagesClose = useCallback(() => {
+    navigation.setShowMessagesDrawer(false)
+    setInitialPeerId(null)
+    setInitialGroupId(null)
+    setInitialPeerName(null)
+  }, [navigation.setShowMessagesDrawer])
+
+  const messagesSlide = useMessagesSlide({
+    enabled: navigation.isMobile,
+    isOpen: navigation.showMessagesDrawer,
+    onClose: handleMessagesClose,
+  })
   const [updateVisible, setUpdateVisible] = useState(false)
   const [importInitialView, setImportInitialView] = useState<'input' | 'scanning' | undefined>(
     _initialViewParam === 'import' ? 'scanning' : undefined
@@ -402,12 +417,15 @@ function AppContent() {
     <div className='h-screen bg-themewhite md:bg-themewhite2 items-center flex justify-center overflow-hidden'>
       <div id="app-drawer-root" className="max-w-315 shrink w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full relative md:bg-themewhite md:pb-10">
 
-        {/* Viewport strip — SideNav + content side by side, pans right to reveal nav */}
+        {/* Viewport strip — SideNav + content side by side, pans to reveal nav or shift for messages */}
         <animated.div
           className="flex h-full"
           style={navigation.isMobile ? {
             width: `calc(100% + ${MENU_NAV_WIDTH}px)`,
-            transform: menuSlide.springX.to((x: number) => `translateX(${x - MENU_NAV_WIDTH}px)`),
+            transform: to(
+              [menuSlide.springX, messagesSlide.springProgress],
+              (menuX, msgP) => `translateX(${menuX - MENU_NAV_WIDTH - msgP * 80}px)`
+            ),
             willChange: 'transform',
           } : { width: '100%' }}
         >
@@ -556,8 +574,44 @@ function AppContent() {
               {...menuSlide.closeHandlers}
             />
           )}
+
+          {/* Messages backdrop — overlays content when messages is open */}
+          {navigation.isMobile && (
+            <animated.div
+              className="absolute inset-0 z-40 bg-black"
+              style={{
+                opacity: messagesSlide.backdropOpacity,
+                pointerEvents: navigation.showMessagesDrawer ? 'auto' : 'none',
+                touchAction: navigation.showMessagesDrawer ? 'none' : 'auto',
+              }}
+              {...messagesSlide.closeHandlers}
+            />
+          )}
           </div>
         </animated.div>
+
+        {/* Messages panel — slides over content from right (mobile only, always mounted) */}
+        {navigation.isMobile && (
+          <animated.div
+            className="absolute inset-0 z-50 overflow-hidden"
+            style={{
+              transform: messagesSlide.springProgress.to((p: number) => `translateX(${(1 - p) * 100}%)`),
+              willChange: 'transform',
+            }}
+          >
+            <ErrorBoundary>
+            <Suspense fallback={null}>
+            <MessagesDrawer
+              isVisible={navigation.showMessagesDrawer}
+              onClose={handleMessagesClose}
+              initialPeerId={initialPeerId}
+              initialGroupId={initialGroupId}
+              initialPeerName={initialPeerName}
+            />
+            </Suspense>
+            </ErrorBoundary>
+          </animated.div>
+        )}
 
         {/* ── Drawers — outside the transform wrapper so position:fixed works correctly ── */}
         <ErrorBoundary>
@@ -615,17 +669,20 @@ function AppContent() {
         />
         </Suspense>
         </ErrorBoundary>
-        <ErrorBoundary>
-        <Suspense fallback={null}>
-        <MessagesDrawer
-          isVisible={navigation.showMessagesDrawer}
-          onClose={() => { navigation.setShowMessagesDrawer(false); setInitialPeerId(null); setInitialGroupId(null); setInitialPeerName(null) }}
-          initialPeerId={initialPeerId}
-          initialGroupId={initialGroupId}
-          initialPeerName={initialPeerName}
-        />
-        </Suspense>
-        </ErrorBoundary>
+        {/* Messages — desktop only (mobile is in the viewport strip above) */}
+        {!navigation.isMobile && (
+          <ErrorBoundary>
+          <Suspense fallback={null}>
+          <MessagesDrawer
+            isVisible={navigation.showMessagesDrawer}
+            onClose={handleMessagesClose}
+            initialPeerId={initialPeerId}
+            initialGroupId={initialGroupId}
+            initialPeerName={initialPeerName}
+          />
+          </Suspense>
+          </ErrorBoundary>
+        )}
         <ErrorBoundary>
         <Suspense fallback={null}>
         <PropertyDrawer

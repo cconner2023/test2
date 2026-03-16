@@ -1,8 +1,8 @@
 import { useState, useMemo, useCallback } from 'react';
 import { X, Trash2, Copy, Check } from 'lucide-react';
 import { forward } from 'mgrs';
-import type { OverlayFeature, WaypointType, FeatureType } from '../../Types/MapOverlayTypes';
-import { WAYPOINT_LABELS, TACTICAL_COLORS } from '../../Types/MapOverlayTypes';
+import type { OverlayFeature } from '../../Types/MapOverlayTypes';
+import { TACTICAL_COLORS } from '../../Types/MapOverlayTypes';
 
 interface FeatureEditorProps {
   feature: OverlayFeature;
@@ -10,8 +10,6 @@ interface FeatureEditorProps {
   onDelete: () => void;
   onClose: () => void;
 }
-
-const WAYPOINT_TYPES = Object.keys(WAYPOINT_LABELS) as WaypointType[];
 
 function computeMgrs(geometry: [number, number][]): string {
   if (geometry.length === 0) return '';
@@ -30,10 +28,6 @@ export function FeatureEditor({ feature, onUpdate, onDelete, onClose }: FeatureE
 
   const handleLabelChange = useCallback((label: string) => {
     onUpdate({ ...feature, label, updated_at: new Date().toISOString() });
-  }, [feature, onUpdate]);
-
-  const handleWaypointTypeChange = useCallback((waypointType: WaypointType) => {
-    onUpdate({ ...feature, waypoint_type: waypointType, updated_at: new Date().toISOString() });
   }, [feature, onUpdate]);
 
   const handleColorChange = useCallback((color: string) => {
@@ -99,29 +93,6 @@ export function FeatureEditor({ feature, onUpdate, onDelete, onClose }: FeatureE
                 text-sm text-primary focus:border-themeblue2 focus:outline-none transition-all duration-300"
             />
           </div>
-
-          {/* Waypoint Type Picker */}
-          {feature.type === 'waypoint' && (
-            <div>
-              <label className="block text-xs font-medium text-secondary mb-1">Waypoint Type</label>
-              <div className="grid grid-cols-5 gap-1.5">
-                {WAYPOINT_TYPES.map((wt) => (
-                  <button
-                    key={wt}
-                    type="button"
-                    onClick={() => handleWaypointTypeChange(wt)}
-                    className={`px-2 py-1.5 rounded-md text-xs font-medium active:scale-95 transition-all duration-300
-                      ${feature.waypoint_type === wt
-                        ? 'bg-themeblue3 text-white'
-                        : 'bg-themewhite2 text-secondary hover:bg-themewhite2/80'
-                      }`}
-                  >
-                    {WAYPOINT_LABELS[wt]}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Color Picker */}
           <div>

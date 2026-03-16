@@ -4,10 +4,9 @@ import {
   Camera,
   ImagePlus,
   Check,
-  CheckCircle,
+  CircleX,
   X,
   RefreshCw,
-  Search,
 } from 'lucide-react'
 import bwipjs from 'bwip-js'
 import { useAuth } from '../../Hooks/useAuth'
@@ -38,6 +37,7 @@ interface StagedMember {
   rank?: string | null
   credential?: string | null
   email: string
+  alreadyCreated?: boolean
 }
 
 interface StagedClinic {
@@ -118,6 +118,7 @@ export function ClinicPanel({
   const [addRank, setAddRank] = useState('')
   const [addUic, setAddUic] = useState('')
   const [addTempPassword, setAddTempPassword] = useState('')
+  const [addIsSupervisor, setAddIsSupervisor] = useState(false)
   const [addFeedback, setAddFeedback] = useState<{ type: 'error' | 'success'; message: string } | null>(null)
   const addFeedbackTimer = useRef<ReturnType<typeof setTimeout>>(null)
 
@@ -364,14 +365,15 @@ export function ClinicPanel({
     setClinicUics(uicsArray)
     setClinicLocation(editLocation.trim() || null)
 
-    // 2. Batch add staged members
+    // 2. Batch add staged members (skip already-created — RPC already added them)
+    const needsAdd = stagedMembers.filter(m => !m.alreadyCreated)
     const memberResults = await Promise.allSettled(
-      stagedMembers.map(async (m, i) => {
+      needsAdd.map(async (m, i) => {
         const r = await addClinicMember(clinicId, m.userId)
         return { index: i, ...r }
       })
     )
-    const failedMembers = stagedMembers.filter((_, i) => {
+    const failedMembers = needsAdd.filter((_, i) => {
       const r = memberResults[i]
       return r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.success)
     })
@@ -459,6 +461,7 @@ export function ClinicPanel({
     setAddRank('')
     setAddUic('')
     setAddTempPassword('')
+    setAddIsSupervisor(false)
     setAddFeedback(null)
     setStagedMembers([])
     setStagedClinics([])
@@ -493,6 +496,9 @@ export function ClinicPanel({
     } else {
       setAddMode('create')
       setAddLookupResult(result)
+      if (profile?.component) {
+        setAddComponent(profile.component)
+      }
     }
   }, [addEmail, showAddFeedback])
 
@@ -518,16 +524,39 @@ export function ClinicPanel({
       component: addComponent || undefined,
       rank: addRank || undefined,
       uic: addUic || undefined,
+      isSupervisor: addIsSupervisor || undefined,
     })
     setAddSubmitting(false)
     if (result.success) {
-      showAddFeedback('success', `${addLastName} created and added`)
-      refreshMedics()
-      resetAddForm()
+      setStagedMembers(prev => [
+        ...prev,
+        {
+          userId: result.data?.userId ?? '',
+          firstName: addFirstName.trim(),
+          lastName: addLastName.trim(),
+          rank: addRank || null,
+          credential: addCredential || null,
+          email: addEmail.trim(),
+          alreadyCreated: true,
+        },
+      ])
+      setAddEmail('')
+      setAddMode('lookup')
+      setAddLookupResult(null)
+      setAddFirstName('')
+      setAddLastName('')
+      setAddMiddleInitial('')
+      setAddCredential('')
+      setAddComponent('')
+      setAddRank('')
+      setAddUic('')
+      setAddTempPassword('')
+      setAddIsSupervisor(false)
+      setAddFeedback(null)
     } else {
       showAddFeedback('error', result.error)
     }
-  }, [clinicId, addEmail, addTempPassword, addFirstName, addLastName, addMiddleInitial, addCredential, addComponent, addRank, addUic, refreshMedics, resetAddForm, showAddFeedback])
+  }, [clinicId, addEmail, addTempPassword, addFirstName, addLastName, addMiddleInitial, addCredential, addComponent, addRank, addUic, addIsSupervisor, showAddFeedback])
 
   const handleAddComponentChange = useCallback((val: string) => {
     setAddComponent(val)
@@ -688,64 +717,64 @@ export function ClinicPanel({
               <div className={`overflow-hidden transition-all duration-300 ease-out ${
                 clinicEditing ? 'max-h-150 opacity-100 mb-3' : 'max-h-0 opacity-0'
               }`}>
-                <div className="relative">
-                  <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-                    <button
-                      type="button"
-                      onClick={handleToggleScan}
-                      className="p-1.5 text-tertiary/50 hover:text-themeblue3 active:scale-95 transition-colors"
-                      title="Scan QR code"
-                    >
-                      <Camera size={18} />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handlePhotoUpload}
-                      className="p-1.5 text-tertiary/50 hover:text-themeblue3 active:scale-95 transition-colors"
-                      title="Upload QR photo"
-                    >
-                      <ImagePlus size={18} />
-                    </button>
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
+                    <div className="pl-2 shrink-0 flex items-center gap-0.5">
+                      <button
+                        type="button"
+                        onClick={handleToggleScan}
+                        className="p-1.5 text-tertiary/50 hover:text-themeblue3 active:scale-95 transition-colors"
+                        title="Scan QR code"
+                      >
+                        <Camera size={18} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handlePhotoUpload}
+                        className="p-1.5 text-tertiary/50 hover:text-themeblue3 active:scale-95 transition-colors"
+                        title="Upload QR photo"
+                      >
+                        <ImagePlus size={18} />
+                      </button>
+                    </div>
+                    <input
+                      type="text"
+                      value={joinCode}
+                      onChange={(e) =>
+                        setJoinCode(
+                          e.target.value
+                            .toUpperCase()
+                            .replace(/[^0-9A-Z]/g, '')
+                            .slice(0, 8),
+                        )
+                      }
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && joinCode.length > 0) handleStageClinicCode(joinCode)
+                        if (e.key === 'Escape') setJoinCode('')
+                      }}
+                      placeholder="Enter invite code"
+                      maxLength={8}
+                      className="w-full bg-transparent outline-none text-sm text-primary px-2.5 py-2.5 rounded-full min-w-0 font-mono tracking-[0.15em] placeholder:font-sans placeholder:tracking-normal placeholder:text-tertiary/30"
+                    />
                   </div>
-                  <input
-                    type="text"
-                    value={joinCode}
-                    onChange={(e) =>
-                      setJoinCode(
-                        e.target.value
-                          .toUpperCase()
-                          .replace(/[^0-9A-Z]/g, '')
-                          .slice(0, 8),
-                      )
-                    }
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && joinCode.length > 0) handleStageClinicCode(joinCode)
-                    }}
-                    placeholder="Enter invite code"
-                    maxLength={8}
-                    className="w-full rounded-full py-2.5 pl-22 pr-20 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary font-mono tracking-[0.15em] placeholder:font-sans placeholder:tracking-normal placeholder:text-tertiary/30 transition-all duration-300"
-                  />
-                  <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center">
-                    <div className={`overflow-hidden transition-all duration-200 ease-out ${joinCode ? 'max-w-8 opacity-100' : 'max-w-0 opacity-0'}`}>
+                  {joinCode && (
+                    <>
                       <button
                         type="button"
                         onClick={() => setJoinCode('')}
-                        className="p-1.5 text-tertiary/40 hover:text-primary active:scale-95 transition-colors"
+                        className="animate-spring-in shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
                       >
                         <X size={18} />
                       </button>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { if (joinCode) handleStageClinicCode(joinCode) }}
-                      disabled={!joinCode}
-                      className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
-                        joinCode ? 'bg-themeblue3 text-white active:scale-95' : 'bg-transparent text-tertiary/20'
-                      }`}
-                    >
-                      <CheckCircle size={joinCode ? 16 : 22} className="transition-all duration-200" />
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => handleStageClinicCode(joinCode)}
+                        className="animate-spring-in shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
+                      >
+                        <Check size={18} />
+                      </button>
+                    </>
+                  )}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -842,13 +871,13 @@ export function ClinicPanel({
                         onClick={clinicEditing ? () => handleToggleDeleteSelect(clinic.clinicId) : undefined}
                         className={`flex items-center gap-3 py-2 px-2 rounded-lg transition-colors ${
                           clinicEditing
-                            ? `cursor-pointer active:scale-95 ${isSelected ? 'ring-1 ring-inset ring-themeblue2/30 bg-themeblue2/5' : 'hover:bg-secondary/5'}`
+                            ? `cursor-pointer active:scale-95 ${isSelected ? 'ring-1 ring-inset ring-themeredred/30 bg-themeredred/5' : 'hover:bg-secondary/5'}`
                             : 'hover:bg-secondary/5'
                         }`}
                       >
                         {clinicEditing && isSelected ? (
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center bg-themeblue2 shrink-0">
-                            <Check size={14} className="text-white" />
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center bg-themeredred shrink-0">
+                            <CircleX size={14} className="text-white" />
                           </div>
                         ) : (
                           <div className="w-8 h-8 rounded-full flex items-center justify-center bg-tertiary/10 shrink-0">
@@ -885,65 +914,101 @@ export function ClinicPanel({
               </span>
             </div>
 
+            {/* Create new user — separate card when active */}
+            <div className={`overflow-hidden transition-all duration-300 ease-out ${
+              clinicEditing && addMode === 'create' ? 'max-h-[600px] opacity-100 mb-3' : 'max-h-0 opacity-0'
+            }`}>
+              <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3 space-y-3">
+                <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">New User</p>
+
+                <div className="flex items-center gap-1.5">
+                  <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
+                    <input
+                      type="email"
+                      value={addEmail}
+                      onChange={(e) => { setAddEmail(e.target.value); if (addMode !== 'lookup') { setAddMode('lookup'); setAddLookupResult(null) } }}
+                      placeholder="Email"
+                      disabled
+                      className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary/30 disabled:opacity-60"
+                    />
+                  </div>
+                </div>
+
+                <div className={`overflow-hidden transition-all duration-300 ease-out ${
+                  addFeedback?.type === 'error' ? 'max-h-12 opacity-100' : 'max-h-0 opacity-0'
+                }`}>
+                  <div className="text-xs font-medium text-center py-1.5 px-4 rounded-full text-themeredred bg-themeredred/5">
+                    {addFeedback?.message}
+                  </div>
+                </div>
+
+                <AddMemberCreateForm
+                  firstName={addFirstName} onFirstName={setAddFirstName}
+                  lastName={addLastName} onLastName={setAddLastName}
+                  middleInitial={addMiddleInitial} onMiddleInitial={(v) => setAddMiddleInitial(v.toUpperCase().slice(0, 1))}
+                  credential={addCredential} onCredential={setAddCredential}
+                  component={addComponent} onComponent={handleAddComponentChange}
+                  rank={addRank} onRank={setAddRank}
+                  uic={addUic} onUic={(v) => setAddUic(v.toUpperCase())}
+                  tempPassword={addTempPassword} onTempPassword={setAddTempPassword}
+                  isSupervisor={addIsSupervisor} onIsSupervisor={setAddIsSupervisor}
+                  submitting={addSubmitting}
+                  onConfirm={handleAddCreate}
+                  onCancel={() => { setAddMode('lookup'); setAddLookupResult(null) }}
+                />
+              </div>
+            </div>
+
             <div className="rounded-xl bg-themewhite2 overflow-hidden">
               <div className="px-4 py-3">
-                {/* Add Member — inline, edit-gated */}
+                {/* Add Member — inline, edit-gated (lookup mode only) */}
                 <div className={`overflow-hidden transition-all duration-300 ease-out ${
-                  clinicEditing ? 'max-h-150 opacity-100 mb-3' : 'max-h-0 opacity-0'
+                  clinicEditing && addMode !== 'create' ? 'max-h-40 opacity-100 mb-3' : 'max-h-0 opacity-0'
                 }`}>
                   <div className="space-y-3">
-                    <div className="relative">
-                      <div className="absolute left-2.5 top-1/2 -translate-y-1/2">
-                        <Search size={16} className="text-tertiary/50" />
+                    <div className="flex items-center gap-1.5">
+                      <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
+                        <input
+                          type="email"
+                          value={addEmail}
+                          onChange={(e) => { setAddEmail(e.target.value); if (addMode !== 'lookup') { setAddMode('lookup'); setAddLookupResult(null) } }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && addEmail.trim()) handleAddLookup()
+                            if (e.key === 'Escape') { setAddEmail(''); setAddMode('lookup'); setAddLookupResult(null) }
+                          }}
+                          placeholder="Add member by email"
+                          autoFocus
+                          className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary/30"
+                        />
                       </div>
-                      <input
-                        type="email"
-                        value={addEmail}
-                        onChange={(e) => { setAddEmail(e.target.value); if (addMode !== 'lookup') { setAddMode('lookup'); setAddLookupResult(null) } }}
-                        onKeyDown={(e) => { if (e.key === 'Enter' && addEmail.trim()) { addMode === 'create' ? handleAddCreate() : handleAddLookup() } }}
-                        placeholder="Email lookup"
-                        className="w-full rounded-full py-2.5 pl-9 pr-20 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
-                      />
-                      <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center">
-                        <div className={`overflow-hidden transition-all duration-200 ease-out ${addEmail ? 'max-w-8 opacity-100' : 'max-w-0 opacity-0'}`}>
-                          <button type="button" onClick={() => { setAddEmail(''); setAddMode('lookup'); setAddLookupResult(null) }} className="p-1.5 text-tertiary/40 hover:text-primary active:scale-95 transition-colors">
+                      {addEmail.trim() && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => { setAddEmail(''); setAddMode('lookup'); setAddLookupResult(null) }}
+                            className="animate-spring-in shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                          >
                             <X size={18} />
                           </button>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => { if (addEmail.trim()) { addMode === 'create' ? handleAddCreate() : handleAddLookup() } }}
-                          disabled={(addMode === 'create' ? addSubmitting : addLookupLoading) || !addEmail.trim()}
-                          className={`w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 ${
-                            addEmail.trim() ? 'bg-themeblue3 text-white active:scale-95' : 'bg-transparent text-tertiary/20'
-                          }`}
-                        >
-                          {(addLookupLoading || (addMode === 'create' && addSubmitting)) ? <RefreshCw size={16} className="animate-spin" /> : <CheckCircle size={addEmail.trim() ? 16 : 22} className="transition-all duration-200" />}
-                        </button>
-                      </div>
+                          <button
+                            type="button"
+                            onClick={() => { if (addEmail.trim()) handleAddLookup() }}
+                            disabled={addLookupLoading}
+                            className="animate-spring-in shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                          >
+                            {addLookupLoading ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+                          </button>
+                        </>
+                      )}
                     </div>
 
                     <div className={`overflow-hidden transition-all duration-300 ease-out ${
-                      addFeedback?.type === 'error' ? 'max-h-12 opacity-100' : 'max-h-0 opacity-0'
+                      addFeedback?.type === 'error' && addMode !== 'create' ? 'max-h-12 opacity-100' : 'max-h-0 opacity-0'
                     }`}>
                       <div className="text-xs font-medium text-center py-1.5 px-4 rounded-full text-themeredred bg-themeredred/5">
                         {addFeedback?.message}
                       </div>
                     </div>
-
-                    {addMode === 'create' && (
-                      <AddMemberCreateForm
-                        firstName={addFirstName} onFirstName={setAddFirstName}
-                        lastName={addLastName} onLastName={setAddLastName}
-                        middleInitial={addMiddleInitial} onMiddleInitial={(v) => setAddMiddleInitial(v.toUpperCase().slice(0, 1))}
-                        credential={addCredential} onCredential={setAddCredential}
-                        component={addComponent} onComponent={handleAddComponentChange}
-                        rank={addRank} onRank={setAddRank}
-                        uic={addUic} onUic={(v) => setAddUic(v.toUpperCase())}
-                        tempPassword={addTempPassword} onTempPassword={setAddTempPassword}
-                        submitting={addSubmitting}
-                      />
-                    )}
                   </div>
                 </div>
 
@@ -982,13 +1047,13 @@ export function ClinicPanel({
                         onClick={clinicEditing ? () => handleToggleDeleteSelect(member.id) : undefined}
                         className={`flex items-center gap-3 py-2 px-2 rounded-lg transition-colors ${
                           clinicEditing
-                            ? `cursor-pointer active:scale-95 ${deleteSelection.has(member.id) ? 'ring-1 ring-inset ring-themeblue2/30 bg-themeblue2/5' : 'hover:bg-secondary/5'}`
+                            ? `cursor-pointer active:scale-95 ${deleteSelection.has(member.id) ? 'ring-1 ring-inset ring-themeredred/30 bg-themeredred/5' : 'hover:bg-secondary/5'}`
                             : 'hover:bg-secondary/5'
                         }`}
                       >
                         {clinicEditing && deleteSelection.has(member.id) ? (
-                          <div className="w-8 h-8 rounded-full flex items-center justify-center bg-themeblue2 shrink-0">
-                            <Check size={14} className="text-white" />
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center bg-themeredred shrink-0">
+                            <CircleX size={14} className="text-white" />
                           </div>
                         ) : (
                           <UserAvatar
@@ -1038,7 +1103,120 @@ interface CreateFormProps {
   rank: string; onRank: (v: string) => void
   uic: string; onUic: (v: string) => void
   tempPassword: string; onTempPassword: (v: string) => void
+  isSupervisor: boolean; onIsSupervisor: (v: boolean) => void
   submitting: boolean
+  onConfirm: () => void
+  onCancel: () => void
+}
+
+function TypeaheadInput({ value, onChange, options, placeholder }: {
+  value: string; onChange: (v: string) => void; options: string[]; placeholder: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const ref = useRef<HTMLDivElement>(null)
+
+  const filtered = options.filter(o =>
+    o.toLowerCase().includes((query || value).toLowerCase())
+  )
+
+  const displayValue = value || query
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  return (
+    <div ref={ref} className="flex-1 min-w-0 relative">
+      <input
+        type="text"
+        value={displayValue}
+        placeholder={placeholder}
+        onFocus={() => { setOpen(true); setQuery(value) }}
+        onChange={(e) => {
+          setQuery(e.target.value)
+          setOpen(true)
+          if (!e.target.value) onChange('')
+        }}
+        className="w-full rounded-full py-2.5 px-3 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
+      />
+      {open && filtered.length > 0 && (
+        <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-40 overflow-y-auto rounded-xl border border-themeblue3/10 bg-themewhite shadow-lg">
+          {filtered.map(o => (
+            <button
+              key={o}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { onChange(o); setQuery(''); setOpen(false) }}
+              className={`w-full text-left px-3 py-2 text-sm transition-colors active:scale-95 ${
+                o === value ? 'text-themeblue3 font-medium bg-themeblue3/5' : 'text-primary hover:bg-themeblue3/5'
+              }`}
+            >
+              {o}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function UicPinInput({ value, onChange, spread }: { value: string; onChange: (v: string) => void; spread?: boolean }) {
+  const refs = useRef<(HTMLInputElement | null)[]>([])
+  const chars = (value + '      ').slice(0, 6).split('')
+
+  const handleChange = (i: number, char: string) => {
+    const c = char.toUpperCase().replace(/[^0-9A-Z]/g, '')
+    if (!c) return
+    const next = [...chars]
+    next[i] = c
+    onChange(next.join('').replace(/ /g, ''))
+    if (i < 5) refs.current[i + 1]?.focus()
+  }
+
+  const handleKeyDown = (i: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace') {
+      e.preventDefault()
+      const next = [...chars]
+      if (next[i] !== ' ' && next[i] !== '') {
+        next[i] = ' '
+        onChange(next.join('').trim())
+      } else if (i > 0) {
+        next[i - 1] = ' '
+        onChange(next.join('').trim())
+        refs.current[i - 1]?.focus()
+      }
+    } else if (e.key === 'ArrowLeft' && i > 0) {
+      refs.current[i - 1]?.focus()
+    } else if (e.key === 'ArrowRight' && i < 5) {
+      refs.current[i + 1]?.focus()
+    }
+  }
+
+  return (
+    <div className={spread ? 'grid grid-cols-6 gap-2' : 'flex items-center gap-1.5'}>
+      {!spread && <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mr-1">UIC</span>}
+      {chars.map((c, i) => (
+        <input
+          key={i}
+          ref={el => { refs.current[i] = el }}
+          type="text"
+          inputMode="text"
+          maxLength={1}
+          value={c === ' ' ? '' : c}
+          onChange={(e) => handleChange(i, e.target.value)}
+          onKeyDown={(e) => handleKeyDown(i, e)}
+          onFocus={(e) => e.target.select()}
+          className={`h-9 text-center rounded-lg border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm font-mono bg-themewhite text-primary transition-all duration-200 ${spread ? 'w-full' : 'w-8'}`}
+        />
+      ))}
+    </div>
+  )
 }
 
 function AddMemberCreateForm(props: CreateFormProps) {
@@ -1093,53 +1271,64 @@ function AddMemberCreateForm(props: CreateFormProps) {
         />
       </div>
 
-      <input
-        type="text"
-        value={props.middleInitial}
-        onChange={(e) => props.onMiddleInitial(e.target.value)}
-        placeholder="Middle initial"
-        maxLength={1}
-        className="w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
-      />
-
-      <select
-        value={props.credential}
-        onChange={(e) => props.onCredential(e.target.value)}
-        className="w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary transition-all duration-300 appearance-none"
-      >
-        <option value="">Credential</option>
-        {userData.credentials.map((c) => <option key={c} value={c}>{c}</option>)}
-      </select>
-
-      <select
-        value={props.component}
-        onChange={(e) => props.onComponent(e.target.value)}
-        className="w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary transition-all duration-300 appearance-none"
-      >
-        <option value="">Component</option>
-        {userData.components.map((c) => <option key={c} value={c}>{c}</option>)}
-      </select>
-
-      {props.component && (
-        <select
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={props.middleInitial}
+          onChange={(e) => props.onMiddleInitial(e.target.value)}
+          placeholder="MI"
+          maxLength={1}
+          className="w-11 shrink-0 text-center rounded-full py-2.5 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
+        />
+        <TypeaheadInput
+          value={props.credential}
+          onChange={props.onCredential}
+          options={userData.credentials}
+          placeholder="Credential"
+        />
+        <TypeaheadInput
           value={props.rank}
-          onChange={(e) => props.onRank(e.target.value)}
-          className="w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary transition-all duration-300 appearance-none"
+          onChange={props.onRank}
+          options={componentRanks}
+          placeholder="Rank"
+        />
+      </div>
+
+      <div>
+        <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">UIC</span>
+        <UicPinInput value={props.uic} onChange={props.onUic} spread />
+      </div>
+
+      <div className="flex items-center gap-2 pt-1">
+        <label className="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0">
+          <span className="text-sm text-primary">Supervisor</span>
+          <div
+            onClick={() => props.onIsSupervisor(!props.isSupervisor)}
+            className={`relative w-9 h-5 shrink-0 rounded-full transition-colors duration-200 ${
+              props.isSupervisor ? 'bg-themeblue3' : 'bg-tertiary/20'
+            }`}
+          >
+            <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+              props.isSupervisor ? 'translate-x-4' : 'translate-x-0'
+            }`} />
+          </div>
+        </label>
+        <button
+          type="button"
+          onClick={props.onCancel}
+          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
         >
-          <option value="">Rank</option>
-          {componentRanks.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
-      )}
-
-      <input
-        type="text"
-        value={props.uic}
-        onChange={(e) => props.onUic(e.target.value)}
-        placeholder="UIC"
-        maxLength={6}
-        className="w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
-      />
-
+          <X size={18} />
+        </button>
+        <button
+          type="button"
+          onClick={props.onConfirm}
+          disabled={props.submitting || !props.firstName.trim() || !props.lastName.trim() || props.tempPassword.length < 12}
+          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+        >
+          {props.submitting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+        </button>
+      </div>
     </div>
   )
 }

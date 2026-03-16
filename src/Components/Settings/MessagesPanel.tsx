@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
 import { Trash2, Phone, Video, MessageSquare, Users, Info, ChevronLeft, Pin } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
+import { HeaderPill, PillButton } from '../HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
 import type { RequestStatus } from '../../Hooks/useMessages'
@@ -173,7 +174,7 @@ function ConversationPane({
   return (
     <div className="flex flex-col h-full">
       {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-1 pb-2">
+      <div className="flex-1 overflow-y-auto px-1 pb-2 pt-[calc(var(--sat,0px)+3.5rem)] md:pt-0">
         {/* Search results */}
         {searchResults ? (
           <div className="px-1">
@@ -496,42 +497,27 @@ function ChatDetail({
     return <UserAvatar avatarId={peerAvatarId} firstName={peerFirstName} lastName={peerLastName} className="w-7 h-7" />
   }, [peerAvatarId, peerFirstName, peerLastName])
 
-  const canCall = !isSelf && requestStatus === 'accepted' && (onStartCall || onStartVideoCall)
+  const canCall = !isSelf && (requestStatus === 'accepted' || requestStatus === 'none') && (onStartCall || onStartVideoCall)
 
   const mobileHeader = (
-    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center backdrop-blur-xl bg-themewhite3/80">
+    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center backdrop-blur-xs bg-themewhite/10">
       <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
         <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
           <ChevronLeft className="w-6 h-6 text-tertiary" />
         </button>
       </div>
-      <p className="flex-1 text-sm font-medium text-primary truncate text-center mx-3">
+      <p className="flex-1 text-sm font-medium text-primary truncate mx-3">
         {peerName ?? (isSelf ? 'Notes' : 'Chat')}
       </p>
       {canCall ? (
-        <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5 shrink-0">
+        <HeaderPill>
           {onStartVideoCall && (
-            <>
-              <button
-                onClick={onStartVideoCall}
-                className="w-10 h-10 rounded-full flex items-center justify-center text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
-                aria-label="Video call" title="Video call"
-              >
-                <Video className="w-[18px] h-[18px]" />
-              </button>
-              {onStartCall && <div className="w-px h-5 bg-tertiary/15" />}
-            </>
+            <PillButton icon={Video} onClick={onStartVideoCall} label="Video call" />
           )}
           {onStartCall && (
-            <button
-              onClick={onStartCall}
-              className="w-10 h-10 rounded-full flex items-center justify-center text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
-              aria-label="Voice call" title="Voice call"
-            >
-              <Phone className="w-[18px] h-[18px]" />
-            </button>
+            <PillButton icon={Phone} onClick={onStartCall} label="Voice call" />
           )}
-        </div>
+        </HeaderPill>
       ) : (
         <div className="w-12 shrink-0" />
       )}
@@ -690,7 +676,7 @@ function GroupChatDetail({
   }, [leaveGroup, onBack])
 
   const mobileHeader = (
-    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center backdrop-blur-xl bg-themewhite3/80">
+    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center backdrop-blur-xs bg-themewhite/10">
       <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
         <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
           <ChevronLeft className="w-6 h-6 text-tertiary" />

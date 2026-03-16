@@ -41,30 +41,36 @@ function DrawerHeader({
 }: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean }) {
     return (
         <div className="shrink-0">
-            {isMobile && (
-                <div className="flex justify-center pt-3 pb-2" data-drag-zone style={{ touchAction: 'none' }}>
-                    <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
-                </div>
-            )}
-            <div className="px-5 border-b border-tertiary/10 py-3 md:py-4" data-drag-zone style={{ touchAction: 'none' }}>
+            <div className={`px-5 border-b border-tertiary/10 ${isMobile ? 'pt-1.5 pb-2.5' : 'py-4'}`} data-drag-zone style={{ touchAction: 'none' }}>
+                {isMobile && (
+                    <div className="flex justify-center pb-2">
+                        <div className="w-9 h-1 rounded-full bg-tertiary/25" />
+                    </div>
+                )}
                 <div className="flex items-center justify-between">
                     <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${rightContentFill ? ' w-0 overflow-hidden' : ''}`}>
                         <div
                             className="shrink-0 overflow-hidden transition-all duration-200"
                             style={{
-                                width: showBack && onBack ? 40 : 0,
+                                width: showBack && onBack ? (isMobile ? 48 : 40) : 0,
                                 opacity: showBack && onBack ? 1 : 0,
                             }}
                         >
-                            <button
-                                onClick={onBack}
-                                className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
-                                aria-label="Go back"
-                            >
-                                <ChevronLeft size={24} className="text-tertiary" />
-                            </button>
+                            {isMobile ? (
+                                <HeaderPill>
+                                    <PillButton icon={ChevronLeft} onClick={onBack!} label="Go back" />
+                                </HeaderPill>
+                            ) : (
+                                <button
+                                    onClick={onBack}
+                                    className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
+                                    aria-label="Go back"
+                                >
+                                    <ChevronLeft size={24} className="text-tertiary" />
+                                </button>
+                            )}
                         </div>
-                        <h2 className="text-[11pt] font-normal text-primary md:text-2xl truncate">
+                        <h2 className={`truncate ${isMobile ? 'text-[17px] font-semibold text-primary' : 'text-2xl text-primary'}`}>
                             {title}
                         </h2>
                         {badge && (
@@ -76,9 +82,19 @@ function DrawerHeader({
                     <div className={`flex items-center gap-2${rightContentFill ? ' flex-1 min-w-0' : ' shrink-0'}`}>
                         {rightContent}
                         {!hideDefaultClose && (
-                            <HeaderPill>
-                                <PillButton icon={X} onClick={onClose} label="Close" />
-                            </HeaderPill>
+                            isMobile ? (
+                                <button
+                                    onClick={onClose}
+                                    className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
+                                    aria-label="Close"
+                                >
+                                    <X style={{ width: 24, height: 24 }} />
+                                </button>
+                            ) : (
+                                <HeaderPill>
+                                    <PillButton icon={X} onClick={onClose} label="Close" />
+                                </HeaderPill>
+                            )
                         )}
                     </div>
                 </div>

@@ -26,9 +26,6 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
   const [panelView, setPanelView] = useState<PanelView>('calendar')
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
-  const [monthLabel, setMonthLabel] = useState(() =>
-    new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-  )
 
   const { medics: allMedics } = useClinicMedics()
   const { ownClinicMedics } = useClinicGroupedMedics(allMedics)
@@ -38,6 +35,8 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
     events, addEvent, updateEvent, removeEvent,
     selectedEventId, selectEvent,
     assignPersonnel, unassignPersonnel,
+    personnelFilter,
+    setMonthLabel,
   } = useCalendarStore(useShallow(s => ({
     viewMode: s.currentView,
     setViewMode: s.setView,
@@ -49,15 +48,24 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
     selectEvent: s.selectEvent,
     assignPersonnel: s.assignPersonnel,
     unassignPersonnel: s.unassignPersonnel,
+    personnelFilter: s.personnelFilter,
+    setMonthLabel: s.setMonthLabel,
   })))
 
   const selectedDateKey = toDateKey(selectedDate)
 
+  const filteredEvents = useMemo(() => {
+    if (personnelFilter.length === 0) return events
+    return events.filter(e =>
+      e.assigned_to.length === 0 || e.assigned_to.some(id => personnelFilter.includes(id))
+    )
+  }, [events, personnelFilter])
+
   const dayEvents = useMemo(() =>
-    events
+    filteredEvents
       .filter(e => eventFallsOnDate(e, selectedDateKey))
       .sort((a, b) => a.start_time.localeCompare(b.start_time)),
-    [events, selectedDateKey]
+    [filteredEvents, selectedDateKey]
   )
 
   const selectedEvent = useMemo(() =>
@@ -73,10 +81,6 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
       setViewMode('day')
     }
   }, [viewMode])
-
-  const handleMonthChange = useCallback((label: string) => {
-    setMonthLabel(label)
-  }, [])
 
   // ── Event CRUD ──
 
@@ -153,12 +157,6 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
     setPanelView('calendar')
   }, [selectEvent])
 
-  // ── Toolbar label ──
-
-  const toolbarLabel = viewMode === 'month'
-    ? monthLabel
-    : selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
-
   // ── Sub-views (form / detail) ──
 
   if (panelView === 'form') {
@@ -187,52 +185,14 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
 
   return (
     <div className="flex flex-col h-full relative">
-      {/* Toolbar */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10">
-        <span className="text-sm font-semibold text-primary">
-          {toolbarLabel}
-        </span>
-
-        {/* View mode toggle */}
-        <div className="flex items-center gap-0.5 rounded-full bg-themewhite border border-tertiary/20 p-0.5">
-          <button
-            onClick={() => setViewMode('month')}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
-              viewMode === 'month' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
-            }`}
-            title="Month"
-          >
-            <CalendarDays className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setViewMode('day')}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
-              viewMode === 'day' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
-            }`}
-            title="Day"
-          >
-            <Clock className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => setViewMode('troops')}
-            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
-              viewMode === 'troops' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
-            }`}
-            title="Troops to Task"
-          >
-            <Users2 className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
       {/* View content */}
       <div className="flex-1 min-h-0 flex flex-col">
         {viewMode === 'month' && (
           <InfiniteScrollCalendar
-            events={events}
+            events={filteredEvents}
             selectedDate={selectedDate}
             onSelectDate={handleSelectDate}
-            onMonthChange={handleMonthChange}
+            onMonthChange={setMonthLabel}
           />
         )}
 
@@ -257,13 +217,43 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
         )}
       </div>
 
-      {/* FAB */}
-      <button
-        onClick={handleNewEvent}
-        className="absolute bottom-4 right-4 w-12 h-12 rounded-full bg-themeblue3 text-white shadow-lg flex items-center justify-center active:scale-95 transition-all duration-200 hover:shadow-xl z-10"
-      >
-        <Plus size={24} />
-      </button>
+      <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-10 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
+        <div className="flex items-center gap-0.5 rounded-full bg-themewhite border border-tertiary/20 p-0.5 shadow-lg pointer-events-auto">
+          <button
+            onClick={() => setViewMode('month')}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
+              viewMode === 'month' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
+            }`}
+            title="Month"
+          >
+            <CalendarDays className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setViewMode('day')}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
+              viewMode === 'day' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
+            }`}
+            title="Day"
+          >
+            <Clock className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setViewMode('troops')}
+            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
+              viewMode === 'troops' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
+            }`}
+            title="Troops to Task"
+          >
+            <Users2 className="w-4 h-4" />
+          </button>
+        </div>
+        <button
+          onClick={handleNewEvent}
+          className="absolute right-4 w-10 h-10 rounded-full bg-themeblue3 text-white shadow-lg flex items-center justify-center active:scale-95 transition-all duration-200 hover:shadow-xl pointer-events-auto"
+        >
+          <Plus size={20} />
+        </button>
+      </div>
     </div>
   )
 }

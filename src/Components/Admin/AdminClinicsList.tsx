@@ -1,21 +1,12 @@
-/**
- * AdminClinicsList -- swipeable card list for clinic management.
- *
- * Displays clinics with search, multi-select, swipe-to-edit/delete,
- * right-click context menu, and batch delete via CardActionBar.
- * Extracted from the ClinicsTab list view in AdminPanel.
- */
-
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Check, Plus, Pencil, Trash2, Building2, MapPin, Eye } from 'lucide-react'
+import { Pencil, Trash2, Building2, Eye } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
-import { SwipeableCard } from '../SwipeableCard'
 import { CardContextMenu } from '../CardContextMenu'
-import { CardActionBar } from '../CardActionBar'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
+import { useLongPress } from '../../Hooks/useLongPress'
 import { listClinics, listAllUsers, deleteClinic } from '../../lib/adminService'
 import type { AdminUser, AdminClinic } from '../../lib/adminService'
 import { UI_TIMING } from '../../Utilities/constants'
@@ -43,12 +34,7 @@ export function AdminClinicsList({
   const [loading, setLoading] = useState(true)
   const showLoading = useMinLoadTime(loading)
 
-  // ── Selection state ─────────────────────────────────────────
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  const multiSelectMode = selectedIds.size > 0
-
-  // ── Swipe + context menu state ──────────────────────────────
-  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
+  // ── Context menu state ──────────────────────────────────────
   const [contextMenu, setContextMenu] = useState<{ clinicId: string; x: number; y: number } | null>(null)
 
   // ── Delete state ────────────────────────────────────────────
@@ -58,7 +44,6 @@ export function AdminClinicsList({
   // ── Feedback state ──────────────────────────────────────────
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  // Clear status banner after a delay
   useEffect(() => {
     if (!status) return
     const t = setTimeout(() => setStatus(null), UI_TIMING.FEEDBACK_DURATION)
@@ -79,18 +64,14 @@ export function AdminClinicsList({
 
   // ── Derived data ────────────────────────────────────────────
 
-  /** Count users assigned to a clinic */
   const usersInClinic = useCallback(
     (clinicId: string) => users.filter((u) => u.clinic_id === clinicId),
     [users],
   )
 
-  /** Filter clinics by search query and optional tree-selected ID */
   const filteredClinics = useMemo(() => {
     return clinics.filter((c) => {
-      // If filterClinicId is provided, restrict to that single clinic
       if (filterClinicId && c.id !== filterClinicId) return false
-
       if (!searchQuery) return true
       const q = searchQuery.toLowerCase()
       return (
@@ -104,14 +85,7 @@ export function AdminClinicsList({
   // ── Delete handlers ─────────────────────────────────────────
 
   const confirmDeleteSingle = (clinic: AdminClinic) => {
-    setOpenSwipeId(null)
     setDeleteTarget({ ids: [clinic.id], label: clinic.name })
-  }
-
-  const confirmDeleteBatch = () => {
-    const ids = Array.from(selectedIds)
-    const count = ids.length
-    setDeleteTarget({ ids, label: `${count} clinic${count !== 1 ? 's' : ''}` })
   }
 
   const handleDeleteConfirm = async () => {
@@ -123,7 +97,6 @@ export function AdminClinicsList({
 
     setDeleteProcessing(false)
     setDeleteTarget(null)
-    setSelectedIds(new Set())
 
     if (failures.length === 0) {
       setStatus({ type: 'success', message: `Deleted ${deleteTarget.label} successfully` })
@@ -138,41 +111,17 @@ export function AdminClinicsList({
     setDeleteTarget(null)
   }
 
-  // ── Tap handler ─────────────────────────────────────────────
-
-  const handleTap = (clinic: AdminClinic) => {
-    if (multiSelectMode) {
-      setSelectedIds((prev) => {
-        const next = new Set(prev)
-        if (next.has(clinic.id)) next.delete(clinic.id)
-        else next.add(clinic.id)
-        return next
-      })
-      return
-    }
-
-    setOpenSwipeId(null)
-
-    // Single-tap: toggle selection (shows action bar)
-    const isTogglingOff = selectedIds.has(clinic.id)
-    setSelectedIds(isTogglingOff ? new Set() : new Set([clinic.id]))
-    onSelectClinic(clinic)
-  }
-
   // ── Render ──────────────────────────────────────────────────
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header: subtitle + search */}
       <div className="shrink-0 px-5 pt-4 pb-2 space-y-3">
         <div className="flex items-center">
           <p className="text-sm text-tertiary/60">Manage clinics</p>
         </div>
-
         {status && <ErrorDisplay type={status.type} message={status.message} />}
       </div>
 
-      {/* Card list — scrollable */}
       <div className="flex-1 overflow-y-auto px-5 pb-4">
         {showLoading ? (
           <LoadingSpinner label="Loading clinics..." className="py-12 text-tertiary" />
@@ -185,122 +134,20 @@ export function AdminClinicsList({
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {filteredClinics.map((clinic) => {
               const assignedUsers = usersInClinic(clinic.id)
-              const isSelected = selectedIds.has(clinic.id)
-
-              const swipeActions = [
-                {
-                  key: 'view',
-                  label: 'View',
-                  icon: Eye,
-                  iconBg: 'bg-themegreen/15',
-                  iconColor: 'text-themegreen',
-                  onAction: () => onSelectClinic(clinic),
-                },
-                {
-                  key: 'edit',
-                  label: 'Edit',
-                  icon: Pencil,
-                  iconBg: 'bg-themeblue2/15',
-                  iconColor: 'text-themeblue2',
-                  onAction: () => onEditClinic(clinic),
-                },
-                {
-                  key: 'delete',
-                  label: 'Delete',
-                  icon: Trash2,
-                  iconBg: 'bg-themeredred/15',
-                  iconColor: 'text-themeredred',
-                  onAction: () => confirmDeleteSingle(clinic),
-                },
-              ]
-
               return (
-                <SwipeableCard
+                <ClinicCard
                   key={clinic.id}
-                  isOpen={openSwipeId === clinic.id}
-                  enabled={!multiSelectMode}
-                  actions={swipeActions}
-                  onOpen={() => setOpenSwipeId(clinic.id)}
-                  onClose={() => { if (openSwipeId === clinic.id) setOpenSwipeId(null) }}
-                  onTap={() => handleTap(clinic)}
-                  onContextMenu={(e) => {
-                    e.preventDefault()
-                    setContextMenu({ clinicId: clinic.id, x: e.clientX, y: e.clientY })
-                  }}
-                >
-                  <div
-                    className={`rounded-xl border px-4 py-3.5 transition-colors ${
-                      isSelected
-                        ? 'border-themeblue2/30 bg-themeblue2/5'
-                        : 'border-tertiary/15 bg-themewhite2'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {isSelected ? (
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2">
-                          <Check size={16} className="text-white" />
-                        </div>
-                      ) : (
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                          <Building2 size={18} className="text-tertiary/50" />
-                        </div>
-                      )}
-
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-primary truncate">{clinic.name}</p>
-                        {clinic.location && (
-                          <p className="text-[9pt] text-tertiary/50 flex items-center gap-1">
-                            <MapPin size={10} /> {clinic.location}
-                          </p>
-                        )}
-                      </div>
-
-                      <span className="shrink-0 px-2 py-0.5 rounded text-[9px] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
-                        {assignedUsers.length} user{assignedUsers.length !== 1 ? 's' : ''}
-                      </span>
-                    </div>
-
-                    {clinic.uics.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1 mt-2">
-                        {clinic.uics.map((uic) => (
-                          <span
-                            key={uic}
-                            className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeyellow/10 text-themeyellow border-themeyellow/30"
-                          >
-                            {uic}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </SwipeableCard>
+                  clinic={clinic}
+                  assignedUserCount={assignedUsers.length}
+                  onTap={() => onSelectClinic(clinic)}
+                  onContextMenu={(x, y) => setContextMenu({ clinicId: clinic.id, x, y })}
+                />
               )
             })}
           </div>
         )}
       </div>
 
-      {/* Multi-select action bar — pinned at bottom, outside scroll */}
-      {multiSelectMode && (
-        <div className="shrink-0">
-          <CardActionBar
-            selectedCount={selectedIds.size}
-            onClear={() => setSelectedIds(new Set())}
-            actions={[
-              {
-                key: 'delete',
-                label: 'Delete',
-                icon: Trash2,
-                iconBg: 'bg-themeredred/15',
-                iconColor: 'text-themeredred',
-                onAction: confirmDeleteBatch,
-              },
-            ]}
-          />
-        </div>
-      )}
-
-      {/* Context menu (right-click) */}
       {contextMenu && (
         <CardContextMenu
           x={contextMenu.x}
@@ -339,7 +186,6 @@ export function AdminClinicsList({
         />
       )}
 
-      {/* Delete confirmation dialog */}
       <ConfirmDialog
         visible={deleteTarget !== null}
         title={`Delete ${deleteTarget?.label ?? ''}?`}
@@ -350,6 +196,63 @@ export function AdminClinicsList({
         onConfirm={handleDeleteConfirm}
         onCancel={handleDeleteCancel}
       />
+    </div>
+  )
+}
+
+// ── ClinicCard ───────────────────────────────────────────────
+
+interface ClinicCardProps {
+  clinic: AdminClinic
+  assignedUserCount: number
+  onTap: () => void
+  onContextMenu: (x: number, y: number) => void
+}
+
+function ClinicCard({ clinic, assignedUserCount, onTap, onContextMenu }: ClinicCardProps) {
+  const longPressHandlers = useLongPress(() => {
+    // Long-press opens context menu centered on the element; use a fallback position
+    onContextMenu(window.innerWidth / 2, window.innerHeight / 2)
+  })
+
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onTap}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onTap() }}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onContextMenu(e.clientX, e.clientY)
+      }}
+      {...longPressHandlers}
+      className="rounded-xl border px-4 py-3.5 transition-colors active:scale-95 cursor-pointer border-tertiary/15 bg-themewhite2 select-none"
+    >
+      <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-primary truncate">{clinic.name}</p>
+          {clinic.location && (
+            <p className="text-[10pt] text-tertiary truncate">{clinic.location}</p>
+          )}
+        </div>
+
+        <span className="text-[10pt] text-tertiary shrink-0">
+          {assignedUserCount} user{assignedUserCount !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      {clinic.uics.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+          {clinic.uics.map((uic) => (
+            <span
+              key={uic}
+              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10pt] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30"
+            >
+              {uic}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

@@ -195,6 +195,7 @@ export async function createClinicUser(userData: {
   component?: string
   rank?: string
   uic?: string
+  isSupervisor?: boolean
 }): Promise<ServiceResult<{ userId?: string }>> {
   try {
     const pwError = validatePasswordComplexity(userData.tempPassword)
@@ -211,6 +212,7 @@ export async function createClinicUser(userData: {
       p_component: userData.component || undefined,
       p_rank: userData.rank || undefined,
       p_uic: userData.uic || undefined,
+      p_is_supervisor: userData.isSupervisor || false,
     })
 
     if (error) return fail(error.message)

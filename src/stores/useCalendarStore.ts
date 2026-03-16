@@ -13,6 +13,8 @@ interface CalendarState {
   events: CalendarEvent[]
   rosterSearchQuery: string
   showRosterMobile: boolean
+  personnelFilter: string[]
+  monthLabel: string
 }
 
 interface CalendarActions {
@@ -30,6 +32,9 @@ interface CalendarActions {
   unassignPersonnel: (eventId: string, userId: string) => void
   setRosterSearchQuery: (query: string) => void
   setShowRosterMobile: (show: boolean) => void
+  togglePersonnelFilter: (userId: string) => void
+  clearPersonnelFilter: () => void
+  setMonthLabel: (label: string) => void
 }
 
 export type CalendarStore = CalendarState & CalendarActions
@@ -44,6 +49,8 @@ export const useCalendarStore = create<CalendarStore>()((set) => ({
   events: [],
   rosterSearchQuery: '',
   showRosterMobile: false,
+  personnelFilter: [],
+  monthLabel: new Date().toLocaleDateString('en-US', { month: 'long' }),
 
   setView: (view) => set({ currentView: view }),
   setSelectedDate: (date) => set({ selectedDate: date }),
@@ -78,4 +85,12 @@ export const useCalendarStore = create<CalendarStore>()((set) => ({
         : e
     ),
   })),
+
+  togglePersonnelFilter: (userId) => set((s) => ({
+    personnelFilter: s.personnelFilter.includes(userId)
+      ? s.personnelFilter.filter(id => id !== userId)
+      : [...s.personnelFilter, userId],
+  })),
+  clearPersonnelFilter: () => set({ personnelFilter: [] }),
+  setMonthLabel: (label) => set({ monthLabel: label }),
 }))

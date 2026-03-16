@@ -9,7 +9,6 @@ interface InfiniteScrollCalendarProps {
   onMonthChange: (monthLabel: string) => void
 }
 
-const WEEKDAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
 const WEEKS_BUFFER = 26
 const LOAD_THRESHOLD = 4
 const MULTI_DAY_ROW_H = 18
@@ -203,7 +202,7 @@ export function InfiniteScrollCalendar({
             const week = weeks.find(w => w.key === weekKey)
             if (week) {
               const midDay = week.days[3]
-              const label = new Date(midDay.year, midDay.month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+              const label = new Date(midDay.year, midDay.month).toLocaleDateString('en-US', { month: 'long' })
               onMonthChange(label)
             }
           }
@@ -255,17 +254,6 @@ export function InfiniteScrollCalendar({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Weekday header */}
-      <div className="grid grid-cols-7 border-b border-primary/10 bg-themewhite3/80 backdrop-blur-sm sticky top-0 z-10">
-        {WEEKDAY_LABELS.map((label, i) => (
-          <div key={i} className={`text-center text-[10px] font-semibold text-tertiary/50 py-1.5 uppercase ${
-            i < 6 ? 'border-r border-primary/8' : ''
-          }`}>
-            {label}
-          </div>
-        ))}
-      </div>
-
       {/* Scrollable weeks */}
       <div
         ref={scrollRef}
@@ -273,8 +261,6 @@ export function InfiniteScrollCalendar({
         onScroll={handleScroll}
       >
         {weeks.map((week) => {
-          const isFirstOfMonth = week.days.some(d => d.day === 1)
-          const monthBoundary = isFirstOfMonth ? week.days.find(d => d.day === 1) : null
           const spans = layoutMultiDaySpans(multiDayEvents, week.days)
           const multiDayRows = spans.length > 0 ? Math.max(...spans.map(s => s.row)) + 1 : 0
           const multiDayHeight = multiDayRows * MULTI_DAY_ROW_H
@@ -285,15 +271,6 @@ export function InfiniteScrollCalendar({
               ref={(el) => setWeekRef(week.key, el)}
               data-week-key={week.key}
             >
-              {/* Month divider */}
-              {monthBoundary && (
-                <div className="px-3 pt-3 pb-1 border-b border-primary/8">
-                  <span className="text-xs font-bold text-primary/60 uppercase tracking-wider">
-                    {new Date(monthBoundary.year, monthBoundary.month).toLocaleDateString('en-US', { month: 'long' })}
-                  </span>
-                </div>
-              )}
-
               {/* Multi-day overlay region */}
               {multiDayHeight > 0 && (
                 <div className="relative border-b border-primary/5" style={{ height: multiDayHeight + 4, paddingTop: 2 }}>
@@ -325,9 +302,11 @@ export function InfiniteScrollCalendar({
                             ? 'bg-themeblue3 text-white'
                             : isToday
                               ? 'bg-themeblue3/15 text-themeblue3'
-                              : day.month === selectedDate.getMonth()
-                                ? 'text-primary'
-                                : 'text-tertiary/30'
+                              : day.day === 1
+                                ? 'text-primary font-bold'
+                                : day.month === selectedDate.getMonth()
+                                  ? 'text-primary'
+                                  : 'text-tertiary/30'
                         }`}>
                           {day.day}
                         </span>

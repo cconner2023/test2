@@ -9,6 +9,7 @@ import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
 import type { LocationEditActions } from './Property/PropertyPanel'
+import type { PropertyLocationListHandle, DrilldownSegment } from './Property/PropertyLocationList'
 import { UI_TIMING } from '../Utilities/constants'
 import { usePropertyStore } from '../stores/usePropertyStore'
 
@@ -24,6 +25,8 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
 
     const [mobileLocationView, setMobileLocationView] = useState(false)
+    const [drilldownPath, setDrilldownPath] = useState<DrilldownSegment[]>([])
+    const locationListRef = useRef<PropertyLocationListHandle>(null)
 
     // Search state — animated overlay in header (same pattern as MessagesDrawer)
     const [searchQuery, setSearchQuery] = useState('')
@@ -105,6 +108,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         setSelectedPropertyItemName(null)
         setSlideDirection('')
         setMobileLocationView(false)
+        setDrilldownPath([])
         setSearchQuery('')
         setIsSearchExpanded(false)
         navigateToPath([])
@@ -218,6 +222,17 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         hideDefaultClose: !!locationHeaderActions,
                     }
                 }
+                if (isMobile && drilldownPath.length > 0) {
+                    const currentName = drilldownPath[drilldownPath.length - 1].name
+                    return {
+                        title: currentName,
+                        showBack: true,
+                        onBack: () => locationListRef.current?.popPath(),
+                        rightContent: mainHeaderActions,
+                        hideDefaultClose: true,
+                        rightContentFill: isSearchExpanded,
+                    }
+                }
                 return { title: 'Property Book', rightContent: mainHeaderActions, hideDefaultClose: true, rightContentFill: isSearchExpanded }
             case 'property-detail':
                 return { title: selectedPropertyItemName ?? 'Item', showBack: true, onBack: handleBack, rightContent: detailHeaderActions, hideDefaultClose: !!detailHeaderActions }
@@ -226,7 +241,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             case 'property-form':
                 return { title: selectedPropertyItemName ? 'Edit Item' : 'Add Item', showBack: true, onBack: handleBack }
         }
-    }, [view, selectedPropertyItemName, handleBack, isMobile, mobileLocationView, detailHeaderActions, mainHeaderActions, locationHeaderActions, canvasStack, navigateBack, isSearchExpanded])
+    }, [view, selectedPropertyItemName, handleBack, isMobile, mobileLocationView, drilldownPath, detailHeaderActions, mainHeaderActions, locationHeaderActions, canvasStack, navigateBack, isSearchExpanded])
 
     return (
         <BaseDrawer
@@ -253,6 +268,8 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onRegisterDetailActions={setDetailActions}
                         onRegisterAddLocation={(fn) => { addLocationTriggerRef.current = fn }}
                         onRegisterLocationActions={setLocationActions}
+                        onDrilldownChange={setDrilldownPath}
+                        locationListRef={locationListRef}
                     />
                 </div>
             </ContentWrapper>

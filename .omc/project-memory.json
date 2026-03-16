@@ -1,0 +1,530 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1773686272858,
+  "projectRoot": "C:\\Users\\cconn\\Desktop\\V2",
+  "techStack": {
+    "languages": [
+      {
+        "name": "JavaScript/TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "package.json"
+        ]
+      },
+      {
+        "name": "TypeScript",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "tsconfig.json"
+        ]
+      }
+    ],
+    "frameworks": [
+      {
+        "name": "react",
+        "version": "19.2.0",
+        "category": "frontend"
+      },
+      {
+        "name": "react-dom",
+        "version": "19.2.0",
+        "category": "frontend"
+      },
+      {
+        "name": "@playwright/test",
+        "version": "1.58.2",
+        "category": "testing"
+      },
+      {
+        "name": "vite",
+        "version": "7.2.4",
+        "category": "build"
+      },
+      {
+        "name": "vitest",
+        "version": "4.0.18",
+        "category": "testing"
+      }
+    ],
+    "packageManager": "npm",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": "npm run build",
+    "testCommand": "npm test",
+    "lintCommand": "npm run lint",
+    "devCommand": "npm run dev",
+    "scripts": {
+      "dev": "vite",
+      "build": "vite build",
+      "lint": "eslint .",
+      "preview": "vite preview",
+      "deploy": "npm run build && gh-pages -d dist",
+      "db:setup": "node scripts/setup-database.mjs",
+      "db:encrypt-notes": "node scripts/encrypt-note-fields.mjs",
+      "generate-vapid-keys": "node scripts/generate-vapid-keys.mjs",
+      "test": "vitest run"
+    }
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": "type-based"
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [
+      "assets",
+      "public",
+      "scripts",
+      "src"
+    ],
+    "gitBranches": {
+      "defaultBranch": "gh-pages",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {
+    "assets": {
+      "path": "assets",
+      "purpose": "Static assets",
+      "fileCount": 3,
+      "lastAccessed": 1773686272794,
+      "keyFiles": [
+        "index-96xIPDrQ.js",
+        "index-cNE6m0co.css",
+        "workbox-window.prod.es5-BIl4cyR9.js"
+      ]
+    },
+    "dev-dist": {
+      "path": "dev-dist",
+      "purpose": null,
+      "fileCount": 2,
+      "lastAccessed": 1773686272795,
+      "keyFiles": [
+        "sw.js",
+        "workbox-ca84f546.js"
+      ]
+    },
+    "dist": {
+      "path": "dist",
+      "purpose": "Distribution/build output",
+      "fileCount": 9,
+      "lastAccessed": 1773686272814,
+      "keyFiles": [
+        "browserconfig.xml",
+        "icon-144.png",
+        "icon-192.png",
+        "icon-512-maskable.png",
+        "icon-512.png"
+      ]
+    },
+    "public": {
+      "path": "public",
+      "purpose": "Public files",
+      "fileCount": 5,
+      "lastAccessed": 1773686272814,
+      "keyFiles": [
+        "browserconfig.xml",
+        "icon-144.png",
+        "icon-192.png",
+        "icon-512-maskable.png",
+        "icon-512.png"
+      ]
+    },
+    "scripts": {
+      "path": "scripts",
+      "purpose": "Build/utility scripts",
+      "fileCount": 3,
+      "lastAccessed": 1773686272816,
+      "keyFiles": [
+        "encrypt-note-fields.mjs",
+        "generate-vapid-keys.mjs",
+        "test-rpc-functions.mjs"
+      ]
+    },
+    "src": {
+      "path": "src",
+      "purpose": "Source code",
+      "fileCount": 6,
+      "lastAccessed": 1773686272817,
+      "keyFiles": [
+        "App.css",
+        "App.tsx",
+        "index.css",
+        "main.tsx",
+        "sw.ts"
+      ]
+    },
+    "supabase": {
+      "path": "supabase",
+      "purpose": null,
+      "fileCount": 0,
+      "lastAccessed": 1773686272817,
+      "keyFiles": []
+    },
+    "dist\\assets": {
+      "path": "dist\\assets",
+      "purpose": "Static assets",
+      "fileCount": 61,
+      "lastAccessed": 1773686272832,
+      "keyFiles": [
+        "adapterFactory-eHHj1Rxo.js",
+        "AdminDrawer-D6qRHFbC.js",
+        "AudioAidPlayer-Dsa1B9b7.js"
+      ]
+    },
+    "src\\Components": {
+      "path": "src\\Components",
+      "purpose": "UI components",
+      "fileCount": 63,
+      "lastAccessed": 1773686272846,
+      "keyFiles": [
+        "AdminDrawer.tsx",
+        "AlgorithmPage.tsx",
+        "AudioAidPlayer.tsx"
+      ]
+    },
+    "src\\Data": {
+      "path": "src\\Data",
+      "purpose": "Data files",
+      "fileCount": 17,
+      "lastAccessed": 1773686272847,
+      "keyFiles": [
+        "Algorithms.ts",
+        "CatData.ts",
+        "DA2062-1.pdf"
+      ]
+    },
+    "src\\lib": {
+      "path": "src\\lib",
+      "purpose": "Library code",
+      "fileCount": 38,
+      "lastAccessed": 1773686272850,
+      "keyFiles": [
+        "accountRequestService.ts",
+        "activityHeartbeat.ts",
+        "adminService.ts"
+      ]
+    },
+    "supabase\\migrations": {
+      "path": "supabase\\migrations",
+      "purpose": "Database migrations",
+      "fileCount": 31,
+      "lastAccessed": 1773686272854,
+      "keyFiles": [
+        "20260226_1_remote_schema.sql",
+        "20260228_1_signal_protocol.sql",
+        "20260228_2_add_notify_messages.sql"
+      ]
+    }
+  },
+  "hotPaths": [
+    {
+      "path": "src\\Components\\Property\\PropertyLocationMap.tsx",
+      "accessCount": 107,
+      "lastAccessed": 1773693575105,
+      "type": "file"
+    },
+    {
+      "path": "src\\App.tsx",
+      "accessCount": 30,
+      "lastAccessed": 1773694078458,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\Property\\PropertyPanel.tsx",
+      "accessCount": 19,
+      "lastAccessed": 1773695070982,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\AdminDrawer.tsx",
+      "accessCount": 17,
+      "lastAccessed": 1773692132064,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\CalendarDrawer.tsx",
+      "accessCount": 17,
+      "lastAccessed": 1773697198247,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\MessagesDrawer.tsx",
+      "accessCount": 15,
+      "lastAccessed": 1773694599556,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\BaseDrawer.tsx",
+      "accessCount": 14,
+      "lastAccessed": 1773692762558,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\Admin\\AdminRequestsList.tsx",
+      "accessCount": 13,
+      "lastAccessed": 1773690453466,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\PropertyDrawer.tsx",
+      "accessCount": 11,
+      "lastAccessed": 1773692131707,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\Admin\\AdminClinicsList.tsx",
+      "accessCount": 9,
+      "lastAccessed": 1773691175531,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\Admin\\AdminUsersList.tsx",
+      "accessCount": 8,
+      "lastAccessed": 1773695071227,
+      "type": "file"
+    },
+    {
+      "path": "src/Components",
+      "accessCount": 5,
+      "lastAccessed": 1773687886002,
+      "type": "directory"
+    },
+    {
+      "path": "src\\Components\\MapOverlay\\FeatureEditor.tsx",
+      "accessCount": 5,
+      "lastAccessed": 1773687903509,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\Property\\PropertyLocationTree.tsx",
+      "accessCount": 5,
+      "lastAccessed": 1773689335993,
+      "type": "file"
+    },
+    {
+      "path": "src",
+      "accessCount": 5,
+      "lastAccessed": 1773691572623,
+      "type": "directory"
+    },
+    {
+      "path": "src\\Components\\NavTop.tsx",
+      "accessCount": 5,
+      "lastAccessed": 1773692122542,
+      "type": "directory"
+    },
+    {
+      "path": "src\\Components\\HeaderPill.tsx",
+      "accessCount": 5,
+      "lastAccessed": 1773692247801,
+      "type": "file"
+    },
+    {
+      "path": "src\\Utilities\\GestureUtils.ts",
+      "accessCount": 5,
+      "lastAccessed": 1773693370003,
+      "type": "file"
+    },
+    {
+      "path": "src\\Hooks\\useSwipeBack.ts",
+      "accessCount": 4,
+      "lastAccessed": 1773688698700,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\SwipeableCard.tsx",
+      "accessCount": 4,
+      "lastAccessed": 1773689346775,
+      "type": "file"
+    },
+    {
+      "path": "src\\Hooks\\useSwipeGesture.ts",
+      "accessCount": 4,
+      "lastAccessed": 1773689351263,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\Property",
+      "accessCount": 4,
+      "lastAccessed": 1773693567477,
+      "type": "directory"
+    },
+    {
+      "path": "src/Components/Property",
+      "accessCount": 4,
+      "lastAccessed": 1773695071204,
+      "type": "directory"
+    },
+    {
+      "path": ".claude\\app-spec.md",
+      "accessCount": 3,
+      "lastAccessed": 1773687897320,
+      "type": "file"
+    },
+    {
+      "path": ".claude\\CLAUDE.md",
+      "accessCount": 3,
+      "lastAccessed": 1773688046181,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\CardContextMenu.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1773690199691,
+      "type": "file"
+    },
+    {
+      "path": "src\\Utilities\\constants.ts",
+      "accessCount": 3,
+      "lastAccessed": 1773692780362,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\Property\\CanvasEditOverlay.tsx",
+      "accessCount": 3,
+      "lastAccessed": 1773693553584,
+      "type": "file"
+    },
+    {
+      "path": "src\\Types\\MapOverlayTypes.ts",
+      "accessCount": 2,
+      "lastAccessed": 1773686292624,
+      "type": "file"
+    },
+    {
+      "path": "src\\App.css",
+      "accessCount": 2,
+      "lastAccessed": 1773687892705,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\MapOverlay\\MapOverlayPanel.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1773688493945,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\Property\\PropertyItemRow.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1773689340787,
+      "type": "file"
+    },
+    {
+      "path": "src\\Hooks\\useIsMobile.ts",
+      "accessCount": 2,
+      "lastAccessed": 1773689397022,
+      "type": "file"
+    },
+    {
+      "path": "src\\Hooks\\useMenuSlide.ts",
+      "accessCount": 2,
+      "lastAccessed": 1773693363396,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\Property\\PropertyItemDetail.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1773695070880,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\Admin\\AdminUserForm.tsx",
+      "accessCount": 2,
+      "lastAccessed": 1773695090635,
+      "type": "file"
+    },
+    {
+      "path": "CLAUDE.md",
+      "accessCount": 1,
+      "lastAccessed": 1773686569806,
+      "type": "file"
+    },
+    {
+      "path": ".impeccable.md",
+      "accessCount": 1,
+      "lastAccessed": 1773687720577,
+      "type": "file"
+    },
+    {
+      "path": "index.html",
+      "accessCount": 1,
+      "lastAccessed": 1773687750278,
+      "type": "file"
+    },
+    {
+      "path": "src\\Hooks\\useSwipeNavigation.ts",
+      "accessCount": 1,
+      "lastAccessed": 1773687877278,
+      "type": "file"
+    },
+    {
+      "path": "src\\Hooks\\usePageSwipe.ts",
+      "accessCount": 1,
+      "lastAccessed": 1773687878297,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\MapOverlay\\MapView.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1773687892795,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\Property\\PropertyItemForm.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1773687897825,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\Property\\CustodyTransferForm.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1773687898189,
+      "type": "file"
+    },
+    {
+      "path": "src\\main.tsx",
+      "accessCount": 1,
+      "lastAccessed": 1773687903559,
+      "type": "file"
+    },
+    {
+      "path": "src\\Hooks\\useCanvasGesture.ts",
+      "accessCount": 1,
+      "lastAccessed": 1773687913606,
+      "type": "file"
+    },
+    {
+      "path": "src\\Hooks\\useColumnCarousel.ts",
+      "accessCount": 1,
+      "lastAccessed": 1773687913853,
+      "type": "file"
+    },
+    {
+      "path": "src\\Hooks\\useNoteEditor.ts",
+      "accessCount": 1,
+      "lastAccessed": 1773687914609,
+      "type": "file"
+    },
+    {
+      "path": "package.json",
+      "accessCount": 1,
+      "lastAccessed": 1773688036333,
+      "type": "file"
+    },
+    {
+      "path": "src\\Components\\MapOverlay",
+      "accessCount": 1,
+      "lastAccessed": 1773688484897,
+      "type": "directory"
+    }
+  ],
+  "userDirectives": []
+}

@@ -267,7 +267,7 @@ export const Settings = ({
                                 <PillButton
                                     icon={Check}
                                     iconSize={18}
-                                    circleBg="bg-themeblue3 text-white"
+                                    circleBg="bg-themegreen text-white"
                                     onClick={() => setClinicSaveRequested(true)}
                                     label="Save"
                                 />

@@ -12,7 +12,8 @@ public/sw.js
 public/workbox-*.js
 public/sw.*.js
 public/*.webmanifest  # Generated manifest
-
+skills-lock.json
+*skills-lock.json
 .md
 *.md
 node_modules

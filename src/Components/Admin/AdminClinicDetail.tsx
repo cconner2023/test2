@@ -22,9 +22,10 @@ import {
 interface AdminClinicDetailProps {
   clinic: AdminClinic
   onClinicUpdated: (clinic: AdminClinic) => void
+  onSelectUser?: (user: AdminUser) => void
 }
 
-const AdminClinicDetail = ({ clinic, onClinicUpdated }: AdminClinicDetailProps) => {
+const AdminClinicDetail = ({ clinic, onClinicUpdated, onSelectUser }: AdminClinicDetailProps) => {
   const [clinics, setClinics] = useState<AdminClinic[]>([])
   const [users, setUsers] = useState<AdminUser[]>([])
   const [allCerts, setAllCerts] = useState<Certification[]>([])
@@ -149,7 +150,11 @@ const AdminClinicDetail = ({ clinic, onClinicUpdated }: AdminClinicDetailProps) 
               return (
                 <div
                   key={user.id}
-                  className="rounded-xl border border-tertiary/15 bg-themewhite2 px-4 py-3.5 space-y-2"
+                  className="rounded-xl border border-tertiary/15 bg-themewhite2 px-4 py-3.5 space-y-2 cursor-pointer active:scale-95 transition-transform"
+                  onClick={() => onSelectUser?.(user)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter') onSelectUser?.(user) }}
                 >
                   {/* Row 1: Avatar + name + credential (inline) + last active + roles (condensed) */}
                   <div className="flex items-center gap-3">

@@ -53,10 +53,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     const [selectedClinic, setSelectedClinic] = useState<AdminClinic | null>(null)
     const [isEditMode, setIsEditMode] = useState(false)
 
-    // Tree filter state (desktop)
-    const [treeFilterClinicId, setTreeFilterClinicId] = useState<string | null>(null)
-    const [treeFilterUserId, setTreeFilterUserId] = useState<string | null>(null)
-
     // Clinic delete confirmation (triggered from header pill)
     const [confirmDeleteClinic, setConfirmDeleteClinic] = useState(false)
     const [deleteClinicProcessing, setDeleteClinicProcessing] = useState(false)
@@ -153,8 +149,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setSelectedUser(null)
         setSelectedClinic(null)
         setSlideDirection('')
-        setTreeFilterClinicId(null)
-        setTreeFilterUserId(null)
         setConfirmDeleteClinic(false)
         collapseSearch()
         onClose()
@@ -181,22 +175,18 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
     )
 
     // Tree selection handlers
-    const handleTreeSelectClinic = useCallback((clinicId: string | null) => {
-        setTreeFilterClinicId(clinicId)
-        setTreeFilterUserId(null)
-        if (clinicId) setActiveTab('clinics')
-    }, [])
+    const handleTreeSelectClinic = useCallback((clinic: AdminClinic | null) => {
+        if (clinic) {
+            handleSelectClinic(clinic)
+        }
+    }, [handleSelectClinic])
 
-    const handleTreeSelectUser = useCallback((userId: string) => {
-        setTreeFilterUserId(userId)
-        setTreeFilterClinicId(null)
-        setActiveTab('users')
-    }, [])
+    const handleTreeSelectUser = useCallback((user: AdminUser) => {
+        handleSelectUser(user)
+    }, [handleSelectUser])
 
     const handleTabChange = useCallback((tab: AdminTab) => {
         setActiveTab(tab)
-        setTreeFilterClinicId(null)
-        setTreeFilterUserId(null)
     }, [])
 
     // Header actions for main 'admin' view — pill with animated search overlay
@@ -282,7 +272,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             return (
                 <HeaderPill>
                     <PillButton icon={Pencil} onClick={() => handleEditClinic(selectedClinic)} label="Edit" />
-                    <PillButton icon={Trash2} onClick={() => setConfirmDeleteClinic(true)} label="Delete" variant="danger" />
+                    <PillButton icon={Trash2} onClick={() => setConfirmDeleteClinic(true)} label="Delete" />
                     <PillButton icon={X} onClick={handleClose} label="Close" />
                 </HeaderPill>
             )
@@ -373,6 +363,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     <AdminClinicDetail
                         clinic={selectedClinic}
                         onClinicUpdated={(c) => setSelectedClinic(c)}
+                        onSelectUser={handleSelectUser}
                     />
                 ) : null
 
@@ -426,7 +417,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     <AdminRequestsList
                         searchQuery={searchQuery}
                         onUserApproved={(approvedUser) => {
-                            // Build a minimal AdminUser so the edit form can pre-fill known fields
                             const newUser: AdminUser = {
                                 id: approvedUser.id,
                                 email: approvedUser.email,
@@ -437,13 +427,13 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                 component: null,
                                 rank: null,
                                 uic: null,
-                                roles: ['medic'],
+                                roles: approvedUser.supervisor ? ['medic', 'supervisor'] : ['medic'],
                                 clinic_id: null,
                                 created_at: new Date().toISOString(),
                                 last_active_at: null,
-                                note_include_hpi: null,
-                                note_include_pe: null,
-                                pe_depth: null,
+                                note_include_hpi: approvedUser.noteIncludeHPI ?? true,
+                                note_include_pe: approvedUser.noteIncludePE ?? false,
+                                pe_depth: approvedUser.peDepth ?? 'standard',
                                 avatar_id: null,
                             }
                             handleEditUser(newUser)
@@ -455,7 +445,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         onSelectUser={handleSelectUser}
                         onEditUser={handleEditUser}
                         onCreateUser={handleCreateUser}
-                        filterUserId={treeFilterUserId}
                         searchQuery={searchQuery}
                     />
                 )}
@@ -464,7 +453,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                         onSelectClinic={handleSelectClinic}
                         onEditClinic={handleEditClinic}
                         onCreateClinic={handleCreateClinic}
-                        filterClinicId={treeFilterClinicId}
                         searchQuery={searchQuery}
                     />
                 )}
@@ -485,7 +473,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'admin' ? swipeHandlers : undefined}>
                 <div className="h-full relative">
                     {/* Desktop: split pane layout */}
-                    {!isMobile && view === 'admin' ? (
+                    {!isMobile ? (
                         <div className="flex h-full">
                             <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
                                 <div className="shrink-0 px-6 py-3 border-b border-primary/10">
@@ -493,18 +481,14 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                 </div>
                                 <div className="flex-1 overflow-y-auto">
                                     <AdminTree
-                                        activeClinicId={treeFilterClinicId}
-                                        activeUserId={treeFilterUserId}
+                                        activeClinicId={null}
+                                        activeUserId={null}
                                         onSelectClinic={handleTreeSelectClinic}
                                         onSelectUser={handleTreeSelectUser}
-                                        onSelectAll={() => { setTreeFilterClinicId(null); setTreeFilterUserId(null) }}
-                                        allSelected={!treeFilterClinicId && !treeFilterUserId}
-                                        onMoveUser={(userId, clinicId) => {
-                                            // Handled by AdminTree internally
-                                        }}
-                                        onMoveClinic={(clinicId, parentId) => {
-                                            // Handled by AdminTree internally
-                                        }}
+                                        onSelectAll={() => setView('admin')}
+                                        allSelected={view === 'admin'}
+                                        onMoveUser={(_userId, _clinicId) => {}}
+                                        onMoveClinic={(_clinicId, _parentId) => {}}
                                     />
                                 </div>
                             </div>

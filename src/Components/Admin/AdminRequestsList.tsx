@@ -1,21 +1,12 @@
-/**
- * AdminRequestsList -- account request management with swipeable cards.
- *
- * Displays account requests (new or profile-change) with filter tabs,
- * swipe-to-approve/reject on mobile, right-click context menu on desktop,
- * and multi-select batch actions via CardActionBar.
- */
-
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Check, X, UserPlus, Clock, Building2, RotateCcw, Trash2, UserCheck, Eye } from 'lucide-react'
+import { Clock, Building2, RotateCcw, Trash2, UserCheck, Eye, Check, X } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
-import { SwipeableCard } from '../SwipeableCard'
 import { CardContextMenu } from '../CardContextMenu'
-import { CardActionBar } from '../CardActionBar'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
+import { useLongPress } from '../../Hooks/useLongPress'
 import {
   getAllAccountRequests,
   approveAccountRequest,
@@ -43,7 +34,315 @@ function getStatusColor(status: string): string {
 interface AdminRequestsListProps {
   searchQuery?: string
   /** Called after a request is approved — passes the new user so the parent can open the edit form */
-  onUserApproved?: (user: { id: string; first_name: string; last_name: string; email: string }) => void
+  onUserApproved?: (user: {
+    id: string
+    first_name: string
+    last_name: string
+    email: string
+    supervisor?: boolean
+    noteIncludeHPI?: boolean
+    noteIncludePE?: boolean
+    peDepth?: string
+  }) => void
+}
+
+// ─── Per-card long-press wrapper ────────────────────────────
+function RequestCard({
+  request,
+  expandedId,
+  setExpandedId,
+  approvingId,
+  setApprovingId,
+  rejectingId,
+  setRejectingId,
+  processingId,
+  rejectReason,
+  setRejectReason,
+  handleApprove,
+  handleReject,
+  handleReopen,
+  setConfirmDeleteId,
+  matchedClinic,
+  isExistingUser,
+  setContextMenu,
+  approvalSupervisor,
+  setApprovalSupervisor,
+  approvalIncludeHPI,
+  setApprovalIncludeHPI,
+  approvalIncludePE,
+  setApprovalIncludePE,
+  approvalPeDepth,
+  setApprovalPeDepth,
+}: {
+  request: AccountRequest
+  expandedId: string | null
+  setExpandedId: (id: string | null) => void
+  approvingId: string | null
+  setApprovingId: (id: string | null) => void
+  rejectingId: string | null
+  setRejectingId: (id: string | null) => void
+  processingId: string | null
+  rejectReason: string
+  setRejectReason: (v: string) => void
+  handleApprove: (id: string) => void
+  handleReject: (id: string) => void
+  handleReopen: (id: string) => void
+  setConfirmDeleteId: (id: string | null) => void
+  matchedClinic: AdminClinic | undefined
+  isExistingUser: boolean
+  setContextMenu: (v: { requestId: string; x: number; y: number } | null) => void
+  approvalSupervisor: boolean
+  setApprovalSupervisor: (v: boolean) => void
+  approvalIncludeHPI: boolean
+  setApprovalIncludeHPI: (v: boolean) => void
+  approvalIncludePE: boolean
+  setApprovalIncludePE: (v: boolean) => void
+  approvalPeDepth: string
+  setApprovalPeDepth: (v: string) => void
+}) {
+  const isPending = request.status === 'pending'
+  const isRejected = request.status === 'rejected'
+  const hasActions = isPending || isRejected
+  const isExpanded = expandedId === request.id
+
+  const longPress = useLongPress((x: number, y: number) => {
+    if (!hasActions) return
+    setContextMenu({ requestId: request.id, x, y })
+  }, { delay: 500 })
+
+  const handleTap = useCallback(() => {
+    if (!hasActions) return
+    setExpandedId(isExpanded ? null : request.id)
+  }, [hasActions, isExpanded, request.id, setExpandedId])
+
+  return (
+    <div
+      {...longPress}
+      onContextMenu={hasActions ? (e) => {
+        e.preventDefault()
+        setContextMenu({ requestId: request.id, x: e.clientX, y: e.clientY })
+      } : undefined}
+      onClick={handleTap}
+      className="rounded-xl border px-4 py-3.5 transition-colors border-tertiary/15 bg-themewhite2 cursor-pointer select-none"
+    >
+      {/* Row 1: name + status text */}
+      <div className="flex items-center gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold text-primary truncate">
+            {request.rank ? `${request.rank} ` : ''}
+            {request.first_name}
+            {request.middle_initial ? ` ${request.middle_initial}` : ''}{' '}
+            {request.last_name}
+          </p>
+          <p className="text-[10pt] text-tertiary truncate">
+            {[request.credential, request.email].filter(Boolean).join(' · ')}
+          </p>
+        </div>
+
+        <span className="text-[10pt] text-tertiary shrink-0 capitalize">{request.status}</span>
+      </div>
+
+      {/* Row 2: UIC + clinic badge (only colored elements) */}
+      {request.uic && (
+        <div className="flex items-center gap-2 flex-wrap mt-2">
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10pt] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
+            {request.uic}
+          </span>
+          {matchedClinic ? (
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10pt] font-medium border bg-themegreen/10 text-themegreen border-themegreen/30">
+              <Building2 size={12} />
+              {matchedClinic.name}
+            </span>
+          ) : (
+            <span className="text-[10pt] text-tertiary">No clinic match</span>
+          )}
+        </div>
+      )}
+
+      {/* Already a user note */}
+      {isExistingUser && (
+        <p className="text-[10pt] text-tertiary mt-1">Already a user — safe to clear this request</p>
+      )}
+
+      {/* Expanded detail section */}
+      {isExpanded && (
+        <div className="mt-3 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
+          {request.component && (
+            <p className="text-[10pt] text-tertiary">
+              Component: <span className="text-primary font-medium">{request.component}</span>
+            </p>
+          )}
+
+          {matchedClinic ? (
+            <p className="text-[10pt] text-tertiary">
+              Suggested clinic: <span className="text-primary font-medium">{matchedClinic.name}</span>
+              {matchedClinic.location ? ` — ${matchedClinic.location}` : ''}
+            </p>
+          ) : request.uic ? (
+            <p className="text-[10pt] text-tertiary">
+              No clinic found for UIC {request.uic} — assign manually after approval
+            </p>
+          ) : null}
+
+          {request.notes && (
+            <p className="text-[10pt] text-tertiary">
+              Notes: <span className="text-primary">{request.notes}</span>
+            </p>
+          )}
+
+          <p className="text-[10pt] text-tertiary">
+            Requested: {new Date(request.requested_at).toLocaleString()}
+          </p>
+
+          {/* Approval confirmation panel */}
+          {isPending && approvingId === request.id && (
+            <div className="p-3 bg-themewhite rounded-lg border border-tertiary/10 space-y-3">
+              <p className="text-[10pt] text-primary font-medium">
+                Create account and send setup email to {request.email}?
+              </p>
+
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={approvalSupervisor}
+                    onChange={(e) => setApprovalSupervisor(e.target.checked)}
+                    className="w-4 h-4 rounded border-tertiary/30"
+                  />
+                  <span className="text-[10pt] text-primary">Supervisor</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={approvalIncludeHPI}
+                    onChange={(e) => setApprovalIncludeHPI(e.target.checked)}
+                    className="w-4 h-4 rounded border-tertiary/30"
+                  />
+                  <span className="text-[10pt] text-primary">Include HPI</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={approvalIncludePE}
+                    onChange={(e) => setApprovalIncludePE(e.target.checked)}
+                    className="w-4 h-4 rounded border-tertiary/30"
+                  />
+                  <span className="text-[10pt] text-primary">Include PE</span>
+                </label>
+
+                {approvalIncludePE && (
+                  <div className="pl-6">
+                    <select
+                      value={approvalPeDepth}
+                      onChange={(e) => setApprovalPeDepth(e.target.value)}
+                      className="px-2.5 py-1.5 rounded-lg bg-themewhite2 border border-tertiary/10 text-[10pt] text-primary focus:border-themeblue2 focus:outline-none"
+                    >
+                      <option value="focused">Focused</option>
+                      <option value="standard">Standard</option>
+                      <option value="comprehensive">Comprehensive</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleApprove(request.id)}
+                  disabled={processingId === request.id}
+                  className="px-4 py-1.5 rounded-lg bg-themeblue3 text-white text-[10pt] font-medium disabled:opacity-50 transition-colors active:scale-95"
+                >
+                  {processingId === request.id ? 'Creating...' : 'Confirm'}
+                </button>
+                <button
+                  onClick={() => setApprovingId(null)}
+                  className="text-[10pt] text-tertiary hover:text-primary transition-colors active:scale-95"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isPending && rejectingId === request.id && (
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                placeholder="Rejection reason..."
+                className="flex-1 px-3 py-1.5 rounded-lg bg-themewhite border border-tertiary/10 text-[10pt] text-primary placeholder:text-tertiary/40 focus:outline-none focus:border-themeblue2"
+              />
+              <button
+                onClick={() => handleReject(request.id)}
+                disabled={processingId === request.id}
+                className="px-3 py-1.5 rounded-lg bg-themeblue3 text-white text-[10pt] font-medium disabled:opacity-50 transition-colors active:scale-95"
+              >
+                Confirm
+              </button>
+              <button
+                onClick={() => { setRejectingId(null); setRejectReason('') }}
+                className="text-[10pt] text-tertiary hover:text-primary transition-colors active:scale-95"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
+
+          {isPending && approvingId !== request.id && rejectingId !== request.id && (
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                onClick={() => { setApprovingId(request.id); setRejectingId(null) }}
+                disabled={processingId === request.id}
+                className="px-4 py-1.5 rounded-lg bg-themeblue3 text-white font-medium text-[10pt] disabled:opacity-50 transition-colors active:scale-95"
+              >
+                Approve
+              </button>
+              <button
+                onClick={() => { setRejectingId(request.id); setApprovingId(null) }}
+                disabled={processingId === request.id}
+                className="text-[10pt] text-themeredred font-medium disabled:opacity-50 transition-colors active:scale-95"
+              >
+                Reject
+              </button>
+            </div>
+          )}
+
+          {request.status === 'approved' && (
+            <p className="text-[10pt] text-tertiary">
+              Account created — user can sign in with the password set during registration.
+            </p>
+          )}
+
+          {request.status === 'rejected' && request.rejection_reason && (
+            <p className="text-[10pt] text-tertiary">
+              Rejected: <span className="text-primary">{request.rejection_reason}</span>
+            </p>
+          )}
+
+          {isRejected && (
+            <div className="flex items-center gap-3 pt-1">
+              <button
+                onClick={() => handleReopen(request.id)}
+                disabled={processingId === request.id}
+                className="px-4 py-1.5 rounded-lg bg-themeblue3 text-white font-medium text-[10pt] disabled:opacity-50 transition-colors active:scale-95"
+              >
+                Return to Pending
+              </button>
+              <button
+                onClick={() => setConfirmDeleteId(request.id)}
+                disabled={processingId === request.id}
+                className="text-[10pt] text-themeredred font-medium disabled:opacity-50 transition-colors active:scale-95"
+              >
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
 }
 
 // ─── Component ──────────────────────────────────────────────
@@ -64,16 +363,26 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
   const [rejectReason, setRejectReason] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deleteProcessing, setDeleteProcessing] = useState(false)
-  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false)
+
+  // Approval options — reset when approvingId changes
+  const [approvalSupervisor, setApprovalSupervisor] = useState(false)
+  const [approvalIncludeHPI, setApprovalIncludeHPI] = useState(true)
+  const [approvalIncludePE, setApprovalIncludePE] = useState(false)
+  const [approvalPeDepth, setApprovalPeDepth] = useState('standard')
+
+  useEffect(() => {
+    setApprovalSupervisor(false)
+    setApprovalIncludeHPI(true)
+    setApprovalIncludePE(false)
+    setApprovalPeDepth('standard')
+  }, [approvingId])
 
   // Status feedback
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
-  // Swipe + selection
-  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  // Expand + context menu
+  const [expandedId, setExpandedId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<{ requestId: string; x: number; y: number } | null>(null)
-  const multiSelectMode = selectedIds.size > 0
 
   // Clear status banner after a delay
   useEffect(() => {
@@ -111,7 +420,6 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
 
   // ── Search filtering + sorting (pending first, then by date) ──
   const filteredRequests = useMemo(() => {
-    // Approved requests become users — only show pending and rejected
     let result = requests.filter(r => r.status !== 'approved')
 
     if (searchQuery.trim()) {
@@ -131,9 +439,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
       const aPending = a.status === 'pending' ? 0 : 1
       const bPending = b.status === 'pending' ? 0 : 1
       if (aPending !== bPending) return aPending - bPending
-      const aTime = new Date(a.requested_at).getTime()
-      const bTime = new Date(b.requested_at).getTime()
-      return bTime - aTime
+      return new Date(b.requested_at).getTime() - new Date(a.requested_at).getTime()
     })
   }, [requests, searchQuery])
 
@@ -146,20 +452,23 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
       setStatus({ type: 'success', message: 'Account approved and setup email sent' })
       await loadRequests()
 
-      // Navigate to user edit form so admin can adjust name, UIC, supervisor, etc.
       if (onUserApproved && result.data?.userId) {
         onUserApproved({
           id: result.data.userId,
           first_name: result.data.firstName ?? '',
           last_name: result.data.lastName ?? '',
           email: result.data.email ?? '',
+          supervisor: approvalSupervisor,
+          noteIncludeHPI: approvalIncludeHPI,
+          noteIncludePE: approvalIncludePE,
+          peDepth: approvalPeDepth,
         })
       }
     } else {
       setStatus({ type: 'error', message: `Failed to approve: ${result.error}` })
     }
     setProcessingId(null)
-  }, [loadRequests, onUserApproved])
+  }, [loadRequests, onUserApproved, approvalSupervisor, approvalIncludeHPI, approvalIncludePE, approvalPeDepth])
 
   // ── Reject handler ──────────────────────────────────────
   const handleReject = useCallback(async (requestId: string) => {
@@ -180,36 +489,12 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
     setProcessingId(null)
   }, [rejectReason, loadRequests])
 
-  // ── Batch approve (multi-select) ────────────────────────
-  const handleBatchApprove = useCallback(async () => {
-    const ids = [...selectedIds]
-    setSelectedIds(new Set())
-    for (const id of ids) {
-      await handleApprove(id)
-    }
-  }, [selectedIds, handleApprove])
-
-  // ── Batch reject (multi-select) ─────────────────────────
-  const handleBatchReject = useCallback(async () => {
-    const ids = [...selectedIds]
-    setSelectedIds(new Set())
-    // Batch reject uses a generic reason
-    for (const id of ids) {
-      setProcessingId(id)
-      await rejectAccountRequest(id, 'Batch rejected by admin')
-      setProcessingId(null)
-    }
-    setStatus({ type: 'success', message: `Rejected ${ids.length} request(s)` })
-    await loadRequests()
-  }, [selectedIds, loadRequests])
-
   // ── Reopen handler ──────────────────────────────────────
   const handleReopen = useCallback(async (requestId: string) => {
     setProcessingId(requestId)
     const result = await reopenAccountRequest(requestId)
     if (result.success) {
       setStatus({ type: 'success', message: 'Request reopened — moved back to pending' })
-      setSelectedIds(new Set())
       await loadRequests()
     } else {
       setStatus({ type: 'error', message: `Failed to reopen: ${result.error}` })
@@ -217,57 +502,19 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
     setProcessingId(null)
   }, [loadRequests])
 
-  // ── Delete handler (called from ConfirmDialog) ─────────
+  // ── Delete handler ──────────────────────────────────────
   const handleDeleteRequest = useCallback(async (requestId: string) => {
     setDeleteProcessing(true)
     const result = await deleteAccountRequest(requestId)
     if (result.success) {
       setConfirmDeleteId(null)
       setStatus({ type: 'success', message: 'Request permanently deleted' })
-      setSelectedIds(new Set())
       await loadRequests()
     } else {
       setStatus({ type: 'error', message: `Failed to delete: ${result.error}` })
     }
     setDeleteProcessing(false)
   }, [loadRequests])
-
-  // ── Batch reopen (multi-select) ────────────────────────
-  const handleBatchReopen = useCallback(async () => {
-    const ids = [...selectedIds]
-    setSelectedIds(new Set())
-    for (const id of ids) {
-      setProcessingId(id)
-      await reopenAccountRequest(id)
-      setProcessingId(null)
-    }
-    setStatus({ type: 'success', message: `Reopened ${ids.length} request(s)` })
-    await loadRequests()
-  }, [selectedIds, loadRequests])
-
-  // ── Batch delete (called from ConfirmDialog) ───────────
-  const handleBatchDelete = useCallback(async () => {
-    setDeleteProcessing(true)
-    const ids = [...selectedIds]
-    setSelectedIds(new Set())
-    for (const id of ids) {
-      await deleteAccountRequest(id)
-    }
-    setConfirmBatchDelete(false)
-    setDeleteProcessing(false)
-    setStatus({ type: 'success', message: `Deleted ${ids.length} request(s)` })
-    await loadRequests()
-  }, [selectedIds, loadRequests])
-
-  // ── Toggle selection ────────────────────────────────────
-  const toggleSelect = useCallback((id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }, [])
 
   // ── Loading state ───────────────────────────────────────
   if (showLoading) {
@@ -280,16 +527,13 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      {/* Header: description, filter tabs, search — pinned at top */}
       <div className="shrink-0 px-5 pt-4 pb-2 space-y-3">
-        <p className="text-xs text-tertiary leading-relaxed">
-          Review and approve account requests. Swipe left or right-click for actions.
+        <p className="text-[10pt] text-tertiary leading-relaxed">
+          Tap to expand. Long-press or right-click for actions.
         </p>
-
         {status && <ErrorDisplay type={status.type} message={status.message} />}
       </div>
 
-      {/* Card list — scrollable */}
       <div className="flex-1 overflow-y-auto px-5 pb-4">
         {filteredRequests.length === 0 ? (
           <EmptyState
@@ -305,406 +549,49 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
                 : 'grid-cols-1 md:grid-cols-2 xl:grid-cols-3'
           }`}>
             {filteredRequests.map((request) => {
-              const isPending = request.status === 'pending'
               const isRejected = request.status === 'rejected'
-              const hasActions = isPending || isRejected
-              const isSelected = selectedIds.has(request.id)
               const matchedClinic = request.uic
                 ? uicToClinic.get(request.uic.toUpperCase())
                 : undefined
               const isExistingUser = isRejected && userEmails.has(request.email.toLowerCase())
 
-              const swipeActions = isPending ? [
-                {
-                  key: 'view',
-                  label: 'View',
-                  icon: Eye,
-                  iconBg: 'bg-themegreen/15',
-                  iconColor: 'text-themegreen',
-                  onAction: () => {
-                    setOpenSwipeId(null)
-                    setSelectedIds(new Set([request.id]))
-                  },
-                },
-                {
-                  key: 'approve',
-                  label: 'Approve',
-                  icon: Check,
-                  iconBg: 'bg-themeblue2/15',
-                  iconColor: 'text-themeblue2',
-                  onAction: () => {
-                    setSelectedIds(new Set([request.id]))
-                    setApprovingId(request.id)
-                    setRejectingId(null)
-                    setOpenSwipeId(null)
-                  },
-                },
-                {
-                  key: 'reject',
-                  label: 'Reject',
-                  icon: X,
-                  iconBg: 'bg-themeredred/15',
-                  iconColor: 'text-themeredred',
-                  onAction: () => {
-                    setSelectedIds(new Set([request.id]))
-                    setRejectingId(request.id)
-                    setApprovingId(null)
-                    setOpenSwipeId(null)
-                  },
-                },
-              ] : isRejected ? [
-                {
-                  key: 'view',
-                  label: 'View',
-                  icon: Eye,
-                  iconBg: 'bg-themegreen/15',
-                  iconColor: 'text-themegreen',
-                  onAction: () => {
-                    setOpenSwipeId(null)
-                    setSelectedIds(new Set([request.id]))
-                  },
-                },
-                {
-                  key: 'return',
-                  label: 'Return',
-                  icon: RotateCcw,
-                  iconBg: 'bg-themeblue2/15',
-                  iconColor: 'text-themeblue2',
-                  onAction: () => {
-                    setOpenSwipeId(null)
-                    handleReopen(request.id)
-                  },
-                },
-                {
-                  key: 'delete',
-                  label: 'Delete',
-                  icon: Trash2,
-                  iconBg: 'bg-themeredred/15',
-                  iconColor: 'text-themeredred',
-                  onAction: () => {
-                    setOpenSwipeId(null)
-                    setConfirmDeleteId(request.id)
-                  },
-                },
-              ] : []
-
               return (
-                <SwipeableCard
-                  key={request.id}
-                  isOpen={openSwipeId === request.id}
-                  enabled={hasActions && !multiSelectMode}
-                  actions={swipeActions}
-                  onOpen={() => setOpenSwipeId(request.id)}
-                  onClose={() => { if (openSwipeId === request.id) setOpenSwipeId(null) }}
-                  onContextMenu={hasActions ? (e) => {
-                    e.preventDefault()
-                    setContextMenu({ requestId: request.id, x: e.clientX, y: e.clientY })
-                  } : undefined}
-                  onTap={hasActions ? () => {
-                    if (multiSelectMode) {
-                      toggleSelect(request.id)
-                      return
-                    }
-                    setOpenSwipeId(null)
-                    const isTogglingOff = selectedIds.has(request.id)
-                    setSelectedIds(isTogglingOff ? new Set() : new Set([request.id]))
-                  } : undefined}
-                >
-                  <div
-                    className={`rounded-xl border px-4 py-3.5 transition-colors space-y-2 ${
-                      isSelected
-                        ? 'border-themeblue2/30 bg-themeblue2/5'
-                        : 'border-tertiary/15 bg-themewhite2'
-                    }`}
-                  >
-                    {/* Row 1: Avatar/check + name + email + 1-letter badges */}
-                    <div className="flex items-center gap-3">
-                      {isSelected ? (
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2">
-                          <Check size={16} className="text-white" />
-                        </div>
-                      ) : (
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2/10">
-                          <UserPlus size={18} className="text-themeblue2" />
-                        </div>
-                      )}
-
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-primary truncate">
-                          {request.rank ? `${request.rank} ` : ''}
-                          {request.first_name}
-                          {request.middle_initial ? ` ${request.middle_initial}` : ''}{' '}
-                          {request.last_name}
-                        </p>
-                        <div className="flex items-center gap-2 min-w-0">
-                          {request.credential && (
-                            <p className="text-[9pt] text-tertiary/50 shrink-0">{request.credential}</p>
-                          )}
-                          {request.email && (
-                            <p className="text-[9pt] text-tertiary/50 truncate min-w-0">{request.email}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Right: 1-letter type + status badges matching RoleBadge pattern */}
-                      <div className="flex flex-wrap gap-0.5 shrink-0 max-w-[48px] justify-end">
-                        <span className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold ${
-                          request.request_type === 'profile_change'
-                            ? 'bg-themeblue2/15 text-themeblue2'
-                            : 'bg-themepurple/15 text-themepurple'
-                        }`} title={request.request_type === 'profile_change' ? 'Profile Change' : 'New Account'}>
-                          {request.request_type === 'profile_change' ? 'C' : 'N'}
-                        </span>
-                        <span className={`w-5 h-5 rounded flex items-center justify-center text-[9px] font-bold border ${getStatusColor(request.status)}`}
-                          title={request.status.charAt(0).toUpperCase() + request.status.slice(1)}>
-                          {request.status.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Row 2: UIC + matched clinic suggestion (prominent on card face) */}
-                    {request.uic && (
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
-                          {request.uic}
-                        </span>
-                        {matchedClinic ? (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themegreen/10 text-themegreen border-themegreen/30">
-                            <Building2 size={9} />
-                            {matchedClinic.name}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeyellow/10 text-themeyellow border-themeyellow/30">
-                            <Building2 size={9} />
-                            No clinic match
-                          </span>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Strip: denied request already has a user account — safe to clear */}
-                    {isExistingUser && (
-                      <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-themeblue2/10 border border-themeblue2/20">
-                        <UserCheck size={13} className="text-themeblue2 shrink-0" />
-                        <span className="text-[9px] font-medium text-themeblue2">
-                          Already a user — safe to clear this request
-                        </span>
-                      </div>
-                    )}
-
-                    {isSelected && !multiSelectMode && (
-                      <div className="mt-3 pt-3 border-t border-tertiary/10 space-y-2">
-                        {/* Component / extra details */}
-                        {(request.component) && (
-                          <div className="text-[10pt]">
-                            {request.component && (
-                              <span className="text-tertiary/60">Component: <span className="text-primary font-medium">{request.component}</span></span>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Clinic suggestion — expanded with location detail */}
-                        {matchedClinic ? (
-                          <div className="flex items-center gap-2 p-2 bg-themegreen/10 rounded-lg text-[10pt]">
-                            <Building2 size={14} className="text-themegreen shrink-0" />
-                            <div>
-                              <span className="text-themegreen font-medium">Suggested clinic for UIC {request.uic}</span>
-                              <p className="text-themegreen/80 text-[9pt]">
-                                {matchedClinic.name}
-                                {matchedClinic.location ? ` — ${matchedClinic.location}` : ''}
-                              </p>
-                            </div>
-                          </div>
-                        ) : request.uic ? (
-                          <div className="flex items-center gap-2 p-2 bg-themeyellow/10 rounded-lg text-[10pt]">
-                            <Building2 size={14} className="text-themeyellow shrink-0" />
-                            <span className="text-themeyellow/80">
-                              No clinic found for UIC {request.uic} — assign manually after approval
-                            </span>
-                          </div>
-                        ) : null}
-
-                        {request.notes && (
-                          <div className="p-2 bg-themewhite rounded-lg text-[10pt]">
-                            <span className="text-tertiary/60">Notes:</span>{' '}
-                            <span className="text-primary">{request.notes}</span>
-                          </div>
-                        )}
-
-                        <p className="text-[9pt] text-tertiary/50">
-                          Requested: {new Date(request.requested_at).toLocaleString()}
-                        </p>
-
-                        {isPending && approvingId === request.id && (
-                          <div className="p-3 bg-themegreen/10 rounded-lg">
-                            <p className="text-[10pt] text-themegreen font-medium mb-2">
-                              Create account and send setup email to {request.email}?
-                            </p>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleApprove(request.id)}
-                                disabled={processingId === request.id}
-                                className="flex-1 px-3 py-2 rounded-lg bg-themegreen text-white text-[10pt] font-medium hover:bg-themegreen/90 disabled:opacity-50 transition-colors"
-                              >
-                                {processingId === request.id ? 'Creating...' : 'Confirm & Send Email'}
-                              </button>
-                              <button
-                                onClick={() => setApprovingId(null)}
-                                className="px-3 py-2 rounded-lg bg-tertiary/10 text-primary text-[10pt] transition-colors"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        )}
-
-                        {isPending && rejectingId === request.id && (
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={rejectReason}
-                              onChange={(e) => setRejectReason(e.target.value)}
-                              placeholder="Rejection reason..."
-                              className="flex-1 px-3 py-2 rounded-lg bg-themewhite border border-tertiary/10 text-[10pt] text-primary placeholder:text-tertiary/40 focus:outline-none focus:border-themeredred/40"
-                            />
-                            <button
-                              onClick={() => handleReject(request.id)}
-                              disabled={processingId === request.id}
-                              className="px-3 py-2 rounded-lg bg-themeredred text-white text-[10pt] font-medium hover:bg-themeredred/90 disabled:opacity-50 transition-colors"
-                            >
-                              Confirm
-                            </button>
-                            <button
-                              onClick={() => { setRejectingId(null); setRejectReason('') }}
-                              className="px-3 py-2 rounded-lg bg-tertiary/10 text-primary text-[10pt] transition-colors"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        )}
-
-                        {isPending && approvingId !== request.id && rejectingId !== request.id && (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => { setApprovingId(request.id); setRejectingId(null) }}
-                              disabled={processingId === request.id}
-                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-themegreen text-white font-medium text-[10pt] hover:bg-themegreen/90 disabled:opacity-50 transition-colors"
-                            >
-                              <Check size={16} /> Approve
-                            </button>
-                            <button
-                              onClick={() => { setRejectingId(request.id); setApprovingId(null) }}
-                              disabled={processingId === request.id}
-                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-themeredred text-white font-medium text-[10pt] hover:bg-themeredred/90 disabled:opacity-50 transition-colors"
-                            >
-                              <X size={16} /> Reject
-                            </button>
-                          </div>
-                        )}
-
-                        {request.status === 'approved' && (
-                          <div className="p-3 bg-themegreen/10 rounded-lg text-[10pt]">
-                            <div className="flex items-center gap-2 text-themegreen">
-                              <UserPlus size={16} />
-                              <span className="font-medium">Account created</span>
-                            </div>
-                            <p className="text-themegreen text-[9pt] mt-1">
-                              User can now sign in with the password they set during registration.
-                            </p>
-                          </div>
-                        )}
-
-                        {request.status === 'rejected' && request.rejection_reason && (
-                          <div className="p-3 bg-themeredred/10 rounded-lg text-[10pt]">
-                            <span className="text-themeredred font-medium">Reason:</span>
-                            <p className="text-themeredred text-[9pt] mt-1">{request.rejection_reason}</p>
-                          </div>
-                        )}
-
-                        {isRejected && (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleReopen(request.id)}
-                              disabled={processingId === request.id}
-                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-themeblue3 text-white font-medium text-[10pt] hover:bg-themeblue3/90 disabled:opacity-50 transition-colors"
-                            >
-                              <RotateCcw size={16} /> Return
-                            </button>
-                            <button
-                              onClick={() => setConfirmDeleteId(request.id)}
-                              disabled={processingId === request.id}
-                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-themeredred text-white font-medium text-[10pt] hover:bg-themeredred/90 disabled:opacity-50 transition-colors"
-                            >
-                              <Trash2 size={16} /> Delete
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </SwipeableCard>
+                <div key={request.id} className={expandedId === request.id ? 'col-span-full' : ''}>
+                  <RequestCard
+                    request={request}
+                    expandedId={expandedId}
+                    setExpandedId={setExpandedId}
+                    approvingId={approvingId}
+                    setApprovingId={setApprovingId}
+                    rejectingId={rejectingId}
+                    setRejectingId={setRejectingId}
+                    processingId={processingId}
+                    rejectReason={rejectReason}
+                    setRejectReason={setRejectReason}
+                    handleApprove={handleApprove}
+                    handleReject={handleReject}
+                    handleReopen={handleReopen}
+                    setConfirmDeleteId={setConfirmDeleteId}
+                    matchedClinic={matchedClinic}
+                    isExistingUser={isExistingUser}
+                    setContextMenu={setContextMenu}
+                    approvalSupervisor={approvalSupervisor}
+                    setApprovalSupervisor={setApprovalSupervisor}
+                    approvalIncludeHPI={approvalIncludeHPI}
+                    setApprovalIncludeHPI={setApprovalIncludeHPI}
+                    approvalIncludePE={approvalIncludePE}
+                    setApprovalIncludePE={setApprovalIncludePE}
+                    approvalPeDepth={approvalPeDepth}
+                    setApprovalPeDepth={setApprovalPeDepth}
+                  />
+                </div>
               )
             })}
           </div>
         )}
       </div>
 
-      {/* Multi-select action bar — pinned at bottom, outside scroll */}
-      {multiSelectMode && (() => {
-        const selectedStatuses = new Set(
-          [...selectedIds].map(id => requests.find(r => r.id === id)?.status).filter(Boolean)
-        )
-        const allPending = selectedStatuses.size === 1 && selectedStatuses.has('pending')
-        const allRejected = selectedStatuses.size === 1 && selectedStatuses.has('rejected')
-
-        const batchActions = allPending ? [
-          {
-            key: 'approve',
-            label: 'Approve',
-            icon: Check,
-            iconBg: 'bg-themegreen/15',
-            iconColor: 'text-themegreen',
-            onAction: handleBatchApprove,
-          },
-          {
-            key: 'reject',
-            label: 'Reject',
-            icon: X,
-            iconBg: 'bg-themeredred/15',
-            iconColor: 'text-themeredred',
-            onAction: handleBatchReject,
-          },
-        ] : allRejected ? [
-          {
-            key: 'return',
-            label: 'Return',
-            icon: RotateCcw,
-            iconBg: 'bg-themeblue2/15',
-            iconColor: 'text-themeblue2',
-            onAction: handleBatchReopen,
-          },
-          {
-            key: 'delete',
-            label: 'Delete',
-            icon: Trash2,
-            iconBg: 'bg-themeredred/15',
-            iconColor: 'text-themeredred',
-            onAction: () => setConfirmBatchDelete(true),
-          },
-        ] : []
-
-        return (
-          <div className="shrink-0">
-            <CardActionBar
-              selectedCount={selectedIds.size}
-              onClear={() => setSelectedIds(new Set())}
-              actions={batchActions}
-            />
-          </div>
-        )
-      })()}
-
-      {/* Right-click context menu */}
+      {/* Right-click / long-press context menu */}
       {contextMenu && (() => {
         const ctxRequest = requests.find(r => r.id === contextMenu.requestId)
         const ctxItems = ctxRequest?.status === 'rejected' ? [
@@ -712,7 +599,7 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
             key: 'view',
             label: 'View',
             icon: Eye,
-            onAction: () => setSelectedIds(new Set([contextMenu.requestId])),
+            onAction: () => setExpandedId(contextMenu.requestId),
           },
           {
             key: 'return',
@@ -732,20 +619,27 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
             key: 'view',
             label: 'View',
             icon: Eye,
-            onAction: () => setSelectedIds(new Set([contextMenu.requestId])),
+            onAction: () => setExpandedId(contextMenu.requestId),
           },
           {
             key: 'approve',
             label: 'Approve',
             icon: Check,
-            onAction: () => setApprovingId(contextMenu.requestId),
+            onAction: () => {
+              setExpandedId(contextMenu.requestId)
+              setApprovingId(contextMenu.requestId)
+            },
           },
           {
             key: 'reject',
             label: 'Reject',
             icon: X,
             destructive: true,
-            onAction: () => { setRejectingId(contextMenu.requestId); setApprovingId(null) },
+            onAction: () => {
+              setExpandedId(contextMenu.requestId)
+              setRejectingId(contextMenu.requestId)
+              setApprovingId(null)
+            },
           },
         ]
 
@@ -769,18 +663,6 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
         processing={deleteProcessing}
         onConfirm={() => { if (confirmDeleteId) handleDeleteRequest(confirmDeleteId) }}
         onCancel={() => setConfirmDeleteId(null)}
-      />
-
-      {/* Batch delete confirmation */}
-      <ConfirmDialog
-        visible={confirmBatchDelete}
-        title={`Delete ${selectedIds.size} request(s)?`}
-        subtitle="This will permanently remove the selected requests. This action cannot be undone."
-        confirmLabel="Delete All"
-        variant="danger"
-        processing={deleteProcessing}
-        onConfirm={handleBatchDelete}
-        onCancel={() => setConfirmBatchDelete(false)}
       />
     </div>
   )

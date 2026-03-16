@@ -67,18 +67,17 @@ export const WAYPOINT_LABELS: Record<WaypointType, string> = {
 }
 
 export const TACTICAL_COLORS = [
-  { name: 'Blue', hex: '#3B82F6' },
-  { name: 'Red', hex: '#EF4444' },
-  { name: 'Green', hex: '#22C55E' },
-  { name: 'Yellow', hex: '#EAB308' },
-  { name: 'Black', hex: '#1F2937' },
-  { name: 'White', hex: '#F9FAFB' },
+  { name: 'Blue', hex: 'rgba(21,142,172,1)' },
+  { name: 'Red', hex: 'rgb(170,65,65)' },
+  { name: 'Green', hex: 'rgba(96,146,92,1)' },
+  { name: 'Yellow', hex: 'rgba(255,194,34,1)' },
+  { name: 'Black', hex: '#000000' },
 ] as const
 
 export type TacticalColor = typeof TACTICAL_COLORS[number]
 
 export const DEFAULT_FEATURE_STYLE: FeatureStyle = {
-  color: '#3B82F6',
+  color: 'rgba(21,142,172,1)',
   weight: 3,
   opacity: 1,
 }

@@ -19,8 +19,8 @@ import type { AdminUser, AdminClinic } from '../../lib/adminService'
 interface AdminTreeProps {
   activeClinicId?: string | null
   activeUserId?: string | null
-  onSelectClinic: (clinicId: string | null) => void
-  onSelectUser: (userId: string) => void
+  onSelectClinic: (clinic: AdminClinic | null) => void
+  onSelectUser: (user: AdminUser) => void
   onSelectAll: () => void
   allSelected?: boolean
   onMoveUser: (userId: string, clinicId: string | null) => void
@@ -386,9 +386,9 @@ export function AdminTree({
             role="button"
             tabIndex={0}
             className="flex items-center gap-2 flex-1 min-w-0 text-left cursor-pointer"
-            onClick={() => onSelectClinic(node.clinic.id)}
+            onClick={() => onSelectClinic(node.clinic)}
             onKeyDown={(e) => {
-              if (e.key === 'Enter') onSelectClinic(node.clinic.id)
+              if (e.key === 'Enter') onSelectClinic(node.clinic)
             }}
           >
             <Building2 size={16} className="text-themeblue3 shrink-0" />
@@ -433,9 +433,9 @@ export function AdminTree({
               : 'hover:bg-secondary/5'
         }`}
         style={{ paddingLeft: `${24 + depth * 20 + 18}px` }}
-        onClick={() => onSelectUser(user.id)}
+        onClick={() => onSelectUser(user)}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') onSelectUser(user.id)
+          if (e.key === 'Enter') onSelectUser(user)
         }}
         onContextMenu={(e) => {
           e.preventDefault()
@@ -556,14 +556,14 @@ export function AdminTree({
                     key: 'edit',
                     label: 'Edit',
                     icon: Pencil,
-                    onAction: () => onSelectClinic(clinic.id),
+                    onAction: () => onSelectClinic(clinic),
                   },
                   {
                     key: 'delete',
                     label: 'Delete',
                     icon: Trash2,
                     destructive: true,
-                    onAction: () => onSelectClinic(clinic.id),
+                    onAction: () => onSelectClinic(clinic),
                   },
                 ]}
               />
@@ -581,13 +581,13 @@ export function AdminTree({
                     key: 'edit',
                     label: 'Edit',
                     icon: Pencil,
-                    onAction: () => onSelectUser(user.id),
+                    onAction: () => onSelectUser(user),
                   },
                   {
                     key: 'view',
                     label: 'View',
                     icon: Eye,
-                    onAction: () => onSelectUser(user.id),
+                    onAction: () => onSelectUser(user),
                   },
                 ]}
               />

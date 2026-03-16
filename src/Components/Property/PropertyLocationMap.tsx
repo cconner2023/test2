@@ -12,6 +12,7 @@ import { flushSync } from 'react-dom'
 import { useSpring, animated } from '@react-spring/web'
 import { Pencil, Check, PenTool, ZoomIn, ZoomOut, Scissors, Merge, X, Copy, Camera, Trash2, Maximize2, Move } from 'lucide-react'
 import { usePropertyStore } from '../../stores/usePropertyStore'
+import { useIsMobile } from '../../Hooks/useIsMobile'
 import { fetchAllLocationTags, fetchLocationTags, upsertLocationTags } from '../../lib/propertyService'
 import { buildTagIndex, findLCA } from '../../lib/tagIndex'
 import type { TagIndex } from '../../lib/tagIndex'
@@ -19,6 +20,8 @@ import { LocationTagPhoto } from './LocationTagPhoto'
 import { CanvasEditOverlay } from './CanvasEditOverlay'
 import type { CanvasEditHandle } from './CanvasEditOverlay'
 import { ConfirmDialog } from '../ConfirmDialog'
+import { CardContextMenu } from '../CardContextMenu'
+import type { CardContextMenuItem } from '../CardContextMenu'
 import { createLogger } from '../../Utilities/Logger'
 import type { LocalPropertyItem, LocalPropertyLocation, PropertyLocation, LocationTag } from '../../Types/PropertyTypes'
 
@@ -86,6 +89,7 @@ interface PropertyLocationMapProps {
 
 export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, clinicName, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, floatingControls }, ref) {
   const store = usePropertyStore()
+  const isMobile = useIsMobile()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [tagIndex, setTagIndex] = useState<TagIndex | null>(null)
   const [canvasScale, setCanvasScale] = useState(1)
@@ -217,6 +221,54 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
       return fill >= 0.8
     })
   }, [allWorldTags, rootLocationId, canvasScale, store.selectedZoneId])
+
+  // ── Item pins: combine persisted item tags with auto-generated pins for untagged items ──
+  const visibleTagsWithPins: LocationTag[] = useMemo(() => {
+    if (!items || items.length === 0) return visibleTags
+
+    // Collect persisted item tags already in visibleTags
+    const taggedItemIds = new Set<string>()
+    for (const t of visibleTags) {
+      if (t.target_type === 'item') taggedItemIds.add(t.target_id)
+    }
+
+    // For each zone in visibleTags, find items assigned there but without a pin
+    const zoneTags = visibleTags.filter((t) => (t.width ?? 0) > 0 && (t.height ?? 0) > 0)
+    const autoPins: LocationTag[] = []
+
+    for (const zone of zoneTags) {
+      const untagged = items.filter(
+        (item) => item.location_id === zone.target_id && !taggedItemIds.has(item.id),
+      )
+      if (untagged.length === 0) continue
+
+      const cols = 3
+      const rows = Math.ceil(untagged.length / cols)
+      const zw = zone.width ?? 0
+      const zh = zone.height ?? 0
+
+      untagged.forEach((item, i) => {
+        const col = i % cols
+        const row = Math.floor(i / cols)
+        const pinX = zone.x + ((col + 0.5) / cols) * zw
+        const pinY = zone.y + ((row + 0.5) / rows) * zh
+        autoPins.push({
+          id: `auto-${item.id}`,
+          location_id: zone.target_id,
+          target_type: 'item',
+          target_id: item.id,
+          x: pinX,
+          y: pinY,
+          width: null,
+          height: null,
+          label: item.name,
+        })
+      })
+    }
+
+    if (autoPins.length === 0) return visibleTags
+    return [...visibleTags, ...autoPins]
+  }, [visibleTags, items])
 
   // ── Zoom to a world-coord rect { x, y, width, height } ──
   const zoomToRect = useCallback(
@@ -616,6 +668,7 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
   // Zone taps are detected in handlePanEnd via the data-zone-target attribute.
   const handlePanStart = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return
+    if (e.clientX < 20 || e.clientX > window.innerWidth - 20) return
     // In edit mode, only allow panning when NOT drawing (draw mode captures its own events)
     if (isEditing && isDrawing) return
     if ((e.target as HTMLElement).closest('[data-zoom-controls]')) return
@@ -628,27 +681,36 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     const zoneId = zoneEl?.getAttribute('data-zone-target') ?? null
     dragRef.current = { startX: e.clientX, startY: e.clientY, scrollX: el.scrollLeft, scrollY: el.scrollTop, zoneId }
 
-    el.setPointerCapture(e.pointerId)
-    el.style.cursor = 'grabbing'
-  }, [isEditing, isDrawing])
+    // Desktop: capture pointer for drag-to-pan (mobile uses native scroll)
+    if (!isMobile && e.pointerType === 'mouse') {
+      el.setPointerCapture(e.pointerId)
+      el.style.cursor = 'grabbing'
+    }
+  }, [isEditing, isDrawing, isMobile])
 
   const handlePanMove = useCallback((e: React.PointerEvent) => {
-    const d = dragRef.current
-    if (!d) return
-    const el = scrollRef.current
-    if (!el) return
-    el.scrollLeft = d.scrollX - (e.clientX - d.startX)
-    el.scrollTop = d.scrollY - (e.clientY - d.startY)
-  }, [])
+    if (!dragRef.current) return
+    // Desktop mouse-drag panning — mobile relies on native scroll
+    if (!isMobile && e.pointerType === 'mouse') {
+      const el = scrollRef.current
+      if (!el) return
+      el.scrollLeft = dragRef.current.scrollX - (e.clientX - dragRef.current.startX)
+      el.scrollTop = dragRef.current.scrollY - (e.clientY - dragRef.current.startY)
+    }
+  }, [isMobile])
 
   const handlePanEnd = useCallback((e: React.PointerEvent) => {
     const d = dragRef.current
     if (!d) return
     dragRef.current = null
-    const el = scrollRef.current
-    if (el) {
-      try { el.releasePointerCapture(e.pointerId) } catch { /* not captured */ }
-      el.style.cursor = ''
+
+    // Desktop: release pointer capture and restore cursor
+    if (!isMobile && e.pointerType === 'mouse') {
+      const el = scrollRef.current
+      if (el) {
+        try { el.releasePointerCapture(e.pointerId) } catch {}
+        el.style.cursor = ''
+      }
     }
 
     // If the pointer barely moved, treat as a tap (view mode only)
@@ -724,8 +786,50 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
     return m
   }, [locations])
 
+  // ── Item pin move: persist new position for a dragged item pin ──
+  const handleItemPinMove = useCallback(
+    async (targetId: string, canvasId: string, newX: number, newY: number) => {
+      if (!tagIndex) return
+
+      // Find existing tag for this item in the canvas
+      const canvasPins = tagIndex.byCanvas.get(canvasId) ?? []
+      const existing = canvasPins.find((t) => t.target_type === 'item' && t.target_id === targetId)
+
+      const item = itemsRef.current.find((i) => i.id === targetId)
+      const updatedPin: LocationTag = existing
+        ? { ...existing, x: newX, y: newY }
+        : {
+            id: `item-pin-${targetId}`,
+            location_id: canvasId,
+            target_type: 'item',
+            target_id: targetId,
+            x: newX,
+            y: newY,
+            width: null,
+            height: null,
+            label: item?.name ?? targetId,
+          }
+
+      // Optimistic update
+      setTagIndex((prev) => {
+        if (!prev) return prev
+        const newByCanvas = new Map(prev.byCanvas)
+        const current = newByCanvas.get(canvasId) ?? []
+        const filtered = current.filter((t) => !(t.target_type === 'item' && t.target_id === targetId))
+        newByCanvas.set(canvasId, [...filtered, updatedPin])
+        return buildTagIndex(newByCanvas)
+      })
+
+      // All location tags for this canvas (zones + other item pins + updated pin)
+      const otherPins = canvasPins.filter((t) => !(t.target_type === 'item' && t.target_id === targetId))
+      await upsertLocationTags(canvasId, [...otherPins, updatedPin])
+    },
+    [tagIndex],
+  )
+
   const photoInputRef = useRef<HTMLInputElement>(null)
   const [photoTargetId, setPhotoTargetId] = useState<string | null>(null)
+  const [zoneMenu, setZoneMenu] = useState<{ targetId: string; x: number; y: number } | null>(null)
 
   const handlePhotoUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -889,8 +993,8 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         {/* Scrollable canvas */}
         <div
           ref={scrollRef}
-          className={`absolute inset-0 overflow-auto bg-themewhite2 border border-tertiary/15 rounded-lg ${isEditing ? (isDrawing ? 'cursor-crosshair' : isResizing ? 'cursor-nwse-resize' : isMoving ? 'cursor-move' : 'cursor-default') : 'cursor-grab'}`}
-          style={(isMoving || isResizing) ? { touchAction: 'none' } : undefined}
+          className={`absolute inset-0 overflow-auto bg-themewhite2 border border-tertiary/15 rounded-lg ${isEditing ? (isDrawing ? 'cursor-crosshair' : isResizing ? 'cursor-nwse-resize' : isMoving ? 'cursor-move' : 'cursor-default') : 'cursor-default'}`}
+          style={{ touchAction: (isDrawing || isMoving || isResizing) ? 'none' : 'pan-x pan-y' }}
           onPointerDown={handlePanStart}
           onPointerMove={handlePanMove}
           onPointerUp={handlePanEnd}
@@ -962,11 +1066,15 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
             <div className="relative" style={{ width: totalW, height: totalH }}>
               <div className="absolute" style={{ left: padX, top: padY, width: contentW, height: contentH }}>
                 <LocationTagPhoto
-                  tags={visibleTags}
+                  tags={visibleTagsWithPins}
                   selectedZoneId={store.selectedZoneId}
                   onZoneTap={handleZoneTap}
                   scale={canvasScale}
                   photoMap={photoMap}
+                  items={items}
+                  onItemTap={onSelectItem}
+                  onZoneMenu={onUpdateLocation ? (targetId, x, y) => setZoneMenu({ targetId, x, y }) : undefined}
+                  onItemPinMove={handleItemPinMove}
                 />
 
                 {!rootLocationId && (
@@ -1007,87 +1115,93 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
           </div>
         )}
 
-        {/* Floating toolbar — top-right, pill + rename dropdown */}
+        {/* Floating toolbar — top-right, expanding pill + rename dropdown */}
         <div className="absolute top-3 right-3 z-20 flex flex-col items-end">
           {/* Toolbar pill */}
           <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 flex items-center shadow-sm">
-            {/* Tool buttons — expand leftward via animated maxWidth */}
             <animated.div
               className="flex items-center overflow-hidden"
               style={{
-                maxWidth: toolbarSpring.progress.to(p => `${p * 376}px`),
+                maxWidth: toolbarSpring.progress.to(p => `${p * 400}px`),
                 opacity: toolbarSpring.progress,
               }}
             >
               <button
                 onClick={() => { setIsDrawing((d) => !d); setIsResizing(false); setIsMoving(false) }}
-                className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${isDrawing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
+                className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${isDrawing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
                 title="Draw zone"
               >
                 <PenTool size={15} />
               </button>
-              <button
-                onClick={() => { setIsMoving((m) => !m); setIsDrawing(false); setIsResizing(false) }}
-                disabled={editSelectionCount !== 1}
-                className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none ${isMoving ? 'bg-themegreen text-white' : 'text-tertiary hover:text-primary'}`}
-                title="Move mode (select 1)"
-              >
-                <Move size={15} />
-              </button>
-              <div className="h-5 w-px shrink-0 bg-tertiary/15" />
-              <button
-                onClick={() => editRef.current?.deleteSelected()}
-                disabled={editSelectionCount < 1}
-                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
-                title="Delete selected"
-              >
-                <Trash2 size={15} />
-              </button>
-              <button
-                onClick={() => editRef.current?.renameSelected()}
-                disabled={editSelectionCount !== 1}
-                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
-                title="Rename zone (select 1)"
-              >
-                <Pencil size={15} />
-              </button>
-              <button
-                onClick={() => { setIsResizing((r) => !r); setIsDrawing(false); setIsMoving(false) }}
-                disabled={editSelectionCount !== 1}
-                className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none ${isResizing ? 'bg-themeyellow text-white' : 'text-tertiary hover:text-primary'}`}
-                title="Resize mode (select 1)"
-              >
-                <Maximize2 size={15} />
-              </button>
-              <div className="h-5 w-px shrink-0 bg-tertiary/15" />
-              <button
-                onClick={() => editRef.current?.duplicate()}
-                disabled={editSelectionCount !== 1}
-                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
-                title="Duplicate zone (select 1)"
-              >
-                <Copy size={15} />
-              </button>
-              <button
-                onClick={() => editRef.current?.split()}
-                disabled={editSelectionCount !== 1}
-                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
-                title="Split zone (select 1)"
-              >
-                <Scissors size={15} />
-              </button>
-              <button
-                onClick={() => editRef.current?.merge()}
-                disabled={editSelectionCount < 2}
-                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none"
-                title="Merge zones (select 2+)"
-              >
-                <Merge size={15} />
-              </button>
+              {editSelectionCount === 1 && (
+                <button
+                  onClick={() => { setIsMoving((m) => !m); setIsDrawing(false); setIsResizing(false) }}
+                  className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${isMoving ? 'bg-themegreen text-white' : 'text-tertiary hover:text-primary'}`}
+                  title="Move"
+                >
+                  <Move size={15} />
+                </button>
+              )}
+              {editSelectionCount === 1 && (
+                <button
+                  onClick={() => { setIsResizing((r) => !r); setIsDrawing(false); setIsMoving(false) }}
+                  className={`w-10 h-10 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${isResizing ? 'bg-themeyellow text-white' : 'text-tertiary hover:text-primary'}`}
+                  title="Resize"
+                >
+                  <Maximize2 size={15} />
+                </button>
+              )}
+              {editSelectionCount >= 1 && <div className="h-5 w-px shrink-0 bg-tertiary/15" />}
+              {editSelectionCount >= 1 && (
+                <button
+                  onClick={() => editRef.current?.deleteSelected()}
+                  className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
+                  title="Delete"
+                >
+                  <Trash2 size={15} />
+                </button>
+              )}
+              {editSelectionCount === 1 && (
+                <button
+                  onClick={() => editRef.current?.renameSelected()}
+                  className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                  title="Rename"
+                >
+                  <Pencil size={15} />
+                </button>
+              )}
+              {editSelectionCount >= 1 && <div className="h-5 w-px shrink-0 bg-tertiary/15" />}
+              {editSelectionCount === 1 && (
+                <button
+                  onClick={() => editRef.current?.duplicate()}
+                  className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                  title="Duplicate"
+                >
+                  <Copy size={15} />
+                </button>
+              )}
+              {editSelectionCount === 1 && (
+                <button
+                  onClick={() => editRef.current?.split()}
+                  className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                  title="Split"
+                >
+                  <Scissors size={15} />
+                </button>
+              )}
+              {editSelectionCount >= 2 && (
+                <button
+                  onClick={() => editRef.current?.merge()}
+                  className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
+                  title="Merge"
+                >
+                  <Merge size={15} />
+                </button>
+              )}
               <div className="h-5 w-px shrink-0 bg-tertiary/15" />
               <button
                 onClick={handleExitEdit}
-                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
+                className="w-10 h-10 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-themeredred active:scale-95 transition-all"
                 title="Cancel"
               >
                 <X size={15} />
@@ -1106,43 +1220,43 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
 
           {/* Rename dropdown — expands below the toolbar pill */}
           {namingState && (
-            <div className="mt-1.5 bg-themewhite rounded-xl shadow-lg w-64 p-3 border border-primary/10">
-              <p className="text-[10pt] font-medium text-primary mb-2">
-                {namingState.existingLabel ? 'Rename zone' : 'Name this zone'}
-              </p>
-              <input
-                ref={nameInputRef}
-                type="text"
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleExternalNameConfirm()
-                  if (e.key === 'Escape') handleExternalNameCancel()
-                }}
-                placeholder="e.g. Arms Room, Supply Closet"
-                className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary placeholder:text-tertiary/40 outline-none focus:border-themeblue2 focus:outline-none border border-tertiary/20 transition-all"
-              />
-              <div className="flex items-center gap-2 mt-2">
+            <div className="mt-1.5 bg-themewhite rounded-xl shadow-lg p-2 border border-primary/10 w-[calc(100vw-2rem)] max-w-xs">
+              <div className="flex items-center gap-2">
+                <input
+                  ref={nameInputRef}
+                  type="text"
+                  value={nameInput}
+                  onChange={(e) => setNameInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleExternalNameConfirm()
+                    if (e.key === 'Escape') handleExternalNameCancel()
+                  }}
+                  placeholder={namingState.existingLabel ? 'Rename zone' : 'Name this zone'}
+                  className="flex-1 min-w-0 px-3 py-2.5 rounded-lg text-primary text-base border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none transition-all placeholder:text-tertiary/30"
+                />
                 <button
                   onClick={handleExternalNameCancel}
-                  className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 active:scale-95 transition-all"
+                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
                 >
-                  Cancel
+                  <X size={18} />
                 </button>
                 <button
                   onClick={handleExternalNameConfirm}
                   disabled={!nameInput.trim()}
-                  className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white disabled:opacity-30 active:scale-95 transition-all"
+                  className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
                 >
-                  Done
+                  <Check size={18} />
                 </button>
               </div>
             </div>
           )}
+
+          {/* CSV / floating controls — below toolbar */}
           {floatingControls && (
             <div className="mt-2 flex justify-end">{floatingControls}</div>
           )}
         </div>
+
       </div>
 
       {/* Bottom panel — always visible, card grid of one-level-deep sub-zones + items */}
@@ -1223,6 +1337,34 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
         className="hidden"
         onChange={handlePhotoUpload}
       />
+
+      {/* Zone ellipsis context menu */}
+      {zoneMenu && (() => {
+        const hasPhoto = !!photoMap?.get(zoneMenu.targetId)
+        const menuItems: CardContextMenuItem[] = [
+          {
+            key: 'photo',
+            label: hasPhoto ? 'Change Photo' : 'Add Photo',
+            icon: Camera,
+            onAction: () => { triggerPhotoUpload(zoneMenu.targetId); setZoneMenu(null) },
+          },
+          ...(hasPhoto ? [{
+            key: 'remove-photo',
+            label: 'Remove Photo',
+            icon: Trash2,
+            destructive: true,
+            onAction: () => { onUpdateLocation?.(zoneMenu.targetId, { photo_data: null }); setZoneMenu(null) },
+          }] : []),
+        ]
+        return (
+          <CardContextMenu
+            x={zoneMenu.x}
+            y={zoneMenu.y}
+            items={menuItems}
+            onClose={() => setZoneMenu(null)}
+          />
+        )
+      })()}
 
       {/* Cascade delete confirmation */}
       <ConfirmDialog

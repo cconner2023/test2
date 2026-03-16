@@ -1,27 +1,13 @@
-/**
- * AdminUsersList -- swipeable card list for managing user accounts.
- *
- * Displays all users with search/filter support, swipe-to-reveal actions,
- * right-click context menus, and multi-select batch operations. Follows the
- * same card patterns established in SessionsDevicesPanel.
- */
-
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Check, UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, Building2 } from 'lucide-react'
+import { UserPlus, Pencil, KeyRound, Trash2, LogOut, Eye, Building2 } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
-import { SwipeableCard, type SwipeAction } from '../SwipeableCard'
 import { CardContextMenu } from '../CardContextMenu'
-import { CardActionBar } from '../CardActionBar'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { UserAvatar } from '../Settings/UserAvatar'
 import { LoadingSpinner } from '../LoadingSpinner'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
-import {
-  formatLastActive,
-  lastActiveColor,
-  RoleBadge,
-} from './adminUtils'
+import { useLongPress } from '../../Hooks/useLongPress'
+import { formatLastActive } from './adminUtils'
 import {
   listAllUsers,
   listClinics,
@@ -45,6 +31,34 @@ export interface AdminUsersListProps {
   searchQuery?: string
 }
 
+// ─── Per-card wrapper with long-press support ─────────────────────────────
+
+interface UserCardProps {
+  user: AdminUser
+  onTap: () => void
+  onContextMenu: (x: number, y: number) => void
+  children: React.ReactNode
+}
+
+function UserCard({ user, onTap, onContextMenu, children }: UserCardProps) {
+  const longPress = useLongPress((x, y) => onContextMenu(x, y))
+
+  return (
+    <div
+      key={user.id}
+      onClick={onTap}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onContextMenu(e.clientX, e.clientY)
+      }}
+      {...longPress}
+      className="cursor-pointer active:scale-95 transition-transform"
+    >
+      {children}
+    </div>
+  )
+}
+
 // ─── Component ───────────────────────────────────────────────────────────
 
 export function AdminUsersList({
@@ -66,11 +80,6 @@ export function AdminUsersList({
   // Current user ID (to prevent self-deletion / self-logout)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
-  // Swipe / selection state
-  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
-  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
-  const multiSelectMode = selectedUserIds.size > 0
-
   // Context menu
   const [contextMenu, setContextMenu] = useState<{
     userId: string
@@ -86,10 +95,6 @@ export function AdminUsersList({
   // Confirm dialog
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deleteProcessing, setDeleteProcessing] = useState(false)
-
-  // Batch confirm dialog
-  const [confirmBatchDelete, setConfirmBatchDelete] = useState(false)
-  const [confirmBatchLogout, setConfirmBatchLogout] = useState(false)
 
   // Feedback banner
   const [feedback, setFeedback] = useState<{
@@ -154,7 +159,6 @@ export function AdminUsersList({
   const filteredUsers = useMemo(() => {
     let result = users
 
-    // If a specific user is selected from the tree, show only that user
     if (filterUserId) {
       result = result.filter((u) => u.id === filterUserId)
     }
@@ -229,114 +233,11 @@ export function AdminUsersList({
     }
   }, [])
 
-  /** Batch delete all selected users */
-  const handleBatchDelete = useCallback(async () => {
-    setConfirmBatchDelete(false)
-    const ids = [...selectedUserIds]
-    setSelectedUserIds(new Set())
-
-    let successCount = 0
-    let failCount = 0
-    for (const id of ids) {
-      const result = await deleteUser(id)
-      if (result.success) successCount++
-      else failCount++
-    }
-
-    if (failCount === 0) {
-      setFeedback({ type: 'success', message: `${successCount} user(s) deleted` })
-    } else {
-      setFeedback({
-        type: 'error',
-        message: `${successCount} deleted, ${failCount} failed`,
-      })
-    }
-    await loadUsers()
-  }, [selectedUserIds, loadUsers])
-
-  /** Batch force-logout all selected users */
-  const handleBatchLogout = useCallback(async () => {
-    setConfirmBatchLogout(false)
-    const ids = [...selectedUserIds]
-    setSelectedUserIds(new Set())
-
-    let successCount = 0
-    let failCount = 0
-    for (const id of ids) {
-      const result = await forceLogoutUser(id)
-      if (result.success) successCount++
-      else failCount++
-    }
-
-    if (failCount === 0) {
-      setFeedback({ type: 'success', message: `${successCount} user(s) logged out` })
-    } else {
-      setFeedback({
-        type: 'error',
-        message: `${successCount} logged out, ${failCount} failed`,
-      })
-    }
-  }, [selectedUserIds])
-
   // ─── Helpers ───────────────────────────────────────────────────────────
 
   const isSelf = (userId: string) => userId === currentUserId
 
-  /** Build swipe actions for a given user */
-  const buildSwipeActions = useCallback(
-    (user: AdminUser): SwipeAction[] => {
-      if (isSelf(user.id)) return []
-      return [
-        {
-          key: 'view',
-          label: 'View',
-          icon: Eye,
-          iconBg: 'bg-themegreen/15',
-          iconColor: 'text-themegreen',
-          onAction: () => onSelectUser(user),
-        },
-        {
-          key: 'edit',
-          label: 'Edit',
-          icon: Pencil,
-          iconBg: 'bg-themeblue2/15',
-          iconColor: 'text-themeblue2',
-          onAction: () => onEditUser(user),
-        },
-        {
-          key: 'changepw',
-          label: 'Ch. Pass',
-          icon: KeyRound,
-          iconBg: 'bg-themeyellow/15',
-          iconColor: 'text-themeyellow',
-          onAction: () => {
-            setResetPwUserId(user.id)
-            setResetPwValue('')
-          },
-        },
-        {
-          key: 'logout',
-          label: 'Log Out',
-          icon: LogOut,
-          iconBg: 'bg-themepurple/15',
-          iconColor: 'text-themepurple',
-          onAction: () => handleForceLogout(user.id),
-        },
-        {
-          key: 'delete',
-          label: 'Delete',
-          icon: Trash2,
-          iconBg: 'bg-themeredred/15',
-          iconColor: 'text-themeredred',
-          onAction: () => setConfirmDeleteId(user.id),
-        },
-      ]
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [currentUserId, onEditUser, onSelectUser, handleForceLogout],
-  )
-
-  /** Build right-click context menu items for a given user */
+  /** Build right-click / long-press context menu items for a given user */
   const buildContextMenuItems = useCallback(
     (user: AdminUser) => {
       if (isSelf(user.id)) return []
@@ -381,38 +282,8 @@ export function AdminUsersList({
     [currentUserId, onEditUser, onSelectUser, handleForceLogout],
   )
 
-  /** Handle a tap on a user card */
-  const handleCardTap = useCallback(
-    (user: AdminUser) => {
-      // Multi-select mode: toggle selection
-      if (multiSelectMode) {
-        setSelectedUserIds((prev) => {
-          const next = new Set(prev)
-          if (next.has(user.id)) next.delete(user.id)
-          else next.add(user.id)
-          return next
-        })
-        return
-      }
-
-      // First tap on a non-self user: select (shows action bar)
-      if (!isSelf(user.id)) {
-        setOpenSwipeId(null)
-        const isTogglingOff = selectedUserIds.has(user.id)
-        setSelectedUserIds(isTogglingOff ? new Set() : new Set([user.id]))
-        return
-      }
-
-      // Self user: navigate to detail view
-      onSelectUser(user)
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [multiSelectMode, selectedUserIds, currentUserId, onSelectUser],
-  )
-
   // ─── Render ────────────────────────────────────────────────────────────
 
-  // Resolve the user targeted by the delete confirmation dialog
   const deleteTargetUser = confirmDeleteId
     ? users.find((u) => u.id === confirmDeleteId)
     : null
@@ -441,114 +312,65 @@ export function AdminUsersList({
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
             {filteredUsers.map((user) => {
               const userCerts = certsByUser.get(user.id) || []
-              const isSelected = selectedUserIds.has(user.id)
-              const canSwipe = !isSelf(user.id)
-              const swipeActions = buildSwipeActions(user)
 
               return (
-                <SwipeableCard
+                <UserCard
                   key={user.id}
-                  isOpen={openSwipeId === user.id}
-                  enabled={canSwipe && !multiSelectMode}
-                  actions={swipeActions}
-                  onOpen={() => setOpenSwipeId(user.id)}
-                  onClose={() => {
-                    if (openSwipeId === user.id) setOpenSwipeId(null)
-                  }}
-                  onTap={() => handleCardTap(user)}
-                  onContextMenu={
-                    canSwipe
-                      ? (e) => {
-                          e.preventDefault()
-                          setContextMenu({
-                            userId: user.id,
-                            x: e.clientX,
-                            y: e.clientY,
-                          })
-                        }
-                      : undefined
+                  user={user}
+                  onTap={() => onSelectUser(user)}
+                  onContextMenu={(x, y) =>
+                    setContextMenu({ userId: user.id, x, y })
                   }
                 >
-                  <div
-                    className={`rounded-xl border px-4 py-3.5 transition-colors space-y-2 ${
-                      isSelected
-                        ? 'border-themeblue2/30 bg-themeblue2/5'
-                        : 'border-tertiary/15 bg-themewhite2'
-                    }`}
-                  >
-                    {/* Row 1: Avatar / check + name + credential + last active + roles */}
+                  <div className="rounded-xl border px-4 py-3.5 transition-colors border-tertiary/15 bg-themewhite2">
                     <div className="flex items-center gap-3">
-                      {/* Left: Avatar or selection check */}
-                      {isSelected ? (
-                        <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2">
-                          <Check size={16} className="text-white" />
-                        </div>
-                      ) : (
-                        <UserAvatar
-                          avatarId={user.avatar_id}
-                          firstName={user.first_name}
-                          lastName={user.last_name}
-                          className="w-9 h-9"
-                        />
-                      )}
-
-                      {/* Center: Name, credential + extra certs inline, last-active */}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-primary truncate">
                           {user.rank ? `${user.rank} ` : ''}{user.first_name || ''} {user.middle_initial || ''}{' '}
                           {user.last_name || ''}
                         </p>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          {/* Primary credential + extra certs inline as text */}
-                          {(user.credential || userCerts.filter(c => !c.is_primary).length > 0) && (
-                            <p className="text-[9pt] text-tertiary/50 truncate">
-                              {[
-                                user.credential,
-                                ...userCerts.filter(c => !c.is_primary).map(c => c.title),
-                              ].filter(Boolean).join(' · ')}
-                            </p>
-                          )}
-                          <span className="flex items-center gap-1 text-[9pt] text-tertiary/50 shrink-0">
-                            <span
-                              className={`inline-block w-1.5 h-1.5 rounded-full ${lastActiveColor(user.last_active_at)}`}
-                            />
-                            {formatLastActive(user.last_active_at)}
-                          </span>
-                        </div>
+                        <p className="text-[10pt] text-tertiary truncate">
+                          {[
+                            user.credential,
+                            ...userCerts.filter(c => !c.is_primary).map(c => c.title),
+                          ].filter(Boolean).join(' · ') || user.email || ''}
+                        </p>
                       </div>
 
-                      {/* Right: Role badges — condensed 1-letter, flex-wrap to avoid collision */}
-                      <div className="flex flex-wrap gap-0.5 shrink-0 max-w-[48px] justify-end">
-                        {user.roles?.map((role) => (
-                          <RoleBadge key={role} role={role} />
-                        ))}
-                      </div>
+                      <span className="text-[10pt] text-tertiary shrink-0">
+                        {formatLastActive(user.last_active_at)}
+                      </span>
                     </div>
 
-                    {/* UIC + Clinic badges */}
-                    {(user.uic || user.clinic_id) && (
-                      <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* Roles as plain text + UIC/Clinic badges */}
+                    {(user.roles?.length || user.uic || user.clinic_id) && (
+                      <div className="flex items-center gap-2 flex-wrap mt-2">
+                        {user.roles && user.roles.length > 0 && (
+                          <span className="text-[10pt] text-tertiary">
+                            {user.roles.join(' · ')}
+                          </span>
+                        )}
                         {user.uic && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10pt] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
                             {user.uic}
                           </span>
                         )}
                         {user.clinic_id && clinicById.get(user.clinic_id) && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium border bg-themegreen/10 text-themegreen border-themegreen/30">
-                            <Building2 size={9} />
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10pt] font-medium border bg-themegreen/10 text-themegreen border-themegreen/30">
+                            <Building2 size={12} />
                             {clinicById.get(user.clinic_id)!.name}
                           </span>
                         )}
                       </div>
                     )}
 
-                    {/* Inline: Reset password form (shown under this card) */}
+                    {/* Inline: Reset password form */}
                     {resetPwUserId === user.id && (
                       <div
-                        className="p-3 bg-themeyellow/10 rounded-lg"
+                        className="mt-3 p-3 bg-tertiary/5 rounded-lg"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <p className="text-sm text-themeyellow font-medium mb-2">
+                        <p className="text-[10pt] text-primary font-medium mb-2">
                           Set new password:
                         </p>
                         <div className="flex gap-2">
@@ -557,13 +379,13 @@ export function AdminUsersList({
                             value={resetPwValue}
                             onChange={(e) => setResetPwValue(e.target.value)}
                             placeholder="New password (min 12 chars)..."
-                            className="flex-1 px-3 py-2 rounded-lg bg-themewhite2 border border-themeyellow/30 text-sm
-                                       focus:border-themeyellow focus:outline-none transition-colors placeholder:text-tertiary/30"
+                            className="flex-1 px-3 py-1.5 rounded-lg bg-themewhite2 border border-tertiary/20 text-[10pt]
+                                       focus:border-themeblue2 focus:outline-none transition-colors placeholder:text-tertiary/30"
                           />
                           <button
                             onClick={() => handleResetPassword(user.id)}
                             disabled={resetPwProcessing || resetPwValue.length < 12}
-                            className="px-3 py-2 rounded-lg bg-themeyellow text-white text-sm font-medium hover:bg-themeyellow/90 disabled:opacity-50"
+                            className="px-4 py-1.5 rounded-lg bg-themeblue3 text-white text-[10pt] font-medium disabled:opacity-50 active:scale-95"
                           >
                             {resetPwProcessing ? 'Resetting...' : 'Reset'}
                           </button>
@@ -572,55 +394,27 @@ export function AdminUsersList({
                               setResetPwUserId(null)
                               setResetPwValue('')
                             }}
-                            className="px-3 py-2 rounded-lg bg-tertiary/10 text-primary text-sm"
+                            className="px-3 py-1.5 rounded-lg bg-tertiary/10 text-primary text-[10pt] active:scale-95"
                           >
                             Cancel
                           </button>
                         </div>
                         {resetPwValue.length > 0 && resetPwValue.length < 12 && (
-                          <p className="text-xs text-themeredred mt-1">
+                          <p className="text-[10pt] text-themeredred mt-1">
                             Password must be at least 12 characters
                           </p>
                         )}
                       </div>
                     )}
                   </div>
-                </SwipeableCard>
+                </UserCard>
               )
             })}
           </div>
         )}
       </div>
 
-      {/* Multi-select action bar — pinned at bottom, outside scroll */}
-      {multiSelectMode && (
-        <div className="shrink-0">
-          <CardActionBar
-            selectedCount={selectedUserIds.size}
-            onClear={() => setSelectedUserIds(new Set())}
-            actions={[
-              {
-                key: 'logout',
-                label: 'Logout',
-                icon: LogOut,
-                iconBg: 'bg-themeyellow/15',
-                iconColor: 'text-themeyellow',
-                onAction: () => setConfirmBatchLogout(true),
-              },
-              {
-                key: 'delete',
-                label: 'Delete',
-                icon: Trash2,
-                iconBg: 'bg-themeredred/15',
-                iconColor: 'text-themeredred',
-                onAction: () => setConfirmBatchDelete(true),
-              },
-            ]}
-          />
-        </div>
-      )}
-
-      {/* Right-click context menu */}
+      {/* Right-click / long-press context menu */}
       {contextMenu && (() => {
         const contextUser = users.find((u) => u.id === contextMenu.userId)
         if (!contextUser) return null
@@ -646,28 +440,6 @@ export function AdminUsersList({
           if (confirmDeleteId) handleDeleteUser(confirmDeleteId)
         }}
         onCancel={() => setConfirmDeleteId(null)}
-      />
-
-      {/* Batch delete confirmation */}
-      <ConfirmDialog
-        visible={confirmBatchDelete}
-        title={`Delete ${selectedUserIds.size} user(s)?`}
-        subtitle="This will permanently remove all selected users and their associated data."
-        confirmLabel="Delete All"
-        variant="danger"
-        onConfirm={handleBatchDelete}
-        onCancel={() => setConfirmBatchDelete(false)}
-      />
-
-      {/* Batch force-logout confirmation */}
-      <ConfirmDialog
-        visible={confirmBatchLogout}
-        title={`Force logout ${selectedUserIds.size} user(s)?`}
-        subtitle="This will clear all sessions, devices, and key bundles for the selected users."
-        confirmLabel="Logout All"
-        variant="warning"
-        onConfirm={handleBatchLogout}
-        onCancel={() => setConfirmBatchLogout(false)}
       />
     </div>
   )
