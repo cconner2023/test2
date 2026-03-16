@@ -1,185 +1,269 @@
 import { useState, useCallback, useMemo } from 'react'
-import { CalendarDays, List, ChevronLeft, ChevronRight } from 'lucide-react'
-import { EmptyState } from '../EmptyState'
+import { Clock, Plus, Users2, CalendarDays } from 'lucide-react'
+import { useShallow } from 'zustand/react/shallow'
+import { useIsMobile } from '../../Hooks/useIsMobile'
+import { EventForm } from './EventForm'
+import { EventDetailPanel } from './EventDetailPanel'
+import { DayView } from './DayView'
+import { TroopsToTaskView } from './TroopsToTaskView'
+import { InfiniteScrollCalendar } from './InfiniteScrollCalendar'
+import { useCalendarStore } from '../../stores/useCalendarStore'
+import { useClinicMedics } from '../../Hooks/useClinicMedics'
+import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
+import type { CalendarEvent, EventFormData } from '../../Types/CalendarTypes'
+import {
+  eventToFormData, toDateKey, eventFallsOnDate, generateId,
+} from '../../Types/CalendarTypes'
 
-type CalendarViewMode = 'month' | 'agenda'
+type PanelView = 'calendar' | 'detail' | 'form'
 
 interface CalendarPanelProps {
   onBack: () => void
 }
 
-// ── Month Grid ──────────────────────────────────────────────────────────
-
-const WEEKDAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
-
-function MonthView({ currentDate, onSelectDate, selectedDate }: {
-  currentDate: Date
-  onSelectDate: (date: Date) => void
-  selectedDate: Date
-}) {
-  const year = currentDate.getFullYear()
-  const month = currentDate.getMonth()
-  const firstDay = new Date(year, month, 1).getDay()
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const today = new Date()
-
-  const cells = useMemo(() => {
-    const result: (number | null)[] = []
-    for (let i = 0; i < firstDay; i++) result.push(null)
-    for (let d = 1; d <= daysInMonth; d++) result.push(d)
-    return result
-  }, [firstDay, daysInMonth])
-
-  const isToday = (day: number) =>
-    day === today.getDate() && month === today.getMonth() && year === today.getFullYear()
-
-  const isSelected = (day: number) =>
-    day === selectedDate.getDate() && month === selectedDate.getMonth() && year === selectedDate.getFullYear()
-
-  return (
-    <div className="px-3 pt-2">
-      {/* Weekday headers */}
-      <div className="grid grid-cols-7 mb-1">
-        {WEEKDAY_LABELS.map((label, i) => (
-          <div key={i} className="text-center text-xs font-medium text-tertiary/50 py-1">
-            {label}
-          </div>
-        ))}
-      </div>
-
-      {/* Day cells */}
-      <div className="grid grid-cols-7">
-        {cells.map((day, i) => (
-          <button
-            key={i}
-            disabled={day === null}
-            onClick={() => day && onSelectDate(new Date(year, month, day))}
-            className={`aspect-square flex items-center justify-center text-sm rounded-full transition-all duration-200 ${
-              day === null
-                ? ''
-                : isSelected(day)
-                  ? 'bg-themeblue3 text-white font-semibold'
-                  : isToday(day)
-                    ? 'bg-themeblue3/15 text-themeblue3 font-semibold'
-                    : 'text-secondary hover:bg-primary/5 active:scale-95'
-            }`}
-          >
-            {day}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-// ── Agenda View (placeholder) ───────────────────────────────────────────
-
-function AgendaView({ selectedDate }: { selectedDate: Date }) {
-  const dateLabel = selectedDate.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  })
-
-  return (
-    <div className="flex-1 overflow-y-auto px-3 pt-3">
-      <p className="text-xs font-medium text-tertiary/50 uppercase tracking-wider mb-3">
-        {dateLabel}
-      </p>
-      <EmptyState
-        icon={<CalendarDays className="w-10 h-10" />}
-        title="No events"
-        subtitle="Events for this day will appear here"
-      />
-    </div>
-  )
-}
-
-// ── Main Panel ──────────────────────────────────────────────────────────
-
 export function CalendarPanel({ onBack }: CalendarPanelProps) {
-  const [viewMode, setViewMode] = useState<CalendarViewMode>('month')
-  const [currentDate, setCurrentDate] = useState(() => new Date())
+  const isMobile = useIsMobile()
+  const [panelView, setPanelView] = useState<PanelView>('calendar')
   const [selectedDate, setSelectedDate] = useState(() => new Date())
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
+  const [monthLabel, setMonthLabel] = useState(() =>
+    new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  )
 
-  const monthLabel = currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const { medics: allMedics } = useClinicMedics()
+  const { ownClinicMedics } = useClinicGroupedMedics(allMedics)
 
-  const prevMonth = useCallback(() => {
-    setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))
-  }, [])
+  const {
+    viewMode, setViewMode,
+    events, addEvent, updateEvent, removeEvent,
+    selectedEventId, selectEvent,
+    assignPersonnel, unassignPersonnel,
+  } = useCalendarStore(useShallow(s => ({
+    viewMode: s.currentView,
+    setViewMode: s.setView,
+    events: s.events,
+    addEvent: s.addEvent,
+    updateEvent: s.updateEvent,
+    removeEvent: s.removeEvent,
+    selectedEventId: s.selectedEventId,
+    selectEvent: s.selectEvent,
+    assignPersonnel: s.assignPersonnel,
+    unassignPersonnel: s.unassignPersonnel,
+  })))
 
-  const nextMonth = useCallback(() => {
-    setCurrentDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))
-  }, [])
+  const selectedDateKey = toDateKey(selectedDate)
 
-  const goToToday = useCallback(() => {
-    const today = new Date()
-    setCurrentDate(today)
-    setSelectedDate(today)
-  }, [])
+  const dayEvents = useMemo(() =>
+    events
+      .filter(e => eventFallsOnDate(e, selectedDateKey))
+      .sort((a, b) => a.start_time.localeCompare(b.start_time)),
+    [events, selectedDateKey]
+  )
+
+  const selectedEvent = useMemo(() =>
+    selectedEventId ? events.find(e => e.id === selectedEventId) ?? null : null,
+    [events, selectedEventId]
+  )
+
+  // ── Date selection ──
 
   const handleSelectDate = useCallback((date: Date) => {
     setSelectedDate(date)
+    if (viewMode === 'month') {
+      setViewMode('day')
+    }
+  }, [viewMode])
+
+  const handleMonthChange = useCallback((label: string) => {
+    setMonthLabel(label)
   }, [])
 
+  // ── Event CRUD ──
+
+  const handleSelectEvent = useCallback((id: string) => {
+    selectEvent(id)
+    setPanelView('detail')
+  }, [selectEvent])
+
+  const handleNewEvent = useCallback(() => {
+    setEditingEvent(null)
+    setPanelView('form')
+  }, [])
+
+  const handleEditEvent = useCallback((id: string) => {
+    const event = events.find(e => e.id === id)
+    if (event) {
+      setEditingEvent(event)
+      setPanelView('form')
+    }
+  }, [events])
+
+  const handleSaveEvent = useCallback((data: EventFormData) => {
+    if (editingEvent) {
+      updateEvent(editingEvent.id, {
+        title: data.title,
+        description: data.description || null,
+        category: data.category,
+        start_time: data.start_time,
+        end_time: data.end_time,
+        all_day: data.all_day,
+        location: data.location || null,
+        uniform: data.uniform || null,
+        report_time: data.report_time || null,
+      })
+    } else {
+      const now = new Date().toISOString()
+      addEvent({
+        id: generateId(),
+        clinic_id: '',
+        title: data.title,
+        description: data.description || null,
+        category: data.category,
+        status: 'planned',
+        start_time: data.start_time,
+        end_time: data.end_time,
+        all_day: data.all_day,
+        location: data.location || null,
+        opord_notes: null,
+        uniform: data.uniform || null,
+        report_time: data.report_time || null,
+        assigned_to: [],
+        created_by: '',
+        created_at: now,
+        updated_at: now,
+      })
+    }
+    setEditingEvent(null)
+    setPanelView('calendar')
+  }, [editingEvent, addEvent, updateEvent])
+
+  const handleDeleteEvent = useCallback((id: string) => {
+    removeEvent(id)
+    selectEvent(null)
+    setPanelView('calendar')
+  }, [removeEvent, selectEvent])
+
+  const handleFormCancel = useCallback(() => {
+    setEditingEvent(null)
+    setPanelView(selectedEventId ? 'detail' : 'calendar')
+  }, [selectedEventId])
+
+  const handleDetailBack = useCallback(() => {
+    selectEvent(null)
+    setPanelView('calendar')
+  }, [selectEvent])
+
+  // ── Toolbar label ──
+
+  const toolbarLabel = viewMode === 'month'
+    ? monthLabel
+    : selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+
+  // ── Sub-views (form / detail) ──
+
+  if (panelView === 'form') {
+    return (
+      <EventForm
+        initialData={editingEvent ? eventToFormData(editingEvent) : undefined}
+        onSave={handleSaveEvent}
+        onCancel={handleFormCancel}
+        isEditing={!!editingEvent}
+      />
+    )
+  }
+
+  if (panelView === 'detail' && selectedEvent) {
+    return (
+      <EventDetailPanel
+        event={selectedEvent}
+        onBack={handleDetailBack}
+        onEdit={handleEditEvent}
+        onDelete={handleDeleteEvent}
+      />
+    )
+  }
+
+  // ── Calendar views ──
+
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative">
       {/* Toolbar */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10">
-        <div className="flex items-center gap-1">
-          <button
-            onClick={prevMonth}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:bg-primary/5 active:scale-95 transition-all duration-200"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
-          <button
-            onClick={goToToday}
-            className="text-sm font-semibold text-primary min-w-[140px] text-center"
-          >
-            {monthLabel}
-          </button>
-          <button
-            onClick={nextMonth}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:bg-primary/5 active:scale-95 transition-all duration-200"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        </div>
+        <span className="text-sm font-semibold text-primary">
+          {toolbarLabel}
+        </span>
 
-        <div className="flex items-center gap-1 rounded-full bg-themewhite border border-tertiary/20 p-0.5">
+        {/* View mode toggle */}
+        <div className="flex items-center gap-0.5 rounded-full bg-themewhite border border-tertiary/20 p-0.5">
           <button
             onClick={() => setViewMode('month')}
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
               viewMode === 'month' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
             }`}
-            title="Month view"
+            title="Month"
           >
             <CalendarDays className="w-4 h-4" />
           </button>
           <button
-            onClick={() => setViewMode('agenda')}
+            onClick={() => setViewMode('day')}
             className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
-              viewMode === 'agenda' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
+              viewMode === 'day' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
             }`}
-            title="Agenda view"
+            title="Day"
           >
-            <List className="w-4 h-4" />
+            <Clock className="w-4 h-4" />
+          </button>
+          <button
+            onClick={() => setViewMode('troops')}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
+              viewMode === 'troops' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
+            }`}
+            title="Troops to Task"
+          >
+            <Users2 className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      {/* Month grid */}
-      {viewMode === 'month' && (
-        <MonthView
-          currentDate={currentDate}
-          selectedDate={selectedDate}
-          onSelectDate={handleSelectDate}
-        />
-      )}
+      {/* View content */}
+      <div className="flex-1 min-h-0 flex flex-col">
+        {viewMode === 'month' && (
+          <InfiniteScrollCalendar
+            events={events}
+            selectedDate={selectedDate}
+            onSelectDate={handleSelectDate}
+            onMonthChange={handleMonthChange}
+          />
+        )}
 
-      {/* Agenda / day detail */}
-      <AgendaView selectedDate={selectedDate} />
+        {viewMode === 'day' && (
+          <DayView
+            date={selectedDate}
+            events={dayEvents}
+            onSelectEvent={handleSelectEvent}
+          />
+        )}
+
+        {viewMode === 'troops' && (
+          <TroopsToTaskView
+            date={selectedDate}
+            events={dayEvents}
+            medics={ownClinicMedics}
+            onSelectEvent={handleSelectEvent}
+            onAssign={assignPersonnel}
+            onUnassign={unassignPersonnel}
+            hideNameColumn={!isMobile}
+          />
+        )}
+      </div>
+
+      {/* FAB */}
+      <button
+        onClick={handleNewEvent}
+        className="absolute bottom-4 right-4 w-12 h-12 rounded-full bg-themeblue3 text-white shadow-lg flex items-center justify-center active:scale-95 transition-all duration-200 hover:shadow-xl z-10"
+      >
+        <Plus size={24} />
+      </button>
     </div>
   )
 }

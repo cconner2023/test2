@@ -98,7 +98,7 @@ export function LoginScreen() {
 
   return (
     <div className="fixed inset-0 z-[90] bg-themewhite dark:bg-themewhite3 overflow-y-auto"
-      style={{ paddingTop: 'env(safe-area-inset-top)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      style={{ paddingTop: 'var(--sat)', paddingBottom: 'var(--sab)' }}>
       {/* Keyframes for orbiting glow */}
       <style>{`
         @keyframes login-orbit {

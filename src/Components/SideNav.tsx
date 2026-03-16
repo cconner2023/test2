@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Upload, BookOpen, Mail, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye } from 'lucide-react'
+import { Upload, BookOpen, Mail, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
 import { useAvatar } from '../Utilities/AvatarContext'
 import { useMessagesContext } from '../Hooks/MessagesContext'
@@ -17,9 +17,10 @@ const iconMap: Record<string, React.ReactNode> = {
   'admin': <UserCog size={20} className="text-primary/70" />,
   'lora': <Radio size={20} className="text-primary/70" />,
   'mapOverlay': <MapIcon size={20} className="text-primary/70" />,
+  'calendar': <CalendarDays size={20} className="text-primary/70" />,
 }
 
-const BETA_ACTIONS = new Set(['lora', 'mapOverlay'])
+const BETA_ACTIONS = new Set(['lora', 'mapOverlay', 'calendar'])
 const LONG_PRESS_MS = 500
 
 const subscribeOnline = (cb: () => void) => {
@@ -96,7 +97,7 @@ export function SideNav({ onClose, onMenuItemClick }: SideNavProps) {
   return (
     <div
       className="h-full w-full bg-themewhite flex flex-col"
-      style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      style={{ paddingTop: 'var(--sat)' }}
     >
       {/* User profile card */}
       <button
@@ -191,7 +192,7 @@ export function SideNav({ onClose, onMenuItemClick }: SideNavProps) {
       </div>
 
       {/* Footer */}
-      <div className="border-t border-tertiary/10 px-4 py-4 text-center" style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)' }}>
+      <div className="border-t border-tertiary/10 px-4 py-4 text-center" style={{ paddingBottom: 'calc(var(--sab, 0px) + 1rem)' }}>
         <p className="text-sm text-tertiary/60 font-medium">ADTMC MEDCOM PAM 40-7-21</p>
         <p className="text-xs text-tertiary/40 mt-1">Version {__APP_VERSION__}</p>
         <div className="flex items-center justify-center gap-1.5 mt-2">

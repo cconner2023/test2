@@ -21,4 +21,11 @@ export const LORA_MESH_ENABLED = true;
  * is available. Provides MGRS conversion, waypoint/route plotting, and
  * offline-capable map viewing for evacuation and mission planning.
  */
-export const MAP_OVERLAY_ENABLED = false;
+export const MAP_OVERLAY_ENABLED = true;
+
+/**
+ * CALENDAR_ENABLED: When true, the Calendar & Troops-to-Task scheduling
+ * module is available. Provides event management, personnel slot assignment,
+ * and readiness gap tracking for unit operations.
+ */
+export const CALENDAR_ENABLED = false;

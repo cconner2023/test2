@@ -22,6 +22,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { CompletionType, CompletionResult, Json } from '../Types/database.types'
 import type { LocalPropertyItem, LocalPropertyLocation, LocalDiscrepancy, LocationTag } from '../Types/PropertyTypes'
+import type { LocalMapOverlay } from '../Types/MapOverlayTypes'
 import { createLogger } from '../Utilities/Logger'
 import { encryptString, decryptString } from './secureStorage'
 
@@ -127,10 +128,18 @@ interface PackageBackEndDB extends DBSchema {
       'by-location': string
     }
   }
+  mapOverlays: {
+    key: string
+    value: LocalMapOverlay
+    indexes: {
+      'by-clinic': string
+      'by-clinic-sync': [string, string]
+    }
+  }
 }
 
 const DB_NAME = 'packagebackend-offline'
-const DB_VERSION = 5
+const DB_VERSION = 6
 
 let dbInstance: IDBPDatabase<PackageBackEndDB> | null = null
 
@@ -220,6 +229,13 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
       if (oldVersion < 5) {
         const tagsStore = db.createObjectStore('locationTags', { keyPath: 'id' })
         tagsStore.createIndex('by-location', 'location_id')
+      }
+
+      // v5 → v6: Map overlays store
+      if (oldVersion < 6) {
+        const overlaysStore = db.createObjectStore('mapOverlays', { keyPath: 'id' })
+        overlaysStore.createIndex('by-clinic', 'clinic_id')
+        overlaysStore.createIndex('by-clinic-sync', ['clinic_id', '_sync_status'])
       }
     },
   })
@@ -712,6 +728,42 @@ export async function deleteLocalDiscrepancy(discrepancyId: string): Promise<voi
 }
 
 // ============================================================
+// Map Overlays Operations
+// ============================================================
+
+/**
+ * Get all local map overlays for a clinic.
+ */
+export async function getLocalMapOverlays(clinicId: string): Promise<LocalMapOverlay[]> {
+  const db = await getDb()
+  return db.getAllFromIndex('mapOverlays', 'by-clinic', clinicId)
+}
+
+/**
+ * Get a single local map overlay by ID.
+ */
+export async function getLocalMapOverlay(overlayId: string): Promise<LocalMapOverlay | undefined> {
+  const db = await getDb()
+  return db.get('mapOverlays', overlayId)
+}
+
+/**
+ * Save or update a map overlay in IndexedDB (upsert).
+ */
+export async function saveLocalMapOverlay(overlay: LocalMapOverlay): Promise<void> {
+  const db = await getDb()
+  await db.put('mapOverlays', overlay)
+}
+
+/**
+ * Hard-delete a map overlay from IndexedDB.
+ */
+export async function deleteLocalMapOverlay(overlayId: string): Promise<void> {
+  const db = await getDb()
+  await db.delete('mapOverlays', overlayId)
+}
+
+// ============================================================
 // Cleanup Operations
 // ============================================================
 
@@ -722,7 +774,7 @@ export async function deleteLocalDiscrepancy(discrepancyId: string): Promise<voi
 export async function clearAllUserData(): Promise<void> {
   const db = await getDb()
   const tx = db.transaction(
-    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'locationTags'],
+    ['syncQueue', 'trainingCompletions', 'propertyItems', 'propertyLocations', 'propertyDiscrepancies', 'locationTags', 'mapOverlays'],
     'readwrite',
   )
   await tx.objectStore('syncQueue').clear()
@@ -731,6 +783,7 @@ export async function clearAllUserData(): Promise<void> {
   await tx.objectStore('propertyLocations').clear()
   await tx.objectStore('propertyDiscrepancies').clear()
   await tx.objectStore('locationTags').clear()
+  await tx.objectStore('mapOverlays').clear()
   await tx.done
   logger.info('Cleared all user data from IndexedDB')
 }

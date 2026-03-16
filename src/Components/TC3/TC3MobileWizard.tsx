@@ -49,7 +49,7 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
   return (
     <div
       className="h-full flex flex-col bg-themewhite"
-      style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 3.4375rem)' }}
+      style={{ paddingTop: 'calc(var(--sat, 0px) + 3.4375rem)' }}
     >
       {/* Header — TC3 red theme */}
       <div className="px-4 border-b border-themeredred/10 py-3">
@@ -105,7 +105,7 @@ export const TC3MobileWizard = memo(function TC3MobileWizard() {
       {/* Footer — Next / Export button */}
       <div
         className="flex items-center justify-end px-6 pt-3 pb-4 shrink-0"
-        style={{ paddingBottom: 'max(1.5rem, calc(env(safe-area-inset-bottom, 0px) + 1.5rem))' }}
+        style={{ paddingBottom: 'max(1.5rem, calc(var(--sab, 0px) + 1.5rem))' }}
       >
         {isLastStep ? (
           <button

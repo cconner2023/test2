@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { menuData } from '../Data/CatData'
 import { useAuth } from './useAuth'
-import { PROPERTY_MANAGEMENT_ENABLED, LORA_MESH_ENABLED, MAP_OVERLAY_ENABLED } from '../lib/featureFlags'
+import { PROPERTY_MANAGEMENT_ENABLED, LORA_MESH_ENABLED, MAP_OVERLAY_ENABLED, CALENDAR_ENABLED } from '../lib/featureFlags'
 import { useNavPreferencesStore } from '../stores/useNavPreferencesStore'
 import type { sideMenuDataType } from '../Types/CatTypes'
 
@@ -41,6 +41,7 @@ export function useNavItems(): UseNavItemsReturn {
     if (item.gateKey === 'admin') return isDevRole
     if (item.gateKey === 'lora') return isAuthenticated && (LORA_MESH_ENABLED || isDevRole)
     if (item.gateKey === 'mapOverlay') return isAuthenticated && (MAP_OVERLAY_ENABLED || isDevRole)
+    if (item.gateKey === 'calendar') return isAuthenticated && (CALENDAR_ENABLED || isDevRole)
     return true
   }), [isAuthenticated, isSupervisorRole, isDevRole])
 

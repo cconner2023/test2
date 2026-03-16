@@ -62,12 +62,12 @@ export function FeatureEditor({ feature, onUpdate, onDelete, onClose }: FeatureE
   return (
     <>
       <div
-        className="fixed inset-0 z-[1000]"
+        className="absolute inset-0 z-[1000]"
         onClick={onClose}
         aria-hidden="true"
       />
 
-      <div className="fixed bottom-0 left-0 right-0 z-[1001] bg-themewhite dark:bg-themegray rounded-t-2xl shadow-2xl
+      <div className="absolute bottom-0 left-0 right-0 z-[1001] bg-themewhite dark:bg-themegray rounded-t-2xl shadow-2xl
         max-h-[50vh] overflow-y-auto transition-transform duration-300 animate-slide-up"
       >
         <div className="sticky top-0 bg-themewhite dark:bg-themegray z-10">

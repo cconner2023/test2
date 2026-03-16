@@ -31,6 +31,13 @@ export const menuData: sideMenuDataType[] = [
         gateKey: 'mapOverlay'
     },
     {
+        text: "Calendar",
+        icon: 'calendar',
+        action: 'calendar',
+        group: 'field',
+        gateKey: 'calendar'
+    },
+    {
         text: "WhisperNet",
         icon: 'lora',
         action: 'lora',

@@ -81,7 +81,7 @@ export function MessageNotificationToast({ notification, onDismiss, onTap }: Pro
   }
 
   return (
-    <div className="fixed inset-x-0 top-0 z-[80] pointer-events-none" role="status" aria-live="polite" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+    <div className="fixed inset-x-0 top-0 z-[80] pointer-events-none" role="status" aria-live="polite" style={{ paddingTop: 'var(--sat)' }}>
       <div
         ref={bannerRef}
         onClick={handleClick}
@@ -90,7 +90,7 @@ export function MessageNotificationToast({ notification, onDismiss, onTap }: Pro
         onTouchEnd={handleTouchEnd}
         className={`pointer-events-auto mx-3 mt-2 rounded-2xl bg-themewhite border border-tertiary/10 shadow-2xl
           transition-transform duration-300 ease-out cursor-pointer
-          ${visible ? 'translate-y-0' : '-translate-y-[calc(100%+env(safe-area-inset-top)+1rem)]'}`}
+          ${visible ? 'translate-y-0' : '-translate-y-[calc(100%+var(--sat,0px)+1rem)]'}`}
       >
         <div className="flex items-start gap-3 px-4 py-3">
           {/* Icon */}

@@ -203,7 +203,7 @@ export function AlgorithmPage() {
                     {/* Content area */}
                     <div
                         className={`pb-4 ${isMobile ? 'px-2 min-h-full' : ''}`}
-                        style={isMobile ? { paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' } : undefined}
+                        style={isMobile ? { paddingTop: 'calc(var(--sat, 0px) + 4rem)' } : undefined}
                     >
                         <QuestionCard
                             algorithmOptions={algorithmOptions}

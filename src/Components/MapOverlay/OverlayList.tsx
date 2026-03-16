@@ -64,7 +64,7 @@ export function OverlayList({ overlays, onSelect, onDelete, onNewOverlay }: Over
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="relative flex flex-col h-full">
       <div className="px-4 pt-3 pb-2">
         <SearchInput
           value={search}
@@ -124,7 +124,7 @@ export function OverlayList({ overlays, onSelect, onDelete, onNewOverlay }: Over
         type="button"
         onClick={onNewOverlay}
         className="bg-themeblue3 text-white rounded-full w-14 h-14 shadow-lg flex items-center justify-center
-          fixed bottom-6 right-6 active:scale-95 transition-all duration-300"
+          absolute bottom-6 right-6 active:scale-95 transition-all duration-300"
         aria-label="New Overlay"
       >
         <Plus size={24} />

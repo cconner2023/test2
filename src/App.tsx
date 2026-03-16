@@ -41,6 +41,7 @@ const AdminDrawer = lazy(() => import('./Components/AdminDrawer').then(m => ({ d
 const SupervisorDrawer = lazy(() => import('./Components/SupervisorDrawer').then(m => ({ default: m.SupervisorDrawer })))
 const LoRaDrawer = lazy(() => import('./Components/LoRaDrawer').then(m => ({ default: m.LoRaDrawer })))
 const MapOverlayDrawer = lazy(() => import('./Components/MapOverlay/MapOverlayPanel'))
+const CalendarDrawer = lazy(() => import('./Components/CalendarDrawer').then(m => ({ default: m.CalendarDrawer })))
 const WriteNotePage = lazy(() => import('./Components/WriteNotePage').then(m => ({ default: m.WriteNotePage })))
 const SymptomInfoDrawer = lazy(() => import('./Components/SymptomInfoDrawer').then(m => ({ default: m.SymptomInfoDrawer })))
 const NoteImport = lazy(() => import('./Components/NoteImport').then(m => ({ default: m.NoteImport })))
@@ -200,6 +201,10 @@ function AppContent() {
     navigation.setShowMapOverlayDrawer(true)
   }, [navigation.setShowMapOverlayDrawer])
 
+  const handleCalendarClick = useCallback(() => {
+    navigation.setShowCalendarDrawer(true)
+  }, [navigation.setShowCalendarDrawer])
+
   const handleAdminClick = useCallback(() => {
     navigation.setShowAdminDrawer(true)
   }, [navigation.setShowAdminDrawer])
@@ -238,6 +243,9 @@ function AppContent() {
       case 'mapOverlay':
         handleMapOverlayClick()
         break
+      case 'calendar':
+        handleCalendarClick()
+        break
       case 'settings':
         navigation.setShowSettings(true)
         break
@@ -246,7 +254,7 @@ function AppContent() {
         navigation.setShowSettings(true)
         break
     }
-  }, [navigation.isMobile, navigation.toggleImportExpanded, navigation.setShowNoteImport, navigation.setShowSettings, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleLoRaClick, handleMapOverlayClick, handleSupervisorClick, handleAdminClick])
+  }, [navigation.isMobile, navigation.toggleImportExpanded, navigation.setShowNoteImport, navigation.setShowSettings, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleLoRaClick, handleMapOverlayClick, handleCalendarClick, handleSupervisorClick, handleAdminClick])
 
   // Callback for notification toast tap — opens MessagesDrawer to the target conversation
   const handleNotificationTap = useCallback((n: MessageNotification) => {
@@ -417,10 +425,10 @@ function AppContent() {
           <div className="flex flex-col h-full flex-1 min-w-0 relative">
           {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
           <div className={`${navigation.isMobile
-            ? 'absolute top-0 left-0 right-0 z-30 pt-[env(safe-area-inset-top)] backdrop-blur-xs bg-themewhite/10'
+            ? 'absolute top-0 left-0 right-0 z-30 pt-[var(--sat)] backdrop-blur-xs bg-themewhite/10'
             : 'relative'
             } h-13.75 w-full rounded-t-md flex justify-end`}
-            style={navigation.isMobile ? { height: 'calc(env(safe-area-inset-top, 0px) + 3.4375rem)' } : undefined}>
+            style={navigation.isMobile ? { height: 'calc(var(--sat, 0px) + 3.4375rem)' } : undefined}>
             <NavTop
               search={{
                 searchInput: search.searchInput,
@@ -523,7 +531,7 @@ function AppContent() {
             {navigation.isMobile && search.searchInput && (
               <div className="absolute inset-0 z-20 bg-themewhite animate-fadeIn">
                 <div className="h-full overflow-y-auto">
-                  <div className="px-2 min-h-full" style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 4rem)' }}>
+                  <div className="px-2 min-h-full" style={{ paddingTop: 'calc(var(--sat, 0px) + 4rem)' }}>
                     <SearchResults
                       results={search.searchResults}
                       searchTerm={search.searchInput}
@@ -639,6 +647,14 @@ function AppContent() {
         <MapOverlayDrawer
           isVisible={navigation.showMapOverlayDrawer}
           onClose={() => navigation.setShowMapOverlayDrawer(false)}
+        />
+        </Suspense>
+        </ErrorBoundary>
+        <ErrorBoundary>
+        <Suspense fallback={null}>
+        <CalendarDrawer
+          isVisible={navigation.showCalendarDrawer}
+          onClose={() => navigation.setShowCalendarDrawer(false)}
         />
         </Suspense>
         </ErrorBoundary>

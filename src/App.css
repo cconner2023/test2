@@ -104,6 +104,13 @@
   --color-zone-accent: var(--color-zone-accent);
 }
 
+/* Safe area: CSS custom properties with env() defaults.
+   JS in main.tsx overrides --sat on iOS 15 standalone where env() returns 0. */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+}
+
 *::-webkit-scrollbar{
 display: none;
 }

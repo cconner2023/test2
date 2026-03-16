@@ -499,7 +499,7 @@ function ChatDetail({
   const canCall = !isSelf && requestStatus === 'accepted' && (onStartCall || onStartVideoCall)
 
   const mobileHeader = (
-    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] flex items-center backdrop-blur-xl bg-themewhite3/80">
+    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center backdrop-blur-xl bg-themewhite3/80">
       <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
         <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
           <ChevronLeft className="w-6 h-6 text-tertiary" />
@@ -690,7 +690,7 @@ function GroupChatDetail({
   }, [leaveGroup, onBack])
 
   const mobileHeader = (
-    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,env(safe-area-inset-top))] flex items-center backdrop-blur-xl bg-themewhite3/80">
+    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center backdrop-blur-xl bg-themewhite3/80">
       <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
         <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
           <ChevronLeft className="w-6 h-6 text-tertiary" />

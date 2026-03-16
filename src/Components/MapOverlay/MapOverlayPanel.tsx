@@ -1,18 +1,23 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useSpring, animated } from '@react-spring/web';
-import { Map, ChevronLeft, Compass, Move, MapPin, Route, Pencil, Trash2, Check, X, Save } from 'lucide-react';
+import { ChevronLeft, Compass, Move, MapPin, Route, Pencil, Trash2, Check, X, Save } from 'lucide-react';
 import { LoadingSpinner } from '../LoadingSpinner';
 import { forward } from 'mgrs';
 import { BaseDrawer } from '../BaseDrawer';
 import { ContentWrapper } from '../Settings/ContentWrapper';
-import { EmptyState } from '../EmptyState';
 import { SearchInput } from '../SearchInput';
+import { ErrorDisplay } from '../ErrorDisplay';
 import { useGeolocation } from '../../Hooks/useGeolocation';
+import { useAuth } from '../../Hooks/useAuth';
+import { getOverlays, saveOverlay, deleteOverlay } from '../../lib/mapOverlayService';
 import type { OverlayFeature, DrawMode } from '../../Types/MapOverlayTypes';
+import type { LocalMapOverlay, MapOverlay } from '../../Types/MapOverlayTypes';
 import { DEFAULT_FEATURE_STYLE, TACTICAL_COLORS } from '../../Types/MapOverlayTypes';
 import MapView from './MapView';
 import type { MapViewHandle } from './MapView';
 import { MGRSConverter } from './MGRSConverter';
+import { OverlayList } from './OverlayList';
+import { FeatureEditor } from './FeatureEditor';
 import { resolveSearch } from './searchResolver';
 
 type ViewState = 'list' | 'viewer' | 'converter';
@@ -21,6 +26,8 @@ interface MapOverlayPanelProps {
   isVisible: boolean;
   onClose: () => void;
 }
+
+const UI_TIMING = { FEEDBACK_DURATION: 4000 } as const;
 
 function featureMgrs(feature: OverlayFeature): string {
   if (!feature.geometry.length) return '---';
@@ -33,24 +40,34 @@ function featureMgrs(feature: OverlayFeature): string {
 }
 
 export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
+  const { user, clinicId } = useAuth();
+
   const [view, setView] = useState<ViewState>('list');
   const [overlayId, setOverlayId] = useState<string | null>(null);
+  const [overlayName, setOverlayName] = useState('');
   const [features, setFeatures] = useState<OverlayFeature[]>([]);
   const [drawMode, setDrawMode] = useState<DrawMode>('pan');
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null);
   const [showGrid] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Overlay list + loading
+  const [overlays, setOverlays] = useState<LocalMapOverlay[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  // Save flow
+  const [savingOverlayName, setSavingOverlayName] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [mapCenter, setMapCenter] = useState<[number, number]>([0, 0]);
+  const [mapZoom, setMapZoom] = useState(4);
+
   // Naming modal
   const [namingFeatureId, setNamingFeatureId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState('');
   const nameInputRef = useRef<HTMLInputElement>(null);
 
-  // Edit modal (rename + color)
+  // Edit feature
   const [editingFeatureId, setEditingFeatureId] = useState<string | null>(null);
-  const [editLabel, setEditLabel] = useState('');
-  const [editColor, setEditColor] = useState('#3B82F6');
-  const editLabelRef = useRef<HTMLInputElement>(null);
 
   // Route drawing accumulation
   const inProgressGeometry = useRef<[number, number][]>([]);
@@ -69,13 +86,35 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
 
   const selectedFeature = features.find(f => f.id === selectedFeatureId) ?? null;
 
-  // ── Toolbar expand/collapse spring (matches property canvas pattern) ──
+  // ── Load overlays when panel becomes visible ──
+  useEffect(() => {
+    if (!isVisible || !clinicId) return;
+    let cancelled = false;
+    setLoading(true);
+    getOverlays(clinicId).then((result) => {
+      if (cancelled) return;
+      if (result.ok) {
+        setOverlays(result.data);
+      }
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, [isVisible, clinicId]);
+
+  // ── Auto-clear save error ──
+  useEffect(() => {
+    if (!saveError) return;
+    const t = setTimeout(() => setSaveError(null), UI_TIMING.FEEDBACK_DURATION);
+    return () => clearTimeout(t);
+  }, [saveError]);
+
+  // ── Toolbar expand/collapse spring ──
   const toolbarSpring = useSpring({
     progress: isEditing ? 1 : 0,
     config: { tension: 260, friction: 26 },
   });
 
-  // ── Spinner fade spring — overlays map during search + flyTo ──
+  // ── Spinner fade spring ──
   const spinnerSpring = useSpring({
     opacity: searchPending ? 1 : 0,
     config: { tension: 200, friction: 22 },
@@ -86,13 +125,10 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     if (namingFeatureId) nameInputRef.current?.focus();
   }, [namingFeatureId]);
 
-  useEffect(() => {
-    if (editingFeatureId) editLabelRef.current?.focus();
-  }, [editingFeatureId]);
-
   const handleNewOverlay = useCallback(() => {
     const id = crypto.randomUUID();
     setOverlayId(id);
+    setOverlayName('');
     setFeatures([]);
     setDrawMode('pan');
     setSelectedFeatureId(null);
@@ -102,6 +138,29 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     setView('viewer');
     startWatching();
   }, [startWatching]);
+
+  const handleOpenOverlay = useCallback((overlay: MapOverlay) => {
+    setOverlayId(overlay.id);
+    setOverlayName(overlay.name);
+    setFeatures(overlay.features);
+    setDrawMode('pan');
+    setSelectedFeatureId(null);
+    setSearchQuery('');
+    inProgressGeometry.current = [];
+    inProgressFeatureId.current = null;
+    setView('viewer');
+    startWatching();
+  }, [startWatching]);
+
+  const handleDeleteOverlay = useCallback(async (id: string) => {
+    if (!user) return;
+    const result = await deleteOverlay(id, user.id);
+    if (result.ok) {
+      setOverlays(prev => prev.filter(o => o.id !== id));
+    } else {
+      setSaveError(result.error);
+    }
+  }, [user]);
 
   const handleOpenConverter = useCallback(() => {
     setView('converter');
@@ -115,6 +174,7 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     setNamingFeatureId(null);
     setEditingFeatureId(null);
     setIsEditing(false);
+    setSavingOverlayName(false);
     inProgressGeometry.current = [];
     inProgressFeatureId.current = null;
   }, [view, stopWatching]);
@@ -138,7 +198,6 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
       };
       setFeatures(prev => [...prev, feature]);
       setSelectedFeatureId(id);
-      // Open naming modal
       setNamingFeatureId(id);
       setNameInput('');
       setDrawMode('pan');
@@ -149,7 +208,6 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
       inProgressGeometry.current = [...inProgressGeometry.current, [lat, lng]];
 
       if (inProgressGeometry.current.length === 1) {
-        // First point — create the in-progress feature
         const id = crypto.randomUUID();
         inProgressFeatureId.current = id;
         const feature: OverlayFeature = {
@@ -165,7 +223,6 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
         setFeatures(prev => [...prev, feature]);
         setSelectedFeatureId(id);
       } else {
-        // Update the in-progress route with new point
         const ipId = inProgressFeatureId.current;
         if (ipId) {
           setFeatures(prev => prev.map(f =>
@@ -176,14 +233,13 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
       return;
     }
 
-    // Pan or other mode — deselect
     if (drawMode === 'pan') {
       setSelectedFeatureId(null);
       setEditingFeatureId(null);
     }
   }, [drawMode, overlayId]);
 
-  // ── Finish route (double-tap or toolbar tap) ──
+  // ── Finish route ──
   const finishRoute = useCallback(() => {
     const ipId = inProgressFeatureId.current;
     if (ipId && inProgressGeometry.current.length >= 2) {
@@ -217,18 +273,13 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
       return;
     }
     if (drawMode === 'edit') {
-      const feat = features.find(f => f.id === featureId);
-      if (feat) {
-        setEditingFeatureId(featureId);
-        setEditLabel(feat.label);
-        setEditColor(feat.style.color);
-      }
+      setEditingFeatureId(featureId);
       return;
     }
     setSelectedFeatureId(prev => prev === featureId ? null : featureId);
-  }, [drawMode, features]);
+  }, [drawMode]);
 
-  // ── Mode change — finish route if switching away ──
+  // ── Mode change ──
   const handleModeChange = useCallback((mode: DrawMode) => {
     if (drawMode === 'route' && inProgressFeatureId.current) {
       finishRoute();
@@ -255,21 +306,6 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     setNameInput('');
   }, []);
 
-  // ── Edit confirm ──
-  const handleEditConfirm = useCallback(() => {
-    if (!editingFeatureId) return;
-    setFeatures(prev => prev.map(f =>
-      f.id === editingFeatureId
-        ? { ...f, label: editLabel.trim() || f.label, style: { ...f.style, color: editColor }, updated_at: new Date().toISOString() }
-        : f
-    ));
-    setEditingFeatureId(null);
-  }, [editingFeatureId, editLabel, editColor]);
-
-  const handleEditCancel = useCallback(() => {
-    setEditingFeatureId(null);
-  }, []);
-
   // ── Delete selected ──
   const handleDeleteSelected = useCallback(() => {
     if (!selectedFeatureId) return;
@@ -277,7 +313,47 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
     setSelectedFeatureId(null);
   }, [selectedFeatureId]);
 
-  // ── Search handler (MGRS → lat/lng → Nominatim) with friction spinner ──
+  // ── Save overlay ──
+  const handleSaveClick = useCallback(() => {
+    if (!overlayName.trim()) {
+      setSavingOverlayName(true);
+      return;
+    }
+    handleSaveConfirm();
+  }, [overlayName]);
+
+  const handleSaveConfirm = useCallback(async () => {
+    if (!overlayId || !user || !clinicId) return;
+    const name = overlayName.trim();
+    if (!name) return;
+
+    const result = await saveOverlay({
+      overlayId,
+      clinicId,
+      userId: user.id,
+      name,
+      center: mapCenter,
+      zoom: mapZoom,
+      features,
+    });
+
+    if (result.ok) {
+      setOverlays(prev => {
+        const idx = prev.findIndex(o => o.id === result.data.id);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = result.data;
+          return next;
+        }
+        return [...prev, result.data];
+      });
+      setSavingOverlayName(false);
+    } else {
+      setSaveError(result.error);
+    }
+  }, [overlayId, user, clinicId, overlayName, mapCenter, mapZoom, features]);
+
+  // ── Search handler ──
   const handleSearchSubmit = useCallback(async () => {
     if (!searchQuery.trim() || searchPending) return;
     setSearchPending(true);
@@ -286,13 +362,18 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
       const [result] = await Promise.all([resolveSearch(searchQuery), floor]);
       if (result) {
         mapRef.current?.flyTo(result.lat, result.lng, result.zoom);
-        // Hold spinner while map animates
         await new Promise(r => setTimeout(r, 800));
       }
     } finally {
       setSearchPending(false);
     }
   }, [searchQuery, searchPending]);
+
+  // ── Map move tracking ──
+  const handleMoveEnd = useCallback((center: [number, number], zoom: number) => {
+    setMapCenter(center);
+    setMapZoom(zoom);
+  }, []);
 
   const isRouteInProgress = drawMode === 'route' && inProgressFeatureId.current !== null;
 
@@ -310,13 +391,18 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
         {/* ── List view ── */}
         {view === 'list' && (
           <div className="flex flex-col h-full">
-            <EmptyState
-              icon={<Map size={40} />}
-              title="No overlays yet"
-              subtitle="Create a tactical map overlay with waypoints, routes, and areas"
-              action={{ label: 'New Overlay', onClick: handleNewOverlay }}
-              className="flex-1"
-            />
+            {loading ? (
+              <div className="flex-1 flex items-center justify-center">
+                <LoadingSpinner size="lg" className="text-themeblue3" />
+              </div>
+            ) : (
+              <OverlayList
+                overlays={overlays}
+                onSelect={handleOpenOverlay}
+                onDelete={handleDeleteOverlay}
+                onNewOverlay={handleNewOverlay}
+              />
+            )}
             <div className="px-4 pb-6">
               <button
                 type="button"
@@ -335,6 +421,13 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
         {/* ── Viewer ── */}
         {view === 'viewer' && (
           <div className="flex flex-col h-full">
+            {/* Error feedback */}
+            {saveError && (
+              <div className="px-4 pt-2">
+                <ErrorDisplay type="error" message={saveError} />
+              </div>
+            )}
+
             {/* Sub-header: back + search/spacer + toolbar pill */}
             <div className="flex items-center gap-2 px-3 py-2 border-b border-tertiary/10">
               <button
@@ -393,11 +486,10 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                       <Route size={15} />
                     </button>
                     <div className="h-5 w-px shrink-0 bg-tertiary/15" />
-                    {/* Edit — disabled until feature selected */}
+                    {/* Edit */}
                     <button
                       onClick={() => handleModeChange('edit')}
-                      disabled={!selectedFeatureId}
-                      className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all disabled:opacity-25 disabled:pointer-events-none ${drawMode === 'edit' ? 'bg-themeyellow text-white' : 'text-tertiary hover:text-primary'}`}
+                      className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center active:scale-95 transition-all ${drawMode === 'edit' ? 'bg-themeyellow text-white' : 'text-tertiary hover:text-primary'}`}
                       title="Edit feature"
                     >
                       <Pencil size={15} />
@@ -412,9 +504,9 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                       <Trash2 size={15} />
                     </button>
                     <div className="h-5 w-px shrink-0 bg-tertiary/15" />
-                    {/* Save (mock) */}
+                    {/* Save */}
                     <button
-                      onClick={() => {}}
+                      onClick={handleSaveClick}
                       className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all"
                       title="Save overlay"
                     >
@@ -422,7 +514,7 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                     </button>
                   </animated.div>
 
-                  {/* Anchored edit/check toggle — stays in place */}
+                  {/* Anchored edit/check toggle */}
                   <button
                     onClick={handleToggleEditing}
                     className={`w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all ${isEditing ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'}`}
@@ -467,50 +559,36 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                   </div>
                 )}
 
-                {/* ── Edit modal — rename + color picker ── */}
-                {editingFeatureId && (
-                  <div className="absolute top-full right-0 mt-1.5 z-[1001] bg-themewhite rounded-xl shadow-lg w-64 p-3 border border-primary/10">
-                    <p className="text-[10pt] font-medium text-primary mb-2">Edit feature</p>
+                {/* ── Save naming modal — drops below toolbar ── */}
+                {savingOverlayName && (
+                  <div className="absolute top-full right-0 mt-1.5 z-[1001] bg-themewhite rounded-xl shadow-lg w-56 p-3 border border-primary/10">
+                    <p className="text-[10pt] font-medium text-primary mb-2">Name this overlay</p>
                     <input
-                      ref={editLabelRef}
                       type="text"
-                      value={editLabel}
-                      onChange={(e) => setEditLabel(e.target.value)}
+                      value={overlayName}
+                      onChange={(e) => setOverlayName(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') handleEditConfirm();
-                        if (e.key === 'Escape') handleEditCancel();
+                        if (e.key === 'Enter') handleSaveConfirm();
+                        if (e.key === 'Escape') setSavingOverlayName(false);
                       }}
-                      placeholder="Label"
+                      placeholder="e.g. Patrol Route Alpha"
                       className="w-full px-3 py-2 rounded-lg bg-themewhite2 text-[10pt] text-primary
                         placeholder:text-tertiary/40 outline-none focus:border-themeblue2 focus:outline-none
                         border border-tertiary/20 transition-all"
+                      autoFocus
                     />
-                    <div className="flex items-center gap-2 mt-3">
-                      {TACTICAL_COLORS.map((c) => (
-                        <button
-                          key={c.hex}
-                          type="button"
-                          onClick={() => setEditColor(c.hex)}
-                          className={`w-7 h-7 rounded-full active:scale-95 transition-all
-                            ${editColor === c.hex ? 'ring-2 ring-offset-2 ring-themeblue2' : 'ring-1 ring-inset ring-primary/10'}`}
-                          style={{ backgroundColor: c.hex }}
-                          aria-label={c.name}
-                          title={c.name}
-                        />
-                      ))}
-                    </div>
-                    <div className="flex items-center gap-2 mt-3">
+                    <div className="flex items-center gap-2 mt-2">
                       <button
-                        onClick={handleEditCancel}
+                        onClick={() => setSavingOverlayName(false)}
                         className="flex-1 py-1.5 rounded-lg text-[10pt] text-tertiary hover:bg-primary/5 active:scale-95 transition-all"
                       >
                         Cancel
                       </button>
                       <button
-                        onClick={handleEditConfirm}
+                        onClick={handleSaveConfirm}
                         className="flex-1 py-1.5 rounded-lg bg-themeblue3 text-[10pt] text-white active:scale-95 transition-all"
                       >
-                        Done
+                        Save
                       </button>
                     </div>
                   </div>
@@ -527,11 +605,12 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                 selectedFeatureId={selectedFeatureId}
                 onMapClick={handleMapClick}
                 onFeatureClick={handleFeatureClick}
+                onMoveEnd={handleMoveEnd}
                 gpsPosition={gpsPosition}
                 showGrid={showGrid}
               />
 
-              {/* Search spinner overlay — fades in/out over map */}
+              {/* Search spinner overlay */}
               <animated.div
                 className="absolute inset-0 z-[1002] flex items-center justify-center bg-themewhite dark:bg-themewhite"
                 style={{ opacity: spinnerSpring.opacity, pointerEvents: searchPending ? 'auto' : 'none' }}
@@ -539,7 +618,7 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                 <LoadingSpinner size="lg" className="text-themeblue3" />
               </animated.div>
 
-              {/* Route finish button — floating on map */}
+              {/* Route finish button */}
               {isRouteInProgress && (
                 <div className="absolute top-3 left-3 z-[1000]">
                   <button
@@ -553,8 +632,25 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                 </div>
               )}
 
-              {/* Selected feature MGRS readout — bottom-left */}
-              {selectedFeature && (
+              {/* FeatureEditor — rendered inside map area container */}
+              {drawMode === 'edit' && editingFeatureId && features.find(f => f.id === editingFeatureId) && (
+                <FeatureEditor
+                  feature={features.find(f => f.id === editingFeatureId)!}
+                  onUpdate={(updated) => setFeatures(prev => prev.map(f => f.id === updated.id ? updated : f))}
+                  onDelete={() => {
+                    setFeatures(prev => prev.filter(f => f.id !== editingFeatureId));
+                    setEditingFeatureId(null);
+                    setDrawMode('pan');
+                  }}
+                  onClose={() => {
+                    setEditingFeatureId(null);
+                    setDrawMode('pan');
+                  }}
+                />
+              )}
+
+              {/* Selected feature MGRS readout */}
+              {selectedFeature && !editingFeatureId && (
                 <div className="absolute bottom-3 left-3 z-[1000] flex items-center gap-2
                   bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm
                   px-3 py-2 rounded-lg shadow-sm">

@@ -371,7 +371,7 @@ export const NoteWizardFooter = ({
 }) => (
     <div
         className={`flex items-center gap-2 justify-between shrink-0 ${isMobile ? 'px-6 pt-4 pb-6' : 'p-4'}`}
-        style={isMobile ? { paddingBottom: 'max(2rem, calc(env(safe-area-inset-bottom, 0px) + 2rem))' } : {}}
+        style={isMobile ? { paddingBottom: 'max(2rem, calc(var(--sab, 0px) + 2rem))' } : {}}
     >
         <div />
         <div key={currentPage} className={`flex items-center gap-2 ${slideDirection === 'left' ? 'animate-footer-btn-left' : slideDirection === 'right' ? 'animate-footer-btn-right' : ''}`}>
