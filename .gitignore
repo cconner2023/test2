@@ -16,6 +16,8 @@ skills-lock.json
 *skills-lock.json
 .md
 *.md
+.omc
+*.omc
 node_modules
 dist
 dist/
