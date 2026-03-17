@@ -72,9 +72,8 @@ export function PersonnelRoster({
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      {/* Scrollable content */}
-      <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 md:px-5 md:py-5">
+    <>
+      <div className="px-4 py-3 md:px-5 md:py-5">
         {/* Clinic card — navigates to Team Insights */}
         {onViewInsights && teamMetrics && (
           <button
@@ -176,6 +175,6 @@ export function PersonnelRoster({
           />
         )
       })()}
-    </div>
+    </>
   )
 }

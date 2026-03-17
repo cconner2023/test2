@@ -434,28 +434,6 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
             {/* Search Container - mobile only */}
             {isMobile && (
                 <div className={`flex items-center min-w-0 ${isAnyExpanded ? 'flex-1' : 'shrink-0 justify-end'}`}>
-                    {/* Mobile search input */}
-                    {isSearchExpanded && (
-                        <div className="flex items-center justify-center transition-all duration-300 bg-themewhite text-tertiary rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 w-full animate-expandSearch">
-                            <input
-                                ref={inputRef}
-                                type="search"
-                                placeholder="search"
-                                value={searchInput}
-                                onChange={(e) => onSearchChange(e.target.value)}
-                                onFocus={handleSearchFocus}
-                                onBlur={handleSearchBlur}
-                                className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
-                            />
-                            <div
-                                className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
-                                onClick={() => handleClearSearch(!hasSearchInput)}
-                            >
-                                <X className="w-5 h-5 stroke-themeblue1" />
-                            </div>
-                        </div>
-                    )}
-
                     {/* Mobile import input */}
                     {isImportExpanded && (
                         <div className="relative w-full animate-expandSearch">
@@ -578,16 +556,6 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                     )}
                                 </div>
 
-                                <button
-                                    onClick={handleMobileSearchClick}
-                                    className="text-tertiary hover:text-primary transition-all duration-200"
-                                    aria-label="Search"
-                                    title="Search"
-                                >
-                                    <div className="w-11 h-11 rounded-full flex items-center justify-center">
-                                        <Search className="w-6 h-6 stroke-current" />
-                                    </div>
-                                </button>
                             </div>
                         </div>
                     )}

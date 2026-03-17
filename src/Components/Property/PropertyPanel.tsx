@@ -529,7 +529,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
 
       {/* Content area */}
       <div className="flex-1 flex min-h-0">
-        <div className="flex-1 overflow-y-auto min-w-0">
+        <div className="flex-1 min-w-0">
         {isMobile ? (
           <>
             {/* Mobile new-location inline form — triggered by header FolderPlus button */}

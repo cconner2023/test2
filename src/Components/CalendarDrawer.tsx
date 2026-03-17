@@ -5,6 +5,7 @@ import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { CalendarPanel } from './Calendar/CalendarPanel'
 import { RosterPane } from './Calendar/RosterPane'
+import { SearchInput } from './SearchInput'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { useClinicMedics } from '../Hooks/useClinicMedics'
@@ -30,7 +31,7 @@ interface CalendarDrawerProps {
 export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     const isMobile = useIsMobile()
 
-    const { selectedEventId, assignPersonnel, unassignPersonnel, events, personnelFilter, togglePersonnelFilter, clearPersonnelFilter, monthLabel } =
+    const { selectedEventId, assignPersonnel, unassignPersonnel, events, personnelFilter, togglePersonnelFilter, clearPersonnelFilter, monthLabel, viewMode, rosterSearchQuery, setRosterSearchQuery } =
         useCalendarStore(useShallow(s => ({
             selectedEventId: s.selectedEventId,
             assignPersonnel: s.assignPersonnel,
@@ -40,6 +41,9 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
             togglePersonnelFilter: s.togglePersonnelFilter,
             clearPersonnelFilter: s.clearPersonnelFilter,
             monthLabel: s.monthLabel,
+            viewMode: s.currentView,
+            rosterSearchQuery: s.rosterSearchQuery,
+            setRosterSearchQuery: s.setRosterSearchQuery,
         })))
 
     const [showPersonnelDrawer, setShowPersonnelDrawer] = useState(false)
@@ -100,6 +104,15 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
             header={!isMobile ? {
                 title: 'Calendar',
                 badge: 'DEV',
+                rightContent: (
+                    <SearchInput
+                        value={rosterSearchQuery}
+                        onChange={setRosterSearchQuery}
+                        placeholder="Search personnel"
+                        className="flex-1"
+                        hideSearchIcon
+                    />
+                ),
             } : undefined}
         >
             <div className="flex flex-col h-full">
@@ -128,8 +141,8 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 )}
 
                 <div className="flex flex-1 min-h-0 overflow-hidden relative">
-                    {/* Roster — desktop: left pane */}
-                    {!isMobile && (
+                    {/* Roster — desktop: left pane (hidden in troops view where TroopsToTaskView renders its own names) */}
+                    {!isMobile && viewMode !== 'troops' && (
                         <div className="w-[280px] shrink-0">
                             <RosterPane
                                 onAssignToEvent={handleRosterAssign}

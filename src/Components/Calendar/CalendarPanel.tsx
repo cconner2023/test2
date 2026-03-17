@@ -184,9 +184,9 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
   // ── Calendar views ──
 
   return (
-    <div className="flex flex-col h-full relative">
-      {/* View content */}
-      <div className="flex-1 min-h-0 flex flex-col">
+    <div className="relative h-full">
+      {/* View content — fills entire area, island floats over */}
+      <div className="absolute inset-0 flex flex-col">
         {viewMode === 'month' && (
           <InfiniteScrollCalendar
             events={filteredEvents}
@@ -212,47 +212,48 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
             onSelectEvent={handleSelectEvent}
             onAssign={assignPersonnel}
             onUnassign={unassignPersonnel}
-            hideNameColumn={!isMobile}
           />
         )}
       </div>
 
-      <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-10 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
-        <div className="flex items-center gap-0.5 rounded-full bg-themewhite border border-tertiary/20 p-0.5 shadow-lg pointer-events-auto">
+      <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
+        <div className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
           <button
             onClick={() => setViewMode('month')}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
+            className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
               viewMode === 'month' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
             }`}
             title="Month"
           >
-            <CalendarDays className="w-4 h-4" />
+            <CalendarDays className="w-5 h-5" />
           </button>
           <button
             onClick={() => setViewMode('day')}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
+            className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
               viewMode === 'day' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
             }`}
             title="Day"
           >
-            <Clock className="w-4 h-4" />
+            <Clock className="w-5 h-5" />
           </button>
           <button
             onClick={() => setViewMode('troops')}
-            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
+            className={`w-11 h-11 rounded-full flex items-center justify-center transition-all duration-200 active:scale-95 ${
               viewMode === 'troops' ? 'bg-themeblue3 text-white' : 'text-tertiary hover:text-primary'
             }`}
             title="Troops to Task"
           >
-            <Users2 className="w-4 h-4" />
+            <Users2 className="w-5 h-5" />
           </button>
         </div>
-        <button
-          onClick={handleNewEvent}
-          className="absolute right-4 w-10 h-10 rounded-full bg-themeblue3 text-white shadow-lg flex items-center justify-center active:scale-95 transition-all duration-200 hover:shadow-xl pointer-events-auto"
-        >
-          <Plus size={20} />
-        </button>
+        <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
+          <button
+            onClick={handleNewEvent}
+            className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+          >
+            <Plus className="w-5 h-5" />
+          </button>
+        </div>
       </div>
     </div>
   )

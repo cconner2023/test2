@@ -9,6 +9,7 @@ interface SearchInputProps {
     placeholder?: string
     className?: string
     autoFocus?: boolean
+    hideSearchIcon?: boolean
 }
 
 export const SearchInput = ({
@@ -18,6 +19,7 @@ export const SearchInput = ({
     placeholder = 'Search...',
     className = '',
     autoFocus = false,
+    hideSearchIcon = false,
 }: SearchInputProps) => {
     const inputRef = useRef<HTMLInputElement>(null)
     const hasValue = value.trim().length > 0
@@ -27,7 +29,7 @@ export const SearchInput = ({
             className={`relative flex items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite
                 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300 ${className}`}
         >
-            <Search size={16} className="absolute left-3 text-tertiary/50 pointer-events-none" />
+            {!hideSearchIcon && <Search size={16} className="absolute left-3 text-tertiary/50 pointer-events-none" />}
             <input
                 ref={inputRef}
                 type="search"
@@ -36,9 +38,9 @@ export const SearchInput = ({
                 onKeyDown={(e) => { if (e.key === 'Enter' && onSubmit) { e.preventDefault(); onSubmit() } }}
                 placeholder={placeholder}
                 autoFocus={autoFocus}
-                className="w-full bg-transparent outline-none text-[16px] text-tertiary pl-9 pr-2 py-2
+                className={`w-full bg-transparent outline-none text-[16px] text-tertiary ${hideSearchIcon ? 'pl-3' : 'pl-9'} pr-2 py-2
                     rounded-l-full min-w-0 placeholder:text-tertiary/30
-                    [&::-webkit-search-cancel-button]:hidden"
+                    [&::-webkit-search-cancel-button]:hidden`}
             />
             {hasValue && onSubmit && (
                 <button

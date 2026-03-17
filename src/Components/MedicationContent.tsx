@@ -89,7 +89,7 @@ export function MedicationContent({
 
     if (selectedMedication) {
         return (
-            <div className="h-full overflow-y-auto px-4 pb-4">
+            <div className="px-4 pb-4">
                 <MedicationPage
                     medication={selectedMedication}
                     isFavorite={favorites.includes(selectedMedication.icon)}
@@ -100,7 +100,7 @@ export function MedicationContent({
     }
 
     return (
-        <div className="h-full overflow-y-auto px-4 pb-4">
+        <div className="px-4 pb-4">
             {favoriteMeds.length > 0 && (
                 <>
                     <div className="flex items-center gap-2 mt-1 mb-1 px-1">

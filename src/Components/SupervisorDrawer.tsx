@@ -1,8 +1,9 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Ban, X, Search, ClipboardCheck, Pencil } from 'lucide-react'
+import { useState, useCallback, useMemo } from 'react'
+import { Ban, X, ClipboardCheck, Pencil } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
+import { ScrollRevealSearch } from './ScrollRevealSearch'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
@@ -38,12 +39,8 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const [treeSelection, setTreeSelection] = useState<TreeSelection>({ type: 'all-personnel' })
 
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
-  const [showRosterSearch, setShowRosterSearch] = useState(false)
   const [rosterSearchQuery, setRosterSearchQuery] = useState('')
-  const rosterSearchRef = useRef<HTMLInputElement>(null)
-  const [showTaskSearch, setShowTaskSearch] = useState(false)
   const [taskSearchQuery, setTaskSearchQuery] = useState('')
-  const taskSearchRef = useRef<HTMLInputElement>(null)
   const [focusCertId, setFocusCertId] = useState<string | null>(null)
 
   const isMobile = useIsMobile()
@@ -82,14 +79,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     return expiredCerts.length + failedTests.length
   }, [overdueItems])
 
-  // Focus search inputs when expanded
-  useEffect(() => {
-    if (showRosterSearch) rosterSearchRef.current?.focus()
-  }, [showRosterSearch])
-  useEffect(() => {
-    if (showTaskSearch) taskSearchRef.current?.focus()
-  }, [showTaskSearch])
-
   // ── Slide Animation ────────────────────────────────────────────────────────
 
   const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
@@ -99,33 +88,28 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
   // ── Navigation ─────────────────────────────────────────────────────────────
 
-  const collapseRosterSearch = useCallback(() => {
-    setShowRosterSearch(false)
-    setRosterSearchQuery('')
-  }, [])
-
   const handleViewProfile = useCallback((soldier: ClinicMedic) => {
-    collapseRosterSearch()
+    setRosterSearchQuery('')
     if (!isMobile) {
       setTreeSelection({ type: 'soldier', soldierId: soldier.id })
     } else {
       setTreeSelection({ type: 'soldier', soldierId: soldier.id })
       handleSlideAnimation('left')
     }
-  }, [isMobile, handleSlideAnimation, collapseRosterSearch])
+  }, [isMobile, handleSlideAnimation])
 
   const handleEvaluate = useCallback((soldier: ClinicMedic) => {
-    collapseRosterSearch()
+    setRosterSearchQuery('')
     handleSlideAnimation('left')
     setView({ screen: 'evaluate-select-task', soldier })
-  }, [handleSlideAnimation, collapseRosterSearch])
+  }, [handleSlideAnimation])
 
   const handleModifyCerts = useCallback((soldier: ClinicMedic) => {
-    collapseRosterSearch()
+    setRosterSearchQuery('')
     handleSlideAnimation('left')
     setFocusCertId(null)
     setView({ screen: 'soldier-certs', soldier })
-  }, [handleSlideAnimation, collapseRosterSearch])
+  }, [handleSlideAnimation])
 
   const handleNavigateToCert = useCallback((soldier: ClinicMedic, certId: string) => {
     handleSlideAnimation('left')
@@ -135,7 +119,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
   const handleSelectTask = useCallback((taskNumber: string, taskTitle: string) => {
     if (view.screen !== 'evaluate-select-task') return
-    setShowTaskSearch(false)
     setTaskSearchQuery('')
     handleSlideAnimation('left')
     setView({ screen: 'evaluate-go-nogo', soldier: view.soldier, taskNumber, taskTitle })
@@ -165,7 +148,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     } else if (view.screen !== 'main') {
       handleSlideAnimation('right')
       setFocusCertId(null)
-      setShowTaskSearch(false)
       setTaskSearchQuery('')
       setView({ screen: 'main' })
     } else if (isMobile && treeSelection.type !== 'all-personnel') {
@@ -178,9 +160,9 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     setView({ screen: 'main' })
     setTreeSelection({ type: 'all-personnel' })
     setSlideDirection('')
-    collapseRosterSearch()
+    setRosterSearchQuery('')
     onClose()
-  }, [onClose, collapseRosterSearch])
+  }, [onClose])
 
   const handleTreeSelect = useCallback((selection: TreeSelection) => {
     setTreeSelection(selection)
@@ -209,49 +191,13 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     return null
   }, [view, treeSelection, medics])
 
-  const rosterSearchInput = useMemo(() => (
-    <div className="relative flex items-center w-full rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-200">
-      <Search size={16} className="absolute left-3 text-tertiary/50 pointer-events-none" />
-      <input
-        ref={rosterSearchRef}
-        type="search"
-        value={rosterSearchQuery}
-        onChange={(e) => setRosterSearchQuery(e.target.value)}
-        placeholder="Search personnel..."
-        className="w-full bg-transparent outline-none text-[16px] text-tertiary pl-9 pr-2 py-2 rounded-l-full min-w-0 placeholder:text-tertiary/30 [&::-webkit-search-cancel-button]:hidden"
-      />
-      <button
-        onClick={() => {
-          if (rosterSearchQuery) {
-            setRosterSearchQuery('')
-            rosterSearchRef.current?.focus()
-          } else {
-            setShowRosterSearch(false)
-          }
-        }}
-        className="flex items-center justify-center px-2 py-2 bg-themewhite2 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
-      >
-        <X size={18} className="stroke-themeblue1" />
-      </button>
-    </div>
-  ), [rosterSearchQuery])
-
   const mainHeaderActions = useMemo(() => {
     if (view.screen !== 'main') return undefined
 
-    // Roster search expanded — input fills header (handled via rightContentFill)
-    if (showRosterSearch) return rosterSearchInput
-
-    // Roster view (mobile): Search + Close
+    // Roster view (mobile): Close only — search is scroll-reveal
     if (isMobile && treeSelection.type === 'all-personnel') {
       return (
         <HeaderPill>
-          <PillButton
-            icon={Search}
-            iconSize={20}
-            onClick={() => setShowRosterSearch(true)}
-            label="Search"
-          />
           <PillButton icon={X} onClick={handleClose} label="Close" />
         </HeaderPill>
       )
@@ -274,7 +220,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         <PillButton icon={X} onClick={handleClose} label="Close" />
       </HeaderPill>
     )
-  }, [view, treeSelection, isMobile, handleClose, selectedSoldier, handleEvaluate, handleModifyCerts, showRosterSearch, rosterSearchInput])
+  }, [view, treeSelection, isMobile, handleClose, selectedSoldier, handleEvaluate, handleModifyCerts])
 
   // ── Header Config ──────────────────────────────────────────────────────────
 
@@ -298,7 +244,6 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         }
         return {
           title: 'Supervisor',
-          rightContentFill: showRosterSearch,
           rightContent: mainHeaderActions,
           hideDefaultClose: !!mainHeaderActions,
         }
@@ -312,42 +257,10 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       case 'evaluate-select-task':
         return {
           title: 'Select Task',
-          showBack: !showTaskSearch,
+          showBack: true,
           onBack: handleBack,
-          rightContentFill: showTaskSearch,
-          rightContent: showTaskSearch ? (
-            <div className="relative flex items-center w-full rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-200">
-              <Search size={16} className="absolute left-3 text-tertiary/50 pointer-events-none" />
-              <input
-                ref={taskSearchRef}
-                type="search"
-                value={taskSearchQuery}
-                onChange={(e) => setTaskSearchQuery(e.target.value)}
-                placeholder="Search STP tasks..."
-                className="w-full bg-transparent outline-none text-[16px] text-tertiary pl-9 pr-2 py-2 rounded-l-full min-w-0 placeholder:text-tertiary/30 [&::-webkit-search-cancel-button]:hidden"
-              />
-              <button
-                onClick={() => {
-                  if (taskSearchQuery) {
-                    setTaskSearchQuery('')
-                    taskSearchRef.current?.focus()
-                  } else {
-                    setShowTaskSearch(false)
-                  }
-                }}
-                className="flex items-center justify-center px-2 py-2 bg-themewhite2 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
-              >
-                <X size={18} className="stroke-themeblue1" />
-              </button>
-            </div>
-          ) : (
+          rightContent: (
             <HeaderPill>
-              <PillButton
-                icon={Search}
-                iconSize={20}
-                onClick={() => setShowTaskSearch(true)}
-                label="Search Tasks"
-              />
               <PillButton icon={X} onClick={handleClose} label="Close" />
             </HeaderPill>
           ),
@@ -360,7 +273,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
           onBack: handleBack,
         }
     }
-  }, [view, isMobile, treeSelection, handleBack, mainHeaderActions, showTaskSearch, taskSearchQuery, showRosterSearch, handleClose])
+  }, [view, isMobile, treeSelection, handleBack, mainHeaderActions, handleClose])
 
   // ── Subview Wrapper ────────────────────────────────────────────────────────
 
@@ -396,23 +309,29 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             </div>
           )
         }
-        // Mobile: swipeable roster cards
+        // Mobile: scroll-reveal search wrapping roster cards
         return (
-          <PersonnelRoster
-            medics={medics}
-            certsForSoldier={certsForSoldier}
-            overdueCount={getOverdueCount}
-            onEvaluate={handleEvaluate}
-            onView={handleViewProfile}
-            onModify={handleModifyCerts}
-            searchQuery={rosterSearchQuery}
-            clinicName={clinicName}
-            teamMetrics={teamMetrics}
-            onViewInsights={() => {
-              handleSlideAnimation('left')
-              setTreeSelection({ type: 'team-insights' })
-            }}
-          />
+          <ScrollRevealSearch
+            value={rosterSearchQuery}
+            onChange={setRosterSearchQuery}
+            placeholder="Search personnel..."
+          >
+            <PersonnelRoster
+              medics={medics}
+              certsForSoldier={certsForSoldier}
+              overdueCount={getOverdueCount}
+              onEvaluate={handleEvaluate}
+              onView={handleViewProfile}
+              onModify={handleModifyCerts}
+              searchQuery={rosterSearchQuery}
+              clinicName={clinicName}
+              teamMetrics={teamMetrics}
+              onViewInsights={() => {
+                handleSlideAnimation('left')
+                setTreeSelection({ type: 'team-insights' })
+              }}
+            />
+          </ScrollRevealSearch>
         )
 
       case 'soldier': {
@@ -487,12 +406,31 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         ) : null
 
       case 'evaluate-select-task':
+        return (
+          <ScrollRevealSearch
+            value={taskSearchQuery}
+            onChange={setTaskSearchQuery}
+            placeholder="Search STP tasks..."
+          >
+            <div className="px-4 py-3 md:p-5 pb-8 min-h-full">
+              <EvaluateFlow
+                soldier={view.soldier}
+                taskNumber={null}
+                taskTitle={null}
+                searchQuery={taskSearchQuery}
+                onSelectTask={handleSelectTask}
+                onSubmit={handleSubmitEvaluation}
+              />
+            </div>
+          </ScrollRevealSearch>
+        )
+
       case 'evaluate-go-nogo':
         return subViewWrapper(
           <EvaluateFlow
-            soldier={view.screen === 'evaluate-select-task' ? view.soldier : view.soldier}
-            taskNumber={view.screen === 'evaluate-go-nogo' ? view.taskNumber : null}
-            taskTitle={view.screen === 'evaluate-go-nogo' ? view.taskTitle : null}
+            soldier={view.soldier}
+            taskNumber={view.taskNumber}
+            taskTitle={view.taskTitle}
             searchQuery={taskSearchQuery}
             onSelectTask={handleSelectTask}
             onSubmit={handleSubmitEvaluation}

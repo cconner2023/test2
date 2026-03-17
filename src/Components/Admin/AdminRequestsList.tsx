@@ -526,15 +526,15 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
   }
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      <div className="shrink-0 px-5 pt-4 pb-2 space-y-3">
+    <div>
+      <div className="px-5 pt-4 pb-2 space-y-3">
         <p className="text-[10pt] text-tertiary leading-relaxed">
           Tap to expand. Long-press or right-click for actions.
         </p>
         {status && <ErrorDisplay type={status.type} message={status.message} />}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-4">
+      <div className="px-5 pb-4">
         {filteredRequests.length === 0 ? (
           <EmptyState
             icon={<Clock size={28} />}

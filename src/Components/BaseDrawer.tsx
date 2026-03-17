@@ -79,7 +79,7 @@ function DrawerHeader({
                             </span>
                         )}
                     </div>
-                    <div className={`flex items-center gap-2${rightContentFill ? ' flex-1 min-w-0' : ' shrink-0'}`}>
+                    <div className={`flex items-center gap-2${rightContentFill ? ' flex-1 min-w-0' : rightContent ? ' flex-1 min-w-0 justify-end' : ' shrink-0'}`}>
                         {rightContent}
                         {!hideDefaultClose && (
                             isMobile ? (

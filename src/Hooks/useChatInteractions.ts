@@ -65,23 +65,17 @@ export interface ChatInteractionsResult {
   handleSaveEdit: () => void
   handleCancelEdit: () => void
 
-  // ── Selection ──
-  selectedIds: Set<string>
-  hasSelection: boolean
-  canDeleteSelection: boolean
-  handleTap: (message: DecryptedSignalMessage) => void
-  clearSelection: () => void
-
   // ── Forward ──
   showForwardPicker: boolean
-  handleForwardStart: () => void
+  forwardingMessage: DecryptedSignalMessage | null
+  handleContextForward: () => void
   handleForwardSelect: (medic: ClinicMedic) => Promise<void>
   closeForwardPicker: () => void
 
   // ── Reply ──
   replyingTo: DecryptedSignalMessage | null
   setReplyingTo: (msg: DecryptedSignalMessage | null) => void
-  handleReply: () => void
+  handleContextReply: () => void
 
   // ── Thread ──
   activeThreadId: string | null
@@ -90,7 +84,7 @@ export interface ChatInteractionsResult {
 
   // ── Delete confirmation ──
   pendingDelete: PendingDelete | null
-  handleDelete: () => void
+  handleContextDelete: () => void
   handleConfirmDelete: () => void
   closePendingDelete: () => void
 
@@ -119,11 +113,9 @@ export function useChatInteractions({
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
 
-  // ── Selection ──
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-
   // ── Forward ──
   const [showForwardPicker, setShowForwardPicker] = useState(false)
+  const [forwardingMessage, setForwardingMessage] = useState<DecryptedSignalMessage | null>(null)
 
   // ── Reply ──
   const [replyingTo, setReplyingTo] = useState<DecryptedSignalMessage | null>(null)
@@ -153,13 +145,6 @@ export function useChatInteractions({
   const mainViewMessages = useMemo(() => messages.filter(m => !m.threadId), [messages])
 
   const contextMsg = contextMenu ? messages.find(m => m.id === contextMenu.messageId) ?? null : null
-
-  const hasSelection = selectedIds.size > 0
-
-  const canDeleteSelection = hasSelection && [...selectedIds].every(id => {
-    const m = messages.find(msg => msg.id === id)
-    return m && m.senderId === userId
-  })
 
   // ── Context menu handlers ──
   const handleLongPress = useCallback((message: DecryptedSignalMessage, x: number, y: number) => {
@@ -211,49 +196,34 @@ export function useChatInteractions({
     setEditText('')
   }, [])
 
-  // ── Selection handlers ──
-  const handleTap = useCallback((message: DecryptedSignalMessage) => {
-    if (editingMessageId) return
-    setSelectedIds(prev => {
-      const next = new Set(prev)
-      if (next.has(message.id)) {
-        next.delete(message.id)
-      } else {
-        next.add(message.id)
-      }
-      return next
-    })
-  }, [editingMessageId])
+  // ── Context menu reply ──
+  const handleContextReply = useCallback(() => {
+    if (!contextMsg) return
+    setReplyingTo(contextMsg)
+    setContextMenu(null)
+    inputRef.current?.focus()
+  }, [contextMsg, inputRef])
 
-  const clearSelection = useCallback(() => {
-    setSelectedIds(new Set())
-  }, [])
-
-  // ── Forward handlers ──
-  const handleForwardStart = useCallback(() => {
+  // ── Context menu forward ──
+  const handleContextForward = useCallback(() => {
+    if (!contextMsg) return
+    setForwardingMessage(contextMsg)
     setShowForwardPicker(true)
-  }, [])
+    setContextMenu(null)
+  }, [contextMsg])
 
   const handleForwardSelect = useCallback(async (medic: ClinicMedic) => {
-    const selectedMsgs = messages.filter(m => selectedIds.has(m.id))
-    for (const msg of selectedMsgs) {
-      await sendMessage(medic.id, msg.plaintext)
+    if (forwardingMessage) {
+      await sendMessage(medic.id, forwardingMessage.plaintext)
     }
     setShowForwardPicker(false)
-    setSelectedIds(new Set())
-  }, [messages, selectedIds, sendMessage])
+    setForwardingMessage(null)
+  }, [forwardingMessage, sendMessage])
 
-  const closeForwardPicker = useCallback(() => setShowForwardPicker(false), [])
-
-  // ── Reply handlers ──
-  const handleReply = useCallback(() => {
-    const firstSelected = messages.find(m => selectedIds.has(m.id))
-    if (firstSelected) {
-      setReplyingTo(firstSelected)
-      setSelectedIds(new Set())
-      inputRef.current?.focus()
-    }
-  }, [messages, selectedIds, inputRef])
+  const closeForwardPicker = useCallback(() => {
+    setShowForwardPicker(false)
+    setForwardingMessage(null)
+  }, [])
 
   // ── Thread handlers ──
   const handleOpenThread = useCallback((rootMessageId: string) => {
@@ -261,33 +231,27 @@ export function useChatInteractions({
     setReplyingTo(null)
   }, [])
 
-  // ── Delete confirmation handlers ──
-  const handleDelete = useCallback(() => {
-    setPendingDelete({ peerId: conversationKey, messageIds: [...selectedIds] })
-  }, [conversationKey, selectedIds])
+  // ── Context menu delete ──
+  const handleContextDelete = useCallback(() => {
+    if (!contextMsg || contextMsg.senderId !== userId) return
+    setPendingDelete({ peerId: conversationKey, messageIds: [contextMsg.id] })
+    setContextMenu(null)
+  }, [contextMsg, conversationKey, userId])
 
   const handleConfirmDelete = useCallback(() => {
     if (!pendingDelete) return
     deleteMessages(pendingDelete.peerId, pendingDelete.messageIds)
     setPendingDelete(null)
-    setSelectedIds(new Set())
   }, [deleteMessages, pendingDelete])
 
   const closePendingDelete = useCallback(() => setPendingDelete(null), [])
 
-  // ── Swipe action handler ──
+  // ── Swipe action handler (Gmail-style: right=reply, left=delete) ──
   const handleSwipeAction = useCallback((msg: DecryptedSignalMessage, action: SwipeAction) => {
     switch (action) {
-      case 'copy':
-        navigator.clipboard.writeText(msg.plaintext).catch(() => {})
-        break
       case 'reply':
         setReplyingTo(msg)
         inputRef.current?.focus()
-        break
-      case 'edit':
-        setEditingMessageId(msg.id)
-        setEditText(msg.plaintext)
         break
       case 'delete':
         if (msg.senderId === userId) {
@@ -312,28 +276,23 @@ export function useChatInteractions({
     setEditText,
     handleSaveEdit,
     handleCancelEdit,
-    // Selection
-    selectedIds,
-    hasSelection,
-    canDeleteSelection,
-    handleTap,
-    clearSelection,
     // Forward
     showForwardPicker,
-    handleForwardStart,
+    forwardingMessage,
+    handleContextForward,
     handleForwardSelect,
     closeForwardPicker,
     // Reply
     replyingTo,
     setReplyingTo,
-    handleReply,
+    handleContextReply,
     // Thread
     activeThreadId,
     setActiveThreadId,
     handleOpenThread,
     // Delete confirmation
     pendingDelete,
-    handleDelete,
+    handleContextDelete,
     handleConfirmDelete,
     closePendingDelete,
     // Swipe action

@@ -11,7 +11,6 @@ interface TroopsToTaskViewProps {
   onSelectEvent: (id: string) => void
   onAssign: (eventId: string, userId: string) => void
   onUnassign: (eventId: string, userId: string) => void
-  hideNameColumn?: boolean
 }
 
 const TOTAL_HOURS = DAY_END_HOUR - DAY_START_HOUR
@@ -49,10 +48,10 @@ function getBlockStyle(event: CalendarEvent, dateKey: string, nameWidth: number)
   return { left, width }
 }
 
-export function TroopsToTaskView({ date, events, medics, onSelectEvent, hideNameColumn }: TroopsToTaskViewProps) {
+export function TroopsToTaskView({ date, events, medics, onSelectEvent }: TroopsToTaskViewProps) {
   const dateKey = date.toISOString().slice(0, 10)
   const hours = useMemo(() => Array.from({ length: TOTAL_HOURS }, (_, i) => DAY_START_HOUR + i), [])
-  const nameWidth = hideNameColumn ? 0 : NAME_COL_WIDTH
+  const nameWidth = NAME_COL_WIDTH
   const totalWidth = nameWidth + TOTAL_HOURS * HOUR_COL_WIDTH
 
   const timedEvents = useMemo(() =>
@@ -80,19 +79,16 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, hideName
     [timedEvents]
   )
 
-  const ROW_HEIGHT = 64
+  const MIN_ROW_HEIGHT = 64
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex-1 overflow-auto">
-        <div style={{ minWidth: totalWidth }}>
+    <div className="h-full overflow-auto">
+      <div className="grid min-h-full" style={{ minWidth: totalWidth, gridTemplateRows: `auto repeat(${medics.length + (unassignedEvents.length > 0 ? 1 : 0)}, 1fr) auto` }}>
           {/* Time header */}
-          <div className="sticky top-0 z-10 flex bg-themewhite3 border-b border-primary/10">
-            {!hideNameColumn && (
-              <div className="shrink-0 border-r border-primary/10 px-2 py-1.5" style={{ width: NAME_COL_WIDTH }}>
-                <span className="text-[10px] font-semibold text-tertiary/50 uppercase">Personnel</span>
-              </div>
-            )}
+          <div className="sticky top-0 z-10 flex items-end bg-themewhite3 border-b border-primary/10">
+            <div className="shrink-0 border-r border-primary/10 px-2 py-1.5" style={{ width: NAME_COL_WIDTH }}>
+              <span className="text-[10px] font-semibold text-tertiary/50 uppercase">Personnel</span>
+            </div>
             {hours.map(h => (
               <div key={h} className="border-r border-primary/5 px-1 py-1.5" style={{ width: HOUR_COL_WIDTH }}>
                 <span className="text-[10px] font-mono text-tertiary/40">
@@ -106,20 +102,18 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, hideName
           {medics.map(medic => {
             const assignments = medicAssignments.get(medic.id) ?? []
             return (
-              <div key={medic.id} className="relative flex border-b border-primary/5" style={{ height: ROW_HEIGHT }}>
-                {!hideNameColumn && (
-                  <div className="sticky left-0 z-[5] shrink-0 flex items-center gap-3 px-3 border-r border-primary/10 bg-themewhite3" style={{ width: NAME_COL_WIDTH }}>
-                    <div className="w-10 h-10 rounded-full bg-primary/8 flex items-center justify-center text-sm font-semibold text-secondary shrink-0">
-                      {getInitials(medic.firstName, medic.lastName)}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-primary truncate">{formatName(medic)}</p>
-                      {medic.credential && (
-                        <p className="text-[10px] text-tertiary/50 truncate">{medic.credential}</p>
-                      )}
-                    </div>
+              <div key={medic.id} className="relative flex border-b border-primary/5" style={{ minHeight: MIN_ROW_HEIGHT }}>
+                <div className="sticky left-0 z-[5] shrink-0 flex items-center gap-3 px-3 border-r border-primary/10 bg-themewhite3" style={{ width: NAME_COL_WIDTH }}>
+                  <div className="w-10 h-10 rounded-full bg-primary/8 flex items-center justify-center text-sm font-semibold text-secondary shrink-0">
+                    {getInitials(medic.firstName, medic.lastName)}
                   </div>
-                )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-primary truncate">{formatName(medic)}</p>
+                    {medic.credential && (
+                      <p className="text-[10px] text-tertiary/50 truncate">{medic.credential}</p>
+                    )}
+                  </div>
+                </div>
 
                 <div className="flex-1 relative">
                   {hours.map(h => (
@@ -156,12 +150,10 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, hideName
 
           {/* Unassigned events row */}
           {unassignedEvents.length > 0 && (
-            <div className="relative flex border-b border-primary/5 bg-themeredred/3" style={{ height: ROW_HEIGHT }}>
-              {!hideNameColumn && (
-                <div className="sticky left-0 z-[5] shrink-0 flex items-center gap-2 px-2 border-r border-primary/10 bg-themeredred/5" style={{ width: NAME_COL_WIDTH }}>
-                  <span className="text-[10px] font-semibold text-themeredred">UNASSIGNED</span>
-                </div>
-              )}
+            <div className="relative flex border-b border-primary/5 bg-themeredred/3" style={{ minHeight: MIN_ROW_HEIGHT }}>
+              <div className="sticky left-0 z-[5] shrink-0 flex items-center gap-2 px-2 border-r border-primary/10 bg-themeredred/5" style={{ width: NAME_COL_WIDTH }}>
+                <span className="text-[10px] font-semibold text-themeredred">UNASSIGNED</span>
+              </div>
               <div className="flex-1 relative">
                 {hours.map(h => (
                   <div
@@ -187,7 +179,8 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent, hideName
               </div>
             </div>
           )}
-        </div>
+          {/* Bottom padding so last row can scroll above the island */}
+          <div className="h-20" />
       </div>
     </div>
   )

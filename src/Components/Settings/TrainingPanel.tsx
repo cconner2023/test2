@@ -161,52 +161,50 @@ function TrainingList({
     const isSearching = searchQuery.trim().length > 0
 
     return (
-        <div className="h-full overflow-y-auto">
-            <div className="px-4 py-3 md:p-5">
-                <p className="text-xs text-tertiary/60 mb-3">
-                    STP 8-68W13-SM-TG — Select a task to begin studying.
+        <div className="px-4 py-3 md:p-5">
+            <p className="text-xs text-tertiary/60 mb-3">
+                STP 8-68W13-SM-TG — Select a task to begin studying.
+            </p>
+
+            {isSearching && (
+                <p className="text-[10px] text-tertiary/50 mb-2">
+                    {totalResults} result{totalResults !== 1 ? 's' : ''}
                 </p>
+            )}
 
-                {isSearching && (
-                    <p className="text-[10px] text-tertiary/50 mb-2">
-                        {totalResults} result{totalResults !== 1 ? 's' : ''}
-                    </p>
-                )}
-
-                {totalResults === 0 && isSearching ? (
-                    <EmptyState title="No tasks match your search" />
-                ) : (
-                    <div className="space-y-1">
-                        {Array.from(displayCategories).map(([categoryName, tasks]) => (
-                            <div key={categoryName}>
-                                {/* Group header */}
-                                <div className="px-6 pt-4 pb-1 flex items-center justify-between">
-                                    <div className="flex items-center gap-1.5 text-tertiary/50">
-                                        {subjectAreaIcons[categoryName] ?? <BookOpen size={14} />}
-                                        <p className="text-[10px] font-semibold tracking-widest uppercase">
-                                            {categoryName}
-                                        </p>
-                                    </div>
-                                    <p className="text-[10px] text-tertiary/40">
-                                        {tasks.length}
+            {totalResults === 0 && isSearching ? (
+                <EmptyState title="No tasks match your search" />
+            ) : (
+                <div className="space-y-1">
+                    {Array.from(displayCategories).map(([categoryName, tasks]) => (
+                        <div key={categoryName}>
+                            {/* Group header */}
+                            <div className="px-6 pt-4 pb-1 flex items-center justify-between">
+                                <div className="flex items-center gap-1.5 text-tertiary/50">
+                                    {subjectAreaIcons[categoryName] ?? <BookOpen size={14} />}
+                                    <p className="text-[10px] font-semibold tracking-widest uppercase">
+                                        {categoryName}
                                     </p>
                                 </div>
-
-                                {/* Tasks */}
-                                {tasks.map((task) => (
-                                    <TaskRow
-                                        key={task.taskId}
-                                        task={task}
-                                        onSelectTask={onSelectTask}
-                                        isTaskCompleted={isTaskCompleted}
-                                        isTaskViewed={isTaskViewed}
-                                    />
-                                ))}
+                                <p className="text-[10px] text-tertiary/40">
+                                    {tasks.length}
+                                </p>
                             </div>
-                        ))}
-                    </div>
-                )}
-            </div>
+
+                            {/* Tasks */}
+                            {tasks.map((task) => (
+                                <TaskRow
+                                    key={task.taskId}
+                                    task={task}
+                                    onSelectTask={onSelectTask}
+                                    isTaskCompleted={isTaskCompleted}
+                                    isTaskViewed={isTaskViewed}
+                                />
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     )
 }
@@ -285,64 +283,62 @@ function TaskDetail({
     }, [taskNumber, markTaskCompleted])
 
     return (
-        <div className="h-full overflow-y-auto">
-            <div className="px-4 py-3 md:p-5 pb-12">
-                {/* Header */}
-                <div className="mb-4">
-                    <p className="text-[8pt] text-tertiary/50 font-mono">{taskData.taskNumber}</p>
-                    <h3 className="text-lg font-semibold text-primary">{taskData.title}</h3>
-                    {completed && (
-                        <span className="inline-flex items-center gap-1 text-[9pt] text-themegreen mt-1">
-                            <Check size={12} /> Completed
-                        </span>
-                    )}
-                </div>
-
-                {/* Conditions */}
-                <div className="mb-4">
-                    <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Conditions</p>
-                    <div className="bg-themewhite2 rounded-lg px-3.5 py-3">
-                        <p className="text-sm text-primary/80 leading-relaxed">{taskData.conditions}</p>
-                    </div>
-                </div>
-
-                {/* Standards */}
-                <div className="mb-4">
-                    <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Standards</p>
-                    <div className="bg-themewhite2 rounded-lg px-3.5 py-3">
-                        <p className="text-sm text-primary/80 leading-relaxed">{taskData.standards}</p>
-                    </div>
-                </div>
-
-                {/* Audio Training Aids */}
-                {taskData.audioAids && taskData.audioAids.length > 0 && (
-                    <AudioAidPlayer audioAids={taskData.audioAids} />
+        <div className="px-4 py-3 md:p-5 pb-12">
+            {/* Header */}
+            <div className="mb-4">
+                <p className="text-[8pt] text-tertiary/50 font-mono">{taskData.taskNumber}</p>
+                <h3 className="text-lg font-semibold text-primary">{taskData.title}</h3>
+                {completed && (
+                    <span className="inline-flex items-center gap-1 text-[9pt] text-themegreen mt-1">
+                        <Check size={12} /> Completed
+                    </span>
                 )}
-
-                {/* Performance Steps */}
-                <div className="mb-4">
-                    <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Performance Steps</p>
-                    <div className="bg-themewhite2 rounded-lg px-3 py-2">
-                        {taskData.performanceSteps.map((step, i) => (
-                            <PerformanceStepItem key={i} step={step} />
-                        ))}
-                    </div>
-                </div>
-
-                {/* Mark complete button (if not already) */}
-                {!completed && (
-                    <button
-                        onClick={handleMarkComplete}
-                        className="w-full py-3 rounded-xl bg-themegreen/15 text-themegreen text-sm font-medium
-                                   hover:bg-themegreen/25 active:scale-95 transition-all"
-                    >
-                        Mark as Completed
-                    </button>
-                )}
-
-                {/* Bottom sentinel for auto-complete */}
-                <div ref={bottomRef} className="h-1" />
             </div>
+
+            {/* Conditions */}
+            <div className="mb-4">
+                <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Conditions</p>
+                <div className="bg-themewhite2 rounded-lg px-3.5 py-3">
+                    <p className="text-sm text-primary/80 leading-relaxed">{taskData.conditions}</p>
+                </div>
+            </div>
+
+            {/* Standards */}
+            <div className="mb-4">
+                <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Standards</p>
+                <div className="bg-themewhite2 rounded-lg px-3.5 py-3">
+                    <p className="text-sm text-primary/80 leading-relaxed">{taskData.standards}</p>
+                </div>
+            </div>
+
+            {/* Audio Training Aids */}
+            {taskData.audioAids && taskData.audioAids.length > 0 && (
+                <AudioAidPlayer audioAids={taskData.audioAids} />
+            )}
+
+            {/* Performance Steps */}
+            <div className="mb-4">
+                <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Performance Steps</p>
+                <div className="bg-themewhite2 rounded-lg px-3 py-2">
+                    {taskData.performanceSteps.map((step, i) => (
+                        <PerformanceStepItem key={i} step={step} />
+                    ))}
+                </div>
+            </div>
+
+            {/* Mark complete button (if not already) */}
+            {!completed && (
+                <button
+                    onClick={handleMarkComplete}
+                    className="w-full py-3 rounded-xl bg-themegreen/15 text-themegreen text-sm font-medium
+                               hover:bg-themegreen/25 active:scale-95 transition-all"
+                >
+                    Mark as Completed
+                </button>
+            )}
+
+            {/* Bottom sentinel for auto-complete */}
+            <div ref={bottomRef} className="h-1" />
         </div>
     )
 }

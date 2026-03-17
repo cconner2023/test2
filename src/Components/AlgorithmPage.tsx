@@ -1,17 +1,28 @@
-import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
+import { ChevronRight } from 'lucide-react';
 import { useAlgorithm } from '../Hooks/useAlgorithm';
 import type { dispositionType } from '../Types/AlgorithmTypes';
 import { Algorithm as AlgorithmData } from '../Data/Algorithms';
 import { QuestionCard } from './QuestionCard';
 import { ScreenerDrawer } from './ScreenerDrawer';
+import { SearchResults } from './SearchResults';
+import { ScrollRevealSearch } from './ScrollRevealSearch';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { ConnectorDots } from './ConnectorDots';
 import { ALGORITHM_TIMING } from '../Utilities/constants';
 import { useNavigationStore } from '../stores/useNavigationStore';
-import { ChevronRight } from 'lucide-react';
+import type { SearchResultType } from '../Types/CatTypes';
 
-export function AlgorithmPage() {
+interface AlgorithmPageProps {
+    searchInput?: string
+    onSearchChange?: (value: string) => void
+    searchResults?: SearchResultType[]
+    isSearching?: boolean
+    onSearchResultClick?: (result: SearchResultType) => void
+}
+
+export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults, isSearching, onSearchResultClick }: AlgorithmPageProps) {
     const selectedSymptom = useNavigationStore((s) => s.selectedSymptom);
     const isMobile = useNavigationStore((s) => s.isMobile);
     const openWriteNote = useNavigationStore((s) => s.openWriteNote);
@@ -193,18 +204,29 @@ export function AlgorithmPage() {
     const visibleCards = getVisibleCards();
     const colors = currentDisposition ? getColorClasses(currentDisposition.type) : null;
 
+    const hasMobileSearch = isMobile && !!onSearchChange
+    const hasSearch = isMobile && searchInput.trim().length > 0
+
     return (
-        <div className="w-full h-full relative overflow-hidden">
-            <div key="algorithm-view" className="h-full flex flex-col">
-                <div
-                    ref={containerRef}
-                    className={`flex-1 overflow-y-auto ${isMobile ? 'bg-themewhite' : ''} ${isTransitioning ? 'transition-none' : ''}`}
-                >
-                    {/* Content area */}
-                    <div
-                        className={`pb-4 ${isMobile ? 'px-2 min-h-full' : ''}`}
-                        style={isMobile ? { paddingTop: 'calc(var(--sat, 0px) + 4rem)' } : undefined}
-                    >
+        <div className="relative h-full w-full">
+            <ScrollRevealSearch
+                ref={containerRef}
+                value={searchInput}
+                onChange={onSearchChange ?? (() => {})}
+                enabled={hasMobileSearch}
+                className={isMobile ? 'pt-[calc(var(--sat,0px)+4rem)]' : ''}
+            >
+                {hasSearch && onSearchResultClick ? (
+                    <div className="px-2 min-h-full">
+                        <SearchResults
+                            results={searchResults ?? []}
+                            searchTerm={searchInput}
+                            onResultClick={onSearchResultClick}
+                            isSearching={isSearching}
+                        />
+                    </div>
+                ) : (
+                    <div className="flex flex-col px-4 pb-32 space-y-1 w-full">
                         <QuestionCard
                             algorithmOptions={algorithmOptions}
                             cardStates={cardStates}
@@ -216,13 +238,9 @@ export function AlgorithmPage() {
                             onActionStatus={handleActionStatus}
                         />
 
-                        {/* Disposition card — inline after last question card */}
                         {currentDisposition && colors && (
                             <div className="flex flex-col items-center">
-                                {/* Connector from last card to disposition */}
                                 <ConnectorDots colorClass={colors.badgeBg} />
-
-                                {/* Disposition card */}
                                 <div
                                     key={`dispo-${currentDisposition.type}-${currentDisposition.text}`}
                                     className="w-full animate-cardAppearIn"
@@ -269,10 +287,9 @@ export function AlgorithmPage() {
                             style={{ marginTop: '1rem', marginBottom: '1rem' }}
                         />
                     </div>
-                </div>
-            </div>
+                )}
+            </ScrollRevealSearch>
 
-            {/* Screener Drawer — portaled to app container so BaseDrawer sizes like other drawers */}
             {openScreenerCardIndex !== null && algorithmOptions[openScreenerCardIndex]?.screenerConfig &&
                 createPortal(
                     <ScreenerDrawer

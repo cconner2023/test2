@@ -1,10 +1,10 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { ArrowRightLeft, Pencil, Trash2, Plus, FolderPlus, Search, X } from 'lucide-react'
-import { useSpring, animated } from '@react-spring/web'
+import { useState, useCallback, useMemo, useRef } from 'react'
+import { ArrowRightLeft, Pencil, Trash2, Plus, FolderPlus, X } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
 import { ContentWrapper } from './Settings/ContentWrapper'
+import { ScrollRevealSearch } from './ScrollRevealSearch'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
@@ -28,26 +28,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const [drilldownPath, setDrilldownPath] = useState<DrilldownSegment[]>([])
     const locationListRef = useRef<PropertyLocationListHandle>(null)
 
-    // Search state — animated overlay in header (same pattern as MessagesDrawer)
     const [searchQuery, setSearchQuery] = useState('')
-    const [isSearchExpanded, setIsSearchExpanded] = useState(false)
-    const searchInputRef = useRef<HTMLInputElement>(null)
-
-    const searchSpring = useSpring({
-        progress: isSearchExpanded ? 1 : 0,
-        config: { tension: 260, friction: 26 },
-    })
-
-    useEffect(() => {
-        if (isSearchExpanded && searchInputRef.current) {
-            searchInputRef.current.focus()
-        }
-    }, [isSearchExpanded])
-
-    const collapseSearch = useCallback(() => {
-        setSearchQuery('')
-        setIsSearchExpanded(false)
-    }, [])
 
     // Callbacks for detail-view header actions (set by PropertyPanel)
     const [detailActions, setDetailActions] = useState<{
@@ -110,7 +91,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         setMobileLocationView(false)
         setDrilldownPath([])
         setSearchQuery('')
-        setIsSearchExpanded(false)
         navigateToPath([])
         onClose()
     }, [onClose, navigateToPath])
@@ -146,52 +126,13 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         addLocationTriggerRef.current?.()
     }, [])
 
-    const mainHeaderActions = useMemo(() => {
-        return (
-            <div className="relative flex items-center w-full">
-                <animated.div
-                    style={{
-                        opacity: searchSpring.progress.to(p => 1 - p),
-                        pointerEvents: isSearchExpanded ? 'none' : 'auto',
-                    }}
-                >
-                    <HeaderPill>
-                        <PillButton icon={Plus} onClick={handleNewItem} label="New item" />
-                        <PillButton icon={FolderPlus} onClick={handleNewLocation} label="New location" />
-                        <PillButton icon={Search} onClick={() => setIsSearchExpanded(true)} label="Search" />
-                        <PillButton icon={X} onClick={handleClose} label="Close" />
-                    </HeaderPill>
-                </animated.div>
-
-                <animated.div
-                    className="absolute inset-0 flex items-center"
-                    style={{
-                        opacity: searchSpring.progress,
-                        transform: searchSpring.progress.to(p => `scale(${0.97 + 0.03 * p})`),
-                        pointerEvents: isSearchExpanded ? 'auto' : 'none',
-                    }}
-                >
-                    <div className="flex items-center w-full rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
-                        <input
-                            ref={searchInputRef}
-                            type="search"
-                            placeholder="Search..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Escape') collapseSearch() }}
-                            className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
-                        />
-                        <div
-                            className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
-                            onClick={collapseSearch}
-                        >
-                            <X className="w-5 h-5 stroke-themeblue1" />
-                        </div>
-                    </div>
-                </animated.div>
-            </div>
-        )
-    }, [handleNewItem, handleNewLocation, handleClose, isSearchExpanded, searchQuery, searchSpring, collapseSearch])
+    const mainHeaderActions = useMemo(() => (
+        <HeaderPill>
+            <PillButton icon={Plus} onClick={handleNewItem} label="New item" />
+            <PillButton icon={FolderPlus} onClick={handleNewLocation} label="New location" />
+            <PillButton icon={X} onClick={handleClose} label="Close" />
+        </HeaderPill>
+    ), [handleNewItem, handleNewLocation, handleClose])
 
     const locationHeaderActions = useMemo(() => {
         if (!locationActions) return undefined
@@ -230,10 +171,9 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                         onBack: () => locationListRef.current?.popPath(),
                         rightContent: mainHeaderActions,
                         hideDefaultClose: true,
-                        rightContentFill: isSearchExpanded,
                     }
                 }
-                return { title: 'Property Book', rightContent: mainHeaderActions, hideDefaultClose: true, rightContentFill: isSearchExpanded }
+                return { title: 'Property Book', rightContent: mainHeaderActions, hideDefaultClose: true }
             case 'property-detail':
                 return { title: selectedPropertyItemName ?? 'Item', showBack: true, onBack: handleBack, rightContent: detailHeaderActions, hideDefaultClose: !!detailHeaderActions }
             case 'property-transfer':
@@ -241,7 +181,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             case 'property-form':
                 return { title: selectedPropertyItemName ? 'Edit Item' : 'Add Item', showBack: true, onBack: handleBack }
         }
-    }, [view, selectedPropertyItemName, handleBack, isMobile, mobileLocationView, drilldownPath, detailHeaderActions, mainHeaderActions, locationHeaderActions, canvasStack, navigateBack, isSearchExpanded])
+    }, [view, selectedPropertyItemName, handleBack, isMobile, mobileLocationView, drilldownPath, detailHeaderActions, mainHeaderActions, locationHeaderActions, canvasStack, navigateBack])
 
     return (
         <BaseDrawer
@@ -253,25 +193,31 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             header={headerConfig}
         >
             <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'property' ? swipeHandlers : undefined}>
-                <div className="h-full relative">
-                    <PropertyPanel
-                        isMobile={isMobile}
-                        view={view}
-                        searchQuery={searchQuery}
-                        onSelectItem={handleSelectItem}
-                        onAddItem={handleAddItem}
-                        onEditItem={handleEditItem}
-                        onTransferItem={handleTransfer}
-                        onBack={handleBack}
-                        mobileLocationView={mobileLocationView}
-                        onMobileLocationViewChange={setMobileLocationView}
-                        onRegisterDetailActions={setDetailActions}
-                        onRegisterAddLocation={(fn) => { addLocationTriggerRef.current = fn }}
-                        onRegisterLocationActions={setLocationActions}
-                        onDrilldownChange={setDrilldownPath}
-                        locationListRef={locationListRef}
-                    />
-                </div>
+                <ScrollRevealSearch
+                    value={searchQuery}
+                    onChange={setSearchQuery}
+                    enabled={view === 'property'}
+                >
+                    <div className="h-full relative">
+                        <PropertyPanel
+                            isMobile={isMobile}
+                            view={view}
+                            searchQuery={searchQuery}
+                            onSelectItem={handleSelectItem}
+                            onAddItem={handleAddItem}
+                            onEditItem={handleEditItem}
+                            onTransferItem={handleTransfer}
+                            onBack={handleBack}
+                            mobileLocationView={mobileLocationView}
+                            onMobileLocationViewChange={setMobileLocationView}
+                            onRegisterDetailActions={setDetailActions}
+                            onRegisterAddLocation={(fn) => { addLocationTriggerRef.current = fn }}
+                            onRegisterLocationActions={setLocationActions}
+                            onDrilldownChange={setDrilldownPath}
+                            locationListRef={locationListRef}
+                        />
+                    </div>
+                </ScrollRevealSearch>
             </ContentWrapper>
         </BaseDrawer>
     )

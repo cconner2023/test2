@@ -114,15 +114,15 @@ export function AdminClinicsList({
   // ── Render ──────────────────────────────────────────────────
 
   return (
-    <div className="h-full flex flex-col overflow-hidden">
-      <div className="shrink-0 px-5 pt-4 pb-2 space-y-3">
+    <div>
+      <div className="px-5 pt-4 pb-2 space-y-3">
         <div className="flex items-center">
           <p className="text-sm text-tertiary/60">Manage clinics</p>
         </div>
         {status && <ErrorDisplay type={status.type} message={status.message} />}
       </div>
 
-      <div className="flex-1 overflow-y-auto px-5 pb-4">
+      <div className="px-5 pb-4">
         {showLoading ? (
           <LoadingSpinner label="Loading clinics..." className="py-12 text-tertiary" />
         ) : filteredClinics.length === 0 ? (

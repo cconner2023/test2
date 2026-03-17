@@ -510,6 +510,10 @@ function AppContent() {
                   onNavigate={handleNavigationClick}
                   onEdgeDrag={navigation.isMobile ? menuSlide.onEdgeDrag : undefined}
                   onEdgeDragEnd={navigation.isMobile ? menuSlide.onEdgeDragEnd : undefined}
+                  searchInput={search.searchInput}
+                  onSearchChange={navigation.isMobile ? handleSearchChange : undefined}
+                  searchResults={search.searchResults}
+                  isSearching={search.isSearching}
                 />
               </div>
 
@@ -532,6 +536,11 @@ function AppContent() {
                       <ErrorBoundary>
                       <AlgorithmPage
                         key={`algo-${navigation.selectedSymptom.icon}`}
+                        searchInput={search.searchInput}
+                        onSearchChange={navigation.isMobile ? handleSearchChange : undefined}
+                        searchResults={search.searchResults}
+                        isSearching={search.isSearching}
+                        onSearchResultClick={handleNavigationClick}
                       />
                       </ErrorBoundary>
                     </div>
@@ -545,21 +554,6 @@ function AppContent() {
             </div>
             )}
 
-            {/* Mobile search overlay — rendered on top of grid when searching */}
-            {navigation.isMobile && search.searchInput && (
-              <div className="absolute inset-0 z-20 bg-themewhite animate-fadeIn">
-                <div className="h-full overflow-y-auto">
-                  <div className="px-2 min-h-full" style={{ paddingTop: 'calc(var(--sat, 0px) + 4rem)' }}>
-                    <SearchResults
-                      results={search.searchResults}
-                      searchTerm={search.searchInput}
-                      onResultClick={handleNavigationClick}
-                      isSearching={search.isSearching}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
 
           {/* Menu backdrop — overlays content when menu is open, handles tap/drag to close */}

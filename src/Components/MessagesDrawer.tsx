@@ -1,6 +1,5 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { ChevronLeft, PenLine, Search, X } from 'lucide-react'
-import { useSpring, animated } from '@react-spring/web'
+import { useState, useCallback, useMemo, useRef } from 'react'
+import { ChevronLeft, PenLine, X } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { MessagesPanel, type MessagesView, type MessagesPanelHandle } from './Settings/MessagesPanel'
@@ -25,36 +24,11 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
     const [selectedPeerName, setSelectedPeerName] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
-    const [isSearchExpanded, setIsSearchExpanded] = useState(false)
-    const searchInputRef = useRef<HTMLInputElement>(null)
     const messagesCtx = useMessagesContext()
     const { user } = useAuth()
     const { profile } = useUserProfile()
     const panelRef = useRef<MessagesPanelHandle>(null)
     const isMobile = useIsMobile()
-
-    // Spring for search expand/collapse
-    const searchSpring = useSpring({
-        progress: isSearchExpanded ? 1 : 0,
-        config: { tension: 260, friction: 26 },
-    })
-
-    // Focus input when search expands
-    useEffect(() => {
-        if (isSearchExpanded && searchInputRef.current) {
-            searchInputRef.current.focus()
-        }
-    }, [isSearchExpanded])
-
-    const collapseSearch = useCallback(() => {
-        setSearchQuery('')
-        setIsSearchExpanded(false)
-    }, [])
-
-    const handleSearchClear = useCallback(() => {
-        setSearchQuery('')
-        setIsSearchExpanded(false)
-    }, [])
 
     // Apply deep-link when drawer opens
     useMemo(() => {
@@ -129,7 +103,8 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             onBack={handleBack}
             onCloseDrawer={handleClose}
             searchQuery={searchQuery}
-            onSearchClear={handleSearchClear}
+            onSearchClear={() => setSearchQuery('')}
+            onSearchChange={setSearchQuery}
         />
     )
 
@@ -140,48 +115,11 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                 <HeaderPill>
                     <PillButton icon={ChevronLeft} onClick={handleClose} label="Back" />
                 </HeaderPill>
-                <div className="relative flex items-center flex-1 min-w-0">
-                    <animated.div
-                        className="flex items-center w-full"
-                        style={{
-                            opacity: searchSpring.progress.to(p => 1 - p),
-                            pointerEvents: isSearchExpanded ? 'none' : 'auto',
-                        }}
-                    >
-                        <h2 className="text-[17px] font-semibold text-primary flex-1 truncate">Messages</h2>
-                        <HeaderPill>
-                            <PillButton icon={PenLine} onClick={() => panelRef.current?.createGroup()} label="New message" />
-                            <PillButton icon={Search} onClick={() => setIsSearchExpanded(true)} label="Search" />
-                        </HeaderPill>
-                    </animated.div>
-
-                    <animated.div
-                        className="absolute inset-0 flex items-center"
-                        style={{
-                            opacity: searchSpring.progress,
-                            transform: searchSpring.progress.to(p => `scale(${0.97 + 0.03 * p})`),
-                            pointerEvents: isSearchExpanded ? 'auto' : 'none',
-                        }}
-                    >
-                        <div className="flex items-center w-full rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
-                            <input
-                                ref={searchInputRef}
-                                type="search"
-                                placeholder="Search..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === 'Escape') collapseSearch() }}
-                                className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
-                            />
-                            <div
-                                className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
-                                onClick={collapseSearch}
-                            >
-                                <X className="w-5 h-5 stroke-themeblue1" />
-                            </div>
-                        </div>
-                    </animated.div>
-                </div>
+                <h2 className="text-[17px] font-semibold text-primary flex-1 truncate">Messages</h2>
+                <HeaderPill>
+                    <PillButton icon={PenLine} onClick={() => panelRef.current?.createGroup()} label="New message" />
+                    <PillButton icon={X} onClick={handleClose} label="Close" />
+                </HeaderPill>
             </div>
         ) : null
 
@@ -209,52 +147,14 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         return {
             title: 'Messages',
             hideDefaultClose: true,
-            rightContentFill: isSearchExpanded,
             rightContent: (
-                <div className="relative flex items-center w-full">
-                    <animated.div
-                        style={{
-                            opacity: searchSpring.progress.to(p => 1 - p),
-                            pointerEvents: isSearchExpanded ? 'none' : 'auto',
-                        }}
-                    >
-                        <HeaderPill>
-                            <PillButton icon={PenLine} onClick={() => panelRef.current?.createGroup()} label="New message" />
-                            <PillButton icon={Search} onClick={() => setIsSearchExpanded(true)} label="Search" />
-                            <PillButton icon={X} onClick={handleClose} label="Close" />
-                        </HeaderPill>
-                    </animated.div>
-
-                    <animated.div
-                        className="absolute inset-0 flex items-center"
-                        style={{
-                            opacity: searchSpring.progress,
-                            transform: searchSpring.progress.to(p => `scale(${0.97 + 0.03 * p})`),
-                            pointerEvents: isSearchExpanded ? 'auto' : 'none',
-                        }}
-                    >
-                        <div className="flex items-center w-full rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
-                            <input
-                                ref={searchInputRef}
-                                type="search"
-                                placeholder="Search..."
-                                value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
-                                onKeyDown={(e) => { if (e.key === 'Escape') collapseSearch() }}
-                                className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
-                            />
-                            <div
-                                className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
-                                onClick={collapseSearch}
-                            >
-                                <X className="w-5 h-5 stroke-themeblue1" />
-                            </div>
-                        </div>
-                    </animated.div>
-                </div>
+                <HeaderPill>
+                    <PillButton icon={PenLine} onClick={() => panelRef.current?.createGroup()} label="New message" />
+                    <PillButton icon={X} onClick={handleClose} label="Close" />
+                </HeaderPill>
             ),
         }
-    }, [isConversationView, handleBack, handleClose, isSearchExpanded, searchQuery, searchSpring, collapseSearch])
+    }, [isConversationView, handleBack, handleClose])
 
     return (
         <BaseDrawer

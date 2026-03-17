@@ -1,7 +1,7 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { Pencil, UserPlus, Building2, Trash2, X, Search, Inbox, Users } from 'lucide-react'
-import { useSpring, animated } from '@react-spring/web'
+import { useState, useCallback, useMemo } from 'react'
+import { Pencil, UserPlus, Building2, Trash2, X, Inbox, Users } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
+import { ScrollRevealSearch } from './ScrollRevealSearch'
 import { HeaderPill, PillButton, VerticalPill } from './HeaderPill'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -59,28 +59,8 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     // Search state
     const [searchQuery, setSearchQuery] = useState('')
-    const [isSearchExpanded, setIsSearchExpanded] = useState(false)
-    const searchInputRef = useRef<HTMLInputElement>(null)
 
     const isMobile = useIsMobile()
-
-    // Spring for search expand/collapse
-    const searchSpring = useSpring({
-        progress: isSearchExpanded ? 1 : 0,
-        config: { tension: 260, friction: 26 },
-    })
-
-    // Focus input when search expands
-    useEffect(() => {
-        if (isSearchExpanded && searchInputRef.current) {
-            searchInputRef.current.focus()
-        }
-    }, [isSearchExpanded])
-
-    const collapseSearch = useCallback(() => {
-        setSearchQuery('')
-        setIsSearchExpanded(false)
-    }, [])
 
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
         setSlideDirection(direction)
@@ -150,9 +130,9 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setSelectedClinic(null)
         setSlideDirection('')
         setConfirmDeleteClinic(false)
-        collapseSearch()
+        setSearchQuery('')
         onClose()
-    }, [onClose, collapseSearch])
+    }, [onClose])
 
     const handleDeleteClinic = useCallback(async () => {
         if (!selectedClinic) return
@@ -189,11 +169,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         setActiveTab(tab)
     }, [])
 
-    // Header actions for main 'admin' view — pill with animated search overlay
+    // Header actions for main 'admin' view
     const mainHeaderActions = useMemo(() => {
         if (view !== 'admin') return undefined
 
-        /** Tab-specific action buttons (rendered before Search + Close) */
         const tabButtons = (() => {
             if (activeTab === 'requests') {
                 return (
@@ -213,50 +192,12 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
         })()
 
         return (
-            <div className="relative flex items-center w-full">
-                <animated.div
-                    style={{
-                        opacity: searchSpring.progress.to(p => 1 - p),
-                        pointerEvents: isSearchExpanded ? 'none' : 'auto',
-                    }}
-                >
-                    <HeaderPill>
-                        {tabButtons}
-                        <PillButton icon={Search} onClick={() => setIsSearchExpanded(true)} label="Search" />
-                        <PillButton icon={X} onClick={handleClose} label="Close" />
-                    </HeaderPill>
-                </animated.div>
-
-                {/* Search overlay — fade in when search expands */}
-                <animated.div
-                    className="absolute inset-0 flex items-center"
-                    style={{
-                        opacity: searchSpring.progress,
-                        transform: searchSpring.progress.to(p => `scale(${0.97 + 0.03 * p})`),
-                        pointerEvents: isSearchExpanded ? 'auto' : 'none',
-                    }}
-                >
-                    <div className="flex items-center w-full rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
-                        <input
-                            ref={searchInputRef}
-                            type="search"
-                            placeholder="Search..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === 'Escape') collapseSearch() }}
-                            className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
-                        />
-                        <div
-                            className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
-                            onClick={collapseSearch}
-                        >
-                            <X className="w-5 h-5 stroke-themeblue1" />
-                        </div>
-                    </div>
-                </animated.div>
-            </div>
+            <HeaderPill>
+                {tabButtons}
+                <PillButton icon={X} onClick={handleClose} label="Close" />
+            </HeaderPill>
         )
-    }, [view, activeTab, handleCreateUser, handleCreateClinic, handleClose, isSearchExpanded, searchQuery, searchSpring, collapseSearch])
+    }, [view, activeTab, handleCreateUser, handleCreateClinic, handleClose])
 
     // Header actions for detail/form views
     const detailHeaderActions = useMemo(() => {
@@ -288,7 +229,6 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                     title: 'Admin Panel',
                     rightContent: mainHeaderActions,
                     hideDefaultClose: !!mainHeaderActions,
-                    rightContentFill: isSearchExpanded,
                 }
             case 'admin-user-detail':
                 return {
@@ -323,7 +263,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             case 'admin-request-detail':
                 return { title: 'Request', showBack: true, onBack: handleBack }
         }
-    }, [view, selectedUser, selectedClinic, handleBack, detailHeaderActions, mainHeaderActions, isSearchExpanded])
+    }, [view, selectedUser, selectedClinic, handleBack, detailHeaderActions, mainHeaderActions])
 
     // Scrollable padded wrapper for sub-views (detail/form)
     const subViewWrapper = (children: React.ReactNode) => (
@@ -414,47 +354,53 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             {/* List content — full width */}
             <div className="h-full min-h-0">
                 {activeTab === 'requests' && (
-                    <AdminRequestsList
-                        searchQuery={searchQuery}
-                        onUserApproved={(approvedUser) => {
-                            const newUser: AdminUser = {
-                                id: approvedUser.id,
-                                email: approvedUser.email,
-                                first_name: approvedUser.first_name,
-                                last_name: approvedUser.last_name,
-                                middle_initial: null,
-                                credential: null,
-                                component: null,
-                                rank: null,
-                                uic: null,
-                                roles: approvedUser.supervisor ? ['medic', 'supervisor'] : ['medic'],
-                                clinic_id: null,
-                                created_at: new Date().toISOString(),
-                                last_active_at: null,
-                                note_include_hpi: approvedUser.noteIncludeHPI ?? true,
-                                note_include_pe: approvedUser.noteIncludePE ?? false,
-                                pe_depth: approvedUser.peDepth ?? 'standard',
-                                avatar_id: null,
-                            }
-                            handleEditUser(newUser)
-                        }}
-                    />
+                    <ScrollRevealSearch value={searchQuery} onChange={setSearchQuery}>
+                        <AdminRequestsList
+                            searchQuery={searchQuery}
+                            onUserApproved={(approvedUser) => {
+                                const newUser: AdminUser = {
+                                    id: approvedUser.id,
+                                    email: approvedUser.email,
+                                    first_name: approvedUser.first_name,
+                                    last_name: approvedUser.last_name,
+                                    middle_initial: null,
+                                    credential: null,
+                                    component: null,
+                                    rank: null,
+                                    uic: null,
+                                    roles: approvedUser.supervisor ? ['medic', 'supervisor'] : ['medic'],
+                                    clinic_id: null,
+                                    created_at: new Date().toISOString(),
+                                    last_active_at: null,
+                                    note_include_hpi: approvedUser.noteIncludeHPI ?? true,
+                                    note_include_pe: approvedUser.noteIncludePE ?? false,
+                                    pe_depth: approvedUser.peDepth ?? 'standard',
+                                    avatar_id: null,
+                                }
+                                handleEditUser(newUser)
+                            }}
+                        />
+                    </ScrollRevealSearch>
                 )}
                 {activeTab === 'users' && (
-                    <AdminUsersList
-                        onSelectUser={handleSelectUser}
-                        onEditUser={handleEditUser}
-                        onCreateUser={handleCreateUser}
-                        searchQuery={searchQuery}
-                    />
+                    <ScrollRevealSearch value={searchQuery} onChange={setSearchQuery}>
+                        <AdminUsersList
+                            onSelectUser={handleSelectUser}
+                            onEditUser={handleEditUser}
+                            onCreateUser={handleCreateUser}
+                            searchQuery={searchQuery}
+                        />
+                    </ScrollRevealSearch>
                 )}
                 {activeTab === 'clinics' && (
-                    <AdminClinicsList
-                        onSelectClinic={handleSelectClinic}
-                        onEditClinic={handleEditClinic}
-                        onCreateClinic={handleCreateClinic}
-                        searchQuery={searchQuery}
-                    />
+                    <ScrollRevealSearch value={searchQuery} onChange={setSearchQuery}>
+                        <AdminClinicsList
+                            onSelectClinic={handleSelectClinic}
+                            onEditClinic={handleEditClinic}
+                            onCreateClinic={handleCreateClinic}
+                            searchQuery={searchQuery}
+                        />
+                    </ScrollRevealSearch>
                 )}
             </div>
         </div>
@@ -492,7 +438,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                     />
                                 </div>
                             </div>
-                            <div className="flex-1 min-w-0 overflow-y-auto">
+                            <div className="flex-1 min-w-0 overflow-hidden">
                                 {renderContent()}
                             </div>
                         </div>

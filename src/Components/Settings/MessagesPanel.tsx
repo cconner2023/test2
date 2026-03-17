@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
 import { Trash2, Phone, Video, MessageSquare, Users, Info, ChevronLeft, Pin } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
+import { ScrollRevealSearch } from '../ScrollRevealSearch'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
@@ -41,6 +42,7 @@ interface MessagesPanelProps {
   onCloseDrawer?: () => void
   searchQuery: string
   onSearchClear: () => void
+  onSearchChange: (value: string) => void
 }
 
 // ── Conversation Pane (shared across mobile + desktop) ───────────────────
@@ -172,9 +174,8 @@ function ConversationPane({
   }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Scrollable content */}
-      <div className="flex-1 overflow-y-auto px-1 pb-2 pt-[calc(var(--sat,0px)+3.5rem)] md:pt-0">
+    <div className="flex flex-col">
+      <div className="px-1 pb-2">
         {/* Search results */}
         {searchResults ? (
           <div className="px-1">
@@ -751,7 +752,7 @@ function GroupChatDetail({
 
 // ── Exported Panel ─────────────────────────────────────────────────────────
 
-export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear }, ref) {
+export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange }, ref) {
   const messagesCtx = useMessagesContext()
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
@@ -887,11 +888,15 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       {/* Conversation pane: full-width on mobile default view, w-80 sidebar on desktop */}
       {view === 'messages' && (
         <div className="md:hidden flex flex-col w-full h-full overflow-hidden">
-          <ConversationPane {...conversationPaneProps} />
+          <ScrollRevealSearch value={searchQuery} onChange={onSearchChange} placeholder="Search..." className="pt-[calc(var(--sat,0px)+4rem)]">
+            <ConversationPane {...conversationPaneProps} />
+          </ScrollRevealSearch>
         </div>
       )}
       <div className="hidden md:flex md:flex-col w-80 shrink-0 border-r border-primary/10 overflow-hidden">
-        <ConversationPane {...conversationPaneProps} />
+        <ScrollRevealSearch value={searchQuery} onChange={onSearchChange} placeholder="Search...">
+          <ConversationPane {...conversationPaneProps} />
+        </ScrollRevealSearch>
       </div>
 
       {/* Main content area (chat detail on both, empty state on desktop) */}

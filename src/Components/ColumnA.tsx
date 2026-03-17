@@ -1,7 +1,10 @@
-import { useRef, useEffect, memo } from 'react'
-import { animated } from '@react-spring/web'
+import { useRef, useEffect, memo, useState } from 'react'
+import { X } from 'lucide-react'
+import { animated, useSpring } from '@react-spring/web'
 import { CategoryList } from './CategoryList'
+import { SearchResults } from './SearchResults'
 import { useColumnCarousel } from '../Hooks/useColumnCarousel'
+import { SPRING_CONFIGS } from '../Utilities/GestureUtils'
 import type { SearchResultType } from '../Types/CatTypes'
 import {
   useNavigationStore,
@@ -13,9 +16,13 @@ interface ColumnAProps {
   onNavigate: (result: SearchResultType) => void
   onEdgeDrag?: (offset: number) => void
   onEdgeDragEnd?: (offset: number, velocity: number) => void
+  searchInput?: string
+  onSearchChange?: (value: string) => void
+  searchResults?: SearchResultType[]
+  isSearching?: boolean
 }
 
-export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDragEnd }: ColumnAProps) {
+export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDragEnd, searchInput = '', onSearchChange, searchResults, isSearching }: ColumnAProps) {
   const selectedCategory = useNavigationStore((s) => s.selectedCategory)
   const selectedSymptom = useNavigationStore((s) => s.selectedSymptom)
   const isMobile = useNavigationStore((s) => s.isMobile)
@@ -24,13 +31,10 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
   const handleBackClick = useNavigationStore((s) => s.handleBackClick)
 
   const isVisible = !isMobileColumnB
-
-  // Mobile: 2 panels (main, subcategory). Desktop: 3 panels (+ symptom info)
   const panelCount = isMobile ? 2 : 3
-
-  // syncKey changes when the underlying navigation changes (different category/symptom),
-  // forcing the carousel to re-verify its spring position even if panelIndex stays the same.
   const carouselSyncKey = `${selectedCategory?.id}-${selectedSymptom?.id}`
+  const hasSearch = isMobile && searchInput.trim().length > 0
+  const hasMobileSearch = isMobile && !!onSearchChange
 
   const carousel = useColumnCarousel({
     enabled: isMobile,
@@ -43,23 +47,69 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
     onEdgeDragEnd,
   })
 
-  // Scroll-to-top ref for subcategory panel when category changes
+  // Panel scroll refs
+  const panel0ScrollRef = useRef<HTMLDivElement>(null)
   const subcategoryScrollRef = useRef<HTMLDivElement>(null)
+
   useEffect(() => {
-    if (subcategoryScrollRef.current) {
-      subcategoryScrollRef.current.scrollTop = 0
-    }
+    if (subcategoryScrollRef.current) subcategoryScrollRef.current.scrollTop = 0
   }, [selectedCategory])
 
-  // Panel width as percentage of the flex container
+  // ── Search bar: translates up with scroll (slides behind NavTop) ──
+  const [barHeight, setBarHeight] = useState(52)
+  const searchBarRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (searchBarRef.current) {
+      const h = searchBarRef.current.offsetHeight
+      if (h > 0) setBarHeight(h)
+    }
+  }, [hasMobileSearch])
+
+  const [searchSpring, searchApi] = useSpring(() => ({
+    y: 0,
+    config: SPRING_CONFIGS.page,
+  }))
+
+  useEffect(() => {
+    if (!hasMobileSearch) return
+    const ref = panelIndex === 0 ? panel0ScrollRef : subcategoryScrollRef
+    const el = ref.current
+    if (!el) return
+
+    const onScroll = () => {
+      if (searchInput.trim()) {
+        searchApi.start({ y: 0 })
+        return
+      }
+      const y = Math.min(el.scrollTop, barHeight)
+      searchApi.start({ y })
+    }
+
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [panelIndex, hasMobileSearch, searchApi, barHeight, searchInput])
+
+  useEffect(() => {
+    if (searchInput.trim()) searchApi.start({ y: 0 })
+  }, [searchInput, searchApi])
+
+  // Panels need paddingTop for NavTop + search bar space
+  const mobilePaddingTop = hasMobileSearch
+    ? `calc(var(--sat, 0px) + 4rem + ${barHeight}px)`
+    : isMobile
+      ? 'calc(var(--sat, 0px) + 4rem)'
+      : undefined
+
   const panelWidth = `${100 / panelCount}%`
 
   return (
     <div
-      className="h-full overflow-hidden"
+      className="h-full overflow-hidden relative"
       style={{ touchAction: 'pan-y' }}
       {...carousel.dragHandlers}
     >
+      {/* Carousel */}
       <animated.div
         className="flex h-full"
         style={{
@@ -68,32 +118,16 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
         }}
       >
         {/* Panel 0: Main categories */}
-        <div className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
-          <div
-            className="px-2 md:px-0 min-h-full"
-            style={isMobile ? { paddingTop: 'calc(var(--sat, 0px) + 4rem)' } : undefined}
-          >
-            <CategoryList
-              mobilePanel="main"
-              onNavigate={onNavigate}
-            />
+        <div ref={panel0ScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
+          <div className="px-2 md:px-0 min-h-full" style={mobilePaddingTop ? { paddingTop: mobilePaddingTop } : undefined}>
+            <CategoryList mobilePanel="main" onNavigate={onNavigate} />
           </div>
         </div>
 
         {/* Panel 1: Subcategories */}
-        <div
-          ref={subcategoryScrollRef}
-          className="h-full overflow-y-auto bg-themewhite"
-          style={{ flex: `0 0 ${panelWidth}` }}
-        >
-          <div
-            className="px-2 md:px-0 min-h-full"
-            style={isMobile ? { paddingTop: 'calc(var(--sat, 0px) + 4rem)' } : undefined}
-          >
-            <CategoryList
-              mobilePanel="subcategory"
-              onNavigate={onNavigate}
-            />
+        <div ref={subcategoryScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
+          <div className="px-2 md:px-0 min-h-full" style={mobilePaddingTop ? { paddingTop: mobilePaddingTop } : undefined}>
+            <CategoryList mobilePanel="subcategory" onNavigate={onNavigate} />
           </div>
         </div>
 
@@ -101,14 +135,57 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
         {!isMobile && (
           <div className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
             <div className="px-2 md:px-0 min-h-full">
-              <CategoryList
-                mobilePanel="guidelines"
-                onNavigate={onNavigate}
-              />
+              <CategoryList mobilePanel="guidelines" onNavigate={onNavigate} />
             </div>
           </div>
         )}
       </animated.div>
+
+      {/* Mobile: Single search bar — absolutely positioned below NavTop, translates up on scroll */}
+      {hasMobileSearch && (
+        <animated.div
+          className="absolute left-0 right-0 z-5"
+          style={{
+            top: 'calc(var(--sat, 0px) + 4rem)',
+            transform: searchSpring.y.to(y => `translateY(${-y}px)`),
+            opacity: searchSpring.y.to(y => 1 - (y / barHeight) * 0.6),
+          }}
+        >
+          <div ref={searchBarRef} className="px-3 py-2">
+            <div className="flex items-center transition-colors duration-200 bg-themewhite text-tertiary rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2">
+              <input
+                type="search"
+                placeholder="Search..."
+                value={searchInput}
+                onChange={(e) => onSearchChange!(e.target.value)}
+                className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
+              />
+              {hasSearch && (
+                <div
+                  className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-colors duration-200 hover:bg-themewhite shrink-0 active:scale-95"
+                  onClick={() => onSearchChange!('')}
+                >
+                  <X className="w-5 h-5 stroke-themeblue1" />
+                </div>
+              )}
+            </div>
+          </div>
+        </animated.div>
+      )}
+
+      {/* Mobile: Search results overlay */}
+      {hasSearch && (
+        <div className="absolute inset-0 z-5 bg-themewhite overflow-y-auto" style={{ paddingTop: 'calc(var(--sat, 0px) + 4rem)' }}>
+          <div className="px-2 min-h-full">
+            <SearchResults
+              results={searchResults ?? []}
+              searchTerm={searchInput}
+              onResultClick={onNavigate}
+              isSearching={isSearching}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 })

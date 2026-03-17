@@ -1,18 +1,15 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
-import { Check, X, CheckCircle2, Circle, Copy, Pencil, Reply, Trash2, Clock, MessageSquare, Play, Pause } from 'lucide-react'
+import { Check, X, Reply, Trash2, Clock, MessageSquare, Play, Pause } from 'lucide-react'
 import { GESTURE_THRESHOLDS } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
 
-export type SwipeAction = 'copy' | 'reply' | 'delete' | 'edit'
+export type SwipeAction = 'reply' | 'delete'
 
 interface MessageBubbleProps {
   message: DecryptedSignalMessage
   isOwn: boolean
   avatar?: React.ReactNode
-  selected?: boolean
-  selectionMode?: boolean
-  onTap?: (message: DecryptedSignalMessage) => void
   onLongPress?: (message: DecryptedSignalMessage, x: number, y: number) => void
   onSwipeAction?: (message: DecryptedSignalMessage, action: SwipeAction) => void
   isEditing?: boolean
@@ -100,13 +97,13 @@ function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
+const SWIPE_THRESHOLD = 80
+const SWIPE_MAX = 120
+
 export function MessageBubble({
   message,
   isOwn,
   avatar,
-  selected,
-  selectionMode,
-  onTap,
   onLongPress,
   onSwipeAction,
   isEditing,
@@ -124,28 +121,16 @@ export function MessageBubble({
     swiping: boolean
     dirDecided: boolean
   } | null>(null)
-  const touchedRef = useRef(false)
   const rowRef = useRef<HTMLDivElement>(null)
+  const replyIconRef = useRef<HTMLDivElement>(null)
+  const deleteIconRef = useRef<HTMLDivElement>(null)
   const [showFullImage, setShowFullImage] = useState(false)
-  const [swipeOpen, setSwipeOpen] = useState(false)
+  const [tapped, setTapped] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
   const [isPlaying, setIsPlaying] = useState(false)
   const [playProgress, setPlayProgress] = useState(0)
 
-  const ACTION_WIDTH = 192
-  const swipeEnabled = !isEditing && !selectionMode
-
-  // Close swipe when entering selection mode
-  useEffect(() => {
-    if (selectionMode && swipeOpen) {
-      const el = rowRef.current
-      if (el) {
-        el.style.transition = 'transform 200ms ease-out'
-        el.style.transform = 'translateX(0px)'
-      }
-      setSwipeOpen(false)
-    }
-  }, [selectionMode]) // eslint-disable-line react-hooks/exhaustive-deps
+  const swipeEnabled = !isEditing
 
   // request-accepted is an invisible signal — don't render
   if (message.messageType === 'request-accepted') return null
@@ -173,10 +158,35 @@ export function MessageBubble({
     el.style.transform = `translateX(${x}px)`
   }, [])
 
+  const updateIcons = useCallback((dx: number) => {
+    if (replyIconRef.current) {
+      const progress = Math.min(1, Math.max(0, dx) / SWIPE_THRESHOLD)
+      replyIconRef.current.style.opacity = String(progress)
+      replyIconRef.current.style.transform = `translateY(-50%) scale(${progress})`
+    }
+    if (deleteIconRef.current) {
+      const progress = Math.min(1, Math.max(0, -dx) / SWIPE_THRESHOLD)
+      deleteIconRef.current.style.opacity = String(progress)
+      deleteIconRef.current.style.transform = `translateY(-50%) scale(${progress})`
+    }
+  }, [])
+
+  const resetIcons = useCallback(() => {
+    const reset = (ref: React.RefObject<HTMLDivElement | null>) => {
+      if (!ref.current) return
+      ref.current.style.transition = 'opacity 200ms ease-out, transform 200ms ease-out'
+      ref.current.style.opacity = '0'
+      ref.current.style.transform = 'translateY(-50%) scale(0)'
+      setTimeout(() => { if (ref.current) ref.current.style.transition = 'none' }, 200)
+    }
+    reset(replyIconRef)
+    reset(deleteIconRef)
+  }, [])
+
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    touchedRef.current = true
     const t = e.touches[0]
     touchRef.current = { startX: t.clientX, startY: t.clientY, swiping: false, dirDecided: false }
+    setTapped(true)
   }, [])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
@@ -195,60 +205,51 @@ export function MessageBubble({
     }
     if (!state.swiping) return
 
-    const base = swipeOpen ? -ACTION_WIDTH : 0
-    const offset = Math.max(-ACTION_WIDTH, Math.min(0, base + dx))
+    let offset: number
+    if (dx > 0) {
+      offset = Math.min(SWIPE_MAX, dx)
+    } else {
+      offset = isOwn ? Math.max(-SWIPE_MAX, dx) : Math.max(-12, dx * 0.1)
+    }
+
     const el = rowRef.current
     if (el) {
       el.style.transition = 'none'
       el.style.transform = `translateX(${offset}px)`
     }
-  }, [swipeEnabled, swipeOpen, ACTION_WIDTH])
+    updateIcons(offset)
+  }, [swipeEnabled, isOwn, updateIcons])
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    setTapped(false)
     const state = touchRef.current
-    if (!state) return
+    if (!state || !state.swiping) { touchRef.current = null; return }
     touchRef.current = null
 
-    if (state.swiping) {
-      const dx = e.changedTouches[0].clientX - state.startX
-      const base = swipeOpen ? -ACTION_WIDTH : 0
-      const shouldOpen = Math.abs(base + dx) > ACTION_WIDTH * 0.3
-      snapTo(shouldOpen ? -ACTION_WIDTH : 0)
-      setSwipeOpen(shouldOpen)
-      return
+    const dx = e.changedTouches[0].clientX - state.startX
+
+    if (dx > SWIPE_THRESHOLD) {
+      onSwipeAction?.(message, 'reply')
+    } else if (dx < -SWIPE_THRESHOLD && isOwn) {
+      onSwipeAction?.(message, 'delete')
     }
 
-    if (!state.dirDecided) {
-      if (swipeOpen) { snapTo(0); setSwipeOpen(false) }
-      else onTap?.(message)
-    }
-  }, [swipeOpen, ACTION_WIDTH, snapTo, onTap, message])
+    snapTo(0)
+    resetIcons()
+  }, [snapTo, resetIcons, onSwipeAction, message, isOwn])
 
   const handleTouchCancel = useCallback(() => {
+    setTapped(false)
     touchRef.current = null
-    snapTo(swipeOpen ? -ACTION_WIDTH : 0)
-  }, [swipeOpen, ACTION_WIDTH, snapTo])
-
-  // Desktop click → tap (skip if touch just fired)
-  const handleClick = useCallback(() => {
-    if (touchedRef.current) { touchedRef.current = false; return }
-    if (swipeOpen) { snapTo(0); setSwipeOpen(false); return }
-    onTap?.(message)
-  }, [swipeOpen, snapTo, onTap, message])
+    snapTo(0)
+    resetIcons()
+  }, [snapTo, resetIcons])
 
   // Desktop right-click + mobile long-press
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     onLongPress?.(message, e.clientX, e.clientY)
   }, [message, onLongPress])
-
-  // ── Swipe action handler ─────────────────────────────────────────────
-
-  const handleSwipeAction = useCallback((action: SwipeAction) => {
-    snapTo(0)
-    setSwipeOpen(false)
-    onSwipeAction?.(message, action)
-  }, [message, onSwipeAction, snapTo])
 
   const handleImageTap = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -412,129 +413,102 @@ export function MessageBubble({
 
   return (
     <>
-      {/* Full-width container with overflow-hidden (same layout as SwipeableRosterCard) */}
-      <div className="relative overflow-hidden mb-1.5">
-        {/* Swipe action buttons — revealed on drag */}
-        {swipeEnabled && (
-          <div
-            className="absolute inset-y-0 right-0 flex items-center justify-evenly px-2 md:hidden"
-            style={{ width: ACTION_WIDTH }}
-          >
-            <button onClick={() => handleSwipeAction('reply')} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-themeblue2/15">
-                <Reply size={16} className="text-themeblue2" />
-              </div>
-              <span className="text-[8px] font-medium text-tertiary/60">Reply</span>
-            </button>
-            <button onClick={() => handleSwipeAction('copy')} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/5">
-                <Copy size={16} className="text-tertiary" />
-              </div>
-              <span className="text-[8px] font-medium text-tertiary/60">Copy</span>
-            </button>
-            {isOwn && (
-              <button onClick={() => handleSwipeAction('edit')} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
-                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-primary/5">
-                  <Pencil size={16} className="text-tertiary" />
-                </div>
-                <span className="text-[8px] font-medium text-tertiary/60">Edit</span>
-              </button>
-            )}
-            <button onClick={() => handleSwipeAction('delete')} className="flex flex-col items-center gap-1 active:scale-95 transition-transform">
-              <div className="w-10 h-10 rounded-full flex items-center justify-center bg-themeredred/10">
-                <Trash2 size={16} className="text-red-400" />
-              </div>
-              <span className="text-[8px] font-medium text-tertiary/60">Delete</span>
-            </button>
-          </div>
+      {/* Full-width layout container */}
+      <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} items-end px-1 mb-1.5`}>
+        {/* Avatar for received messages */}
+        {!isOwn && avatar && (
+          <div className="shrink-0 mb-0.5 mr-1.5">{avatar}</div>
         )}
 
-        {/* Slidable message row — direct DOM touch handling */}
-        <div
-          ref={rowRef}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
-          onTouchCancel={handleTouchCancel}
-          onClick={handleClick}
-          onContextMenu={handleContextMenu}
-          style={{ touchAction: 'pan-y' }}
-          className="relative bg-themewhite3 md:bg-transparent select-none cursor-pointer"
-        >
-          <div className={`flex ${isOwn ? 'justify-end' : 'justify-start'} items-end px-1`}>
-            {/* Selection checkmark indicator */}
-            {selectionMode && (
-              <div className="w-8 flex items-center justify-center shrink-0">
-                {selected ? (
-                  <CheckCircle2 size={20} className="text-themeblue2" />
-                ) : (
-                  <Circle size={20} className="text-tertiary/30" />
-                )}
-              </div>
-            )}
-
-            {/* Avatar for received messages */}
-            {!isOwn && avatar && (
-              <div className="shrink-0 mb-0.5 mr-1.5">{avatar}</div>
-            )}
-
-            {/* Visual bubble */}
-            <div className={`${selectionMode ? 'max-w-[80%]' : 'max-w-[75%]'}`}>
-              <div
-                className={`rounded-2xl ${isImage && !isVoice ? 'p-1.5' : 'px-3.5 py-2'}
-                           ${isOwn ? 'bg-themeblue2 text-white rounded-br-md' : 'bg-themewhite2 text-primary rounded-bl-md'}
-                           ${selected ? (isOwn ? 'ring-2 ring-inset ring-white/50' : 'ring-2 ring-inset ring-themeblue2/50') : ''}`}
-              >
-                {/* Sender name label (group chats) */}
-                {senderName && !isOwn && (
-                  <p className="text-[10px] font-semibold text-themeblue2 mb-0.5">{senderName}</p>
-                )}
-                {/* Reply-to header */}
-                {message.threadId && message.replyPreview && (
-                  <div
-                    className={`flex items-start gap-1.5 mb-1.5 pb-1.5 border-b cursor-pointer
-                               ${isOwn ? 'border-white/20' : 'border-primary/10'}`}
-                    onClick={e => { e.stopPropagation(); onOpenThread?.(message.threadId!) }}
-                  >
-                    <div className={`w-0.5 self-stretch rounded-full shrink-0 ${isOwn ? 'bg-white/40' : 'bg-themeblue2/40'}`} />
-                    <div className="min-w-0">
-                      <p className={`text-[10px] font-medium ${isOwn ? 'text-white/70' : 'text-themeblue2/70'}`}>
-                        Replying to
-                      </p>
-                      <p className={`text-[11px] truncate ${isOwn ? 'text-white/50' : 'text-tertiary/50'}`}>
-                        {message.replyPreview}
-                      </p>
-                    </div>
-                  </div>
-                )}
-                {renderContent()}
-                <div className={`flex items-center gap-1 mt-0.5 ${isImage && !isVoice ? 'px-1.5' : ''} ${isOwn ? 'text-white/60' : 'text-tertiary/40'}`}>
-                  <p className="text-[9px]">{formatTime(message.createdAt)}</p>
-                  {isOwn && message.messageType === 'request' && (
-                    <span className="text-[9px] italic">Pending</span>
-                  )}
-                  {isOwn && message.messageType !== 'request' && message.status === 'sending' && (
-                    <Clock size={10} className="opacity-60" />
-                  )}
-                  {isOwn && message.messageType !== 'request' && message.status !== 'sending' && (
-                    <Check size={10} className="opacity-60" />
-                  )}
-                </div>
-              </div>
-
-              {/* Thread reply count badge */}
-              {!!threadReplyCount && threadReplyCount > 0 && (
-                <button
-                  onClick={e => { e.stopPropagation(); onOpenThread?.(message.id) }}
-                  className={`flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium
-                             text-themeblue2 hover:bg-themeblue2/10 active:scale-95 transition-all
-                             ${isOwn ? 'ml-auto' : ''}`}
-                >
-                  <MessageSquare size={10} />
-                  {threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}
-                </button>
-              )}
+        {/* Bubble wrapper — icons sit behind, bubble slides over them */}
+        <div className="relative max-w-[75%]" style={{ touchAction: 'pan-y' }}>
+          {/* Reply icon — starts at left edge behind bubble, parallaxes outward on swipe right */}
+          {swipeEnabled && (
+            <div
+              ref={replyIconRef}
+              className="absolute left-0 top-1/2 z-0
+                         w-7 h-7 rounded-full bg-themeblue2/15 flex items-center justify-center md:hidden pointer-events-none"
+              style={{ opacity: 0, transform: 'translateY(-50%) scale(0)', transition: 'none' }}
+            >
+              <Reply size={14} className="text-themeblue2" />
             </div>
+          )}
+          {/* Delete icon — starts at right edge behind bubble, scales in on swipe left */}
+          {swipeEnabled && isOwn && (
+            <div
+              ref={deleteIconRef}
+              className="absolute right-0 top-1/2 z-0
+                         w-7 h-7 rounded-full bg-themeredred/15 flex items-center justify-center md:hidden pointer-events-none"
+              style={{ opacity: 0, transform: 'translateY(-50%) scale(0)', transition: 'none' }}
+            >
+              <Trash2 size={14} className="text-themeredred" />
+            </div>
+          )}
+
+          {/* Slidable bubble — translates on swipe, sits above icons */}
+          <div
+            ref={rowRef}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            onTouchCancel={handleTouchCancel}
+            onContextMenu={handleContextMenu}
+            className="relative z-[1] select-none"
+          >
+            <div
+              className={`rounded-2xl ${isImage && !isVoice ? 'p-1.5' : 'px-3.5 py-2'}
+                         ${isOwn ? 'bg-themeblue2 text-white rounded-br-md' : 'bg-themewhite2 text-primary rounded-bl-md'}
+                         ${tapped ? 'scale-[0.97]' : ''} transition-transform duration-150`}
+            >
+              {/* Sender name label (group chats) */}
+              {senderName && !isOwn && (
+                <p className="text-[10px] font-semibold text-themeblue2 mb-0.5">{senderName}</p>
+              )}
+              {/* Reply-to header */}
+              {message.threadId && message.replyPreview && (
+                <div
+                  className={`flex items-start gap-1.5 mb-1.5 pb-1.5 border-b cursor-pointer
+                             ${isOwn ? 'border-white/20' : 'border-primary/10'}`}
+                  onClick={e => { e.stopPropagation(); onOpenThread?.(message.threadId!) }}
+                >
+                  <div className={`w-0.5 self-stretch rounded-full shrink-0 ${isOwn ? 'bg-white/40' : 'bg-themeblue2/40'}`} />
+                  <div className="min-w-0">
+                    <p className={`text-[10px] font-medium ${isOwn ? 'text-white/70' : 'text-themeblue2/70'}`}>
+                      Replying to
+                    </p>
+                    <p className={`text-[11px] truncate ${isOwn ? 'text-white/50' : 'text-tertiary/50'}`}>
+                      {message.replyPreview}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {renderContent()}
+              <div className={`flex items-center gap-1 mt-0.5 ${isImage && !isVoice ? 'px-1.5' : ''} ${isOwn ? 'text-white/60' : 'text-tertiary/40'}`}>
+                <p className="text-[9px]">{formatTime(message.createdAt)}</p>
+                {isOwn && message.messageType === 'request' && (
+                  <span className="text-[9px] italic">Pending</span>
+                )}
+                {isOwn && message.messageType !== 'request' && message.status === 'sending' && (
+                  <Clock size={10} className="opacity-60" />
+                )}
+                {isOwn && message.messageType !== 'request' && message.status !== 'sending' && (
+                  <Check size={10} className="opacity-60" />
+                )}
+              </div>
+            </div>
+
+            {/* Thread reply count badge */}
+            {!!threadReplyCount && threadReplyCount > 0 && (
+              <button
+                onClick={e => { e.stopPropagation(); onOpenThread?.(message.id) }}
+                className={`flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full text-[10px] font-medium
+                           text-themeblue2 hover:bg-themeblue2/10 active:scale-95 transition-all
+                           ${isOwn ? 'ml-auto' : ''}`}
+              >
+                <MessageSquare size={10} />
+                {threadReplyCount} {threadReplyCount === 1 ? 'reply' : 'replies'}
+              </button>
+            )}
           </div>
         </div>
       </div>

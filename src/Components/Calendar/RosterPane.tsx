@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Users, Search, X } from 'lucide-react'
+import { Users } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
@@ -51,34 +51,6 @@ export function RosterPane({ onAssignToEvent, assignableEventId, compact }: Rost
 
   return (
     <div className={`flex flex-col h-full ${compact ? '' : 'border-r border-primary/10'}`}>
-      {/* Header */}
-      <div className={`px-3 border-b border-primary/10 ${compact ? 'py-2' : 'py-2'}`}>
-        <div className="flex items-center gap-2 mb-2">
-          <Users size={compact ? 14 : 16} className="text-themeblue3" />
-          <h3 className={`font-semibold text-primary ${compact ? 'text-xs' : 'text-sm'}`}>Roster</h3>
-          <span className="text-xs text-tertiary/60">{ownClinicMedics.length}</span>
-        </div>
-        <div className="relative">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-tertiary/40" />
-          <input
-            type="text"
-            value={rosterSearchQuery}
-            onChange={e => setRosterSearchQuery(e.target.value)}
-            placeholder="Search personnel"
-            className="w-full pl-8 pr-8 py-1.5 text-xs rounded-lg border border-primary/10 bg-themewhite placeholder:text-tertiary/40 focus:border-themeblue2 focus:outline-none transition-colors"
-          />
-          {rosterSearchQuery && (
-            <button
-              onClick={() => setRosterSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-tertiary/40 hover:text-tertiary active:scale-95"
-            >
-              <X size={12} />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* List */}
       <div className="flex-1 overflow-y-auto">
         {loading && ownClinicMedics.length === 0 ? (
           <div className="flex items-center justify-center py-8">

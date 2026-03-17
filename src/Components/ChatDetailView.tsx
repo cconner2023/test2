@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
-import { ArrowUp, Trash2, Forward, Reply, X, Plus, ArrowLeft, MessageSquare, Mic } from 'lucide-react'
+import { ArrowUp, X, Plus, ArrowLeft, MessageSquare, Mic } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MessageBubble } from './Settings/MessageBubble'
 import { MessageContextMenu } from './Settings/MessageContextMenu'
@@ -176,11 +176,10 @@ export function ChatDetailView({
     contextMenu, contextMsg,
     handleLongPress, handleCopy, handleStartEdit, handleSaveImage, closeContextMenu,
     editingMessageId, editText, setEditText, handleSaveEdit, handleCancelEdit,
-    selectedIds, hasSelection, canDeleteSelection, handleTap, clearSelection,
-    showForwardPicker, handleForwardStart, handleForwardSelect, closeForwardPicker,
-    replyingTo, setReplyingTo, handleReply,
+    showForwardPicker, forwardingMessage, handleContextForward, handleForwardSelect, closeForwardPicker,
+    replyingTo, setReplyingTo, handleContextReply,
     activeThreadId, setActiveThreadId, handleOpenThread,
-    pendingDelete, handleDelete, handleConfirmDelete, closePendingDelete,
+    pendingDelete, handleContextDelete, handleConfirmDelete, closePendingDelete,
     handleSwipeAction,
     threadReplyCounts, threadMessages, mainViewMessages,
   } = useChatInteractions({
@@ -221,7 +220,6 @@ export function ChatDetailView({
 
   // Reset interaction state on conversation change
   useEffect(() => {
-    clearSelection()
     closeForwardPicker()
     setReplyingTo(null)
     setActiveThreadId(null)
@@ -294,31 +292,6 @@ export function ChatDetailView({
   // ── Input area ──────────────────────────────────────────────────────────
 
   const renderInputArea = () => {
-    if (hasSelection) {
-      return (
-        <div className="shrink-0 px-4 py-3">
-          <div className="flex items-center justify-around">
-            <button onClick={handleReply} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
-              <Reply size={18} className="text-tertiary" />
-              <span className="text-[10px] text-tertiary">Reply</span>
-            </button>
-            {showForward && (
-              <button onClick={handleForwardStart} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
-                <Forward size={18} className="text-tertiary" />
-                <span className="text-[10px] text-tertiary">Forward</span>
-              </button>
-            )}
-            {canDeleteSelection && (
-              <button onClick={handleDelete} className="flex flex-col items-center gap-1 px-4 py-1.5 rounded-xl hover:bg-primary/5 active:scale-95 transition-all">
-                <Trash2 size={18} className="text-red-400" />
-                <span className="text-[10px] text-red-400">Delete</span>
-              </button>
-            )}
-          </div>
-        </div>
-      )
-    }
-
     if (allUnavailable && !isSelfChat) {
       return <UnavailableBanner participants={participants} peerName={requestFlow?.peerName} />
     }
@@ -501,9 +474,6 @@ export function ChatDetailView({
                 isOwn={own}
                 avatar={resolveAvatar(msg, own)}
                 senderName={resolveSenderName?.(msg)}
-                selected={selectedIds.has(msg.id)}
-                selectionMode={hasSelection}
-                onTap={handleTap}
                 onLongPress={handleLongPress}
                 onSwipeAction={handleSwipeAction}
                 isEditing={editingMessageId === msg.id}
@@ -551,7 +521,12 @@ export function ChatDetailView({
             isOwn={contextMsg.senderId === userId}
             isImage={contextMsg.content?.type === 'image'}
             isVoice={contextMsg.content?.type === 'voice'}
-            onCopy={handleCopy} onEdit={handleStartEdit} onSave={handleSaveImage}
+            onReply={handleContextReply}
+            onCopy={handleCopy}
+            onEdit={handleStartEdit}
+            onForward={handleContextForward}
+            onDelete={handleContextDelete}
+            onSave={handleSaveImage}
             onClose={closeContextMenu}
           />
         )}
@@ -573,7 +548,12 @@ export function ChatDetailView({
           isOwn={contextMsg.senderId === userId}
           isImage={contextMsg.content?.type === 'image'}
           isVoice={contextMsg.content?.type === 'voice'}
-          onCopy={handleCopy} onEdit={handleStartEdit} onSave={handleSaveImage}
+          onReply={handleContextReply}
+          onCopy={handleCopy}
+          onEdit={handleStartEdit}
+          onForward={handleContextForward}
+          onDelete={handleContextDelete}
+          onSave={handleSaveImage}
           onClose={closeContextMenu}
         />
       )}
