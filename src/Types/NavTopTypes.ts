@@ -32,16 +32,9 @@ interface ImportProps {
 interface NavigationActions {
   onBackClick?: () => void
   onMenuClick?: () => void
-  onImportClick?: () => void
   onKnowledgeBaseClick?: () => void
-  onSettingsClick?: () => void
   onInfoClick?: () => void
   onMessagesClick?: () => void
-  onPropertyClick?: () => void
-  onLoRaClick?: () => void
-  onMapOverlayClick?: () => void
-  onSupervisorClick?: () => void
-  onAdminClick?: () => void
 }
 
 /**

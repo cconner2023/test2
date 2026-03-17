@@ -115,10 +115,10 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 ),
             } : undefined}
         >
-            <div className="flex flex-col h-full">
-                {/* Mobile header — own safe-area-aware header like conversation view */}
+            <div className="relative h-full">
+                {/* Mobile header — floats over content for scroll-behind blur */}
                 {isMobile && (
-                    <div className="md:hidden sticky top-0 z-10 shrink-0 backdrop-blur-xs bg-transparent">
+                    <div className="md:hidden absolute top-0 inset-x-0 z-10 backdrop-blur-sm bg-transparent">
                         <div className="px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center justify-between">
                             <HeaderPill>
                                 <PillButton icon={ListFilter} onClick={() => setShowPersonnelDrawer(true)} label="Filter" />
@@ -130,17 +130,19 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                                 <PillButton icon={X} onClick={onClose} label="Close" />
                             </HeaderPill>
                         </div>
-                        <div className="grid grid-cols-7">
-                            {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((label, i) => (
-                                <div key={i} className="text-center text-[10px] font-semibold text-tertiary/50 py-1 uppercase">
-                                    {label}
-                                </div>
-                            ))}
-                        </div>
+                        {viewMode === 'month' && (
+                            <div className="grid grid-cols-7">
+                                {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((label, i) => (
+                                    <div key={i} className="text-center text-[10px] font-semibold text-tertiary/50 py-1 uppercase">
+                                        {label}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
 
-                <div className="flex flex-1 min-h-0 overflow-hidden relative">
+                <div className="flex absolute inset-0 overflow-hidden">
                     {/* Roster — desktop: left pane (hidden in troops view where TroopsToTaskView renders its own names) */}
                     {!isMobile && viewMode !== 'troops' && (
                         <div className="w-[280px] shrink-0">
@@ -160,9 +162,8 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                     {isMobile && (
                         <>
                             <div
-                                className={`fixed inset-0 z-30 bg-black/40 transition-opacity duration-300 ${
-                                    showPersonnelDrawer ? 'opacity-100' : 'opacity-0 pointer-events-none'
-                                }`}
+                                className={`fixed inset-0 z-30 bg-black/40 transition-opacity duration-300 ${showPersonnelDrawer ? 'opacity-100' : 'opacity-0 pointer-events-none'
+                                    }`}
                                 onClick={() => setShowPersonnelDrawer(false)}
                             />
                             <div
@@ -170,9 +171,8 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                                 onTouchStart={handleTouchStart}
                                 onTouchMove={handleTouchMove}
                                 onTouchEnd={handleTouchEnd}
-                                className={`fixed inset-x-0 bottom-0 z-40 bg-themewhite3 rounded-t-2xl shadow-xl transition-transform duration-300 ease-out ${
-                                    showPersonnelDrawer ? 'translate-y-0' : 'translate-y-full'
-                                }`}
+                                className={`fixed inset-x-0 bottom-0 z-40 bg-themewhite3 rounded-t-2xl shadow-xl transition-transform duration-300 ease-out ${showPersonnelDrawer ? 'translate-y-0' : 'translate-y-full'
+                                    }`}
                                 style={{ maxHeight: '70vh' }}
                             >
                                 <div className="flex justify-center py-3">
@@ -185,13 +185,11 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                                             <button
                                                 key={medic.id}
                                                 onClick={() => togglePersonnelFilter(medic.id)}
-                                                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all duration-150 active:scale-[0.98] ${
-                                                    isSelected ? 'bg-themeblue3/8' : ''
-                                                }`}
+                                                className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-all duration-150 active:scale-[0.98] ${isSelected ? 'bg-themeblue3/8' : ''
+                                                    }`}
                                             >
-                                                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${
-                                                    isSelected ? 'bg-themeblue3 text-white' : 'bg-primary/8 text-secondary'
-                                                }`}>
+                                                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${isSelected ? 'bg-themeblue3 text-white' : 'bg-primary/8 text-secondary'
+                                                    }`}>
                                                     {getInitials(medic.firstName, medic.lastName)}
                                                 </div>
                                                 <div className="flex-1 min-w-0">

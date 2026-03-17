@@ -36,6 +36,15 @@ import type { UserTypes, TextExpander } from '../Data/User'
 import type { DeviceRole } from '../lib/signal/transportTypes'
 
 const STORAGE_KEY = 'adtmc_user_profile'
+const LOCAL_SESSION_KEY = 'adtmc_local_session'
+
+export interface LocalSession {
+  userId: string
+  email: string
+  deviceId: string
+  createdAt: string
+  lastVerifiedAt: string
+}
 
 interface AuthState {
   user: User | null
@@ -50,6 +59,8 @@ interface AuthState {
   /** True for newly approved accounts that haven't set a permanent password yet. */
   needsPasswordSetup: boolean
   deviceRole: DeviceRole | null
+  /** Persistent local session — survives Supabase token expiry. Cleared only on deliberate logout. */
+  localSession: LocalSession | null
 }
 
 interface AuthActions {
@@ -66,6 +77,37 @@ interface AuthActions {
   /** Clear the first-time password setup flag (after new user sets their password). */
   setNeedsPasswordSetup: (value: boolean) => void
 }
+
+// ---- Local Session helpers ----
+
+/** Module-level flag: true only during deliberate user-initiated sign-out.
+ *  Lives in JS memory only — cannot be spoofed across sessions. */
+let _userInitiatedSignOut = false
+
+/** Sync load from localStorage for instant hydration (prevents login screen flash). */
+function loadLocalSessionSync(): LocalSession | null {
+  try {
+    const raw = localStorage.getItem(LOCAL_SESSION_KEY)
+    if (raw && !raw.startsWith('enc:')) {
+      return JSON.parse(raw) as LocalSession
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
+/** Persist local session to both secureStorage (encrypted) and localStorage (plaintext backup). */
+function persistLocalSession(ls: LocalSession) {
+  secureSet(LOCAL_SESSION_KEY, JSON.stringify(ls)).catch(() => {})
+  try { localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(ls)) } catch { /* ignore */ }
+}
+
+/** Remove local session from all storage layers. */
+function clearLocalSessionStorage() {
+  secureRemove(LOCAL_SESSION_KEY).catch(() => {})
+  try { localStorage.removeItem(LOCAL_SESSION_KEY) } catch { /* ignore */ }
+}
+
+// ---- Profile helpers ----
 
 function migratePeDepth(profile: UserTypes): UserTypes {
   const d = profile.peDepth as string | undefined
@@ -173,6 +215,17 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
 
 export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   const handleSignedOut = (wasPrimary: boolean) => {
+    // ---- Involuntary sign-out (token expiry, iOS background kill) ----
+    // Preserve local session and all local data. Only clear the Supabase
+    // user object so sync pauses. The app remains usable offline.
+    if (!_userInitiatedSignOut) {
+      stopHeartbeat()
+      set({ user: null })
+      return
+    }
+
+    // ---- Deliberate sign-out: full destructive cleanup ----
+    _userInitiatedSignOut = false
     stopHeartbeat()
 
     // NOTE: Supabase key cleanup (unregisterDevice + deleteKeyBundle) is done
@@ -188,7 +241,9 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       isDevRole: false,
       isSupervisorRole: false,
       deviceRole: null,
+      localSession: null,
     })
+    clearLocalSessionStorage()
     clearProfileStorage()
     removePin()
     removeBiometric()
@@ -247,6 +302,13 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string
       persistSupabaseAuth(url, session.access_token, anonKey).catch(() => {})
     }
+    // Update local session lastVerifiedAt on any successful auth event (including token refresh)
+    const currentLS = get().localSession
+    if (currentLS) {
+      const updated = { ...currentLS, lastVerifiedAt: new Date().toISOString() }
+      set({ localSession: updated })
+      persistLocalSession(updated)
+    }
     // Fetch profile in the background on sign-in or session resume
     if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
       startHeartbeat(userId)
@@ -262,6 +324,17 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           startHeartbeat(userId, initResult.deviceId)
           updateCleanupDeviceId(initResult.deviceId)
           updateCleanupIsPrimary(initResult.role === 'primary')
+
+          // Create or update the persistent local session
+          const ls: LocalSession = {
+            userId,
+            email: get().user?.email ?? get().localSession?.email ?? '',
+            deviceId: initResult.deviceId,
+            createdAt: get().localSession?.createdAt ?? new Date().toISOString(),
+            lastVerifiedAt: new Date().toISOString(),
+          }
+          set({ localSession: ls })
+          persistLocalSession(ls)
 
           // Process vault messages (deferred messages from offline period)
           processVaultMessages(userId).catch(() => {})
@@ -295,8 +368,19 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   isPasswordRecovery: false,
   needsPasswordSetup: false,
   deviceRole: null,
+  localSession: loadLocalSessionSync(),
 
   init: () => {
+    // Hydrate local session from encrypted storage (upgrade over sync localStorage read)
+    secureGet(LOCAL_SESSION_KEY).then(raw => {
+      if (raw) {
+        try {
+          const ls = JSON.parse(raw) as LocalSession
+          set({ localSession: ls })
+        } catch { /* ignore corrupt data */ }
+      }
+    }).catch(() => {})
+
     // Hydrate profile from encrypted storage (fast, runs before Supabase fetch)
     loadProfileFromSecureStorage().then(cached => {
       if (cached && Object.keys(cached).length > 0) {
@@ -335,6 +419,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   },
 
   signOut: async () => {
+    _userInitiatedSignOut = true
     // Force-delete keys from Supabase BEFORE signing out.
     // After signOut the auth token is dead and these calls would fail silently.
     const userId = get().user?.id
@@ -412,5 +497,5 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   },
 }})
 
-/** Derived selector: true when a real user is authenticated. */
-export const selectIsAuthenticated = (state: AuthState) => !!state.user
+/** Derived selector: true when a real user is authenticated (Supabase session or persistent local session). */
+export const selectIsAuthenticated = (state: AuthState) => !!state.user || !!state.localSession

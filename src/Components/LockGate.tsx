@@ -24,26 +24,14 @@ function LoadingScreen() {
   )
 }
 
-/** Minimum time (ms) to hold the loading screen so the service worker can
- *  detect silent updates and reload before any content flashes. */
-const SW_SETTLE_MS = 3000
-
 /** Maximum time (ms) to wait for Supabase INITIAL_SESSION before releasing
  *  the loading gate. Prevents an infinite loading screen on mobile PWA if
  *  the auth event never fires (e.g. corrupted session, network stall). */
 const AUTH_TIMEOUT_MS = 6000
 
 export function LockGate({ children }: { children: ReactNode }) {
-  const { user, isGuest } = useAuth()
+  const { user, isGuest, localSession } = useAuth()
   const loading = useAuthStore(s => s.loading)
-  const [swHold, setSwHold] = useState(true)
-
-  // Release the hold after the settle window
-  useEffect(() => {
-    const id = setTimeout(() => setSwHold(false), SW_SETTLE_MS)
-    return () => clearTimeout(id)
-  }, [])
-
   // Safety net: if Supabase auth never fires INITIAL_SESSION, force-release
   // the loading gate so the app doesn't stay stuck on the loading screen.
   useEffect(() => {
@@ -56,7 +44,7 @@ export function LockGate({ children }: { children: ReactNode }) {
     return () => clearTimeout(id)
   }, [])
 
-  const shouldLoad = loading || swHold
+  const shouldLoad = loading
   const isPasswordRecovery = useAuthStore(s => s.isPasswordRecovery)
   const needsPasswordSetup = useAuthStore(s => s.needsPasswordSetup)
   const [isPinLocked, setIsPinLocked] = useState(() => isPinEnabled() && !isSessionUnlocked())
@@ -122,7 +110,7 @@ export function LockGate({ children }: { children: ReactNode }) {
   }, [])
 
   useInactivityTimer({
-    enabled: !!user && !isGuest && !isPinLocked && !isInactivityLocked && !isInitialPasswordLocked,
+    enabled: (!!user || !!localSession) && !isGuest && !isPinLocked && !isInactivityLocked && !isInitialPasswordLocked,
     onTimeout: handleInactivityTimeout,
   })
 
@@ -134,7 +122,7 @@ export function LockGate({ children }: { children: ReactNode }) {
   // 5. PIN lock (z-100)
   // 6. inactivity / initial password locks (z-100)
   // 7. password recovery / setup — always on top
-  const showLogin = !shouldLoad && !user && !isGuest
+  const showLogin = !shouldLoad && !user && !localSession && !isGuest
   return (
     <>
       {children}
@@ -147,18 +135,18 @@ export function LockGate({ children }: { children: ReactNode }) {
       )}
       {showLogin && <LoginScreen />}
       {isPinLocked && <PinLockScreen onUnlock={handlePinUnlock} />}
-      {isInitialPasswordLocked && !isPinLocked && user?.email && (
+      {isInitialPasswordLocked && !isPinLocked && (user?.email || localSession?.email) && (
         <PasswordLockScreen
           onUnlock={() => {
             sessionStorage.setItem(INITIAL_PW_UNLOCKED_KEY, 'true')
             setIsInitialPasswordLocked(false)
           }}
-          email={user.email}
+          email={(user?.email ?? localSession?.email)!}
           reason="initial"
         />
       )}
-      {isInactivityLocked && !isPinLocked && !isInitialPasswordLocked && user?.email && (
-        <PasswordLockScreen onUnlock={() => setIsInactivityLocked(false)} email={user.email} reason="inactivity" />
+      {isInactivityLocked && !isPinLocked && !isInitialPasswordLocked && (user?.email || localSession?.email) && (
+        <PasswordLockScreen onUnlock={() => setIsInactivityLocked(false)} email={(user?.email ?? localSession?.email)!} reason="inactivity" />
       )}
       {isPasswordRecovery && <SetPasswordScreen mode="recovery" />}
       {needsPasswordSetup && !isPasswordRecovery && <SetPasswordScreen mode="setup" />}

@@ -160,23 +160,23 @@ export async function flushOutboundQueue(): Promise<number> {
         const payloadJson = await decryptSencString(encKey, entry.payload)
         const payload = JSON.parse(payloadJson)
 
-        // POST to Supabase REST
-        const response = await fetch(`${auth.url}/rest/v1/signal_messages`, {
+        // POST via RPC (sender_id derived from JWT on server)
+        const response = await fetch(`${auth.url}/rest/v1/rpc/send_signal_message`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'apikey': auth.anonKey,
             'Authorization': `Bearer ${auth.accessToken}`,
-            'Prefer': 'return=minimal',
           },
           body: JSON.stringify({
-            id: entry.id,
-            sender_id: entry.senderId,
-            recipient_id: entry.recipientId,
-            sender_device_id: entry.senderDeviceId,
-            recipient_device_id: entry.recipientDeviceId,
-            message_type: entry.messageType,
-            payload,
+            p_id: entry.id,
+            p_recipient_id: entry.recipientId,
+            p_sender_device_id: entry.senderDeviceId ?? null,
+            p_recipient_device_id: entry.recipientDeviceId ?? null,
+            p_message_type: entry.messageType,
+            p_payload: payload,
+            p_group_id: null,
+            p_origin_id: null,
           }),
         })
 

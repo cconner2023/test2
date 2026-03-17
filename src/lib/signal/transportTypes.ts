@@ -110,4 +110,8 @@ export interface DecryptedSignalMessage {
   groupId?: string
   /** Shared origin UUID across all fan-out copies (for delete-for-everyone). */
   originId?: string
+  /** Populated on read-sync messages — signals that peer's messages were read on another device. */
+  _readSync?: { peerId: string; messageIds: string[]; readAt: string }
+  /** Present when this message is a delivery receipt (not a user-visible message). */
+  _deliveryReceipt?: { messageIds: string[]; deliveredAt: string }
 }

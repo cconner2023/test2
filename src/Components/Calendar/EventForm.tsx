@@ -1,105 +1,101 @@
-import { useState, useCallback } from 'react'
-import { X } from 'lucide-react'
-import type { EventFormData, EventCategory } from '../../Types/CalendarTypes'
-import { EVENT_CATEGORIES, createEmptyFormData } from '../../Types/CalendarTypes'
+import { useState, useCallback, useImperativeHandle, forwardRef } from 'react'
+import type { EventFormData } from '../../Types/CalendarTypes'
+import { createEmptyFormData } from '../../Types/CalendarTypes'
+import { TextInput } from '../FormInputs'
+
+export interface EventFormHandle {
+  submit: () => void
+}
 
 interface EventFormProps {
   initialData?: EventFormData
   onSave: (data: EventFormData) => void
-  onCancel: () => void
   isEditing?: boolean
 }
 
-export function EventForm({ initialData, onSave, onCancel, isEditing }: EventFormProps) {
-  const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
-  const [errors, setErrors] = useState<Record<string, string>>({})
+export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
+  function EventForm({ initialData, onSave, isEditing }, ref) {
+    const [form, setForm] = useState<EventFormData>(initialData ?? createEmptyFormData())
+    const [errors, setErrors] = useState<Record<string, string>>({})
 
-  const updateField = useCallback(<K extends keyof EventFormData>(key: K, value: EventFormData[K]) => {
-    setForm(prev => ({ ...prev, [key]: value }))
-    setErrors(prev => {
-      const next = { ...prev }
-      delete next[key]
-      return next
-    })
-  }, [])
+    const updateField = useCallback(<K extends keyof EventFormData>(key: K, value: EventFormData[K]) => {
+      setForm(prev => ({ ...prev, [key]: value }))
+      setErrors(prev => {
+        const next = { ...prev }
+        delete next[key]
+        return next
+      })
+    }, [])
 
-  const validate = useCallback((): boolean => {
-    const errs: Record<string, string> = {}
-    if (!form.title.trim()) errs.title = 'Title is required'
-    if (!form.all_day) {
-      if (!form.start_time) errs.start_time = 'Start time is required'
-      if (!form.end_time) errs.end_time = 'End time is required'
-      if (form.start_time && form.end_time && form.start_time >= form.end_time) {
-        errs.end_time = 'End must be after start'
+    const validate = useCallback((): boolean => {
+      const errs: Record<string, string> = {}
+      if (!form.title.trim()) errs.title = 'Title is required'
+      if (!form.all_day) {
+        if (!form.start_time) errs.start_time = 'Start time is required'
+        if (!form.end_time) errs.end_time = 'End time is required'
+        if (form.start_time && form.end_time && form.start_time >= form.end_time) {
+          errs.end_time = 'End must be after start'
+        }
       }
-    }
-    setErrors(errs)
-    return Object.keys(errs).length === 0
-  }, [form])
+      setErrors(errs)
+      return Object.keys(errs).length === 0
+    }, [form])
 
-  const handleSubmit = useCallback(() => {
-    if (validate()) onSave(form)
-  }, [form, validate, onSave])
+    const handleSubmit = useCallback(() => {
+      if (validate()) onSave(form)
+    }, [form, validate, onSave])
 
-  const inputClass = "w-full rounded-lg border border-primary/15 bg-themewhite px-3 py-2.5 text-sm text-primary placeholder:text-tertiary/40 focus:border-themeblue2 focus:outline-none transition-colors"
-  const labelClass = "block text-xs font-medium text-tertiary mb-1"
+    useImperativeHandle(ref, () => ({ submit: handleSubmit }), [handleSubmit])
 
-  return (
-    <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-primary/10">
-        <h2 className="text-base font-semibold text-primary">
-          {isEditing ? 'Edit Event' : 'New Event'}
-        </h2>
-        <button
-          onClick={onCancel}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:bg-primary/5 active:scale-95 transition-all duration-200"
-        >
-          <X size={18} />
-        </button>
-      </div>
-
-      {/* Form body */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
-        {/* Title */}
+    return (
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         <div>
-          <label className={labelClass}>Title</label>
-          <input
-            type="text"
+          <TextInput
+            label="Title"
             value={form.title}
-            onChange={e => updateField('title', e.target.value)}
+            onChange={v => updateField('title', v)}
             placeholder="Event title"
-            className={`${inputClass} ${errors.title ? 'border-themeredred' : ''}`}
-            autoFocus
+            required
           />
           {errors.title && <p className="text-xs text-themeredred mt-1">{errors.title}</p>}
         </div>
 
-        {/* Category */}
         <div>
-          <label className={labelClass}>Category</label>
-          <div className="flex flex-wrap gap-2">
-            {EVENT_CATEGORIES.map(cat => (
-              <button
-                key={cat.value}
-                onClick={() => updateField('category', cat.value as EventCategory)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all duration-200 active:scale-95 ${
-                  form.category === cat.value
-                    ? 'bg-themeblue3 text-white'
-                    : 'bg-primary/5 text-secondary hover:bg-primary/10'
-                }`}
-              >
-                {cat.label}
-              </button>
-            ))}
-          </div>
+          <TextInput
+            label="Start"
+            type="datetime-local"
+            value={form.start_time}
+            onChange={v => updateField('start_time', v)}
+            required={!form.all_day}
+          />
+          {errors.start_time && <p className="text-xs text-themeredred mt-1">{errors.start_time}</p>}
         </div>
 
-        {/* All day toggle */}
+        <div>
+          <TextInput
+            label="End"
+            type="datetime-local"
+            value={form.end_time}
+            onChange={v => updateField('end_time', v)}
+            required={!form.all_day}
+          />
+          {errors.end_time && <p className="text-xs text-themeredred mt-1">{errors.end_time}</p>}
+        </div>
+
         <div className="flex items-center justify-between">
-          <label className="text-sm text-primary">All day</label>
+          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">All day</span>
           <button
-            onClick={() => updateField('all_day', !form.all_day)}
+            onClick={() => {
+              const next = !form.all_day
+              updateField('all_day', next)
+              if (next) {
+                const dateStr = form.start_time.slice(0, 10)
+                if (dateStr) {
+                  updateField('start_time', dateStr + 'T00:00')
+                  updateField('end_time', dateStr + 'T23:59')
+                }
+              }
+            }}
             className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${
               form.all_day ? 'bg-themeblue3' : 'bg-tertiary/30'
             }`}
@@ -110,103 +106,28 @@ export function EventForm({ initialData, onSave, onCancel, isEditing }: EventFor
           </button>
         </div>
 
-        {/* Date/Time */}
-        {!form.all_day ? (
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Start</label>
-              <input
-                type="datetime-local"
-                value={form.start_time}
-                onChange={e => updateField('start_time', e.target.value)}
-                className={`${inputClass} ${errors.start_time ? 'border-themeredred' : ''}`}
-              />
-              {errors.start_time && <p className="text-xs text-themeredred mt-1">{errors.start_time}</p>}
-            </div>
-            <div>
-              <label className={labelClass}>End</label>
-              <input
-                type="datetime-local"
-                value={form.end_time}
-                onChange={e => updateField('end_time', e.target.value)}
-                className={`${inputClass} ${errors.end_time ? 'border-themeredred' : ''}`}
-              />
-              {errors.end_time && <p className="text-xs text-themeredred mt-1">{errors.end_time}</p>}
-            </div>
-          </div>
-        ) : (
-          <div>
-            <label className={labelClass}>Date</label>
-            <input
-              type="date"
-              value={form.start_time.slice(0, 10)}
-              onChange={e => {
-                updateField('start_time', e.target.value + 'T00:00')
-                updateField('end_time', e.target.value + 'T23:59')
-              }}
-              className={inputClass}
-            />
-          </div>
-        )}
+        <TextInput
+          label="Location"
+          value={form.location}
+          onChange={v => updateField('location', v)}
+          placeholder="Building, room, grid coordinate"
+        />
 
-        {/* Location */}
-        <div>
-          <label className={labelClass}>Location</label>
-          <input
-            type="text"
-            value={form.location}
-            onChange={e => updateField('location', e.target.value)}
-            placeholder="Building, room, grid coordinate"
-            className={inputClass}
-          />
-        </div>
-
-        {/* Uniform */}
-        <div>
-          <label className={labelClass}>Uniform</label>
-          <input
-            type="text"
-            value={form.uniform}
-            onChange={e => updateField('uniform', e.target.value)}
-            placeholder="e.g. ACUs, PT Gear"
-            className={inputClass}
-          />
-        </div>
-
-        {/* Report time */}
-        <div>
-          <label className={labelClass}>Report time</label>
-          <input
-            type="text"
-            value={form.report_time}
-            onChange={e => updateField('report_time', e.target.value)}
-            placeholder="e.g. NLT 0630"
-            className={inputClass}
-          />
-        </div>
-
-        {/* Description */}
-        <div>
-          <label className={labelClass}>Description / OPORD Notes</label>
+        <label className="block">
+          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
+            Description / OPORD Notes
+          </span>
           <textarea
             value={form.description}
             onChange={e => updateField('description', e.target.value)}
             placeholder="Additional details, instructions, notes..."
             rows={3}
-            className={`${inputClass} resize-none`}
+            className="mt-1 w-full px-3 py-2.5 rounded-lg text-primary text-base
+                       border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none
+                       transition-all placeholder:text-tertiary/30 resize-none"
           />
-        </div>
+        </label>
       </div>
-
-      {/* Footer */}
-      <div className="px-4 py-3 border-t border-primary/10">
-        <button
-          onClick={handleSubmit}
-          className="w-full py-2.5 rounded-xl bg-themeblue3 text-white text-sm font-semibold active:scale-95 transition-all duration-200"
-        >
-          {isEditing ? 'Save Changes' : 'Create Event'}
-        </button>
-      </div>
-    </div>
-  )
-}
+    )
+  }
+)

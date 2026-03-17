@@ -236,6 +236,29 @@ export async function updateReadAt(
   }
 }
 
+/** Update the delivery status of stored messages. */
+export async function updateMessageStatus(
+  messageIds: string[],
+  status: 'sending' | 'delivered',
+): Promise<void> {
+  try {
+    const db = await getDb()
+    const tx = db.transaction('messages', 'readwrite')
+    await Promise.all(
+      messageIds.map(async (id) => {
+        const msg = await tx.store.get(id)
+        if (msg) {
+          msg.status = status
+          await tx.store.put(msg)
+        }
+      }),
+    )
+    await tx.done
+  } catch (err) {
+    logger.warn('Failed to update message status:', err)
+  }
+}
+
 /** Update the plaintext of a stored message (local-only edit). */
 export async function updateMessageText(
   messageId: string,

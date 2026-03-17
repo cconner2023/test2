@@ -1,12 +1,15 @@
-import { useState, useCallback, useMemo } from 'react'
-import { Clock, Plus, Users2, CalendarDays } from 'lucide-react'
+import { useState, useCallback, useMemo, useRef } from 'react'
+import { Clock, Plus, Users2, CalendarDays, X, Check } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { EventForm } from './EventForm'
+import type { EventFormHandle } from './EventForm'
 import { EventDetailPanel } from './EventDetailPanel'
 import { DayView } from './DayView'
 import { TroopsToTaskView } from './TroopsToTaskView'
 import { InfiniteScrollCalendar } from './InfiniteScrollCalendar'
+import { BaseDrawer } from '../BaseDrawer'
+import { HeaderPill, PillButton } from '../HeaderPill'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
@@ -26,6 +29,7 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
   const [panelView, setPanelView] = useState<PanelView>('calendar')
   const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
+  const eventFormRef = useRef<EventFormHandle>(null)
 
   const { medics: allMedics } = useClinicMedics()
   const { ownClinicMedics } = useClinicGroupedMedics(allMedics)
@@ -157,16 +161,33 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
     setPanelView('calendar')
   }, [selectEvent])
 
-  // ── Sub-views (form / detail) ──
+  // ── Sub-views (form / detail) — desktop: full panel replacement ──
 
-  if (panelView === 'form') {
+  if (!isMobile && panelView === 'form') {
     return (
-      <EventForm
-        initialData={editingEvent ? eventToFormData(editingEvent) : undefined}
-        onSave={handleSaveEvent}
-        onCancel={handleFormCancel}
-        isEditing={!!editingEvent}
-      />
+      <div className="flex flex-col h-full">
+        <div className="flex items-center justify-between px-5 py-3 border-b border-tertiary/10">
+          <h2 className="text-base font-semibold text-primary">
+            {editingEvent ? 'Edit Event' : 'New Event'}
+          </h2>
+          <HeaderPill>
+            <PillButton icon={X} iconSize={18} onClick={handleFormCancel} label="Cancel" />
+            <PillButton
+              icon={Check}
+              iconSize={18}
+              circleBg="bg-themegreen text-white"
+              onClick={() => eventFormRef.current?.submit()}
+              label="Save"
+            />
+          </HeaderPill>
+        </div>
+        <EventForm
+          ref={eventFormRef}
+          initialData={editingEvent ? eventToFormData(editingEvent) : undefined}
+          onSave={handleSaveEvent}
+          isEditing={!!editingEvent}
+        />
+      </div>
     )
   }
 
@@ -182,6 +203,8 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
   }
 
   // ── Calendar views ──
+
+  const showFormDrawer = isMobile && panelView === 'form'
 
   return (
     <div className="relative h-full">
@@ -255,6 +278,38 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
           </button>
         </div>
       </div>
+
+      {/* Mobile form drawer — uses BaseDrawer for consistent animation/drag */}
+      <BaseDrawer
+        isVisible={showFormDrawer}
+        onClose={handleFormCancel}
+        mobileOnly
+        fullHeight="85dvh"
+        zIndex="z-50"
+        header={{
+          title: editingEvent ? 'Edit Event' : 'New Event',
+          rightContent: (
+            <HeaderPill>
+              <PillButton icon={X} iconSize={18} onClick={handleFormCancel} label="Cancel" />
+              <PillButton
+                icon={Check}
+                iconSize={18}
+                circleBg="bg-themegreen text-white"
+                onClick={() => eventFormRef.current?.submit()}
+                label="Save"
+              />
+            </HeaderPill>
+          ),
+          hideDefaultClose: true,
+        }}
+      >
+        <EventForm
+          ref={eventFormRef}
+          initialData={editingEvent ? eventToFormData(editingEvent) : undefined}
+          onSave={handleSaveEvent}
+          isEditing={!!editingEvent}
+        />
+      </BaseDrawer>
     </div>
   )
 }

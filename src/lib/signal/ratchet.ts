@@ -18,6 +18,7 @@ import { uint8ToBase64, base64ToUint8 } from '../../Utilities/textCodec'
 import { SIGNAL } from '../constants'
 import { performDh, importDhPublicKey } from './keyManager'
 import { kdfRootKey, kdfChainKey } from './kdf'
+import { concat } from './cryptoUtils'
 import type { RatchetState, RatchetKeyPair, MessageHeader, EncryptedMessage } from './types'
 
 const logger = createLogger('SignalRatchet')
@@ -102,17 +103,6 @@ function pruneSkippedKeys(
   }
 
   return capped
-}
-
-function concat(...arrays: Uint8Array[]): Uint8Array {
-  const total = arrays.reduce((sum, a) => sum + a.length, 0)
-  const result = new Uint8Array(total)
-  let offset = 0
-  for (const arr of arrays) {
-    result.set(arr, offset)
-    offset += arr.length
-  }
-  return result
 }
 
 /** Generate a fresh ECDH key pair for the DH ratchet. */
@@ -300,7 +290,7 @@ async function skipMessageKeys(
     ...state,
     receivingChainKey: ck,
     receivingCount: nr,
-    skippedKeys: prunedSkipped as RatchetState['skippedKeys'],
+    skippedKeys: prunedSkipped,
   }
 }
 
@@ -422,7 +412,7 @@ export async function ratchetDecrypt(
   const skippedEntry = state.skippedKeys[skipKey]
   if (skippedEntry !== undefined) {
     // Resolve the key, handling both old format (string) and new format ({ key, ts })
-    const resolvedMk = resolveSkippedKey(skippedEntry as string | { key: string; ts: number })
+    const resolvedMk = resolveSkippedKey(skippedEntry)
     if (resolvedMk) {
       const headerBytes = encodeHeader(header)
       const fullAd = concat(ad, headerBytes)

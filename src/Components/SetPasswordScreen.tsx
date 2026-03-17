@@ -40,7 +40,7 @@ export const SetPasswordScreen = ({ mode = 'recovery' }: SetPasswordScreenProps)
     }
 
     // Derive non-extractable backup CryptoKey from new password
-    await deriveAndStoreBackupKey(password)
+    await deriveAndStoreBackupKey(password, user?.id ?? '')
     if (user) {
       const deviceRole = useAuthStore.getState().deviceRole
       if (deviceRole === 'primary') {

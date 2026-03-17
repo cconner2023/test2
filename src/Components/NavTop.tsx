@@ -1,5 +1,5 @@
 // NavTop.tsx - Simplified version with grouped props
-import { Search, X, ChevronLeft, Info, Mail, Upload, BookOpen, Package, ClipboardCheck, UserCog, ChevronDown, CheckCircle, Camera, ImagePlus, Radio, Map } from "lucide-react";
+import { X, ChevronLeft, Info, Mail, Upload, BookOpen, CheckCircle, Camera, ImagePlus } from "lucide-react";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useSpring, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
@@ -7,11 +7,10 @@ import { useAvatar } from "../Utilities/AvatarContext";
 import { useAuth } from "../Hooks/useAuth";
 import { useMessagesContext } from "../Hooks/MessagesContext";
 import { getInitials } from "../Utilities/nameUtils";
-import { PROPERTY_MANAGEMENT_ENABLED, LORA_MESH_ENABLED, MAP_OVERLAY_ENABLED } from "../lib/featureFlags";
 
 export function NavTop({ search, import: importProps, actions, ui }: NavTopProps) {
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
-    const { profile, isAuthenticated, isSupervisorRole, isDevRole } = useAuth()
+    const { profile, isAuthenticated } = useAuth()
     const messagesCtx = useMessagesContext()
     const totalUnread = useMemo(() => {
         if (!messagesCtx) return 0
@@ -33,16 +32,9 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
     const {
         onBackClick,
         onMenuClick,
-        onImportClick,
         onKnowledgeBaseClick,
-        onSettingsClick,
         onInfoClick,
         onMessagesClick,
-        onPropertyClick,
-        onLoRaClick,
-        onMapOverlayClick,
-        onSupervisorClick,
-        onAdminClick,
     } = actions
 
     const {
@@ -51,29 +43,6 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
         isMobile,
         isAlgorithmView = false,
     } = ui
-
-    // Roles dropdown state
-    const [rolesOpen, setRolesOpen] = useState(false)
-    const rolesRef = useRef<HTMLDivElement>(null)
-    const hasAnyRole = isSupervisorRole || isDevRole
-    const hasBothRoles = isSupervisorRole && isDevRole
-
-    // Close roles dropdown on click-away or Escape
-    useEffect(() => {
-        if (!rolesOpen) return
-        const handleClick = (e: MouseEvent) => {
-            if (rolesRef.current && !rolesRef.current.contains(e.target as Node)) setRolesOpen(false)
-        }
-        const handleKey = (e: KeyboardEvent) => {
-            if (e.key === 'Escape') setRolesOpen(false)
-        }
-        document.addEventListener('mousedown', handleClick)
-        document.addEventListener('keydown', handleKey)
-        return () => {
-            document.removeEventListener('mousedown', handleClick)
-            document.removeEventListener('keydown', handleKey)
-        }
-    }, [rolesOpen])
 
     // Refs and computed values
     const internalInputRef = useRef<HTMLInputElement>(null);
@@ -122,16 +91,6 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
 
     // Either search or import can be expanded (mutually exclusive via store)
     const isAnyExpanded = isSearchExpanded || isImportExpanded;
-
-    // Desktop search spring: animates spacer / container flex + overlay reveal
-    const desktopSearchSpring = useSpring({
-        spacerFlex: isAnyExpanded ? 0 : 1,
-        containerFlex: isAnyExpanded ? 1 : 0,
-        overlayOpacity: isSearchExpanded ? 1 : 0,
-        overlayScale: isSearchExpanded ? 1 : 0.97,
-        buttonsOpacity: isAnyExpanded ? 0 : 1,
-        config: { tension: 260, friction: 26 },
-    });
 
     // Desktop import spring
     const desktopImportSpring = useSpring({
@@ -214,7 +173,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
     };
 
     return (
-        <div className={`flex items-center h-full w-full px-2 md:pl-4 transition-all duration-300 md:bg-themewhite bg-transparent`}>
+        <div className={`flex items-center h-full w-full px-2 md:pl-4 transition-all duration-300 md:bg-themewhite bg-transparent relative`}>
             {/* Left section: buttons - hidden when mobile search is expanded */}
             {(!isMobile || !isAnyExpanded) && (
                 <div className="flex items-center shrink-0">
@@ -282,15 +241,15 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                         </div>
                     )}
 
-                    {/* Desktop buttons - avatar + back + roles + knowledgebase + property */}
+                    {/* Desktop: Avatar (opens SideNav) + Back + KB */}
                     {!isMobile && (
                         <div className="flex justify-center items-center shrink-0 gap-2">
-                            {/* Avatar — opens Settings */}
+                            {/* Avatar — opens SideNav */}
                             <button
-                                onClick={onSettingsClick}
+                                onClick={onMenuClick}
                                 className="w-8 h-8 rounded-full overflow-hidden shrink-0 active:scale-95 transition-transform"
-                                aria-label="Profile"
-                                title="Settings"
+                                aria-label="Open menu"
+                                title="Menu"
                             >
                                 {isCustom && customImage ? (
                                     <img src={customImage} alt="Profile" className="w-full h-full object-cover rounded-full" />
@@ -328,67 +287,6 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                     </span>
                                 </button>
                             </animated.div>
-                            {/* Roles — dropdown when both roles, direct button when single */}
-                            {hasAnyRole && (
-                                hasBothRoles ? (
-                                    <div ref={rolesRef} className="relative">
-                                        <button
-                                            onClick={() => setRolesOpen(!rolesOpen)}
-                                            className={BUTTON_CLASSES.desktop}
-                                            aria-label="Roles"
-                                            title="Roles"
-                                        >
-                                            <ClipboardCheck className="w-4 h-4 stroke-themeblue1" />
-                                            <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
-                                                Roles
-                                            </span>
-                                            <ChevronDown className={`w-3 h-3 stroke-themeblue1 ml-1 transition-transform duration-200 ${rolesOpen ? 'rotate-180' : ''}`} />
-                                        </button>
-                                        {rolesOpen && (
-                                            <div className="absolute top-full left-0 mt-1 min-w-[160px] rounded-xl bg-themewhite2 shadow-lg border border-primary/10 py-1 z-50">
-                                                <button
-                                                    onClick={() => { onSupervisorClick?.(); setRolesOpen(false); }}
-                                                    className="w-full text-left flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-primary/5 active:bg-primary/10 transition-colors"
-                                                >
-                                                    <ClipboardCheck className="w-4 h-4 stroke-themeblue1" />
-                                                    <span className="text-[10pt] text-tertiary">Supervisor</span>
-                                                </button>
-                                                <button
-                                                    onClick={() => { onAdminClick?.(); setRolesOpen(false); }}
-                                                    className="w-full text-left flex items-center gap-2.5 px-3.5 py-2.5 hover:bg-primary/5 active:bg-primary/10 transition-colors"
-                                                >
-                                                    <UserCog className="w-4 h-4 stroke-themeblue1" />
-                                                    <span className="text-[10pt] text-tertiary">Admin</span>
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : isSupervisorRole ? (
-                                    <button
-                                        onClick={onSupervisorClick}
-                                        className={BUTTON_CLASSES.desktop}
-                                        aria-label="Supervisor"
-                                        title="Supervisor"
-                                    >
-                                        <ClipboardCheck className="w-4 h-4 stroke-themeblue1" />
-                                        <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
-                                            Supervisor
-                                        </span>
-                                    </button>
-                                ) : (
-                                    <button
-                                        onClick={onAdminClick}
-                                        className={BUTTON_CLASSES.desktop}
-                                        aria-label="Admin"
-                                        title="Admin"
-                                    >
-                                        <UserCog className="w-4 h-4 stroke-themeblue1" />
-                                        <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
-                                            Admin
-                                        </span>
-                                    </button>
-                                )
-                            )}
                             {/* Knowledge Base */}
                             <button
                                 onClick={onKnowledgeBaseClick}
@@ -401,20 +299,6 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                     Knowledge Base
                                 </span>
                             </button>
-                            {/* Property — gated on auth + feature flag */}
-                            {isAuthenticated && PROPERTY_MANAGEMENT_ENABLED && (
-                                <button
-                                    onClick={onPropertyClick}
-                                    className={BUTTON_CLASSES.desktop}
-                                    aria-label="Property Book"
-                                    title="Property Book"
-                                >
-                                    <Package className="w-4 h-4 stroke-themeblue1" />
-                                    <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
-                                        Property
-                                    </span>
-                                </button>
-                            )}
                         </div>
                     )}
                 </div>
@@ -562,117 +446,63 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                 </div>
             )}
 
-            {/* Desktop spacer — spring-animated to collapse when search expands */}
+            {/* Desktop: Search + Import + Messages — wrapped so import overlay covers search area */}
             {!isMobile && (
-                <animated.div className="min-w-0" style={{ flexGrow: desktopSearchSpring.spacerFlex }} />
-            )}
-
-            {/* Right container - Desktop only (Import, Messages, Search) */}
-            {!isMobile && (
-                <animated.div
-                    className="relative flex items-center min-w-0 ml-3"
-                    style={{ flexGrow: desktopSearchSpring.containerFlex, flexShrink: 0 }}
-                >
-                    {/* Buttons row — always laid out for stable width, fades out when search expands */}
-                    <animated.div
-                        className="flex items-center gap-2"
-                        style={{ opacity: desktopSearchSpring.buttonsOpacity }}
-                    >
-                        {/* Import button — expands inline on desktop */}
-                        <button
-                            onClick={onImportExpandToggle}
-                            className={BUTTON_CLASSES.desktop}
-                            aria-label="Import note"
-                            title="Import note"
-                        >
-                            <Upload className="w-4 h-4 stroke-themeblue1" />
-                            <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
-                                Import Note
-                            </span>
-                        </button>
-
-                        {/* LoRa — icon only, gated on auth + feature flag */}
-                        {isAuthenticated && (LORA_MESH_ENABLED || isDevRole) && (
-                            <button
-                                onClick={onLoRaClick}
-                                className={BUTTON_CLASSES.desktop}
-                                aria-label="WhisperNet"
-                                title="WhisperNet"
-                            >
-                                <Radio className="w-4 h-4 stroke-themeblue1" />
-                            </button>
-                        )}
-
-                        {/* Map Overlay — icon only, gated on auth + feature flag */}
-                        {isAuthenticated && (MAP_OVERLAY_ENABLED || isDevRole) && (
-                            <button
-                                onClick={onMapOverlayClick}
-                                className={BUTTON_CLASSES.desktop}
-                                aria-label="Map Overlay"
-                                title="Map Overlay"
-                            >
-                                <Map className="w-4 h-4 stroke-themeblue1" />
-                            </button>
-                        )}
-
-                        {/* Messages — icon only, gated on auth, with unread badge */}
-                        {isAuthenticated && (
-                            <button
-                                onClick={onMessagesClick}
-                                className={`${BUTTON_CLASSES.desktop} relative`}
-                                aria-label="Messages"
-                                title="Messages"
-                            >
-                                <Mail className="w-4 h-4 stroke-themeblue1" />
-                                {totalUnread > 0 && (
-                                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[10px] font-bold leading-none">
-                                        {totalUnread > 99 ? '99+' : totalUnread}
-                                    </span>
-                                )}
-                            </button>
-                        )}
-
-                        {/* Search toggle */}
-                        <button
-                            onClick={() => { onSearchExpandToggle?.(); onSearchFocus?.(); }}
-                            className={BUTTON_CLASSES.desktop}
-                            aria-label="Search"
-                            title="Search"
-                        >
-                            <Search className="w-4 h-4 stroke-themeblue1" />
-                        </button>
-                    </animated.div>
-
-                    {/* Search overlay — spring-animated over sibling buttons */}
-                    <animated.div
-                        className="absolute inset-0 z-10 flex items-center bg-themewhite"
-                        style={{
-                            opacity: desktopSearchSpring.overlayOpacity,
-                            transform: desktopSearchSpring.overlayScale.to(s => `scale(${s})`),
-                            pointerEvents: isSearchExpanded ? 'auto' : 'none',
-                        }}
-                    >
-                        <div className="flex items-center w-full rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite">
+                <div className="flex-1 min-w-0 flex items-center gap-2 ml-4 mr-2 relative">
+                    {/* Persistent search input */}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center w-full rounded-full border border-themeblue3/20 shadow-xs focus-within:border-themeblue1/40 focus-within:bg-themewhite2 bg-themewhite transition-all duration-300">
                             <input
                                 ref={inputRef}
                                 type="search"
-                                placeholder="search"
+                                placeholder="Search"
                                 value={searchInput}
                                 onChange={(e) => onSearchChange(e.target.value)}
                                 onFocus={handleSearchFocus}
-                                onBlur={handleSearchBlur}
-                                className="text-tertiary bg-transparent outline-none text-[16px] w-full px-4 py-2 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
+                                className="text-tertiary bg-transparent outline-none text-sm w-full px-4 py-1.5 rounded-l-full min-w-0 [&::-webkit-search-cancel-button]:hidden"
                             />
-                            <div
-                                className="flex items-center justify-center px-2 py-2 bg-themewhite2 stroke-themeblue3 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
-                                onClick={() => handleClearSearch(!hasSearchInput)}
-                            >
-                                <X className="w-5 h-5 stroke-themeblue1" />
-                            </div>
+                            {hasSearchInput && (
+                                <div
+                                    className="flex items-center justify-center pr-2 cursor-pointer shrink-0"
+                                    onClick={() => handleClearSearch(false)}
+                                >
+                                    <X className="w-4 h-4 stroke-tertiary/50 hover:stroke-tertiary" />
+                                </div>
+                            )}
                         </div>
-                    </animated.div>
+                    </div>
 
-                    {/* Import overlay — spring-animated over sibling buttons */}
+                    {/* Import button */}
+                    <button
+                        onClick={onImportExpandToggle}
+                        className={`${BUTTON_CLASSES.desktop} shrink-0`}
+                        aria-label="Import note"
+                        title="Import note"
+                    >
+                        <Upload className="w-4 h-4 stroke-themeblue1" />
+                        <span className="hidden lg:inline text-[10pt] text-tertiary ml-2">
+                            Import
+                        </span>
+                    </button>
+
+                    {/* Messages — gated on auth, with unread badge */}
+                    {isAuthenticated && (
+                        <button
+                            onClick={onMessagesClick}
+                            className={`${BUTTON_CLASSES.desktop} relative shrink-0`}
+                            aria-label="Messages"
+                            title="Messages"
+                        >
+                            <Mail className="w-4 h-4 stroke-themeblue1" />
+                            {totalUnread > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[10px] font-bold leading-none">
+                                    {totalUnread > 99 ? '99+' : totalUnread}
+                                </span>
+                            )}
+                        </button>
+                    )}
+
+                    {/* Import overlay — covers search + buttons */}
                     <animated.div
                         className="absolute inset-0 z-10 flex items-center bg-themewhite"
                         style={{
@@ -683,7 +513,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                     >
                         <form
                             onSubmit={(e) => { e.preventDefault(); handleImportSubmit(); }}
-                            className="flex items-center w-full rounded-full border border-themeblue3/10 shadow-xs focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite"
+                            className="flex items-center w-full rounded-full border border-themeblue3/20 shadow-xs focus-within:border-themeblue1/40 focus-within:bg-themewhite2 bg-themewhite transition-all duration-300"
                         >
                             <div className="flex items-center gap-0.5 pl-2 shrink-0 text-tertiary/40">
                                 <button
@@ -740,7 +570,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                             </div>
                         </form>
                     </animated.div>
-                </animated.div>
+                </div>
             )}
         </div>
     );

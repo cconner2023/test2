@@ -11,7 +11,7 @@ import type { SearchResultType } from './Types/CatTypes'
 import { useSearch } from './Hooks/useSearch'
 import { useNavigation } from './Hooks/useNavigation'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
-import { useMenuSlide, MENU_NAV_WIDTH } from './Hooks/useMenuSlide'
+import { useMenuSlide, MENU_NAV_WIDTH_MOBILE, MENU_NAV_WIDTH_DESKTOP } from './Hooks/useMenuSlide'
 import { useMessagesSlide } from './Hooks/useMessagesSlide'
 import UpdateNotification from './Components/UpdateNotification'
 import InstallPrompt from './Components/InstallPrompt'
@@ -79,14 +79,17 @@ function AppContent() {
   const avatarState = useProfileAvatar(user?.id)
   const tc3Mode = useAuthStore((s) => s.profile.tc3Mode) ?? false
 
-  // ── Menu slide gesture (mobile only) ──
+  // ── Menu slide (mobile: swipe + click, desktop: click-only) ──
+  const menuNavWidth = navigation.isMobile ? MENU_NAV_WIDTH_MOBILE : MENU_NAV_WIDTH_DESKTOP
   const menuSlide = useMenuSlide({
-    enabled: navigation.isMobile,
+    enabled: true,
     isOpen: navigation.isMenuOpen,
     onOpen: useCallback(() => {
       if (!navigation.isMenuOpen) navigation.toggleMenu()
     }, [navigation.isMenuOpen, navigation.toggleMenu]),
     onClose: navigation.closeMenu,
+    width: menuNavWidth,
+    disableGestures: !navigation.isMobile,
   })
 
   // ── Settings/training targeting state (lightweight replacement for useActiveNote) ──
@@ -420,24 +423,25 @@ function AppContent() {
         {/* Viewport strip — SideNav + content side by side, pans to reveal nav or shift for messages */}
         <animated.div
           className="flex h-full"
-          style={navigation.isMobile ? {
-            width: `calc(100% + ${MENU_NAV_WIDTH}px)`,
-            transform: to(
-              [menuSlide.springX, messagesSlide.springProgress],
-              (menuX, msgP) => `translateX(${menuX - MENU_NAV_WIDTH - msgP * 80}px)`
-            ),
+          style={{
+            width: `calc(100% + ${menuNavWidth}px)`,
+            transform: navigation.isMobile
+              ? to(
+                  [menuSlide.springX, messagesSlide.springProgress],
+                  (menuX, msgP) => `translateX(${menuX - menuNavWidth - msgP * 80}px)`
+                )
+              : menuSlide.springX.to((x: number) => `translateX(${x - menuNavWidth}px)`),
             willChange: 'transform',
-          } : { width: '100%' }}
+          }}
         >
           {/* SideNav — same level, left of content */}
-          {navigation.isMobile && (
-            <div className="h-full shrink-0" style={{ width: MENU_NAV_WIDTH }}>
-              <SideNav
-                onClose={navigation.closeMenu}
-                onMenuItemClick={handleMenuItemClick}
-              />
-            </div>
-          )}
+          <div className="h-full shrink-0" style={{ width: menuNavWidth }}>
+            <SideNav
+              onClose={navigation.closeMenu}
+              onMenuItemClick={handleMenuItemClick}
+              isMobile={navigation.isMobile}
+            />
+          </div>
 
           {/* Content — takes full viewport width */}
           <div className="flex flex-col h-full flex-1 min-w-0 relative">
@@ -469,16 +473,9 @@ function AppContent() {
               actions={{
                 onBackClick: handleBackClick,
                 onMenuClick: navigation.toggleMenu,
-                onImportClick: () => navigation.setShowNoteImport(true),
                 onKnowledgeBaseClick: handleKnowledgeBaseClick,
-                onSettingsClick: () => navigation.setShowSettings(true),
                 onInfoClick: navigation.toggleSymptomInfo,
                 onMessagesClick: handleMessagesClick,
-                onPropertyClick: handlePropertyClick,
-                onSupervisorClick: handleSupervisorClick,
-                onAdminClick: handleAdminClick,
-                onLoRaClick: handleLoRaClick,
-                onMapOverlayClick: handleMapOverlayClick,
               }}
               ui={{
                 showBack: navigation.shouldShowBackButton(!!search.searchInput.trim()),
@@ -557,17 +554,16 @@ function AppContent() {
           </div>
 
           {/* Menu backdrop — overlays content when menu is open, handles tap/drag to close */}
-          {navigation.isMobile && (
-            <animated.div
-              className="absolute inset-0 z-40 bg-black"
-              style={{
-                opacity: menuSlide.backdropOpacity,
-                pointerEvents: navigation.isMenuOpen ? 'auto' : 'none',
-                touchAction: navigation.isMenuOpen ? 'none' : 'auto',
-              }}
-              {...menuSlide.closeHandlers}
-            />
-          )}
+          <animated.div
+            className="absolute inset-0 z-40 bg-black"
+            style={{
+              opacity: menuSlide.backdropOpacity,
+              pointerEvents: navigation.isMenuOpen ? 'auto' : 'none',
+              touchAction: navigation.isMenuOpen ? 'none' : 'auto',
+            }}
+            onClick={navigation.isMobile ? undefined : navigation.closeMenu}
+            {...(navigation.isMobile ? menuSlide.closeHandlers : {})}
+          />
 
           {/* Messages backdrop — overlays content when messages is open */}
           {navigation.isMobile && (

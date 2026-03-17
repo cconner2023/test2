@@ -60,7 +60,7 @@ export function markHydrationComplete(): void {
 }
 
 /** Max time (ms) from first unsaved change before a backup is forced. */
-const BACKUP_MAX_WAIT_MS = 10_000
+const BACKUP_MAX_WAIT_MS = 30_000
 /** Periodic backup interval (ms). */
 const BACKUP_PERIODIC_MS = 60_000
 
@@ -69,6 +69,8 @@ const BACKUP_PERIODIC_MS = 60_000
 const BACKUP_KEY_DB = 'adtmc-backup-key'
 const BACKUP_KEY_STORE = 'keys'
 const BACKUP_KEY_ID = 'master'
+/** IDB key for the legacy salt-only derived key, kept until migration succeeds. */
+const BACKUP_KEY_LEGACY_ID = 'master-legacy'
 
 function openKeyDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -110,7 +112,43 @@ async function clearKeyFromIdb(): Promise<void> {
   const db = await openKeyDb()
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(BACKUP_KEY_STORE, 'readwrite')
-    tx.objectStore(BACKUP_KEY_STORE).delete(BACKUP_KEY_ID)
+    const store = tx.objectStore(BACKUP_KEY_STORE)
+    store.delete(BACKUP_KEY_ID)
+    store.delete(BACKUP_KEY_LEGACY_ID)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
+}
+
+async function persistLegacyKeyToIdb(key: CryptoKey): Promise<void> {
+  const db = await openKeyDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(BACKUP_KEY_STORE, 'readwrite')
+    tx.objectStore(BACKUP_KEY_STORE).put(key, BACKUP_KEY_LEGACY_ID)
+    tx.oncomplete = () => resolve()
+    tx.onerror = () => reject(tx.error)
+  })
+  db.close()
+}
+
+async function loadLegacyKeyFromIdb(): Promise<CryptoKey | null> {
+  const db = await openKeyDb()
+  const key = await new Promise<CryptoKey | null>((resolve, reject) => {
+    const tx = db.transaction(BACKUP_KEY_STORE, 'readonly')
+    const req = tx.objectStore(BACKUP_KEY_STORE).get(BACKUP_KEY_LEGACY_ID)
+    req.onsuccess = () => resolve((req.result as CryptoKey) ?? null)
+    req.onerror = () => reject(req.error)
+  })
+  db.close()
+  return key
+}
+
+async function clearLegacyKeyFromIdb(): Promise<void> {
+  const db = await openKeyDb()
+  await new Promise<void>((resolve, reject) => {
+    const tx = db.transaction(BACKUP_KEY_STORE, 'readwrite')
+    tx.objectStore(BACKUP_KEY_STORE).delete(BACKUP_KEY_LEGACY_ID)
     tx.oncomplete = () => resolve()
     tx.onerror = () => reject(tx.error)
   })
@@ -123,10 +161,21 @@ async function clearKeyFromIdb(): Promise<void> {
  * Derive a non-extractable AES-256-GCM CryptoKey from the password and cache it.
  * The plaintext password is never stored; it goes out of scope in the caller.
  * The derived CryptoKey is persisted to IndexedDB so it survives page refreshes.
+ *
+ * The userId is mixed into the salt so different users with the same password
+ * derive distinct keys. The fixed BACKUP_MASTER_SALT is preserved as a prefix
+ * for backward-compatibility detection in restoreBackup.
  */
-export function deriveAndStoreBackupKey(password: string): Promise<void> {
+export function deriveAndStoreBackupKey(password: string, userId: string): Promise<void> {
   _backupKeyReady = (async () => {
     const enc = new TextEncoder()
+
+    // Per-user salt: fixed prefix + userId bytes
+    const userSaltBytes = enc.encode(userId)
+    const combinedSalt = new Uint8Array(BACKUP_MASTER_SALT.length + userSaltBytes.length)
+    combinedSalt.set(BACKUP_MASTER_SALT)
+    combinedSalt.set(userSaltBytes, BACKUP_MASTER_SALT.length)
+
     const keyMaterial = await crypto.subtle.importKey(
       'raw',
       enc.encode(password),
@@ -137,7 +186,7 @@ export function deriveAndStoreBackupKey(password: string): Promise<void> {
     _backupKey = await crypto.subtle.deriveKey(
       {
         name: 'PBKDF2',
-        salt: BACKUP_MASTER_SALT as BufferSource,
+        salt: combinedSalt as BufferSource,
         iterations: SIGNAL.BACKUP_PBKDF2_ITERATIONS,
         hash: 'SHA-256',
       },
@@ -149,8 +198,42 @@ export function deriveAndStoreBackupKey(password: string): Promise<void> {
     persistKeyToIdb(_backupKey).catch(() =>
       logger.warn('Failed to persist backup key to IDB')
     )
+    // Also derive and persist the legacy key (no userId) so restoreBackup can
+    // fall back to it when decrypting backups created before this change.
+    deriveLegacyBackupKey(password).then(legacyKey =>
+      persistLegacyKeyToIdb(legacyKey).catch(() =>
+        logger.warn('Failed to persist legacy backup key to IDB')
+      )
+    ).catch(() => {})
   })()
   return _backupKeyReady
+}
+
+/**
+ * Derive a legacy backup key using only the fixed BACKUP_MASTER_SALT (no userId).
+ * Used internally by restoreBackup to migrate existing backups to the new format.
+ */
+async function deriveLegacyBackupKey(password: string): Promise<CryptoKey> {
+  const enc = new TextEncoder()
+  const keyMaterial = await crypto.subtle.importKey(
+    'raw',
+    enc.encode(password),
+    'PBKDF2',
+    false,
+    ['deriveKey'],
+  )
+  return crypto.subtle.deriveKey(
+    {
+      name: 'PBKDF2',
+      salt: BACKUP_MASTER_SALT as BufferSource,
+      iterations: SIGNAL.BACKUP_PBKDF2_ITERATIONS,
+      hash: 'SHA-256',
+    },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt'],
+  )
 }
 
 /** Wipe cached key, detach callbacks, stop all timers (called on sign-out). */
@@ -379,7 +462,23 @@ export async function restoreBackup(userId: string): Promise<void> {
       return
     }
 
-    const compressed = await decryptWithKey(data.ciphertext, _backupKey)
+    // Try primary (per-user) key first, then fall back to legacy key.
+    let compressed: Uint8Array
+    let usedLegacyKey = false
+    try {
+      compressed = await decryptWithKey(data.ciphertext, _backupKey)
+    } catch {
+      // Primary key failed — attempt legacy key (backup encrypted before userId salt)
+      const legacyKey = await loadLegacyKeyFromIdb().catch(() => null)
+      if (!legacyKey) {
+        logger.warn('Backup restore failed: primary key failed and no legacy key available')
+        return
+      }
+      compressed = await decryptWithKey(data.ciphertext, legacyKey)
+      usedLegacyKey = true
+      logger.info('Restored backup using legacy key — will re-encrypt with current key')
+    }
+
     const json = new TextDecoder().decode(inflateRaw(compressed))
     const payload: BackupPayload = JSON.parse(json)
 
@@ -398,6 +497,12 @@ export async function restoreBackup(userId: string): Promise<void> {
 
     if (restored > 0) {
       window.dispatchEvent(new CustomEvent('backup-restored'))
+    }
+
+    // Migration: re-encrypt with the current (per-user) key and clear legacy key slot.
+    if (usedLegacyKey) {
+      createBackup(userId).catch(() => {})
+      clearLegacyKeyFromIdb().catch(() => {})
     }
   } catch (err) {
     logger.warn('Backup restore failed:', err)

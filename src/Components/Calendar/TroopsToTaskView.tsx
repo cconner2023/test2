@@ -82,10 +82,10 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent }: Troops
   const MIN_ROW_HEIGHT = 64
 
   return (
-    <div className="h-full overflow-auto">
+    <div className="h-full min-w-0 overflow-auto">
       <div className="grid min-h-full" style={{ minWidth: totalWidth, gridTemplateRows: `auto repeat(${medics.length + (unassignedEvents.length > 0 ? 1 : 0)}, 1fr) auto` }}>
           {/* Time header */}
-          <div className="sticky top-0 z-10 flex items-end bg-themewhite3 border-b border-primary/10">
+          <div className="sticky top-0 z-10 flex items-end backdrop-blur-xs bg-transparent border-b border-primary/10">
             <div className="shrink-0 border-r border-primary/10 px-2 py-1.5" style={{ width: NAME_COL_WIDTH }}>
               <span className="text-[10px] font-semibold text-tertiary/50 uppercase">Personnel</span>
             </div>

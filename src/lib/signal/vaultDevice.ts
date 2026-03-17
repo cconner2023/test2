@@ -642,6 +642,14 @@ export async function processVaultMessages(userId: string): Promise<number> {
 
       // Handle sync messages
       if (row.message_type === 'sync') {
+        try {
+          const maybeSyncType = JSON.parse(plaintext) as Record<string, unknown>
+          if (maybeSyncType.__syncType === 'read') {
+            processedIds.push(row.id)
+            processedCount++
+            continue
+          }
+        } catch { /* not a read-sync, proceed as normal sync */ }
         const sync = JSON.parse(plaintext) as SyncMessagePayload
         const { plaintext: syncText, content: syncContent, replyTo: syncReply } = parseMessageContent(sync.serialized)
         const syncMsg: DecryptedSignalMessage = {
@@ -657,7 +665,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
           ...(sync.forGroupId && { groupId: sync.forGroupId }),
           originId: sync.originId ?? row.origin_id ?? undefined,
         }
-        await saveMessage(syncMsg.id, senderUuid, syncMsg)
+        await saveMessage(syncMsg, userId)
       } else if (row.message_type === 'delete') {
         try {
           const { originIds } = JSON.parse(plaintext) as { originIds: string[] }
@@ -677,7 +685,7 @@ export async function processVaultMessages(userId: string): Promise<number> {
           ...(row.group_id && { groupId: row.group_id }),
           originId: row.origin_id ?? undefined,
         }
-        await saveMessage(msg.id, senderUuid, msg)
+        await saveMessage(msg, userId)
       }
 
       processedIds.push(row.id)
@@ -761,8 +769,8 @@ async function rotateVaultSignedPreKey(
       ptBytes
     )
 
-    // Update vault_device_keys
-    await supabase
+    // Update vault_device_keys with OCC — version must match to prevent silent overwrites
+    const { data: rotateData, error: rotateError } = await supabase
       .from('vault_device_keys')
       .update({
         encrypted_blob: uint8ToBase64(new Uint8Array(ciphertext)),
@@ -771,6 +779,13 @@ async function rotateVaultSignedPreKey(
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId)
+      .eq('version', vaultRow.version)
+      .select('id')
+
+    if (rotateError || !rotateData?.length) {
+      logger.warn('Vault update conflict — another device won the race, skipping')
+      return
+    }
 
     // Update public bundle with new SPK
     await supabase
@@ -854,7 +869,7 @@ async function replenishVaultPreKeys(
       ptBytes
     )
 
-    await supabase
+    const { data: replenishData, error: replenishError } = await supabase
       .from('vault_device_keys')
       .update({
         encrypted_blob: uint8ToBase64(new Uint8Array(ciphertext)),
@@ -863,6 +878,13 @@ async function replenishVaultPreKeys(
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', userId)
+      .eq('version', latestRow.version)
+      .select('id')
+
+    if (replenishError || !replenishData?.length) {
+      logger.warn('Vault update conflict — another device won the race, skipping')
+      return
+    }
 
     // Update the signal_key_bundles one_time_pre_keys with remaining + new
     const allPublicOtps = [

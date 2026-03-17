@@ -185,7 +185,48 @@ export async function generateLocalIdentity(): Promise<StoredLocalIdentity> {
   await store.saveLocalIdentity(identity)
   cachedIdentity = identity
 
+  // Dual-persist deviceId to localStorage as backup against iOS IDB eviction
+  try { localStorage.setItem('adtmc_device_id', identity.deviceId) } catch { /* ignore */ }
+
   logger.info('Local identity generated and stored')
+  return identity
+}
+
+/**
+ * Generate a new identity but reuse an existing deviceId.
+ * Used when IDB was evicted by iOS but we recovered the deviceId from localStorage.
+ * New crypto keys are generated (old ones are unrecoverable), but the deviceId
+ * is preserved so the server-side device registration stays intact.
+ */
+async function generateLocalIdentityWithDeviceId(deviceId: string): Promise<StoredLocalIdentity> {
+  logger.info('Generating new identity keys with recovered deviceId')
+
+  const [signingPair, dhPair] = await Promise.all([
+    generateSigningKeyPair(),
+    generateDhKeyPair(),
+  ])
+
+  const [signingPubBase64, dhPubBase64] = await Promise.all([
+    exportPublicKey(signingPair.publicKey, 'spki'),
+    exportPublicKey(dhPair.publicKey, 'raw'),
+  ])
+
+  const identity: StoredLocalIdentity = {
+    deviceId,
+    signingPublicKey: signingPair.publicKey,
+    signingPrivateKey: signingPair.privateKey,
+    dhPublicKey: dhPair.publicKey,
+    dhPrivateKey: dhPair.privateKey,
+    signingPublicKeyBase64: signingPubBase64,
+    dhPublicKeyBase64: dhPubBase64,
+    nextPreKeyId: 1,
+    createdAt: new Date().toISOString(),
+  }
+
+  await store.saveLocalIdentity(identity)
+  cachedIdentity = identity
+
+  logger.info('Identity regenerated with recovered deviceId')
   return identity
 }
 
@@ -202,10 +243,27 @@ export async function ensureLocalIdentity(): Promise<StoredLocalIdentity> {
       existing.deviceId = crypto.randomUUID()
       await store.saveLocalIdentity(existing)
       cachedIdentity = existing
+      try { localStorage.setItem('adtmc_device_id', existing.deviceId) } catch { /* ignore */ }
       logger.info('Backfilled deviceId on existing identity')
     }
+    // Ensure localStorage backup is in sync
+    try {
+      if (localStorage.getItem('adtmc_device_id') !== existing.deviceId) {
+        localStorage.setItem('adtmc_device_id', existing.deviceId)
+      }
+    } catch { /* ignore */ }
     return existing
   }
+
+  // IDB identity is gone (iOS eviction). Try to recover deviceId from localStorage
+  // so we re-register with the same deviceId and keep our primary device status.
+  const fallbackDeviceId = localStorage.getItem('adtmc_device_id')
+  if (fallbackDeviceId) {
+    logger.info('IDB identity lost — recovering deviceId from localStorage backup')
+    const recovered = await generateLocalIdentityWithDeviceId(fallbackDeviceId)
+    return recovered
+  }
+
   return generateLocalIdentity()
 }
 
@@ -214,7 +272,9 @@ export async function ensureLocalIdentity(): Promise<StoredLocalIdentity> {
  */
 export async function getLocalDeviceId(): Promise<string | null> {
   const identity = await getLocalIdentity()
-  return identity?.deviceId ?? null
+  if (identity?.deviceId) return identity.deviceId
+  // Fallback: recover from localStorage if IDB was evicted
+  return localStorage.getItem('adtmc_device_id')
 }
 
 // ---- Pre-Key Management ----
@@ -510,5 +570,6 @@ export async function clearSignalKeys(): Promise<void> {
 export async function destroySignalKeys(): Promise<void> {
   cachedIdentity = null
   await store.destroySignalStore()
+  try { localStorage.removeItem('adtmc_device_id') } catch { /* ignore */ }
   logger.info('Destroyed all signal key material')
 }

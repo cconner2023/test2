@@ -130,7 +130,7 @@ export interface RatchetState {
   previousSendingCount: number
   /** Skipped message keys for out-of-order delivery.
    *  Key format: `${dhPublicKeyBase64}:${messageNumber}` → message key base64. */
-  skippedKeys: Record<string, string>
+  skippedKeys: Record<string, string | { key: string; ts: number }>
 }
 
 /** An established session between us and a peer, persisted in IndexedDB. */

@@ -54,6 +54,19 @@ function makeSessionKey(peerId: string, peerDeviceId: string): string {
 
 const sessionCache = new Map<string, StoredSession>()
 
+const sessionLocks = new Map<string, Promise<void>>()
+
+function withSessionLock<T>(sessionKey: string, fn: () => Promise<T>): Promise<T> {
+  const prev = sessionLocks.get(sessionKey) ?? Promise.resolve()
+  let release!: () => void
+  const next = new Promise<void>((resolve) => { release = resolve })
+  sessionLocks.set(sessionKey, next)
+  return prev.then(() => fn()).finally(() => {
+    if (sessionLocks.get(sessionKey) === next) sessionLocks.delete(sessionKey)
+    release()
+  })
+}
+
 async function getSession(peerId: string, peerDeviceId: string): Promise<StoredSession | null> {
   const key = makeSessionKey(peerId, peerDeviceId)
   const cached = sessionCache.get(key)
@@ -206,32 +219,34 @@ export async function encryptMessage(
   senderUuid: string
 ): Promise<SealedEnvelope> {
   const identity = await ensureLocalIdentity()
-  const session = await getSession(peerId, peerDeviceId)
-  if (!session) {
-    throw new Error(`No session with peer ${peerId} device ${peerDeviceId}`)
-  }
+  return withSessionLock(makeSessionKey(peerId, peerDeviceId), async () => {
+    const session = await getSession(peerId, peerDeviceId)
+    if (!session) {
+      throw new Error(`No session with peer ${peerId} device ${peerDeviceId}`)
+    }
 
-  if (!session.peerIdentityDhKey) {
-    throw new Error(`Session with ${peerId}:${peerDeviceId} has no peerIdentityDhKey — re-initiate session`)
-  }
+    if (!session.peerIdentityDhKey) {
+      throw new Error(`Session with ${peerId}:${peerDeviceId} has no peerIdentityDhKey — re-initiate session`)
+    }
 
-  const ad = base64ToUint8(session.associatedData)
-  const plaintextBytes = new TextEncoder().encode(plaintext)
-  const { state, message } = await ratchetEncrypt(session.state, plaintextBytes, ad)
+    const ad = base64ToUint8(session.associatedData)
+    const plaintextBytes = new TextEncoder().encode(plaintext)
+    const { state, message } = await ratchetEncrypt(session.state, plaintextBytes, ad)
 
-  await persistSession({
-    ...session,
-    state,
-    updatedAt: new Date().toISOString(),
+    await persistSession({
+      ...session,
+      state,
+      updatedAt: new Date().toISOString(),
+    })
+
+    return seal(
+      message as unknown as Record<string, unknown>,
+      senderUuid,
+      identity,
+      peerId,
+      session.peerIdentityDhKey
+    )
   })
-
-  return seal(
-    message as unknown as Record<string, unknown>,
-    senderUuid,
-    identity,
-    peerId,
-    session.peerIdentityDhKey
-  )
 }
 
 // ---- Unified Inbound Handler ----
@@ -261,98 +276,90 @@ export async function processIncomingMessage(
     identity.dhPublicKeyBase64
   )
 
-  // Store peer's identity keys for future trust verification
-  const trustStatus = await storePeerIdentity(
-    senderUuid,
-    senderDeviceId,
-    cert.senderIdentitySigningKey,
-    cert.senderIdentityDhKey
-  )
-
-  let identityKeyChanged = false
-  if (trustStatus === 'changed') {
-    logger.warn(
-      `WARNING: Identity key changed for peer ${senderUuid} device ${senderDeviceId} ` +
-      `during incoming message processing. The peer may have reinstalled or this ` +
-      `could indicate a security issue.`
-    )
-    identityKeyChanged = true
-  }
-
-  // Dispatch based on inner payload type
-  if ('identitySigningKey' in inner) {
-    // X3DH initial message (first contact)
-    const initial = inner as unknown as InitialMessage
-
-    // Load signed pre-key
-    const signedPreKey = await store.loadSignedPreKey(initial.signedPreKeyId)
-    if (!signedPreKey) {
-      throw new Error(`Signed pre-key ${initial.signedPreKeyId} not found`)
-    }
-
-    // Load and consume one-time pre-key if used
-    let oneTimePreKeyPair = null
-    if (initial.oneTimePreKeyId !== null) {
-      const otpk = await consumePreKey(initial.oneTimePreKeyId)
-      if (otpk) oneTimePreKeyPair = { publicKey: otpk.publicKey, privateKey: otpk.privateKey }
-    }
-
-    // X3DH responder
-    const x3dh = await x3dhRespond(
-      identity,
-      { publicKey: signedPreKey.publicKey, privateKey: signedPreKey.privateKey },
-      oneTimePreKeyPair,
-      initial.identityDhKey,
-      initial.ephemeralKey
+  return withSessionLock(makeSessionKey(senderUuid, senderDeviceId), async () => {
+    const trustStatus = await storePeerIdentity(
+      senderUuid,
+      senderDeviceId,
+      cert.senderIdentitySigningKey,
+      cert.senderIdentityDhKey
     )
 
-    // Initialize receiver ratchet
-    const ratchetState = await initReceiver(x3dh.sharedSecret, {
-      publicKey: signedPreKey.publicKey,
-      privateKey: signedPreKey.privateKey,
-      publicKeyBase64: signedPreKey.publicKeyBase64,
-    })
-
-    // Decrypt first message
-    const { state, plaintext } = await ratchetDecrypt(ratchetState, initial.message, x3dh.associatedData)
-
-    // Persist session WITH peerIdentityDhKey
-    const sessionKey = makeSessionKey(senderUuid, senderDeviceId)
-    const session: StoredSession = {
-      peerId: senderUuid,
-      peerDeviceId: senderDeviceId,
-      sessionKey,
-      state,
-      associatedData: uint8ToBase64(x3dh.associatedData),
-      peerIdentityDhKey: initial.identityDhKey,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    }
-    await persistSession(session)
-
-    logger.info(`Inbound session created with peer ${senderUuid} device ${senderDeviceId}`)
-    return { plaintext: new TextDecoder().decode(plaintext), senderUuid, identityKeyChanged }
-
-  } else {
-    // Double Ratchet message (established session)
-    const encMsg = inner as unknown as EncryptedMessage
-
-    const session = await getSession(senderUuid, senderDeviceId)
-    if (!session) {
-      throw new Error(`No session with ${senderUuid}:${senderDeviceId}`)
+    let identityKeyChanged = false
+    if (trustStatus === 'changed') {
+      logger.warn(
+        `WARNING: Identity key changed for peer ${senderUuid} device ${senderDeviceId} ` +
+        `during incoming message processing. The peer may have reinstalled or this ` +
+        `could indicate a security issue.`
+      )
+      identityKeyChanged = true
     }
 
-    const ad = base64ToUint8(session.associatedData)
-    const { state, plaintext } = await ratchetDecrypt(session.state, encMsg, ad)
+    if ('identitySigningKey' in inner) {
+      const initial = inner as unknown as InitialMessage
 
-    await persistSession({
-      ...session,
-      state,
-      updatedAt: new Date().toISOString(),
-    })
+      const signedPreKey = await store.loadSignedPreKey(initial.signedPreKeyId)
+      if (!signedPreKey) {
+        throw new Error(`Signed pre-key ${initial.signedPreKeyId} not found`)
+      }
 
-    return { plaintext: new TextDecoder().decode(plaintext), senderUuid, identityKeyChanged }
-  }
+      let oneTimePreKeyPair = null
+      if (initial.oneTimePreKeyId !== null) {
+        const otpk = await consumePreKey(initial.oneTimePreKeyId)
+        if (otpk) oneTimePreKeyPair = { publicKey: otpk.publicKey, privateKey: otpk.privateKey }
+      }
+
+      const x3dh = await x3dhRespond(
+        identity,
+        { publicKey: signedPreKey.publicKey, privateKey: signedPreKey.privateKey },
+        oneTimePreKeyPair,
+        initial.identityDhKey,
+        initial.ephemeralKey
+      )
+
+      const ratchetState = await initReceiver(x3dh.sharedSecret, {
+        publicKey: signedPreKey.publicKey,
+        privateKey: signedPreKey.privateKey,
+        publicKeyBase64: signedPreKey.publicKeyBase64,
+      })
+
+      const { state, plaintext } = await ratchetDecrypt(ratchetState, initial.message, x3dh.associatedData)
+
+      const sessionKey = makeSessionKey(senderUuid, senderDeviceId)
+      const session: StoredSession = {
+        peerId: senderUuid,
+        peerDeviceId: senderDeviceId,
+        sessionKey,
+        state,
+        associatedData: uint8ToBase64(x3dh.associatedData),
+        peerIdentityDhKey: initial.identityDhKey,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }
+      await persistSession(session)
+
+      logger.info(`Inbound session created with peer ${senderUuid} device ${senderDeviceId}`)
+      return { plaintext: new TextDecoder().decode(plaintext), senderUuid, identityKeyChanged }
+
+    } else {
+      const encMsg = inner as unknown as EncryptedMessage
+
+      const session = await getSession(senderUuid, senderDeviceId)
+      if (!session) {
+        throw new Error(`No session with ${senderUuid}:${senderDeviceId}`)
+      }
+
+      const ad = base64ToUint8(session.associatedData)
+      const { state, plaintext } = await ratchetDecrypt(session.state, encMsg, ad)
+
+      await persistSession({
+        ...session,
+        state,
+        updatedAt: new Date().toISOString(),
+      })
+
+      return { plaintext: new TextDecoder().decode(plaintext), senderUuid, identityKeyChanged }
+    }
+  })
 }
 
 // ---- Session Queries ----

@@ -85,13 +85,10 @@ function dismissSplash() {
 }
 
 if (splashBar && splashEl) {
-  // Check if the fill animation is still running
-  const anims = splashBar.getAnimations()
-  if (anims.length > 0) {
-    // Animation still running — wait for it to finish, then fade out
-    splashBar.addEventListener('animationend', () => dismissSplash(), { once: true })
+  const anim = splashBar.getAnimations()[0]
+  if (anim && anim.playState === 'running') {
+    anim.finished.then(() => dismissSplash())
   } else {
-    // Animation already completed before JS loaded — fade out now
     dismissSplash()
   }
 }

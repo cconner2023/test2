@@ -48,6 +48,7 @@ import {
   loadUnreadCounts,
   updateReadAt,
   updateMessageText,
+  updateMessageStatus,
   deleteMessages as deleteMessagesFromDb,
   deleteConversation as deleteConversationFromDb,
 } from '../lib/signal/messageStore'
@@ -197,6 +198,29 @@ async function sendSyncToOwnDevices(
   if (fanOutInputs.length === 0) return
 
   await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs, undefined, originId)
+}
+
+/**
+ * Send a read-sync message to all own devices (except the current one).
+ * Payload is a pre-serialized ReadSyncPayload JSON string.
+ * Fire-and-forget — errors are silently swallowed.
+ */
+async function sendReadSyncToOwnDevices(
+  userId: string,
+  localDeviceId: string,
+  serializedPayload: string,
+): Promise<void> {
+  const devicesResult = await fetchOwnDevices(userId)
+  if (!devicesResult.ok) return
+
+  const otherDevices = devicesResult.data.filter(d => d.deviceId !== localDeviceId)
+  if (otherDevices.length === 0) return
+
+  const fanOutInputs = await encryptForAllDevices(userId, otherDevices, serializedPayload, userId)
+  for (const input of fanOutInputs) input.messageType = 'sync'
+  if (fanOutInputs.length === 0) return
+
+  await sendMessageFanOut(userId, localDeviceId, userId, fanOutInputs)
 }
 
 /**
@@ -442,10 +466,64 @@ export function useMessages(): UseMessagesReturn {
 
   // Wrap addMessage to auto-mark incoming self-notes as read
   const handleIncomingMessage = useCallback((msg: DecryptedSignalMessage) => {
+    // Delivery receipt — update status on our outgoing messages, don't display as message
+    if (msg._deliveryReceipt) {
+      const { messageIds, deliveredAt: _ } = msg._deliveryReceipt
+      setConversations(prev => {
+        let changed = false
+        const next = { ...prev }
+        for (const [peerId, msgs] of Object.entries(next)) {
+          if (msgs.some(m => messageIds.includes(m.id))) {
+            next[peerId] = msgs.map(m =>
+              messageIds.includes(m.id) ? { ...m, status: 'delivered' as const } : m
+            )
+            changed = true
+          }
+        }
+        return changed ? next : prev
+      })
+      updateMessageStatus(messageIds, 'delivered').catch(() => {})
+      markMessagesRead([msg.id]).catch(() => {})
+      return
+    }
+
+    // Read-sync from another own device — update local read state, don't display as message
+    if (msg._readSync) {
+      const { peerId, messageIds, readAt } = msg._readSync
+      updateReadAt(messageIds, readAt).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.handleIncomingMessage', message: 'Failed to apply remote read sync to IDB', timestamp: Date.now(), metadata: { error: e } }))
+      setConversations(prev => {
+        const msgs = prev[peerId]
+        if (!msgs) return prev
+        const updated = msgs.map(m => messageIds.includes(m.id) ? { ...m, readAt } : m)
+        return { ...prev, [peerId]: updated }
+      })
+      setUnreadCounts(prev => {
+        if (!prev[peerId]) return prev
+        const next = { ...prev }
+        delete next[peerId]
+        return next
+      })
+      markMessagesRead([msg.id]).catch(() => {})
+      return
+    }
+
     if (msg.senderId === userId && msg.recipientId === userId && !msg.readAt) {
       msg.readAt = new Date().toISOString()
       markMessagesRead([msg.id]).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.handleIncomingMessage', message: 'Failed to mark self-note as read', timestamp: Date.now(), metadata: { error: e } }))
     }
+
+    // If the conversation is currently open, mark the message as read before storing
+    if (
+      msg.senderId !== userId &&
+      !msg.readAt &&
+      activePeerRef.current === (msg.groupId ?? msg.senderId)
+    ) {
+      const readAtTs = new Date().toISOString()
+      msg.readAt = readAtTs
+      markMessagesRead([msg.id]).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.handleIncomingMessage', message: 'Failed to mark message as read on server', timestamp: Date.now(), metadata: { error: e } }))
+      updateReadAt([msg.id], readAtTs).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.handleIncomingMessage', message: 'Failed to mark message as read in IDB', timestamp: Date.now(), metadata: { error: e } }))
+    }
+
     addMessage(msg)
 
     // Fire external listener for qualifying incoming messages (notifications)
@@ -1132,6 +1210,17 @@ export function useMessages(): UseMessagesReturn {
 
       // Persist readAt to IndexedDB (fire-and-forget)
       updateReadAt(unreadIds, readAtTs).catch(e => errorBus.emit({ code: ErrorCode.STORAGE_ERROR, source: 'useMessages.markConversationRead', message: 'Failed to persist read status locally', timestamp: Date.now(), metadata: { error: e } }))
+
+      // Cross-device read sync — notify other own devices
+      if (userId && localDeviceId) {
+        const readSyncPayload = JSON.stringify({
+          __syncType: 'read',
+          peerId,
+          messageIds: unreadIds,
+          readAt: readAtTs,
+        })
+        sendReadSyncToOwnDevices(userId, localDeviceId, readSyncPayload).catch(() => {})
+      }
 
       // Update local state to reflect read status
       setConversations(prev => {

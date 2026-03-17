@@ -52,18 +52,19 @@ interface SignalDB extends DBSchema {
   sessions: {
     key: string               // sessionKey: `${peerId}:${peerDeviceId}`
     value: StoredSession
+    indexes: { 'by-peerId': string }
   }
 }
 
 const SIGNAL_DB_NAME = 'adtmc-signal-store'
-const SIGNAL_DB_VERSION = 2
+const SIGNAL_DB_VERSION = 3
 const LOCAL_IDENTITY_KEY = 'self'
 
 const { getDb, destroy: destroySignalDb } = createIdbSingleton<SignalDB>(
   SIGNAL_DB_NAME,
   SIGNAL_DB_VERSION,
   {
-    upgrade(db, oldVersion) {
+    upgrade(db, oldVersion, _newVersion, tx) {
       // v1: Core key stores
       if (oldVersion < 1) {
         db.createObjectStore('localIdentity')
@@ -75,6 +76,13 @@ const { getDb, destroy: destroySignalDb } = createIdbSingleton<SignalDB>(
       if (oldVersion < 2) {
         if (!db.objectStoreNames.contains('sessions')) {
           db.createObjectStore('sessions')
+        }
+      }
+      // v3: Index sessions by peerId to avoid full-scan in loadSessionsForPeer
+      if (oldVersion < 3) {
+        const store = tx.objectStore('sessions')
+        if (!store.indexNames.contains('by-peerId')) {
+          store.createIndex('by-peerId', 'peerId')
         }
       }
     },
@@ -273,8 +281,9 @@ export async function deleteSession(sessionKey: string): Promise<void> {
 export async function loadSessionsForPeer(peerId: string): Promise<StoredSession[]> {
   try {
     const db = await getDb()
-    const all = await db.getAll('sessions')
-    return all.filter(s => s.peerId === peerId)
+    const tx = db.transaction('sessions', 'readonly')
+    const sessions = await tx.objectStore('sessions').index('by-peerId').getAll(peerId)
+    return sessions
   } catch (err) {
     logger.warn(`Failed to load sessions for peer ${peerId}:`, err)
     return []

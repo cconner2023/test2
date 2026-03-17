@@ -3,10 +3,13 @@ import { useSpring } from '@react-spring/web'
 import { useDrag } from '@use-gesture/react'
 import { GESTURE_THRESHOLDS, SPRING_CONFIGS } from '../Utilities/GestureUtils'
 
-export const MENU_NAV_WIDTH = 280
+export const MENU_NAV_WIDTH_MOBILE = 280
+export const MENU_NAV_WIDTH_DESKTOP = 280
+/** @deprecated Use MENU_NAV_WIDTH_MOBILE / MENU_NAV_WIDTH_DESKTOP */
+export const MENU_NAV_WIDTH = MENU_NAV_WIDTH_MOBILE
 
 interface UseMenuSlideOptions {
-  /** Only active on mobile */
+  /** Hook is always enabled; swipe gestures are gated by isMobile */
   enabled: boolean
   /** Menu open state from navigation store */
   isOpen: boolean
@@ -14,9 +17,13 @@ interface UseMenuSlideOptions {
   onOpen: () => void
   /** Called when gesture commits to closing */
   onClose: () => void
+  /** Nav width — defaults to 280 (mobile) */
+  width?: number
+  /** When true, disables drag/swipe gestures (click-only) */
+  disableGestures?: boolean
 }
 
-export function useMenuSlide({ enabled, isOpen, onOpen, onClose }: UseMenuSlideOptions) {
+export function useMenuSlide({ enabled, isOpen, onOpen, onClose, width = MENU_NAV_WIDTH_MOBILE, disableGestures = false }: UseMenuSlideOptions) {
   const isDraggingRef = useRef(false)
 
   const [spring, api] = useSpring(() => ({
@@ -28,11 +35,11 @@ export function useMenuSlide({ enabled, isOpen, onOpen, onClose }: UseMenuSlideO
   useEffect(() => {
     if (isDraggingRef.current) return
     api.start({
-      x: isOpen ? MENU_NAV_WIDTH : 0,
+      x: isOpen ? width : 0,
       immediate: false,
       config: isOpen ? SPRING_CONFIGS.fling : SPRING_CONFIGS.snap,
     })
-  }, [isOpen, api])
+  }, [isOpen, api, width])
 
   // Body scroll lock when menu is open
   useEffect(() => {
@@ -47,23 +54,25 @@ export function useMenuSlide({ enabled, isOpen, onOpen, onClose }: UseMenuSlideO
   // ── Carousel edge-drag integration (open gesture) ──
 
   const onEdgeDrag = useCallback((offset: number) => {
+    if (disableGestures) return
     isDraggingRef.current = true
-    const clamped = Math.max(0, Math.min(offset, MENU_NAV_WIDTH * 1.05))
+    const clamped = Math.max(0, Math.min(offset, width * 1.05))
     api.start({ x: clamped, immediate: true })
-  }, [api])
+  }, [api, width, disableGestures])
 
   const onEdgeDragEnd = useCallback((offset: number, velocity: number) => {
+    if (disableGestures) return
     isDraggingRef.current = false
     const clamped = Math.max(0, offset)
-    const shouldOpen = clamped > MENU_NAV_WIDTH * 0.3 || velocity > GESTURE_THRESHOLDS.FLING_VELOCITY
+    const shouldOpen = clamped > width * 0.3 || velocity > GESTURE_THRESHOLDS.FLING_VELOCITY
 
     if (shouldOpen) {
-      api.start({ x: MENU_NAV_WIDTH, config: SPRING_CONFIGS.fling })
+      api.start({ x: width, config: SPRING_CONFIGS.fling })
       onOpen()
     } else {
       api.start({ x: 0, config: SPRING_CONFIGS.snap })
     }
-  }, [api, onOpen])
+  }, [api, onOpen, width, disableGestures])
 
   // ── Backdrop close gesture (drag left or tap to close) ──
 
@@ -77,23 +86,23 @@ export function useMenuSlide({ enabled, isOpen, onOpen, onClose }: UseMenuSlideO
 
       if (active) {
         isDraggingRef.current = true
-        const offset = Math.max(0, MENU_NAV_WIDTH + mx)
+        const offset = Math.max(0, width + mx)
         api.start({ x: offset, immediate: true })
       } else {
         isDraggingRef.current = false
-        const offset = Math.max(0, MENU_NAV_WIDTH + mx)
-        const shouldClose = offset < MENU_NAV_WIDTH * 0.7 || (vx > GESTURE_THRESHOLDS.FLING_VELOCITY && dx < 0)
+        const offset = Math.max(0, width + mx)
+        const shouldClose = offset < width * 0.7 || (vx > GESTURE_THRESHOLDS.FLING_VELOCITY && dx < 0)
 
         if (shouldClose) {
           api.start({ x: 0, config: SPRING_CONFIGS.snap })
           onClose()
         } else {
-          api.start({ x: MENU_NAV_WIDTH, config: SPRING_CONFIGS.fling })
+          api.start({ x: width, config: SPRING_CONFIGS.fling })
         }
       }
     },
     {
-      enabled: enabled && isOpen,
+      enabled: enabled && isOpen && !disableGestures,
       axis: 'x',
       filterTaps: true,
       pointer: { touch: true },
@@ -103,8 +112,9 @@ export function useMenuSlide({ enabled, isOpen, onOpen, onClose }: UseMenuSlideO
 
   return {
     springX: spring.x,
-    backdropOpacity: spring.x.to((x: number) => Math.min(x / MENU_NAV_WIDTH, 1) * 0.95),
+    backdropOpacity: spring.x.to((x: number) => Math.min(x / width, 1) * 0.95),
     closeHandlers: enabled && isOpen ? closeBind() : {},
+    width,
     onEdgeDrag,
     onEdgeDragEnd,
   }

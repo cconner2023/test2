@@ -7,7 +7,7 @@ import { getInitials } from '../Utilities/nameUtils'
 import { useNavItems } from '../Hooks/useNavItems'
 import { NavItemContextMenu } from './NavItemContextMenu'
 
-const iconMap: Record<string, React.ReactNode> = {
+const iconMapMobile: Record<string, React.ReactNode> = {
   'import': <Upload size={20} className="text-primary/70" />,
   'knowledgebase': <BookOpen size={20} className="text-primary/70" />,
   'messages': <Mail size={20} className="text-primary/70" />,
@@ -18,6 +18,19 @@ const iconMap: Record<string, React.ReactNode> = {
   'lora': <Radio size={20} className="text-primary/70" />,
   'mapOverlay': <MapIcon size={20} className="text-primary/70" />,
   'calendar': <CalendarDays size={20} className="text-primary/70" />,
+}
+
+const iconMapDesktop: Record<string, React.ReactNode> = {
+  'import': <Upload size={16} className="text-primary/70" />,
+  'knowledgebase': <BookOpen size={16} className="text-primary/70" />,
+  'messages': <Mail size={16} className="text-primary/70" />,
+  'property': <Package size={16} className="text-primary/70" />,
+  'supervisor': <ClipboardCheck size={16} className="text-primary/70" />,
+  'settings': <Settings size={16} className="text-primary/70" />,
+  'admin': <UserCog size={16} className="text-primary/70" />,
+  'lora': <Radio size={16} className="text-primary/70" />,
+  'mapOverlay': <MapIcon size={16} className="text-primary/70" />,
+  'calendar': <CalendarDays size={16} className="text-primary/70" />,
 }
 
 const BETA_ACTIONS = new Set(['lora', 'mapOverlay', 'calendar'])
@@ -36,13 +49,17 @@ const getOnline = () => navigator.onLine
 interface SideNavProps {
   onClose: () => void
   onMenuItemClick: (action: string) => void
+  isMobile?: boolean
 }
 
-export function SideNav({ onClose, onMenuItemClick }: SideNavProps) {
+export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavProps) {
   const { currentAvatar, customImage, isCustom, isInitials } = useAvatar()
   const { profile } = useAuth()
   const messagesCtx = useMessagesContext()
   const isConnected = useSyncExternalStore(subscribeOnline, getOnline)
+
+  const iconMap = isMobile ? iconMapMobile : iconMapDesktop
+  const DESKTOP_HIDDEN_ACTIONS = new Set(['knowledgebase', 'import'])
 
   const {
     visibleItems, hidden, hiddenCount, currentActionOrder, isDefaultOrder,
@@ -97,14 +114,14 @@ export function SideNav({ onClose, onMenuItemClick }: SideNavProps) {
   return (
     <div
       className="h-full w-full bg-themewhite flex flex-col"
-      style={{ paddingTop: 'var(--sat)' }}
+      style={isMobile ? { paddingTop: 'var(--sat)' } : undefined}
     >
       {/* User profile card */}
       <button
         onClick={() => handleItemClick('settings-profile')}
-        className="flex items-center gap-3 mx-3 mt-3 mb-2 px-4 py-3.5 rounded-xl hover:bg-themewhite2/60 active:scale-95 transform-gpu transition-colors text-left"
+        className={`flex items-center gap-3 mx-3 mt-3 mb-2 px-4 ${isMobile ? 'py-3.5' : 'py-2.5'} rounded-xl hover:bg-themewhite2/60 active:scale-95 transform-gpu transition-colors text-left`}
       >
-        <div className="w-11 h-11 rounded-full overflow-hidden shrink-0">
+        <div className={`${isMobile ? 'w-11 h-11' : 'w-9 h-9'} rounded-full overflow-hidden shrink-0`}>
           {isCustom && customImage ? (
             <img src={customImage} alt="Profile" className="w-full h-full object-cover rounded-full" />
           ) : isInitials ? (
@@ -136,8 +153,8 @@ export function SideNav({ onClose, onMenuItemClick }: SideNavProps) {
       {/* Menu items */}
       <div className="flex-1 overflow-y-auto px-3 pt-2">
         <div className="space-y-1">
-          {visibleItems.map((item, i) => {
-            const showGroupDivider = isDefaultOrder && i > 0 && visibleItems[i - 1].group !== item.group
+          {visibleItems.filter(item => isMobile || !DESKTOP_HIDDEN_ACTIONS.has(item.action)).map((item, i, filtered) => {
+            const showGroupDivider = i > 0 && filtered[i - 1].group !== item.group
             const isSettings = item.action === 'settings'
 
             return (
@@ -154,7 +171,7 @@ export function SideNav({ onClose, onMenuItemClick }: SideNavProps) {
                     e.preventDefault()
                     setContextMenu({ action: item.action, label: item.text, position: { x: e.clientX, y: e.clientY } })
                   }}
-                  className="w-full text-left flex items-center pl-7 pr-4 py-3.5 rounded-xl cursor-pointer hover:bg-themewhite2/60 bg-transparent active:scale-95 transform-gpu transition-colors"
+                  className={`w-full text-left flex items-center ${isMobile ? 'pl-7 pr-4 py-3.5' : 'pl-5 pr-3 py-2.5'} rounded-xl cursor-pointer hover:bg-themewhite2/60 bg-transparent active:scale-95 transform-gpu transition-colors`}
                 >
                   <div className="mr-4 relative">
                     {iconMap[item.action] || <HelpCircle size={20} className="text-primary/70" />}
@@ -164,7 +181,7 @@ export function SideNav({ onClose, onMenuItemClick }: SideNavProps) {
                       </span>
                     )}
                   </div>
-                  <span className="tracking-wide text-[15px] text-primary/80 font-medium flex-1">
+                  <span className={`tracking-wide ${isMobile ? 'text-[15px]' : 'text-[13px]'} text-primary/80 font-medium flex-1`}>
                     {item.text}
                     {BETA_ACTIONS.has(item.action) && (
                       <span className="ml-2 text-[11px] font-semibold text-themeyellow bg-themeyellow/15 px-2 py-0.5 rounded-full align-middle tracking-wide">

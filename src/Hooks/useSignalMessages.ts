@@ -15,11 +15,11 @@ import { useEffect, useRef, useCallback, useMemo, useState } from 'react'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { createLogger } from '../Utilities/Logger'
 import { useSupabaseSubscription } from './useSupabaseSubscription'
-import { fetchUnreadMessages, markMessagesRead, deleteMessages as hardDeleteMessages, hardDeleteByOriginId, onLoRaMessage } from '../lib/signal/signalService'
-import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb } from '../lib/signal/messageStore'
+import { fetchUnreadMessages, markMessagesRead, deleteMessages as hardDeleteMessages, hardDeleteByOriginId, onLoRaMessage, sendMessage as sendSignalMessage } from '../lib/signal/signalService'
+import { deleteMessagesByOriginId as deleteMessagesByOriginIdFromDb, updateReadAt } from '../lib/signal/messageStore'
 import { scheduleBackup } from '../lib/signal/backupService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
-import { processIncomingMessage } from '../lib/signal/session'
+import { processIncomingMessage, encryptMessage } from '../lib/signal/session'
 import type { SealedEnvelope } from '../lib/signal/sealedSender'
 import type { SignalMessageRow, DecryptedSignalMessage } from '../lib/signal/transportTypes'
 import type { SyncMessagePayload } from '../lib/signal/transportTypes'
@@ -28,6 +28,34 @@ import { errorBus } from '../lib/errorBus'
 import { ErrorCode } from '../lib/errorCodes'
 
 const logger = createLogger('RealtimeSignal')
+
+/** Send a delivery receipt back to the original sender. Fire-and-forget — never throws. */
+async function sendDeliveryReceipt(
+  senderUuid: string,
+  senderDeviceId: string,
+  messageIds: string[],
+  myUuid: string,
+  myDeviceId: string,
+): Promise<void> {
+  try {
+    const payload = JSON.stringify({
+      __type: 'delivery-receipt',
+      messageIds,
+      deliveredAt: new Date().toISOString(),
+    })
+    const envelope = await encryptMessage(senderUuid, senderDeviceId, payload, myUuid)
+    await sendSignalMessage(
+      myUuid,
+      senderUuid,
+      envelope as unknown as Record<string, never>,
+      'message',
+      myDeviceId,
+      senderDeviceId,
+    )
+  } catch {
+    // Delivery receipts are best-effort — silently ignore failures
+  }
+}
 
 interface UseSignalMessagesOptions {
   userId: string | null
@@ -60,11 +88,33 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
       }
     }
 
-    // Sync messages: sealed envelope containing a SyncMessagePayload
+    // Sync messages: sealed envelope containing a SyncMessagePayload or ReadSyncPayload
     if (row.message_type === 'sync') {
       const { plaintext: rawPlaintext, senderUuid } = await processIncomingMessage(
         senderDeviceId, envelope, myUuid
       )
+
+      // Check for read-sync (cross-device read status update)
+      try {
+        const parsed = JSON.parse(rawPlaintext) as Record<string, unknown>
+        if (parsed.__syncType === 'read') {
+          const peerId = parsed.peerId as string
+          const messageIds = parsed.messageIds as string[]
+          const readAt = parsed.readAt as string
+          updateReadAt(messageIds, readAt).catch(() => {})
+          return {
+            id: row.id,
+            senderId: senderUuid,
+            recipientId: row.recipient_id,
+            plaintext: rawPlaintext,
+            messageType: 'sync' as const,
+            createdAt: row.created_at,
+            readAt: new Date().toISOString(),
+            _readSync: { peerId, messageIds, readAt },
+          }
+        }
+      } catch { /* not JSON or not read-sync, fall through */ }
+
       const sync = JSON.parse(rawPlaintext) as SyncMessagePayload
       const { plaintext, content, replyTo } = parseMessageContent(sync.serialized)
 
@@ -127,6 +177,26 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
       senderDeviceId, envelope, myUuid
     )
 
+    // Check for delivery receipt BEFORE parsing as user content
+    try {
+      const parsed = JSON.parse(rawPlaintext) as Record<string, unknown>
+      if (parsed.__type === 'delivery-receipt') {
+        return {
+          id: row.id,
+          senderId: senderUuid,
+          recipientId: row.recipient_id,
+          plaintext: rawPlaintext,
+          messageType: row.message_type,
+          createdAt: row.created_at,
+          readAt: row.read_at,
+          _deliveryReceipt: {
+            messageIds: parsed.messageIds as string[],
+            deliveredAt: parsed.deliveredAt as string,
+          },
+        }
+      }
+    } catch { /* not a receipt — continue as normal message */ }
+
     // Parse structured content (text or image) from the decrypted payload
     const { plaintext, content, replyTo } = parseMessageContent(rawPlaintext)
 
@@ -145,6 +215,13 @@ async function decryptRow(row: SignalMessageRow, myUuid: string): Promise<Decryp
     }
   } catch (e) {
     logger.error(`Failed to decrypt message ${row.id}:`, e instanceof Error ? e.message : e)
+    errorBus.emit({
+      code: ErrorCode.DECRYPT_FAILED,
+      source: 'decryptRow',
+      message: 'A message could not be decrypted and was skipped.',
+      timestamp: Date.now(),
+      metadata: { messageId: row.id, messageType: row.message_type },
+    })
     return null
   }
 }
@@ -181,6 +258,15 @@ export function useSignalMessages({
   // Track whether catch-up has already run to avoid re-fetching on re-subscribe
   const catchUpDone = useRef(false)
 
+  const processedIds = useRef(new Set<string>())
+  const trackProcessed = (id: string) => {
+    processedIds.current.add(id)
+    if (processedIds.current.size > 2000) {
+      const entries = Array.from(processedIds.current)
+      processedIds.current = new Set(entries.slice(-1000))
+    }
+  }
+
   // Counter to trigger catch-up re-run when visibility restores
   const [catchUpTrigger, setCatchUpTrigger] = useState(0)
 
@@ -188,8 +274,18 @@ export function useSignalMessages({
   const prevVisibleRef = useRef(isPageVisible)
   useEffect(() => {
     if (isPageVisible && !prevVisibleRef.current) {
+      // Immediate catch-up for messages missed while hidden
       catchUpDone.current = false
       setCatchUpTrigger(t => t + 1)
+
+      // Second catch-up after subscription reconnects to close the gap
+      const timer = setTimeout(() => {
+        catchUpDone.current = false
+        setCatchUpTrigger(t => t + 1)
+      }, 2000)
+
+      prevVisibleRef.current = isPageVisible
+      return () => clearTimeout(timer)
     }
     prevVisibleRef.current = isPageVisible
   }, [isPageVisible])
@@ -229,6 +325,8 @@ export function useSignalMessages({
 
       // Decrypt sequentially to preserve ratchet state ordering
       for (const row of result.data) {
+        if (processedIds.current.has(row.id)) continue
+        trackProcessed(row.id)
         const decrypted = await decryptRow(row, userId)
         if (decrypted) {
           processedRowIds.push(row.id)
@@ -243,6 +341,24 @@ export function useSignalMessages({
             } catch { /* ignore parse errors */ }
           } else {
             onMessageRef.current(decrypted)
+            if (
+              !decrypted._deliveryReceipt &&
+              !decrypted._readSync &&
+              decrypted.messageType !== 'sync' &&
+              decrypted.messageType !== 'delete' &&
+              decrypted.senderId !== userId &&
+              !decrypted.plaintext.includes('"__type":"delivery-receipt"') &&
+              userIdRef.current &&
+              localDeviceId
+            ) {
+              sendDeliveryReceipt(
+                decrypted.senderId,
+                row.sender_device_id ?? 'unknown',
+                [row.id],
+                userIdRef.current,
+                localDeviceId,
+              ).catch(() => {})
+            }
           }
         }
       }
@@ -251,6 +367,8 @@ export function useSignalMessages({
       if (processedRowIds.length > 0) {
         markMessagesRead(processedRowIds).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useSignalMessages.catchUp', message: 'Failed to mark catch-up messages as read', timestamp: Date.now(), metadata: { error: e } }))
       }
+
+      // Pruning handled by trackProcessed()
     })()
   }, [isAuthenticated, userId, localDeviceId, catchUpTrigger])
 
@@ -267,6 +385,9 @@ export function useSignalMessages({
         return
       }
 
+      if (processedIds.current.has(row.id)) return
+      trackProcessed(row.id)
+
       decryptRow(row, myUuid).then((decrypted) => {
         if (!decrypted) return
         if (decrypted.messageType === 'delete') {
@@ -281,6 +402,24 @@ export function useSignalMessages({
           return
         }
         onMessageRef.current(decrypted)
+        if (
+          !decrypted._deliveryReceipt &&
+          !decrypted._readSync &&
+          decrypted.messageType !== 'sync' &&
+          decrypted.messageType !== 'delete' &&
+          decrypted.senderId !== myUuid &&
+          !decrypted.plaintext.includes('"__type":"delivery-receipt"') &&
+          myUuid &&
+          myDeviceId
+        ) {
+          sendDeliveryReceipt(
+            decrypted.senderId,
+            row.sender_device_id ?? 'unknown',
+            [row.id],
+            myUuid,
+            myDeviceId,
+          ).catch(() => {})
+        }
       })
     })
 
@@ -305,6 +444,12 @@ export function useSignalMessages({
         return
       }
 
+      if (processedIds.current.has(row.id)) {
+        logger.debug(`Skipping duplicate message ${row.id}`)
+        return
+      }
+      trackProcessed(row.id)
+
       decryptRow(row, myUuid).then((decrypted) => {
         if (!decrypted) return
         if (decrypted.messageType === 'delete') {
@@ -319,6 +464,24 @@ export function useSignalMessages({
           return
         }
         onMessageRef.current(decrypted)
+        if (
+          !decrypted._deliveryReceipt &&
+          !decrypted._readSync &&
+          decrypted.messageType !== 'sync' &&
+          decrypted.messageType !== 'delete' &&
+          decrypted.senderId !== myUuid &&
+          !decrypted.plaintext.includes('"__type":"delivery-receipt"') &&
+          myUuid &&
+          myDeviceId
+        ) {
+          sendDeliveryReceipt(
+            decrypted.senderId,
+            row.sender_device_id ?? 'unknown',
+            [row.id],
+            myUuid,
+            myDeviceId,
+          ).catch(() => {})
+        }
       })
     },
     [],

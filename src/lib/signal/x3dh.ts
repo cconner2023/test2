@@ -27,23 +27,10 @@ import { uint8ToBase64, base64ToUint8 } from '../../Utilities/textCodec'
 import { SIGNAL } from '../constants'
 import { performDh, importDhPublicKey, importSigningPublicKey, verifySignature } from './keyManager'
 import { kdfX3dh } from './kdf'
+import { concat } from './cryptoUtils'
 import type { StoredLocalIdentity, PublicKeyBundle } from './types'
 
 const logger = createLogger('SignalX3DH')
-
-// ---- Helpers ----
-
-/** Concatenate multiple Uint8Arrays into one. */
-function concat(...arrays: Uint8Array[]): Uint8Array {
-  const total = arrays.reduce((sum, a) => sum + a.length, 0)
-  const result = new Uint8Array(total)
-  let offset = 0
-  for (const arr of arrays) {
-    result.set(arr, offset)
-    offset += arr.length
-  }
-  return result
-}
 
 // ---- Result Types ----
 

@@ -67,7 +67,7 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
   }, [hasMobileSearch])
 
   const [searchSpring, searchApi] = useSpring(() => ({
-    y: 0,
+    collapse: 0,
     config: SPRING_CONFIGS.page,
   }))
 
@@ -79,11 +79,11 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
 
     const onScroll = () => {
       if (searchInput.trim()) {
-        searchApi.start({ y: 0 })
+        searchApi.start({ collapse: 0 })
         return
       }
-      const y = Math.min(el.scrollTop, barHeight)
-      searchApi.start({ y })
+      const collapse = Math.min(el.scrollTop, barHeight)
+      searchApi.start({ collapse })
     }
 
     el.addEventListener('scroll', onScroll, { passive: true })
@@ -91,64 +91,31 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
   }, [panelIndex, hasMobileSearch, searchApi, barHeight, searchInput])
 
   useEffect(() => {
-    if (searchInput.trim()) searchApi.start({ y: 0 })
+    if (searchInput.trim()) searchApi.start({ collapse: 0 })
   }, [searchInput, searchApi])
 
-  // Panels need paddingTop for NavTop + search bar space
-  const mobilePaddingTop = hasMobileSearch
-    ? `calc(var(--sat, 0px) + 4rem + ${barHeight}px)`
-    : isMobile
-      ? 'calc(var(--sat, 0px) + 4rem)'
-      : undefined
+  const mobilePaddingTop = isMobile
+    ? 'calc(var(--sat, 0px) + 4rem)'
+    : undefined
 
   const panelWidth = `${100 / panelCount}%`
 
   return (
     <div
-      className="h-full overflow-hidden relative"
-      style={{ touchAction: 'pan-y' }}
+      className="h-full overflow-hidden relative flex flex-col"
+      style={{
+        touchAction: 'pan-y',
+        paddingTop: mobilePaddingTop,
+      }}
       {...carousel.dragHandlers}
     >
-      {/* Carousel */}
-      <animated.div
-        className="flex h-full"
-        style={{
-          width: `${panelCount * 100}%`,
-          transform: carousel.style.x.to((x: number) => `translateX(${x}%)`),
-        }}
-      >
-        {/* Panel 0: Main categories */}
-        <div ref={panel0ScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
-          <div className="px-2 md:px-0 min-h-full" style={mobilePaddingTop ? { paddingTop: mobilePaddingTop } : undefined}>
-            <CategoryList mobilePanel="main" onNavigate={onNavigate} />
-          </div>
-        </div>
-
-        {/* Panel 1: Subcategories */}
-        <div ref={subcategoryScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
-          <div className="px-2 md:px-0 min-h-full" style={mobilePaddingTop ? { paddingTop: mobilePaddingTop } : undefined}>
-            <CategoryList mobilePanel="subcategory" onNavigate={onNavigate} />
-          </div>
-        </div>
-
-        {/* Panel 2: Symptom info (desktop only) */}
-        {!isMobile && (
-          <div className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
-            <div className="px-2 md:px-0 min-h-full">
-              <CategoryList mobilePanel="guidelines" onNavigate={onNavigate} />
-            </div>
-          </div>
-        )}
-      </animated.div>
-
-      {/* Mobile: Single search bar — absolutely positioned below NavTop, translates up on scroll */}
+      {/* Mobile search bar — in-flow height collapse matching ScrollRevealSearch */}
       {hasMobileSearch && (
         <animated.div
-          className="absolute left-0 right-0 z-5"
+          className="overflow-hidden shrink-0"
           style={{
-            top: 'calc(var(--sat, 0px) + 4rem)',
-            transform: searchSpring.y.to(y => `translateY(${-y}px)`),
-            opacity: searchSpring.y.to(y => 1 - (y / barHeight) * 0.6),
+            height: searchSpring.collapse.to(c => Math.max(0, barHeight - c)),
+            opacity: searchSpring.collapse.to(c => 1 - (c / barHeight) * 0.6),
           }}
         >
           <div ref={searchBarRef} className="px-3 py-2">
@@ -172,6 +139,38 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
           </div>
         </animated.div>
       )}
+
+      {/* Carousel */}
+      <animated.div
+        className="flex flex-1 min-h-0"
+        style={{
+          width: `${panelCount * 100}%`,
+          transform: carousel.style.x.to((x: number) => `translateX(${x}%)`),
+        }}
+      >
+        {/* Panel 0: Main categories */}
+        <div ref={panel0ScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
+          <div className="px-2 md:px-0 min-h-full">
+            <CategoryList mobilePanel="main" onNavigate={onNavigate} />
+          </div>
+        </div>
+
+        {/* Panel 1: Subcategories */}
+        <div ref={subcategoryScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
+          <div className="px-2 md:px-0 min-h-full">
+            <CategoryList mobilePanel="subcategory" onNavigate={onNavigate} />
+          </div>
+        </div>
+
+        {/* Panel 2: Symptom info (desktop only) */}
+        {!isMobile && (
+          <div className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
+            <div className="px-2 md:px-0 min-h-full">
+              <CategoryList mobilePanel="guidelines" onNavigate={onNavigate} />
+            </div>
+          </div>
+        )}
+      </animated.div>
 
       {/* Mobile: Search results overlay */}
       {hasSearch && (

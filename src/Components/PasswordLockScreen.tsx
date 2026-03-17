@@ -87,12 +87,12 @@ export const PasswordLockScreen = ({ onUnlock, email, reason = 'inactivity' }: P
 
     try {
       // Online-first: try Supabase auth
-      const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({ email, password })
 
       if (!authError) {
         // Success — update local hash for future offline use
         storePasswordHash(password).catch(() => { })
-        deriveAndStoreBackupKey(password).catch(() => { })
+        deriveAndStoreBackupKey(password, authData.user?.id ?? '').catch(() => { })
         setFailures(0)
         onUnlock()
         return
