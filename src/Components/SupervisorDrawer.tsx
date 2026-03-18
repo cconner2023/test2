@@ -1,9 +1,9 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Ban, X, ClipboardCheck, Pencil } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
-import { ScrollRevealSearch } from './ScrollRevealSearch'
+import { MobileSearchBar } from './MobileSearchBar'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
@@ -41,7 +41,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
   const [rosterSearchQuery, setRosterSearchQuery] = useState('')
   const [taskSearchQuery, setTaskSearchQuery] = useState('')
+  const [searchFocused, setSearchFocused] = useState(false)
   const [focusCertId, setFocusCertId] = useState<string | null>(null)
+
+  // Clear search when navigating between views (e.g., clicking a search result)
+  useEffect(() => { setRosterSearchQuery(''); setTaskSearchQuery(''); setSearchFocused(false) }, [view.screen])
 
   const isMobile = useIsMobile()
 
@@ -311,10 +315,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
         }
         // Mobile: scroll-reveal search wrapping roster cards
         return (
-          <ScrollRevealSearch
+          <MobileSearchBar variant="supervisor"
             value={rosterSearchQuery}
             onChange={setRosterSearchQuery}
             placeholder="Search personnel..."
+            onFocusChange={setSearchFocused}
           >
             <PersonnelRoster
               medics={medics}
@@ -331,7 +336,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
                 setTreeSelection({ type: 'team-insights' })
               }}
             />
-          </ScrollRevealSearch>
+          </MobileSearchBar>
         )
 
       case 'soldier': {
@@ -407,10 +412,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
       case 'evaluate-select-task':
         return (
-          <ScrollRevealSearch
+          <MobileSearchBar variant="supervisor"
             value={taskSearchQuery}
             onChange={setTaskSearchQuery}
             placeholder="Search STP tasks..."
+            onFocusChange={setSearchFocused}
           >
             <div className="px-4 py-3 md:p-5 pb-8 min-h-full">
               <EvaluateFlow
@@ -422,7 +428,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
                 onSubmit={handleSubmitEvaluation}
               />
             </div>
-          </ScrollRevealSearch>
+          </MobileSearchBar>
         )
 
       case 'evaluate-go-nogo':
@@ -455,6 +461,8 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       desktopPosition="left"
       desktopWidth="w-[90%]"
       header={headerConfig}
+      headerFaded={searchFocused}
+      blurHeader
     >
       <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && canSwipeBack ? swipeHandlers : undefined}>
         <div className="h-full relative">

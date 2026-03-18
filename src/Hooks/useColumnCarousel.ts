@@ -1,11 +1,6 @@
-import { useCallback, useRef, useEffect, useState } from 'react'
-import { useSpring } from '@react-spring/web'
+import { useCallback, useRef, useLayoutEffect, useEffect, useState } from 'react'
 import { useDrag } from '@use-gesture/react'
-import {
-  GESTURE_THRESHOLDS,
-  SPRING_CONFIGS,
-  clamp,
-} from '../Utilities/GestureUtils'
+import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils'
 
 interface UseColumnCarouselOptions {
   /** Whether drag gestures are enabled (e.g., only on mobile) */
@@ -18,10 +13,6 @@ interface UseColumnCarouselOptions {
    *  When transitioning from hidden to visible, the carousel snaps immediately
    *  to the correct panel to prevent flashing the wrong panel during CSS grid expansion. */
   isVisible?: boolean
-  /** Opaque key — when it changes, the carousel re-syncs to the current panelIndex
-   *  even if panelIndex itself didn't change. Handles cases like algorithm-to-algorithm
-   *  navigation on desktop where panelIndex stays at 2 but the spring may be stale. */
-  syncKey?: string | number
   /** Callback when swipe-back completes (panel decreases) */
   onSwipeBack?: () => void
   /** Callback when swipe-forward completes (panel increases) */
@@ -36,16 +27,18 @@ interface UseColumnCarouselOptions {
   onRightEdgeDragEnd?: (offset: number, velocity: number) => void
 }
 
+const TRANSITION_MS = 300
+
 /**
- * Manages a spring-animated horizontal panel carousel with drag/swipe gesture support.
- * Syncs panel position on external index changes, breakpoint crossings, and visibility transitions.
+ * Manages a CSS-transition horizontal panel carousel with drag/swipe gesture support.
+ * Positions are set directly on the DOM element via ref — no spring state to drift.
+ * CSS transitions handle animation; direct style manipulation handles drag tracking.
  */
 export function useColumnCarousel({
   enabled,
   panelIndex,
   panelCount,
   isVisible,
-  syncKey,
   onSwipeBack,
   onSwipeForward,
   onEdgeDrag,
@@ -54,124 +47,90 @@ export function useColumnCarousel({
   onRightEdgeDragEnd,
 }: UseColumnCarouselOptions) {
   const [isSwiping, setIsSwiping] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef(panelIndex)
   panelRef.current = panelIndex
   const prevPanelRef = useRef(panelIndex)
-  const prevPercentRef = useRef(100 / panelCount)
+  const prevCountRef = useRef(panelCount)
+  const swipingRef = useRef(false)
+  const initializedRef = useRef(false)
 
-  // Percentage per panel: 100% / panelCount
-  const panelPercent = 100 / panelCount
+  /** Set transform on the carousel container element. */
+  const setTransform = useCallback((xPercent: number, animate: boolean) => {
+    const el = containerRef.current
+    if (!el) return
+    el.style.transition = animate ? `transform ${TRANSITION_MS}ms ease-out` : 'none'
+    el.style.transform = `translateX(${xPercent}%)`
+  }, [])
 
-  // Spring for translateX in percentage
-  const [style, api] = useSpring(() => ({
-    x: -panelIndex * panelPercent,
-    config: SPRING_CONFIGS.page,
-  }))
-
-  /** Animate to a specific panel */
-  const animateToPanel = useCallback((target: number, onComplete?: () => void) => {
-    const pct = 100 / panelCount
-    api.start({
-      x: -target * pct,
-      immediate: false,
-      config: SPRING_CONFIGS.page,
-      onRest: () => onComplete?.(),
-    })
-  }, [api, panelCount])
-
-  /** Snap immediately to a panel (no animation) */
-  const snapToPanel = useCallback((target: number) => {
-    const pct = 100 / panelCount
-    api.start({
-      x: -target * pct,
-      immediate: true,
-    })
-  }, [api, panelCount])
-
-  // Refs for sync effect — prevents effect from re-running when callback identities
-  // change due to parent re-renders (e.g., drawer open/close on desktop).
-  const animateRef = useRef(animateToPanel)
-  animateRef.current = animateToPanel
-  const snapRef = useRef(snapToPanel)
-  snapRef.current = snapToPanel
-
-  // Sync spring when panel index changes externally, when breakpoint crossing
-  // changes panelPercent, or when syncKey changes (content changed without panel change).
-  // Callback refs prevent unnecessary effect re-runs that could cause spring glitches.
-  const prevSyncKeyRef = useRef(syncKey)
-  useEffect(() => {
-    if (isSwiping) return
+  // ── Sync position to panelIndex / panelCount ──────────────────
+  // useLayoutEffect fires before paint, preventing any visual flash.
+  useLayoutEffect(() => {
+    // Always track prev values (even when swiping) so the next
+    // non-swipe sync sees the correct delta.
     const prev = prevPanelRef.current
-    const prevPercent = prevPercentRef.current
-    const prevKey = prevSyncKeyRef.current
+    const prevCount = prevCountRef.current
     prevPanelRef.current = panelIndex
-    prevPercentRef.current = panelPercent
-    prevSyncKeyRef.current = syncKey
+    prevCountRef.current = panelCount
 
-    if (prevPercent !== panelPercent) {
-      // Breakpoint crossing: snap immediately to correct position
-      snapRef.current(panelIndex)
-    } else if (prev !== panelIndex) {
-      // Snap immediately for large jumps (e.g., restoring a saved note: panel 0→2).
-      // Animate for single-step navigation (normal user browsing).
-      if (Math.abs(prev - panelIndex) > 1) {
-        snapRef.current(panelIndex)
-      } else {
-        animateRef.current(panelIndex)
-      }
-    } else if (prevKey !== syncKey) {
-      // Content changed without panel change (e.g., algorithm→algorithm on desktop).
-      // Re-snap to ensure spring is at the correct position.
-      snapRef.current(panelIndex)
+    // First render: snap immediately
+    if (!initializedRef.current) {
+      initializedRef.current = true
+      setTransform(-panelIndex * (100 / panelCount), false)
+      return
     }
-  }, [panelIndex, panelPercent, isSwiping, syncKey])
 
-  // Snap immediately to correct panel when becoming visible.
-  // Prevents flash of wrong panel during CSS grid expansion from 0fr.
+    // During an active swipe the drag handler owns positioning
+    if (swipingRef.current) return
+
+    // Nothing changed — skip
+    if (prev === panelIndex && prevCount === panelCount) return
+
+    // Snap (no animation) for breakpoint crossings or large jumps;
+    // animate for single-step navigation (normal browsing).
+    const shouldSnap = prevCount !== panelCount || Math.abs(prev - panelIndex) > 1
+    setTransform(-panelIndex * (100 / panelCount), !shouldSnap)
+  }, [panelIndex, panelCount, setTransform])
+
+  // ── Snap immediately when container becomes visible ───────────
   const wasVisibleRef = useRef(isVisible ?? true)
-  useEffect(() => {
+  useLayoutEffect(() => {
     const wasVisible = wasVisibleRef.current
     const nowVisible = isVisible ?? true
     wasVisibleRef.current = nowVisible
 
     if (!wasVisible && nowVisible) {
-      snapToPanel(panelIndex)
+      setTransform(-panelIndex * (100 / panelCount), false)
     }
-  }, [isVisible, panelIndex, snapToPanel])
+  }, [isVisible, panelIndex, panelCount, setTransform])
 
-  // Re-snap spring on foreground return — rAF suspension during background
-  // can leave the spring at a stale position.
+  // ── Re-snap on foreground return ──────────────────────────────
   useEffect(() => {
     const handler = () => {
-      if (document.visibilityState === 'visible' && !isSwiping) {
-        snapRef.current(panelRef.current)
+      if (document.visibilityState === 'visible' && !swipingRef.current) {
+        setTransform(-panelRef.current * (100 / panelCount), false)
       }
     }
     document.addEventListener('visibilitychange', handler)
     return () => document.removeEventListener('visibilitychange', handler)
-  }, [isSwiping])
+  }, [panelCount, setTransform])
 
-  // Track whether this gesture was delegated to an edge slide
+  // ── Drag gesture ──────────────────────────────────────────────
   const edgeDelegateRef = useRef<'menu' | 'messages' | null>(null)
+  const panelPercent = 100 / panelCount
 
-  // Drag gesture handler
   const bind = useDrag(
     ({ active, first, movement: [mx], velocity: [vx], direction: [dx], tap, event, initial: [ix] }) => {
       if (!enabled || tap) return
 
       const panel = panelRef.current
-      // Get container width from the event target's parent
       const target = event?.currentTarget as HTMLElement | null
       const containerWidth = target?.offsetWidth || window.innerWidth
-
-      // Convert pixel drag to percentage of container
       const dragPercent = (mx / containerWidth) * 100
       const currentBase = -panel * panelPercent
 
-      // Decide delegation on first move — lock for the duration of the gesture
-      if (first) {
-        edgeDelegateRef.current = null
-      }
+      // Decide delegation on first move — lock for duration of gesture
+      if (first) edgeDelegateRef.current = null
       if (edgeDelegateRef.current === null && Math.abs(mx) > GESTURE_THRESHOLDS.DIRECTION_LOCK) {
         if (panel === 0 && mx > 0 && onEdgeDrag) {
           edgeDelegateRef.current = 'menu'
@@ -185,89 +144,76 @@ export function useColumnCarousel({
 
       if (active) {
         setIsSwiping(true)
+        swipingRef.current = true
 
         if (isMenuEdge && onEdgeDrag) {
-          // Keep carousel pinned at panel 0, let menu slide track the finger
-          api.start({ x: 0, immediate: true })
+          setTransform(0, false)
           onEdgeDrag(mx)
         } else if (isMessagesEdge && onRightEdgeDrag) {
-          // Keep carousel pinned, let messages slide track the finger
-          api.start({ x: currentBase, immediate: true })
+          setTransform(currentBase, false)
           onRightEdgeDrag(Math.abs(mx))
         } else {
-          // Clamp drag: don't allow going past first or last panel
+          // Clamp drag with edge resistance at boundaries
           const rawX = currentBase + dragPercent
           const minX = -(panelCount - 1) * panelPercent
           const maxX = 0
-
-          // Apply edge resistance at last panel
           let clampedX = rawX
           if (rawX > maxX) {
             clampedX = maxX + (rawX - maxX) * GESTURE_THRESHOLDS.EDGE_RESISTANCE
           } else if (rawX < minX) {
             clampedX = minX + (rawX - minX) * GESTURE_THRESHOLDS.EDGE_RESISTANCE
           }
-
-          api.start({ x: clampedX, immediate: true })
+          setTransform(clampedX, false)
         }
       } else {
+        // ── Release ──
         if (isMenuEdge && onEdgeDragEnd) {
-          // Let menu slide decide whether to open or snap back
           setIsSwiping(false)
+          swipingRef.current = false
           edgeDelegateRef.current = null
           onEdgeDragEnd(mx, vx)
           return
         }
-
         if (isMessagesEdge && onRightEdgeDragEnd) {
-          // Let messages slide decide whether to open or snap back
           setIsSwiping(false)
+          swipingRef.current = false
           edgeDelegateRef.current = null
           onRightEdgeDragEnd(Math.abs(mx), vx)
           return
         }
 
-        // Determine if we should navigate
+        // Determine if swipe should navigate
         const absDrag = Math.abs(mx)
         const fraction = absDrag / containerWidth
-        const velocityThreshold = GESTURE_THRESHOLDS.FLING_VELOCITY
-
         const shouldNavigate =
           fraction > GESTURE_THRESHOLDS.PAGE_NAV_FRACTION ||
-          (vx > velocityThreshold && absDrag > GESTURE_THRESHOLDS.MIN_DRAG_FOR_VELOCITY)
+          (vx > GESTURE_THRESHOLDS.FLING_VELOCITY && absDrag > GESTURE_THRESHOLDS.MIN_DRAG_FOR_VELOCITY)
 
         if (shouldNavigate) {
-          // Determine direction: dx > 0 = dragging right = go back
           const goingBack = dx > 0
           const targetPanel = goingBack
             ? Math.max(0, panel - 1)
             : Math.min(panelCount - 1, panel + 1)
 
           if (targetPanel !== panel) {
-            const pct = 100 / panelCount
-            // Fire navigation callback immediately so NavTop updates in sync
-            // (previously deferred to onRest, causing visible lag in title/buttons)
+            // Fire callback immediately so NavTop updates in sync
             if (goingBack) onSwipeBack?.()
             else onSwipeForward?.()
-            // Keep isSwiping true until animation finishes to prevent
-            // the sync effect from restarting the spring
-            api.start({
-              x: -targetPanel * pct,
-              immediate: false,
-              config: SPRING_CONFIGS.fling,
-              onRest: () => setIsSwiping(false),
-            })
+            setTransform(-targetPanel * panelPercent, true)
+            // Keep swipingRef true until CSS transition completes
+            // to prevent the sync effect from re-setting position
+            setTimeout(() => {
+              swipingRef.current = false
+              setIsSwiping(false)
+            }, TRANSITION_MS)
             return
           }
         }
 
-        // Not navigating — snap back and clear swipe state
+        // Not navigating — snap back
+        setTransform(currentBase, true)
         setIsSwiping(false)
-        api.start({
-          x: currentBase,
-          immediate: false,
-          config: SPRING_CONFIGS.snap,
-        })
+        swipingRef.current = false
       }
     },
     {
@@ -280,15 +226,11 @@ export function useColumnCarousel({
   )
 
   return {
-    /** Spring style: { x } in percentage — use with translateX */
-    style,
-    /** Touch/drag handlers — spread onto the carousel container */
+    /** Ref to attach to the carousel track element */
+    containerRef,
+    /** Touch/drag handlers — spread onto the carousel wrapper */
     dragHandlers: enabled ? bind() : {},
     /** Whether the user is actively dragging */
     isSwiping,
-    /** Programmatically animate to a panel */
-    animateToPanel,
-    /** Programmatically snap to a panel (no animation) */
-    snapToPanel,
   }
 }

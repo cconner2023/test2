@@ -7,15 +7,18 @@ import {
     decompressText,
     bitmaskToIndices,
     indicesToBitmask,
-    encodePECompact,
     decodePECompact,
     encodeNoteState,
+    encodeProviderNote,
+    encodeProviderBundle,
     parseNoteEncoding,
     encodedContentEquals,
     reconstructCardStates,
     findAlgorithmByCode,
     findSymptomByCode,
 } from '../NoteCodec';
+import { encodePEState } from '../peCodec';
+import type { PEState } from '../../Types/PETypes';
 import type { NoteEncodeOptions } from '../NoteCodec';
 import type { AlgorithmOptions } from '../../Types/AlgorithmTypes';
 import type { CardState } from '../../Hooks/useAlgorithm';
@@ -269,11 +272,11 @@ describe('Note Encoding round-trips', () => {
         expect(parsed!.flags.includeHPI).toBe(true);
     });
 
-    it('encodeNoteState -> parseNoteEncoding preserves PE text via fallback compression', () => {
+    it('encodeNoteState -> parseNoteEncoding preserves PE text via v4 encoding', () => {
         // Using a symptom code that maps to a PE category (A-1 -> HEENT)
         const peCode = 'A-1';
         const states = buildCardStates();
-        const peText = 'Vital Signs:\n  HR: 72 bpm\n  RR: 16 /min\n\nGEN: Normal - Alert, oriented, no acute distress. Well-developed, well-nourished.';
+        const peText = 'Vital Signs:\n  HR: 72 bpm\n  RR: 16 /min\n\nGEN: Appears stated age, well-developed, well-nourished, no acute distress.';
         const opts: NoteEncodeOptions = {
             includeAlgorithm: true,
             includeDecisionMaking: false,
@@ -285,8 +288,7 @@ describe('Note Encoding round-trips', () => {
         const parsed = parseNoteEncoding(encoded);
 
         expect(parsed).not.toBeNull();
-        // The PE text goes through encodePECompact -> decodePECompact round-trip
-        // The decoded text should contain the key content
+        // parseNoteEncoding decodes peText to plain text during parse
         expect(parsed!.peText).toContain('Vital Signs');
         expect(parsed!.peText).toContain('72');
         expect(parsed!.peText).toContain('GEN');
@@ -327,71 +329,82 @@ describe('Note Encoding round-trips', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PE Codec round-trips
+// PE Codec round-trips (v5 API)
 // ═══════════════════════════════════════════════════════════════════════════
-describe('PE Codec', () => {
-    it('encodePECompact -> decodePECompact round-trip preserves vital signs', () => {
-        const symptomCode = 'A-1'; // Maps to HEENT category
-        const peText = [
-            'Vital Signs:',
-            '  HR: 80 bpm',
-            '  RR: 18 /min',
-            '  BP: 120/80 mmHg',
-            '  Temp: 98.6 °F',
-        ].join('\n');
 
-        const compact = encodePECompact(peText, symptomCode);
+function makePEState(overrides: Partial<PEState> = {}): PEState {
+    return {
+        categoryLetter: 'A',
+        laterality: 'right',
+        spineRegion: 'lumbar',
+        vitals: {},
+        items: {},
+        additional: '',
+        depth: 'focused',
+        ...overrides,
+    };
+}
+
+describe('PE Codec', () => {
+    it('encodePEState -> decodePECompact round-trip preserves vital signs', () => {
+        const symptomCode = 'A-1';
+        const state = makePEState({
+            vitals: { hr: '80', rr: '18', bpSys: '120', bpDia: '80', temp: '98.6' },
+        });
+
+        const compact = encodePEState(state);
         const decoded = decodePECompact(compact, symptomCode);
 
         expect(decoded).toContain('HR: 80 bpm');
         expect(decoded).toContain('RR: 18 /min');
         expect(decoded).toContain('BP: 120/80 mmHg');
-        expect(decoded).toContain('Temp: 98.6');
+        expect(decoded).toContain('98.6');
     });
 
-    it('encodePECompact -> decodePECompact preserves normal exam findings', () => {
+    it('encodePEState -> decodePECompact preserves normal exam findings', () => {
         const symptomCode = 'A-1';
-        const peText = [
-            'GEN: Normal - Alert, oriented, no acute distress. Well-developed, well-nourished.',
-            'HEAD: Normal - Normocephalic, atraumatic.',
-            'Ears: Normal - TMs intact bilaterally, pearly gray. Canals clear. No erythema or effusion.',
-        ].join('\n');
+        const state = makePEState({
+            items: {
+                bl_gen: { status: 'normal', findings: '', selectedChips: [] },
+                bl_hent: { status: 'normal', findings: '', selectedChips: [] },
+            },
+        });
 
-        const compact = encodePECompact(peText, symptomCode);
+        const compact = encodePEState(state);
         const decoded = decodePECompact(compact, symptomCode);
 
-        // V3 uses uppercase labels and normal text directly (no "Normal - " prefix)
         expect(decoded).toContain('GEN:');
-        expect(decoded).toContain('Alert, oriented');
-        expect(decoded).toContain('HEAD:');
+        expect(decoded).toContain('Appears stated age');
+        expect(decoded).toContain('HENT:');
         expect(decoded).toContain('Normocephalic');
-        expect(decoded).toContain('EARS:');
     });
 
-    it('encodePECompact -> decodePECompact preserves abnormal findings with chips', () => {
+    it('encodePEState -> decodePECompact preserves abnormal findings with chips', () => {
         const symptomCode = 'A-1';
-        const peText = [
-            'Ears: Abnormal - TM erythema; TM bulging',
-        ].join('\n');
+        const state = makePEState({
+            items: {
+                cat_a_ears: { status: 'abnormal', findings: '', selectedChips: ['tm_erythema', 'tm_bulging'] },
+            },
+        });
 
-        const compact = encodePECompact(peText, symptomCode);
+        const compact = encodePEState(state);
         const decoded = decodePECompact(compact, symptomCode);
 
-        // V3 uses uppercase label and no "Abnormal - " prefix
         expect(decoded).toContain('EARS:');
         expect(decoded).toContain('TM erythema');
         expect(decoded).toContain('TM bulging');
     });
 
-    it('encodePECompact -> decodePECompact preserves additional findings', () => {
+    it('encodePEState -> decodePECompact preserves additional findings', () => {
         const symptomCode = 'A-1';
-        const peText = [
-            'GEN: Normal - Alert, oriented, no acute distress. Well-developed, well-nourished.',
-            '',
-            'Additional Findings: Patient reports dizziness when standing.',
-        ].join('\n');
+        const state = makePEState({
+            items: {
+                bl_gen: { status: 'normal', findings: '', selectedChips: [] },
+            },
+            additional: 'Patient reports dizziness when standing.',
+        });
 
-        const compact = encodePECompact(peText, symptomCode);
+        const compact = encodePEState(state);
         const decoded = decodePECompact(compact, symptomCode);
 
         expect(decoded).toContain('Additional Findings');
@@ -399,61 +412,31 @@ describe('PE Codec', () => {
     });
 
     it('decodePECompact handles v2 prefix for backward compat', () => {
-        // Build a v3 encoded string first, then manually re-prefix as v2
-        // to verify the v2 decoder path is exercised
-        const symptomCode = 'A-1';
-        const peText = [
-            'Vital Signs:',
-            '  HR: 72 bpm',
-        ].join('\n');
-
-        const compact = encodePECompact(peText, symptomCode);
-        // The encoder produces "3:..." format
-        expect(compact.startsWith('3:')).toBe(true);
-
-        // Create a v2-prefixed version (strip "3:" and add "2:")
-        // Note: v2 uses legacy general findings, so exact reconstruction
-        // differs, but the vital signs should still decode
-        const v2Payload = '2:' + compact.substring(2);
-        const decoded = decodePECompact(v2Payload, symptomCode);
-
-        // Vitals should still be present
+        // A minimal v2-format payload with vitals
+        const v2Payload = '2:A,R,72,,,,,,~0~0~~';
+        const decoded = decodePECompact(v2Payload, 'A-1');
         expect(decoded).toContain('72');
         expect(decoded).toContain('Vital Signs');
     });
 
-    it('encodePECompact falls back to compressed text for unknown category', () => {
-        // Use a symptom code that won't match any category
-        const symptomCode = 'Z-99';
-        const peText = 'Some PE text that cannot be structurally encoded.';
+    it('encodePEState -> decodePECompact with MSK category preserves laterality', () => {
+        const symptomCode = 'B-3';
+        const state = makePEState({
+            categoryLetter: 'B',
+            laterality: 'left',
+            vitals: { hr: '65' },
+            items: {
+                bl_gen: { status: 'normal', findings: '', selectedChips: [] },
+                cat_b_inspection: { status: 'normal', findings: '', selectedChips: [] },
+                cat_b_palpation: { status: 'normal', findings: '', selectedChips: [] },
+            },
+        });
 
-        const compact = encodePECompact(peText, symptomCode);
-        // Should not start with "3:" since it fell back to compressText
-        expect(compact.startsWith('3:')).toBe(false);
-        expect(compact.startsWith('2:')).toBe(false);
-
-        // Should still round-trip through decompressText
-        const decoded = decompressText(compact);
-        expect(decoded).toBe(peText);
-    });
-
-    it('encodePECompact -> decodePECompact with MSK category preserves laterality', () => {
-        const symptomCode = 'B-3'; // MSK Shoulder
-        const peText = [
-            'Vital Signs:',
-            '  HR: 65 bpm',
-            '',
-            'GEN: Normal - Alert, oriented, no acute distress. Well-developed, well-nourished.',
-            'MSK - Shoulder (Left)',
-            'Inspection: Normal - No swelling, erythema, ecchymosis, or deformity.',
-            'Palpation: Normal - Non-tender. No crepitus or masses.',
-        ].join('\n');
-
-        const compact = encodePECompact(peText, symptomCode);
+        const compact = encodePEState(state);
         const decoded = decodePECompact(compact, symptomCode);
 
-        expect(decoded).toContain('MSK - Shoulder (Left)');
-        // V3 uses uppercase labels and normal text directly (no "Normal - " prefix)
+        expect(decoded).toContain('MSK');
+        expect(decoded).toContain('Left');
         expect(decoded).toContain('INSPECTION:');
         expect(decoded).toContain('PALPATION:');
     });
@@ -566,5 +549,156 @@ describe('Error handling', () => {
 
     it('findSymptomByCode returns null for empty string', () => {
         expect(findSymptomByCode('')).toBeNull();
+    });
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Provider Note encoding
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Provider Note encoding', () => {
+    describe('encodeProviderNote -> parseNoteEncoding round-trip', () => {
+        it('preserves all provider text fields', () => {
+            const encoded = encodeProviderNote({
+                hpiNote: 'Patient presents with headache x3 days, worse with light',
+                peNote: 'Alert and oriented x4. No acute distress. HEENT: normocephalic, atraumatic.',
+                assessmentNote: 'Tension-type headache, uncomplicated',
+                planNote: 'Ibuprofen 800mg TID x5 days. Return if worsens or new symptoms.',
+            });
+            expect(encoded.startsWith('PRV|')).toBe(true);
+
+            const parsed = parseNoteEncoding(encoded);
+            expect(parsed).not.toBeNull();
+            expect(parsed!.symptomCode).toBe('PRV');
+            expect(parsed!.providerHpi).toBe('Patient presents with headache x3 days, worse with light');
+            expect(parsed!.providerPe).toBe('Alert and oriented x4. No acute distress. HEENT: normocephalic, atraumatic.');
+            expect(parsed!.providerAssessment).toBe('Tension-type headache, uncomplicated');
+            expect(parsed!.providerPlan).toBe('Ibuprofen 800mg TID x5 days. Return if worsens or new symptoms.');
+        });
+
+        it('preserves provider user profile', () => {
+            const encoded = encodeProviderNote({
+                hpiNote: 'Test HPI',
+                peNote: '',
+                assessmentNote: '',
+                planNote: '',
+                user: { firstName: 'Jane', lastName: 'Smith', middleInitial: 'A', rank: 'CPT', credential: 'PA-C', component: 'Active Duty' },
+            });
+            const parsed = parseNoteEncoding(encoded);
+            expect(parsed).not.toBeNull();
+            expect(parsed!.providerUser?.firstName).toBe('Jane');
+            expect(parsed!.providerUser?.lastName).toBe('Smith');
+            expect(parsed!.providerUser?.middleInitial).toBe('A');
+            expect(parsed!.providerUser?.rank).toBe('CPT');
+            expect(parsed!.providerUser?.credential).toBe('PA-C');
+        });
+
+        it('preserves provider userId', () => {
+            const uuid = '550e8400-e29b-41d4-a716-446655440000';
+            const encoded = encodeProviderNote({
+                hpiNote: 'HPI', peNote: '', assessmentNote: '', planNote: '',
+                userId: uuid,
+            });
+            const parsed = parseNoteEncoding(encoded);
+            expect(parsed!.providerUserId).toBe(uuid);
+        });
+
+        it('handles empty fields gracefully', () => {
+            const encoded = encodeProviderNote({
+                hpiNote: '', peNote: '', assessmentNote: '', planNote: '',
+            });
+            expect(encoded).toBe('PRV');
+            const parsed = parseNoteEncoding(encoded);
+            expect(parsed).not.toBeNull();
+            expect(parsed!.symptomCode).toBe('PRV');
+            expect(parsed!.providerHpi).toBeUndefined();
+            expect(parsed!.providerPe).toBeUndefined();
+        });
+
+        it('handles special characters and unicode', () => {
+            const encoded = encodeProviderNote({
+                hpiNote: 'Pt c/o pain — rated 8/10. "Worst ever" per patient.',
+                peNote: 'Temp: 98.6°F, BP: 120/80',
+                assessmentNote: '',
+                planNote: 'Rx: Motrin® 800mg',
+            });
+            const parsed = parseNoteEncoding(encoded);
+            expect(parsed!.providerHpi).toBe('Pt c/o pain — rated 8/10. "Worst ever" per patient.');
+            expect(parsed!.providerPe).toBe('Temp: 98.6°F, BP: 120/80');
+            expect(parsed!.providerPlan).toBe('Rx: Motrin® 800mg');
+        });
+    });
+
+    describe('encodeProviderBundle', () => {
+        it('appends provider segments to medic barcode', () => {
+            const medicBarcode = 'A1|R0|F3';
+            const bundled = encodeProviderBundle(medicBarcode, {
+                hpiNote: 'Provider HPI addendum',
+                peNote: 'Provider PE findings',
+                assessmentNote: 'Provider assessment',
+                planNote: 'Provider plan',
+            });
+
+            // Should start with medic barcode
+            expect(bundled.startsWith('A1|R0|F3|')).toBe(true);
+
+            // Should be parseable and contain both layers
+            const parsed = parseNoteEncoding(bundled);
+            expect(parsed).not.toBeNull();
+            expect(parsed!.symptomCode).toBe('A1');
+            expect(parsed!.providerHpi).toBe('Provider HPI addendum');
+            expect(parsed!.providerPe).toBe('Provider PE findings');
+            expect(parsed!.providerAssessment).toBe('Provider assessment');
+            expect(parsed!.providerPlan).toBe('Provider plan');
+        });
+
+        it('returns original medic barcode when no provider content', () => {
+            const medicBarcode = 'A1|R0|F3';
+            const bundled = encodeProviderBundle(medicBarcode, {
+                hpiNote: '', peNote: '', assessmentNote: '', planNote: '',
+            });
+            expect(bundled).toBe(medicBarcode);
+        });
+
+        it('preserves medic fields in combined parse', () => {
+            // Build a realistic medic barcode with HPI
+            const medicBarcode = 'A1|R3|1.7.0|H!eJwLSS0u0U1JTQYADHkC9g==|F7';
+            const bundled = encodeProviderBundle(medicBarcode, {
+                hpiNote: 'Provider addendum',
+                peNote: '',
+                assessmentNote: 'Concur with medic assessment',
+                planNote: '',
+            });
+            const parsed = parseNoteEncoding(bundled);
+            expect(parsed).not.toBeNull();
+            expect(parsed!.symptomCode).toBe('A1');
+            // Medic HPI should still be present
+            expect(parsed!.hpiText).toBeTruthy();
+            // Provider fields
+            expect(parsed!.providerHpi).toBe('Provider addendum');
+            expect(parsed!.providerAssessment).toBe('Concur with medic assessment');
+        });
+    });
+
+    describe('backward compatibility', () => {
+        it('old medic barcodes still parse without provider fields', () => {
+            const oldMedic = 'A1|R0|F3';
+            const parsed = parseNoteEncoding(oldMedic);
+            expect(parsed).not.toBeNull();
+            expect(parsed!.symptomCode).toBe('A1');
+            expect(parsed!.providerHpi).toBeUndefined();
+            expect(parsed!.providerUser).toBeUndefined();
+        });
+
+        it('PRV note does not interfere with medic fields', () => {
+            const encoded = encodeProviderNote({
+                hpiNote: 'Provider note', peNote: '', assessmentNote: '', planNote: '',
+            });
+            const parsed = parseNoteEncoding(encoded);
+            expect(parsed!.hpiText).toBe('');
+            expect(parsed!.peText).toBe('');
+            expect(parsed!.planText).toBe('');
+            expect(parsed!.rfSelections).toEqual([]);
+            expect(parsed!.cardEntries).toEqual([]);
+        });
     });
 });

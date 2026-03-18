@@ -1,6 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { ScanLine, X, Camera, ImagePlus, Check } from 'lucide-react'
-import { useSpring, animated } from '@react-spring/web'
+import { ScanLine, X, Camera, ImagePlus, Check, ChevronLeft } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -11,7 +10,9 @@ import { useImagePaste } from '../Hooks/useImagePaste'
 import { UI_TIMING } from '../Utilities/constants'
 import { ProviderNote } from './Provider/ProviderNote'
 import { ProviderNoteOutput } from './Provider/ProviderNoteOutput'
+import type { PEState } from '../Types/PETypes'
 import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../Utilities/noteParser'
+import { decodePEState } from '../Utilities/peCodec'
 import { isEncryptedBarcode, decryptBarcode } from '../Utilities/NoteCodec'
 import { assembleNote, formatSignature } from '../Utilities/NoteFormatter'
 import {
@@ -45,15 +46,19 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
 
   const [hpiNote, setHpiNote] = useState('')
   const [peNote, setPeNote] = useState('')
+  const [peState, setPeState] = useState<PEState | null>(null)
+  const [peResetKey, setPeResetKey] = useState(0)
   const [assessmentNote, setAssessmentNote] = useState('')
   const [planNote, setPlanNote] = useState('')
   const [importedMedicNote, setImportedMedicNote] = useState<ImportedMedicNote | null>(null)
+  const [medicBarcode, setMedicBarcode] = useState('')
 
   // ── Import bar state ──────────────────────────────────────────────────────
   const [importExpanded, setImportExpanded] = useState(false)
   const [importText, setImportText] = useState('')
   const [decodeError, setDecodeError] = useState('')
   const [isDecodingImage, setIsDecodingImage] = useState(false)
+  const [scanRequested, setScanRequested] = useState(false)
   const importInputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -80,6 +85,37 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       const parsed = parseNoteEncoding(payload)
       if (!parsed) { setDecodeError('Could not decode note.'); return }
 
+      if (parsed.symptomCode === 'PRV') {
+        // Provider solo note — pre-fill provider fields for re-editing
+        if (parsed.providerHpi) setHpiNote(parsed.providerHpi)
+        if (parsed.providerPe) setPeNote(parsed.providerPe)
+        if (parsed.providerPeRaw) {
+          const restored = decodePEState(parsed.providerPeRaw, 'PRV')
+          if (restored) setPeState(restored)
+        }
+        setPeResetKey(k => k + 1)
+        if (parsed.providerAssessment) setAssessmentNote(parsed.providerAssessment)
+        if (parsed.providerPlan) setPlanNote(parsed.providerPlan)
+        setImportedMedicNote(null)
+        setMedicBarcode('')
+        setImportText('')
+        setImportExpanded(false)
+        return
+      }
+
+      // Check if this is a combined bundle (has provider fields)
+      if (parsed.providerHpi || parsed.providerPe || parsed.providerAssessment || parsed.providerPlan) {
+        if (parsed.providerHpi) setHpiNote(parsed.providerHpi)
+        if (parsed.providerPe) setPeNote(parsed.providerPe)
+        if (parsed.providerPeRaw) {
+          const restored = decodePEState(parsed.providerPeRaw, parsed.symptomCode)
+          if (restored) setPeState(restored)
+        }
+        setPeResetKey(k => k + 1)
+        if (parsed.providerAssessment) setAssessmentNote(parsed.providerAssessment)
+        if (parsed.providerPlan) setPlanNote(parsed.providerPlan)
+      }
+
       const authorLabel = parsed.user ? formatSignature(parsed.user) || 'Unknown Medic' : 'Unknown Medic'
       let assessmentText = ''
       if (parsed.symptomCode) {
@@ -103,6 +139,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         medicAssessment: assessmentText, medicPlan: parsed.planText || '',
         medicName: authorLabel, medicSignature: authorLabel,
       })
+      setMedicBarcode(payload)
       setImportText('')
       setImportExpanded(false)
     } catch { setDecodeError('Failed to decode note.') }
@@ -136,21 +173,31 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     finally { URL.revokeObjectURL(objectUrl); setIsDecodingImage(false) }
   }, [handleDecode])
 
-  // Camera scan result
-  const handleScanResult = useCallback(() => {
+  // Camera scan result — wire to decode
+  useEffect(() => {
     if (scanResult) {
+      setScanRequested(false)
       setImportText(scanResult)
       clearResult()
       handleDecode(scanResult)
     }
   }, [scanResult, clearResult, handleDecode])
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useMemo(() => { handleScanResult() }, [scanResult])
 
+  // Start camera scanning — render video first, then start scanner after mount
   const handleStartScan = useCallback(() => {
     setDecodeError('')
-    setTimeout(() => { if (videoRef.current) startScanning(videoRef.current) }, 100)
-  }, [startScanning])
+    setScanRequested(true)
+  }, [])
+
+  // Once video element mounts (scanRequested renders it), start the scanner
+  useEffect(() => {
+    if (scanRequested && !isScanning) {
+      const timer = setTimeout(() => {
+        if (videoRef.current) startScanning(videoRef.current)
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [scanRequested, isScanning, startScanning])
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -170,8 +217,8 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setImportExpanded(false)
     setImportText('')
     setDecodeError('')
-    if (isScanning) stopScanning()
-  }, [isScanning, stopScanning])
+    if (isScanning || scanRequested) { stopScanning(); setScanRequested(false) }
+  }, [isScanning, scanRequested, stopScanning])
 
   // ── Slide Animation ─────────────────────────────────────────────────────────
 
@@ -199,15 +246,17 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     setSlideDirection('')
     setHpiNote('')
     setPeNote('')
+    setPeState(null)
     setAssessmentNote('')
     setPlanNote('')
     setImportedMedicNote(null)
+    setMedicBarcode('')
     setImportExpanded(false)
     setImportText('')
     setDecodeError('')
-    if (isScanning) stopScanning()
+    if (isScanning || scanRequested) { stopScanning(); setScanRequested(false) }
     onClose()
-  }, [onClose, isScanning, stopScanning])
+  }, [onClose, isScanning, scanRequested, stopScanning])
 
   // ── Swipe Back ──────────────────────────────────────────────────────────────
 
@@ -220,17 +269,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     canSwipeBack,
   )
 
-  // ── Header Config ───────────────────────────────────────────────────────────
-
-  // ── Import bar spring (no bounce — high friction, mirrors map toolbar pattern) ─
-  const importBarExpanded = view === 'note' && importExpanded
-
-  const importSpring = useSpring({
-    progress: importBarExpanded ? 1 : 0,
-    config: { tension: 260, friction: 28 },
-  })
-
-  // Focus import input after spring opens
+  // Focus import input when expanded
   useEffect(() => {
     if (importExpanded && importInputRef.current) {
       const timer = setTimeout(() => importInputRef.current?.focus(), 120)
@@ -238,141 +277,91 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     }
   }, [importExpanded])
 
-  const headerConfig = useMemo(() => {
-    switch (view) {
-      case 'note':
-        return {
-          title: 'Provider',
-          badge: 'BETA',
-          hideDefaultClose: true,
-          rightContentFill: importExpanded,
-          rightContent: (
-            <div className="flex items-center flex-1 min-w-0 justify-end">
-              <HeaderPill>
-                {/* Import controls — expand from zero width */}
-                <animated.div
-                  className="flex items-center min-w-0 overflow-hidden"
-                  style={{
-                    width: importSpring.progress.to((p: number) => p === 0 ? '0px' : 'auto'),
-                    flex: importSpring.progress.to((p: number) => `${p} 0 0px`),
-                    opacity: importSpring.progress,
-                    pointerEvents: importBarExpanded ? 'auto' : 'none',
-                  }}
-                >
-                  <form
-                    onSubmit={(e) => { e.preventDefault(); handleDecode() }}
-                    className="flex items-center flex-1 min-w-0"
-                  >
-                    <div className="flex items-center gap-0.5 shrink-0 pl-1">
-                      <button
-                        type="button"
-                        onClick={handleStartScan}
-                        className="p-1 text-tertiary/50 hover:text-themeblue3 active:scale-95 transition-colors"
-                        title="Scan barcode"
-                      >
-                        <Camera size={15} />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={isDecodingImage}
-                        className="p-1 text-tertiary/50 hover:text-themeblue3 active:scale-95 transition-colors disabled:opacity-40"
-                        title={isDecodingImage ? 'Reading image...' : 'Upload image'}
-                      >
-                        <ImagePlus size={15} />
-                      </button>
-                    </div>
-                    <input
-                      ref={importInputRef}
-                      type="text"
-                      value={importText}
-                      onChange={(e) => setImportText(e.target.value)}
-                      className="flex-1 min-w-0 bg-transparent outline-none text-sm text-primary px-2 py-1.5 placeholder:text-tertiary/30"
-                      placeholder="Paste code or scan"
-                    />
-                  </form>
-                </animated.div>
-                {/* ScanLine button — collapses when import expands */}
-                <animated.div
-                  className="overflow-hidden shrink-0"
-                  style={{
-                    width: importSpring.progress.to((p: number) => p === 1 ? '0px' : 'auto'),
-                    opacity: importSpring.progress.to((p: number) => 1 - p),
-                    pointerEvents: importBarExpanded ? 'none' : 'auto',
-                  }}
-                >
-                  <PillButton icon={ScanLine} iconSize={20} onClick={handleExpandImport} label="Import Medic Note" />
-                </animated.div>
-                {/* X — always visible, contextual action */}
-                <PillButton
-                  icon={X}
-                  onClick={importExpanded ? handleCollapseImport : handleClose}
-                  label={importExpanded ? 'Close import' : 'Close'}
-                />
-              </HeaderPill>
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
-              {importText.trim() && (
-                <button
-                  type="button"
-                  onClick={() => handleDecode()}
-                  className="shrink-0 w-10 h-10 ml-1.5 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
-                  title="Import"
-                >
-                  <Check size={18} />
-                </button>
-              )}
+  // ── Floating Header ────────────────────────────────────────────────────────
+
+  const noteHeaderRight = (
+    <div className="flex items-center flex-1 min-w-0 justify-end relative">
+      {/* Collapsed pill */}
+      <div className={`transition-all duration-300 ${
+        importExpanded
+          ? 'opacity-0 scale-90 pointer-events-none absolute right-0'
+          : 'opacity-100 scale-100'
+      }`}>
+        <HeaderPill>
+          <PillButton icon={ScanLine} iconSize={20} onClick={handleExpandImport} label="Import Medic Note" />
+          <PillButton icon={X} onClick={handleClose} label="Close" />
+        </HeaderPill>
+      </div>
+      {/* Expanded input bar */}
+      <div className={`flex items-center flex-1 min-w-0 gap-2 transition-all duration-300 origin-right ${
+        importExpanded
+          ? 'opacity-100 scale-100'
+          : 'opacity-0 scale-95 pointer-events-none absolute right-0 left-0'
+      }`}>
+        <form
+          onSubmit={(e) => { e.preventDefault(); handleDecode() }}
+          className="flex-1 min-w-0"
+        >
+          <div className="relative flex items-center">
+            <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={handleStartScan}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/50 hover:text-themeblue3 hover:bg-themeblue3/5 active:scale-95 transition-colors"
+                title="Scan barcode"
+              >
+                <Camera size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isDecodingImage}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/50 hover:text-themeblue3 hover:bg-themeblue3/5 active:scale-95 transition-colors disabled:opacity-40"
+                title={isDecodingImage ? 'Reading image...' : 'Upload image'}
+              >
+                <ImagePlus size={16} />
+              </button>
             </div>
-          ),
-        }
-      case 'output':
-        return {
-          title: 'Note Output',
-          badge: 'BETA',
-          showBack: true,
-          onBack: handleBack,
-        }
-    }
-  }, [view, handleBack, importBarExpanded, importText, isDecodingImage, handleDecode, handleStartScan, handleFileSelect, handleExpandImport, handleClose, importSpring])
-
-  // ── Content ─────────────────────────────────────────────────────────────────
-
-  const subViewWrapper = (children: React.ReactNode) => (
-    <div className="h-full overflow-y-auto">
-      <div className="px-4 py-3 md:p-5 pb-8 min-h-full">
-        {children}
+            <input
+              ref={importInputRef}
+              type="text"
+              value={importText}
+              onChange={(e) => setImportText(e.target.value)}
+              className="w-full rounded-full py-2.5 pl-[4.5rem] pr-8 border border-themeblue3/10 shadow-xs bg-themewhite focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm text-primary placeholder:text-tertiary/30 transition-all duration-300"
+              placeholder="Paste code or scan"
+            />
+            {importText && (
+              <button
+                type="button"
+                onClick={() => setImportText('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-tertiary/40 hover:text-tertiary active:scale-95 transition-colors"
+                title="Clear"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
+        </form>
+        <button
+          type="button"
+          onClick={importText.trim() ? () => handleDecode() : handleCollapseImport}
+          className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 ${
+            importText.trim()
+              ? 'bg-themeblue3 text-white'
+              : 'bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary'
+          }`}
+          aria-label={importText.trim() ? 'Import' : 'Close import'}
+          title={importText.trim() ? 'Import' : 'Close import'}
+        >
+          {importText.trim()
+            ? <Check style={{ width: 20, height: 20 }} />
+            : <X style={{ width: 24, height: 24 }} />
+          }
+        </button>
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
       </div>
     </div>
   )
-
-  const renderContent = () => {
-    switch (view) {
-      case 'note':
-        return subViewWrapper(
-          <ProviderNote
-            hpiNote={hpiNote}
-            setHpiNote={setHpiNote}
-            peNote={peNote}
-            setPeNote={setPeNote}
-            assessmentNote={assessmentNote}
-            setAssessmentNote={setAssessmentNote}
-            planNote={planNote}
-            setPlanNote={setPlanNote}
-            onNext={handleGoToOutput}
-            importedMedicNote={importedMedicNote}
-          />
-        )
-      case 'output':
-        return subViewWrapper(
-          <ProviderNoteOutput
-            hpiNote={hpiNote}
-            peNote={peNote}
-            assessmentNote={assessmentNote}
-            planNote={planNote}
-            importedMedicNote={importedMedicNote}
-          />
-        )
-    }
-  }
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -383,15 +372,71 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       fullHeight="90dvh"
       desktopPosition="left"
       desktopWidth="w-[90%]"
-      header={headerConfig}
     >
       <ContentWrapper
         slideDirection={isMobile ? slideDirection : ''}
         swipeHandlers={isMobile && canSwipeBack ? swipeHandlers : undefined}
       >
-        <div className="h-full relative">
+        <div className="h-full overflow-y-auto">
+          {/* Floating header — scroll-behind blur */}
+          <div
+            className="sticky top-0 z-10 backdrop-blur-sm bg-transparent"
+            data-drag-zone
+            style={{ touchAction: 'none' }}
+          >
+            {isMobile && (
+              <div className="flex justify-center pt-1.5 pb-1">
+                <div className="w-9 h-1 rounded-full bg-tertiary/25" />
+              </div>
+            )}
+            <div className={`px-5 ${isMobile ? 'pb-2.5' : 'py-4'}`}>
+              <div className="flex items-center justify-between">
+                {/* Left: back or title */}
+                <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${view === 'note' && importExpanded ? ' w-0 overflow-hidden' : ''}`}>
+                  {view === 'output' && (
+                    isMobile ? (
+                      <HeaderPill>
+                        <PillButton icon={ChevronLeft} onClick={handleBack} label="Go back" />
+                      </HeaderPill>
+                    ) : (
+                      <button
+                        onClick={handleBack}
+                        className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
+                        aria-label="Go back"
+                      >
+                        <ChevronLeft size={24} className="text-tertiary" />
+                      </button>
+                    )
+                  )}
+                  <h2 className={`truncate ${isMobile ? 'text-[17px] font-semibold text-primary' : 'text-2xl text-primary'}`}>
+                    {view === 'note' ? 'Provider' : 'Note Output'}
+                  </h2>
+                  <span className="text-[11px] font-semibold text-themeyellow bg-themeyellow/15 px-2 py-0.5 rounded-full shrink-0 tracking-wide">
+                    BETA
+                  </span>
+                </div>
+                {/* Right: controls */}
+                <div className={`flex items-center gap-2${view === 'note' && importExpanded ? ' flex-1 min-w-0' : ' flex-1 min-w-0 justify-end'}`}>
+                  {view === 'note' ? noteHeaderRight : (
+                    isMobile ? (
+                      <div className="flex items-center justify-end flex-1">
+                        <HeaderPill>
+                          <PillButton icon={X} onClick={handleClose} label="Close" />
+                        </HeaderPill>
+                      </div>
+                    ) : (
+                      <HeaderPill>
+                        <PillButton icon={X} onClick={handleClose} label="Close" />
+                      </HeaderPill>
+                    )
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* Camera scanning overlay */}
-          {isScanning && (
+          {(scanRequested || isScanning) && (
             <div className="px-4 pt-3 pb-2">
               <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
                 <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
@@ -405,7 +450,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
                 </div>
               </div>
               <div className="flex justify-center pt-2">
-                <button onClick={() => { stopScanning() }} className="text-xs text-tertiary/60 hover:text-tertiary active:scale-95 transition-colors">Cancel scan</button>
+                <button onClick={() => { stopScanning(); setScanRequested(false) }} className="text-xs text-tertiary/60 hover:text-tertiary active:scale-95 transition-colors">Cancel scan</button>
               </div>
             </div>
           )}
@@ -415,7 +460,37 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
               <div className="text-xs text-themeredred">{decodeError}</div>
             </div>
           )}
-          {renderContent()}
+
+          {/* Content */}
+          <div className="px-4 py-3 md:p-5 pb-8">
+            {view === 'note' ? (
+              <ProviderNote
+                hpiNote={hpiNote}
+                setHpiNote={setHpiNote}
+                peNote={peNote}
+                setPeNote={setPeNote}
+                peState={peState}
+                onPeStateChange={setPeState}
+                peResetKey={peResetKey}
+                assessmentNote={assessmentNote}
+                setAssessmentNote={setAssessmentNote}
+                planNote={planNote}
+                setPlanNote={setPlanNote}
+                onNext={handleGoToOutput}
+                importedMedicNote={importedMedicNote}
+              />
+            ) : (
+              <ProviderNoteOutput
+                hpiNote={hpiNote}
+                peNote={peNote}
+                peState={peState}
+                assessmentNote={assessmentNote}
+                planNote={planNote}
+                importedMedicNote={importedMedicNote}
+                medicBarcode={medicBarcode}
+              />
+            )}
+          </div>
         </div>
       </ContentWrapper>
     </BaseDrawer>

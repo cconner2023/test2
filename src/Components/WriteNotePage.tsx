@@ -15,6 +15,7 @@ import {
     ProgressDots, NoteHPIEditor, NoteWizardFooter,
     shareStatusToIconStatus, exportStatusToIconStatus,
 } from './WriteNoteHelpers';
+import { useAuthStore } from '../stores/useAuthStore';
 import { BrainCircuit, FileText, Stethoscope, ClipboardList } from 'lucide-react';
 
 type DispositionType = dispositionType['type'];
@@ -50,6 +51,7 @@ export const WriteNotePage = ({
     initialPage = 0,
 }: WriteNoteProps) => {
     const { profile } = useUserProfile();
+    const isDevRole = useAuthStore(s => s.isDevRole);
     const colors = getColorClasses(disposition.type);
     const defaultHPI = profile.noteIncludeHPI ?? true;
     const defaultPE = profile.noteIncludePE ?? false;
@@ -85,6 +87,7 @@ export const WriteNotePage = ({
     const {
         note, setNote, previewNote,
         peNote, setPeNote,
+        peState, setPeState,
         planNote, setPlanNote,
         includeHPI, setIncludeHPI,
         includePhysicalExam, setIncludePhysicalExam,
@@ -96,8 +99,8 @@ export const WriteNotePage = ({
         handleSwipeStart, handleSwipeMove, handleSwipeEnd,
         setCursorPosition,
         piiWarnings, pePiiWarnings, hasPII,
-        handleCopy, handleShare, handleExportDD689,
-        shareStatus, exportStatus,
+        handleCopy, handleShare, handleExportDD689, handleExportSF600,
+        shareStatus, exportStatus, sf600ExportStatus,
         expanderSuggestions, expanderIndex, acceptExpander, dismissExpander,
         hasExpanderSuggestion,
         templateSession, startSession, fillCurrentAndAdvance, endSession, dismissDropdown,
@@ -208,10 +211,12 @@ export const WriteNotePage = ({
                                                 <PhysicalExam
                                                     initialText={peNote}
                                                     onChange={setPeNote}
+                                                    onStateChange={setPeState}
                                                     colors={colors}
                                                     symptomCode={selectedSymptom?.icon || 'A-1'}
-                                                    depth={profile.peDepth ?? 'minimal'}
+                                                    depth={profile.peDepth ?? 'focused'}
                                                     customBlocks={profile.peDepth === 'custom' ? profile.customPEBlocks : undefined}
+                                                    comprehensiveTemplate={profile.peDepth === 'comprehensive' ? profile.comprehensivePETemplate : undefined}
                                                     expanders={profile.textExpanders ?? []}
                                                     expanderEnabled={profile.textExpanderEnabled ?? false}
                                                 />
@@ -266,12 +271,22 @@ export const WriteNotePage = ({
                                     <div>
                                         <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
                                             <span className="font-medium">Note Preview</span>
-                                            <ActionIconButton
-                                                onClick={() => handleCopy(previewNote, 'preview')}
-                                                status={copiedTarget === 'preview' ? 'done' : 'idle'}
-                                                variant="copy"
-                                                title="Copy note text"
-                                            />
+                                            <div className="flex items-center gap-1">
+                                                <ActionIconButton
+                                                    onClick={() => handleCopy(previewNote, 'preview')}
+                                                    status={copiedTarget === 'preview' ? 'done' : 'idle'}
+                                                    variant="copy"
+                                                    title="Copy note text"
+                                                />
+                                                {isDevRole && (
+                                                    <ActionIconButton
+                                                        onClick={handleExportSF600}
+                                                        status={exportStatusToIconStatus(sf600ExportStatus)}
+                                                        variant="pdf"
+                                                        title="Export SF600 PDF"
+                                                    />
+                                                )}
+                                            </div>
                                         </div>
                                         <div className="p-3 rounded-b-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto border border-themegray1/15">
                                             {previewNote || "No content selected"}
@@ -312,6 +327,7 @@ export const WriteNotePage = ({
                                                     includeDecisionMaking,
                                                     customNote: includeHPI ? note : '',
                                                     physicalExamNote: includePhysicalExam ? peNote : '',
+                                                    peState: includePhysicalExam ? (peState ?? undefined) : undefined,
                                                     planNote: includePlan ? planNote : '',
                                                     user: profile,
                                                     userId: authUserId,

@@ -46,6 +46,7 @@ interface UIState {
   dynamicTitle?: string
   isMobile: boolean
   isAlgorithmView?: boolean
+  isSearchFocused?: boolean
 }
 
 /**

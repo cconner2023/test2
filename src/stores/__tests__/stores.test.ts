@@ -73,7 +73,6 @@ import { useNavigationStore } from '../useNavigationStore'
 import {
   selectShowQuestionCard,
   selectIsMobileColumnB,
-  selectColumnAPanel,
   selectMobileGridClass,
 } from '../useNavigationStore'
 
@@ -892,27 +891,18 @@ describe('useNavigationStore', () => {
       expect(selectIsMobileColumnB(state)).toBe(false)
     })
 
-    it('selectColumnAPanel returns 0 when no category selected', () => {
-      expect(selectColumnAPanel(getState())).toBe(0)
+    it('columnAPanel is 0 initially', () => {
+      expect(getState().columnAPanel).toBe(0)
     })
 
-    it('selectColumnAPanel returns 1 when category selected but no question card', () => {
-      const state = {
-        ...getState(),
-        selectedCategory: mockCategory as any,
-        viewState: 'subcategory' as const,
-      }
-      expect(selectColumnAPanel(state)).toBe(1)
+    it('columnAPanel is 1 after navigating to a category', () => {
+      getState().handleNavigation({ type: 'category', id: mockCategory.id, icon: '', text: '', data: { categoryRef: mockCategory as any } })
+      expect(getState().columnAPanel).toBe(1)
     })
 
-    it('selectColumnAPanel returns 2 when question card is showing', () => {
-      const state = {
-        ...getState(),
-        selectedCategory: mockCategory as any,
-        selectedSymptom: mockSymptom as any,
-        viewState: 'questions' as const,
-      }
-      expect(selectColumnAPanel(state)).toBe(2)
+    it('columnAPanel is 2 after navigating to a CC', () => {
+      getState().handleNavigation({ type: 'CC', id: mockSymptom.id, icon: '', text: '', data: { categoryRef: mockCategory as any, symptomRef: mockSymptom as any, categoryId: mockCategory.id, symptomId: mockSymptom.id } })
+      expect(getState().columnAPanel).toBe(2)
     })
 
     it('selectMobileGridClass returns column-B-visible class when search expanded', () => {

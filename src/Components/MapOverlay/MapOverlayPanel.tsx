@@ -1,12 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useSpring, animated } from '@react-spring/web';
-import { ChevronLeft, Compass, Move, MapPin, Route, Pencil, Trash2, Check, X } from 'lucide-react';
+import { ChevronLeft, Compass, Move, MapPin, Route, Pencil, Trash2, Check, X, Search, RefreshCw } from 'lucide-react';
 import { LoadingSpinner } from '../LoadingSpinner';
 import { forward } from 'mgrs';
 import { BaseDrawer } from '../BaseDrawer';
 import { HeaderPill, PillButton } from '../HeaderPill';
 import { ContentWrapper } from '../Settings/ContentWrapper';
-import { SearchInput } from '../SearchInput';
 import { ErrorDisplay } from '../ErrorDisplay';
 import { useGeolocation } from '../../Hooks/useGeolocation';
 import { useIsMobile } from '../../Hooks/useIsMobile';
@@ -470,21 +469,44 @@ export function MapOverlayPanel({ isVisible, onClose }: MapOverlayPanelProps) {
                 </button>
               )}
 
-              {/* Search — collapses when toolbar is expanded */}
+              {/* Search — clinic-style: full pill when empty, X + check spring in with text */}
               <animated.div
-                className="min-w-0 overflow-hidden"
+                className="min-w-0 overflow-hidden flex items-center gap-1.5"
                 style={{
                   flex: toolbarSpring.progress.to((p: number) => `${1 - p} 1 0%`),
                   opacity: toolbarSpring.progress.to((p: number) => 1 - p),
                 }}
               >
-                <SearchInput
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                  onSubmit={handleSearchSubmit}
-                  placeholder="Address, grid, or lat/lng..."
-                  className="w-full"
-                />
+                <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
+                  <Search size={16} className="absolute left-3 text-tertiary/50 pointer-events-none" />
+                  <input
+                    type="search"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && searchQuery.trim()) handleSearchSubmit(); if (e.key === 'Escape') setSearchQuery('') }}
+                    placeholder="Address, grid, or lat/lng..."
+                    className="w-full bg-transparent outline-none text-[16px] text-tertiary pl-9 pr-3 py-2 rounded-full min-w-0 placeholder:text-tertiary/30 [&::-webkit-search-cancel-button]:hidden"
+                  />
+                </div>
+                {searchQuery.trim() && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="animate-spring-in shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                    >
+                      <X size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSearchSubmit}
+                      disabled={searchPending}
+                      className="animate-spring-in shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+                    >
+                      {searchPending ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+                    </button>
+                  </>
+                )}
               </animated.div>
 
               {/* Toolbar pill — right side, expands to fill search area */}

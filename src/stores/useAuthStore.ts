@@ -112,8 +112,8 @@ function clearLocalSessionStorage() {
 
 function migratePeDepth(profile: UserTypes): UserTypes {
   const d = profile.peDepth as string | undefined
-  if (d === 'focused') profile.peDepth = 'minimal'
-  else if (d === 'standard' || d === 'comprehensive') profile.peDepth = 'expanded'
+  if (d === 'minimal' || d === 'expanded') profile.peDepth = 'focused'
+  // 'focused', 'comprehensive', 'custom' are already correct — no-op
   return profile
 }
 
@@ -196,9 +196,9 @@ async function fetchProfileFromSupabase(userId: string): Promise<{ profile: User
     if (sec.note_include_pe != null) profile.noteIncludePE = sec.note_include_pe as boolean
     if (sec.pe_depth != null) {
       const raw = sec.pe_depth as string
-      // Migrate old depth values to new minimal/expanded scheme
-      if (raw === 'focused' || raw === 'minimal') profile.peDepth = 'minimal'
-      else if (raw === 'standard' || raw === 'comprehensive' || raw === 'expanded') profile.peDepth = 'expanded'
+      // Migrate old depth values to new focused/comprehensive scheme
+      if (raw === 'minimal' || raw === 'expanded' || raw === 'focused') profile.peDepth = 'focused'
+      else if (raw === 'standard' || raw === 'comprehensive') profile.peDepth = 'comprehensive'
       else profile.peDepth = raw as UserTypes['peDepth']
     }
     if (sec.text_expanders != null) profile.textExpanders = sec.text_expanders as TextExpander[]

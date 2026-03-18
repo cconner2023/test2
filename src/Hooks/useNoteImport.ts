@@ -56,6 +56,31 @@ export const useNoteImport = () => {
         const parsed = parseNoteEncoding(barcodeString);
         if (!parsed) throw new Error('Could not parse barcode string');
 
+        // 1b. Provider-only note (PRV prefix) — no algorithm to reconstruct
+        if (parsed.symptomCode === 'PRV') {
+            const parts: string[] = [];
+            if (parsed.providerHpi) { parts.push('HPI'); parts.push(parsed.providerHpi); }
+            if (parsed.providerPe) { parts.push(''); parts.push('Physical Exam'); parts.push(parsed.providerPe); }
+            if (parsed.providerAssessment) { parts.push(''); parts.push('Assessment'); parts.push(parsed.providerAssessment); }
+            if (parsed.providerPlan) { parts.push(''); parts.push('Plan'); parts.push(parsed.providerPlan); }
+            const providerAuthor = parsed.providerUser
+                ? formatSignature(parsed.providerUser) || 'Unknown Provider'
+                : 'Unknown Provider';
+            if (providerAuthor) { parts.push(''); parts.push(providerAuthor); }
+
+            return {
+                fullNote: parts.join('\n'),
+                parsed,
+                symptomText: 'Provider Note',
+                symptomIcon: 'PRV',
+                dispositionType: '',
+                dispositionText: '',
+                authorLabel: providerAuthor,
+                userId: parsed.providerUserId ?? null,
+                encodedText: barcodeString,
+            };
+        }
+
         // 2. Find algorithm options
         if (!parsed.symptomCode) throw new Error('Note has no symptom code');
         const algorithmOptions = findAlgorithmByCode(parsed.symptomCode);
@@ -94,14 +119,84 @@ export const useNoteImport = () => {
             selectedSymptom,
         );
 
+        // 7. If provider fields exist, rebuild with alternating signatures
+        const hasProviderFields = !!(parsed.providerHpi || parsed.providerPe || parsed.providerAssessment || parsed.providerPlan);
+        const providerSig = parsed.providerUser ? formatSignature(parsed.providerUser) : '';
+        const medicSig = parsed.user ? formatSignature(parsed.user) : '';
+        const sameAuthor = !!(medicSig && providerSig && medicSig === providerSig);
+        const hasMixed = hasProviderFields && !sameAuthor;
+
+        let fullNote = result.fullNote;
+        if (hasProviderFields && sameAuthor) {
+            // Same person — merge content, single signature at bottom
+            const parts: string[] = [];
+            const addMerged = (header: string, medicText?: string, providerText?: string) => {
+                const combined = [medicText, providerText].filter(Boolean).join('\n');
+                if (!combined) return;
+                if (parts.length > 0) parts.push('');
+                parts.push(header);
+                parts.push(combined);
+            };
+            addMerged('HPI:', result.sections.customNote || undefined, parsed.providerHpi);
+            addMerged('PHYSICAL EXAM:', result.sections.physicalExam, parsed.providerPe);
+            if (result.sections.algorithm) { parts.push(''); const t = selectedSymptom?.icon && selectedSymptom?.text ? `${selectedSymptom.icon}: ${selectedSymptom.text}:` : 'ALGORITHM:'; parts.push(t); parts.push(result.sections.algorithm); }
+            if (result.sections.decisionMaking) { parts.push(''); parts.push('DECISION MAKING:'); parts.push(result.sections.decisionMaking); }
+            addMerged('ASSESSMENT:', undefined, parsed.providerAssessment);
+            addMerged('PLAN:', result.sections.plan, parsed.providerPlan);
+            if (medicSig) { parts.push(''); parts.push(medicSig); }
+            fullNote = parts.join('\n').trim();
+        } else if (hasMixed) {
+            // Layout: [header, medicText, providerText, isMedicOnly]
+            const layout: [string, string | undefined, string | undefined, boolean][] = [
+                ['HPI:', result.sections.customNote || undefined, parsed.providerHpi, false],
+                ['PHYSICAL EXAM:', result.sections.physicalExam, parsed.providerPe, false],
+            ];
+            // Algorithm + Decision Making are medic-only sections
+            if (result.sections.algorithm) {
+                const title = selectedSymptom?.icon && selectedSymptom?.text
+                    ? `${selectedSymptom.icon}: ${selectedSymptom.text}:` : 'ALGORITHM:';
+                layout.push([title, result.sections.algorithm, undefined, true]);
+            }
+            if (result.sections.decisionMaking) {
+                layout.push(['DECISION MAKING:', result.sections.decisionMaking, undefined, true]);
+            }
+            layout.push(['ASSESSMENT:', undefined, parsed.providerAssessment, false]);
+            layout.push(['PLAN:', result.sections.plan, parsed.providerPlan, false]);
+
+            // Find last index where each voice has content
+            let lastMedic = -1, lastProvider = -1;
+            for (let i = layout.length - 1; i >= 0; i--) {
+                if (lastMedic < 0 && layout[i][1]) lastMedic = i;
+                if (lastProvider < 0 && layout[i][2]) lastProvider = i;
+            }
+
+            const parts: string[] = [];
+            layout.forEach(([header, medicText, providerText, isMedicOnly], i) => {
+                if (!medicText && !providerText) return;
+                if (parts.length > 0) parts.push('');
+                parts.push(header);
+                if (medicText) {
+                    parts.push(medicText);
+                    if (i === lastMedic && medicSig) parts.push(medicSig);
+                }
+                if (providerText && !isMedicOnly) {
+                    if (medicText) parts.push('Provider');
+                    parts.push(providerText);
+                    if (i === lastProvider && providerSig) parts.push(providerSig);
+                }
+            });
+
+            fullNote = parts.join('\n').trim();
+        }
+
         return {
-            fullNote: result.fullNote,
+            fullNote,
             parsed,
             symptomText: selectedSymptom?.text || parsed.symptomCode,
             symptomIcon: selectedSymptom?.icon || parsed.symptomCode,
             dispositionType: disposition?.type ?? '',
             dispositionText: disposition?.text ?? '',
-            authorLabel,
+            authorLabel: hasMixed ? `${authorLabel} / ${providerSig || 'Provider'}` : authorLabel,
             userId: parsed.userId,
             encodedText: barcodeString,
         };

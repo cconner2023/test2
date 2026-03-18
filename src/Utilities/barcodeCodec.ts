@@ -66,19 +66,27 @@ function packToMixedBinary(asciiPayload: string): Uint8Array {
 function packSegment(segment: string): Uint8Array {
   const prefix = segment[0]
 
-  if (prefix === 'H' && segment[1] === '!') {
-    return packPrefixedBlob('H', segment.substring(2))
+  if ((prefix === 'H' || prefix === 'h') && segment[1] === '!') {
+    return packPrefixedBlob(prefix, segment.substring(2))
   }
 
-  if (prefix === 'P' && segment[1] === '!') {
-    return packPrefixedBlob('P', segment.substring(2))
+  if ((prefix === 'P' || prefix === 'p') && segment[1] === '!') {
+    return packPrefixedBlob(prefix, segment.substring(2))
+  }
+
+  if ((prefix === 'N' || prefix === 'n') && segment[1] === '!') {
+    return packPrefixedBlob(prefix, segment.substring(2))
+  }
+
+  if ((prefix === 'X' || prefix === 'x') && segment[1] === '!') {
+    return packPrefixedBlob(prefix, segment.substring(2))
   }
 
   if (prefix === 'P' && (segment.startsWith('P3:') || segment.startsWith('P2:'))) {
     return packPECompact(segment)
   }
 
-  if (prefix === 'U') {
+  if (prefix === 'U' || prefix === 'u') {
     return packUserSegment(segment)
   }
 
@@ -184,12 +192,13 @@ function packAbnormalDetails(details: string): Uint8Array {
 }
 
 function packUserSegment(segment: string): Uint8Array {
+  const segPrefix = segment[0]
   const value = segment.substring(1)
   const dotParts = value.split('.')
   if (dotParts.length >= 4) {
     const namesPart = dotParts.slice(3).join('.')
     if (namesPart.startsWith('!')) {
-      const prefix = `U${dotParts[0]}.${dotParts[1]}.${dotParts[2]}.`
+      const prefix = `${segPrefix}${dotParts[0]}.${dotParts[1]}.${dotParts[2]}.`
       const raw = base64ToUint8(namesPart.substring(1))
       const prefixBytes = new TextEncoder().encode(prefix)
       const result = new Uint8Array(prefixBytes.length + 3 + raw.length)

@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
+import type { SpringValue } from '@react-spring/web';
 import { createPortal } from 'react-dom';
 import { ChevronRight } from 'lucide-react';
 import { useAlgorithm } from '../Hooks/useAlgorithm';
@@ -7,7 +8,7 @@ import { Algorithm as AlgorithmData } from '../Data/Algorithms';
 import { QuestionCard } from './QuestionCard';
 import { ScreenerDrawer } from './ScreenerDrawer';
 import { SearchResults } from './SearchResults';
-import { ScrollRevealSearch } from './ScrollRevealSearch';
+import { MobileSearchBar } from './MobileSearchBar';
 import { getColorClasses } from '../Utilities/ColorUtilities';
 import { ConnectorDots } from './ConnectorDots';
 import { ALGORITHM_TIMING } from '../Utilities/constants';
@@ -17,12 +18,14 @@ import type { SearchResultType } from '../Types/CatTypes';
 interface AlgorithmPageProps {
     searchInput?: string
     onSearchChange?: (value: string) => void
+    onSearchFocusChange?: (focused: boolean) => void
     searchResults?: SearchResultType[]
     isSearching?: boolean
     onSearchResultClick?: (result: SearchResultType) => void
+    headerCollapse?: SpringValue<number>
 }
 
-export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults, isSearching, onSearchResultClick }: AlgorithmPageProps) {
+export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusChange, searchResults, isSearching, onSearchResultClick, headerCollapse }: AlgorithmPageProps) {
     const selectedSymptom = useNavigationStore((s) => s.selectedSymptom);
     const isMobile = useNavigationStore((s) => s.isMobile);
     const openWriteNote = useNavigationStore((s) => s.openWriteNote);
@@ -209,12 +212,14 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults,
 
     return (
         <div className="relative h-full w-full">
-            <ScrollRevealSearch
+            <MobileSearchBar
                 ref={containerRef}
                 value={searchInput}
                 onChange={onSearchChange ?? (() => {})}
+                onFocusChange={onSearchFocusChange}
                 enabled={hasMobileSearch}
-                className={isMobile ? 'pt-[calc(var(--sat,0px)+4rem)]' : ''}
+                className=""
+                style={isMobile ? { paddingTop: 'calc((var(--sat, 0px) + 4rem) * (1 - var(--header-collapse, 0)))' } : undefined}
             >
                 {hasSearch && onSearchResultClick ? (
                     <div className="px-2 min-h-full">
@@ -226,7 +231,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults,
                         />
                     </div>
                 ) : (
-                    <div className="flex flex-col px-4 pb-32 space-y-1 w-full">
+                    <div className="flex flex-col px-4 pt-5 pb-32 space-y-1 w-full">
                         <QuestionCard
                             algorithmOptions={algorithmOptions}
                             cardStates={cardStates}
@@ -288,7 +293,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, searchResults,
                         />
                     </div>
                 )}
-            </ScrollRevealSearch>
+            </MobileSearchBar>
 
             {openScreenerCardIndex !== null && algorithmOptions[openScreenerCardIndex]?.screenerConfig &&
                 createPortal(

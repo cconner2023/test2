@@ -103,6 +103,39 @@ export function useMessagesSlide({ enabled, isOpen, onOpen, onClose }: UseMessag
     }
   )
 
+  // ── Panel swipe-right-to-close (no tap handling — only drag) ──
+
+  const panelCloseBind = useDrag(
+    ({ active, movement: [mx], velocity: [vx], direction: [dx] }) => {
+      // Only respond to rightward drags (positive mx)
+      if (mx < 0) return
+
+      if (active) {
+        setIsDragging(true)
+        const clamped = Math.max(0, Math.min(1, 1 - mx / window.innerWidth))
+        setProgress(clamped)
+      } else {
+        setIsDragging(false)
+        const clamped = Math.max(0, 1 - mx / window.innerWidth)
+        const shouldClose = clamped < 0.7 || (vx > GESTURE_THRESHOLDS.FLING_VELOCITY && dx > 0)
+
+        if (shouldClose) {
+          setProgress(0)
+          onClose()
+        } else {
+          setProgress(1)
+        }
+      }
+    },
+    {
+      enabled: enabled && isOpen,
+      axis: 'x',
+      filterTaps: true,
+      pointer: { touch: true },
+      from: () => [0, 0],
+    }
+  )
+
   const handleClose = useCallback(() => {
     setProgress(0)
     onClose()
@@ -117,6 +150,7 @@ export function useMessagesSlide({ enabled, isOpen, onOpen, onClose }: UseMessag
     backdropOpacity: progress * 0.95,
     backdropTransition: isDragging ? 'none' : OPACITY_TRANSITION,
     closeHandlers: enabled && isOpen ? closeBind() : {},
+    panelCloseHandlers: enabled && isOpen ? panelCloseBind() : {},
     handleClose,
     onEdgeDrag,
     onEdgeDragEnd,

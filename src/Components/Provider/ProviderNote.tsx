@@ -1,14 +1,22 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { detectPII } from '../../lib/piiDetector';
 import { PIIWarningBanner } from '../PIIWarningBanner';
+import { ExpandableInput } from '../ExpandableInput';
+import { PhysicalExam } from '../PhysicalExam';
+import { useUserProfile } from '../../Hooks/useUserProfile';
+import { getColorClasses } from '../../Utilities/ColorUtilities';
 import type { ImportedMedicNote } from '../ProviderDrawer';
+import type { PEState } from '../../Types/PETypes';
 
 interface ProviderNoteProps {
   hpiNote: string;
   setHpiNote: (note: string) => void;
   peNote: string;
   setPeNote: (note: string) => void;
+  peState: PEState | null;
+  onPeStateChange: (state: PEState) => void;
+  peResetKey?: number;
   assessmentNote: string;
   setAssessmentNote: (note: string) => void;
   planNote: string;
@@ -26,6 +34,8 @@ export function ProviderNote({
   setHpiNote,
   peNote,
   setPeNote,
+  onPeStateChange,
+  peResetKey = 0,
   assessmentNote,
   setAssessmentNote,
   planNote,
@@ -33,6 +43,12 @@ export function ProviderNote({
   onNext,
   importedMedicNote,
 }: ProviderNoteProps) {
+  const [peMode, setPeMode] = useState<'blocks' | 'text'>('blocks');
+
+  const { profile } = useUserProfile();
+  const expanders = profile.textExpanders ?? [];
+  const expanderEnabled = profile.textExpanderEnabled ?? true;
+
   const piiWarnings = useMemo(
     () =>
       Array.from(
@@ -51,65 +67,110 @@ export function ProviderNote({
       {piiWarnings.length > 0 && <PIIWarningBanner warnings={piiWarnings} />}
 
       <div className="space-y-2">
-        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">History of Present Illness</p>
+        <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">History of Present Illness</p>
         {importedMedicNote?.medicHpi && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
-            <p className="text-[9pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
+            <p className="text-[10pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
             <div className="text-sm text-primary whitespace-pre-wrap">{importedMedicNote.medicHpi}</div>
           </div>
         )}
-        <textarea
-          className={TEXTAREA_CLASS}
+        <ExpandableInput
           value={hpiNote}
-          onChange={(e) => setHpiNote(e.target.value)}
+          onChange={setHpiNote}
+          expanders={expanders}
+          expanderEnabled={expanderEnabled}
+          multiline
+          className={TEXTAREA_CLASS}
           placeholder="Chief complaint, onset, duration, character, associated symptoms..."
         />
       </div>
 
       <div className="space-y-2">
-        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Physical Exam</p>
+        <div className="flex items-center justify-between">
+          <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Physical Exam</p>
+          <label
+            className="flex items-center gap-2 cursor-pointer"
+            onClick={() => setPeMode(prev => prev === 'blocks' ? 'text' : 'blocks')}
+          >
+            <span className="text-[10pt] text-tertiary/50">Structured</span>
+            <div
+              className={`relative w-9 h-5 shrink-0 rounded-full transition-colors duration-200 ${
+                peMode === 'blocks' ? 'bg-themeblue3' : 'bg-tertiary/20'
+              }`}
+            >
+              <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                peMode === 'blocks' ? 'translate-x-4' : 'translate-x-0'
+              }`} />
+            </div>
+          </label>
+        </div>
         {importedMedicNote?.medicPe && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
-            <p className="text-[9pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
+            <p className="text-[10pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
             <div className="text-sm text-primary whitespace-pre-wrap">{importedMedicNote.medicPe}</div>
           </div>
         )}
-        <textarea
-          className={TEXTAREA_CLASS}
-          value={peNote}
-          onChange={(e) => setPeNote(e.target.value)}
-          placeholder="Vital signs, system findings..."
-        />
+        {peMode === 'blocks' ? (
+          <PhysicalExam
+            key={peResetKey}
+            initialText={peNote}
+            onChange={setPeNote}
+            onStateChange={onPeStateChange}
+            colors={getColorClasses('routine')}
+            symptomCode="A-1"
+            depth={profile.peDepth ?? 'focused'}
+            customBlocks={profile.peDepth === 'custom' ? profile.customPEBlocks : undefined}
+            comprehensiveTemplate={profile.peDepth === 'comprehensive' ? profile.comprehensivePETemplate : undefined}
+            expanders={expanders}
+            expanderEnabled={expanderEnabled}
+          />
+        ) : (
+          <ExpandableInput
+            value={peNote}
+            onChange={setPeNote}
+            expanders={expanders}
+            expanderEnabled={expanderEnabled}
+            multiline
+            className={TEXTAREA_CLASS}
+            placeholder="Vital signs, system findings..."
+          />
+        )}
       </div>
 
       <div className="space-y-2">
-        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Assessment</p>
+        <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Assessment</p>
         {importedMedicNote?.medicAssessment && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
-            <p className="text-[9pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
+            <p className="text-[10pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
             <div className="text-sm text-primary whitespace-pre-wrap">{importedMedicNote.medicAssessment}</div>
           </div>
         )}
-        <textarea
-          className={TEXTAREA_CLASS}
+        <ExpandableInput
           value={assessmentNote}
-          onChange={(e) => setAssessmentNote(e.target.value)}
+          onChange={setAssessmentNote}
+          expanders={expanders}
+          expanderEnabled={expanderEnabled}
+          multiline
+          className={TEXTAREA_CLASS}
           placeholder="Clinical assessment, diagnosis, differential..."
         />
       </div>
 
       <div className="space-y-2">
-        <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Plan</p>
+        <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Plan</p>
         {importedMedicNote?.medicPlan && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
-            <p className="text-[9pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
+            <p className="text-[10pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
             <div className="text-sm text-primary whitespace-pre-wrap">{importedMedicNote.medicPlan}</div>
           </div>
         )}
-        <textarea
-          className={TEXTAREA_CLASS}
+        <ExpandableInput
           value={planNote}
-          onChange={(e) => setPlanNote(e.target.value)}
+          onChange={setPlanNote}
+          expanders={expanders}
+          expanderEnabled={expanderEnabled}
+          multiline
+          className={TEXTAREA_CLASS}
           placeholder="Treatment plan, orders, follow-up..."
         />
       </div>

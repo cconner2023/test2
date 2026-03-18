@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { ChevronLeft, PenLine, X } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -24,6 +24,11 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
     const [selectedPeerName, setSelectedPeerName] = useState<string | null>(null)
     const [searchQuery, setSearchQuery] = useState('')
+    const [searchFocused, setSearchFocused] = useState(false)
+
+    // Clear search when navigating between views (e.g., clicking a search result)
+    useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
+
     const messagesCtx = useMessagesContext()
     const { user } = useAuth()
     const { profile } = useUserProfile()
@@ -105,6 +110,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             searchQuery={searchQuery}
             onSearchClear={() => setSearchQuery('')}
             onSearchChange={setSearchQuery}
+            onSearchFocusChange={setSearchFocused}
         />
     )
 
@@ -118,7 +124,6 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                 <h2 className="text-[17px] font-semibold text-primary flex-1 truncate">Messages</h2>
                 <HeaderPill>
                     <PillButton icon={PenLine} onClick={() => panelRef.current?.createGroup()} label="New message" />
-                    <PillButton icon={X} onClick={handleClose} label="Close" />
                 </HeaderPill>
             </div>
         ) : null
@@ -165,6 +170,8 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             mobileFullScreen={isConversationView}
             desktopPosition="right"
             desktopWidth={isMessagesActive ? 'w-[90%]' : undefined}
+            headerFaded={searchFocused}
+            blurHeader
         >
             <div className="h-full">
                 {panelContent}

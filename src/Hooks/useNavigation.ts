@@ -4,7 +4,6 @@ import {
     useNavigationStore,
     selectShowQuestionCard,
     selectMobileGridClass,
-    selectColumnAPanel,
     selectIsMobileColumnB,
 } from '../stores/useNavigationStore'
 
@@ -59,7 +58,7 @@ export function useNavigation() {
         // Derived selectors
         showQuestionCard: selectShowQuestionCard(s),
         mobileGridClass: selectMobileGridClass(s),
-        columnAPanel: selectColumnAPanel(s),
+        columnAPanel: s.columnAPanel,
         isMobileColumnB: selectIsMobileColumnB(s),
 
         // Actions (stable references from Zustand)

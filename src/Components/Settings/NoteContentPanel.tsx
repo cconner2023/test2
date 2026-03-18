@@ -1,18 +1,19 @@
 import { useState, useCallback } from 'react';
-import { FileText, Stethoscope, ClipboardList, TextCursorInput, Plus, Pencil, Trash2, ChevronDown, ChevronRight, X, Shield } from 'lucide-react';
+import { FileText, Stethoscope, ClipboardList, TextCursorInput, Plus, Pencil, Trash2, ChevronDown, ChevronRight, X, Shield, ChevronUp } from 'lucide-react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import { useAuthStore } from '../../stores/useAuthStore';
-import type { UserTypes, TextExpander, CustomPEBlock, PlanOrderTags, PlanOrderCategory, PlanOrderSet, PlanBlockKey } from '../../Data/User';
+import type { UserTypes, TextExpander, CustomPEBlock, ComprehensivePETemplate, PlanOrderTags, PlanOrderCategory, PlanOrderSet, PlanBlockKey } from '../../Data/User';
 import { PLAN_ORDER_CATEGORIES, PLAN_ORDER_LABELS } from '../../Data/User';
+import { SYSTEM_BLOCKS, BASELINE_WRAPPERS, BLOCK_LIBRARY, COMPREHENSIVE_DEFAULT_BLOCK_IDS } from '../../Data/PhysicalExamData';
 import { ToggleSwitch } from './ToggleSwitch';
 import { TextExpanderManager } from './TextExpanderManager';
 
-type PEDepth = 'minimal' | 'expanded' | 'custom';
+type PEDepth = 'focused' | 'comprehensive' | 'custom';
 
-const PE_DEPTH_OPTIONS: { value: PEDepth; label: string; description: string }[] = [
-    { value: 'minimal', label: 'Minimal', description: 'Vitals + free-text findings only' },
-    { value: 'expanded', label: 'Expanded', description: 'Expanded vitals + category-specific items, all normal' },
-    { value: 'custom', label: 'Custom', description: 'User-defined exam blocks with normal/abnormal tags' },
+const ALL_PE_DEPTH_OPTIONS: { value: PEDepth; label: string; description: string; providerOnly: boolean }[] = [
+    { value: 'focused', label: 'Focused', description: 'Category-specific exam with baseline wrappers', providerOnly: false },
+    { value: 'comprehensive', label: 'Comprehensive', description: 'Full system-by-system exam (providers)', providerOnly: true },
+    { value: 'custom', label: 'Custom', description: 'Compose exam from block library', providerOnly: false },
 ];
 
 // ── Custom PE Blocks inline manager ──────────────────────────
@@ -263,6 +264,119 @@ const CustomPEBlockManager = ({ blocks, onChange }: CustomPEBlockManagerProps) =
                 <button
                     onClick={startAdd}
                     className="flex items-center gap-1.5 text-[11px] text-themeblue2 hover:text-themeblue2/80 transition-colors px-1 py-1"
+                >
+                    <Plus size={14} />
+                    <span>Add Block</span>
+                </button>
+            )}
+        </div>
+    );
+};
+
+// ── Comprehensive Template Editor ────────────────────────────
+
+interface ComprehensiveTemplateEditorProps {
+    template: ComprehensivePETemplate | undefined;
+    onChange: (template: ComprehensivePETemplate) => void;
+}
+
+const ADDABLE_BLOCKS = [...BASELINE_WRAPPERS, ...SYSTEM_BLOCKS];
+
+const ComprehensiveTemplateEditor = ({ template, onChange }: ComprehensiveTemplateEditorProps) => {
+    const [showPicker, setShowPicker] = useState(false);
+
+    const blockIds = template?.blockIds ?? COMPREHENSIVE_DEFAULT_BLOCK_IDS;
+
+    const move = (index: number, direction: -1 | 1) => {
+        const next = [...blockIds];
+        const swapIndex = index + direction;
+        if (swapIndex < 0 || swapIndex >= next.length) return;
+        [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+        onChange({ ...template, blockIds: next });
+    };
+
+    const remove = (index: number) => {
+        const next = blockIds.filter((_, i) => i !== index);
+        onChange({ ...template, blockIds: next });
+    };
+
+    const addBlock = (key: string) => {
+        if (blockIds.includes(key)) return;
+        onChange({ ...template, blockIds: [...blockIds, key] });
+        setShowPicker(false);
+    };
+
+    const availableToAdd = ADDABLE_BLOCKS.filter(b => !blockIds.includes(b.key));
+
+    return (
+        <div className="space-y-2">
+            <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Comprehensive Template</p>
+
+            <div className="space-y-1">
+                {blockIds.map((key, index) => {
+                    const block = BLOCK_LIBRARY[key];
+                    const label = block?.label ?? key;
+                    return (
+                        <div
+                            key={key}
+                            className="flex items-center gap-2 px-3 py-2 rounded-lg bg-themewhite3 border border-tertiary/10"
+                        >
+                            <span className="text-xs font-medium text-primary flex-1 min-w-0 truncate">{label}</span>
+                            <button
+                                onClick={() => move(index, -1)}
+                                disabled={index === 0}
+                                className="shrink-0 p-1 rounded hover:bg-tertiary/10 transition-colors disabled:opacity-30 active:scale-95"
+                                aria-label={`Move ${label} up`}
+                            >
+                                <ChevronUp size={13} className="text-tertiary/50" />
+                            </button>
+                            <button
+                                onClick={() => move(index, 1)}
+                                disabled={index === blockIds.length - 1}
+                                className="shrink-0 p-1 rounded hover:bg-tertiary/10 transition-colors disabled:opacity-30 active:scale-95"
+                                aria-label={`Move ${label} down`}
+                            >
+                                <ChevronDown size={13} className="text-tertiary/50" />
+                            </button>
+                            <button
+                                onClick={() => remove(index)}
+                                className="shrink-0 p-1 rounded hover:bg-themeredred/10 transition-colors active:scale-95"
+                                aria-label={`Remove ${label}`}
+                            >
+                                <X size={13} className="text-themeredred/50" />
+                            </button>
+                        </div>
+                    );
+                })}
+            </div>
+
+            {showPicker && availableToAdd.length > 0 && (
+                <div className="rounded-lg border border-themeblue2/20 bg-themeblue2/5 px-3 py-2 space-y-1.5">
+                    <p className="text-[10px] text-tertiary/50">Select a block to add</p>
+                    <div className="flex flex-wrap gap-1">
+                        {availableToAdd.map(b => (
+                            <button
+                                key={b.key}
+                                onClick={() => addBlock(b.key)}
+                                className="px-2 py-1 text-[11px] rounded-md border border-tertiary/20 bg-themewhite text-tertiary hover:bg-themeblue2/10 hover:border-themeblue2/30 transition-colors active:scale-95"
+                            >
+                                {b.label}
+                            </button>
+                        ))}
+                    </div>
+                    <button
+                        onClick={() => setShowPicker(false)}
+                        className="text-[11px] text-tertiary/60 hover:text-tertiary transition-colors"
+                    >
+                        Cancel
+                    </button>
+                </div>
+            )}
+
+            {!showPicker && availableToAdd.length > 0 && (
+                <button
+                    onClick={() => setShowPicker(true)}
+                    className="flex items-center gap-1.5 text-[11px] text-themeblue2 hover:text-themeblue2/80 transition-colors px-1 py-1 active:scale-95"
                 >
                     <Plus size={14} />
                     <span>Add Block</span>
@@ -602,18 +716,22 @@ const OrderSetManager = ({ orderSets, orderTags, instructionTags, onChange }: Or
 export const NoteContentPanel = () => {
     const { profile, updateProfile, syncProfileField } = useUserProfile();
     const isDevRole = useAuthStore((s) => s.isDevRole);
+    const isProviderRole = useAuthStore((s) => s.isProviderRole);
 
     const tc3Mode = profile.tc3Mode ?? false;
     const includeHPI = profile.noteIncludeHPI ?? true;
     const includePE = profile.noteIncludePE ?? false;
-    const peDepth = profile.peDepth ?? 'minimal';
+    const peDepth = profile.peDepth ?? 'focused';
     const customPEBlocks = profile.customPEBlocks ?? [];
+    const comprehensivePETemplate = profile.comprehensivePETemplate;
     const includePlan = profile.noteIncludePlan ?? false;
     const planOrderTags = profile.planOrderTags ?? { referral: [], meds: [], radiology: [], lab: [] };
     const planInstructionTags = profile.planInstructionTags ?? [];
     const planOrderSets = profile.planOrderSets ?? [];
     const textExpanderEnabled = profile.textExpanderEnabled ?? true;
     const textExpanders = profile.textExpanders ?? [];
+
+    const peDepthOptions = ALL_PE_DEPTH_OPTIONS.filter(o => !o.providerOnly || isProviderRole);
 
     /** Update locally (instant) and push to Supabase in the background */
     const handleUpdate = useCallback((fields: Partial<UserTypes>) => {
@@ -630,6 +748,8 @@ export const NoteContentPanel = () => {
         if (fields.planOrderTags !== undefined) dbFields.plan_order_tags = fields.planOrderTags;
         if (fields.planInstructionTags !== undefined) dbFields.plan_instruction_tags = fields.planInstructionTags;
         if (fields.planOrderSets !== undefined) dbFields.plan_order_sets = fields.planOrderSets;
+        if (fields.comprehensivePETemplate !== undefined) dbFields.comprehensive_pe_template = fields.comprehensivePETemplate;
+        if (fields.customExamTemplates !== undefined) dbFields.custom_exam_templates = fields.customExamTemplates;
 
         syncProfileField(dbFields);
     }, [updateProfile, syncProfileField]);
@@ -708,11 +828,11 @@ export const NoteContentPanel = () => {
                     {includePE && (
                         <div className="border-t border-tertiary/10 px-4 py-3 space-y-1.5">
                             <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">PE Depth</p>
-                            {PE_DEPTH_OPTIONS.map((option) => (
+                            {peDepthOptions.map((option) => (
                                 <button
                                     key={option.value}
                                     onClick={() => handleUpdate({ peDepth: option.value })}
-                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all text-left
+                                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all text-left active:scale-95
                                         ${peDepth === option.value
                                             ? 'border-themeblue2/25 bg-themeblue2/10'
                                             : 'border-tertiary/15 bg-themewhite hover:bg-themewhite/80'
@@ -733,6 +853,16 @@ export const NoteContentPanel = () => {
                                     </div>
                                 </button>
                             ))}
+                        </div>
+                    )}
+
+                    {/* Comprehensive Template Editor — shown when PE enabled and depth is 'comprehensive' */}
+                    {includePE && peDepth === 'comprehensive' && (
+                        <div className="border-t border-tertiary/10 px-4 py-3">
+                            <ComprehensiveTemplateEditor
+                                template={comprehensivePETemplate}
+                                onChange={(next) => handleUpdate({ comprehensivePETemplate: next })}
+                            />
                         </div>
                     )}
 

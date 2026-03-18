@@ -38,67 +38,84 @@ function DrawerHeader({
     progressDots,
     onClose,
     isMobile,
-}: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean }) {
+    headerFaded,
+    blurMode = false,
+}: DrawerHeaderConfig & { onClose: () => void; isMobile: boolean; headerFaded?: boolean; blurMode?: boolean }) {
     return (
-        <div className="shrink-0">
-            <div className={`px-5 border-b border-tertiary/10 ${isMobile ? 'pt-1.5 pb-2.5' : 'py-4'}`} data-drag-zone style={{ touchAction: 'none' }}>
-                {isMobile && (
-                    <div className="flex justify-center pb-2">
-                        <div className="w-9 h-1 rounded-full bg-tertiary/25" />
-                    </div>
-                )}
-                <div className="flex items-center justify-between">
-                    <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${rightContentFill ? ' w-0 overflow-hidden' : ''}`}>
-                        <div
-                            className="shrink-0 overflow-hidden transition-all duration-200"
-                            style={{
-                                width: showBack && onBack ? (isMobile ? 48 : 40) : 0,
-                                opacity: showBack && onBack ? 1 : 0,
-                            }}
-                        >
-                            {isMobile ? (
-                                <HeaderPill>
-                                    <PillButton icon={ChevronLeft} onClick={onBack!} label="Go back" />
-                                </HeaderPill>
-                            ) : (
-                                <button
-                                    onClick={onBack}
-                                    className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
-                                    aria-label="Go back"
-                                >
-                                    <ChevronLeft size={24} className="text-tertiary" />
-                                </button>
+        <div className={blurMode ? '' : 'shrink-0'}>
+            {/* Drag handle — always visible on mobile */}
+            {isMobile && (
+                <div className="flex justify-center pt-1.5 pb-1" data-drag-zone style={{ touchAction: 'none' }}>
+                    <div className="w-9 h-1 rounded-full bg-tertiary/25" />
+                </div>
+            )}
+            {/* Collapsible title row */}
+            <div
+                className="overflow-hidden"
+                data-drag-zone
+                style={{
+                    touchAction: 'none',
+                    maxHeight: headerFaded ? 0 : 120,
+                    opacity: headerFaded ? 0 : 1,
+                    transform: headerFaded ? 'scale(0.97)' : 'scale(1)',
+                    transition: 'max-height 300ms cubic-bezier(0.25, 0.1, 0.25, 1), opacity 200ms ease-out, transform 300ms cubic-bezier(0.25, 0.1, 0.25, 1)',
+                    transformOrigin: 'top center',
+                }}
+            >
+                <div className={`px-5 ${isMobile ? 'pb-2.5' : 'py-4'} ${headerFaded || blurMode ? '' : 'border-b border-tertiary/10'}`}>
+                    <div className="flex items-center justify-between">
+                        <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${rightContentFill ? ' w-0 overflow-hidden' : ''}`}>
+                            <div
+                                className="shrink-0 overflow-hidden transition-all duration-200"
+                                style={{
+                                    width: showBack && onBack ? (isMobile ? 48 : 40) : 0,
+                                    opacity: showBack && onBack ? 1 : 0,
+                                }}
+                            >
+                                {isMobile ? (
+                                    <HeaderPill>
+                                        <PillButton icon={ChevronLeft} onClick={onBack!} label="Go back" />
+                                    </HeaderPill>
+                                ) : (
+                                    <button
+                                        onClick={onBack}
+                                        className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
+                                        aria-label="Go back"
+                                    >
+                                        <ChevronLeft size={24} className="text-tertiary" />
+                                    </button>
+                                )}
+                            </div>
+                            <h2 className={`truncate ${isMobile ? 'text-[17px] font-semibold text-primary' : 'text-2xl text-primary'}`}>
+                                {title}
+                            </h2>
+                            {badge && (
+                                <span className="text-[11px] font-semibold text-themeyellow bg-themeyellow/15 px-2 py-0.5 rounded-full shrink-0 tracking-wide">
+                                    {badge}
+                                </span>
                             )}
                         </div>
-                        <h2 className={`truncate ${isMobile ? 'text-[17px] font-semibold text-primary' : 'text-2xl text-primary'}`}>
-                            {title}
-                        </h2>
-                        {badge && (
-                            <span className="text-[11px] font-semibold text-themeyellow bg-themeyellow/15 px-2 py-0.5 rounded-full shrink-0 tracking-wide">
-                                {badge}
-                            </span>
-                        )}
+                        <div className={`flex items-center gap-2${rightContentFill ? ' flex-1 min-w-0' : rightContent ? ' flex-1 min-w-0 justify-end' : ' shrink-0'}`}>
+                            {rightContent}
+                            {!hideDefaultClose && (
+                                isMobile ? (
+                                    <button
+                                        onClick={onClose}
+                                        className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
+                                        aria-label="Close"
+                                    >
+                                        <X style={{ width: 24, height: 24 }} />
+                                    </button>
+                                ) : (
+                                    <HeaderPill>
+                                        <PillButton icon={X} onClick={onClose} label="Close" />
+                                    </HeaderPill>
+                                )
+                            )}
+                        </div>
                     </div>
-                    <div className={`flex items-center gap-2${rightContentFill ? ' flex-1 min-w-0' : rightContent ? ' flex-1 min-w-0 justify-end' : ' shrink-0'}`}>
-                        {rightContent}
-                        {!hideDefaultClose && (
-                            isMobile ? (
-                                <button
-                                    onClick={onClose}
-                                    className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
-                                    aria-label="Close"
-                                >
-                                    <X style={{ width: 24, height: 24 }} />
-                                </button>
-                            ) : (
-                                <HeaderPill>
-                                    <PillButton icon={X} onClick={onClose} label="Close" />
-                                </HeaderPill>
-                            )
-                        )}
-                    </div>
+                    {progressDots}
                 </div>
-                {progressDots}
             </div>
         </div>
     );
@@ -137,6 +154,10 @@ interface BaseDrawerProps {
     /** When true on mobile, the drawer floats as an inset card with margin,
      *  full border-radius, and elevated shadow instead of sitting flush at the bottom. */
     mobileFloating?: boolean;
+    /** When true, fades the DrawerHeader content row (title, buttons) while keeping the drag handle visible. */
+    headerFaded?: boolean;
+    /** When true, header floats over content with backdrop blur — content scrolls behind it. */
+    blurHeader?: boolean;
 }
 
 export function BaseDrawer({
@@ -155,6 +176,8 @@ export function BaseDrawer({
     mobileFullScreen = false,
     cardMode = false,
     mobileFloating = false,
+    headerFaded = false,
+    blurHeader = false,
 }: BaseDrawerProps) {
     const [drawerPosition, setDrawerPosition] = useState(0);
     const [isDragging, setIsDragging] = useState(false);
@@ -359,27 +382,55 @@ export function BaseDrawer({
                 onClick={useMobileLayout ? undefined : (e) => e.stopPropagation()}
             >
                 {header ? (
-                    <>
-                        {!(mobileFullScreen && useMobileLayout) && (
-                            <div {...(useMobileLayout ? bindDrawerDrag() : {})}>
-                                <DrawerHeader
-                                    title={header.title}
-                                    showBack={header.showBack}
-                                    onBack={header.onBack}
-                                    badge={header.badge}
-                                    rightContent={header.rightContent}
-                                    hideDefaultClose={header.hideDefaultClose}
-                                    rightContentFill={header.rightContentFill}
-                                    progressDots={header.progressDots}
-                                    onClose={handleClose}
-                                    isMobile={useMobileLayout}
-                                />
-                            </div>
-                        )}
-                        <div className="flex-1 min-h-0 overflow-hidden">
+                    blurHeader ? (
+                        <div className="flex-1 min-h-0 overflow-y-auto">
+                            {!(mobileFullScreen && useMobileLayout) && (
+                                <div
+                                    className="sticky top-0 z-10 backdrop-blur-sm bg-transparent"
+                                    {...(useMobileLayout ? bindDrawerDrag() : {})}
+                                >
+                                    <DrawerHeader
+                                        title={header.title}
+                                        showBack={header.showBack}
+                                        onBack={header.onBack}
+                                        badge={header.badge}
+                                        rightContent={header.rightContent}
+                                        hideDefaultClose={header.hideDefaultClose}
+                                        rightContentFill={header.rightContentFill}
+                                        progressDots={header.progressDots}
+                                        onClose={handleClose}
+                                        isMobile={useMobileLayout}
+                                        headerFaded={headerFaded}
+                                        blurMode
+                                    />
+                                </div>
+                            )}
                             {resolvedChildren}
                         </div>
-                    </>
+                    ) : (
+                        <>
+                            {!(mobileFullScreen && useMobileLayout) && (
+                                <div {...(useMobileLayout ? bindDrawerDrag() : {})}>
+                                    <DrawerHeader
+                                        title={header.title}
+                                        showBack={header.showBack}
+                                        onBack={header.onBack}
+                                        badge={header.badge}
+                                        rightContent={header.rightContent}
+                                        hideDefaultClose={header.hideDefaultClose}
+                                        rightContentFill={header.rightContentFill}
+                                        progressDots={header.progressDots}
+                                        onClose={handleClose}
+                                        isMobile={useMobileLayout}
+                                        headerFaded={headerFaded}
+                                    />
+                                </div>
+                            )}
+                            <div className="flex-1 min-h-0 overflow-hidden">
+                                {resolvedChildren}
+                            </div>
+                        </>
+                    )
                 ) : resolvedChildren}
             </div>
         </>

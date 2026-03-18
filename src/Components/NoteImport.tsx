@@ -1,14 +1,14 @@
 // components/NoteImport.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Camera, ScanLine, User, ImagePlus, CheckCircle, AlertCircle } from 'lucide-react';
+import { X, Camera, ScanLine, User, ImagePlus, Check, AlertCircle } from 'lucide-react';
 import { profileAvatars } from '../Data/ProfileAvatars';
 import { supabase } from '../lib/supabase';
 import {
     MultiFormatReader, BinaryBitmap, HybridBinarizer,
     HTMLCanvasElementLuminanceSource, DecodeHintType, BarcodeFormat,
 } from '@zxing/library';
-import { TextButton } from './TextButton';
 import { BaseDrawer } from './BaseDrawer';
+import { HeaderPill, PillButton } from './HeaderPill';
 import { BarcodeDisplay } from './Barcode';
 import { ActionIconButton, shareStatusToIconStatus } from './WriteNoteHelpers';
 import { useNoteImport } from '../Hooks/useNoteImport';
@@ -32,34 +32,37 @@ interface NoteImportProps {
     isMobile?: boolean;
 }
 
-// Content state interface for lifting state up
 interface ContentState {
-    viewState: ViewState;
     inputText: string;
     preview: ImportPreview | null;
     scanError: string;
     copiedTarget: 'preview' | 'encoded' | null;
 }
 
-// Shared content component - receives state from parent to persist across layout changes
+// ─── Content component — ProviderDrawer-style layout ─────────────────────────
+
 const NoteImportContent = ({
     state,
     setState,
     isMobile = false,
     onClose,
     autoPickImage,
+    autoStartScan,
 }: {
     state: ContentState;
     setState: React.Dispatch<React.SetStateAction<ContentState>>;
     isMobile?: boolean;
     onClose?: () => void;
     autoPickImage?: boolean;
+    autoStartScan?: boolean;
 }) => {
-    const inputRef = useRef<HTMLInputElement>(null);
+    const importInputRef = useRef<HTMLInputElement>(null);
     const videoRef = useRef<HTMLVideoElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [isDecodingImage, setIsDecodingImage] = useState(false);
     const [authorAvatarSvg, setAuthorAvatarSvg] = useState<React.ReactNode>(null);
+    const [importExpanded, setImportExpanded] = useState(!state.preview);
+    const [scanRequested, setScanRequested] = useState(false);
 
     const { importFromBarcode } = useNoteImport();
 
@@ -79,28 +82,25 @@ const NoteImportContent = ({
                 setAuthorAvatarSvg(match?.svg ?? null);
             });
     }, [state.preview?.userId]);
+
     const { shareNote, shareStatus } = useNoteShare();
     const { isScanning, error: scannerError, result: scanResult, startScanning, stopScanning, clearResult } = useBarcodeScanner();
 
-    // Decode a barcode string (from scan or paste) into a preview
+    // Decode a barcode string into a preview
     const decodeBarcode = useCallback(async (text: string) => {
         try {
             let payload = text;
-
             if (isEncryptedBarcode(text)) {
                 const decrypted = await decryptBarcode(text);
                 if (!decrypted) {
-                    setState(prev => ({
-                        ...prev,
-                        scanError: 'Sign in and connect to sync encryption key',
-                    }));
+                    setState(prev => ({ ...prev, scanError: 'Sign in and connect to sync encryption key' }));
                     return;
                 }
                 payload = decrypted;
             }
-
             const preview = importFromBarcode(payload);
-            setState(prev => ({ ...prev, preview, viewState: 'decoded' }));
+            setState(prev => ({ ...prev, preview, scanError: '' }));
+            setImportExpanded(false);
         } catch (error: any) {
             setState(prev => ({ ...prev, scanError: error.message || 'Failed to decode barcode' }));
         }
@@ -109,6 +109,7 @@ const NoteImportContent = ({
     // Handle scan result
     useEffect(() => {
         if (scanResult) {
+            setScanRequested(false);
             setState(prev => ({ ...prev, inputText: scanResult }));
             clearResult();
             decodeBarcode(scanResult);
@@ -118,29 +119,44 @@ const NoteImportContent = ({
     // Handle scanner error
     useEffect(() => {
         if (scannerError) {
-            setState(prev => ({ ...prev, scanError: scannerError, viewState: 'decoded' }));
+            setState(prev => ({ ...prev, scanError: scannerError }));
         }
     }, [scannerError, setState]);
 
-    // Start camera scanning
-    const handleStartScan = () => {
-        setState(prev => ({ ...prev, scanError: '', viewState: 'scanning' }));
-        setTimeout(() => {
-            if (videoRef.current) {
-                startScanning(videoRef.current);
-            }
-        }, 100);
-    };
+    // Start camera scanning — sets scanRequested to render the video element,
+    // then starts the scanner after a delay so the ref is available.
+    const handleStartScan = useCallback(() => {
+        setState(prev => ({ ...prev, scanError: '' }));
+        setScanRequested(true);
+    }, [setState]);
+
+    // Once the video element mounts (scanRequested renders it), start the scanner
+    useEffect(() => {
+        if (scanRequested && !isScanning) {
+            const timer = setTimeout(() => {
+                if (videoRef.current) startScanning(videoRef.current);
+            }, 100);
+            return () => clearTimeout(timer);
+        }
+    }, [scanRequested, isScanning, startScanning]);
 
     // Stop camera scanning
-    const handleStopScan = () => {
+    const handleStopScan = useCallback(() => {
         stopScanning();
-        setState(prev => ({ ...prev, viewState: 'input' }));
-    };
+        setScanRequested(false);
+    }, [stopScanning]);
 
-    // Decode Data Matrix barcode from an uploaded or pasted image.
-    // Uses the raw ZXing pipeline (canvas → luminance → binarizer → reader)
-    // instead of BrowserCodeReader.decodeFromImage which has DOM quirks.
+    // Auto-start scanning when requested (e.g. from NavTop scan button)
+    const autoScanRef = useRef(false);
+    useEffect(() => {
+        if (autoStartScan && !autoScanRef.current) {
+            autoScanRef.current = true;
+            handleStartScan();
+        }
+        if (!autoStartScan) autoScanRef.current = false;
+    }, [autoStartScan, handleStartScan]);
+
+    // Decode barcode from an uploaded or pasted image
     const handleImageDecode = useCallback(async (file: File) => {
         setIsDecodingImage(true);
         setState(prev => ({ ...prev, scanError: '' }));
@@ -154,14 +170,12 @@ const NoteImportContent = ({
                 img.onerror = () => reject(new Error('Failed to load image'));
             });
 
-            // Draw onto a canvas so we can extract pixel data
             const canvas = document.createElement('canvas');
             canvas.width = img.naturalWidth;
             canvas.height = img.naturalHeight;
             const ctx = canvas.getContext('2d')!;
             ctx.drawImage(img, 0, 0);
 
-            // ZXing raw decode: canvas → luminance source → binary bitmap → reader
             const luminanceSource = new HTMLCanvasElementLuminanceSource(canvas);
             const bitmap = new BinaryBitmap(new HybridBinarizer(luminanceSource));
 
@@ -188,19 +202,18 @@ const NoteImportContent = ({
         }
     }, [decodeBarcode, setState]);
 
-    // Intercept clipboard paste for images (text pastes flow through to the input normally)
-    useImagePaste(state.viewState === 'input', handleImageDecode);
+    // Intercept clipboard paste for images
+    useImagePaste(importExpanded, handleImageDecode);
 
-    // Auto-open file picker when requested (e.g. from NavTop ImagePlus button)
+    // Auto-open file picker when requested
     const autoPickedRef = useRef(false);
     useEffect(() => {
-        if (autoPickImage && state.viewState === 'input' && !autoPickedRef.current) {
+        if (autoPickImage && !autoPickedRef.current) {
             autoPickedRef.current = true;
-            // Small delay to let the drawer render the file input first
             setTimeout(() => fileInputRef.current?.click(), 100);
         }
         if (!autoPickImage) autoPickedRef.current = false;
-    }, [autoPickImage, state.viewState]);
+    }, [autoPickImage]);
 
     // File input change handler
     const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -220,19 +233,40 @@ const NoteImportContent = ({
         }
     }, [state.copiedTarget, setState]);
 
+    // Clear scan error when typing
     useEffect(() => {
         if (state.scanError && state.inputText) {
             setState(prev => ({ ...prev, scanError: '' }));
         }
     }, [state.inputText, state.scanError, setState]);
 
-    const handleSubmit = () => {
-        if (!state.inputText.trim()) {
+    // Focus import input when expanded
+    useEffect(() => {
+        if (importExpanded && importInputRef.current) {
+            const timer = setTimeout(() => importInputRef.current?.focus(), 120);
+            return () => clearTimeout(timer);
+        }
+    }, [importExpanded]);
+
+    const handleExpandImport = useCallback(() => {
+        setImportExpanded(true);
+        setState(prev => ({ ...prev, scanError: '' }));
+    }, [setState]);
+
+    const handleCollapseImport = useCallback(() => {
+        setImportExpanded(false);
+        setState(prev => ({ ...prev, inputText: '', scanError: '' }));
+        if (isScanning || scanRequested) { stopScanning(); setScanRequested(false); }
+    }, [isScanning, scanRequested, stopScanning, setState]);
+
+    const handleSubmit = useCallback(() => {
+        const text = state.inputText.trim();
+        if (!text) {
             setState(prev => ({ ...prev, scanError: 'Please enter or scan a barcode' }));
             return;
         }
-        decodeBarcode(state.inputText);
-    };
+        decodeBarcode(text);
+    }, [state.inputText, decodeBarcode, setState]);
 
     const handleCopy = useCallback((text: string, target: 'preview' | 'encoded') => {
         copyWithHtml(text);
@@ -249,236 +283,260 @@ const NoteImportContent = ({
         }, isMobile);
     }, [state.preview, shareNote, isMobile]);
 
-    // Disposition badge colors
     const preview = state.preview;
     const colors = preview ? getColorClasses(preview.dispositionType as any) : null;
 
-    return (
-        <div className="flex flex-col h-full">
-            {/* ── Input view ────────────────────────────────── */}
-            {state.viewState === 'input' && (
-                <div className="flex items-center gap-2 p-3 md:p-4">
-                    {onClose && (
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="shrink-0 p-1.5 text-tertiary/50 hover:text-tertiary active:scale-95 transition-colors"
-                            title="Close"
-                        >
-                            <X size={18} />
-                        </button>
-                    )}
-                    <form
-                        onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}
-                        className="flex-1 min-w-0"
-                    >
-                        <div className="relative flex items-center">
-                            {/* Left icons — input sources */}
-                            <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-                                <button
-                                    type="button"
-                                    onClick={handleStartScan}
-                                    className="p-1.5 text-tertiary/50 hover:text-themeblue3 active:scale-95 transition-colors"
-                                    title="Scan barcode"
-                                >
-                                    <Camera size={16} />
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => fileInputRef.current?.click()}
-                                    disabled={isDecodingImage}
-                                    className="p-1.5 text-tertiary/50 hover:text-themeblue3 active:scale-95 transition-colors disabled:opacity-40"
-                                    title={isDecodingImage ? 'Reading image...' : 'Upload image'}
-                                >
-                                    <ImagePlus size={16} />
-                                </button>
-                            </div>
-                            <input
-                                ref={inputRef}
-                                type="text"
-                                value={state.inputText}
-                                onChange={(e) => setState(prev => ({ ...prev, inputText: e.target.value }))}
-                                className="w-full rounded-full py-2.5 pl-[4.5rem] pr-10 border border-themegray1 focus:border-themeblue2 focus:outline-none text-sm bg-themewhite text-tertiary"
-                                placeholder="Paste code or scan"
-                            />
-                            {/* Right icon — clear or decode */}
-                            <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center">
-                                {state.inputText ? (
-                                    <div className="flex items-center gap-0.5">
-                                        <button
-                                            type="button"
-                                            onClick={() => setState(prev => ({ ...prev, inputText: '' }))}
-                                            className="p-1 text-tertiary/40 hover:text-tertiary active:scale-95 transition-colors"
-                                            title="Clear"
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            className="p-1 text-themeblue3 hover:text-themeblue3/80 active:scale-95 transition-colors"
-                                            title="Decode"
-                                        >
-                                            <CheckCircle size={22} />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <span className="p-1 text-tertiary/20">
-                                        <CheckCircle size={22} />
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </form>
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleFileSelect}
-                        className="hidden"
-                    />
-                    {state.scanError && (
-                        <div className="mt-1.5 ml-2 text-xs text-themeredred">
-                            {state.scanError}
-                        </div>
-                    )}
-                </div>
-            )}
+    // ── Header right: HeaderPill ↔ expanding input bar (matches ProviderDrawer) ──
 
-            {/* ── Scanning view ────────────────────────────── */}
-            {state.viewState === 'scanning' && (
-                <div className="flex flex-col p-4 md:p-6 h-max min-h-60">
-                    <div className="relative rounded-xl overflow-hidden bg-black aspect-video mb-4">
-                        <video
-                            ref={videoRef}
-                            className="w-full h-full object-cover"
-                            playsInline
-                            muted
+    const headerRight = (
+        <div className="flex items-center flex-1 min-w-0 justify-end relative">
+            {/* Collapsed pill */}
+            <div className={`transition-all duration-300 ${
+                importExpanded
+                    ? 'opacity-0 scale-90 pointer-events-none absolute right-0'
+                    : 'opacity-100 scale-100'
+            }`}>
+                <HeaderPill>
+                    <PillButton icon={ScanLine} iconSize={20} onClick={handleExpandImport} label="Import Note" />
+                    <PillButton icon={X} onClick={onClose!} label="Close" />
+                </HeaderPill>
+            </div>
+            {/* Expanded input bar */}
+            <div className={`flex items-center flex-1 min-w-0 gap-2 transition-all duration-300 origin-right ${
+                importExpanded
+                    ? 'opacity-100 scale-100'
+                    : 'opacity-0 scale-95 pointer-events-none absolute right-0 left-0'
+            }`}>
+                <form
+                    onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}
+                    className="flex-1 min-w-0"
+                >
+                    <div className="relative flex items-center">
+                        <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                            <button
+                                type="button"
+                                onClick={handleStartScan}
+                                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/50 hover:text-themeblue3 hover:bg-themeblue3/5 active:scale-95 transition-colors"
+                                title="Scan barcode"
+                            >
+                                <Camera size={16} />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={isDecodingImage}
+                                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/50 hover:text-themeblue3 hover:bg-themeblue3/5 active:scale-95 transition-colors disabled:opacity-40"
+                                title={isDecodingImage ? 'Reading image...' : 'Upload image'}
+                            >
+                                <ImagePlus size={16} />
+                            </button>
+                        </div>
+                        <input
+                            ref={importInputRef}
+                            type="text"
+                            value={state.inputText}
+                            onChange={(e) => setState(prev => ({ ...prev, inputText: e.target.value }))}
+                            className="w-full rounded-full py-2.5 pl-[4.5rem] pr-8 border border-themeblue3/10 shadow-xs bg-themewhite focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm text-primary placeholder:text-tertiary/30 transition-all duration-300"
+                            placeholder="Paste code or scan"
                         />
+                        {state.inputText && (
+                            <button
+                                type="button"
+                                onClick={() => setState(prev => ({ ...prev, inputText: '' }))}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-tertiary/40 hover:text-tertiary active:scale-95 transition-colors"
+                                title="Clear"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                    </div>
+                </form>
+                <button
+                    type="button"
+                    onClick={state.inputText.trim() ? handleSubmit : handleCollapseImport}
+                    className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 ${
+                        state.inputText.trim()
+                            ? 'bg-themeblue3 text-white'
+                            : 'bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary'
+                    }`}
+                    aria-label={state.inputText.trim() ? 'Decode' : 'Close import'}
+                    title={state.inputText.trim() ? 'Decode' : 'Close import'}
+                >
+                    {state.inputText.trim()
+                        ? <Check style={{ width: 20, height: 20 }} />
+                        : <X style={{ width: 24, height: 24 }} />
+                    }
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+            </div>
+        </div>
+    );
+
+    return (
+        <div className="h-full overflow-y-auto">
+            {/* ── Floating header — matches ProviderDrawer pattern ──────────── */}
+            <div
+                className="sticky top-0 z-10 backdrop-blur-sm bg-transparent"
+                data-drag-zone
+                style={{ touchAction: 'none' }}
+            >
+                {isMobile && (
+                    <div className="flex justify-center pt-1.5 pb-1">
+                        <div className="w-9 h-1 rounded-full bg-tertiary/25" />
+                    </div>
+                )}
+                <div className={`px-5 ${isMobile ? 'pb-2.5' : 'py-4'}`}>
+                    <div className="flex items-center justify-between">
+                        {/* Left: title — collapses when import bar is expanded */}
+                        <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${importExpanded ? ' w-0 overflow-hidden' : ''}`}>
+                            <h2 className={`truncate ${isMobile ? 'text-[17px] font-semibold text-primary' : 'text-2xl text-primary'}`}>
+                                {preview ? 'Screening Note' : 'Import Note'}
+                            </h2>
+                        </div>
+                        {/* Right: pill controls or expanding input bar */}
+                        <div className={`flex items-center gap-2${importExpanded ? ' flex-1 min-w-0' : ' flex-1 min-w-0 justify-end'}`}>
+                            {preview ? (
+                                <div className="flex items-center justify-end flex-1">
+                                    <HeaderPill>
+                                        <PillButton icon={ScanLine} iconSize={20} onClick={() => {
+                                            setState(prev => ({ ...prev, preview: null, inputText: '', scanError: '' }));
+                                            setImportExpanded(true);
+                                        }} label="Import Another" />
+                                        <PillButton icon={X} onClick={onClose!} label="Close" />
+                                    </HeaderPill>
+                                </div>
+                            ) : headerRight}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Inline camera scanning (matches ProviderDrawer) ──────────── */}
+            {(scanRequested || isScanning) && (
+                <div className="px-4 pt-3 pb-2">
+                    <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
+                        <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
                         <div className="absolute inset-0 pointer-events-none">
                             <div className="absolute inset-4 border-2 border-white/30 rounded-lg" />
                             <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
                             <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
                         </div>
-                        {isScanning && (
-                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
-                                Looking for Data Matrix code...
+                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
+                            Looking for barcode...
+                        </div>
+                    </div>
+                    <div className="flex justify-center pt-2">
+                        <button
+                            onClick={handleStopScan}
+                            className="text-xs text-tertiary/60 hover:text-tertiary active:scale-95 transition-colors"
+                        >
+                            Cancel scan
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Decode error ─────────────────────────────────────────────── */}
+            {state.scanError && (
+                <div className="px-4 pt-2">
+                    {!preview ? (
+                        <div className="rounded-xl bg-themeredred/5 border border-themeredred/20 p-4 space-y-2">
+                            <div className="flex items-center gap-2">
+                                <AlertCircle size={16} className="text-themeredred shrink-0" />
+                                <span className="text-sm font-medium text-themeredred">Unable to decode</span>
                             </div>
+                            <p className="text-xs text-tertiary pl-6">{state.scanError}</p>
+                        </div>
+                    ) : (
+                        <div className="text-xs text-themeredred">{state.scanError}</div>
+                    )}
+                </div>
+            )}
+
+            {/* ── Decoded content ──────────────────────────────────────────── */}
+            {preview && (
+                <div className="px-4 py-3 md:p-5 pb-8">
+                    {/* Symptom + disposition badge */}
+                    <div className="flex items-center gap-2 flex-wrap mb-2">
+                        <span className="text-sm font-medium text-primary">
+                            {preview.symptomText}
+                        </span>
+                        {preview.dispositionType && colors && (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${colors.badgeBg} ${colors.badgeText}`}>
+                                {preview.dispositionType}
+                                {preview.dispositionText ? ` — ${preview.dispositionText}` : ''}
+                            </span>
                         )}
                     </div>
-                    <div className="flex gap-3 justify-center">
-                        <TextButton
-                            text="Cancel"
-                            onClick={handleStopScan}
-                            variant='dispo-specific'
-                            className='bg-themewhite2 text-secondary rounded-full'
-                        />
-                    </div>
-                </div>
-            )}
-
-            {/* ── Decode error (no preview) ─────────────────── */}
-            {state.viewState === 'decoded' && !preview && state.scanError && (
-                <div className="flex flex-col items-center justify-center flex-1 px-6">
-                    <div className="rounded-xl bg-themeredred/5 border border-themeredred/20 p-4 w-full max-w-sm space-y-2">
-                        <div className="flex items-center gap-2">
-                            <AlertCircle size={16} className="text-themeredred shrink-0" />
-                            <span className="text-sm font-medium text-themeredred">Unable to decode</span>
-                        </div>
-                        <p className="text-xs text-tertiary pl-6">{state.scanError}</p>
-                    </div>
-                </div>
-            )}
-
-            {/* ── Decoded review view ──────────────────────── */}
-            {state.viewState === 'decoded' && preview && (
-                <>
-                    {/* Overview header info */}
-                    <div className="px-4 md:px-6 pt-3 pb-2 border-b border-tertiary/10 bg-themewhite2">
-                        {/* Symptom + disposition badge */}
-                        <div className="flex items-center gap-2 flex-wrap mb-2">
-                            <span className="text-sm font-medium text-primary">
-                                {preview.symptomText}
-                            </span>
-                            {preview.dispositionType && colors && (
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${colors.badgeBg} ${colors.badgeText}`}>
-                                    {preview.dispositionType}
-                                    {preview.dispositionText ? ` — ${preview.dispositionText}` : ''}
-                                </span>
-                            )}
-                        </div>
-                        {/* Metadata row */}
-                        <div className="flex items-center gap-3 text-xs text-tertiary flex-wrap">
-                            <span className="flex items-center gap-1.5">
-                                {authorAvatarSvg
-                                    ? <span className="w-4 h-4 rounded-full overflow-hidden shrink-0">{authorAvatarSvg}</span>
-                                    : <User size={12} className="shrink-0" />
-                                }
-                                {preview.authorLabel}
-                            </span>
-                        </div>
+                    {/* Author metadata */}
+                    <div className="flex items-center gap-3 text-xs text-tertiary flex-wrap mb-4">
+                        <span className="flex items-center gap-1.5">
+                            {authorAvatarSvg
+                                ? <span className="w-4 h-4 rounded-full overflow-hidden shrink-0">{authorAvatarSvg}</span>
+                                : <User size={12} className="shrink-0" />
+                            }
+                            {preview.authorLabel}
+                        </span>
                     </div>
 
-                    {/* Scrollable two-box content */}
-                    <div className={`flex-1 overflow-y-auto p-4 md:p-6 bg-themewhite2 ${isMobile ? 'pb-24' : ''}`}>
-                        <div className="space-y-4">
-                            {/* Box 1: Note Preview */}
-                            <div>
-                                <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
-                                    <span className="font-medium">Note Preview</span>
+                    <div className="space-y-4">
+                        {/* Note Preview */}
+                        <div>
+                            <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
+                                <span className="font-medium">Note Preview</span>
+                                <ActionIconButton
+                                    onClick={() => handleCopy(preview.fullNote, 'preview')}
+                                    status={state.copiedTarget === 'preview' ? 'done' : 'idle'}
+                                    variant="copy"
+                                    title="Copy note text"
+                                />
+                            </div>
+                            <div className="p-3 rounded-b-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto border border-themegray1/15">
+                                {preview.fullNote || "No content"}
+                            </div>
+                        </div>
+
+                        {/* Encoded Note / Barcode */}
+                        <div>
+                            <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
+                                <span className="font-medium">Encoded Note</span>
+                                <div className="flex items-center gap-1">
                                     <ActionIconButton
-                                        onClick={() => handleCopy(preview.fullNote, 'preview')}
-                                        status={state.copiedTarget === 'preview' ? 'done' : 'idle'}
+                                        onClick={() => handleCopy(preview.encodedText, 'encoded')}
+                                        status={state.copiedTarget === 'encoded' ? 'done' : 'idle'}
                                         variant="copy"
-                                        title="Copy note text"
+                                        title="Copy encoded text"
+                                    />
+                                    <ActionIconButton
+                                        onClick={handleShare}
+                                        status={shareStatusToIconStatus(shareStatus)}
+                                        variant="share"
+                                        title="Share note as image"
                                     />
                                 </div>
-                                <div className="p-3 rounded-b-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto border border-themegray1/15">
-                                    {preview.fullNote || "No content"}
-                                </div>
                             </div>
-
-                            {/* Box 2: Encoded Note / Barcode */}
-                            <div>
-                                <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
-                                    <span className="font-medium">Encoded Note</span>
-                                    <div className="flex items-center gap-1">
-                                        <ActionIconButton
-                                            onClick={() => handleCopy(preview.encodedText, 'encoded')}
-                                            status={state.copiedTarget === 'encoded' ? 'done' : 'idle'}
-                                            variant="copy"
-                                            title="Copy encoded text"
-                                        />
-                                        <ActionIconButton
-                                            onClick={handleShare}
-                                            status={shareStatusToIconStatus(shareStatus)}
-                                            variant="share"
-                                            title="Share note as image"
-                                        />
-                                    </div>
-                                </div>
-                                <div className="mt-1">
-                                    <BarcodeDisplay encodedText={preview.encodedText} />
-                                </div>
+                            <div className="mt-1">
+                                <BarcodeDisplay encodedText={preview.encodedText} />
                             </div>
                         </div>
                     </div>
-
-                </>
+                </div>
             )}
         </div>
     );
 };
 
+// ─── Outer wrapper — manages state, BaseDrawer, auto-decode ──────────────────
+
 export function NoteImport({ isVisible, onClose, initialViewState, initialBarcodeText, autoPickImage, isMobile }: NoteImportProps) {
-    // Lifted content state - persists across mobile/desktop layout changes
     const [contentState, setContentState] = useState<ContentState>({
-        viewState: initialViewState || 'input',
         inputText: '',
         preview: null,
         scanError: '',
         copiedTarget: null,
     });
 
+    const [startScan, setStartScan] = useState(false);
     const { importFromBarcode } = useNoteImport();
     const autoDecodeRef = useRef(false);
 
@@ -486,13 +544,15 @@ export function NoteImport({ isVisible, onClose, initialViewState, initialBarcod
     useEffect(() => {
         if (isVisible) {
             autoDecodeRef.current = false;
+            setStartScan(initialViewState === 'scanning');
             setContentState({
-                viewState: initialViewState || (initialBarcodeText ? 'decoded' : 'input'),
                 inputText: initialBarcodeText || '',
                 preview: null,
                 scanError: '',
                 copiedTarget: null,
             });
+        } else {
+            setStartScan(false);
         }
     }, [isVisible, initialViewState, initialBarcodeText]);
 
@@ -516,7 +576,7 @@ export function NoteImport({ isVisible, onClose, initialViewState, initialBarcod
                     payload = decrypted;
                 }
                 const preview = importFromBarcode(payload);
-                setContentState(prev => ({ ...prev, preview, viewState: 'decoded' }));
+                setContentState(prev => ({ ...prev, preview }));
             } catch (error: any) {
                 setContentState(prev => ({
                     ...prev,
@@ -526,25 +586,13 @@ export function NoteImport({ isVisible, onClose, initialViewState, initialBarcod
         })();
     }, [isVisible, initialBarcodeText, importFromBarcode]);
 
-    const isDecoded = contentState.viewState === 'decoded';
-    const isInput = contentState.viewState === 'input';
-
-    const title = isDecoded ? 'Screening Note'
-        : contentState.viewState === 'scanning' ? 'Scan Barcode'
-            : 'Import Note';
-
-    const drawerHeight = isInput ? 'auto' : '90dvh';
-
     return (
         <BaseDrawer
             isVisible={isVisible}
             onClose={onClose}
-            fullHeight={drawerHeight}
+            fullHeight="90dvh"
             desktopPosition="right"
             mobileFloating={false}
-            header={isInput ? undefined : {
-                title,
-            }}
         >
             {(handleClose) => (
                 <NoteImportContent
@@ -553,6 +601,7 @@ export function NoteImport({ isVisible, onClose, initialViewState, initialBarcod
                     isMobile={isMobile}
                     onClose={handleClose}
                     autoPickImage={autoPickImage}
+                    autoStartScan={startScan}
                 />
             )}
         </BaseDrawer>

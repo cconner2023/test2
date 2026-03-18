@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type ReactNode } from 'react'
-import { ArrowUp, X, Plus, ArrowLeft, MessageSquare, Mic } from 'lucide-react'
+import { ArrowUp, X, Plus, Mic, ChevronLeft } from 'lucide-react'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MessageBubble } from './Settings/MessageBubble'
 import { MessageContextMenu } from './Settings/MessageContextMenu'
@@ -166,10 +166,11 @@ export function ChatDetailView({
   const userId = user?.id ?? ''
   const [text, setText] = useState('')
   const scrollRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { isKeyboardOpen } = useIOSKeyboard()
 
+  const [threadClosing, setThreadClosing] = useState(false)
   const messages = conversations[conversationId] ?? []
 
   const {
@@ -197,6 +198,15 @@ export function ChatDetailView({
     startRecording, stopRecording, cancelRecording,
   } = useVoiceRecorder()
 
+  // Auto-resize textarea to fit content
+  useEffect(() => {
+    const el = inputRef.current
+    if (el) {
+      el.style.height = 'auto'
+      el.style.height = `${Math.min(el.scrollHeight, 120)}px`
+    }
+  }, [text])
+
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     const el = scrollRef.current
@@ -223,7 +233,16 @@ export function ChatDetailView({
     closeForwardPicker()
     setReplyingTo(null)
     setActiveThreadId(null)
+    setThreadClosing(false)
   }, [conversationId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleCloseThread = useCallback(() => {
+    setThreadClosing(true)
+    setTimeout(() => {
+      setActiveThreadId(null)
+      setThreadClosing(false)
+    }, 200)
+  }, [setActiveThreadId])
 
   // Image paste
   const handlePastedImage = useCallback(async (file: File) => {
@@ -277,11 +296,9 @@ export function ChatDetailView({
     || (requestFlow?.status === 'sent')
     || (allUnavailable && !isSelfChat)
 
-  const canUploadImage = !activeThreadId && (
-    !requestFlow || requestFlow.status === 'accepted' || requestFlow.status === 'none' || !!isSelfChat
-  )
+  const canUploadImage = !requestFlow || requestFlow.status === 'accepted' || requestFlow.status === 'none' || !!isSelfChat
 
-  const canSendVoice = !!sendVoice && !activeThreadId && (
+  const canSendVoice = !!sendVoice && (
     !requestFlow || requestFlow.status === 'accepted' || requestFlow.status === 'none' || !!isSelfChat
   )
 
@@ -379,7 +396,7 @@ export function ChatDetailView({
             </div>
           ) : (
             /* Normal state: image | input | mic/send */
-            <div className="flex items-center gap-2">
+            <div className="flex items-end gap-2">
               {canUploadImage && (
                 <button
                   onClick={() => fileInputRef.current?.click()}
@@ -389,17 +406,17 @@ export function ChatDetailView({
                   <Plus size={18} className="text-tertiary/60" />
                 </button>
               )}
-              <div className="chat-input-bar relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite
+              <div className="chat-input-bar relative flex flex-1 items-center rounded-2xl border border-themeblue3/10 shadow-xs bg-themewhite
                   focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
-                <input
+                <textarea
                   ref={inputRef}
-                  type="text"
+                  rows={1}
                   value={text}
                   onChange={e => setText(e.target.value)}
                   onKeyDown={handleKeyDown}
                   placeholder={placeholder}
                   className="w-full bg-transparent outline-none text-[16px] text-tertiary px-3.5 py-2.5
-                      rounded-full min-w-0 placeholder:text-tertiary/30"
+                      rounded-2xl min-w-0 placeholder:text-tertiary/30 resize-none leading-snug"
                   disabled={inputDisabled}
                 />
               </div>
@@ -429,8 +446,14 @@ export function ChatDetailView({
 
   // ── Message list ────────────────────────────────────────────────────────
 
-  const renderMessageList = (msgs: DecryptedSignalMessage[], emptyLabel: string) => (
-    <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-3" onScroll={closeContextMenu}>
+  const renderMessageList = (msgs: DecryptedSignalMessage[], emptyLabel: string, showHeaders = false, headerOverride?: ReactNode) => (
+    <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden" onScroll={closeContextMenu}>
+      {showHeaders && (
+        <div className="sticky top-0 z-10 backdrop-blur-sm bg-transparent">
+          {headerOverride ?? (<>{mobileHeader}{desktopHeader}</>)}
+        </div>
+      )}
+      <div className="px-4 py-3">
       {msgs.length === 0 ? (
         <div className="flex items-center justify-center h-full">
           <p className="text-sm text-tertiary/40">{emptyLabel}</p>
@@ -497,52 +520,18 @@ export function ChatDetailView({
           )
         })
       )}
+      </div>
     </div>
   )
 
-  // ── Thread view ─────────────────────────────────────────────────────────
-
-  if (activeThreadId) {
-    return (
-      <div className="flex flex-col h-full relative">
-        <div className="sticky top-0 z-10 shrink-0 px-4 py-2.5 flex items-center gap-3 backdrop-blur-xl bg-themewhite3/80 md:backdrop-blur-none md:bg-transparent">
-          <button onClick={() => setActiveThreadId(null)} className="p-1 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
-            <ArrowLeft size={18} className="text-tertiary" />
-          </button>
-          <div className="flex items-center gap-1.5">
-            <MessageSquare size={14} className="text-themeblue2" />
-            <p className="text-sm font-medium text-primary">Thread</p>
-          </div>
-        </div>
-        {renderMessageList(threadMessages, 'No messages in this thread')}
-        {contextMenu && contextMsg && (
-          <MessageContextMenu
-            x={contextMenu.x} y={contextMenu.y}
-            isOwn={contextMsg.senderId === userId}
-            isImage={contextMsg.content?.type === 'image'}
-            isVoice={contextMsg.content?.type === 'voice'}
-            onReply={handleContextReply}
-            onCopy={handleCopy}
-            onEdit={handleStartEdit}
-            onForward={handleContextForward}
-            onDelete={handleContextDelete}
-            onSave={handleSaveImage}
-            onClose={closeContextMenu}
-          />
-        )}
-        {renderInputArea()}
-      </div>
-    )
-  }
-
   // ── Main view ───────────────────────────────────────────────────────────
+
+  const showThread = !!activeThreadId
 
   return (
     <div className="flex flex-col h-full relative">
-      {mobileHeader}
-      {desktopHeader}
-      {renderMessageList(mainViewMessages, emptyText)}
-      {contextMenu && contextMsg && (
+      {renderMessageList(mainViewMessages, emptyText, true)}
+      {!showThread && contextMenu && contextMsg && (
         <MessageContextMenu
           x={contextMenu.x} y={contextMenu.y}
           isOwn={contextMsg.senderId === userId}
@@ -557,7 +546,43 @@ export function ChatDetailView({
           onClose={closeContextMenu}
         />
       )}
-      {renderInputArea()}
+      {!showThread && renderInputArea()}
+
+      {/* Thread overlay */}
+      {showThread && (
+        <div
+          className={`absolute inset-0 z-20 flex flex-col bg-themewhite3 transition-opacity duration-200 ${threadClosing ? 'opacity-0' : 'animate-fadeIn'}`}
+        >
+          {renderMessageList(threadMessages, 'No messages in this thread', true,
+            <div className="shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center">
+              <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
+                <button onClick={handleCloseThread} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
+                  <ChevronLeft className="w-6 h-6 text-tertiary" />
+                </button>
+              </div>
+              <p className="flex-1 text-sm font-medium text-primary truncate mx-3">Thread</p>
+              <div className="w-12 shrink-0" />
+            </div>
+          )}
+          {contextMenu && contextMsg && (
+            <MessageContextMenu
+              x={contextMenu.x} y={contextMenu.y}
+              isOwn={contextMsg.senderId === userId}
+              isImage={contextMsg.content?.type === 'image'}
+              isVoice={contextMsg.content?.type === 'voice'}
+              onReply={handleContextReply}
+              onCopy={handleCopy}
+              onEdit={handleStartEdit}
+              onForward={handleContextForward}
+              onDelete={handleContextDelete}
+              onSave={handleSaveImage}
+              onClose={closeContextMenu}
+            />
+          )}
+          {renderInputArea()}
+        </div>
+      )}
+
       <ConfirmDialog
         visible={!!pendingDelete}
         title="Permanently delete? This cannot be undone."

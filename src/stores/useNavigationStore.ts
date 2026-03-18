@@ -25,6 +25,7 @@ const PRESERVED_FIELDS = (s: NavigationState) => ({
     selectedCategory: s.selectedCategory,
     selectedSymptom: s.selectedSymptom,
     selectedGuideline: s.selectedGuideline,
+    columnAPanel: s.columnAPanel,
     isSearchExpanded: s.isSearchExpanded,
     isImportExpanded: s.isImportExpanded,
     isWriteNoteVisible: s.isWriteNoteVisible,
@@ -58,6 +59,9 @@ interface NavigationState {
     selectedCategory: catDataTypes | null
     selectedSymptom: subCatDataTypes | null
     selectedGuideline: { type: GuidelineType; id: number; symptomId: number } | null
+    /** Explicit carousel panel position — set directly by navigation actions,
+     *  not derived reactively. 0 = categories, 1 = subcategories, 2 = symptom info (desktop). */
+    columnAPanel: number
     isMenuOpen: boolean
     showNoteImport: boolean
     showSettings: boolean
@@ -126,6 +130,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     selectedCategory: null,
     selectedSymptom: null,
     selectedGuideline: null,
+    columnAPanel: 0,
     isMenuOpen: false,
     showNoteImport: false,
     showSettings: false,
@@ -177,6 +182,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
                         selectedCategory: category,
                         selectedSymptom: null,
                         selectedGuideline: null,
+                        columnAPanel: 1,
                         isSearchExpanded: false,
                     })
                 }
@@ -195,6 +201,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
                         selectedCategory: parentCategory,
                         selectedSymptom: symptom,
                         selectedGuideline: null,
+                        columnAPanel: 2,
                         isSearchExpanded: false,
                     })
                 }
@@ -219,6 +226,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
                             id: result.data?.guidelineId || result.id,
                             symptomId: guidelineSymptom.id,
                         },
+                        columnAPanel: 2,
                         isSearchExpanded: false,
                     })
                 }
@@ -247,13 +255,14 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         if (s.selectedGuideline) {
             set({ selectedGuideline: null })
         } else if (s.selectedSymptom) {
-            set({ selectedSymptom: null, selectedGuideline: null, viewState: 'subcategory' })
+            set({ selectedSymptom: null, selectedGuideline: null, viewState: 'subcategory', columnAPanel: 1 })
         } else if (s.selectedCategory) {
             set({
                 viewState: 'main',
                 selectedCategory: null,
                 selectedSymptom: null,
                 selectedGuideline: null,
+                columnAPanel: 0,
             })
         }
     },
@@ -375,10 +384,13 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         selectedCategory: null,
         selectedSymptom: null,
         selectedGuideline: null,
+        columnAPanel: 0,
         isWriteNoteVisible: false,
         writeNoteData: null,
     }),
 }))
+
+
 
 // ── Selectors ────────────────────────────────────────────────
 
@@ -388,12 +400,6 @@ export const selectShowQuestionCard = (s: NavigationState) =>
 export const selectMobileGridClass = (s: NavigationState) => {
     if (s.isSearchExpanded || selectShowQuestionCard(s)) return 'grid-cols-[0fr_1fr]'
     return 'grid-cols-[1fr_0fr]'
-}
-
-export const selectColumnAPanel = (s: NavigationState) => {
-    if (!s.selectedCategory) return 0
-    if (!selectShowQuestionCard(s)) return 1
-    return 2
 }
 
 export const selectIsMobileColumnB = (s: NavigationState) =>

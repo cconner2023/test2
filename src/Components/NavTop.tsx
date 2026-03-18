@@ -1,5 +1,5 @@
 // NavTop.tsx - Simplified version with grouped props
-import { X, ChevronLeft, Info, Mail, Upload, BookOpen, CheckCircle, Camera, ImagePlus } from "lucide-react";
+import { X, ChevronLeft, Info, Mail, Upload, BookOpen, Check, Camera, ImagePlus } from "lucide-react";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useSpring, animated, to } from '@react-spring/web';
 import type { NavTopProps } from "../Types/NavTopTypes";
@@ -42,6 +42,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
         dynamicTitle,
         isMobile,
         isAlgorithmView = false,
+        isSearchFocused = false,
     } = ui
 
     // Refs and computed values
@@ -176,7 +177,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
         <div className={`flex items-center h-full w-full px-2 md:pl-4 transition-all duration-300 md:bg-themewhite bg-transparent relative`}>
             {/* Left section: buttons - hidden when mobile search is expanded */}
             {(!isMobile || !isAnyExpanded) && (
-                <div className="flex items-center shrink-0">
+                <div className={`flex items-center shrink-0 transition-opacity duration-200${isSearchFocused && isMobile ? ' opacity-0 pointer-events-none' : ''}`}>
                     {/* Mobile: Back + Avatar button crossfade */}
                     {isMobile && (
                         <div className="relative">
@@ -306,7 +307,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
 
             {/* Title - Centered on mobile, hidden on desktop */}
             {isMobile && !isAnyExpanded && (
-                <div className="flex-1 min-w-0 px-2 transition-opacity duration-300">
+                <div className={`flex-1 min-w-0 px-2 transition-opacity duration-200${isSearchFocused ? ' opacity-0 pointer-events-none' : ''}`}>
                     <div className="truncate whitespace-nowrap text-center">
                         <span className="text-[9pt] text-primary font-normal">
                             {dynamicTitle || `ADTMC ${__APP_VERSION__}`}
@@ -318,71 +319,70 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
             {/* Search Container - mobile only */}
             {isMobile && (
                 <div className={`flex items-center min-w-0 ${isAnyExpanded ? 'flex-1' : 'shrink-0 justify-end'}`}>
-                    {/* Mobile import input */}
+                    {/* Mobile import input — matches ProviderDrawer pattern */}
                     {isImportExpanded && (
-                        <div className="relative w-full animate-expandSearch">
+                        <div className="relative w-full animate-expandSearch flex items-center gap-2">
                             <form
                                 onSubmit={(e) => { e.preventDefault(); handleImportSubmit(); }}
-                                className={`flex items-center w-full rounded-full border shadow-xs bg-themewhite ${
-                                    importError
-                                        ? 'border-themeredred/30'
-                                        : 'border-themeblue3/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2'
-                                }`}
+                                className="flex-1 min-w-0"
                             >
-                                <div className="flex items-center gap-0.5 pl-2 shrink-0 text-tertiary/40">
-                                    <button
-                                        type="button"
-                                        onClick={() => { handleImportCollapse(); onImportScan?.(); }}
-                                        className="p-1.5 hover:text-themeblue3 active:scale-95 transition-colors"
-                                        title="Scan barcode"
-                                    >
-                                        <Camera size={16} />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => { handleImportCollapse(); onImportImage?.(); }}
-                                        className="p-1.5 hover:text-themeblue3 active:scale-95 transition-colors"
-                                        title="Upload image"
-                                    >
-                                        <ImagePlus size={16} />
-                                    </button>
-                                </div>
-                                <input
-                                    ref={importInputRef}
-                                    type="text"
-                                    placeholder="Paste barcode code"
-                                    value={importText}
-                                    onChange={(e) => setImportText(e.target.value)}
-                                    className="text-tertiary bg-transparent outline-none text-[16px] w-full px-3 py-2 min-w-0"
-                                />
-                                <div className="flex items-center shrink-0 pr-1">
-                                    {importText ? (
-                                        <>
-                                            <button
-                                                type="button"
-                                                onClick={() => setImportText('')}
-                                                className="p-1 text-tertiary/40 hover:text-tertiary active:scale-95 transition-colors"
-                                            >
-                                                <X size={14} />
-                                            </button>
-                                            <button
-                                                type="submit"
-                                                className="p-1 text-themeblue3 hover:text-themeblue3/80 active:scale-95 transition-colors"
-                                                title="Decode"
-                                            >
-                                                <CheckCircle size={22} />
-                                            </button>
-                                        </>
-                                    ) : (
-                                        <div
-                                            className="flex items-center justify-center px-2 py-2 bg-themewhite2 rounded-r-full cursor-pointer active:scale-95 transition-all duration-300 hover:bg-themewhite shrink-0"
-                                            onClick={handleImportCollapse}
+                                <div className="relative flex items-center">
+                                    <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                                        <button
+                                            type="button"
+                                            onClick={() => { handleImportCollapse(); onImportScan?.(); }}
+                                            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/50 hover:text-themeblue3 hover:bg-themeblue3/5 active:scale-95 transition-colors"
+                                            title="Scan barcode"
                                         >
-                                            <X className="w-5 h-5 stroke-themeblue1" />
-                                        </div>
+                                            <Camera size={16} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => { handleImportCollapse(); onImportImage?.(); }}
+                                            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/50 hover:text-themeblue3 hover:bg-themeblue3/5 active:scale-95 transition-colors"
+                                            title="Upload image"
+                                        >
+                                            <ImagePlus size={16} />
+                                        </button>
+                                    </div>
+                                    <input
+                                        ref={importInputRef}
+                                        type="text"
+                                        placeholder="Paste code or scan"
+                                        value={importText}
+                                        onChange={(e) => setImportText(e.target.value)}
+                                        className={`w-full rounded-full py-2.5 pl-[4.5rem] pr-8 border shadow-xs bg-themewhite focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm text-primary placeholder:text-tertiary/30 transition-all duration-300 ${
+                                            importError ? 'border-themeredred/30' : 'border-themeblue3/10'
+                                        }`}
+                                    />
+                                    {importText && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setImportText('')}
+                                            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-tertiary/40 hover:text-tertiary active:scale-95 transition-colors"
+                                            title="Clear"
+                                        >
+                                            <X size={14} />
+                                        </button>
                                     )}
                                 </div>
                             </form>
+                            <button
+                                type="button"
+                                onClick={importText.trim() ? handleImportSubmit : handleImportCollapse}
+                                className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 ${
+                                    importText.trim()
+                                        ? 'bg-themeblue3 text-white'
+                                        : 'bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary'
+                                }`}
+                                aria-label={importText.trim() ? 'Decode' : 'Close import'}
+                                title={importText.trim() ? 'Decode' : 'Close import'}
+                            >
+                                {importText.trim()
+                                    ? <Check style={{ width: 20, height: 20 }} />
+                                    : <X style={{ width: 24, height: 24 }} />
+                                }
+                            </button>
                             <div className={`absolute left-0 right-0 top-full mt-1.5 transition-all duration-300 ease-out ${
                                 importError ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1 pointer-events-none'
                             }`}>
@@ -395,7 +395,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
 
                     {/* Mobile collapsed: messages + info + search buttons */}
                     {!isAnyExpanded && (
-                        <div className="flex items-center justify-end h-full">
+                        <div className={`flex items-center justify-end h-full transition-opacity duration-200${isSearchFocused ? ' opacity-0 pointer-events-none' : ''}`}>
                             <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center justify-center p-0.5">
                                 <div className={`
                     transition-all duration-300 ease-out overflow-hidden
@@ -502,9 +502,9 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                         </button>
                     )}
 
-                    {/* Import overlay — covers search + buttons */}
+                    {/* Import overlay — covers search + buttons, matches ProviderDrawer pattern */}
                     <animated.div
-                        className="absolute inset-0 z-10 flex items-center bg-themewhite"
+                        className="absolute inset-0 z-10 flex items-center gap-2 bg-themewhite"
                         style={{
                             opacity: desktopImportSpring.overlayOpacity,
                             transform: desktopImportSpring.overlayScale.to(s => `scale(${s})`),
@@ -513,62 +513,63 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                     >
                         <form
                             onSubmit={(e) => { e.preventDefault(); handleImportSubmit(); }}
-                            className="flex items-center w-full rounded-full border border-themeblue3/20 shadow-xs focus-within:border-themeblue1/40 focus-within:bg-themewhite2 bg-themewhite transition-all duration-300"
+                            className="flex-1 min-w-0"
                         >
-                            <div className="flex items-center gap-0.5 pl-2 shrink-0 text-tertiary/40">
-                                <button
-                                    type="button"
-                                    onClick={() => { handleImportCollapse(); onImportScan?.(); }}
-                                    className="p-1.5 hover:text-themeblue3 active:scale-95 transition-colors"
-                                    title="Scan barcode"
-                                >
-                                    <Camera size={16} />
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => { handleImportCollapse(); onImportImage?.(); }}
-                                    className="p-1.5 hover:text-themeblue3 active:scale-95 transition-colors"
-                                    title="Upload image"
-                                >
-                                    <ImagePlus size={16} />
-                                </button>
-                            </div>
-                            <input
-                                ref={importInputRef}
-                                type="text"
-                                placeholder="Paste barcode code"
-                                value={importText}
-                                onChange={(e) => setImportText(e.target.value)}
-                                className="text-tertiary bg-transparent outline-none text-[16px] w-full px-3 py-2 min-w-0"
-                            />
-                            <div className="flex items-center shrink-0 pr-1">
-                                {importText ? (
-                                    <>
-                                        <button
-                                            type="button"
-                                            onClick={() => setImportText('')}
-                                            className="p-1 text-tertiary/40 hover:text-tertiary active:scale-95 transition-colors"
-                                        >
-                                            <X size={14} />
-                                        </button>
-                                        <button
-                                            type="submit"
-                                            className="p-1 text-themeblue3 hover:text-themeblue3/80 active:scale-95 transition-colors"
-                                            title="Decode"
-                                        >
-                                            <CheckCircle size={22} />
-                                        </button>
-                                    </>
-                                ) : (
-                                    <div
-                                        className="flex items-center justify-center px-2 py-2 bg-themewhite2 rounded-r-full cursor-pointer active:scale-95 transition-all duration-300 hover:bg-themewhite shrink-0"
-                                        onClick={handleImportCollapse}
+                            <div className="relative flex items-center">
+                                <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+                                    <button
+                                        type="button"
+                                        onClick={() => { handleImportCollapse(); onImportScan?.(); }}
+                                        className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/50 hover:text-themeblue3 hover:bg-themeblue3/5 active:scale-95 transition-colors"
+                                        title="Scan barcode"
                                     >
-                                        <X className="w-5 h-5 stroke-themeblue1" />
-                                    </div>
+                                        <Camera size={16} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => { handleImportCollapse(); onImportImage?.(); }}
+                                        className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/50 hover:text-themeblue3 hover:bg-themeblue3/5 active:scale-95 transition-colors"
+                                        title="Upload image"
+                                    >
+                                        <ImagePlus size={16} />
+                                    </button>
+                                </div>
+                                <input
+                                    ref={importInputRef}
+                                    type="text"
+                                    placeholder="Paste code or scan"
+                                    value={importText}
+                                    onChange={(e) => setImportText(e.target.value)}
+                                    className="w-full rounded-full py-2.5 pl-[4.5rem] pr-8 border border-themeblue3/10 shadow-xs bg-themewhite focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm text-primary placeholder:text-tertiary/30 transition-all duration-300"
+                                />
+                                {importText && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setImportText('')}
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-tertiary/40 hover:text-tertiary active:scale-95 transition-colors"
+                                        title="Clear"
+                                    >
+                                        <X size={14} />
+                                    </button>
                                 )}
                             </div>
                         </form>
+                        <button
+                            type="button"
+                            onClick={importText.trim() ? handleImportSubmit : handleImportCollapse}
+                            className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 ${
+                                importText.trim()
+                                    ? 'bg-themeblue3 text-white'
+                                    : 'bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary'
+                            }`}
+                            aria-label={importText.trim() ? 'Decode' : 'Close import'}
+                            title={importText.trim() ? 'Decode' : 'Close import'}
+                        >
+                            {importText.trim()
+                                ? <Check style={{ width: 20, height: 20 }} />
+                                : <X style={{ width: 24, height: 24 }} />
+                            }
+                        </button>
                     </animated.div>
                 </div>
             )}

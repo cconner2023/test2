@@ -43,7 +43,7 @@ export interface ChatInteractionsOptions {
   /** Called when messages should be permanently deleted. */
   deleteMessages: (conversationKey: string, messageIds: string[]) => void
   /** Ref to the input element (for focus management after reply/forward). */
-  inputRef: React.RefObject<HTMLInputElement | null>
+  inputRef: React.RefObject<HTMLInputElement | HTMLTextAreaElement | null>
   /** Called to send a message to a specific peer (for forward flow). */
   sendMessage: (peerId: string, text: string) => Promise<boolean>
 }

@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import { ChevronRight, RotateCcw, X } from 'lucide-react'
 import { useDrag } from '@use-gesture/react'
-import { ScrollRevealSearch } from './ScrollRevealSearch'
+import { MobileSearchBar } from './MobileSearchBar'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { TrainingPanel, type TrainingView } from './Settings/TrainingPanel'
@@ -65,6 +65,10 @@ export function KnowledgeBaseDrawer({
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
     const [calculatorOpen, setCalculatorOpen] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
+    const [searchFocused, setSearchFocused] = useState(false)
+
+    // Clear search when navigating between views (e.g., clicking a search result)
+    useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
 
     // ── Deep-link / initial view handling ───────────────────────
     useEffect(() => {
@@ -219,10 +223,12 @@ export function KnowledgeBaseDrawer({
                 desktopPosition="left"
                 header={headerConfig}
                 cardMode={calculatorOpen}
+                headerFaded={searchFocused}
+                blurHeader
             >
                 <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
                     {view === 'home' && (
-                        <ScrollRevealSearch value={searchQuery} onChange={setSearchQuery}>
+                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused}>
                             <KBHome
                                 onCategoryClick={handleCategoryClick}
                                 searchQuery={searchQuery}
@@ -230,32 +236,32 @@ export function KnowledgeBaseDrawer({
                                 onMedicationSelect={handleMedicationSelect}
                                 tc3Mode={tc3Mode}
                             />
-                        </ScrollRevealSearch>
+                        </MobileSearchBar>
                     )}
                     {(view === 'training' || view === 'training-detail') && (
-                        <ScrollRevealSearch value={searchQuery} onChange={setSearchQuery} enabled={view === 'training'}>
+                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={view === 'training'} onFocusChange={setSearchFocused}>
                             <TrainingPanel
                                 view={view as TrainingView}
                                 selectedTask={selectedTask}
                                 onSelectTask={handleSelectTask}
                                 searchQuery={searchQuery}
                             />
-                        </ScrollRevealSearch>
+                        </MobileSearchBar>
                     )}
                     {(view === 'medications' || view === 'medication-detail') && (
-                        <ScrollRevealSearch value={searchQuery} onChange={setSearchQuery} enabled={view === 'medications'}>
+                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={view === 'medications'} onFocusChange={setSearchFocused}>
                             <MedicationContent
                                 selectedMedication={selectedMedication}
                                 onMedicationSelect={handleMedicationSelect}
                                 tc3Mode={tc3Mode}
                                 searchQuery={searchQuery}
                             />
-                        </ScrollRevealSearch>
+                        </MobileSearchBar>
                     )}
                     {view === 'screener' && activeScreener && (
-                        <ScrollRevealSearch value={searchQuery} onChange={setSearchQuery} enabled={false}>
+                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={false} onFocusChange={setSearchFocused}>
                             <StandaloneScreener screenerConfig={activeScreener} />
-                        </ScrollRevealSearch>
+                        </MobileSearchBar>
                     )}
                 </ContentWrapper>
             </BaseDrawer>

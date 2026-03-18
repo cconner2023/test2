@@ -121,6 +121,8 @@ export function MessageBubble({
     swiping: boolean
     dirDecided: boolean
   } | null>(null)
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const longPressFiredRef = useRef(false)
   const rowRef = useRef<HTMLDivElement>(null)
   const replyIconRef = useRef<HTMLDivElement>(null)
   const deleteIconRef = useRef<HTMLDivElement>(null)
@@ -186,8 +188,16 @@ export function MessageBubble({
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const t = e.touches[0]
     touchRef.current = { startX: t.clientX, startY: t.clientY, swiping: false, dirDecided: false }
+    longPressFiredRef.current = false
     setTapped(true)
-  }, [])
+
+    // Start long-press timer for context menu
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
+    longPressTimerRef.current = setTimeout(() => {
+      longPressFiredRef.current = true
+      onLongPress?.(message, t.clientX, t.clientY)
+    }, 500)
+  }, [message, onLongPress])
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
     const state = touchRef.current
@@ -195,6 +205,14 @@ export function MessageBubble({
     const t = e.touches[0]
     const dx = t.clientX - state.startX
     const dy = t.clientY - state.startY
+
+    // Cancel long-press if finger moves beyond threshold
+    if (Math.abs(dx) > 10 || Math.abs(dy) > 10) {
+      if (longPressTimerRef.current) {
+        clearTimeout(longPressTimerRef.current)
+        longPressTimerRef.current = null
+      }
+    }
 
     if (!state.dirDecided) {
       if (Math.abs(dx) < GESTURE_THRESHOLDS.DIRECTION_LOCK && Math.abs(dy) < GESTURE_THRESHOLDS.DIRECTION_LOCK) return
@@ -222,6 +240,14 @@ export function MessageBubble({
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     setTapped(false)
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+
+    // If long-press already fired, skip swipe handling
+    if (longPressFiredRef.current) { touchRef.current = null; return }
+
     const state = touchRef.current
     if (!state || !state.swiping) { touchRef.current = null; return }
     touchRef.current = null
@@ -240,6 +266,10 @@ export function MessageBubble({
 
   const handleTouchCancel = useCallback(() => {
     setTapped(false)
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
     touchRef.current = null
     snapTo(0)
     resetIcons()
@@ -463,24 +493,6 @@ export function MessageBubble({
               {/* Sender name label (group chats) */}
               {senderName && !isOwn && (
                 <p className="text-[10px] font-semibold text-themeblue2 mb-0.5">{senderName}</p>
-              )}
-              {/* Reply-to header */}
-              {message.threadId && message.replyPreview && (
-                <div
-                  className={`flex items-start gap-1.5 mb-1.5 pb-1.5 border-b cursor-pointer
-                             ${isOwn ? 'border-white/20' : 'border-primary/10'}`}
-                  onClick={e => { e.stopPropagation(); onOpenThread?.(message.threadId!) }}
-                >
-                  <div className={`w-0.5 self-stretch rounded-full shrink-0 ${isOwn ? 'bg-white/40' : 'bg-themeblue2/40'}`} />
-                  <div className="min-w-0">
-                    <p className={`text-[10px] font-medium ${isOwn ? 'text-white/70' : 'text-themeblue2/70'}`}>
-                      Replying to
-                    </p>
-                    <p className={`text-[11px] truncate ${isOwn ? 'text-white/50' : 'text-tertiary/50'}`}>
-                      {message.replyPreview}
-                    </p>
-                  </div>
-                </div>
               )}
               {renderContent()}
               <div className={`flex items-center gap-1 mt-0.5 ${isImage && !isVoice ? 'px-1.5' : ''} ${isOwn ? 'text-white/60' : 'text-tertiary/40'}`}>

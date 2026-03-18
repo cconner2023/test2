@@ -2,8 +2,9 @@
 // Types, lookup helpers, encoding, decoding, and reconstruction logic for note barcodes.
 
 import { compressText, decompressText, bitmaskToIndices, indicesToBitmask } from './textCodec';
-import { decodePECompact, encodePECompact } from './peCodec';
+import { decodePECompact, encodePEState } from './peCodec';
 import { logError } from './ErrorHandler';
+import type { PEState } from '../Types/PETypes';
 import { Algorithm } from '../Data/Algorithms';
 import { catData } from '../Data/CatData';
 import { ranks, credentials, components } from '../Data/User';
@@ -34,6 +35,14 @@ export interface ParsedNote {
     flags: { includeAlgorithm: boolean; includeDecisionMaking: boolean; includeHPI: boolean; includePhysicalExam: boolean; includePlan: boolean };
     user: UserTypes | null;
     userId: string | null;
+    // Provider overlay fields (lowercase prefix segments)
+    providerHpi?: string;
+    providerPe?: string;
+    providerPeRaw?: string;
+    providerAssessment?: string;
+    providerPlan?: string;
+    providerUser?: UserTypes | null;
+    providerUserId?: string | null;
 }
 
 export interface NoteEncodeOptions {
@@ -41,7 +50,18 @@ export interface NoteEncodeOptions {
     includeDecisionMaking: boolean;
     customNote: string;
     physicalExamNote?: string;
+    peState?: PEState;
     planNote?: string;
+    user?: UserTypes;
+    userId?: string;
+}
+
+export interface ProviderNoteEncodeOptions {
+    hpiNote: string;
+    peNote: string;
+    peState?: PEState;
+    assessmentNote: string;
+    planNote: string;
     user?: UserTypes;
     userId?: string;
 }
@@ -83,6 +103,12 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
     if (!encodedText.trim()) return null;
 
     const parts = encodedText.split('|');
+
+    // Provider solo format: first segment is "PRV"
+    if (parts[0] === 'PRV') {
+        return parseProviderSolo(parts);
+    }
+
     const result: ParsedNote = {
         symptomCode: '',
         rfSelections: [],
@@ -116,8 +142,8 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         } else if (prefix === 'H') {
             result.hpiText = decompressText(value);
         } else if (prefix === 'P') {
-            if (value.startsWith('3:') || value.startsWith('2:')) {
-                // Compact PE format v3/v2 — reconstruct text from structural encoding
+            if (value.startsWith('2:') || value.startsWith('3:') || value.startsWith('4:') || value.startsWith('5:')) {
+                // Compact PE format (any version) — reconstruct text from structural encoding
                 result.peText = decodePECompact(value, result.symptomCode);
             } else {
                 // Compressed or legacy base64 text format
@@ -161,6 +187,42 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
             // User ID segment: I{hex32} — Supabase UUID with hyphens stripped
             if (value.length === 32) {
                 result.userId = `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`;
+            }
+        } else if (prefix === 'h') {
+            result.providerHpi = decompressText(value);
+        } else if (prefix === 'p') {
+            if (value.startsWith('2:') || value.startsWith('3:') || value.startsWith('4:') || value.startsWith('5:')) {
+                result.providerPeRaw = value;
+                result.providerPe = decodePECompact(value, result.symptomCode);
+            } else {
+                result.providerPe = decompressText(value);
+            }
+        } else if (prefix === 'x') {
+            result.providerAssessment = decompressText(value);
+        } else if (prefix === 'n') {
+            result.providerPlan = decompressText(value);
+        } else if (prefix === 'u') {
+            const segs = value.split('.');
+            if (segs.length >= 4) {
+                const ri = parseInt(segs[0], 10);
+                const ci = parseInt(segs[1], 10);
+                const coi = parseInt(segs[2], 10);
+                let names: string[] = [];
+                try { names = decompressText(segs.slice(3).join('.')).split('|'); }
+                catch (e) { logError('noteParser.decodeProviderUser', e); }
+                result.providerUser = {
+                    firstName: names[0] || undefined,
+                    lastName: names[1] || undefined,
+                    middleInitial: names[2] || undefined,
+                    rank: ri >= 0 ? ranks[ri] : undefined,
+                    credential: ci >= 0 ? credentials[ci] : undefined,
+                    component: coi >= 0 ? components[coi] : undefined,
+                    uic: names[3] || undefined,
+                };
+            }
+        } else if (prefix === 'i') {
+            if (value.length === 32) {
+                result.providerUserId = `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`;
             }
         } else if (prefix === 'C') {
             // Legacy clinic ID segment — ignored (no longer used)
@@ -300,15 +362,19 @@ export function encodeNoteState(
         parts.push(`H${compressText(customNote)}`);
     }
 
-    // 4b. Physical Exam (compact structured encoding)
-    const peNote = noteOptions.physicalExamNote?.trim();
-    if (peNote) {
+    // 4b. Physical Exam (v5 structured encoding when state available, compressed text fallback)
+    const hasPE = !!(noteOptions.peState || noteOptions.physicalExamNote?.trim());
+    if (noteOptions.peState) {
         try {
-            parts.push(`P${encodePECompact(peNote, symptomCode)}`);
+            parts.push(`P${encodePEState(noteOptions.peState)}`);
         } catch (e) {
-            logError('noteParser.encodePECompact', e);
-            parts.push(`P${compressText(peNote)}`);
+            logError('noteParser.encodePEState', e);
+            const peNote = noteOptions.physicalExamNote?.trim();
+            if (peNote) parts.push(`P${compressText(peNote)}`);
         }
+    } else {
+        const peNote = noteOptions.physicalExamNote?.trim();
+        if (peNote) parts.push(`P${compressText(peNote)}`);
     }
 
     // 4c. Plan (compressed text, prefix 'N')
@@ -322,7 +388,7 @@ export function encodeNoteState(
     if (noteOptions.includeAlgorithm) flags |= 1;
     if (noteOptions.includeDecisionMaking) flags |= 2;
     if (customNote) flags |= 4;
-    if (peNote) flags |= 8;
+    if (hasPE) flags |= 8;
     if (planNoteText) flags |= 16;
     parts.push(`F${flags}`);
 
@@ -355,7 +421,7 @@ export function encodeNoteState(
 
 /** Compare two encoded note strings ignoring volatile segments (I=userId, and legacy T/C) */
 export function encodedContentEquals(a: string, b: string): boolean {
-    const strip = (s: string) => s.split('|').filter(p => !p.startsWith('T') && !p.startsWith('I') && !p.startsWith('C')).join('|');
+    const strip = (s: string) => s.split('|').filter(p => !p.startsWith('T') && !p.startsWith('I') && !p.startsWith('i') && !p.startsWith('C')).join('|');
     return strip(a) === strip(b);
 }
 
@@ -447,4 +513,121 @@ export function reconstructCardStates(
     }
 
     return { cardStates, disposition: lastDisposition };
+}
+
+// ---------------------------------------------------------------------------
+// Provider note encoding / decoding
+// ---------------------------------------------------------------------------
+
+function parseProviderSolo(parts: string[]): ParsedNote {
+    const result: ParsedNote = {
+        symptomCode: 'PRV',
+        rfSelections: [], cardEntries: [], screenerEntries: [], actionEntries: [],
+        hpiText: '', peText: '', planText: '',
+        flags: { includeAlgorithm: false, includeDecisionMaking: false, includeHPI: false, includePhysicalExam: false, includePlan: false },
+        user: null, userId: null,
+    };
+    for (let i = 1; i < parts.length; i++) {
+        const part = parts[i];
+        if (!part) continue;
+        const prefix = part[0];
+        const value = part.substring(1);
+        if (prefix === 'h') result.providerHpi = decompressText(value);
+        else if (prefix === 'p') {
+            if (value.startsWith('2:') || value.startsWith('3:') || value.startsWith('4:') || value.startsWith('5:')) {
+                result.providerPeRaw = value;
+                result.providerPe = decodePECompact(value, 'PRV');
+            } else {
+                result.providerPe = decompressText(value);
+            }
+        }
+        else if (prefix === 'x') result.providerAssessment = decompressText(value);
+        else if (prefix === 'n') result.providerPlan = decompressText(value);
+        else if (prefix === 'u') {
+            const segs = value.split('.');
+            if (segs.length >= 4) {
+                const ri = parseInt(segs[0], 10);
+                const ci = parseInt(segs[1], 10);
+                const coi = parseInt(segs[2], 10);
+                let names: string[] = [];
+                try { names = decompressText(segs.slice(3).join('.')).split('|'); }
+                catch (e) { logError('noteParser.decodeProviderUser', e); }
+                result.providerUser = {
+                    firstName: names[0] || undefined,
+                    lastName: names[1] || undefined,
+                    middleInitial: names[2] || undefined,
+                    rank: ri >= 0 ? ranks[ri] : undefined,
+                    credential: ci >= 0 ? credentials[ci] : undefined,
+                    component: coi >= 0 ? components[coi] : undefined,
+                    uic: names[3] || undefined,
+                };
+            }
+        } else if (prefix === 'i') {
+            if (value.length === 32) {
+                result.providerUserId = `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`;
+            }
+        }
+    }
+    return result;
+}
+
+/** Encode provider note fields into a PRV-prefixed pipe-delimited string. */
+export function encodeProviderNote(options: ProviderNoteEncodeOptions): string {
+    const parts: string[] = ['PRV'];
+
+    if (options.hpiNote.trim()) parts.push(`h${compressText(options.hpiNote.trim())}`);
+    encodeProviderPE(parts, options);
+    if (options.assessmentNote.trim()) parts.push(`x${compressText(options.assessmentNote.trim())}`);
+    if (options.planNote.trim()) parts.push(`n${compressText(options.planNote.trim())}`);
+    encodeProviderUser(parts, options);
+
+    return parts.join('|');
+}
+
+/** Append provider segments to an existing medic barcode string. */
+export function encodeProviderBundle(medicBarcode: string, options: ProviderNoteEncodeOptions): string {
+    const providerParts: string[] = [];
+
+    if (options.hpiNote.trim()) providerParts.push(`h${compressText(options.hpiNote.trim())}`);
+    encodeProviderPE(providerParts, options);
+    if (options.assessmentNote.trim()) providerParts.push(`x${compressText(options.assessmentNote.trim())}`);
+    if (options.planNote.trim()) providerParts.push(`n${compressText(options.planNote.trim())}`);
+    encodeProviderUser(providerParts, options);
+
+    if (providerParts.length === 0) return medicBarcode;
+    return medicBarcode + '|' + providerParts.join('|');
+}
+
+/** Encode provider PE — structured v5 when available, compressed text fallback (mirrors medic PE encoding). */
+function encodeProviderPE(parts: string[], options: ProviderNoteEncodeOptions): void {
+    if (options.peState) {
+        try {
+            parts.push(`p${encodePEState(options.peState)}`);
+            return;
+        } catch (e) {
+            logError('noteParser.encodeProviderPE', e);
+        }
+    }
+    const peNote = options.peNote.trim();
+    if (peNote) parts.push(`p${compressText(peNote)}`);
+}
+
+/** Encode provider user + userId segments. */
+function encodeProviderUser(parts: string[], options: ProviderNoteEncodeOptions): void {
+    const user = options.user;
+    if (user?.lastName) {
+        const ri = user.rank ? ranks.indexOf(user.rank) : -1;
+        const ci = user.credential ? credentials.indexOf(user.credential) : -1;
+        const coi = user.component ? components.indexOf(user.component) : -1;
+        const nameStr = `${user.firstName ?? ''}|${user.lastName ?? ''}|${user.middleInitial ?? ''}|${user.uic ?? ''}`;
+        try {
+            parts.push(`u${ri}.${ci}.${coi}.${compressText(nameStr)}`);
+        } catch (e) {
+            logError('noteParser.encodeProviderUser', e);
+            parts.push(`u${ri}.${ci}.${coi}.${encodeURIComponent(nameStr)}`);
+        }
+    }
+    if (options.userId) {
+        parts.push(`i${options.userId.replace(/-/g, '')}`);
+    }
 }

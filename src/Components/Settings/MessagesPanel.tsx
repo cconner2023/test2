@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
 import { Trash2, Phone, Video, MessageSquare, Users, Info, ChevronLeft, Pin } from 'lucide-react'
 import { useSpring, animated } from '@react-spring/web'
-import { ScrollRevealSearch } from '../ScrollRevealSearch'
+import { MobileSearchBar } from '../MobileSearchBar'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useMessagesContext } from '../../Hooks/MessagesContext'
@@ -43,6 +43,7 @@ interface MessagesPanelProps {
   searchQuery: string
   onSearchClear: () => void
   onSearchChange: (value: string) => void
+  onSearchFocusChange?: (focused: boolean) => void
 }
 
 // ── Conversation Pane (shared across mobile + desktop) ───────────────────
@@ -186,7 +187,7 @@ function ConversationPane({
 
   return (
     <div className="flex flex-col">
-      <div className="px-1 pb-2">
+      <div className="px-1 pt-1.5 pb-2">
         {/* Search results */}
         {searchResults ? (
           <div className="px-1">
@@ -527,7 +528,7 @@ function ChatDetail({
   const canCall = !isSelf && (requestStatus === 'accepted' || requestStatus === 'none') && (onStartCall || onStartVideoCall)
 
   const mobileHeader = (
-    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center backdrop-blur-xs bg-themewhite/10">
+    <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center">
       <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
         <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
           <ChevronLeft className="w-6 h-6 text-tertiary" />
@@ -703,7 +704,7 @@ function GroupChatDetail({
   }, [leaveGroup, onBack])
 
   const mobileHeader = (
-    <div className="md:hidden sticky top-0 z-10 shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center backdrop-blur-xs bg-themewhite/10">
+    <div className="md:hidden shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center">
       <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
         <button onClick={onBack} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
           <ChevronLeft className="w-6 h-6 text-tertiary" />
@@ -778,7 +779,7 @@ function GroupChatDetail({
 
 // ── Exported Panel ─────────────────────────────────────────────────────────
 
-export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange }, ref) {
+export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange, onSearchFocusChange }, ref) {
   const messagesCtx = useMessagesContext()
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
@@ -914,15 +915,15 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
       {/* Conversation pane: full-width on mobile default view, w-80 sidebar on desktop */}
       {view === 'messages' && (
         <div className="md:hidden flex flex-col w-full h-full overflow-hidden">
-          <ScrollRevealSearch value={searchQuery} onChange={onSearchChange} placeholder="Search..." className="pt-[calc(var(--sat,0px)+4rem)]">
+          <MobileSearchBar variant="messages" value={searchQuery} onChange={onSearchChange} placeholder="Search..." className="pt-[calc(var(--sat,0px)+4rem)]" onFocusChange={onSearchFocusChange}>
             <ConversationPane {...conversationPaneProps} />
-          </ScrollRevealSearch>
+          </MobileSearchBar>
         </div>
       )}
       <div className="hidden md:flex md:flex-col w-80 shrink-0 border-r border-primary/10 overflow-hidden">
-        <ScrollRevealSearch value={searchQuery} onChange={onSearchChange} placeholder="Search...">
+        <MobileSearchBar variant="messages" value={searchQuery} onChange={onSearchChange} placeholder="Search..." onFocusChange={onSearchFocusChange}>
           <ConversationPane {...conversationPaneProps} />
-        </ScrollRevealSearch>
+        </MobileSearchBar>
       </div>
 
       {/* Main content area (chat detail on both, empty state on desktop) */}

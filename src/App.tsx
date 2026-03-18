@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react'
+import { useSpring, animated } from '@react-spring/web'
 import { DRAWER_TIMING } from './Utilities/constants'
 import './App.css'
 import { NavTop } from './Components/NavTop'
@@ -95,6 +96,11 @@ function AppContent() {
   })
 
   // ── Settings/training targeting state (lightweight replacement for useActiveNote) ──
+  const [searchFocused, setSearchFocused] = useState(false)
+  const headerCollapseSpring = useSpring({
+    collapse: searchFocused ? 1 : 0,
+    config: { tension: 280, friction: 28 },
+  })
   const [settingsInitialPanel, setSettingsInitialPanel] = useState<'main' | 'release-notes' | 'user-profile'>('main')
   const [initialTrainingTaskId, setInitialTrainingTaskId] = useState<string | null>(null)
   const [initialPeerId, setInitialPeerId] = useState<string | null>(null)
@@ -467,13 +473,26 @@ function AppContent() {
           </div>
 
           {/* Content — takes full viewport width */}
-          <div className="flex flex-col h-full flex-1 min-w-0 relative">
+          <animated.div
+            className="flex flex-col h-full flex-1 min-w-0 relative"
+            style={{
+              '--header-collapse': headerCollapseSpring.collapse,
+            } as React.CSSProperties}
+          >
           {/* Navbar - overlaps content on mobile for blur effect, extends into safe area on iOS */}
-          <div className={`${navigation.isMobile
-            ? 'absolute top-0 left-0 right-0 z-30 pt-[var(--sat)] backdrop-blur-xs bg-themewhite/10'
+          <animated.div className={`${navigation.isMobile
+            ? 'absolute top-0 left-0 right-0 z-30 pt-[var(--sat)] backdrop-blur-xs bg-themewhite/10 overflow-hidden'
             : 'relative'
             } h-13.75 w-full rounded-t-md flex justify-end`}
-            style={navigation.isMobile ? { height: 'calc(var(--sat, 0px) + 3.4375rem)' } : undefined}>
+            style={navigation.isMobile ? {
+              height: headerCollapseSpring.collapse.to(
+                (c: number) => `calc((var(--sat, 0px) + 3.4375rem) * ${1 - c})`
+              ),
+              opacity: headerCollapseSpring.collapse.to((c: number) => 1 - c),
+              transform: headerCollapseSpring.collapse.to(
+                (c: number) => `scale(${1 - c * 0.03})`
+              ),
+            } : undefined}>
             <NavTop
               search={{
                 searchInput: search.searchInput,
@@ -506,9 +525,10 @@ function AppContent() {
                 dynamicTitle: title,
                 isMobile: navigation.isMobile,
                 isAlgorithmView: navigation.showQuestionCard,
+                isSearchFocused: searchFocused,
               }}
             />
-          </div>
+          </animated.div>
 
           {/* Content area — TC3 mode uses dedicated layouts; normal mode uses 2-column grid */}
           <div className="md:flex-1 h-full overflow-hidden absolute inset-0 md:relative md:inset-auto md:mt-2 md:mx-2">
@@ -536,6 +556,8 @@ function AppContent() {
                   onSearchChange={navigation.isMobile ? handleSearchChange : undefined}
                   searchResults={search.searchResults}
                   isSearching={search.isSearching}
+                  onSearchFocusChange={setSearchFocused}
+                  headerCollapse={headerCollapseSpring.collapse}
                 />
               </div>
 
@@ -560,9 +582,11 @@ function AppContent() {
                         key={`algo-${navigation.selectedSymptom.icon}`}
                         searchInput={search.searchInput}
                         onSearchChange={navigation.isMobile ? handleSearchChange : undefined}
+                        onSearchFocusChange={setSearchFocused}
                         searchResults={search.searchResults}
                         isSearching={search.isSearching}
                         onSearchResultClick={handleNavigationClick}
+                        headerCollapse={headerCollapseSpring.collapse}
                       />
                       </ErrorBoundary>
                     </div>
@@ -604,19 +628,20 @@ function AppContent() {
               {...messagesSlide.closeHandlers}
             />
           )}
-          </div>
+          </animated.div>
         </div>
 
         {/* Messages panel — slides over content from right (mobile only, always mounted) */}
         {navigation.isMobile && (
           <div
-            className="absolute inset-0 z-50 overflow-hidden"
+            className="absolute inset-0 z-50 overflow-hidden touch-pan-y"
             style={{
               transform: `translateX(${(1 - messagesSlide.progress) * 100}%)`,
               transition: messagesSlide.transition,
               willChange: messagesSlide.isDragging ? 'transform' : 'auto',
               pointerEvents: (navigation.showMessagesDrawer || messagesSlide.progress > 0) ? 'auto' : 'none',
             }}
+            {...messagesSlide.panelCloseHandlers}
           >
             <ErrorBoundary>
             <Suspense fallback={null}>

@@ -1,7 +1,7 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { Pencil, UserPlus, Building2, Trash2, X, Inbox, Users } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
-import { ScrollRevealSearch } from './ScrollRevealSearch'
+import { MobileSearchBar } from './MobileSearchBar'
 import { HeaderPill, PillButton, VerticalPill } from './HeaderPill'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -59,6 +59,10 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     // Search state
     const [searchQuery, setSearchQuery] = useState('')
+    const [searchFocused, setSearchFocused] = useState(false)
+
+    // Clear search when navigating between views (e.g., clicking a search result)
+    useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
 
     const isMobile = useIsMobile()
 
@@ -354,7 +358,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             {/* List content — full width */}
             <div className="h-full min-h-0">
                 {activeTab === 'requests' && (
-                    <ScrollRevealSearch value={searchQuery} onChange={setSearchQuery}>
+                    <MobileSearchBar variant="admin" value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused}>
                         <AdminRequestsList
                             searchQuery={searchQuery}
                             onUserApproved={(approvedUser) => {
@@ -380,27 +384,27 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                                 handleEditUser(newUser)
                             }}
                         />
-                    </ScrollRevealSearch>
+                    </MobileSearchBar>
                 )}
                 {activeTab === 'users' && (
-                    <ScrollRevealSearch value={searchQuery} onChange={setSearchQuery}>
+                    <MobileSearchBar variant="admin" value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused}>
                         <AdminUsersList
                             onSelectUser={handleSelectUser}
                             onEditUser={handleEditUser}
                             onCreateUser={handleCreateUser}
                             searchQuery={searchQuery}
                         />
-                    </ScrollRevealSearch>
+                    </MobileSearchBar>
                 )}
                 {activeTab === 'clinics' && (
-                    <ScrollRevealSearch value={searchQuery} onChange={setSearchQuery}>
+                    <MobileSearchBar variant="admin" value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused}>
                         <AdminClinicsList
                             onSelectClinic={handleSelectClinic}
                             onEditClinic={handleEditClinic}
                             onCreateClinic={handleCreateClinic}
                             searchQuery={searchQuery}
                         />
-                    </ScrollRevealSearch>
+                    </MobileSearchBar>
                 )}
             </div>
         </div>
@@ -415,6 +419,7 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
             desktopPosition="left"
             desktopWidth="w-[90%]"
             header={headerConfig}
+            headerFaded={searchFocused}
         >
             <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'admin' ? swipeHandlers : undefined}>
                 <div className="h-full relative">

@@ -32,6 +32,18 @@ export interface CustomPEBlock {
     abnormalTags: string[];
 }
 
+export interface CustomExamTemplate {
+    id: string;
+    name: string;
+    blockIds: string[];
+    customBlocks?: CustomPEBlock[];
+}
+
+export interface ComprehensivePETemplate {
+    blockIds: string[];
+    hiddenOptions?: Record<string, string[]>; // blockKey -> hidden abnormal option keys
+}
+
 export interface PlanOrderTags {
     referral: string[];
     meds: string[];
@@ -76,10 +88,14 @@ export interface UserTypes {
     noteIncludeHPI?: boolean;
     /** Default: include Physical Exam section when writing notes */
     noteIncludePE?: boolean;
-    /** PE depth: 'minimal', 'expanded', or 'custom' */
-    peDepth?: 'minimal' | 'expanded' | 'custom';
-    /** User-defined custom PE blocks */
+    /** PE depth: 'focused', 'comprehensive', or 'custom' */
+    peDepth?: 'focused' | 'comprehensive' | 'custom';
+    /** User-defined custom PE blocks (kept for backward-compat migration) */
     customPEBlocks?: CustomPEBlock[];
+    /** User-defined named exam templates (custom mode) */
+    customExamTemplates?: CustomExamTemplate[];
+    /** Provider comprehensive exam template (customized block list + hidden options) */
+    comprehensivePETemplate?: ComprehensivePETemplate;
     /** User-defined text expander abbreviations */
     textExpanders?: TextExpander[];
     /** Whether text expander is active in the HPI field */

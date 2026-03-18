@@ -1,10 +1,10 @@
-import { useState, useCallback, useMemo, useRef } from 'react'
+import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { ArrowRightLeft, Pencil, Trash2, X } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
 import { ContentWrapper } from './Settings/ContentWrapper'
-import { ScrollRevealSearch } from './ScrollRevealSearch'
+import { MobileSearchBar } from './MobileSearchBar'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import type { LocalPropertyItem } from '../Types/PropertyTypes'
@@ -29,6 +29,10 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
     const locationListRef = useRef<PropertyLocationListHandle>(null)
 
     const [searchQuery, setSearchQuery] = useState('')
+    const [searchFocused, setSearchFocused] = useState(false)
+
+    // Clear search when navigating between views (e.g., clicking a search result)
+    useEffect(() => { setSearchQuery(''); setSearchFocused(false) }, [view])
 
     // Callbacks for detail-view header actions (set by PropertyPanel)
     const [detailActions, setDetailActions] = useState<{
@@ -178,12 +182,14 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             desktopPosition="left"
             desktopWidth="w-[90%]"
             header={headerConfig}
+            headerFaded={searchFocused}
         >
             <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'property' ? swipeHandlers : undefined}>
-                <ScrollRevealSearch
+                <MobileSearchBar variant="property"
                     value={searchQuery}
                     onChange={setSearchQuery}
                     enabled={view === 'property'}
+                    onFocusChange={setSearchFocused}
                 >
                     <div className="h-full relative">
                         <PropertyPanel
@@ -203,7 +209,7 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                             locationListRef={locationListRef}
                         />
                     </div>
-                </ScrollRevealSearch>
+                </MobileSearchBar>
             </ContentWrapper>
         </BaseDrawer>
     )

@@ -140,6 +140,7 @@ export function ClinicPanel({
   const [scanning, setScanning] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const addEmailRef = useRef<HTMLInputElement>(null)
 
   // Action state
   const [processingInviteId, setProcessingInviteId] = useState<string | null>(null)
@@ -168,6 +169,12 @@ export function ClinicPanel({
   useEffect(() => {
     onPendingChangesChange?.(stagedMembers.length > 0 || stagedClinics.length > 0 || deleteSelection.size > 0)
   }, [stagedMembers.length, stagedClinics.length, deleteSelection.size, onPendingChangesChange])
+
+  // Focus the add-member email input when the section becomes visible
+  const addEmailVisible = clinicEditing && addMode !== 'create'
+  useEffect(() => {
+    if (addEmailVisible) addEmailRef.current?.focus()
+  }, [addEmailVisible])
 
   // ─── QR Rendering ─────────────────────────────────────────────────
 
@@ -976,8 +983,8 @@ export function ClinicPanel({
                             if (e.key === 'Enter' && addEmail.trim()) handleAddLookup()
                             if (e.key === 'Escape') { setAddEmail(''); setAddMode('lookup'); setAddLookupResult(null) }
                           }}
+                          ref={addEmailRef}
                           placeholder="Add member by email"
-                          autoFocus
                           className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary/30"
                         />
                       </div>

@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import type { AlgorithmOptions } from '../Types/AlgorithmTypes';
+import type { PEState } from '../Types/PETypes';
 import type { CardState } from './useAlgorithm';
 import { useNoteCapture } from './useNoteCapture';
 import { useNoteShare } from './useNoteShare';
 import { useDD689Export } from './useDD689Export';
+import { useSF600Export } from './useSF600Export';
 import { useUserProfile } from './useUserProfile';
 import { useAuthStore } from '../stores/useAuthStore';
 import { usePageSwipe } from './usePageSwipe';
@@ -61,6 +63,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
     const [previewNote, setPreviewNote] = useState('');
     const [includeHPI, setIncludeHPI] = useState(defaultHPI);
     const [peNote, setPeNote] = useState('');
+    const [peState, setPeState] = useState<PEState | null>(null);
     const [includePhysicalExam, setIncludePhysicalExam] = useState(defaultPE);
     const [planNote, setPlanNote] = useState('');
     const [includePlan, setIncludePlan] = useState(defaultPlan);
@@ -116,6 +119,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
     const signature = formatSignature(profile);
     const { shareNote, shareStatus } = useNoteShare();
     const { exportDD689, exportStatus } = useDD689Export();
+    const { exportSF600, sf600ExportStatus } = useSF600Export();
 
     // --- Copied state auto-revert ---
     useEffect(() => {
@@ -179,6 +183,19 @@ export function useNoteEditor(config: NoteEditorConfig) {
             authorLine: authorParts.length ? authorParts.join(', ') : undefined,
         });
     }, [encodedValue, dispositionType, dispositionText, selectedSymptom, exportDD689, profile, shareSymptomText]);
+
+    // --- SF600 PDF export handler ---
+    const handleExportSF600 = useCallback(() => {
+        if (!previewNote) return;
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase();
+        exportSF600({
+            noteText: previewNote,
+            date: dateStr,
+            facilityName: profile.clinicName || undefined,
+            signature: signature || undefined,
+        });
+    }, [previewNote, exportSF600, profile.clinicName, signature]);
 
     // --- Slide animation helper ---
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
@@ -259,6 +276,7 @@ export function useNoteEditor(config: NoteEditorConfig) {
         // Note state
         note, setNote, previewNote,
         peNote, setPeNote,
+        peState, setPeState,
         planNote, setPlanNote,
         includeHPI, setIncludeHPI,
         includePhysicalExam, setIncludePhysicalExam,
@@ -281,8 +299,8 @@ export function useNoteEditor(config: NoteEditorConfig) {
         piiWarnings, pePiiWarnings, hasPII,
 
         // Handlers
-        handleCopy, handleShare, handleExportDD689,
-        shareStatus, exportStatus,
+        handleCopy, handleShare, handleExportDD689, handleExportSF600,
+        shareStatus, exportStatus, sf600ExportStatus,
 
         // Text expander
         expanderSuggestions, expanderIndex, acceptExpander, dismissExpander,
