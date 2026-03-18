@@ -1,0 +1,2 @@
+function a(t){const l=t.split(`
+`),i=[];let e=!1;for(const n of l){const o=n.match(/^\s+• (.+)/);o?(e||(i.push("<ul>"),e=!0),i.push(`<li>${o[1]}</li>`)):(e&&(i.push("</ul>"),e=!1),i.push(`<div>${n||"<br>"}</div>`))}return e&&i.push("</ul>"),i.join("")}function r(t){const l=a(t);typeof ClipboardItem<"u"&&navigator.clipboard.write?navigator.clipboard.write([new ClipboardItem({"text/plain":new Blob([t],{type:"text/plain"}),"text/html":new Blob([l],{type:"text/html"})})]).catch(()=>{navigator.clipboard.writeText(t)}):navigator.clipboard.writeText(t)}export{r as c};
