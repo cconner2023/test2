@@ -21,6 +21,22 @@ export async function getExistingSubscription(): Promise<PushSubscription | null
   return registration.pushManager.getSubscription()
 }
 
+export interface SubscriptionInfo {
+  endpoint: string
+  domain: string
+}
+
+export function getSubscriptionInfo(sub: PushSubscription): SubscriptionInfo {
+  const endpoint = sub.endpoint
+  let domain: string
+  try {
+    domain = new URL(endpoint).hostname
+  } catch {
+    domain = 'unknown'
+  }
+  return { endpoint, domain }
+}
+
 export async function subscribeToPush(): Promise<ServiceResult> {
   try {
     if (!VAPID_PUBLIC_KEY) {

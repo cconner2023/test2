@@ -139,7 +139,7 @@ export function useChatInteractions({
 
   const threadMessages = useMemo(() => {
     if (!activeThreadId) return []
-    return messages.filter(m => m.id === activeThreadId || m.threadId === activeThreadId)
+    return messages.filter(m => m.id === activeThreadId || m.originId === activeThreadId || m.threadId === activeThreadId)
   }, [activeThreadId, messages])
 
   const mainViewMessages = useMemo(() => messages.filter(m => !m.threadId), [messages])

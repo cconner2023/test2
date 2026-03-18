@@ -83,11 +83,9 @@ interface PropertyLocationMapProps {
   onEditItem?: (id: string, updates: { location_id?: string | null }) => Promise<unknown>
   onUpdateLocation?: (id: string, updates: Partial<PropertyLocation>) => Promise<unknown>
   onSelectItem?: (item: LocalPropertyItem) => void
-  /** Extra controls rendered below the edit toolbar (e.g. CSV pill) */
-  floatingControls?: React.ReactNode
 }
 
-export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, clinicName, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem, floatingControls }, ref) {
+export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapProps>(function PropertyLocationMap({ clinicId, clinicName, locations, items, onCreateLocation, onDeleteLocation, onEditItem, onUpdateLocation, onSelectItem }, ref) {
   const store = usePropertyStore()
   const isMobile = useIsMobile()
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -1251,10 +1249,6 @@ export const PropertyLocationMap = forwardRef<MapNavHandle, PropertyLocationMapP
             </div>
           )}
 
-          {/* CSV / floating controls — below toolbar */}
-          {floatingControls && (
-            <div className="mt-2 flex justify-end">{floatingControls}</div>
-          )}
         </div>
 
       </div>

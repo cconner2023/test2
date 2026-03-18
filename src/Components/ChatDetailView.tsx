@@ -235,7 +235,7 @@ export function ChatDetailView({
   const handleSend = useCallback(async () => {
     const trimmed = text.trim()
     if (!trimmed || sending) return
-    const threadId = activeThreadId ?? replyingTo?.id ?? undefined
+    const threadId = activeThreadId ?? replyingTo?.originId ?? replyingTo?.id ?? undefined
     setText('')
     setReplyingTo(null)
     const success = await sendMessage(conversationId, trimmed, threadId)
@@ -481,7 +481,7 @@ export function ChatDetailView({
                 onEditTextChange={setEditText}
                 onSaveEdit={handleSaveEdit}
                 onCancelEdit={handleCancelEdit}
-                threadReplyCount={!activeThreadId ? threadReplyCounts[msg.id] : undefined}
+                threadReplyCount={!activeThreadId ? (threadReplyCounts[msg.originId ?? ''] ?? threadReplyCounts[msg.id]) : undefined}
                 onOpenThread={handleOpenThread}
               />
               {isThreadRoot && msgs.length > 1 && (

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Mail, Code, Info, Volume2 } from 'lucide-react'
+import { Bell, Mail, Code, Info, Volume2, Plus, Trash2, Wifi, WifiOff } from 'lucide-react'
 import { usePushNotifications } from '../../Hooks/usePushNotifications'
 import { useUserProfile } from '../../Hooks/useUserProfile'
 import { useAuth } from '../../Hooks/useAuth'
@@ -10,7 +10,7 @@ import { ErrorDisplay } from '../ErrorDisplay'
 import { UI_TIMING } from '../../Utilities/constants'
 
 export const NotificationSettingsPanel = () => {
-  const { isSupported, isSubscribed, loading, error: pushError, subscribe, unsubscribe } = usePushNotifications()
+  const { isSupported, isSubscribed, subscriptionInfo, loading, error: pushError, subscribe, unsubscribe } = usePushNotifications()
   const { profile, updateProfile, syncProfileField } = useUserProfile()
   const { isAuthenticated } = useAuth()
   const [isDev, setIsDev] = useState(false)
@@ -34,34 +34,29 @@ export const NotificationSettingsPanel = () => {
     setTimeout(() => setError(''), UI_TIMING.SAVE_ERROR_DURATION)
   }, [])
 
-  /** Toggle message notifications — controls device push subscription directly */
-  const handleMessageToggle = useCallback(async () => {
+  const handleSubscribe = useCallback(async () => {
     setError('')
-
-    if (isSubscribed) {
-      // Unsubscribe: removes browser subscription + deletes push_subscriptions row
-      const ok = await unsubscribe()
-      if (!ok) {
-        showError(pushError || 'Could not disable notifications')
-        return
-      }
-      showSuccess('Notifications disabled')
-    } else {
-      // Subscribe: triggers OS/browser permission prompt, saves subscription row
-      const ok = await subscribe()
-      if (!ok) {
-        showError(pushError || 'Could not enable notifications')
-        return
-      }
-      showSuccess('Notifications enabled')
+    const ok = await subscribe()
+    if (!ok) {
+      showError(pushError || 'Could not enable notifications')
+      return
     }
-  }, [isSubscribed, subscribe, unsubscribe, pushError, showSuccess, showError])
+    showSuccess('Subscription created')
+  }, [subscribe, pushError, showSuccess, showError])
 
-  /** Toggle dev alerts — global profile preference */
+  const handleUnsubscribe = useCallback(async () => {
+    setError('')
+    const ok = await unsubscribe()
+    if (!ok) {
+      showError(pushError || 'Could not remove subscription')
+      return
+    }
+    showSuccess('Subscription removed')
+  }, [unsubscribe, pushError, showSuccess, showError])
+
   const handleDevAlertToggle = useCallback(async (newValue: boolean) => {
     setError('')
 
-    // If enabling, ensure push subscription exists (device permission — must await)
     if (newValue && !isSubscribed) {
       const ok = await subscribe()
       if (!ok) {
@@ -70,33 +65,20 @@ export const NotificationSettingsPanel = () => {
       }
     }
 
-    // Immediate local update
     updateProfile({ notifyDevAlerts: newValue })
-
-    // Fire-and-forget Supabase sync
     syncProfileField({ notify_dev_alerts: newValue })
-
     showSuccess(newValue ? 'Dev alerts enabled' : 'Dev alerts disabled')
   }, [isSubscribed, subscribe, pushError, updateProfile, syncProfileField, showSuccess, showError])
 
   return (
     <div className="h-full overflow-y-auto">
       <div className="px-5 py-4 space-y-5">
-        {/* Description */}
         <p className="text-xs text-tertiary leading-relaxed">
-          Choose which notifications you'd like to receive. Message notifications are per-device —
-          enable or disable them independently on each device.
+          Manage your push notification subscription and preferences for this device.
         </p>
 
-        {/* Success banner */}
-        {success && (
-          <ErrorDisplay type="success" message={success} />
-        )}
-
-        {/* Error banner */}
-        {(error || pushError) && (
-          <ErrorDisplay type="error" message={error || pushError || ''} />
-        )}
+        {success && <ErrorDisplay type="success" message={success} />}
+        {(error || pushError) && <ErrorDisplay type="error" message={error || pushError || ''} />}
 
         {/* Not supported */}
         {!isSupported && (
@@ -108,39 +90,60 @@ export const NotificationSettingsPanel = () => {
           </div>
         )}
 
-        {/* Messages toggle — visible to all authenticated users */}
+        {/* ── Notifications Block ─────────────────────────────────── */}
         {isSupported && isAuthenticated && (
-          <div className={`rounded-xl border overflow-hidden transition-all
-            ${isSubscribed ? 'border-themeblue2/25 bg-themeblue2/10' : 'border-tertiary/15 bg-themewhite2'}
-            ${loading ? 'opacity-50 pointer-events-none' : ''}`}
-          >
-            <div
-              className="flex items-center gap-3 px-4 py-3.5 cursor-pointer"
-              onClick={handleMessageToggle}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleMessageToggle(); } }}
-            >
-              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isSubscribed ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                <Mail size={18} className={isSubscribed ? 'text-themeblue2' : 'text-tertiary/50'} />
+          <div className={`rounded-xl border overflow-hidden transition-all ${loading ? 'opacity-50 pointer-events-none' : ''} border-tertiary/15 bg-themewhite2`}>
+
+            {/* Subscription Status */}
+            <div className="flex items-center gap-3 px-4 py-3.5">
+              <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${isSubscribed ? 'bg-themegreen/15' : 'bg-tertiary/10'}`}>
+                {isSubscribed
+                  ? <Wifi size={18} className="text-themegreen" />
+                  : <WifiOff size={18} className="text-tertiary/50" />
+                }
               </div>
               <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium ${isSubscribed ? 'text-primary' : 'text-tertiary'}`}>Messages</p>
-                <p className="text-[11px] text-tertiary/70 mt-0.5">New messages, requests, and accepted requests</p>
+                <p className={`text-sm font-medium ${isSubscribed ? 'text-primary' : 'text-tertiary'}`}>
+                  {isSubscribed ? 'Active Subscription' : 'No Subscription'}
+                </p>
+                <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
+                  {isSubscribed && subscriptionInfo
+                    ? subscriptionInfo.domain
+                    : 'This device is not receiving push notifications'
+                  }
+                </p>
               </div>
-              <ToggleSwitch checked={isSubscribed} />
+              {isSubscribed ? (
+                <button
+                  onClick={handleUnsubscribe}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-themeredred bg-themeredred/10 active:scale-95 transition-all"
+                >
+                  <Trash2 size={14} />
+                  Remove
+                </button>
+              ) : (
+                <button
+                  onClick={handleSubscribe}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-themeblue2 bg-themeblue2/10 active:scale-95 transition-all"
+                >
+                  <Plus size={14} />
+                  Add
+                </button>
+              )}
             </div>
 
-            {/* Nested: Message Sounds */}
+            {/* Toggles — only when subscribed */}
             {isSubscribed && (
-              <div className="border-t border-tertiary/10 px-4 py-3">
+              <div className="border-t border-tertiary/10 px-4 py-3 space-y-2">
+
+                {/* Messages Toggle */}
                 <div
                   onClick={() => {
                     const next = !soundsEnabled
                     setMessageSoundsEnabled(next)
                     setSoundsEnabled(next)
                   }}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border border-tertiary/15 bg-themewhite transition-all cursor-pointer`}
+                  className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-tertiary/15 bg-themewhite transition-all cursor-pointer"
                   role="button"
                   tabIndex={0}
                   onKeyDown={(e) => {
@@ -161,32 +164,28 @@ export const NotificationSettingsPanel = () => {
                   </div>
                   <ToggleSwitch checked={soundsEnabled} />
                 </div>
+
+                {/* Dev Alerts Toggle — dev users only */}
+                {isDev && (
+                  <div
+                    onClick={() => handleDevAlertToggle(!devAlerts)}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg border border-tertiary/15 bg-themewhite transition-all cursor-pointer"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleDevAlertToggle(!devAlerts); } }}
+                  >
+                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${devAlerts ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                      <Code size={18} className={devAlerts ? 'text-themeblue2' : 'text-tertiary/50'} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-medium ${devAlerts ? 'text-primary' : 'text-tertiary'}`}>Dev Alerts</p>
+                      <p className="text-[11px] text-tertiary/70 mt-0.5">Login alerts, account requests, and feedback</p>
+                    </div>
+                    <ToggleSwitch checked={devAlerts} />
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
-
-        {/* Dev alerts toggle — only visible to dev users */}
-        {isSupported && isDev && (
-          <div
-            className={`flex items-center gap-3 px-4 py-3.5 rounded-xl border transition-all cursor-pointer
-              ${devAlerts
-                ? 'border-themeblue2/25 bg-themeblue2/10'
-                : 'border-tertiary/15 bg-themewhite2'
-              } ${loading ? 'opacity-50 pointer-events-none' : ''}`}
-            onClick={() => handleDevAlertToggle(!devAlerts)}
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleDevAlertToggle(!devAlerts); } }}
-          >
-            <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${devAlerts ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-              <Code size={18} className={devAlerts ? 'text-themeblue2' : 'text-tertiary/50'} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className={`text-sm font-medium ${devAlerts ? 'text-primary' : 'text-tertiary'}`}>Dev Alerts</p>
-              <p className="text-[11px] text-tertiary/70 mt-0.5">Login alerts, account requests, and feedback</p>
-            </div>
-            <ToggleSwitch checked={devAlerts} />
           </div>
         )}
       </div>

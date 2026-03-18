@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
-import { ArrowRightLeft, Pencil, Trash2, Plus, FolderPlus, X } from 'lucide-react'
+import { ArrowRightLeft, Pencil, Trash2, X } from 'lucide-react'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { BaseDrawer } from './BaseDrawer'
 import { PropertyPanel, type PropertyView } from './Property/PropertyPanel'
@@ -19,7 +19,7 @@ interface PropertyDrawerProps {
 }
 
 export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
-    const { selectZone, setDefaultLocationId, setEditingItem, canvasStack, navigateBack, navigateToPath } = usePropertyStore()
+    const { canvasStack, navigateBack, navigateToPath } = usePropertyStore()
     const [view, setView] = useState<PropertyView>('property')
     const [selectedPropertyItemName, setSelectedPropertyItemName] = useState<string | null>(null)
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('')
@@ -42,8 +42,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
 
     const isMobile = useIsMobile()
 
-    // Ref to trigger the add-location form inside PropertyPanel from the header
-    const addLocationTriggerRef = useRef<(() => void) | null>(null)
 
     const handleSlideAnimation = useCallback((direction: 'left' | 'right') => {
         setSlideDirection(direction)
@@ -116,23 +114,12 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
         )
     }, [detailActions, handleClose])
 
-    const handleNewItem = useCallback(() => {
-        setDefaultLocationId(null)
-        setEditingItem(null)
-        handleAddItem()
-    }, [setDefaultLocationId, setEditingItem, handleAddItem])
-
-    const handleNewLocation = useCallback(() => {
-        addLocationTriggerRef.current?.()
-    }, [])
 
     const mainHeaderActions = useMemo(() => (
         <HeaderPill>
-            <PillButton icon={Plus} onClick={handleNewItem} label="New item" />
-            <PillButton icon={FolderPlus} onClick={handleNewLocation} label="New location" />
             <PillButton icon={X} onClick={handleClose} label="Close" />
         </HeaderPill>
-    ), [handleNewItem, handleNewLocation, handleClose])
+    ), [handleClose])
 
     const locationHeaderActions = useMemo(() => {
         if (!locationActions) return undefined
@@ -211,7 +198,6 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
                             mobileLocationView={mobileLocationView}
                             onMobileLocationViewChange={setMobileLocationView}
                             onRegisterDetailActions={setDetailActions}
-                            onRegisterAddLocation={(fn) => { addLocationTriggerRef.current = fn }}
                             onRegisterLocationActions={setLocationActions}
                             onDrilldownChange={setDrilldownPath}
                             locationListRef={locationListRef}

@@ -249,6 +249,7 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
             onSelectDate={handleSelectDate}
             onMonthChange={setMonthLabel}
             onMoveEvent={handleMoveEventToDate}
+            onSelectEvent={handleSelectEvent}
           />
         )}
 

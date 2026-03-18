@@ -169,7 +169,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
     const BUTTON_CLASSES = {
         mobileContainer: "rounded-full border border-tertiary/20 flex items-center p-0.5 bg-themewhite",
         mobileButton: "w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200",
-        desktop: "h-8 flex items-center justify-center px-3 lg:px-4 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full transition-all duration-300"
+        desktop: "h-8 flex items-center justify-center px-3 lg:px-4 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full active:scale-95 transition-all duration-300"
     };
 
     return (
@@ -375,7 +375,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                         </>
                                     ) : (
                                         <div
-                                            className="flex items-center justify-center px-2 py-2 bg-themewhite2 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
+                                            className="flex items-center justify-center px-2 py-2 bg-themewhite2 rounded-r-full cursor-pointer active:scale-95 transition-all duration-300 hover:bg-themewhite shrink-0"
                                             onClick={handleImportCollapse}
                                         >
                                             <X className="w-5 h-5 stroke-themeblue1" />
@@ -405,7 +405,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                     {shouldShowMessagesButton && (
                                         <button
                                             onClick={onMessagesClick}
-                                            className="text-tertiary hover:text-primary transition-all duration-200 relative"
+                                            className="text-tertiary hover:text-primary active:scale-95 transition-all duration-200 relative"
                                             aria-label="Messages"
                                             title="Messages"
                                         >
@@ -429,7 +429,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                     {shouldShowInfoButton && (
                                         <button
                                             onClick={onInfoClick}
-                                            className="text-tertiary hover:text-primary transition-all duration-200"
+                                            className="text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
                                             aria-label="Info"
                                             title="Info"
                                         >
@@ -463,7 +463,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                             />
                             {hasSearchInput && (
                                 <div
-                                    className="flex items-center justify-center pr-2 cursor-pointer shrink-0"
+                                    className="flex items-center justify-center pr-2 cursor-pointer shrink-0 active:scale-95 transition-transform"
                                     onClick={() => handleClearSearch(false)}
                                 >
                                     <X className="w-4 h-4 stroke-tertiary/50 hover:stroke-tertiary" />
@@ -561,7 +561,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                     </>
                                 ) : (
                                     <div
-                                        className="flex items-center justify-center px-2 py-2 bg-themewhite2 rounded-r-full cursor-pointer transition-all duration-300 hover:bg-themewhite shrink-0"
+                                        className="flex items-center justify-center px-2 py-2 bg-themewhite2 rounded-r-full cursor-pointer active:scale-95 transition-all duration-300 hover:bg-themewhite shrink-0"
                                         onClick={handleImportCollapse}
                                     >
                                         <X className="w-5 h-5 stroke-themeblue1" />

@@ -6,7 +6,6 @@ import { useProperty } from '../../Hooks/useProperty'
 import { usePropertyStore } from '../../stores/usePropertyStore'
 import { useAuth } from '../../Hooks/useAuth'
 import { supabase } from '../../lib/supabase'
-import { VerticalPill, PillButton } from '../HeaderPill'
 import { CardContextMenu } from '../CardContextMenu'
 import { CardActionBar, type ActionBarAction } from '../CardActionBar'
 import { PropertyItemRow } from './PropertyItemRow'
@@ -489,14 +488,41 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
           onEditItem={property.editItem}
           onUpdateLocation={property.editLocation}
           onSelectItem={handleSelectItem}
-          floatingControls={
-            <VerticalPill>
-              <PillButton icon={Upload} label="Import CSV" onClick={() => fileInputRef.current?.click()} />
-              <PillButton icon={Download} label="Export CSV" onClick={() => exportPropertyCSV(property.items, visibleLocations)} />
-              <PillButton icon={FileSpreadsheet} label="Download Template" onClick={downloadCSVTemplate} />
-            </VerticalPill>
-          }
         />
+        {/* Bottom island — CSV actions + Add FAB */}
+        <div className="sticky bottom-4 inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
+          <div className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
+              title="Import CSV"
+            >
+              <Upload className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => exportPropertyCSV(property.items, visibleLocations)}
+              className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
+              title="Export CSV"
+            >
+              <Download className="w-5 h-5" />
+            </button>
+            <button
+              onClick={downloadCSVTemplate}
+              className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
+              title="Download Template"
+            >
+              <FileSpreadsheet className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
+            <button
+              onClick={onAddItem}
+              className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
         {csvImport && (
           <PropertyCSVImport
             rows={csvImport.rows}
@@ -614,14 +640,44 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
           </>
         )}
         </div>
-        <div className="shrink-0 mt-3 mr-3 self-start">
-          <VerticalPill>
-            <PillButton icon={Upload} label="Import CSV" onClick={() => fileInputRef.current?.click()} />
-            <PillButton icon={Download} label="Export CSV" onClick={() => exportPropertyCSV(property.items, visibleLocations)} />
-            <PillButton icon={FileSpreadsheet} label="Download Template" onClick={downloadCSVTemplate} />
-          </VerticalPill>
-        </div>
       </div>
+
+      {/* Bottom island — CSV actions + Add FAB */}
+      {!hasSelection && (
+        <div className="sticky bottom-4 inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
+          <div className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
+              title="Import CSV"
+            >
+              <Upload className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => exportPropertyCSV(property.items, visibleLocations)}
+              className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
+              title="Export CSV"
+            >
+              <Download className="w-5 h-5" />
+            </button>
+            <button
+              onClick={downloadCSVTemplate}
+              className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
+              title="Download Template"
+            >
+              <FileSpreadsheet className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
+            <button
+              onClick={onAddItem}
+              className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Bottom action bar — shown when items are selected */}
       {hasSelection && (() => {
@@ -685,19 +741,6 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
         )
       })()}
 
-      {/* FAB for adding items — desktop only; mobile uses the header triple pill */}
-      {!isMobile && !hasSelection && (
-        <button
-          className="absolute bottom-6 right-6 w-12 h-12 rounded-full bg-themeblue3 text-white shadow-lg flex items-center justify-center hover:bg-themeblue3/90 transition-colors"
-          onClick={() => {
-            store.setDefaultLocationId(null)
-            store.setEditingItem(null)
-            onAddItem()
-          }}
-        >
-          <Plus size={24} />
-        </button>
-      )}
 
       {/* CSV Import modal */}
       {csvImport && (
@@ -832,12 +875,43 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
         </div>
         <div className="flex-1 flex flex-col min-w-0 relative">
           {renderViewContent()}
-          <div className="absolute top-20 right-5 z-20">
-            <VerticalPill>
-              <PillButton icon={Upload} label="Import CSV" onClick={() => fileInputRef.current?.click()} />
-              <PillButton icon={Download} label="Export CSV" onClick={() => exportPropertyCSV(property.items, visibleLocations)} />
-              <PillButton icon={FileSpreadsheet} label="Download Template" onClick={downloadCSVTemplate} />
-            </VerticalPill>
+          {/* Bottom island — CSV actions + Add FAB */}
+          <div className="absolute bottom-4 inset-x-0 flex items-center justify-center z-20 pointer-events-none pb-[max(0rem,var(--sab,0px))]">
+            <div className="flex items-center gap-1.5 rounded-full bg-themewhite border border-tertiary/20 px-0.5 py-0.5 shadow-lg pointer-events-auto">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
+                title="Import CSV"
+              >
+                <Upload className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => exportPropertyCSV(property.items, visibleLocations)}
+                className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
+                title="Export CSV"
+              >
+                <Download className="w-5 h-5" />
+              </button>
+              <button
+                onClick={downloadCSVTemplate}
+                className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary transition-all duration-200 active:scale-95"
+                title="Download Template"
+              >
+                <FileSpreadsheet className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
+              <button
+                onClick={() => {
+                  store.setDefaultLocationId(null)
+                  store.setEditingItem(null)
+                  onAddItem()
+                }}
+                className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
           </div>
         </div>
       </div>

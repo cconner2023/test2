@@ -188,6 +188,12 @@ input, select, textarea {
   animation: expandSearch 0.1s ease-out forwards;
   will-change: width, opacity, transform;
 }
+
+@keyframes expand-left {
+  from { transform: scaleX(0); opacity: 0; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

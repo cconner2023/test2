@@ -1,12 +1,15 @@
-import { useRef, useEffect, useCallback } from 'react'
-import { useSpring } from '@react-spring/web'
+import { useEffect, useCallback, useState } from 'react'
 import { useDrag } from '@use-gesture/react'
-import { GESTURE_THRESHOLDS, SPRING_CONFIGS } from '../Utilities/GestureUtils'
+import { GESTURE_THRESHOLDS } from '../Utilities/GestureUtils'
+import { DRAWER_TIMING } from '../Utilities/constants'
 
 export const MENU_NAV_WIDTH_MOBILE = 280
 export const MENU_NAV_WIDTH_DESKTOP = 280
 /** @deprecated Use MENU_NAV_WIDTH_MOBILE / MENU_NAV_WIDTH_DESKTOP */
 export const MENU_NAV_WIDTH = MENU_NAV_WIDTH_MOBILE
+
+const SLIDE_TRANSITION = `transform ${DRAWER_TIMING.TRANSITION}ms cubic-bezier(0.32, 0.72, 0, 1)`
+const OPACITY_TRANSITION = `opacity ${DRAWER_TIMING.TRANSITION}ms cubic-bezier(0.32, 0.72, 0, 1)`
 
 interface UseMenuSlideOptions {
   /** Hook is always enabled; swipe gestures are gated by isMobile */
@@ -24,22 +27,14 @@ interface UseMenuSlideOptions {
 }
 
 export function useMenuSlide({ enabled, isOpen, onOpen, onClose, width = MENU_NAV_WIDTH_MOBILE, disableGestures = false }: UseMenuSlideOptions) {
-  const isDraggingRef = useRef(false)
+  const [position, setPosition] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
 
-  const [spring, api] = useSpring(() => ({
-    x: 0,
-    config: SPRING_CONFIGS.fling,
-  }))
-
-  // Sync spring with external isOpen state (menu item click, CLOSE_ALL_DRAWERS, etc.)
+  // Sync position with external isOpen state (menu item click, CLOSE_ALL_DRAWERS, etc.)
   useEffect(() => {
-    if (isDraggingRef.current) return
-    api.start({
-      x: isOpen ? width : 0,
-      immediate: false,
-      config: isOpen ? SPRING_CONFIGS.fling : SPRING_CONFIGS.snap,
-    })
-  }, [isOpen, api, width])
+    if (isDragging) return
+    setPosition(isOpen ? width : 0)
+  }, [isOpen, width, isDragging])
 
   // Body scroll lock when menu is open
   useEffect(() => {
@@ -55,49 +50,49 @@ export function useMenuSlide({ enabled, isOpen, onOpen, onClose, width = MENU_NA
 
   const onEdgeDrag = useCallback((offset: number) => {
     if (disableGestures) return
-    isDraggingRef.current = true
+    setIsDragging(true)
     const clamped = Math.max(0, Math.min(offset, width * 1.05))
-    api.start({ x: clamped, immediate: true })
-  }, [api, width, disableGestures])
+    setPosition(clamped)
+  }, [width, disableGestures])
 
   const onEdgeDragEnd = useCallback((offset: number, velocity: number) => {
     if (disableGestures) return
-    isDraggingRef.current = false
+    setIsDragging(false)
     const clamped = Math.max(0, offset)
     const shouldOpen = clamped > width * 0.3 || velocity > GESTURE_THRESHOLDS.FLING_VELOCITY
 
     if (shouldOpen) {
-      api.start({ x: width, config: SPRING_CONFIGS.fling })
+      setPosition(width)
       onOpen()
     } else {
-      api.start({ x: 0, config: SPRING_CONFIGS.snap })
+      setPosition(0)
     }
-  }, [api, onOpen, width, disableGestures])
+  }, [onOpen, width, disableGestures])
 
   // ── Backdrop close gesture (drag left or tap to close) ──
 
   const closeBind = useDrag(
     ({ active, movement: [mx], velocity: [vx], direction: [dx], tap }) => {
       if (tap) {
-        api.start({ x: 0, config: SPRING_CONFIGS.snap })
+        setPosition(0)
         onClose()
         return
       }
 
       if (active) {
-        isDraggingRef.current = true
+        setIsDragging(true)
         const offset = Math.max(0, width + mx)
-        api.start({ x: offset, immediate: true })
+        setPosition(offset)
       } else {
-        isDraggingRef.current = false
+        setIsDragging(false)
         const offset = Math.max(0, width + mx)
         const shouldClose = offset < width * 0.7 || (vx > GESTURE_THRESHOLDS.FLING_VELOCITY && dx < 0)
 
         if (shouldClose) {
-          api.start({ x: 0, config: SPRING_CONFIGS.snap })
+          setPosition(0)
           onClose()
         } else {
-          api.start({ x: width, config: SPRING_CONFIGS.fling })
+          setPosition(width)
         }
       }
     },
@@ -110,9 +105,14 @@ export function useMenuSlide({ enabled, isOpen, onOpen, onClose, width = MENU_NA
     }
   )
 
+  const transition = isDragging ? 'none' : SLIDE_TRANSITION
+
   return {
-    springX: spring.x,
-    backdropOpacity: spring.x.to((x: number) => Math.min(x / width, 1) * 0.95),
+    position,
+    isDragging,
+    transition,
+    backdropOpacity: Math.min(position / width, 1) * 0.95,
+    backdropTransition: isDragging ? 'none' : OPACITY_TRANSITION,
     closeHandlers: enabled && isOpen ? closeBind() : {},
     width,
     onEdgeDrag,

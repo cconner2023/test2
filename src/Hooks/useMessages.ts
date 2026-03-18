@@ -692,10 +692,10 @@ export function useMessages(): UseMessagesReturn {
   /** Build replyTo metadata from a threadId by looking up the root message. */
   const buildReplyTo = useCallback((peerId: string, threadId: string): ReplyTo | undefined => {
     const msgs = conversationsRef.current[peerId]
-    const root = msgs?.find(m => m.id === threadId)
+    const root = msgs?.find(m => m.originId === threadId) ?? msgs?.find(m => m.id === threadId)
     if (!root) return undefined
     const preview = (root.plaintext || 'Photo').slice(0, 50)
-    return { messageId: threadId, preview }
+    return { messageId: root.originId ?? root.id, preview }
   }, [])
 
   /** Send a plaintext message to a peer. */

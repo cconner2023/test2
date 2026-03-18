@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect, useMemo, lazy, Suspense } from 'react'
-import { animated, to } from '@react-spring/web'
+import { DRAWER_TIMING } from './Utilities/constants'
 import './App.css'
 import { NavTop } from './Components/NavTop'
 import { SideNav } from './Components/SideNav'
@@ -109,9 +109,14 @@ function AppContent() {
     setInitialPeerName(null)
   }, [navigation.setShowMessagesDrawer])
 
+  const handleMessagesOpen = useCallback(() => {
+    navigation.setShowMessagesDrawer(true)
+  }, [navigation.setShowMessagesDrawer])
+
   const messagesSlide = useMessagesSlide({
     enabled: navigation.isMobile,
     isOpen: navigation.showMessagesDrawer,
+    onOpen: handleMessagesOpen,
     onClose: handleMessagesClose,
   })
   const [updateVisible, setUpdateVisible] = useState(false)
@@ -293,13 +298,16 @@ function AppContent() {
     navigation.setShowMessagesDrawer(true)
   }, [navigation.setShowMessagesDrawer])
 
-  // Cross-column swipe: swipe back from Column B (algorithm) to Column A
+  // Cross-column swipe: swipe back from Column B (algorithm) to Column A,
+  // or swipe left from right edge to open messages
   const swipe = useSwipeNavigation({
-    enabled: navigation.isMobile && navigation.isMobileColumnB && !search.searchInput && !navigation.isWriteNoteVisible,
+    enabled: navigation.isMobile && !search.searchInput && !navigation.isWriteNoteVisible,
     viewDepth: navigation.isMobileColumnB ? 1 : 0,
     onSwipeBack: useCallback(() => {
       navigation.handleBackClick()
     }, [navigation]),
+    onRightEdgeDrag: navigation.isMobile ? messagesSlide.onEdgeDrag : undefined,
+    onRightEdgeDragEnd: navigation.isMobile ? messagesSlide.onEdgeDragEnd : undefined,
   })
 
   // When search is cleared while expanded, collapse back
@@ -438,17 +446,15 @@ function AppContent() {
       <div id="app-drawer-root" className="max-w-315 shrink w-full md:rounded-md md:border md:border-[rgba(0,0,0,0.03)] md:shadow-[0px_2px_4px] md:shadow-[rgba(0,0,0,0.1)] overflow-hidden md:m-5 md:h-[85%] h-full relative md:bg-themewhite md:pb-10">
 
         {/* Viewport strip — SideNav + content side by side, pans to reveal nav or shift for messages */}
-        <animated.div
+        <div
           className="flex h-full"
           style={{
             width: `calc(100% + ${menuNavWidth}px)`,
             transform: navigation.isMobile
-              ? to(
-                  [menuSlide.springX, messagesSlide.springProgress],
-                  (menuX, msgP) => `translateX(${menuX - menuNavWidth - msgP * 80}px)`
-                )
-              : menuSlide.springX.to((x: number) => `translateX(${x - menuNavWidth}px)`),
-            willChange: 'transform',
+              ? `translateX(${menuSlide.position - menuNavWidth - messagesSlide.progress * 80}px)`
+              : `translateX(${menuSlide.position - menuNavWidth}px)`,
+            transition: (menuSlide.isDragging || messagesSlide.isDragging) ? 'none' : `transform ${DRAWER_TIMING.TRANSITION}ms cubic-bezier(0.32, 0.72, 0, 1)`,
+            willChange: (menuSlide.isDragging || messagesSlide.isDragging) ? 'transform' : 'auto',
           }}
         >
           {/* SideNav — same level, left of content */}
@@ -516,7 +522,7 @@ function AppContent() {
             ) : (
             <div
               className={`h-full grid gap-1 transition-[grid-template-columns] duration-300 ease-in-out ${navigation.mobileGridClass} md:grid-cols-[0.45fr_0.55fr]`}
-              {...(navigation.isMobile && navigation.isMobileColumnB ? swipe.touchHandlers : {})}
+              {...(navigation.isMobile ? swipe.touchHandlers : {})}
             >
               {/* Column A: Navigation carousel (ADTMC) */}
               <div className="h-full overflow-hidden" style={{ minWidth: 0 }}>
@@ -524,6 +530,8 @@ function AppContent() {
                   onNavigate={handleNavigationClick}
                   onEdgeDrag={navigation.isMobile ? menuSlide.onEdgeDrag : undefined}
                   onEdgeDragEnd={navigation.isMobile ? menuSlide.onEdgeDragEnd : undefined}
+                  onRightEdgeDrag={navigation.isMobile ? messagesSlide.onEdgeDrag : undefined}
+                  onRightEdgeDragEnd={navigation.isMobile ? messagesSlide.onEdgeDragEnd : undefined}
                   searchInput={search.searchInput}
                   onSearchChange={navigation.isMobile ? handleSearchChange : undefined}
                   searchResults={search.searchResults}
@@ -571,10 +579,11 @@ function AppContent() {
           </div>
 
           {/* Menu backdrop — overlays content when menu is open, handles tap/drag to close */}
-          <animated.div
+          <div
             className="absolute inset-0 z-40 bg-black"
             style={{
               opacity: menuSlide.backdropOpacity,
+              transition: menuSlide.backdropTransition,
               pointerEvents: navigation.isMenuOpen ? 'auto' : 'none',
               touchAction: navigation.isMenuOpen ? 'none' : 'auto',
             }}
@@ -584,26 +593,29 @@ function AppContent() {
 
           {/* Messages backdrop — overlays content when messages is open */}
           {navigation.isMobile && (
-            <animated.div
+            <div
               className="absolute inset-0 z-40 bg-black"
               style={{
                 opacity: messagesSlide.backdropOpacity,
-                pointerEvents: navigation.showMessagesDrawer ? 'auto' : 'none',
-                touchAction: navigation.showMessagesDrawer ? 'none' : 'auto',
+                transition: messagesSlide.backdropTransition,
+                pointerEvents: (navigation.showMessagesDrawer || messagesSlide.progress > 0) ? 'auto' : 'none',
+                touchAction: (navigation.showMessagesDrawer || messagesSlide.progress > 0) ? 'none' : 'auto',
               }}
               {...messagesSlide.closeHandlers}
             />
           )}
           </div>
-        </animated.div>
+        </div>
 
         {/* Messages panel — slides over content from right (mobile only, always mounted) */}
         {navigation.isMobile && (
-          <animated.div
+          <div
             className="absolute inset-0 z-50 overflow-hidden"
             style={{
-              transform: messagesSlide.springProgress.to((p: number) => `translateX(${(1 - p) * 100}%)`),
-              willChange: 'transform',
+              transform: `translateX(${(1 - messagesSlide.progress) * 100}%)`,
+              transition: messagesSlide.transition,
+              willChange: messagesSlide.isDragging ? 'transform' : 'auto',
+              pointerEvents: (navigation.showMessagesDrawer || messagesSlide.progress > 0) ? 'auto' : 'none',
             }}
           >
             <ErrorBoundary>
@@ -617,7 +629,7 @@ function AppContent() {
             />
             </Suspense>
             </ErrorBoundary>
-          </animated.div>
+          </div>
         )}
 
         {/* ── Drawers — outside the transform wrapper so position:fixed works correctly ── */}

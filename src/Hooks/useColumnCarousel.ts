@@ -30,6 +30,10 @@ interface UseColumnCarouselOptions {
   onEdgeDrag?: (offset: number) => void
   /** Called on release at panel 0 after right drag — commits or cancels menu slide */
   onEdgeDragEnd?: (offset: number, velocity: number) => void
+  /** Called during active leftward drag from right edge — drives messages slide open */
+  onRightEdgeDrag?: (offset: number) => void
+  /** Called on release after right-edge leftward drag — commits or cancels messages open */
+  onRightEdgeDragEnd?: (offset: number, velocity: number) => void
 }
 
 /**
@@ -46,6 +50,8 @@ export function useColumnCarousel({
   onSwipeForward,
   onEdgeDrag,
   onEdgeDragEnd,
+  onRightEdgeDrag,
+  onRightEdgeDragEnd,
 }: UseColumnCarouselOptions) {
   const [isSwiping, setIsSwiping] = useState(false)
   const panelRef = useRef(panelIndex)
@@ -133,9 +139,24 @@ export function useColumnCarousel({
     }
   }, [isVisible, panelIndex, snapToPanel])
 
+  // Re-snap spring on foreground return — rAF suspension during background
+  // can leave the spring at a stale position.
+  useEffect(() => {
+    const handler = () => {
+      if (document.visibilityState === 'visible' && !isSwiping) {
+        snapRef.current(panelRef.current)
+      }
+    }
+    document.addEventListener('visibilitychange', handler)
+    return () => document.removeEventListener('visibilitychange', handler)
+  }, [isSwiping])
+
+  // Track whether this gesture was delegated to an edge slide
+  const edgeDelegateRef = useRef<'menu' | 'messages' | null>(null)
+
   // Drag gesture handler
   const bind = useDrag(
-    ({ active, movement: [mx], velocity: [vx], direction: [dx], tap, event }) => {
+    ({ active, first, movement: [mx], velocity: [vx], direction: [dx], tap, event, initial: [ix] }) => {
       if (!enabled || tap) return
 
       const panel = panelRef.current
@@ -147,16 +168,32 @@ export function useColumnCarousel({
       const dragPercent = (mx / containerWidth) * 100
       const currentBase = -panel * panelPercent
 
-      // At panel 0, dragging right → delegate to menu slide system
-      const isEdgeDrag = panel === 0 && mx > 0 && onEdgeDrag
+      // Decide delegation on first move — lock for the duration of the gesture
+      if (first) {
+        edgeDelegateRef.current = null
+      }
+      if (edgeDelegateRef.current === null && Math.abs(mx) > GESTURE_THRESHOLDS.DIRECTION_LOCK) {
+        if (panel === 0 && mx > 0 && onEdgeDrag) {
+          edgeDelegateRef.current = 'menu'
+        } else if (mx < 0 && ix > window.innerWidth - GESTURE_THRESHOLDS.EDGE_ZONE && onRightEdgeDrag) {
+          edgeDelegateRef.current = 'messages'
+        }
+      }
+
+      const isMenuEdge = edgeDelegateRef.current === 'menu'
+      const isMessagesEdge = edgeDelegateRef.current === 'messages'
 
       if (active) {
         setIsSwiping(true)
 
-        if (isEdgeDrag) {
+        if (isMenuEdge && onEdgeDrag) {
           // Keep carousel pinned at panel 0, let menu slide track the finger
           api.start({ x: 0, immediate: true })
           onEdgeDrag(mx)
+        } else if (isMessagesEdge && onRightEdgeDrag) {
+          // Keep carousel pinned, let messages slide track the finger
+          api.start({ x: currentBase, immediate: true })
+          onRightEdgeDrag(Math.abs(mx))
         } else {
           // Clamp drag: don't allow going past first or last panel
           const rawX = currentBase + dragPercent
@@ -174,10 +211,19 @@ export function useColumnCarousel({
           api.start({ x: clampedX, immediate: true })
         }
       } else {
-        if (isEdgeDrag && onEdgeDragEnd) {
+        if (isMenuEdge && onEdgeDragEnd) {
           // Let menu slide decide whether to open or snap back
           setIsSwiping(false)
+          edgeDelegateRef.current = null
           onEdgeDragEnd(mx, vx)
+          return
+        }
+
+        if (isMessagesEdge && onRightEdgeDragEnd) {
+          // Let messages slide decide whether to open or snap back
+          setIsSwiping(false)
+          edgeDelegateRef.current = null
+          onRightEdgeDragEnd(Math.abs(mx), vx)
           return
         }
 

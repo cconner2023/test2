@@ -16,13 +16,15 @@ interface ColumnAProps {
   onNavigate: (result: SearchResultType) => void
   onEdgeDrag?: (offset: number) => void
   onEdgeDragEnd?: (offset: number, velocity: number) => void
+  onRightEdgeDrag?: (offset: number) => void
+  onRightEdgeDragEnd?: (offset: number, velocity: number) => void
   searchInput?: string
   onSearchChange?: (value: string) => void
   searchResults?: SearchResultType[]
   isSearching?: boolean
 }
 
-export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDragEnd, searchInput = '', onSearchChange, searchResults, isSearching }: ColumnAProps) {
+export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDragEnd, onRightEdgeDrag, onRightEdgeDragEnd, searchInput = '', onSearchChange, searchResults, isSearching }: ColumnAProps) {
   const selectedCategory = useNavigationStore((s) => s.selectedCategory)
   const selectedSymptom = useNavigationStore((s) => s.selectedSymptom)
   const isMobile = useNavigationStore((s) => s.isMobile)
@@ -45,6 +47,8 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
     onSwipeBack: handleBackClick,
     onEdgeDrag,
     onEdgeDragEnd,
+    onRightEdgeDrag,
+    onRightEdgeDragEnd,
   })
 
   // Panel scroll refs
