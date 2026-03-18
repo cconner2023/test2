@@ -1,0 +1,1 @@
+import{j as l}from"./index-CYG3vB4A.js";const n=({children:s,slideDirection:t,swipeHandlers:e})=>{const i={"":"",left:"animate-slide-in-left",right:"animate-slide-in-right"};return l.jsx("div",{className:`h-full w-full ${i[t]}`,...e,children:s})};export{n as C};
