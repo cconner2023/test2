@@ -297,12 +297,12 @@ function AppContent() {
     }, [navigation]),
   })
 
-  // Sync search expansion when transitioning to mobile with active search text
+  // When search is cleared while expanded, collapse back
   useEffect(() => {
-    if (search.searchInput.trim()) {
-      navigation.expandSearchOnMobile()
+    if (!search.searchInput.trim() && navigation.isSearchExpanded) {
+      navigation.setSearchExpanded(false)
     }
-  }, [navigation.isMobile, search.searchInput, navigation.expandSearchOnMobile])
+  }, [search.searchInput, navigation.isSearchExpanded, navigation.setSearchExpanded])
 
   const handleNavigationClick = useCallback((result: SearchResultType) => {
     // Intercept training items — split by guidelineType
@@ -395,7 +395,6 @@ function AppContent() {
   const handleSearchChange = (value: string) => {
     if (value.trim() !== "") {
       navigation.setShowNoteImport(false)
-      navigation.expandSearchOnMobile()
     }
     search.handleSearchChange(value)
   }

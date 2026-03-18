@@ -27,6 +27,7 @@ interface CalendarActions {
   addEvent: (event: CalendarEvent) => void
   updateEvent: (id: string, updates: Partial<CalendarEvent>) => void
   removeEvent: (id: string) => void
+  moveEvent: (id: string, daysDelta: number, newStartTime?: string) => void
   setEvents: (events: CalendarEvent[]) => void
   assignPersonnel: (eventId: string, userId: string) => void
   unassignPersonnel: (eventId: string, userId: string) => void
@@ -68,6 +69,23 @@ export const useCalendarStore = create<CalendarStore>()((set) => ({
   removeEvent: (id) => set((s) => ({
     events: s.events.filter(e => e.id !== id),
     selectedEventId: s.selectedEventId === id ? null : s.selectedEventId,
+  })),
+  moveEvent: (id, daysDelta, newStartTime) => set((s) => ({
+    events: s.events.map(e => {
+      if (e.id !== id) return e
+      const now = new Date().toISOString()
+      if (newStartTime) {
+        const originalStart = new Date(e.start_time).getTime()
+        const originalEnd = new Date(e.end_time).getTime()
+        const duration = originalEnd - originalStart
+        const newEnd = new Date(new Date(newStartTime).getTime() + duration).toISOString()
+        return { ...e, start_time: newStartTime, end_time: newEnd, updated_at: now }
+      }
+      const msPerDay = 24 * 60 * 60 * 1000
+      const newStart = new Date(new Date(e.start_time).getTime() + daysDelta * msPerDay).toISOString()
+      const newEnd = new Date(new Date(e.end_time).getTime() + daysDelta * msPerDay).toISOString()
+      return { ...e, start_time: newStart, end_time: newEnd, updated_at: now }
+    }),
   })),
   setEvents: (events) => set({ events }),
 

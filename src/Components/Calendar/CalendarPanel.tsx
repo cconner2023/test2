@@ -145,6 +145,38 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
     setPanelView('calendar')
   }, [editingEvent, addEvent, updateEvent])
 
+  const handleMoveEvent = useCallback((eventId: string, newStartTime: string) => {
+    const event = events.find(e => e.id === eventId)
+    if (!event) return
+    const originalStart = new Date(event.start_time)
+    const originalEnd = new Date(event.end_time)
+    const durationMs = originalEnd.getTime() - originalStart.getTime()
+    const newStart = new Date(newStartTime)
+    const newEnd = new Date(newStart.getTime() + durationMs)
+    updateEvent(eventId, {
+      start_time: newStartTime,
+      end_time: newEnd.toISOString().slice(0, 16),
+    })
+  }, [events, updateEvent])
+
+  const handleMoveEventToDate = useCallback((eventId: string, targetDateKey: string) => {
+    const event = events.find(e => e.id === eventId)
+    if (!event) return
+    const originalStart = new Date(event.start_time)
+    const originalEnd = new Date(event.end_time)
+    const durationMs = originalEnd.getTime() - originalStart.getTime()
+    const [y, m, d] = targetDateKey.split('-').map(Number)
+    const newStart = new Date(originalStart)
+    newStart.setFullYear(y, m - 1, d)
+    const newEnd = new Date(newStart.getTime() + durationMs)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const toISO = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`
+    updateEvent(eventId, {
+      start_time: toISO(newStart),
+      end_time: toISO(newEnd),
+    })
+  }, [events, updateEvent])
+
   const handleDeleteEvent = useCallback((id: string) => {
     removeEvent(id)
     selectEvent(null)
@@ -216,6 +248,7 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
             selectedDate={selectedDate}
             onSelectDate={handleSelectDate}
             onMonthChange={setMonthLabel}
+            onMoveEvent={handleMoveEventToDate}
           />
         )}
 
@@ -224,6 +257,7 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
             date={selectedDate}
             events={dayEvents}
             onSelectEvent={handleSelectEvent}
+            onMoveEvent={handleMoveEvent}
           />
         )}
 

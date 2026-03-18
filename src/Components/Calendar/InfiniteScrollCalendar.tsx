@@ -1,12 +1,15 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { getCategoryMeta, toDateKey } from '../../Types/CalendarTypes'
+import { useLongPressDrag } from '../../Hooks/useLongPressDrag'
 
 interface InfiniteScrollCalendarProps {
   events: CalendarEvent[]
   selectedDate: Date
   onSelectDate: (date: Date) => void
   onMonthChange: (monthLabel: string) => void
+  onMoveEvent: (eventId: string, targetDateKey: string) => void
 }
 
 const WEEKS_BUFFER = 26
@@ -116,24 +119,45 @@ function layoutMultiDaySpans(events: CalendarEvent[], weekDays: DayData[]): Mult
 
 // ── components ──────────────────────────────────────────────────────
 
-function EventPill({ event }: { event: CalendarEvent }) {
+interface EventPillProps {
+  event: CalendarEvent
+  isDragging: boolean
+  dragHandlers: ReturnType<ReturnType<typeof useLongPressDrag>['getDragHandlers']>
+}
+
+function EventPill({ event, isDragging, dragHandlers }: EventPillProps) {
   const cat = getCategoryMeta(event.category)
   return (
-    <div className="flex items-center gap-0.5 rounded px-1 py-px text-[9px] leading-tight truncate">
+    <div
+      {...dragHandlers}
+      className={`flex items-center gap-0.5 rounded px-1 py-px text-[9px] leading-tight truncate transition-opacity duration-150 ${
+        isDragging ? 'opacity-30' : ''
+      }`}
+    >
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cat.color}`} />
       <span className="truncate text-secondary/80">{event.title}</span>
     </div>
   )
 }
 
-function MultiDayBar({ span, colCount }: { span: MultiDaySpan; colCount: number }) {
+interface MultiDayBarProps {
+  span: MultiDaySpan
+  colCount: number
+  isDragging: boolean
+  dragHandlers: ReturnType<ReturnType<typeof useLongPressDrag>['getDragHandlers']>
+}
+
+function MultiDayBar({ span, colCount, isDragging, dragHandlers }: MultiDayBarProps) {
   const cat = getCategoryMeta(span.event.category)
   const leftPct = (span.startCol / colCount) * 100
   const widthPct = ((span.endCol - span.startCol) / colCount) * 100
 
   return (
     <div
-      className={`absolute h-[16px] rounded-sm px-1.5 flex items-center z-[2] ${cat.color} text-white text-[9px] font-medium truncate`}
+      {...dragHandlers}
+      className={`absolute h-[16px] rounded-sm px-1.5 flex items-center z-[2] ${cat.color} text-white text-[9px] font-medium truncate transition-opacity duration-150 ${
+        isDragging ? 'opacity-30' : ''
+      }`}
       style={{
         left: `${leftPct}%`,
         width: `${widthPct}%`,
@@ -152,6 +176,7 @@ export function InfiniteScrollCalendar({
   selectedDate,
   onSelectDate,
   onMonthChange,
+  onMoveEvent,
 }: InfiniteScrollCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const weekRefs = useRef<Map<string, HTMLDivElement>>(new Map())
@@ -159,6 +184,22 @@ export function InfiniteScrollCalendar({
   const initialScrollDone = useRef(false)
   const today = useMemo(() => toDateKey(new Date()), [])
   const selectedKey = toDateKey(selectedDate)
+  const justDroppedRef = useRef(false)
+
+  const { dragState, getDragHandlers } = useLongPressDrag({
+    onDrop: (eventId, targetDateKey) => {
+      justDroppedRef.current = true
+      onMoveEvent(eventId, targetDateKey)
+      requestAnimationFrame(() => {
+        justDroppedRef.current = false
+      })
+    },
+  })
+
+  const ghostEvent = useMemo(
+    () => events.find(e => e.id === dragState.draggedEventId) ?? null,
+    [events, dragState.draggedEventId]
+  )
 
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>()
@@ -221,6 +262,7 @@ export function InfiniteScrollCalendar({
 
   // Load more weeks when approaching edges
   const handleScroll = useCallback(() => {
+    if (dragState.isDragging) return
     const container = scrollRef.current
     if (!container) return
 
@@ -245,7 +287,7 @@ export function InfiniteScrollCalendar({
       const newWeeks = generateWeeks(lastDate, 0, WEEKS_BUFFER - 1)
       setWeeks(prev => [...prev, ...newWeeks])
     }
-  }, [weeks])
+  }, [weeks, dragState.isDragging])
 
   const setWeekRef = useCallback((key: string, el: HTMLDivElement | null) => {
     if (el) weekRefs.current.set(key, el)
@@ -257,7 +299,7 @@ export function InfiniteScrollCalendar({
       {/* Scrollable weeks */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto"
+        className={`flex-1 ${dragState.isDragging ? 'overflow-hidden' : 'overflow-y-auto'}`}
         onScroll={handleScroll}
       >
         {weeks.map((week) => {
@@ -275,7 +317,13 @@ export function InfiniteScrollCalendar({
               {multiDayHeight > 0 && (
                 <div className="relative border-b border-primary/5" style={{ height: multiDayHeight + 4, paddingTop: 2 }}>
                   {spans.map(span => (
-                    <MultiDayBar key={`${span.event.id}-${span.startCol}`} span={span} colCount={7} />
+                    <MultiDayBar
+                      key={`${span.event.id}-${span.startCol}`}
+                      span={span}
+                      colCount={7}
+                      isDragging={dragState.draggedEventId === span.event.id}
+                      dragHandlers={getDragHandlers(span.event.id)}
+                    />
                   ))}
                 </div>
               )}
@@ -285,15 +333,27 @@ export function InfiniteScrollCalendar({
                 {week.days.map((day, i) => {
                   const isToday = day.dateKey === today
                   const isSelected = day.dateKey === selectedKey
+                  const isDropTarget = dragState.dropTargetDate === day.dateKey
                   const dayEvents = eventsByDate.get(day.dateKey) ?? []
 
                   return (
-                    <button
+                    <div
                       key={day.dateKey}
-                      onClick={() => onSelectDate(day.date)}
-                      className={`flex flex-col items-start px-0.5 py-1 min-h-[76px] transition-all duration-150 hover:bg-primary/3 active:scale-[0.97] ${
+                      role="button"
+                      tabIndex={0}
+                      data-drop-date={day.dateKey}
+                      onClick={() => {
+                        if (justDroppedRef.current) return
+                        onSelectDate(day.date)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          if (!justDroppedRef.current) onSelectDate(day.date)
+                        }
+                      }}
+                      className={`flex flex-col items-start px-0.5 py-1 min-h-[76px] transition-all duration-150 hover:bg-primary/3 active:scale-[0.97] cursor-pointer ${
                         i < 6 ? 'border-r border-primary/8' : ''
-                      }`}
+                      } ${isDropTarget ? 'ring-2 ring-themeblue3 ring-inset bg-themeblue3/5' : ''}`}
                     >
                       {/* Day number */}
                       <div className="flex items-center justify-start w-full mb-0.5">
@@ -315,13 +375,18 @@ export function InfiniteScrollCalendar({
                       {/* Single-day event pills */}
                       <div className="w-full space-y-px overflow-hidden">
                         {dayEvents.slice(0, 2).map(event => (
-                          <EventPill key={event.id} event={event} />
+                          <EventPill
+                            key={event.id}
+                            event={event}
+                            isDragging={dragState.draggedEventId === event.id}
+                            dragHandlers={getDragHandlers(event.id)}
+                          />
                         ))}
                         {dayEvents.length > 2 && (
                           <span className="text-[8px] text-tertiary/50 pl-1">+{dayEvents.length - 2}</span>
                         )}
                       </div>
-                    </button>
+                    </div>
                   )
                 })}
               </div>
@@ -329,6 +394,24 @@ export function InfiniteScrollCalendar({
           )
         })}
       </div>
+
+      {/* Drag ghost */}
+      {dragState.isDragging && ghostEvent && createPortal(
+        <div
+          className={`fixed pointer-events-none z-[9999] px-2 py-1 rounded shadow-lg text-[11px] font-medium text-white flex items-center gap-1 opacity-90 -translate-x-1/2 -translate-y-full`}
+          style={{
+            left: dragState.ghostX,
+            top: dragState.ghostY - 8,
+            backgroundColor: 'var(--color-themeblue3, #1d4ed8)',
+          }}
+        >
+          <span
+            className={`w-2 h-2 rounded-full shrink-0 ${getCategoryMeta(ghostEvent.category).color}`}
+          />
+          {ghostEvent.title}
+        </div>,
+        document.body
+      )}
     </div>
   )
 }

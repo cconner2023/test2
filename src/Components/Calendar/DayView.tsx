@@ -1,15 +1,44 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useState, useCallback } from 'react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
-import { CATEGORY_BG_MAP, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX } from '../../Types/CalendarTypes'
+import { CATEGORY_BG_MAP, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toLocalISOString } from '../../Types/CalendarTypes'
 
 interface DayViewProps {
   date: Date
   events: CalendarEvent[]
   onSelectEvent: (id: string) => void
+  onMoveEvent: (eventId: string, newStartTime: string) => void
+}
+
+interface ActiveDrag {
+  eventId: string
+  startY: number
+  currentY: number
+  originalTop: number
+  scrollOffset: number
 }
 
 function formatHour(h: number): string {
   return `${String(h).padStart(2, '0')}00`
+}
+
+function minutesToTop(minutes: number): number {
+  return ((minutes - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT_PX
+}
+
+function topToMinutes(top: number): number {
+  return (top / HOUR_HEIGHT_PX) * 60 + DAY_START_HOUR * 60
+}
+
+function snapMinutes(minutes: number): number {
+  return Math.round(minutes / 15) * 15
+}
+
+function formatSnappedTime(minutes: number): string {
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  const suffix = h >= 12 ? 'PM' : 'AM'
+  const display = h > 12 ? h - 12 : h === 0 ? 12 : h
+  return `${display}:${String(m).padStart(2, '0')} ${suffix}`
 }
 
 function getEventPosition(event: CalendarEvent, dateKey: string) {
@@ -25,9 +54,8 @@ function getEventPosition(event: CalendarEvent, dateKey: string) {
   startMinutes = Math.max(startMinutes, DAY_START_HOUR * 60)
   endMinutes = Math.min(endMinutes, DAY_END_HOUR * 60)
 
-  const totalMinutes = (DAY_END_HOUR - DAY_START_HOUR) * 60
   const top = ((startMinutes - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT_PX
-  const height = Math.max(((endMinutes - startMinutes) / totalMinutes) * totalMinutes / 60 * HOUR_HEIGHT_PX, 24)
+  const height = Math.max(((endMinutes - startMinutes) / 60) * HOUR_HEIGHT_PX, 24)
 
   return { top, height }
 }
@@ -64,8 +92,17 @@ function resolveOverlaps(events: CalendarEvent[], dateKey: string) {
   return columns
 }
 
-export function DayView({ date, events, onSelectEvent }: DayViewProps) {
+export function DayView({ date, events, onSelectEvent, onMoveEvent }: DayViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<ActiveDrag | null>(null)
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const suppressClickRef = useRef(false)
+  const touchStartYRef = useRef(0)
+
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragTop, setDragTop] = useState(0)
+  const [dragEventId, setDragEventId] = useState<string | null>(null)
+
   const dateKey = date.toISOString().slice(0, 10)
   const hours = useMemo(() => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => DAY_START_HOUR + i), [])
   const totalHeight = hours.length * HOUR_HEIGHT_PX
@@ -87,13 +124,106 @@ export function DayView({ date, events, onSelectEvent }: DayViewProps) {
     day: 'numeric',
   })
 
+  const snappedMinutes = useMemo(() => {
+    if (!isDragging) return 0
+    const raw = topToMinutes(dragTop)
+    return Math.max(
+      DAY_START_HOUR * 60,
+      Math.min(DAY_END_HOUR * 60 - 15, snapMinutes(raw))
+    )
+  }, [isDragging, dragTop])
+
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimerRef.current !== null) {
+      clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+  }, [])
+
+  const endDrag = useCallback(() => {
+    cancelLongPress()
+    dragRef.current = null
+    setIsDragging(false)
+    setDragEventId(null)
+  }, [cancelLongPress])
+
+  const handleTouchStart = useCallback((eventId: string, originalTop: number, e: React.TouchEvent) => {
+    const touch = e.touches[0]
+    touchStartYRef.current = touch.clientY
+    const scrollOffset = scrollRef.current?.scrollTop ?? 0
+
+    dragRef.current = {
+      eventId,
+      startY: touch.clientY,
+      currentY: touch.clientY,
+      originalTop,
+      scrollOffset,
+    }
+
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null
+      if (!dragRef.current) return
+      setDragEventId(eventId)
+      setDragTop(originalTop)
+      setIsDragging(true)
+    }, 300)
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    const touch = e.touches[0]
+    const dy = Math.abs(touch.clientY - touchStartYRef.current)
+
+    if (longPressTimerRef.current !== null) {
+      if (dy > 10) cancelLongPress()
+      return
+    }
+
+    if (!isDragging || !dragRef.current) return
+
+    e.preventDefault()
+
+    const delta = touch.clientY - dragRef.current.startY
+    const newTop = Math.max(0, Math.min(totalHeight - 24, dragRef.current.originalTop + delta))
+    dragRef.current.currentY = touch.clientY
+    setDragTop(newTop)
+  }, [isDragging, totalHeight, cancelLongPress])
+
+  const handleTouchEnd = useCallback(() => {
+    cancelLongPress()
+
+    if (!isDragging || !dragRef.current) {
+      endDrag()
+      return
+    }
+
+    const { eventId } = dragRef.current
+    const clampedMinutes = Math.max(
+      DAY_START_HOUR * 60,
+      Math.min(DAY_END_HOUR * 60 - 15, snapMinutes(topToMinutes(dragTop)))
+    )
+
+    const newStart = new Date(date)
+    newStart.setHours(Math.floor(clampedMinutes / 60), clampedMinutes % 60, 0, 0)
+    const iso = toLocalISOString(newStart)
+
+    suppressClickRef.current = true
+    setTimeout(() => { suppressClickRef.current = false }, 50)
+
+    onMoveEvent(eventId, iso)
+    endDrag()
+  }, [isDragging, dragTop, date, onMoveEvent, endDrag, cancelLongPress])
+
+  const handleEventClick = useCallback((eventId: string) => {
+    if (suppressClickRef.current) return
+    onSelectEvent(eventId)
+  }, [onSelectEvent])
+
   return (
     <div className="flex flex-col h-full">
       <p className="px-3 py-2 text-xs font-medium text-tertiary/50 uppercase tracking-wider border-b border-primary/10">
         {dateLabel}
       </p>
 
-      {/* All day events */}
       {allDayEvents.length > 0 && (
         <div className="px-3 py-2 border-b border-primary/10 space-y-1">
           {allDayEvents.map(e => (
@@ -108,10 +238,11 @@ export function DayView({ date, events, onSelectEvent }: DayViewProps) {
         </div>
       )}
 
-      {/* Time grid */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto">
+      <div
+        ref={scrollRef}
+        className={`flex-1 ${isDragging ? 'overflow-hidden' : 'overflow-y-auto'}`}
+      >
         <div className="relative" style={{ height: totalHeight }}>
-          {/* Hour lines */}
           {hours.map((h, i) => (
             <div
               key={h}
@@ -124,7 +255,6 @@ export function DayView({ date, events, onSelectEvent }: DayViewProps) {
             </div>
           ))}
 
-          {/* Now marker */}
           {nowMarkerTop !== null && (
             <div className="absolute left-10 right-2 z-20" style={{ top: nowMarkerTop }}>
               <div className="flex items-center">
@@ -134,21 +264,38 @@ export function DayView({ date, events, onSelectEvent }: DayViewProps) {
             </div>
           )}
 
-          {/* Event blocks */}
           {timedEvents.map(({ event, top, height, col, totalCols }) => {
             const leftPct = 12 + (col / totalCols) * 84
             const widthPct = 84 / totalCols - 1
+            const isBeingDragged = isDragging && dragEventId === event.id
+            const isDimmed = isDragging && dragEventId !== event.id
+            const resolvedTop = isBeingDragged ? minutesToTop(snappedMinutes) : top
 
             return (
-              <button
+              <div
                 key={event.id}
-                onClick={() => onSelectEvent(event.id)}
-                className={`absolute rounded-lg border px-2 py-1 overflow-hidden text-left transition-all duration-200 active:scale-[0.98] ${CATEGORY_BG_MAP[event.category]}`}
+                role="button"
+                tabIndex={0}
+                onClick={() => handleEventClick(event.id)}
+                onTouchStart={(e) => handleTouchStart(event.id, top, e)}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleEventClick(event.id) }}
+                className={`absolute rounded-lg border px-2 py-1 overflow-hidden text-left select-none cursor-pointer
+                  ${CATEGORY_BG_MAP[event.category]}
+                  ${isBeingDragged
+                    ? 'shadow-xl z-30 scale-[1.02]'
+                    : 'transition-all duration-200 active:scale-[0.98]'
+                  }
+                  ${isDimmed ? 'opacity-50' : 'opacity-100'}
+                `}
                 style={{
-                  top,
+                  top: resolvedTop,
                   height: Math.max(height, 24),
                   left: `${leftPct}%`,
                   width: `${widthPct}%`,
+                  touchAction: isDragging && isBeingDragged ? 'none' : 'auto',
+                  transition: isBeingDragged ? 'none' : undefined,
                 }}
               >
                 <p className="text-xs font-semibold truncate leading-tight">{event.title}</p>
@@ -160,9 +307,18 @@ export function DayView({ date, events, onSelectEvent }: DayViewProps) {
                 {height > 52 && event.location && (
                   <p className="text-[10px] opacity-60 truncate">{event.location}</p>
                 )}
-              </button>
+              </div>
             )
           })}
+
+          {isDragging && dragEventId !== null && (
+            <div
+              className="absolute left-2 bg-themeblue3 text-white text-[10px] font-mono px-1.5 py-0.5 rounded shadow-lg z-30 pointer-events-none"
+              style={{ top: minutesToTop(snappedMinutes) - 20 }}
+            >
+              {formatSnappedTime(snappedMinutes)}
+            </div>
+          )}
         </div>
       </div>
     </div>
