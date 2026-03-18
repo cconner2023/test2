@@ -220,6 +220,8 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent }: DayViewPro
 
   return (
     <div className="flex flex-col h-full">
+      {/* Spacer for mobile floating header */}
+      <div className="h-[calc(var(--sat,0px)+3.5rem)] md:hidden shrink-0" />
       <p className="px-3 py-2 text-xs font-medium text-tertiary/50 uppercase tracking-wider border-b border-primary/10">
         {dateLabel}
       </p>

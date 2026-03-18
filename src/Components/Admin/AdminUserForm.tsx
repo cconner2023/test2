@@ -34,7 +34,7 @@ interface AdminUserFormProps {
 
 // ─── Available roles ──────────────────────────────────────────────────
 
-const AVAILABLE_ROLES = ['medic', 'supervisor', 'dev'] as const
+const AVAILABLE_ROLES = ['medic', 'supervisor', 'dev', 'provider'] as const
 type Role = (typeof AVAILABLE_ROLES)[number]
 
 // ─── Helpers ──────────────────────────────────────────────────────────
@@ -44,6 +44,7 @@ const buildRolesState = (existing?: string[]): Record<Role, boolean> => ({
   medic: existing?.includes('medic') ?? true,
   supervisor: existing?.includes('supervisor') ?? false,
   dev: existing?.includes('dev') ?? false,
+  provider: existing?.includes('provider') ?? false,
 })
 
 /** Extract selected role keys from the roles record. */

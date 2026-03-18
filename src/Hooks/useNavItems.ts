@@ -20,7 +20,7 @@ interface UseNavItemsReturn {
 }
 
 export function useNavItems(): UseNavItemsReturn {
-  const { isAuthenticated, isSupervisorRole, isDevRole } = useAuth()
+  const { isAuthenticated, isSupervisorRole, isDevRole, isProviderRole } = useAuth()
 
   const { customOrder, starred, hidden, toggleStar, toggleHide, moveItem, resetToDefault } =
     useNavPreferencesStore(useShallow((s) => ({
@@ -37,13 +37,14 @@ export function useNavItems(): UseNavItemsReturn {
     if (!item.gateKey) return true
     if (item.gateKey === 'authenticated') return isAuthenticated
     if (item.gateKey === 'property') return isAuthenticated && PROPERTY_MANAGEMENT_ENABLED
+    if (item.gateKey === 'provider') return isProviderRole
     if (item.gateKey === 'supervisor') return isSupervisorRole
     if (item.gateKey === 'admin') return isDevRole
     if (item.gateKey === 'lora') return isAuthenticated && (LORA_MESH_ENABLED || isDevRole)
     if (item.gateKey === 'mapOverlay') return isAuthenticated && (MAP_OVERLAY_ENABLED || isDevRole)
     if (item.gateKey === 'calendar') return isAuthenticated && (CALENDAR_ENABLED || isDevRole)
     return true
-  }), [isAuthenticated, isSupervisorRole, isDevRole])
+  }), [isAuthenticated, isSupervisorRole, isDevRole, isProviderRole])
 
   const visibleItems = useMemo(() => {
     const gatedActions = new Set(gatedItems.map(i => i.action))

@@ -55,6 +55,7 @@ interface AuthState {
   clinicId: string | null
   isDevRole: boolean
   isSupervisorRole: boolean
+  isProviderRole: boolean
   isPasswordRecovery: boolean
   /** True for newly approved accounts that haven't set a permanent password yet. */
   needsPasswordSetup: boolean
@@ -240,6 +241,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
       clinicId: null,
       isDevRole: false,
       isSupervisorRole: false,
+      isProviderRole: false,
       deviceRole: null,
       localSession: null,
     })
@@ -365,6 +367,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
   clinicId: null,
   isDevRole: false,
   isSupervisorRole: false,
+  isProviderRole: false,
   isPasswordRecovery: false,
   needsPasswordSetup: false,
   deviceRole: null,
@@ -480,6 +483,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         clinicId,
         isDevRole: isDev,
         isSupervisorRole: roles.includes('supervisor'),
+        isProviderRole: roles.includes('provider'),
         needsPasswordSetup,
       })
       saveProfileToStorage(profile)

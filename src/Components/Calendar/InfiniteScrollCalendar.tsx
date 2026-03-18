@@ -302,6 +302,8 @@ export function InfiniteScrollCalendar({
         className={`flex-1 ${dragState.isDragging ? 'overflow-hidden' : 'overflow-y-auto'}`}
         onScroll={handleScroll}
       >
+        {/* Spacer for mobile floating header (header row + day-of-week row) */}
+        <div className="h-[calc(var(--sat,0px)+5rem)] md:hidden shrink-0" />
         {weeks.map((week) => {
           const spans = layoutMultiDaySpans(multiDayEvents, week.days)
           const multiDayRows = spans.length > 0 ? Math.max(...spans.map(s => s.row)) + 1 : 0

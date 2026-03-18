@@ -93,6 +93,6 @@ export interface sideMenuDataType {
     icon: string,
     action: string,
     group: MenuGroup,
-    gateKey?: 'authenticated' | 'property' | 'supervisor' | 'admin' | 'lora' | 'mapOverlay' | 'calendar',
+    gateKey?: 'authenticated' | 'property' | 'supervisor' | 'admin' | 'lora' | 'mapOverlay' | 'calendar' | 'provider',
     badge?: boolean
 }

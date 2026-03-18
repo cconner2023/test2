@@ -10,6 +10,7 @@ import { AlgorithmPage } from './Components/AlgorithmPage'
 import type { SearchResultType } from './Types/CatTypes'
 import { useSearch } from './Hooks/useSearch'
 import { useNavigation } from './Hooks/useNavigation'
+import { useNavigationStore } from './stores/useNavigationStore'
 import { useSwipeNavigation } from './Hooks/useSwipeNavigation'
 import { useMenuSlide, MENU_NAV_WIDTH_MOBILE, MENU_NAV_WIDTH_DESKTOP } from './Hooks/useMenuSlide'
 import { useMessagesSlide } from './Hooks/useMessagesSlide'
@@ -40,6 +41,7 @@ const MessagesDrawer = lazy(() => import('./Components/MessagesDrawer').then(m =
 const PropertyDrawer = lazy(() => import('./Components/PropertyDrawer').then(m => ({ default: m.PropertyDrawer })))
 const AdminDrawer = lazy(() => import('./Components/AdminDrawer').then(m => ({ default: m.AdminDrawer })))
 const SupervisorDrawer = lazy(() => import('./Components/SupervisorDrawer').then(m => ({ default: m.SupervisorDrawer })))
+const ProviderDrawer = lazy(() => import('./Components/ProviderDrawer').then(m => ({ default: m.ProviderDrawer })))
 const LoRaDrawer = lazy(() => import('./Components/LoRaDrawer').then(m => ({ default: m.LoRaDrawer })))
 const MapOverlayDrawer = lazy(() => import('./Components/MapOverlay/MapOverlayPanel'))
 const CalendarDrawer = lazy(() => import('./Components/CalendarDrawer').then(m => ({ default: m.CalendarDrawer })))
@@ -249,6 +251,9 @@ function AppContent() {
       case 'property':
         handlePropertyClick()
         break
+      case 'provider':
+        navigation.setShowProviderDrawer(true)
+        break
       case 'supervisor':
         handleSupervisorClick()
         break
@@ -320,20 +325,33 @@ function AppContent() {
 
       const openTrainingForTask = (taskId: string) => {
         if (result.data?.categoryRef && result.data?.symptomRef) {
-          navigation.handleNavigation({
-            type: 'CC',
-            id: result.data.symptomId!,
-            icon: result.data.symptomRef.icon,
-            text: result.data.symptomRef.text,
-            data: {
-              categoryId: result.data.categoryId,
-              symptomId: result.data.symptomId,
-              categoryRef: result.data.categoryRef,
-              symptomRef: result.data.symptomRef
-            }
-          })
-          // Deferred so it doesn't get clobbered by CLOSE_ALL_DRAWERS in handleNavigation
-          requestAnimationFrame(() => openTrainingForResult(taskId))
+          // If already viewing this symptom, open KB directly — skip the
+          // redundant CC navigation whose CLOSE_ALL_DRAWERS + rAF deferral
+          // causes ColumnA's carousel to briefly lose its panel position.
+          const s = useNavigationStore.getState()
+          const alreadyViewing =
+            s.viewState === 'questions' &&
+            s.selectedCategory?.id === result.data.categoryId &&
+            s.selectedSymptom?.id === result.data.symptomId
+
+          if (alreadyViewing) {
+            openTrainingForResult(taskId)
+          } else {
+            navigation.handleNavigation({
+              type: 'CC',
+              id: result.data.symptomId!,
+              icon: result.data.symptomRef.icon,
+              text: result.data.symptomRef.text,
+              data: {
+                categoryId: result.data.categoryId,
+                symptomId: result.data.symptomId,
+                categoryRef: result.data.categoryRef,
+                symptomRef: result.data.symptomRef
+              }
+            })
+            // Deferred so it doesn't get clobbered by CLOSE_ALL_DRAWERS in handleNavigation
+            requestAnimationFrame(() => openTrainingForResult(taskId))
+          }
         } else {
           openTrainingForResult(taskId)
         }
@@ -717,6 +735,14 @@ function AppContent() {
         <SupervisorDrawer
           isVisible={navigation.showSupervisorDrawer}
           onClose={() => navigation.setShowSupervisorDrawer(false)}
+        />
+        </Suspense>
+        </ErrorBoundary>
+        <ErrorBoundary>
+        <Suspense fallback={null}>
+        <ProviderDrawer
+          isVisible={navigation.showProviderDrawer}
+          onClose={() => navigation.setShowProviderDrawer(false)}
         />
         </Suspense>
         </ErrorBoundary>

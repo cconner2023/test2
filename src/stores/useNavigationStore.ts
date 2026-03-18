@@ -49,6 +49,7 @@ const CLOSE_ALL_DRAWERS = {
     showCalendarDrawer: false,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
+    showProviderDrawer: false,
     isMenuOpen: false,
 } as const
 
@@ -78,6 +79,7 @@ interface NavigationState {
     showCalendarDrawer: boolean
     showAdminDrawer: boolean
     showSupervisorDrawer: boolean
+    showProviderDrawer: boolean
     isMobile: boolean
 }
 
@@ -110,6 +112,7 @@ interface NavigationActions {
     setShowCalendarDrawer: (show: boolean) => void
     setShowAdminDrawer: (show: boolean) => void
     setShowSupervisorDrawer: (show: boolean) => void
+    setShowProviderDrawer: (show: boolean) => void
     openWriteNote: (data: WriteNoteData) => void
     closeWriteNote: () => void
     resetToMain: () => void
@@ -144,6 +147,7 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
     showCalendarDrawer: false,
     showAdminDrawer: false,
     showSupervisorDrawer: false,
+    showProviderDrawer: false,
     isMobile: typeof window !== 'undefined'
         ? window.matchMedia('(max-width: 767px)').matches
         : false,
@@ -345,6 +349,12 @@ export const useNavigationStore = create<NavigationStore>()((set, get) => ({
         ...(show ? CLOSE_ALL_DRAWERS : {}),
         ...PRESERVED_FIELDS(s),
         showSupervisorDrawer: show,
+    })),
+
+    setShowProviderDrawer: (show) => set((s) => ({
+        ...(show ? CLOSE_ALL_DRAWERS : {}),
+        ...PRESERVED_FIELDS(s),
+        showProviderDrawer: show,
     })),
 
     openWriteNote: (data) => set({ isWriteNoteVisible: true, writeNoteData: data }),

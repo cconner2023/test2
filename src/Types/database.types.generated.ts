@@ -756,7 +756,7 @@ export type Database = {
       request_type: "new_account" | "profile_change"
       sync_action: "create" | "update" | "delete"
       sync_status: "pending" | "synced" | "failed"
-      user_role: "medic" | "supervisor" | "dev"
+      user_role: "medic" | "supervisor" | "dev" | "provider"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -887,7 +887,7 @@ export const Constants = {
       request_type: ["new_account", "profile_change"],
       sync_action: ["create", "update", "delete"],
       sync_status: ["pending", "synced", "failed"],
-      user_role: ["medic", "supervisor", "dev"],
+      user_role: ["medic", "supervisor", "dev", "provider"],
     },
   },
 } as const

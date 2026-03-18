@@ -95,6 +95,17 @@ function ConversationPane({
 
   const sortedGroups = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name))
 
+  // IDs of contacts that have an active conversation (shown in Recent) — hide from Contacts
+  const activeConversationIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const [key, msgs] of Object.entries(conversations)) {
+      if (key === userId || groups[key]) continue // skip self-notes and groups
+      const hasVisible = msgs.some(m => m.messageType !== 'request-accepted' && !m.threadId)
+      if (hasVisible) ids.add(key)
+    }
+    return ids
+  }, [conversations, userId, groups])
+
   // Build recent conversations list
   const recentEntries = useMemo(() => {
     const entries: ConversationEntry[] = []
@@ -337,60 +348,75 @@ function ConversationPane({
 
             <div className="mx-3 my-2 border-b border-primary/10" />
 
-            {/* Contacts: My Clinic */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5">
-              <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">My Clinic</p>
-              <span className="text-[9px] text-tertiary/30 ml-auto">{ownClinicMedics.length}</span>
-            </div>
-            {ownClinicMedics.map(medic => (
-              <ContactListItem
-                key={medic.id}
-                medic={medic}
-                lastMessage={conversations[medic.id]?.filter(m => !m.threadId).at(-1)?.plaintext}
-                unreadCount={unreadCounts[medic.id] ?? 0}
-                unavailable={unavailableIds.has(medic.id)}
-                unavailableReason={unavailableIds.get(medic.id)}
-                onClick={() => onSelectPeer(medic)}
-              />
-            ))}
+            {/* Contacts: My Clinic (exclude those already in Recent conversations) */}
+            {(() => {
+              const filtered = ownClinicMedics.filter(m => !activeConversationIds.has(m.id))
+              return filtered.length > 0 ? (
+                <>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5">
+                    <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">My Clinic</p>
+                    <span className="text-[9px] text-tertiary/30 ml-auto">{filtered.length}</span>
+                  </div>
+                  {filtered.map(medic => (
+                    <ContactListItem
+                      key={medic.id}
+                      medic={medic}
+                      unreadCount={0}
+                      unavailable={unavailableIds.has(medic.id)}
+                      unavailableReason={unavailableIds.get(medic.id)}
+                      onClick={() => onSelectPeer(medic)}
+                    />
+                  ))}
+                </>
+              ) : null
+            })()}
 
-            {/* Contacts: Nearby clinics */}
-            {nearbyClinicNames.map(clinicName => (
-              <div key={clinicName}>
-                <div className="flex items-center gap-1.5 px-3 py-1.5">
-                  <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">{clinicName}</p>
-                  <span className="text-[9px] text-tertiary/30 ml-auto">{nearbyByClinic[clinicName].length}</span>
+            {/* Contacts: Nearby clinics (exclude those already in Recent conversations) */}
+            {nearbyClinicNames.map(clinicName => {
+              const filtered = nearbyByClinic[clinicName].filter(m => !activeConversationIds.has(m.id))
+              if (filtered.length === 0) return null
+              return (
+                <div key={clinicName}>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5">
+                    <p className="text-xs text-tertiary/50 uppercase tracking-wider font-semibold">{clinicName}</p>
+                    <span className="text-[9px] text-tertiary/30 ml-auto">{filtered.length}</span>
+                  </div>
+                  {filtered.map(medic => (
+                    <ContactListItem
+                      key={medic.id}
+                      medic={medic}
+                      unreadCount={0}
+                      unavailable={unavailableIds.has(medic.id)}
+                      unavailableReason={unavailableIds.get(medic.id)}
+                      onClick={() => onSelectPeer(medic)}
+                    />
+                  ))}
                 </div>
-                {nearbyByClinic[clinicName].map(medic => (
-                  <ContactListItem
-                    key={medic.id}
-                    medic={medic}
-                    lastMessage={conversations[medic.id]?.filter(m => !m.threadId).at(-1)?.plaintext}
-                    unreadCount={unreadCounts[medic.id] ?? 0}
-                    unavailable={unavailableIds.has(medic.id)}
-                    unavailableReason={unavailableIds.get(medic.id)}
-                    onClick={() => onSelectPeer(medic)}
-                  />
-                ))}
-              </div>
-            ))}
+              )
+            })}
 
-            {/* Groups section */}
-            {sortedGroups.length > 0 && (
-              <>
-                <div className="mx-3 my-2 border-b border-primary/10" />
-                <p className="text-xs text-tertiary/50 px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
-                {sortedGroups.map(group => (
-                  <GroupListItem
-                    key={group.groupId}
-                    group={group}
-                    lastMessage={conversations[group.groupId]?.filter(m => !m.threadId).at(-1)?.plaintext}
-                    unreadCount={unreadCounts[group.groupId] ?? 0}
-                    onClick={() => onSelectGroup(group)}
-                  />
-                ))}
-              </>
-            )}
+            {/* Groups section (exclude those already in Recent conversations) */}
+            {(() => {
+              const filtered = sortedGroups.filter(g => {
+                const msgs = conversations[g.groupId]
+                const hasVisible = msgs?.some(m => m.messageType !== 'request-accepted' && !m.threadId)
+                return !hasVisible
+              })
+              return filtered.length > 0 ? (
+                <>
+                  <div className="mx-3 my-2 border-b border-primary/10" />
+                  <p className="text-xs text-tertiary/50 px-3 mb-1 uppercase tracking-wider font-semibold">Groups</p>
+                  {filtered.map(group => (
+                    <GroupListItem
+                      key={group.groupId}
+                      group={group}
+                      unreadCount={0}
+                      onClick={() => onSelectGroup(group)}
+                    />
+                  ))}
+                </>
+              ) : null
+            })()}
           </>
         )}
       </div>

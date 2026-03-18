@@ -46,6 +46,13 @@ export const menuData: sideMenuDataType[] = [
     },
     // Management — role-gated
     {
+        text: 'Provider',
+        icon: 'provider',
+        action: 'provider',
+        group: 'management',
+        gateKey: 'provider'
+    },
+    {
         text: 'Supervisor',
         icon: 'supervisor',
         action: 'supervisor',

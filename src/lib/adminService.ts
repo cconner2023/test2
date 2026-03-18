@@ -264,14 +264,14 @@ export async function getUserRoles(userId: string): Promise<string[]> {
  */
 export async function addUserRole(
   userId: string,
-  role: 'medic' | 'supervisor' | 'dev'
+  role: 'medic' | 'supervisor' | 'dev' | 'provider'
 ): Promise<ServiceResult> {
   try {
     const currentRoles = await getUserRoles(userId)
 
     if (currentRoles.includes(role)) return succeed()
 
-    const newRoles = [...currentRoles, role] as ('medic' | 'supervisor' | 'dev')[]
+    const newRoles = [...currentRoles, role] as ('medic' | 'supervisor' | 'dev' | 'provider')[]
 
     const { error } = await supabase.rpc('set_user_roles', {
       target_user_id: userId,
@@ -290,11 +290,11 @@ export async function addUserRole(
  */
 export async function removeUserRole(
   userId: string,
-  role: 'medic' | 'supervisor' | 'dev'
+  role: 'medic' | 'supervisor' | 'dev' | 'provider'
 ): Promise<ServiceResult> {
   try {
     const currentRoles = await getUserRoles(userId)
-    const newRoles = currentRoles.filter(r => r !== role) as ('medic' | 'supervisor' | 'dev')[]
+    const newRoles = currentRoles.filter(r => r !== role) as ('medic' | 'supervisor' | 'dev' | 'provider')[]
 
     if (newRoles.length === currentRoles.length) return succeed() // Role wasn't present
 
@@ -338,7 +338,7 @@ export async function createUser(userData: {
   component?: string
   rank?: string
   uic?: string
-  roles?: ('medic' | 'supervisor' | 'dev')[]
+  roles?: ('medic' | 'supervisor' | 'dev' | 'provider')[]
 }): Promise<ServiceResult<{ userId?: string }>> {
   try {
     const { data: { user: currentUser } } = await supabase.auth.getUser()
@@ -357,7 +357,7 @@ export async function createUser(userData: {
       p_component: userData.component || undefined,
       p_rank: userData.rank || undefined,
       p_uic: userData.uic || undefined,
-      p_roles: userData.roles as ('medic' | 'supervisor' | 'dev')[] | undefined,
+      p_roles: userData.roles as ('medic' | 'supervisor' | 'dev' | 'provider')[] | undefined,
     })
 
     if (error) return fail(error.message)

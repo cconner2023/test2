@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 'react'
-import { Upload, BookOpen, Mail, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays } from 'lucide-react'
+import { Upload, BookOpen, Mail, Package, ClipboardCheck, Settings, HelpCircle, UserCog, Radio, Map as MapIcon, Eye, CalendarDays, Stethoscope } from 'lucide-react'
 import { useAuth } from '../Hooks/useAuth'
 import { useAvatar } from '../Utilities/AvatarContext'
 import { useMessagesContext } from '../Hooks/MessagesContext'
@@ -12,6 +12,7 @@ const iconMapMobile: Record<string, React.ReactNode> = {
   'knowledgebase': <BookOpen size={20} className="text-primary/70" />,
   'messages': <Mail size={20} className="text-primary/70" />,
   'property': <Package size={20} className="text-primary/70" />,
+  'provider': <Stethoscope size={20} className="text-primary/70" />,
   'supervisor': <ClipboardCheck size={20} className="text-primary/70" />,
   'settings': <Settings size={20} className="text-primary/70" />,
   'admin': <UserCog size={20} className="text-primary/70" />,
@@ -25,6 +26,7 @@ const iconMapDesktop: Record<string, React.ReactNode> = {
   'knowledgebase': <BookOpen size={16} className="text-primary/70" />,
   'messages': <Mail size={16} className="text-primary/70" />,
   'property': <Package size={16} className="text-primary/70" />,
+  'provider': <Stethoscope size={16} className="text-primary/70" />,
   'supervisor': <ClipboardCheck size={16} className="text-primary/70" />,
   'settings': <Settings size={16} className="text-primary/70" />,
   'admin': <UserCog size={16} className="text-primary/70" />,
@@ -33,7 +35,7 @@ const iconMapDesktop: Record<string, React.ReactNode> = {
   'calendar': <CalendarDays size={16} className="text-primary/70" />,
 }
 
-const BETA_ACTIONS = new Set(['lora', 'mapOverlay', 'calendar'])
+const BETA_ACTIONS = new Set(['lora', 'mapOverlay', 'calendar', 'provider'])
 const LONG_PRESS_MS = 500
 
 const subscribeOnline = (cb: () => void) => {

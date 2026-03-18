@@ -140,41 +140,9 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
         </animated.div>
       )}
 
-      {/* Carousel */}
-      <animated.div
-        className="flex flex-1 min-h-0"
-        style={{
-          width: `${panelCount * 100}%`,
-          transform: carousel.style.x.to((x: number) => `translateX(${x}%)`),
-        }}
-      >
-        {/* Panel 0: Main categories */}
-        <div ref={panel0ScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
-          <div className="px-2 md:px-0 min-h-full">
-            <CategoryList mobilePanel="main" onNavigate={onNavigate} />
-          </div>
-        </div>
-
-        {/* Panel 1: Subcategories */}
-        <div ref={subcategoryScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
-          <div className="px-2 md:px-0 min-h-full">
-            <CategoryList mobilePanel="subcategory" onNavigate={onNavigate} />
-          </div>
-        </div>
-
-        {/* Panel 2: Symptom info (desktop only) */}
-        {!isMobile && (
-          <div className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
-            <div className="px-2 md:px-0 min-h-full">
-              <CategoryList mobilePanel="guidelines" onNavigate={onNavigate} />
-            </div>
-          </div>
-        )}
-      </animated.div>
-
-      {/* Mobile: Search results overlay */}
-      {hasSearch && (
-        <div className="absolute inset-0 z-5 bg-themewhite overflow-y-auto" style={{ paddingTop: 'calc(var(--sat, 0px) + 4rem)' }}>
+      {/* Search results replace carousel when searching on mobile */}
+      {hasSearch ? (
+        <div className="flex-1 min-h-0 overflow-y-auto bg-themewhite">
           <div className="px-2 min-h-full">
             <SearchResults
               results={searchResults ?? []}
@@ -184,6 +152,37 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
             />
           </div>
         </div>
+      ) : (
+        <animated.div
+          className="flex flex-1 min-h-0"
+          style={{
+            width: `${panelCount * 100}%`,
+            transform: carousel.style.x.to((x: number) => `translateX(${x}%)`),
+          }}
+        >
+          {/* Panel 0: Main categories */}
+          <div ref={panel0ScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
+            <div className="px-2 md:px-0 min-h-full">
+              <CategoryList mobilePanel="main" onNavigate={onNavigate} />
+            </div>
+          </div>
+
+          {/* Panel 1: Subcategories */}
+          <div ref={subcategoryScrollRef} className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
+            <div className="px-2 md:px-0 min-h-full">
+              <CategoryList mobilePanel="subcategory" onNavigate={onNavigate} />
+            </div>
+          </div>
+
+          {/* Panel 2: Symptom info (desktop only) */}
+          {!isMobile && (
+            <div className="h-full overflow-y-auto bg-themewhite" style={{ flex: `0 0 ${panelWidth}` }}>
+              <div className="px-2 md:px-0 min-h-full">
+                <CategoryList mobilePanel="guidelines" onNavigate={onNavigate} />
+              </div>
+            </div>
+          )}
+        </animated.div>
       )}
     </div>
   )
