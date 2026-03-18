@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { useSpring, animated } from '@react-spring/web'
 import { ChevronLeft, PenLine, X } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -96,6 +97,12 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const isConversationView = view === 'messages-chat' || view === 'messages-group-chat'
     const isMessagesActive = view === 'messages' || isConversationView
 
+    // ── Header collapse spring (mirrors NavTop pattern in App.tsx) ─────
+    const headerCollapseSpring = useSpring({
+        collapse: searchFocused && view === 'messages' ? 1 : 0,
+        config: { tension: 280, friction: 28 },
+    })
+
     // ── Shared panel content ──────────────────────────────────────────────
     const panelContent = (
         <MessagesPanel
@@ -111,13 +118,14 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
             onSearchClear={() => setSearchQuery('')}
             onSearchChange={setSearchQuery}
             onSearchFocusChange={setSearchFocused}
+            headerCollapse={headerCollapseSpring.collapse}
         />
     )
 
     // ── Mobile: full-screen content (animation handled by App.tsx) ────────
     if (isMobile) {
         const mobileHeader = view === 'messages' ? (
-            <div className="shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center gap-2 backdrop-blur-xs bg-transparent">
+            <div className="shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center gap-2 backdrop-blur-xs bg-themewhite3/80">
                 <HeaderPill>
                     <PillButton icon={ChevronLeft} onClick={handleClose} label="Back" />
                 </HeaderPill>
@@ -130,11 +138,22 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
 
         return (
             <div className="h-full relative bg-themewhite3">
-                {/* Floating header — overlaps content like NavTop */}
+                {/* Floating header — collapses on search focus like NavTop */}
                 {mobileHeader && (
-                    <div className="absolute top-0 left-0 right-0 z-10">
+                    <animated.div
+                        className="absolute top-0 left-0 right-0 z-10 overflow-hidden"
+                        style={{
+                            height: headerCollapseSpring.collapse.to(
+                                (c: number) => `calc((var(--sat, 0px) + 3.4375rem) * ${1 - c})`
+                            ),
+                            opacity: headerCollapseSpring.collapse.to((c: number) => 1 - c),
+                            transform: headerCollapseSpring.collapse.to(
+                                (c: number) => `scale(${1 - c * 0.03})`
+                            ),
+                        }}
+                    >
                         {mobileHeader}
-                    </div>
+                    </animated.div>
                 )}
                 <div className="h-full overflow-hidden">
                     {panelContent}

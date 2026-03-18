@@ -253,36 +253,28 @@ export function ProviderImport({
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && inputText.trim()) handleDecode(); }}
-            className="w-full rounded-full py-2.5 pl-12 pr-10 border border-themegray1 focus:border-themeblue2 focus:outline-none text-sm bg-themewhite text-tertiary"
+            className="w-full rounded-full py-2.5 pl-12 pr-3 border border-themegray1 focus:border-themeblue2 focus:outline-none text-sm bg-themewhite text-tertiary"
             placeholder="Paste encoded note or scan"
           />
-          <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center">
-            {inputText ? (
-              <div className="flex items-center gap-0.5">
-                <button
-                  type="button"
-                  onClick={() => setInputText('')}
-                  className="p-1 text-tertiary/40 hover:text-tertiary active:scale-95 transition-colors"
-                  title="Clear"
-                >
-                  <X size={14} />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDecode}
-                  className="p-1 text-themeblue3 hover:text-themeblue3/80 active:scale-95 transition-colors"
-                  title="Decode"
-                >
-                  <CheckCircle size={22} />
-                </button>
-              </div>
-            ) : (
-              <span className="p-1 text-tertiary/20">
-                <CheckCircle size={22} />
-              </span>
-            )}
-          </div>
         </div>
+        {inputText.trim() && (
+          <button
+            type="button"
+            onClick={handleDecode}
+            className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 bg-themeblue3 text-white"
+            title="Decode"
+          >
+            <CheckCircle size={20} />
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setInputText('')}
+          className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary"
+          title="Clear"
+        >
+          <X size={24} />
+        </button>
       </div>
       <input
         ref={fileInputRef}

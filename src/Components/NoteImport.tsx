@@ -336,36 +336,30 @@ const NoteImportContent = ({
                             type="text"
                             value={state.inputText}
                             onChange={(e) => setState(prev => ({ ...prev, inputText: e.target.value }))}
-                            className="w-full rounded-full py-2.5 pl-[4.5rem] pr-8 border border-themeblue3/10 shadow-xs bg-themewhite focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm text-primary placeholder:text-tertiary/30 transition-all duration-300"
+                            className="w-full rounded-full py-2.5 pl-[4.5rem] pr-3 border border-themeblue3/10 shadow-xs bg-themewhite focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm text-primary placeholder:text-tertiary/30 transition-all duration-300"
                             placeholder="Paste code or scan"
                         />
-                        {state.inputText && (
-                            <button
-                                type="button"
-                                onClick={() => setState(prev => ({ ...prev, inputText: '' }))}
-                                className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-tertiary/40 hover:text-tertiary active:scale-95 transition-colors"
-                                title="Clear"
-                            >
-                                <X size={14} />
-                            </button>
-                        )}
                     </div>
                 </form>
+                {state.inputText.trim() && (
+                    <button
+                        type="button"
+                        onClick={handleSubmit}
+                        className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 bg-themeblue3 text-white"
+                        aria-label="Decode"
+                        title="Decode"
+                    >
+                        <Check style={{ width: 20, height: 20 }} />
+                    </button>
+                )}
                 <button
                     type="button"
-                    onClick={state.inputText.trim() ? handleSubmit : handleCollapseImport}
-                    className={`shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 ${
-                        state.inputText.trim()
-                            ? 'bg-themeblue3 text-white'
-                            : 'bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary'
-                    }`}
-                    aria-label={state.inputText.trim() ? 'Decode' : 'Close import'}
-                    title={state.inputText.trim() ? 'Decode' : 'Close import'}
+                    onClick={handleCollapseImport}
+                    className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary"
+                    aria-label="Close import"
+                    title="Close import"
                 >
-                    {state.inputText.trim()
-                        ? <Check style={{ width: 20, height: 20 }} />
-                        : <X style={{ width: 24, height: 24 }} />
-                    }
+                    <X style={{ width: 24, height: 24 }} />
                 </button>
                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
             </div>

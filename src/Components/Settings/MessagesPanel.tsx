@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
 import { Trash2, Phone, Video, MessageSquare, Users, Info, ChevronLeft, Pin } from 'lucide-react'
-import { useSpring, animated } from '@react-spring/web'
+import { useSpring, animated, type SpringValue } from '@react-spring/web'
 import { MobileSearchBar } from '../MobileSearchBar'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
@@ -44,6 +44,7 @@ interface MessagesPanelProps {
   onSearchClear: () => void
   onSearchChange: (value: string) => void
   onSearchFocusChange?: (focused: boolean) => void
+  headerCollapse?: SpringValue<number>
 }
 
 // ── Conversation Pane (shared across mobile + desktop) ───────────────────
@@ -779,7 +780,7 @@ function GroupChatDetail({
 
 // ── Exported Panel ─────────────────────────────────────────────────────────
 
-export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange, onSearchFocusChange }, ref) {
+export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelProps>(function MessagesPanel({ view, selectedPeerId, selectedGroupId, onSelectPeer, onSelectGroup, onBack, onCloseDrawer, searchQuery, onSearchClear, onSearchChange, onSearchFocusChange, headerCollapse }, ref) {
   const messagesCtx = useMessagesContext()
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
@@ -911,11 +912,21 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   }
 
   return (
-    <div className="flex h-full relative">
+    <animated.div
+      className="flex h-full relative"
+      style={headerCollapse ? { '--msg-header-collapse': headerCollapse } as React.CSSProperties : undefined}
+    >
       {/* Conversation pane: full-width on mobile default view, w-80 sidebar on desktop */}
       {view === 'messages' && (
         <div className="md:hidden flex flex-col w-full h-full overflow-hidden">
-          <MobileSearchBar variant="messages" value={searchQuery} onChange={onSearchChange} placeholder="Search..." className="pt-[calc(var(--sat,0px)+4rem)]" onFocusChange={onSearchFocusChange}>
+          <MobileSearchBar
+            variant="messages"
+            value={searchQuery}
+            onChange={onSearchChange}
+            placeholder="Search..."
+            onFocusChange={onSearchFocusChange}
+            style={{ paddingTop: 'calc(var(--sat, 0px) + 4rem * (1 - var(--msg-header-collapse, 0)))' }}
+          >
             <ConversationPane {...conversationPaneProps} />
           </MobileSearchBar>
         </div>
@@ -945,6 +956,6 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         />
       )}
       <ProvisionalDeviceModal />
-    </div>
+    </animated.div>
   )
 }))

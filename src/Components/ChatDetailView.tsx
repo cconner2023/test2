@@ -449,7 +449,7 @@ export function ChatDetailView({
   const renderMessageList = (msgs: DecryptedSignalMessage[], emptyLabel: string, showHeaders = false, headerOverride?: ReactNode) => (
     <div ref={scrollRef} className="flex-1 overflow-y-auto overflow-x-hidden" onScroll={closeContextMenu}>
       {showHeaders && (
-        <div className="sticky top-0 z-10 backdrop-blur-sm bg-transparent">
+        <div className="sticky top-0 z-10 backdrop-blur-sm bg-themewhite3/80">
           {headerOverride ?? (<>{mobileHeader}{desktopHeader}</>)}
         </div>
       )}

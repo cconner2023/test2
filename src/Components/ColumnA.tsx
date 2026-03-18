@@ -195,13 +195,13 @@ export const ColumnA = memo(function ColumnA({ onNavigate, onEdgeDrag, onEdgeDra
   }, [hasSearch, onSearchChange, handleColumnSearchClose])
 
   const mobilePaddingTop = isMobile && headerCollapse
-    ? headerCollapse.to((c: number) => `calc((var(--sat, 0px) + 4rem) * ${1 - c})`)
+    ? headerCollapse.to((c: number) => `calc(var(--sat, 0px) + 4rem * ${1 - c})`)
     : isMobile ? 'calc(var(--sat, 0px) + 4rem)' : undefined
 
   // Panel content offset — header height + search bar height (when present)
   const searchBarExtra = hasMobileSearch ? ` + ${barHeight}px` : ''
   const mobilePanelPadding = isMobile && headerCollapse
-    ? headerCollapse.to((c: number) => `calc((var(--sat, 0px) + 4rem) * ${1 - c}${searchBarExtra})`)
+    ? headerCollapse.to((c: number) => `calc(var(--sat, 0px) + 4rem * ${1 - c}${searchBarExtra})`)
     : isMobile ? `calc(var(--sat, 0px) + 4rem${searchBarExtra})` : undefined
 
   const panelWidth = `${100 / panelCount}%`

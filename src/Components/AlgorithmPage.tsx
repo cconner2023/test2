@@ -219,7 +219,7 @@ export function AlgorithmPage({ searchInput = '', onSearchChange, onSearchFocusC
                 onFocusChange={onSearchFocusChange}
                 enabled={hasMobileSearch}
                 className=""
-                style={isMobile ? { paddingTop: 'calc((var(--sat, 0px) + 4rem) * (1 - var(--header-collapse, 0)))' } : undefined}
+                style={isMobile ? { paddingTop: 'calc(var(--sat, 0px) + 4rem * (1 - var(--header-collapse, 0)))' } : undefined}
             >
                 {hasSearch && onSearchResultClick ? (
                     <div className="px-2 min-h-full">
