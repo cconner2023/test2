@@ -2,7 +2,29 @@ import type { catDataTypes, sideMenuDataType, subjectAreaArray, subjectAreaArray
 import { stp68wTraining } from './TrainingTaskList';
 
 export const menuData: sideMenuDataType[] = [
-    // Core — daily-use destinations
+    // Roles — role-gated, top of nav
+    {
+        text: 'Provider',
+        icon: 'provider',
+        action: 'provider',
+        group: 'roles',
+        gateKey: 'provider'
+    },
+    {
+        text: 'Supervisor',
+        icon: 'supervisor',
+        action: 'supervisor',
+        group: 'roles',
+        gateKey: 'supervisor'
+    },
+    {
+        text: 'Admin',
+        icon: 'admin',
+        action: 'admin',
+        group: 'roles',
+        gateKey: 'admin'
+    },
+    // Core — KB and import
     {
         text: "Knowledge Base",
         icon: 'knowledgebase',
@@ -15,7 +37,7 @@ export const menuData: sideMenuDataType[] = [
         action: 'import',
         group: 'core'
     },
-    // Field — operational / tactical tools
+    // Field — operational / tactical modules
     {
         text: "Property Book",
         icon: 'property',
@@ -37,41 +59,20 @@ export const menuData: sideMenuDataType[] = [
         group: 'field',
         gateKey: 'calendar'
     },
-    {
-        text: "WhisperNet",
-        icon: 'lora',
-        action: 'lora',
-        group: 'field',
-        gateKey: 'lora'
-    },
-    // Management — role-gated
-    {
-        text: 'Provider',
-        icon: 'provider',
-        action: 'provider',
-        group: 'management',
-        gateKey: 'provider'
-    },
-    {
-        text: 'Supervisor',
-        icon: 'supervisor',
-        action: 'supervisor',
-        group: 'management',
-        gateKey: 'supervisor'
-    },
-    {
-        text: 'Admin',
-        icon: 'admin',
-        action: 'admin',
-        group: 'management',
-        gateKey: 'admin'
-    },
-    // System — always last
+    // System
     {
         text: 'Settings',
         icon: 'settings',
         action: 'settings',
         group: 'system'
+    },
+    // Utility — below settings
+    {
+        text: "WhisperNet",
+        icon: 'lora',
+        action: 'lora',
+        group: 'utility',
+        gateKey: 'lora'
     }
 ]
 

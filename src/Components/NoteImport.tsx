@@ -99,6 +99,7 @@ const NoteImportContent = ({
                 payload = decrypted;
             }
             const preview = importFromBarcode(payload);
+            preview.encodedText = text;
             setState(prev => ({ ...prev, preview, scanError: '' }));
             setImportExpanded(false);
         } catch (error: any) {
@@ -475,26 +476,30 @@ const NoteImportContent = ({
 
                     <div className="space-y-4">
                         {/* Note Preview */}
-                        <div>
-                            <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
-                                <span className="font-medium">Note Preview</span>
-                                <ActionIconButton
-                                    onClick={() => handleCopy(preview.fullNote, 'preview')}
-                                    status={state.copiedTarget === 'preview' ? 'done' : 'idle'}
-                                    variant="copy"
-                                    title="Copy note text"
-                                />
+                        <section>
+                            <div className="pb-2 flex items-center justify-between">
+                                <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Note Preview</p>
+                                <div className="flex items-center gap-0.5">
+                                    <ActionIconButton
+                                        onClick={() => handleCopy(preview.fullNote, 'preview')}
+                                        status={state.copiedTarget === 'preview' ? 'done' : 'idle'}
+                                        variant="copy"
+                                        title="Copy note text"
+                                    />
+                                </div>
                             </div>
-                            <div className="p-3 rounded-b-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto border border-themegray1/15">
-                                {preview.fullNote || "No content"}
+                            <div className="rounded-xl bg-themewhite2 overflow-hidden">
+                                <div className="px-4 py-3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto">
+                                    {preview.fullNote || "No content selected"}
+                                </div>
                             </div>
-                        </div>
+                        </section>
 
                         {/* Encoded Note / Barcode */}
-                        <div>
-                            <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
-                                <span className="font-medium">Encoded Note</span>
-                                <div className="flex items-center gap-1">
+                        <section>
+                            <div className="pb-2 flex items-center justify-between">
+                                <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Encoded Note</p>
+                                <div className="flex items-center gap-0.5">
                                     <ActionIconButton
                                         onClick={() => handleCopy(preview.encodedText, 'encoded')}
                                         status={state.copiedTarget === 'encoded' ? 'done' : 'idle'}
@@ -509,10 +514,12 @@ const NoteImportContent = ({
                                     />
                                 </div>
                             </div>
-                            <div className="mt-1">
-                                <BarcodeDisplay encodedText={preview.encodedText} />
+                            <div className="rounded-xl bg-themewhite2 overflow-hidden">
+                                <div className="px-4 py-3">
+                                    <BarcodeDisplay encodedText={preview.encodedText} />
+                                </div>
                             </div>
-                        </div>
+                        </section>
                     </div>
                 </div>
             )}
@@ -570,6 +577,7 @@ export function NoteImport({ isVisible, onClose, initialViewState, initialBarcod
                     payload = decrypted;
                 }
                 const preview = importFromBarcode(payload);
+                preview.encodedText = initialBarcodeText;
                 setContentState(prev => ({ ...prev, preview }));
             } catch (error: any) {
                 setContentState(prev => ({

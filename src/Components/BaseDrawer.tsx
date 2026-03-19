@@ -98,19 +98,9 @@ function DrawerHeader({
                         <div className={`flex items-center gap-2${rightContentFill ? ' flex-1 min-w-0' : rightContent ? ' flex-1 min-w-0 justify-end' : ' shrink-0'}`}>
                             {rightContent}
                             {!hideDefaultClose && (
-                                isMobile ? (
-                                    <button
-                                        onClick={onClose}
-                                        className="w-11 h-11 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
-                                        aria-label="Close"
-                                    >
-                                        <X style={{ width: 24, height: 24 }} />
-                                    </button>
-                                ) : (
-                                    <HeaderPill>
-                                        <PillButton icon={X} onClick={onClose} label="Close" />
-                                    </HeaderPill>
-                                )
+                                <HeaderPill>
+                                    <PillButton icon={X} onClick={onClose} label="Close" />
+                                </HeaderPill>
                             )}
                         </div>
                     </div>

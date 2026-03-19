@@ -1,13 +1,14 @@
 import { useRef, useEffect, useCallback, useMemo } from 'react'
-import { Check, ChevronRight, AlertTriangle, Info, Lock, BookOpen } from 'lucide-react'
+import { Check, ChevronRight, Lock, BookOpen } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { stp68wTraining } from '../../Data/TrainingTaskList'
 import { getTaskData } from '../../Data/TrainingData'
-import type { TaskTrainingData, PerformanceStep } from '../../Data/TrainingData'
+import type { TaskTrainingData } from '../../Data/TrainingData'
 import type { subjectAreaArrayOptions } from '../../Types/CatTypes'
 import { useTrainingCompletions } from '../../Hooks/useTrainingCompletions'
 import { AudioAidPlayer } from '../AudioAidPlayer'
 import { subjectAreaIcons, skillLevelLabels, categoryOrder } from '../../Data/TrainingConstants'
+import { StepCallout, PerformanceStepItem, SectionHeader } from '../TrainingStepComponents'
 
 interface FlatTask {
     taskId: string
@@ -211,40 +212,6 @@ function TrainingList({
 
 // ─── Sub-view: Task Detail (Learning View) ───────────────────────────────────
 
-function StepCallout({ type, text }: { type: 'warning' | 'caution' | 'note'; text: string }) {
-    const styles = {
-        warning: { bg: 'bg-themeyellow/10', border: 'border-themeyellow/30', icon: <AlertTriangle size={13} className="text-themeyellow shrink-0 mt-0.5" />, label: 'WARNING' },
-        caution: { bg: 'bg-orange-500/10', border: 'border-orange-500/30', icon: <AlertTriangle size={13} className="text-orange-500 shrink-0 mt-0.5" />, label: 'CAUTION' },
-        note: { bg: 'bg-themeblue2/10', border: 'border-themeblue2/30', icon: <Info size={13} className="text-themeblue2 shrink-0 mt-0.5" />, label: 'NOTE' },
-    }
-    const s = styles[type]
-
-    return (
-        <div className={`${s.bg} border ${s.border} rounded-md px-3 py-2 mt-1.5 flex items-start gap-2`}>
-            {s.icon}
-            <div>
-                <p className="text-[7pt] font-bold tracking-wider opacity-60">{s.label}</p>
-                <p className="text-xs text-primary/80">{text}</p>
-            </div>
-        </div>
-    )
-}
-
-function PerformanceStepItem({ step }: { step: PerformanceStep }) {
-    return (
-        <div className={`${step.isSubStep ? 'ml-6' : ''}`}>
-            <div className="flex items-start gap-2 py-1.5">
-                <span className="text-[9pt] text-tertiary/50 font-mono w-6 shrink-0 text-right mt-px">
-                    {step.number}
-                </span>
-                <p className="text-sm text-primary flex-1">{step.text}</p>
-            </div>
-            {step.warning && <StepCallout type="warning" text={step.warning} />}
-            {step.caution && <StepCallout type="caution" text={step.caution} />}
-            {step.note && <StepCallout type="note" text={step.note} />}
-        </div>
-    )
-}
 
 function TaskDetail({
     taskData,
@@ -296,19 +263,15 @@ function TaskDetail({
             </div>
 
             {/* Conditions */}
-            <div className="mb-4">
-                <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Conditions</p>
-                <div className="bg-themewhite2 rounded-lg px-3.5 py-3">
-                    <p className="text-sm text-primary/80 leading-relaxed">{taskData.conditions}</p>
-                </div>
+            <div className="mb-5">
+                <SectionHeader>Conditions</SectionHeader>
+                <p className="text-sm text-primary/80 leading-relaxed">{taskData.conditions}</p>
             </div>
 
             {/* Standards */}
-            <div className="mb-4">
-                <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Standards</p>
-                <div className="bg-themewhite2 rounded-lg px-3.5 py-3">
-                    <p className="text-sm text-primary/80 leading-relaxed">{taskData.standards}</p>
-                </div>
+            <div className="mb-5">
+                <SectionHeader>Standards</SectionHeader>
+                <p className="text-sm text-primary/80 leading-relaxed">{taskData.standards}</p>
             </div>
 
             {/* Audio Training Aids */}
@@ -317,9 +280,9 @@ function TaskDetail({
             )}
 
             {/* Performance Steps */}
-            <div className="mb-4">
-                <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Performance Steps</p>
-                <div className="bg-themewhite2 rounded-lg px-3 py-2">
+            <div className="mb-5">
+                <SectionHeader>Performance Steps</SectionHeader>
+                <div className="divide-y divide-tertiary/8">
                     {taskData.performanceSteps.map((step, i) => (
                         <PerformanceStepItem key={i} step={step} />
                     ))}

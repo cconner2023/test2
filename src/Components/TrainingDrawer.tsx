@@ -1,50 +1,15 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { AlertTriangle, Info, Check } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { getTaskData } from '../Data/TrainingData'
-import type { PerformanceStep } from '../Data/TrainingData'
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
 import { AudioAidPlayer } from './AudioAidPlayer'
+import { StepCallout, PerformanceStepItem, SectionHeader } from './TrainingStepComponents'
 
 interface TrainingDrawerProps {
     isVisible: boolean
     onClose: () => void
     taskId: string | null
-}
-
-function StepCallout({ type, text }: { type: 'warning' | 'caution' | 'note'; text: string }) {
-    const styles = {
-        warning: { bg: 'bg-themeyellow/10', border: 'border-themeyellow/30', icon: <AlertTriangle size={13} className="text-themeyellow shrink-0 mt-0.5" />, label: 'WARNING' },
-        caution: { bg: 'bg-orange-500/10', border: 'border-orange-500/30', icon: <AlertTriangle size={13} className="text-orange-500 shrink-0 mt-0.5" />, label: 'CAUTION' },
-        note: { bg: 'bg-themeblue2/10', border: 'border-themeblue2/30', icon: <Info size={13} className="text-themeblue2 shrink-0 mt-0.5" />, label: 'NOTE' },
-    }
-    const s = styles[type]
-
-    return (
-        <div className={`${s.bg} border ${s.border} rounded-md px-3 py-2 mt-1.5 flex items-start gap-2`}>
-            {s.icon}
-            <div>
-                <p className="text-[7pt] font-bold tracking-wider opacity-60">{s.label}</p>
-                <p className="text-xs text-primary/80">{text}</p>
-            </div>
-        </div>
-    )
-}
-
-function PerformanceStepItem({ step }: { step: PerformanceStep }) {
-    return (
-        <div className={`${step.isSubStep ? 'ml-6' : ''}`}>
-            <div className="flex items-start gap-2 py-1.5">
-                <span className="text-[9pt] text-tertiary/50 font-mono w-6 shrink-0 text-right mt-px">
-                    {step.number}
-                </span>
-                <p className="text-sm text-primary flex-1">{step.text}</p>
-            </div>
-            {step.warning && <StepCallout type="warning" text={step.warning} />}
-            {step.caution && <StepCallout type="caution" text={step.caution} />}
-            {step.note && <StepCallout type="note" text={step.note} />}
-        </div>
-    )
 }
 
 function TrainingDrawerContent({ taskId }: { taskId: string }) {
@@ -90,7 +55,7 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
         <div className="h-full overflow-y-auto">
             <div className="px-4 py-3 md:p-5 pb-12">
                 {/* Header */}
-                <div className="mb-4">
+                <div className="mb-5">
                     <p className="text-[8pt] text-tertiary/50 font-mono">{taskData.taskNumber}</p>
                     <h3 className="text-lg font-semibold text-primary">{taskData.title}</h3>
                     {completed && (
@@ -115,19 +80,15 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
                 )}
 
                 {/* Conditions */}
-                <div className="mb-4">
-                    <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Conditions</p>
-                    <div className="bg-themewhite2 rounded-lg px-3.5 py-3">
-                        <p className="text-sm text-primary/80 leading-relaxed">{taskData.conditions}</p>
-                    </div>
+                <div className="mb-5">
+                    <SectionHeader>Conditions</SectionHeader>
+                    <p className="text-sm text-primary/80 leading-relaxed">{taskData.conditions}</p>
                 </div>
 
                 {/* Standards */}
-                <div className="mb-4">
-                    <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Standards</p>
-                    <div className="bg-themewhite2 rounded-lg px-3.5 py-3">
-                        <p className="text-sm text-primary/80 leading-relaxed">{taskData.standards}</p>
-                    </div>
+                <div className="mb-5">
+                    <SectionHeader>Standards</SectionHeader>
+                    <p className="text-sm text-primary/80 leading-relaxed">{taskData.standards}</p>
                 </div>
 
                 {/* Audio Training Aids */}
@@ -136,9 +97,9 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
                 )}
 
                 {/* Performance Steps */}
-                <div className="mb-4">
-                    <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Performance Steps</p>
-                    <div className="bg-themewhite2 rounded-lg px-3 py-2">
+                <div className="mb-5">
+                    <SectionHeader>Performance Steps</SectionHeader>
+                    <div className="divide-y divide-tertiary/8">
                         {taskData.performanceSteps.map((step, i) => (
                             <PerformanceStepItem key={i} step={step} />
                         ))}

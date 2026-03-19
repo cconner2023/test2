@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Check, RotateCcw } from 'lucide-react';
 import type { getColorClasses } from '../Utilities/ColorUtilities';
 import { PIIWarningBanner } from './PIIWarningBanner';
@@ -14,6 +14,7 @@ import {
     getBaselineWrappers,
     getFocusedBlocks,
     getBlockByKey,
+    SPECIAL_TESTS_BY_BODY_PART,
 } from '../Data/PhysicalExamData';
 import type { CategoryLetter, Laterality, SpineRegion, PEFinding, PEBlock } from '../Data/PhysicalExamData';
 import type { CustomPEBlock, TextExpander, ComprehensivePETemplate } from '../Data/User';
@@ -629,30 +630,57 @@ function ExamItemRow({ block, state, onCycleStatus, onToggleNormal, onToggleAbno
                 }}
             >
                 <div className="overflow-hidden min-h-0">
-                    <div className="pb-3 pl-[26px]">
-                        {block.findings.map(finding => (
-                            <div key={finding.key} className="flex items-start gap-2 mb-1.5">
-                                {finding.normal && (
-                                    <button
-                                        type="button"
-                                        onClick={(e) => { e.stopPropagation(); onToggleNormal(finding.key); }}
-                                        className={`w-[130px] shrink-0 text-left px-2 py-0.5 text-[9pt] rounded-full transition-colors active:scale-95 ${
-                                            state.selectedNormals.includes(finding.key)
-                                                ? 'bg-themegreen/15 text-themegreen'
-                                                : 'bg-tertiary/5 text-tertiary/40'
-                                        }`}
-                                    >
-                                        {finding.normal}
-                                    </button>
-                                )}
-                                {finding.abnormals.length > 0 && (
-                                    <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+                    <div className="pb-4">
+                        <div className="grid grid-cols-[auto_1fr] items-start border border-tertiary/10 rounded-lg overflow-hidden">
+                            {block.findings.map((finding, i) => (
+                                finding.normal ? (
+                                    <React.Fragment key={finding.key}>
+                                        <div className={`flex items-center py-1.5 px-1 ${
+                                            i > 0 ? 'border-t border-tertiary/10' : ''
+                                        }`}>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); onToggleNormal(finding.key); }}
+                                                className={`text-left px-3 py-1.5 text-[9pt] rounded-full transition-colors active:scale-95 whitespace-nowrap ${
+                                                    state.selectedNormals.includes(finding.key)
+                                                        ? 'bg-themegreen/15 text-themegreen'
+                                                        : 'bg-tertiary/5 text-tertiary/40'
+                                                }`}
+                                            >
+                                                {finding.normal}
+                                            </button>
+                                        </div>
+                                        {finding.abnormals.length > 0 ? (
+                                            <div className={`flex flex-wrap gap-1.5 min-w-0 border-l border-tertiary/10 pl-2 py-1.5 ${
+                                                i > 0 ? 'border-t border-tertiary/10' : ''
+                                            }`}>
+                                                {finding.abnormals.map(abn => (
+                                                    <button
+                                                        key={abn.key}
+                                                        type="button"
+                                                        onClick={(e) => { e.stopPropagation(); onToggleAbnormal(abn.key); }}
+                                                        className={`px-3 py-1 text-[9pt] rounded-full transition-colors active:scale-95 ${
+                                                            state.selectedAbnormals.includes(abn.key)
+                                                                ? 'bg-themeredred/15 text-themeredred'
+                                                                : 'bg-tertiary/5 text-tertiary/40'
+                                                        }`}
+                                                    >
+                                                        {abn.label}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        ) : <div className={`border-l border-tertiary/10 ${i > 0 ? 'border-t' : ''}`} />}
+                                    </React.Fragment>
+                                ) : finding.abnormals.length > 0 ? (
+                                    <div key={finding.key} className={`col-span-2 flex flex-wrap gap-1.5 min-w-0 py-1.5 px-1 ${
+                                        i > 0 ? 'border-t border-tertiary/10' : ''
+                                    }`}>
                                         {finding.abnormals.map(abn => (
                                             <button
                                                 key={abn.key}
                                                 type="button"
                                                 onClick={(e) => { e.stopPropagation(); onToggleAbnormal(abn.key); }}
-                                                className={`px-2 py-0.5 text-[9pt] rounded-full transition-colors active:scale-95 ${
+                                                className={`px-3 py-1 text-[9pt] rounded-full transition-colors active:scale-95 ${
                                                     state.selectedAbnormals.includes(abn.key)
                                                         ? 'bg-themeredred/15 text-themeredred'
                                                         : 'bg-tertiary/5 text-tertiary/40'
@@ -662,19 +690,21 @@ function ExamItemRow({ block, state, onCycleStatus, onToggleNormal, onToggleAbno
                                             </button>
                                         ))}
                                     </div>
-                                )}
-                            </div>
-                        ))}
+                                ) : null
+                            ))}
+                        </div>
+                        <div className="mt-3">
                         <ExpandableInput
                             value={state.findings}
                             onChange={onSetFindings}
                             expanders={expanders}
                             expanderEnabled={expanderEnabled}
                             placeholder="Additional findings..."
-                            className="w-full text-[9pt] px-4 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300 mt-1"
+                            className="w-full text-[9pt] px-4 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
                             onClick={(e) => e.stopPropagation()}
                         />
                         <PIIWarningBanner warnings={findingsWarnings} />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -733,8 +763,18 @@ export function PhysicalExam({
     // Focused mode: baseline wrappers + category-specific blocks
     const focusedAllBlocks = useMemo((): PEBlock[] => {
         if (isCustom || isComprehensive) return [];
-        return [...getBaselineWrappers(), ...getFocusedBlocks(categoryLetter)];
-    }, [isCustom, isComprehensive, categoryLetter]);
+        const wrappers = getBaselineWrappers();
+        const focused = getFocusedBlocks(categoryLetter);
+        if (categoryLetter !== 'B' || !bodyPart) return [...wrappers, ...focused];
+        const allowedKeys = SPECIAL_TESTS_BY_BODY_PART[bodyPart.code];
+        if (!allowedKeys || allowedKeys.length === 0) {
+            return [...wrappers, ...focused.filter(b => b.key !== 'cat_b_specialTests')];
+        }
+        return [...wrappers, ...focused.map(b => {
+            if (b.key !== 'cat_b_specialTests') return b;
+            return { ...b, findings: b.findings.filter(f => allowedKeys.includes(f.key)) };
+        })];
+    }, [isCustom, isComprehensive, categoryLetter, bodyPart]);
 
     const baselineWrappers = useMemo(() => getBaselineWrappers(), []);
 
@@ -1002,8 +1042,17 @@ export function PhysicalExam({
     const renderMiddleBlocks = useMemo((): PEBlock[] => {
         if (isComprehensive) return comprehensiveBlocks;
         if (isCustom) return [];
-        return getFocusedBlocks(categoryLetter);
-    }, [isComprehensive, isCustom, comprehensiveBlocks, categoryLetter]);
+        const blocks = getFocusedBlocks(categoryLetter);
+        if (categoryLetter !== 'B' || !bodyPart) return blocks;
+        const allowedKeys = SPECIAL_TESTS_BY_BODY_PART[bodyPart.code];
+        if (!allowedKeys || allowedKeys.length === 0) {
+            return blocks.filter(b => b.key !== 'cat_b_specialTests');
+        }
+        return blocks.map(b => {
+            if (b.key !== 'cat_b_specialTests') return b;
+            return { ...b, findings: b.findings.filter(f => allowedKeys.includes(f.key)) };
+        });
+    }, [isComprehensive, isCustom, comprehensiveBlocks, categoryLetter, bodyPart]);
 
     const examBlockCount = renderBeforeBlocks.length + (isCustom ? customBlocks.length : renderMiddleBlocks.length) + renderAfterBlocks.length;
 
@@ -1123,18 +1172,18 @@ export function PhysicalExam({
             {/* ── Exam Blocks ──────────────────────────────────────── */}
             <div className="rounded-xl bg-themewhite2 overflow-hidden">
                 <div className="px-4 py-3">
-                    <div className="flex items-center justify-end mb-2">
+                    <div className="flex flex-col gap-2 mb-2">
                         {/* MSK laterality / spine region selector (focused mode only) */}
                         {!isCustom && !isComprehensive && categoryLetter === 'B' && bodyPart && (
-                            <div className="flex items-center gap-2 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-[10pt] text-secondary font-medium">{bodyPart.label}</span>
-                                <div className="flex gap-1">
+                                <div className="flex flex-wrap gap-1">
                                     {isBack ? (
                                         (['cervical', 'thoracic', 'lumbar', 'sacral'] as SpineRegion[]).map(region => (
                                             <button
                                                 key={region}
                                                 onClick={() => setSpineRegion(region)}
-                                                className={`px-2.5 py-1 text-[10pt] rounded-full transition-colors active:scale-95 ${spineRegion === region
+                                                className={`px-3 py-1 text-[10pt] rounded-full transition-colors active:scale-95 ${spineRegion === region
                                                         ? colors.symptomClass
                                                         : 'bg-themewhite3 text-secondary'
                                                     }`}
@@ -1147,7 +1196,7 @@ export function PhysicalExam({
                                             <button
                                                 key={lat}
                                                 onClick={() => setLaterality(lat)}
-                                                className={`px-2.5 py-1 text-[10pt] rounded-full transition-colors active:scale-95 ${laterality === lat
+                                                className={`px-3 py-1 text-[10pt] rounded-full transition-colors active:scale-95 ${laterality === lat
                                                         ? colors.symptomClass
                                                         : 'bg-themewhite3 text-secondary'
                                                     }`}
@@ -1159,21 +1208,23 @@ export function PhysicalExam({
                                 </div>
                             </div>
                         )}
-                        <button
-                            onClick={cycleExamStatus}
-                            className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all ${
-                                examStatus === 'all-normal'
-                                    ? 'bg-themegreen text-white'
-                                    : examStatus === 'has-abnormal'
-                                    ? 'bg-themeredred/20 text-themeredred'
-                                    : 'bg-tertiary/10 text-tertiary/40'
-                            }`}
-                        >
-                            {examStatus === 'all-normal'
-                                ? <RotateCcw size={18} strokeWidth={2.5} />
-                                : <Check size={20} strokeWidth={2.5} />
-                            }
-                        </button>
+                        <div className="flex justify-end">
+                            <button
+                                onClick={cycleExamStatus}
+                                className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all ${
+                                    examStatus === 'all-normal'
+                                        ? 'bg-themegreen text-white'
+                                        : examStatus === 'has-abnormal'
+                                        ? 'bg-themeredred/20 text-themeredred'
+                                        : 'bg-tertiary/10 text-tertiary/40'
+                                }`}
+                            >
+                                {examStatus === 'all-normal'
+                                    ? <RotateCcw size={18} strokeWidth={2.5} />
+                                    : <Check size={20} strokeWidth={2.5} />
+                                }
+                            </button>
+                        </div>
                     </div>
 
                     <div>

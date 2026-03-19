@@ -55,7 +55,7 @@ export function encodePEState(state: PEState): string {
 
     const add64 = additional.trim() ? compressText(additional.trim()) : '';
 
-    return `6:${categoryLetter},${latField},${vitalsCsv}~${blockEntries.join('|')}~${add64}`;
+    return `6:${categoryLetter},${latField},${vitalsCsv}~${blockEntries.join('^')}~${add64}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,7 +92,7 @@ export function decodePEState(encoded: string, symptomCode: string): PEState | n
     // Block entries
     const items: Record<string, PEItemState> = {};
     if (sections[1]) {
-        for (const entry of sections[1].split('|').filter(Boolean)) {
+        for (const entry of sections[1].split(/[|^]/).filter(Boolean)) {
             const colonIdx = entry.indexOf(':');
             if (colonIdx === -1) continue;
             const blockKey = entry.substring(0, colonIdx);

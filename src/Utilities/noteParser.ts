@@ -4,6 +4,9 @@
 import { compressText, decompressText, bitmaskToIndices, indicesToBitmask } from './textCodec';
 import { decodePECompact, encodePEState } from './peCodec';
 import { logError } from './ErrorHandler';
+
+/** True when value looks like a versioned PE compact string (e.g. "6:A,R,…"). */
+const isCompactPE = (v: string) => /^\d+:/.test(v);
 import type { PEState } from '../Types/PETypes';
 import { Algorithm } from '../Data/Algorithms';
 import { catData } from '../Data/CatData';
@@ -142,11 +145,9 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         } else if (prefix === 'H') {
             result.hpiText = decompressText(value);
         } else if (prefix === 'P') {
-            if (value.startsWith('2:') || value.startsWith('3:') || value.startsWith('4:') || value.startsWith('5:')) {
-                // Compact PE format (any version) — reconstruct text from structural encoding
+            if (isCompactPE(value)) {
                 result.peText = decodePECompact(value, result.symptomCode);
             } else {
-                // Compressed or legacy base64 text format
                 result.peText = decompressText(value);
             }
         } else if (prefix === 'N') {
@@ -191,7 +192,7 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         } else if (prefix === 'h') {
             result.providerHpi = decompressText(value);
         } else if (prefix === 'p') {
-            if (value.startsWith('2:') || value.startsWith('3:') || value.startsWith('4:') || value.startsWith('5:')) {
+            if (isCompactPE(value)) {
                 result.providerPeRaw = value;
                 result.providerPe = decodePECompact(value, result.symptomCode);
             } else {
@@ -534,7 +535,7 @@ function parseProviderSolo(parts: string[]): ParsedNote {
         const value = part.substring(1);
         if (prefix === 'h') result.providerHpi = decompressText(value);
         else if (prefix === 'p') {
-            if (value.startsWith('2:') || value.startsWith('3:') || value.startsWith('4:') || value.startsWith('5:')) {
+            if (isCompactPE(value)) {
                 result.providerPeRaw = value;
                 result.providerPe = decodePECompact(value, 'PRV');
             } else {

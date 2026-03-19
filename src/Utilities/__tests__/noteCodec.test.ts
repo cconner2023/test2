@@ -329,7 +329,7 @@ describe('Note Encoding round-trips', () => {
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PE Codec round-trips (v5 API)
+// PE Codec round-trips (v6 paired-findings API)
 // ═══════════════════════════════════════════════════════════════════════════
 
 function makePEState(overrides: Partial<PEState> = {}): PEState {
@@ -365,8 +365,8 @@ describe('PE Codec', () => {
         const symptomCode = 'A-1';
         const state = makePEState({
             items: {
-                bl_gen: { status: 'normal', findings: '', selectedChips: [] },
-                bl_hent: { status: 'normal', findings: '', selectedChips: [] },
+                bl_gen: { status: 'normal', findings: '', selectedNormals: ['appearsStatedAge', 'wnwd', 'noAcuteDistress'], selectedAbnormals: [] },
+                bl_hent: { status: 'normal', findings: '', selectedNormals: ['normocephalicAtraumatic'], selectedAbnormals: [] },
             },
         });
 
@@ -376,14 +376,14 @@ describe('PE Codec', () => {
         expect(decoded).toContain('GEN:');
         expect(decoded).toContain('Appears stated age');
         expect(decoded).toContain('HENT:');
-        expect(decoded).toContain('Normocephalic');
+        expect(decoded).toContain('NCAT');
     });
 
-    it('encodePEState -> decodePECompact preserves abnormal findings with chips', () => {
+    it('encodePEState -> decodePECompact preserves abnormal findings', () => {
         const symptomCode = 'A-1';
         const state = makePEState({
             items: {
-                cat_a_ears: { status: 'abnormal', findings: '', selectedChips: ['tm_erythema', 'tm_bulging'] },
+                cat_a_ears: { status: 'abnormal', findings: '', selectedNormals: [], selectedAbnormals: ['tmErythema', 'tmBulging'] },
             },
         });
 
@@ -399,7 +399,7 @@ describe('PE Codec', () => {
         const symptomCode = 'A-1';
         const state = makePEState({
             items: {
-                bl_gen: { status: 'normal', findings: '', selectedChips: [] },
+                bl_gen: { status: 'normal', findings: '', selectedNormals: ['appearsStatedAge'], selectedAbnormals: [] },
             },
             additional: 'Patient reports dizziness when standing.',
         });
@@ -411,12 +411,11 @@ describe('PE Codec', () => {
         expect(decoded).toContain('Patient reports dizziness when standing');
     });
 
-    it('decodePECompact handles v2 prefix for backward compat', () => {
-        // A minimal v2-format payload with vitals
+    it('decodePECompact returns empty string for legacy v2 format', () => {
+        // Legacy v2-v5 formats are no longer decoded — v6 is the only active format
         const v2Payload = '2:A,R,72,,,,,,~0~0~~';
         const decoded = decodePECompact(v2Payload, 'A-1');
-        expect(decoded).toContain('72');
-        expect(decoded).toContain('Vital Signs');
+        expect(decoded).toBe('');
     });
 
     it('encodePEState -> decodePECompact with MSK category preserves laterality', () => {
@@ -426,9 +425,9 @@ describe('PE Codec', () => {
             laterality: 'left',
             vitals: { hr: '65' },
             items: {
-                bl_gen: { status: 'normal', findings: '', selectedChips: [] },
-                cat_b_inspection: { status: 'normal', findings: '', selectedChips: [] },
-                cat_b_palpation: { status: 'normal', findings: '', selectedChips: [] },
+                bl_gen: { status: 'normal', findings: '', selectedNormals: ['appearsStatedAge'], selectedAbnormals: [] },
+                cat_b_inspection: { status: 'normal', findings: '', selectedNormals: ['noDeformity', 'noSwelling'], selectedAbnormals: [] },
+                cat_b_palpation: { status: 'normal', findings: '', selectedNormals: ['nonTender'], selectedAbnormals: [] },
             },
         });
 

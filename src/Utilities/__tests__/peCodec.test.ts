@@ -1,8 +1,8 @@
-// Unit tests for peCodec v5 encode/decode roundtrips
+// Unit tests for peCodec v6 encode/decode roundtrips
 // Tests encodePEState / decodePEState / renderPEStateToText directly from PEState.
 
 import { describe, it, expect } from 'vitest';
-import { encodePEState, decodePEState, renderPEStateToText, decodePECompactLegacy } from '../peCodec';
+import { encodePEState, decodePEState, renderPEStateToText } from '../peCodec';
 import type { PEState } from '../../Types/PETypes';
 
 // ---------------------------------------------------------------------------
@@ -32,14 +32,15 @@ function roundtrip(state: PEState): PEState | null {
 // 1. Format detection
 // ---------------------------------------------------------------------------
 
-describe('v5 format detection', () => {
-    it('encoded string starts with "5:" for any category', () => {
+describe('v6 format detection', () => {
+    it('encoded string starts with "6:" for any category', () => {
         const encoded = encodePEState(makeState());
-        expect(encoded.startsWith('5:')).toBe(true);
+        expect(encoded.startsWith('6:')).toBe(true);
     });
 
-    it('decodePEState returns null for non-v5 strings', () => {
+    it('decodePEState returns null for non-v6 strings', () => {
         expect(decodePEState('4:A,R,,,,,,,~0~0~~', 'A-1')).toBeNull();
+        expect(decodePEState('5:A,R,,,,,,,~0~0~~', 'A-1')).toBeNull();
         expect(decodePEState('some random text', 'A-1')).toBeNull();
         expect(decodePEState('', 'A-1')).toBeNull();
     });
@@ -128,35 +129,34 @@ describe('Category and laterality roundtrip', () => {
 // ---------------------------------------------------------------------------
 
 describe('Normal item status roundtrip', () => {
-    it('normal wrapper item preserved', () => {
+    it('normal wrapper item with selected normals preserved', () => {
         const state = makeState({
             items: {
-                bl_gen: { status: 'normal', findings: '', selectedChips: [] },
+                bl_gen: { status: 'normal', findings: '', selectedNormals: ['appearsStatedAge', 'wnwd', 'noAcuteDistress'], selectedAbnormals: [] },
             },
         });
         const decoded = roundtrip(state);
         expect(decoded?.items.bl_gen?.status).toBe('normal');
-        expect(decoded?.items.bl_gen?.selectedChips).toEqual([]);
-        expect(decoded?.items.bl_gen?.findings).toBe('');
+        expect(decoded?.items.bl_gen?.selectedNormals).toContain('appearsStatedAge');
+        expect(decoded?.items.bl_gen?.selectedNormals).toContain('wnwd');
+        expect(decoded?.items.bl_gen?.selectedNormals).toContain('noAcuteDistress');
     });
 
-    it('normal focused item preserved (category A — ears)', () => {
+    it('normal item with no normals selected preserved', () => {
         const state = makeState({
-            categoryLetter: 'A',
             items: {
-                // 'ears' is the first item in FOCUSED_CATEGORIES.A
-                // We only need to check by key returned from decode
-                bl_gen: { status: 'normal', findings: '', selectedChips: [] },
+                bl_gen: { status: 'normal', findings: '', selectedNormals: [], selectedAbnormals: [] },
             },
         });
         const decoded = roundtrip(state);
         expect(decoded?.items.bl_gen?.status).toBe('normal');
+        expect(decoded?.items.bl_gen?.selectedNormals).toEqual([]);
     });
 
     it('not-examined items are omitted from decoded state', () => {
         const state = makeState({
             items: {
-                bl_gen: { status: 'normal', findings: '', selectedChips: [] },
+                bl_gen: { status: 'normal', findings: '', selectedNormals: ['appearsStatedAge'], selectedAbnormals: [] },
             },
         });
         const decoded = roundtrip(state);
@@ -166,43 +166,59 @@ describe('Normal item status roundtrip', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. Abnormal item roundtrip — chips
+// 5. Abnormal item roundtrip — selectedAbnormals
 // ---------------------------------------------------------------------------
 
-describe('Abnormal item chip roundtrip', () => {
-    it('single chip key preserved for wrapper item', () => {
+describe('Abnormal item roundtrip', () => {
+    it('single abnormal key preserved for wrapper item', () => {
         const state = makeState({
             items: {
-                bl_gen: { status: 'abnormal', findings: '', selectedChips: ['appears_ill'] },
+                bl_gen: { status: 'abnormal', findings: '', selectedNormals: [], selectedAbnormals: ['acuteDistress'] },
             },
         });
         const decoded = roundtrip(state);
         expect(decoded?.items.bl_gen?.status).toBe('abnormal');
-        expect(decoded?.items.bl_gen?.selectedChips).toContain('appears_ill');
+        expect(decoded?.items.bl_gen?.selectedAbnormals).toContain('acuteDistress');
     });
 
-    it('multiple chip keys preserved', () => {
+    it('multiple abnormal keys preserved', () => {
         const state = makeState({
             items: {
-                bl_gen: { status: 'abnormal', findings: '', selectedChips: ['appears_ill', 'diaphoretic'] },
+                bl_gen: { status: 'abnormal', findings: '', selectedNormals: [], selectedAbnormals: ['acuteDistress', 'mildDistress'] },
             },
         });
         const decoded = roundtrip(state);
-        expect(decoded?.items.bl_gen?.selectedChips).toContain('appears_ill');
-        expect(decoded?.items.bl_gen?.selectedChips).toContain('diaphoretic');
+        expect(decoded?.items.bl_gen?.selectedAbnormals).toContain('acuteDistress');
+        expect(decoded?.items.bl_gen?.selectedAbnormals).toContain('mildDistress');
     });
 
-    it('PSYCH abnormal chips preserved', () => {
+    it('PSYCH abnormal keys preserved', () => {
         const state = makeState({
             categoryLetter: 'F',
             items: {
-                bl_psych: { status: 'abnormal', findings: '', selectedChips: ['depressed_mood', 'anxious'] },
+                bl_psych: { status: 'abnormal', findings: '', selectedNormals: [], selectedAbnormals: ['depressedMood', 'anxious'] },
             },
         });
         const encoded = encodePEState(state);
         const decoded = decodePEState(encoded, 'F-1');
-        expect(decoded?.items.bl_psych?.selectedChips).toContain('depressed_mood');
-        expect(decoded?.items.bl_psych?.selectedChips).toContain('anxious');
+        expect(decoded?.items.bl_psych?.selectedAbnormals).toContain('depressedMood');
+        expect(decoded?.items.bl_psych?.selectedAbnormals).toContain('anxious');
+    });
+
+    it('mixed normals and abnormals preserved', () => {
+        const state = makeState({
+            items: {
+                bl_gen: {
+                    status: 'abnormal',
+                    findings: '',
+                    selectedNormals: ['appearsStatedAge'],
+                    selectedAbnormals: ['acuteDistress'],
+                },
+            },
+        });
+        const decoded = roundtrip(state);
+        expect(decoded?.items.bl_gen?.selectedNormals).toContain('appearsStatedAge');
+        expect(decoded?.items.bl_gen?.selectedAbnormals).toContain('acuteDistress');
     });
 });
 
@@ -217,35 +233,37 @@ describe('Abnormal item free text roundtrip', () => {
                 bl_gen: {
                     status: 'abnormal',
                     findings: 'Patient pale and diaphoretic on arrival',
-                    selectedChips: ['appears_ill'],
+                    selectedNormals: [],
+                    selectedAbnormals: ['acuteDistress'],
                 },
             },
         });
         const decoded = roundtrip(state);
         expect(decoded?.items.bl_gen?.findings).toBe('Patient pale and diaphoretic on arrival');
-        expect(decoded?.items.bl_gen?.selectedChips).toContain('appears_ill');
+        expect(decoded?.items.bl_gen?.selectedAbnormals).toContain('acuteDistress');
     });
 
     it('findings with special characters preserved', () => {
         const findings = 'Temp: 101.3°F — "sharp" epigastric pain';
         const state = makeState({
             items: {
-                bl_gen: { status: 'abnormal', findings, selectedChips: [] },
+                bl_gen: { status: 'abnormal', findings, selectedNormals: [], selectedAbnormals: [] },
             },
         });
         const decoded = roundtrip(state);
         expect(decoded?.items.bl_gen?.findings).toBe(findings);
     });
 
-    it('findings only (no chips) preserved', () => {
+    it('findings only (no selections) preserved', () => {
         const state = makeState({
             items: {
-                bl_gen: { status: 'abnormal', findings: 'Custom free text only', selectedChips: [] },
+                bl_gen: { status: 'abnormal', findings: 'Custom free text only', selectedNormals: [], selectedAbnormals: [] },
             },
         });
         const decoded = roundtrip(state);
         expect(decoded?.items.bl_gen?.findings).toBe('Custom free text only');
-        expect(decoded?.items.bl_gen?.selectedChips).toEqual([]);
+        expect(decoded?.items.bl_gen?.selectedNormals).toEqual([]);
+        expect(decoded?.items.bl_gen?.selectedAbnormals).toEqual([]);
     });
 });
 
@@ -282,15 +300,15 @@ describe('Mixed normal and abnormal items roundtrip', () => {
     it('normal and abnormal wrappers in same state both preserved', () => {
         const state = makeState({
             items: {
-                bl_gen: { status: 'normal', findings: '', selectedChips: [] },
-                bl_eyes: { status: 'abnormal', findings: '', selectedChips: ['anisocoria'] },
-                bl_neuro: { status: 'normal', findings: '', selectedChips: [] },
+                bl_gen: { status: 'normal', findings: '', selectedNormals: ['appearsStatedAge'], selectedAbnormals: [] },
+                bl_eyes: { status: 'abnormal', findings: '', selectedNormals: [], selectedAbnormals: ['anisocoria'] },
+                bl_neuro: { status: 'normal', findings: '', selectedNormals: ['aoX4'], selectedAbnormals: [] },
             },
         });
         const decoded = roundtrip(state);
         expect(decoded?.items.bl_gen?.status).toBe('normal');
         expect(decoded?.items.bl_eyes?.status).toBe('abnormal');
-        expect(decoded?.items.bl_eyes?.selectedChips).toContain('anisocoria');
+        expect(decoded?.items.bl_eyes?.selectedAbnormals).toContain('anisocoria');
         expect(decoded?.items.bl_neuro?.status).toBe('normal');
     });
 });
@@ -303,7 +321,7 @@ describe('Empty / minimal state', () => {
     it('fully empty state encodes and decodes without crashing', () => {
         const state = makeState();
         const encoded = encodePEState(state);
-        expect(encoded.startsWith('5:')).toBe(true);
+        expect(encoded.startsWith('6:')).toBe(true);
         const decoded = decodePEState(encoded, 'A-1');
         expect(decoded).not.toBeNull();
         expect(Object.keys(decoded!.items)).toHaveLength(0);
@@ -320,10 +338,10 @@ describe('Empty / minimal state', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderPEStateToText', () => {
-    it('renders normal wrapper item with label and normalText', () => {
+    it('renders normal wrapper item with label and normal text', () => {
         const state = makeState({
             items: {
-                bl_gen: { status: 'normal', findings: '', selectedChips: [] },
+                bl_gen: { status: 'normal', findings: '', selectedNormals: ['appearsStatedAge', 'wnwd', 'noAcuteDistress'], selectedAbnormals: [] },
             },
         });
         const text = renderPEStateToText(state);
@@ -331,22 +349,22 @@ describe('renderPEStateToText', () => {
         expect(text).toContain('Appears stated age');
     });
 
-    it('renders abnormal wrapper item with chips', () => {
+    it('renders abnormal wrapper item with abnormal labels', () => {
         const state = makeState({
             items: {
-                bl_gen: { status: 'abnormal', findings: '', selectedChips: ['appears_ill', 'diaphoretic'] },
+                bl_gen: { status: 'abnormal', findings: '', selectedNormals: [], selectedAbnormals: ['acuteDistress', 'mildDistress'] },
             },
         });
         const text = renderPEStateToText(state);
         expect(text).toContain('GEN:');
-        expect(text).toContain('Appears ill');
-        expect(text).toContain('Diaphoretic');
+        expect(text).toContain('Acute distress');
+        expect(text).toContain('Mild distress');
     });
 
     it('renders abnormal item with free text', () => {
         const state = makeState({
             items: {
-                bl_gen: { status: 'abnormal', findings: 'custom note here', selectedChips: [] },
+                bl_gen: { status: 'abnormal', findings: 'custom note here', selectedNormals: [], selectedAbnormals: [] },
             },
         });
         const text = renderPEStateToText(state);
@@ -373,8 +391,8 @@ describe('renderPEStateToText', () => {
         const state = makeState({
             categoryLetter: 'A',
             items: {
-                bl_gen: { status: 'normal', findings: '', selectedChips: [] },   // before
-                bl_neuro: { status: 'normal', findings: '', selectedChips: [] }, // after
+                bl_gen: { status: 'normal', findings: '', selectedNormals: ['appearsStatedAge'], selectedAbnormals: [] },   // before
+                bl_neuro: { status: 'normal', findings: '', selectedNormals: ['aoX4'], selectedAbnormals: [] }, // after
             },
         });
         const text = renderPEStateToText(state);
@@ -388,37 +406,5 @@ describe('renderPEStateToText', () => {
     it('empty state renders empty string', () => {
         const text = renderPEStateToText(makeState());
         expect(text.trim()).toBe('');
-    });
-});
-
-// ---------------------------------------------------------------------------
-// 11. Legacy decoder (decodePECompactLegacy)
-// ---------------------------------------------------------------------------
-
-describe('decodePECompactLegacy', () => {
-    it('decodes a v4 string to text without crashing', () => {
-        // A minimal valid v4 payload: category A, laterality R, empty vitals, no bits, no abn, no additional
-        const v4 = '4:A,R,,,,,,,~0~0~~';
-        const text = decodePECompactLegacy(v4, 'A-1');
-        expect(typeof text).toBe('string');
-    });
-
-    it('decodes a v2 string to text without crashing', () => {
-        const v2 = '2:A,R,,,,,,,~0~0~~';
-        const text = decodePECompactLegacy(v2, 'A-1');
-        expect(typeof text).toBe('string');
-    });
-
-    it('decodes a v3 string to text without crashing', () => {
-        const v3 = '3:A,R,,,,,,,~0~0~~';
-        const text = decodePECompactLegacy(v3, 'A-1');
-        expect(typeof text).toBe('string');
-    });
-
-    it('decodes a v4 string with vitals', () => {
-        // v4: category A, lat R, hr=72, rest empty; no bits set
-        const v4 = '4:A,R,72,,,,,,~0~0~~';
-        const text = decodePECompactLegacy(v4, 'A-1');
-        expect(text).toContain('72');
     });
 });

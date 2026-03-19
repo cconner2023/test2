@@ -12,7 +12,7 @@ import { Plan } from './Plan';
 import { BaseDrawer } from './BaseDrawer';
 import {
     ActionIconButton, SlideWrapper, ToggleOption,
-    ProgressDots, NoteHPIEditor, NoteWizardFooter,
+    NoteHPIEditor, NoteWizardFooter,
     shareStatusToIconStatus, exportStatusToIconStatus,
 } from './WriteNoteHelpers';
 import { useAuthStore } from '../stores/useAuthStore';
@@ -119,7 +119,6 @@ export const WriteNotePage = ({
                 title: visiblePages[currentPage]?.label ?? '',
                 showBack: currentPage > 0,
                 onBack: handlePageBack,
-                progressDots: <ProgressDots pages={visiblePages} currentPage={currentPage} colorClass={colors.symptomClass} />,
             }}
         >
             <div className="flex flex-col h-full">

@@ -157,7 +157,7 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
         <div className="space-y-1">
           {visibleItems.filter(item => isMobile || !DESKTOP_HIDDEN_ACTIONS.has(item.action)).map((item, i, filtered) => {
             const showGroupDivider = i > 0 && filtered[i - 1].group !== item.group
-            const isSettings = item.action === 'settings'
+            const isPinned = item.action === 'settings' || item.group === 'utility'
 
             return (
               <div key={item.action}>
@@ -166,10 +166,10 @@ export function SideNav({ onClose, onMenuItemClick, isMobile = true }: SideNavPr
                 )}
                 <button
                   onClick={() => handleClick(item.action)}
-                  onTouchStart={isSettings ? undefined : (e) => startLongPress(item.action, item.text, e)}
+                  onTouchStart={isPinned ? undefined : (e) => startLongPress(item.action, item.text, e)}
                   onTouchEnd={cancelLongPress}
                   onTouchMove={cancelLongPress}
-                  onContextMenu={isSettings ? undefined : (e) => {
+                  onContextMenu={isPinned ? undefined : (e) => {
                     e.preventDefault()
                     setContextMenu({ action: item.action, label: item.text, position: { x: e.clientX, y: e.clientY } })
                   }}

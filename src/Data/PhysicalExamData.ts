@@ -65,20 +65,11 @@ export const BASELINE_WRAPPERS: PEBlock[] = [
                 abnormals: [],
             },
             {
-                key: 'wellDeveloped',
-                normal: 'Well-developed',
+                key: 'wnwd',
+                normal: 'WNWD',
                 abnormals: [
                     { key: 'thinAppearing',             label: 'Thin appearing'                  },
-                    { key: 'cachexia',                  label: 'Cachexia'                        },
                     { key: 'excessiveAbdominalAdiposity', label: 'Excessive abdominal adiposity' },
-                ],
-            },
-            {
-                key: 'wellNourished',
-                normal: 'Well-nourished',
-                abnormals: [
-                    { key: 'cachexia',       label: 'Cachexia'       },
-                    { key: 'thinAppearing',  label: 'Thin appearing'  },
                 ],
             },
             {
@@ -88,35 +79,6 @@ export const BASELINE_WRAPPERS: PEBlock[] = [
                     { key: 'acuteDistress',    label: 'Acute distress'    },
                     { key: 'mildDistress',     label: 'Mild distress'     },
                     { key: 'moderateDistress', label: 'Moderate distress' },
-                ],
-            },
-            {
-                key: 'alert',
-                normal: 'Alert',
-                abnormals: [
-                    { key: 'lethargic',           label: 'Lethargic'            },
-                    { key: 'alteredMentalStatus', label: 'Altered mental status' },
-                ],
-            },
-            {
-                key: 'noDiaphoresis',
-                normal: 'No diaphoresis',
-                abnormals: [
-                    { key: 'diaphoretic', label: 'Diaphoretic' },
-                ],
-            },
-            {
-                key: 'goodColor',
-                normal: 'Good color',
-                abnormals: [
-                    { key: 'pallor', label: 'Pallor' },
-                ],
-            },
-            {
-                key: 'noApparentIllness',
-                normal: 'No apparent illness',
-                abnormals: [
-                    { key: 'appearsIll', label: 'Appears ill' },
                 ],
             },
         ],
@@ -153,31 +115,6 @@ export const BASELINE_WRAPPERS: PEBlock[] = [
                     { key: 'visualFieldDeficit', label: 'Visual field deficit' },
                 ],
             },
-            {
-                key: 'conjunctivaeClean',
-                normal: 'Conjunctivae clear',
-                abnormals: [
-                    { key: 'conjunctivalInjection',    label: 'Conjunctival injection'    },
-                    { key: 'subconjunctivalHemorrhage', label: 'Subconjunctival hemorrhage' },
-                    { key: 'discharge',                label: 'Discharge'                 },
-                    { key: 'chemosis',                 label: 'Chemosis'                  },
-                ],
-            },
-            {
-                key: 'scleraeWhite',
-                normal: 'Sclerae white',
-                abnormals: [
-                    { key: 'icterus', label: 'Icterus' },
-                ],
-            },
-            {
-                key: 'lidsNormal',
-                normal: 'Lids normal',
-                abnormals: [
-                    { key: 'lidEdema', label: 'Lid edema' },
-                    { key: 'ptosis',   label: 'Ptosis'    },
-                ],
-            },
         ],
     },
 
@@ -187,69 +124,10 @@ export const BASELINE_WRAPPERS: PEBlock[] = [
         findings: [
             {
                 key: 'normocephalicAtraumatic',
-                normal: 'Normocephalic, atraumatic',
+                normal: 'NCAT',
                 abnormals: [
                     { key: 'scalpTenderness', label: 'Scalp tenderness' },
                     { key: 'scalpLaceration', label: 'Scalp laceration' },
-                ],
-            },
-            {
-                key: 'tmsIntactBilaterally',
-                normal: 'TMs intact bilaterally',
-                abnormals: [
-                    { key: 'tmErythema',    label: 'TM erythema'    },
-                    { key: 'tmBulging',     label: 'TM bulging'     },
-                    { key: 'tmPerforation', label: 'TM perforation' },
-                ],
-            },
-            {
-                key: 'canalsClear',
-                normal: 'Canals clear',
-                abnormals: [
-                    { key: 'canalEdema',          label: 'Canal edema'          },
-                    { key: 'cerumenImpaction',    label: 'Cerumen impaction'    },
-                    { key: 'effusion',            label: 'Effusion'             },
-                ],
-            },
-            {
-                key: 'naresPatent',
-                normal: 'Nares patent',
-                abnormals: [
-                    { key: 'septalDeviation',     label: 'Septal deviation'     },
-                    { key: 'nasalDischarge',      label: 'Nasal discharge'      },
-                    { key: 'turbinateHypertrophy', label: 'Turbinate hypertrophy' },
-                ],
-            },
-            {
-                key: 'oropharynxClear',
-                normal: 'Oropharynx clear',
-                abnormals: [
-                    { key: 'pharyngealErythema',   label: 'Pharyngeal erythema'   },
-                    { key: 'tonsillarHypertrophy', label: 'Tonsillar hypertrophy' },
-                    { key: 'exudate',              label: 'Exudate'               },
-                    { key: 'peritonsillarSwelling', label: 'Peritonsillar swelling' },
-                ],
-            },
-            {
-                key: 'mucousMembranesMoist',
-                normal: 'Mucous membranes moist',
-                abnormals: [
-                    { key: 'dryMucousMembranes', label: 'Dry mucous membranes' },
-                    { key: 'oralLesionUlcer',    label: 'Oral lesion/ulcer'    },
-                ],
-            },
-            {
-                key: 'noTrismus',
-                normal: 'No trismus',
-                abnormals: [
-                    { key: 'trismus', label: 'Trismus' },
-                ],
-            },
-            {
-                key: 'mucosaNonErythematous',
-                normal: 'Mucosa non-erythematous',
-                abnormals: [
-                    { key: 'mucosalErythema', label: 'Mucosal erythema' },
                 ],
             },
         ],
@@ -276,33 +154,11 @@ export const BASELINE_WRAPPERS: PEBlock[] = [
                 ],
             },
             {
-                key: 'noFocalDeficits',
-                normal: 'No focal deficits',
-                abnormals: [
-                    { key: 'focalDeficitSpecify', label: 'Focal deficit (specify)' },
-                ],
-            },
-            {
                 key: 'normalGait',
                 normal: 'Normal gait',
                 abnormals: [
                     { key: 'ataxicGait',     label: 'Ataxic gait'     },
                     { key: 'rombergPositive', label: 'Romberg positive' },
-                ],
-            },
-            {
-                key: 'noTremor',
-                normal: 'No tremor',
-                abnormals: [
-                    { key: 'tremor', label: 'Tremor' },
-                ],
-            },
-            {
-                key: 'gcs15',
-                normal: 'GCS 15',
-                abnormals: [
-                    { key: 'gcsLt15',   label: 'GCS < 15 (specify)' },
-                    { key: 'lethargic', label: 'Lethargic'           },
                 ],
             },
         ],
@@ -312,13 +168,6 @@ export const BASELINE_WRAPPERS: PEBlock[] = [
         key: 'bl_psych',
         label: 'PSYCH',
         findings: [
-            {
-                key: 'cooperative',
-                normal: 'Cooperative',
-                abnormals: [
-                    { key: 'agitated', label: 'Agitated' },
-                ],
-            },
             {
                 key: 'appropriateMood',
                 normal: 'Appropriate mood',
@@ -333,27 +182,6 @@ export const BASELINE_WRAPPERS: PEBlock[] = [
                 abnormals: [
                     { key: 'flatAffect',   label: 'Flat affect'   },
                     { key: 'labileAffect', label: 'Labile affect' },
-                ],
-            },
-            {
-                key: 'intactJudgment',
-                normal: 'Intact judgment',
-                abnormals: [
-                    { key: 'poorJudgment', label: 'Poor judgment' },
-                ],
-            },
-            {
-                key: 'intactInsight',
-                normal: 'Intact insight',
-                abnormals: [
-                    { key: 'poorInsight', label: 'Poor insight' },
-                ],
-            },
-            {
-                key: 'noSiHi',
-                normal: 'No SI/HI',
-                abnormals: [
-                    { key: 'siHiSpecify', label: 'SI/HI (specify)' },
                 ],
             },
         ],
@@ -1847,16 +1675,16 @@ const FOCUSED_B: PEBlock[] = [
 
 // Body-part-specific key lists for UI filtering of cat_b_specialTests
 export const SPECIAL_TESTS_BY_BODY_PART: Record<string, string[]> = {
-    'B-1': ['straightLegRaise', 'faber', 'fadir', 'ober', 'piriformisTest', 'slumpTest', 'storkTest'],
-    'B-2': ['spurlings', 'distractionTest', 'lhermittes', 'hoffmans'],
+    'B-1': ['straightLegRaise', 'faber', 'fadir', 'ober', 'piriformisTest', 'slumpTest'],
+    'B-2': ['spurlings', 'hoffmans'],
     'B-3': ['neer', 'hawkins', 'emptyCan', 'speed', 'apprehension', 'relocation', 'obriens', 'crossBodyAdduction', 'dropArm', 'liftOff'],
-    'B-4': ['tinelCubital', 'valgusStress', 'varusStress', 'milkingManeuver', 'cozensTest', 'reverseCozens'],
-    'B-5': ['tinelCarpal', 'phalen', 'finkelstein', 'watsonsScaphoid', 'grindTestWrist'],
-    'B-6': ['tinelCarpal', 'phalen', 'finkelstein', 'grindTest1stCmc', 'bunnelLittler'],
+    'B-4': ['tinelCubital', 'valgusStress', 'varusStress'],
+    'B-5': ['tinelCarpal', 'phalen', 'finkelstein', 'watsonsScaphoid'],
+    'B-6': ['tinelCarpal', 'phalen', 'finkelstein', 'grindTest1stCmc'],
     'B-7': ['faber', 'fadir', 'ober', 'trendelenburg', 'thomasTest', 'logRoll', 'piriformisTest'],
-    'B-8': ['lachman', 'anteriorDrawer', 'posteriorDrawer', 'mcmurray', 'valgusStressKnee', 'varusStressKnee', 'patellarApprehension', 'patellarGrind', 'thessaly'],
+    'B-8': ['lachman', 'anteriorDrawer', 'posteriorDrawer', 'mcmurray', 'valgusStressKnee', 'varusStressKnee', 'patellarApprehension', 'patellarGrind'],
     'B-9': ['anteriorDrawer', 'talarTilt', 'thompson', 'squeezeTest', 'externalRotationStress'],
-    'B-10': ['muldersClick', 'windlassTest', 'tinelTarsal', 'squeezeTestMtp'],
+    'B-10': ['tinelTarsal', 'squeezeTestMtp'],
     'B-11': [],
     'B-TOE': ['grindTestToe', 'drawerTestMtp'],
 };
@@ -2003,7 +1831,6 @@ const FOCUSED_C: PEBlock[] = [
                     { key: 'hemorrhoids', label: 'Hemorrhoids' },
                     { key: 'fissure', label: 'Fissure' },
                     { key: 'massRectal', label: 'Mass' },
-                    { key: 'occultBloodPositive', label: 'Occult blood positive' },
                     { key: 'tendernessRectal', label: 'Tenderness' },
                     { key: 'rectalToneAbnormal', label: 'Rectal tone abnormal' },
                 ],

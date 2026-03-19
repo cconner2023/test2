@@ -65,12 +65,13 @@ export function useNavItems(): UseNavItemsReturn {
       }
     }
 
+    const pinnedActions = new Set(['settings', 'lora'])
     const hiddenSet = new Set(hidden)
-    ordered = ordered.filter(i => !hiddenSet.has(i.action) || i.action === 'settings')
+    ordered = ordered.filter(i => !hiddenSet.has(i.action) || pinnedActions.has(i.action))
 
     const starredSet = new Set(starred)
-    const starredItems = ordered.filter(i => starredSet.has(i.action) && i.action !== 'settings')
-    const unstarredItems = ordered.filter(i => !starredSet.has(i.action) || i.action === 'settings')
+    const starredItems = ordered.filter(i => starredSet.has(i.action) && !pinnedActions.has(i.action))
+    const unstarredItems = ordered.filter(i => !starredSet.has(i.action) || pinnedActions.has(i.action))
 
     return [...starredItems, ...unstarredItems]
   }, [gatedItems, customOrder, starred, hidden])

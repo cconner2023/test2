@@ -1,27 +1,8 @@
 import { useState } from 'react'
-import { Check, X, AlertTriangle, Info } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import { getTaskData, type PerformanceStep } from '../../../Data/TrainingData'
 import type { StepResult } from '../../../Types/SupervisorTestTypes'
-
-// ─── Step Callout (reused pattern from TrainingPanel) ────────────────────────
-
-function StepCallout({ type, text }: { type: 'warning' | 'caution' | 'note'; text: string }) {
-  const styles = {
-    warning: { bg: 'bg-themeyellow/10', border: 'border-themeyellow/30', icon: <AlertTriangle size={13} className="text-themeyellow shrink-0 mt-0.5" />, label: 'WARNING' },
-    caution: { bg: 'bg-orange-500/10', border: 'border-orange-500/30', icon: <AlertTriangle size={13} className="text-orange-500 shrink-0 mt-0.5" />, label: 'CAUTION' },
-    note: { bg: 'bg-themeblue2/10', border: 'border-themeblue2/30', icon: <Info size={13} className="text-themeblue2 shrink-0 mt-0.5" />, label: 'NOTE' },
-  }
-  const s = styles[type]
-  return (
-    <div className={`${s.bg} border ${s.border} rounded-md px-3 py-2 mt-1.5 flex items-start gap-2`}>
-      {s.icon}
-      <div>
-        <p className="text-[7pt] font-bold tracking-wider opacity-60">{s.label}</p>
-        <p className="text-xs text-primary/80">{text}</p>
-      </div>
-    </div>
-  )
-}
+import { StepCallout, SectionHeader } from '../../TrainingStepComponents'
 
 // ─── EvaluationStep ──────────────────────────────────────────────────────────
 
@@ -80,10 +61,10 @@ export function EvaluationStep({
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto pb-36">
         {/* Header */}
-        <div className="mb-4">
+        <div className="mb-5">
           <p className="text-[8pt] text-tertiary/50 font-mono">{taskNumber}</p>
-          <h3 className="text-lg font-semibold text-primary">{taskTitle}</h3>
-          <p className="text-xs text-tertiary/60 mt-1">Evaluating: <span className="font-medium text-primary">{medicName}</span></p>
+          <h3 className="text-lg font-semibold text-primary/90">{taskTitle}</h3>
+          <p className="text-xs text-tertiary/60 mt-1">Evaluating: <span className="font-medium text-primary/90">{medicName}</span></p>
         </div>
 
         {/* Task-level caution */}
@@ -94,67 +75,96 @@ export function EvaluationStep({
         )}
 
         {/* Standards */}
-        <div className="mb-4">
-          <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Standards</p>
-          <div className="bg-themewhite2 rounded-lg px-3.5 py-3">
-            <p className="text-sm text-primary/80 leading-relaxed">{taskData.standards}</p>
-          </div>
+        <div className="mb-5">
+          <SectionHeader>Standards</SectionHeader>
+          <p className="text-sm text-primary/80 leading-relaxed">{taskData.standards}</p>
         </div>
 
-        {/* Performance Steps with GO/NO GO */}
-        <div className="mb-4">
-          <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Performance Steps</p>
-          <div className="space-y-1">
-            {taskData.performanceSteps.map((step: PerformanceStep) => {
-              const isGraded = gradedSet.has(step.number)
-              const currentResult = results.get(step.number)
-              return (
-                <div key={step.number} className={`bg-themewhite2 rounded-lg px-3 py-2.5 ${step.isSubStep ? 'ml-5' : ''}`}>
-                  <div className="flex items-start gap-2">
-                    <span className="text-[9pt] text-tertiary/50 font-mono w-6 shrink-0 text-right mt-1">
-                      {step.number}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm ${isGraded ? 'text-primary' : 'text-tertiary/50'}`}>{step.text}</p>
-                      {step.warning && <StepCallout type="warning" text={step.warning} />}
-                      {step.caution && <StepCallout type="caution" text={step.caution} />}
-                      {step.note && <StepCallout type="note" text={step.note} />}
-                    </div>
-                  </div>
-                  {/* GO / NO GO buttons — only for graded steps */}
-                  {isGraded && (
-                    <div className="flex gap-2 mt-2 ml-8">
-                      <button
-                        onClick={() => toggleResult(step.number, 'GO')}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-95
-                          ${currentResult === 'GO'
-                            ? 'bg-themegreen text-white'
-                            : 'bg-themegreen/10 text-themegreen border border-themegreen/20 hover:bg-themegreen/20'
-                          }`}
-                      >
-                        <Check size={14} /> GO
-                      </button>
-                      <button
-                        onClick={() => toggleResult(step.number, 'NO_GO')}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-semibold transition-all active:scale-95
-                          ${currentResult === 'NO_GO'
-                            ? 'bg-themeredred text-white'
-                            : 'bg-themeredred/10 text-themeredred border border-themeredred/20 hover:bg-themeredred/20'
-                          }`}
-                      >
-                        <X size={14} /> NO GO
-                      </button>
-                    </div>
-                  )}
+        {/* Performance Steps with inline GO/NO GO */}
+        <div className="mb-5">
+          <SectionHeader>Performance Steps</SectionHeader>
+          {(() => {
+            // Group steps into card segments, breaking when a step has a callout
+            const segments: { steps: PerformanceStep[]; trailingCallouts: { type: 'warning' | 'caution' | 'note'; text: string }[] }[] = []
+            let current: PerformanceStep[] = []
+
+            for (const step of taskData.performanceSteps) {
+              const callouts: { type: 'warning' | 'caution' | 'note'; text: string }[] = []
+              if (step.warning) callouts.push({ type: 'warning', text: step.warning })
+              if (step.caution) callouts.push({ type: 'caution', text: step.caution })
+              if (step.note) callouts.push({ type: 'note', text: step.note })
+
+              current.push(step)
+
+              if (callouts.length > 0) {
+                segments.push({ steps: current, trailingCallouts: callouts })
+                current = []
+              }
+            }
+            if (current.length > 0) {
+              segments.push({ steps: current, trailingCallouts: [] })
+            }
+
+            return segments.map((segment, segIdx) => (
+              <div key={segIdx}>
+                <div className={`bg-themewhite2 ${segIdx === 0 ? 'rounded-t-lg' : ''} ${segment.trailingCallouts.length === 0 && segIdx === segments.length - 1 ? 'rounded-b-lg' : ''} px-3 py-1`}>
+                  {segment.steps.map((step, stepIdx) => {
+                    const isGraded = gradedSet.has(step.number)
+                    const currentResult = results.get(step.number)
+                    // Check if this substep's parent is graded — align right edge with parent text
+                    const parentIsGraded = step.isSubStep && (() => {
+                      const parentNum = step.number.replace(/[a-z]+$/i, '')
+                      return gradedSet.has(parentNum)
+                    })()
+                    return (
+                      <div key={step.number} className={`flex items-center gap-2 py-2 ${step.isSubStep ? 'ml-6' : ''} ${parentIsGraded && !isGraded ? 'pr-[4.5rem]' : ''}`}>
+                        <span className="text-[9pt] text-tertiary/50 font-mono w-6 shrink-0 text-right">
+                          {step.number}
+                        </span>
+                        <p className={`text-sm flex-1 min-w-0 ${isGraded ? 'text-primary/90' : 'text-tertiary/50'}`}>{step.text}</p>
+                        {isGraded && (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={() => toggleResult(step.number, 'NO_GO')}
+                              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90
+                                ${currentResult === 'NO_GO'
+                                  ? 'bg-themeredred text-white'
+                                  : 'bg-themewhite3 text-tertiary/25 hover:text-themeredred hover:bg-themeredred/10'
+                                }`}
+                              aria-label={`NO GO step ${step.number}`}
+                            >
+                              <X size={15} strokeWidth={2.5} />
+                            </button>
+                            <button
+                              onClick={() => toggleResult(step.number, 'GO')}
+                              className={`w-8 h-8 rounded-full flex items-center justify-center transition-all active:scale-90
+                                ${currentResult === 'GO'
+                                  ? 'bg-themegreen text-white'
+                                  : 'bg-themewhite3 text-tertiary/25 hover:text-themegreen hover:bg-themegreen/10'
+                                }`}
+                              aria-label={`GO step ${step.number}`}
+                            >
+                              <Check size={15} strokeWidth={2.5} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
-              )
-            })}
-          </div>
+                {segment.trailingCallouts.map((c, ci) => (
+                  <div key={ci} className="px-1 py-1">
+                    <StepCallout type={c.type} text={c.text} />
+                  </div>
+                ))}
+              </div>
+            ))
+          })()}
         </div>
 
         {/* Supervisor Notes */}
-        <div className="mb-4">
-          <p className="text-[9pt] font-semibold text-tertiary/60 uppercase tracking-wider mb-1.5">Supervisor Notes (Optional)</p>
+        <div className="mb-5">
+          <SectionHeader>Supervisor Notes (Optional)</SectionHeader>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
