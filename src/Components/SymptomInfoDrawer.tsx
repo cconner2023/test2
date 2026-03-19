@@ -61,8 +61,9 @@ export function SymptomInfoDrawer({
                 ),
                 hideDefaultClose: true,
             }}
+            blurHeader
         >
-            <div className="overflow-y-auto flex-1 px-4 pb-4">
+            <div className="px-4 pb-4">
                 <SymptomGuidelines
                     symptom={selectedSymptom}
                     category={selectedCategory}

@@ -8,6 +8,7 @@ import { useAuth } from '../Hooks/useAuth'
 import { useImagePaste } from '../Hooks/useImagePaste'
 import { useIOSKeyboard } from '../Hooks/useIOSKeyboard'
 import { useChatInteractions } from '../Hooks/useChatInteractions'
+import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useVoiceRecorder } from '../Hooks/useVoiceRecorder'
 import type { VoiceRecordingResult } from '../Hooks/useVoiceRecorder'
 import { playSendSound } from '../lib/soundService'
@@ -287,6 +288,10 @@ export function ChatDetailView({
     }
   }, [stopRecording, sendVoice, conversationId])
 
+  // Swipe-back gestures for mobile navigation
+  const mainSwipeBack = useSwipeBack(onBack)
+  const threadSwipeBack = useSwipeBack(activeThreadId ? handleCloseThread : undefined)
+
   // Availability logic
   const unavailableParticipants = participants.filter(p => !p.available)
   const allUnavailable = participants.length > 0 && unavailableParticipants.length === participants.length
@@ -529,7 +534,7 @@ export function ChatDetailView({
   const showThread = !!activeThreadId
 
   return (
-    <div className="flex flex-col h-full relative">
+    <div className="flex flex-col h-full relative" {...mainSwipeBack}>
       {renderMessageList(mainViewMessages, emptyText, true)}
       {!showThread && contextMenu && contextMsg && (
         <MessageContextMenu
@@ -552,6 +557,7 @@ export function ChatDetailView({
       {showThread && (
         <div
           className={`absolute inset-0 z-20 flex flex-col bg-themewhite3 transition-opacity duration-200 ${threadClosing ? 'opacity-0' : 'animate-fadeIn'}`}
+          {...threadSwipeBack}
         >
           {renderMessageList(threadMessages, 'No messages in this thread', true,
             <div className="shrink-0 px-3 py-2 pt-[max(0.5rem,var(--sat,0px))] flex items-center">

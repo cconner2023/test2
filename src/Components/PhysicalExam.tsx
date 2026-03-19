@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { Check, RotateCcw } from 'lucide-react';
 import type { getColorClasses } from '../Utilities/ColorUtilities';
 import { PIIWarningBanner } from './PIIWarningBanner';
 import { detectPII } from '../lib/piiDetector';
@@ -14,7 +15,7 @@ import {
     getFocusedBlocks,
     getBlockByKey,
 } from '../Data/PhysicalExamData';
-import type { CategoryLetter, Laterality, SpineRegion, AbnormalOption, PEBlock } from '../Data/PhysicalExamData';
+import type { CategoryLetter, Laterality, SpineRegion, PEFinding, PEBlock } from '../Data/PhysicalExamData';
 import type { CustomPEBlock, TextExpander, ComprehensivePETemplate } from '../Data/User';
 import type { PEState, PEItemState } from '../Types/PETypes';
 import { ExpandableInput } from './ExpandableInput';
@@ -23,8 +24,9 @@ type SystemStatus = 'not-examined' | 'normal' | 'abnormal';
 
 interface ItemState {
     status: SystemStatus;
-    findings: string;
+    selectedNormals: string[];
     selectedAbnormals: string[];
+    findings: string;
 }
 
 type PEDepth = 'focused' | 'comprehensive' | 'custom';
@@ -49,80 +51,93 @@ const OLD_BODY_SYSTEMS = [
 ] as const;
 
 function defaultItemState(): ItemState {
-    return { status: 'not-examined', findings: '', selectedAbnormals: [] };
+    return { status: 'not-examined', selectedNormals: [], selectedAbnormals: [], findings: '' };
 }
 
-function normalItemState(): ItemState {
-    return { status: 'normal', findings: '', selectedAbnormals: [] };
+function allNormalsSelected(block: PEBlock): ItemState {
+    return {
+        status: 'normal',
+        selectedNormals: block.findings.filter(f => f.normal).map(f => f.key),
+        selectedAbnormals: [],
+        findings: '',
+    };
 }
 
-// ── Build abnormal text from chips + free text ───────────────
-function buildAbnormalText(state: ItemState, options?: AbnormalOption[]): string {
-    const parts: string[] = [];
-    if (options) {
-        for (const opt of options) {
-            if (state.selectedAbnormals.includes(opt.key)) {
-                parts.push(opt.label);
-            }
-        }
-    }
-    if (state.findings.trim()) parts.push(state.findings.trim());
-    return parts.join('; ') || '(no details)';
+// ── Convert CustomPEBlock to PEBlock-compatible shape ─────────
+function customBlockToPEBlock(block: CustomPEBlock): PEBlock {
+    return {
+        key: block.id,
+        label: block.name,
+        findings: [
+            ...(block.normalText ? [{ key: 'customNormal', normal: block.normalText, abnormals: [] as PEFinding['abnormals'] }] : []),
+            ...block.abnormalTags.map(tag => ({ key: tag, normal: '', abnormals: [{ key: tag, label: tag }] })),
+        ],
+    };
 }
 
-// ── Parse abnormal text back into selected chip keys + free text remainder
-function parseAbnormalText(text: string, options?: AbnormalOption[]): { selectedKeys: string[]; freeText: string } {
-    if (!text || !options || options.length === 0) {
-        return { selectedKeys: [], freeText: text || '' };
-    }
-    const segments = text.split(';').map(s => s.trim()).filter(Boolean);
-    const selectedKeys: string[] = [];
-    const freeTextParts: string[] = [];
-
-    for (const seg of segments) {
-        const matchedOpt = options.find(o => o.label === seg);
-        if (matchedOpt) {
-            selectedKeys.push(matchedOpt.key);
-        } else {
-            freeTextParts.push(seg);
-        }
-    }
-    return { selectedKeys, freeText: freeTextParts.join('; ') };
-}
-
-function parseItemLine(
-    line: string,
-    label: string,
-    abnormalOptions?: AbnormalOption[],
-    normalText?: string,
-): ItemState | null {
-    if (!line.toUpperCase().startsWith(`${label.toUpperCase()}:`)) return null;
-    const rest = line.slice(label.length + 1).trim();
-    if (rest.startsWith('Abnormal')) {
-        const abnormalText = rest.replace(/^Abnormal\s*-?\s*/, '').trim();
-        const parsed = parseAbnormalText(abnormalText, abnormalOptions);
-        return { status: 'abnormal', findings: parsed.freeText, selectedAbnormals: parsed.selectedKeys };
-    }
-    if (rest.startsWith('Normal')) {
-        return normalItemState();
-    }
-    if (normalText && rest === normalText) {
-        return normalItemState();
-    }
-    if (rest) {
-        const parsed = parseAbnormalText(rest, abnormalOptions);
-        return { status: 'abnormal', findings: parsed.freeText, selectedAbnormals: parsed.selectedKeys };
-    }
-    return null;
-}
-
-// Mapping from old general finding labels to new wrapper keys (for backward compat)
+// ── Mapping from old general finding labels (backward compat) ─
 const OLD_GENERAL_TO_WRAPPER: Record<string, string> = {
     'General Appearance': 'sw_gen',
     'Skin': 'sw_derm',
     'Neuro': 'sw_neuro',
     'Psych': 'sw_psych',
 };
+
+// ── Parse a single exam line against a PEBlock's findings ─────
+function parseItemLine(
+    line: string,
+    label: string,
+    block: PEBlock,
+): ItemState | null {
+    if (!line.toUpperCase().startsWith(`${label.toUpperCase()}:`)) return null;
+    const rest = line.slice(label.length + 1).trim();
+
+    // Collect all normal/abnormal texts for matching
+    const allNormalTexts: Array<{ key: string; text: string }> = block.findings
+        .filter(f => f.normal)
+        .map(f => ({ key: f.key, text: f.normal }));
+    const allAbnormalTexts: Array<{ key: string; label: string }> = block.findings.flatMap(f =>
+        f.abnormals.map(a => ({ key: a.key, label: a.label })),
+    );
+
+    if (rest === 'Normal') {
+        // All-normal shorthand
+        return allNormalsSelected(block);
+    }
+
+    // Try to match comma/semicolon-separated segments against known labels
+    const segments = rest.split(/[,;]/).map(s => s.trim()).filter(Boolean);
+    const selectedNormals: string[] = [];
+    const selectedAbnormals: string[] = [];
+    const freeTextParts: string[] = [];
+
+    for (const seg of segments) {
+        const normalMatch = allNormalTexts.find(n => n.text === seg);
+        if (normalMatch) {
+            selectedNormals.push(normalMatch.key);
+            continue;
+        }
+        const abnormalMatch = allAbnormalTexts.find(a => a.label === seg);
+        if (abnormalMatch) {
+            selectedAbnormals.push(abnormalMatch.key);
+            continue;
+        }
+        freeTextParts.push(seg);
+    }
+
+    const hasAbnormal = selectedAbnormals.length > 0 || freeTextParts.length > 0;
+    const hasNormal = selectedNormals.length > 0;
+    const status: SystemStatus = hasAbnormal ? 'abnormal' : hasNormal ? 'normal' : 'not-examined';
+
+    if (status === 'not-examined' && !rest) return null;
+
+    return {
+        status,
+        selectedNormals,
+        selectedAbnormals,
+        findings: freeTextParts.join('; '),
+    };
+}
 
 // ── Parse initial text (focused / comprehensive modes) ────────
 function parseInitialTextBlocks(
@@ -218,10 +233,10 @@ function parseInitialTextBlocks(
             continue;
         }
 
-        // Try matching against all known blocks (new labels first)
+        // Try matching against all known blocks
         let matched = false;
         for (const block of allBlocks) {
-            const state = parseItemLine(line, block.label, block.abnormalOptions, block.normalText);
+            const state = parseItemLine(line, block.label, block);
             if (state) {
                 blockStates[block.key] = state;
                 matched = true;
@@ -232,9 +247,8 @@ function parseInitialTextBlocks(
 
         // Fall back to full BLOCK_LIBRARY for labels not in current block set
         for (const block of Object.values(BLOCK_LIBRARY)) {
-            const state = parseItemLine(line, block.label, block.abnormalOptions, block.normalText);
+            const state = parseItemLine(line, block.label, block);
             if (state) {
-                // Store under the known key even if it wasn't in the active set
                 blockStates[block.key] = state;
                 matched = true;
                 break;
@@ -243,7 +257,7 @@ function parseInitialTextBlocks(
         if (matched) continue;
 
         // Backward compat: old general finding labels
-        for (const [oldLabel, _newKey] of Object.entries(OLD_GENERAL_TO_WRAPPER)) {
+        for (const [oldLabel] of Object.entries(OLD_GENERAL_TO_WRAPPER)) {
             if (line.toUpperCase().startsWith(`${oldLabel.toUpperCase()}:`)) {
                 matched = true;
                 break;
@@ -344,14 +358,14 @@ function parseInitialTextCustom(
 
         let matched = false;
         for (const block of baselineWrappers) {
-            const state = parseItemLine(line, block.label, block.abnormalOptions, block.normalText);
+            const state = parseItemLine(line, block.label, block);
             if (state) { wrapperStates[block.key] = state; matched = true; break; }
         }
         if (matched) continue;
 
         for (const block of customBlocks) {
-            const tagOptions: AbnormalOption[] = block.abnormalTags.map(t => ({ key: t, label: t }));
-            const state = parseItemLine(line, block.name, tagOptions, block.normalText);
+            const peBlock = customBlockToPEBlock(block);
+            const state = parseItemLine(line, block.name, peBlock);
             if (state) { customStates[block.id] = state; matched = true; break; }
         }
         if (matched) continue;
@@ -369,13 +383,34 @@ function parseInitialTextCustom(
 
 // ── Generate text output ──────────────────────────────────────
 
-function formatExamLine(label: string, state: ItemState, normalText?: string, abnormalOptions?: AbnormalOption[]): string {
+function formatExamLine(label: string, state: ItemState, block: PEBlock): string {
     const uLabel = label.toUpperCase();
-    if (state.status === 'normal') {
-        return normalText ? `${uLabel}: ${normalText}` : `${uLabel}: Normal`;
+    const normalParts: string[] = [];
+    const abnormalParts: string[] = [];
+
+    for (const finding of block.findings) {
+        if (finding.normal && state.selectedNormals.includes(finding.key)) {
+            normalParts.push(finding.normal);
+        }
+        for (const abn of finding.abnormals) {
+            if (state.selectedAbnormals.includes(abn.key)) {
+                abnormalParts.push(abn.label);
+            }
+        }
     }
-    const abnormalText = buildAbnormalText(state, abnormalOptions);
-    return `${uLabel}: ${abnormalText}`;
+
+    if (state.findings.trim()) abnormalParts.push(state.findings.trim());
+
+    if (abnormalParts.length > 0 && normalParts.length > 0) {
+        return `${uLabel}: ${normalParts.join(', ')}. ${abnormalParts.join('; ')}`;
+    }
+    if (abnormalParts.length > 0) {
+        return `${uLabel}: ${abnormalParts.join('; ')}`;
+    }
+    if (normalParts.length > 0) {
+        return `${uLabel}: ${normalParts.join(', ')}`;
+    }
+    return `${uLabel}: Normal`;
 }
 
 function formatVitals(vitals: Record<string, string>): string[] {
@@ -419,6 +454,7 @@ function formatVitals(vitals: Record<string, string>): string[] {
 function generateFocusedText(
     categoryLetter: CategoryLetter,
     blockStates: Record<string, ItemState>,
+    allBlocks: PEBlock[],
     bodyPart: { code: string; label: string } | null,
     laterality: Laterality,
     spineRegion: SpineRegion,
@@ -432,10 +468,14 @@ function generateFocusedText(
     const afterWrappers = baselineWrappers.slice(BASELINE_BEFORE_COUNT);
     const examLines: string[] = [];
 
+    // Build a lookup for blocks by key
+    const blockByKey = new Map<string, PEBlock>();
+    for (const b of allBlocks) blockByKey.set(b.key, b);
+
     for (const b of beforeWrappers) {
         const state = blockStates[b.key];
         if (!state || state.status === 'not-examined') continue;
-        examLines.push(formatExamLine(b.label, state, b.normalText, b.abnormalOptions));
+        examLines.push(formatExamLine(b.label, state, b));
     }
 
     if (categoryLetter === 'B' && bodyPart) {
@@ -454,13 +494,13 @@ function generateFocusedText(
     for (const b of focusedBlocks) {
         const state = blockStates[b.key];
         if (!state || state.status === 'not-examined') continue;
-        examLines.push(formatExamLine(b.label, state, b.normalText, b.abnormalOptions));
+        examLines.push(formatExamLine(b.label, state, b));
     }
 
     for (const b of afterWrappers) {
         const state = blockStates[b.key];
         if (!state || state.status === 'not-examined') continue;
-        examLines.push(formatExamLine(b.label, state, b.normalText, b.abnormalOptions));
+        examLines.push(formatExamLine(b.label, state, b));
     }
 
     if (examLines.length > 0) {
@@ -489,7 +529,7 @@ function generateComprehensiveText(
     for (const b of resolvedBlocks) {
         const state = blockStates[b.key];
         if (!state || state.status === 'not-examined') continue;
-        examLines.push(formatExamLine(b.label, state, b.normalText, b.abnormalOptions));
+        examLines.push(formatExamLine(b.label, state, b));
     }
 
     if (examLines.length > 0) {
@@ -522,20 +562,20 @@ function generateCustomText(
     for (const b of beforeWrappers) {
         const state = wrapperStates[b.key];
         if (!state || state.status === 'not-examined') continue;
-        examLines.push(formatExamLine(b.label, state, b.normalText, b.abnormalOptions));
+        examLines.push(formatExamLine(b.label, state, b));
     }
 
     for (const block of customBlocks) {
         const state = customStates[block.id];
         if (!state || state.status === 'not-examined') continue;
-        const tagOptions: AbnormalOption[] = block.abnormalTags.map(t => ({ key: t, label: t }));
-        examLines.push(formatExamLine(block.name, state, block.normalText, tagOptions));
+        const peBlock = customBlockToPEBlock(block);
+        examLines.push(formatExamLine(block.name, state, peBlock));
     }
 
     for (const b of afterWrappers) {
         const state = wrapperStates[b.key];
         if (!state || state.status === 'not-examined') continue;
-        examLines.push(formatExamLine(b.label, state, b.normalText, b.abnormalOptions));
+        examLines.push(formatExamLine(b.label, state, b));
     }
 
     if (examLines.length > 0) {
@@ -553,73 +593,91 @@ function generateCustomText(
 
 // ── Shared item row renderer ─────────────────────────────────
 
-function ExamItemRow({ label, normalText, abnormalOptions, state, onCycleStatus, onToggleAbnormal, onSetFindings, expanders = [], expanderEnabled = false }: {
-    label: string;
-    normalText?: string;
-    abnormalOptions?: AbnormalOption[];
+function ExamItemRow({ block, state, onCycleStatus, onToggleNormal, onToggleAbnormal, onSetFindings, expanders = [], expanderEnabled = false }: {
+    block: PEBlock;
     state: ItemState;
     onCycleStatus: () => void;
-    onToggleAbnormal: (optKey: string) => void;
+    onToggleNormal: (findingKey: string) => void;
+    onToggleAbnormal: (abnormalKey: string) => void;
     onSetFindings: (findings: string) => void;
     expanders?: TextExpander[];
     expanderEnabled?: boolean;
 }) {
     const findingsWarnings = useMemo(() => detectPII(state.findings), [state.findings]);
+    const isExpanded = state.status !== 'not-examined';
 
     return (
         <div>
             <button
                 type="button"
-                className="flex items-center justify-between w-full text-left px-1 py-2 text-[10pt] text-secondary active:scale-[0.98] transition-all"
+                className="flex items-center gap-3 w-full text-left py-3 active:scale-[0.98] transition-all"
                 onClick={onCycleStatus}
             >
-                <span className="font-medium">{label.toUpperCase()}</span>
-                <span className={`text-[10pt] uppercase tracking-wide font-semibold ${state.status === 'normal'
-                        ? 'text-themegreen'
-                        : state.status === 'abnormal'
-                            ? 'text-themeredred'
-                            : 'text-secondary/40'
-                    }`}>
-                    {state.status === 'not-examined' ? 'Not Examined'
-                        : state.status === 'normal' ? 'Normal'
-                            : 'Abnormal'}
-                </span>
+                <span className={`w-3.5 h-3.5 rounded-full shrink-0 transition-colors duration-200 ${
+                    state.status === 'normal' ? 'bg-themegreen'
+                    : state.status === 'abnormal' ? 'bg-themeredred'
+                    : 'ring-[1.5px] ring-inset ring-tertiary/25 bg-transparent'
+                }`} />
+                <span className="text-[10pt] font-medium text-primary flex-1">{block.label}</span>
             </button>
-            {state.status === 'normal' && normalText && (
-                <div className="text-[10pt] text-secondary/60 px-1 pb-1 italic">
-                    {normalText}
-                </div>
-            )}
-            {state.status === 'abnormal' && (
-                <div className="px-1 pb-2">
-                    {abnormalOptions && abnormalOptions.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-1.5">
-                            {abnormalOptions.map(opt => (
-                                <button
-                                    key={opt.key}
-                                    onClick={(e) => { e.stopPropagation(); onToggleAbnormal(opt.key); }}
-                                    className={`px-2 py-0.5 text-[10pt] rounded-full border transition-colors active:scale-95 ${state.selectedAbnormals.includes(opt.key)
-                                            ? 'bg-themeredred/20 border-themeredred/40 text-primary'
-                                            : 'border-tertiary/15 text-secondary'
+
+            <div
+                className="grid transition-[grid-template-rows,opacity] duration-300 ease-out"
+                style={{
+                    gridTemplateRows: isExpanded ? '1fr' : '0fr',
+                    opacity: isExpanded ? 1 : 0,
+                }}
+            >
+                <div className="overflow-hidden min-h-0">
+                    <div className="pb-3 pl-[26px]">
+                        {block.findings.map(finding => (
+                            <div key={finding.key} className="flex items-start gap-2 mb-1.5">
+                                {finding.normal && (
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onToggleNormal(finding.key); }}
+                                        className={`w-[130px] shrink-0 text-left px-2 py-0.5 text-[9pt] rounded-full transition-colors active:scale-95 ${
+                                            state.selectedNormals.includes(finding.key)
+                                                ? 'bg-themegreen/15 text-themegreen'
+                                                : 'bg-tertiary/5 text-tertiary/40'
                                         }`}
-                                >
-                                    {opt.label}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                    <ExpandableInput
-                        value={state.findings}
-                        onChange={onSetFindings}
-                        expanders={expanders}
-                        expanderEnabled={expanderEnabled}
-                        placeholder="Describe findings..."
-                        className="w-full text-[10pt] px-3 py-1.5 rounded-lg border border-themeredred/20 shadow-xs bg-themewhite text-tertiary outline-none focus:border-themeredred/40 transition-all duration-300"
-                        onClick={(e) => e.stopPropagation()}
-                    />
-                    <PIIWarningBanner warnings={findingsWarnings} />
+                                    >
+                                        {finding.normal}
+                                    </button>
+                                )}
+                                {finding.abnormals.length > 0 && (
+                                    <div className="flex flex-wrap gap-1 flex-1 min-w-0">
+                                        {finding.abnormals.map(abn => (
+                                            <button
+                                                key={abn.key}
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); onToggleAbnormal(abn.key); }}
+                                                className={`px-2 py-0.5 text-[9pt] rounded-full transition-colors active:scale-95 ${
+                                                    state.selectedAbnormals.includes(abn.key)
+                                                        ? 'bg-themeredred/15 text-themeredred'
+                                                        : 'bg-tertiary/5 text-tertiary/40'
+                                                }`}
+                                            >
+                                                {abn.label}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                        <ExpandableInput
+                            value={state.findings}
+                            onChange={onSetFindings}
+                            expanders={expanders}
+                            expanderEnabled={expanderEnabled}
+                            placeholder="Additional findings..."
+                            className="w-full text-[9pt] px-4 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300 mt-1"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                        <PIIWarningBanner warnings={findingsWarnings} />
+                    </div>
                 </div>
-            )}
+            </div>
         </div>
     );
 }
@@ -632,8 +690,9 @@ function toEncodableState(blockStates: Record<string, ItemState>): Record<string
         if (state.status === 'not-examined') continue;
         result[key] = {
             status: state.status,
+            selectedNormals: state.selectedNormals,
+            selectedAbnormals: state.selectedAbnormals,
             findings: state.findings,
-            selectedChips: state.selectedAbnormals,
         };
     }
     return result;
@@ -766,10 +825,11 @@ export function PhysicalExam({
         add: string,
         vit: Record<string, string>,
     ) => {
+        const allBlocks = isComprehensive ? comprehensiveBlocks : focusedAllBlocks;
         if (isComprehensive) {
             onChange(generateComprehensiveText(bStates, comprehensiveBlocks, add, vit));
         } else {
-            onChange(generateFocusedText(categoryLetter, bStates, bodyPart, lat, spine, add, vit));
+            onChange(generateFocusedText(categoryLetter, bStates, allBlocks, bodyPart, lat, spine, add, vit));
         }
         if (onStateChange) {
             onStateChange({
@@ -783,7 +843,7 @@ export function PhysicalExam({
                 blockOrder: isComprehensive ? comprehensiveBlocks.map(b => b.key) : undefined,
             });
         }
-    }, [onChange, onStateChange, isComprehensive, comprehensiveBlocks, categoryLetter, bodyPart]);
+    }, [onChange, onStateChange, isComprehensive, comprehensiveBlocks, focusedAllBlocks, categoryLetter, bodyPart]);
 
     const emitCustomChange = useCallback((
         custStates: Record<string, ItemState>,
@@ -818,32 +878,76 @@ export function PhysicalExam({
         setVitals(prev => ({ ...prev, [key]: value }));
     };
 
-    const cycleStatus = (key: string, setter: React.Dispatch<React.SetStateAction<Record<string, ItemState>>>) => {
+    const cycleStatus = (key: string, setter: React.Dispatch<React.SetStateAction<Record<string, ItemState>>>, block?: PEBlock) => {
         setter(prev => {
-            const current = prev[key]?.status ?? 'not-examined';
-            let next: SystemStatus;
-            if (current === 'not-examined') next = 'normal';
-            else if (current === 'normal') next = 'abnormal';
-            else next = 'not-examined';
-            return {
-                ...prev,
-                [key]: {
-                    ...(prev[key] ?? defaultItemState()),
-                    status: next,
-                    findings: next === 'not-examined' ? '' : (prev[key]?.findings ?? ''),
-                    selectedAbnormals: next === 'not-examined' ? [] : (prev[key]?.selectedAbnormals ?? []),
-                },
-            };
+            const cur = prev[key] ?? defaultItemState();
+            if (cur.status === 'not-examined') {
+                return {
+                    ...prev,
+                    [key]: block ? allNormalsSelected(block) : { ...defaultItemState(), status: 'normal' },
+                };
+            }
+            if (cur.status === 'normal') {
+                const autoAbnormals = block
+                    ? block.findings
+                        .filter(f => f.abnormals.length > 0)
+                        .map(f => f.abnormals[0].key)
+                    : [];
+                return {
+                    ...prev,
+                    [key]: { status: 'abnormal', selectedNormals: [], selectedAbnormals: autoAbnormals, findings: cur.findings },
+                };
+            }
+            return { ...prev, [key]: defaultItemState() };
         });
     };
 
-    const toggleAbnormal = (itemKey: string, optKey: string, setter: React.Dispatch<React.SetStateAction<Record<string, ItemState>>>) => {
+    const toggleNormal = (blockKey: string, findingKey: string, setter: React.Dispatch<React.SetStateAction<Record<string, ItemState>>>, block?: PEBlock) => {
         setter(prev => {
-            const state = prev[itemKey] ?? defaultItemState();
-            const selected = state.selectedAbnormals.includes(optKey)
-                ? state.selectedAbnormals.filter(k => k !== optKey)
-                : [...state.selectedAbnormals, optKey];
-            return { ...prev, [itemKey]: { ...state, selectedAbnormals: selected } };
+            const cur = prev[blockKey] ?? defaultItemState();
+            const wasSelected = cur.selectedNormals.includes(findingKey);
+            const normals = wasSelected
+                ? cur.selectedNormals.filter(k => k !== findingKey)
+                : [...cur.selectedNormals, findingKey];
+
+            let abnormals = cur.selectedAbnormals;
+            if (block && !wasSelected) {
+                // Selecting normal → deselect all abnormals for this finding
+                const finding = block.findings.find(f => f.key === findingKey);
+                if (finding) {
+                    const findingAbnKeys = new Set(finding.abnormals.map(a => a.key));
+                    abnormals = abnormals.filter(k => !findingAbnKeys.has(k));
+                }
+            }
+
+            const hasAbnormal = abnormals.length > 0;
+            const hasNormal = normals.length > 0;
+            const status: SystemStatus = hasAbnormal ? 'abnormal' : hasNormal ? 'normal' : 'not-examined';
+            return { ...prev, [blockKey]: { ...cur, selectedNormals: normals, selectedAbnormals: abnormals, status } };
+        });
+    };
+
+    const toggleAbnormal = (blockKey: string, abnormalKey: string, setter: React.Dispatch<React.SetStateAction<Record<string, ItemState>>>, block?: PEBlock) => {
+        setter(prev => {
+            const cur = prev[blockKey] ?? defaultItemState();
+            const wasSelected = cur.selectedAbnormals.includes(abnormalKey);
+            const abnormals = wasSelected
+                ? cur.selectedAbnormals.filter(k => k !== abnormalKey)
+                : [...cur.selectedAbnormals, abnormalKey];
+
+            let normals = cur.selectedNormals;
+            if (block && !wasSelected) {
+                // Selecting abnormal → deselect normal for this finding
+                const finding = block.findings.find(f => f.abnormals.some(a => a.key === abnormalKey));
+                if (finding && finding.normal) {
+                    normals = normals.filter(k => k !== finding.key);
+                }
+            }
+
+            const hasAbnormal = abnormals.length > 0;
+            const hasNormal = normals.length > 0;
+            const status: SystemStatus = hasAbnormal ? 'abnormal' : hasNormal ? 'normal' : 'not-examined';
+            return { ...prev, [blockKey]: { ...cur, selectedNormals: normals, selectedAbnormals: abnormals, status } };
         });
     };
 
@@ -858,18 +962,25 @@ export function PhysicalExam({
         if (isCustom) {
             setCustomStates(prev => {
                 const next = { ...prev };
-                for (const key of Object.keys(next)) next[key] = normalItemState();
+                for (const block of customBlocks) {
+                    next[block.id] = allNormalsSelected(customBlockToPEBlock(block));
+                }
                 return next;
             });
             setWrapperStates(prev => {
                 const next = { ...prev };
-                for (const key of Object.keys(next)) next[key] = normalItemState();
+                for (const b of baselineWrappers) {
+                    next[b.key] = allNormalsSelected(b);
+                }
                 return next;
             });
         } else {
+            const activeBlocks = isComprehensive ? comprehensiveBlocks : focusedAllBlocks;
             setBlockStates(prev => {
                 const next = { ...prev };
-                for (const key of Object.keys(next)) next[key] = normalItemState();
+                for (const b of activeBlocks) {
+                    next[b.key] = allNormalsSelected(b);
+                }
                 return next;
             });
         }
@@ -896,6 +1007,46 @@ export function PhysicalExam({
 
     const examBlockCount = renderBeforeBlocks.length + (isCustom ? customBlocks.length : renderMiddleBlocks.length) + renderAfterBlocks.length;
 
+    // Compute exam-wide status for cycling icon
+    const examStatus = useMemo((): 'not-examined' | 'all-normal' | 'has-abnormal' => {
+        const allStates = isCustom
+            ? [...Object.values(wrapperStates), ...Object.values(customStates)]
+            : Object.values(blockStates);
+        const examined = allStates.filter(s => s.status !== 'not-examined');
+        if (examined.length === 0) return 'not-examined';
+        if (examined.some(s => s.status === 'abnormal')) return 'has-abnormal';
+        return 'all-normal';
+    }, [isCustom, blockStates, wrapperStates, customStates]);
+
+    const resetAllBlocks = () => {
+        if (isCustom) {
+            setCustomStates(prev => {
+                const next: Record<string, ItemState> = {};
+                for (const key of Object.keys(prev)) next[key] = defaultItemState();
+                return next;
+            });
+            setWrapperStates(prev => {
+                const next: Record<string, ItemState> = {};
+                for (const key of Object.keys(prev)) next[key] = defaultItemState();
+                return next;
+            });
+        } else {
+            setBlockStates(prev => {
+                const next: Record<string, ItemState> = {};
+                for (const key of Object.keys(prev)) next[key] = defaultItemState();
+                return next;
+            });
+        }
+    };
+
+    const cycleExamStatus = () => {
+        if (examStatus === 'not-examined' || examStatus === 'has-abnormal') {
+            markAllNormal();
+        } else {
+            resetAllBlocks();
+        }
+    };
+
     return (
         <div className="space-y-4">
             {/* ── Vital Signs ──────────────────────────────────────── */}
@@ -915,7 +1066,7 @@ export function PhysicalExam({
                                             value={vitals['bpSys'] || ''}
                                             onChange={(e) => setVitalValue('bpSys', e.target.value)}
                                             placeholder="BP sys"
-                                            className="w-1/2 text-[10pt] px-2 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
+                                            className="w-1/2 text-[10pt] px-3 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
                                         />
                                         <span className="text-[10pt] text-tertiary/40">/</span>
                                         <input
@@ -923,7 +1074,7 @@ export function PhysicalExam({
                                             value={vitals['bpDia'] || ''}
                                             onChange={(e) => setVitalValue('bpDia', e.target.value)}
                                             placeholder="dia"
-                                            className="w-1/2 text-[10pt] px-2 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
+                                            className="w-1/2 text-[10pt] px-3 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
                                         />
                                     </div>
                                 );
@@ -934,7 +1085,7 @@ export function PhysicalExam({
                                             value={vitals[v.key] || ''}
                                             onChange={(e) => setVitalValue(v.key, e.target.value)}
                                             placeholder={`${v.shortLabel} (${v.unit})`}
-                                            className="w-full text-[10pt] px-2 py-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
+                                            className="w-full text-[10pt] px-3 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300"
                                         />
                                         {v.key === 'ht' && vitals[v.key]?.trim() && !isNaN(parseFloat(vitals[v.key])) && (
                                             <span className="text-[10pt] text-secondary/50 mt-0.5 block">{(parseFloat(vitals[v.key]) * 2.54).toFixed(1)} cm</span>
@@ -970,27 +1121,14 @@ export function PhysicalExam({
             </section>
 
             {/* ── Exam Blocks ──────────────────────────────────────── */}
-            <section>
-                <div className="pb-2 flex items-center gap-2">
-                    <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Exam</p>
-                    <span className="text-[10pt] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
-                        {examBlockCount}
-                    </span>
-                </div>
-                <div className="rounded-xl bg-themewhite2 overflow-hidden">
-                    <div className="px-4 py-3">
-                        <button
-                            onClick={markAllNormal}
-                            className="w-full py-2 mb-2 text-[10pt] font-medium rounded-lg border border-themeblue1/30 text-themeblue1 bg-themeblue1/5 active:scale-[0.98] transition-all"
-                        >
-                            All Normal
-                        </button>
-
+            <div className="rounded-xl bg-themewhite2 overflow-hidden">
+                <div className="px-4 py-3">
+                    <div className="flex items-center justify-end mb-2">
                         {/* MSK laterality / spine region selector (focused mode only) */}
                         {!isCustom && !isComprehensive && categoryLetter === 'B' && bodyPart && (
-                            <div className="flex items-center gap-2 mb-2">
+                            <div className="flex items-center gap-2 flex-1">
                                 <span className="text-[10pt] text-secondary font-medium">{bodyPart.label}</span>
-                                <div className="flex gap-1 ml-auto">
+                                <div className="flex gap-1">
                                     {isBack ? (
                                         (['cervical', 'thoracic', 'lumbar', 'sacral'] as SpineRegion[]).map(region => (
                                             <button
@@ -1021,99 +1159,115 @@ export function PhysicalExam({
                                 </div>
                             </div>
                         )}
-
-                        <div>
-                            {renderBeforeBlocks.map(b => {
-                                const state = (isCustom ? wrapperStates[b.key] : blockStates[b.key]) ?? defaultItemState();
-                                const setter = isCustom ? setWrapperStates : setBlockStates;
-                                return (
-                                    <ExamItemRow
-                                        key={b.key}
-                                        label={b.label}
-                                        normalText={b.normalText}
-                                        abnormalOptions={b.abnormalOptions}
-                                        state={state}
-                                        onCycleStatus={() => cycleStatus(b.key, setter)}
-                                        onToggleAbnormal={(optKey) => toggleAbnormal(b.key, optKey, setter)}
-                                        onSetFindings={(findings) => setFindings(b.key, findings, setter)}
-                                        expanders={expanders}
-                                        expanderEnabled={expanderEnabled}
-                                    />
-                                );
-                            })}
-
-                            {isCustom ? (
-                                customBlocks.map(block => {
-                                    const state = customStates[block.id] ?? defaultItemState();
-                                    const abnormalOptions: AbnormalOption[] = block.abnormalTags.map(tag => ({ key: tag, label: tag }));
-                                    return (
-                                        <ExamItemRow
-                                            key={block.id}
-                                            label={block.name}
-                                            normalText={block.normalText}
-                                            abnormalOptions={abnormalOptions}
-                                            state={state}
-                                            onCycleStatus={() => cycleStatus(block.id, setCustomStates)}
-                                            onToggleAbnormal={(optKey) => toggleAbnormal(block.id, optKey, setCustomStates)}
-                                            onSetFindings={(findings) => setFindings(block.id, findings, setCustomStates)}
-                                            expanders={expanders}
-                                            expanderEnabled={expanderEnabled}
-                                        />
-                                    );
-                                })
-                            ) : (
-                                renderMiddleBlocks.map(b => {
-                                    const state = blockStates[b.key] ?? defaultItemState();
-                                    return (
-                                        <ExamItemRow
-                                            key={b.key}
-                                            label={b.label}
-                                            normalText={b.normalText}
-                                            abnormalOptions={b.abnormalOptions}
-                                            state={state}
-                                            onCycleStatus={() => cycleStatus(b.key, setBlockStates)}
-                                            onToggleAbnormal={(optKey) => toggleAbnormal(b.key, optKey, setBlockStates)}
-                                            onSetFindings={(findings) => setFindings(b.key, findings, setBlockStates)}
-                                            expanders={expanders}
-                                            expanderEnabled={expanderEnabled}
-                                        />
-                                    );
-                                })
-                            )}
-
-                            {renderAfterBlocks.map(b => {
-                                const state = (isCustom ? wrapperStates[b.key] : blockStates[b.key]) ?? defaultItemState();
-                                const setter = isCustom ? setWrapperStates : setBlockStates;
-                                return (
-                                    <ExamItemRow
-                                        key={b.key}
-                                        label={b.label}
-                                        normalText={b.normalText}
-                                        abnormalOptions={b.abnormalOptions}
-                                        state={state}
-                                        onCycleStatus={() => cycleStatus(b.key, setter)}
-                                        onToggleAbnormal={(optKey) => toggleAbnormal(b.key, optKey, setter)}
-                                        onSetFindings={(findings) => setFindings(b.key, findings, setter)}
-                                        expanders={expanders}
-                                        expanderEnabled={expanderEnabled}
-                                    />
-                                );
-                            })}
-                        </div>
-
-                        <ExpandableInput
-                            multiline
-                            value={additional}
-                            onChange={setAdditional}
-                            expanders={expanders}
-                            expanderEnabled={expanderEnabled}
-                            placeholder="Additional findings..."
-                            className="w-full text-[10pt] px-3 py-2 mt-2 rounded-lg border border-themeblue3/10 shadow-xs bg-themewhite text-tertiary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 resize-none min-h-[3rem] transition-all duration-300"
-                        />
-                        <PIIWarningBanner warnings={additionalPiiWarnings} />
+                        <button
+                            onClick={cycleExamStatus}
+                            className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all ${
+                                examStatus === 'all-normal'
+                                    ? 'bg-themegreen text-white'
+                                    : examStatus === 'has-abnormal'
+                                    ? 'bg-themeredred/20 text-themeredred'
+                                    : 'bg-tertiary/10 text-tertiary/40'
+                            }`}
+                        >
+                            {examStatus === 'all-normal'
+                                ? <RotateCcw size={18} strokeWidth={2.5} />
+                                : <Check size={20} strokeWidth={2.5} />
+                            }
+                        </button>
                     </div>
+
+                    <div>
+                        {renderBeforeBlocks.map(b => {
+                            const state = (isCustom ? wrapperStates[b.key] : blockStates[b.key]) ?? defaultItemState();
+                            const setter = isCustom ? setWrapperStates : setBlockStates;
+                            return (
+                                <ExamItemRow
+                                    key={b.key}
+                                    block={b}
+                                    state={state}
+                                    onCycleStatus={() => cycleStatus(b.key, setter, b)}
+                                    onToggleNormal={(fk) => toggleNormal(b.key, fk, setter, b)}
+                                    onToggleAbnormal={(ak) => toggleAbnormal(b.key, ak, setter, b)}
+                                    onSetFindings={(findings) => setFindings(b.key, findings, setter)}
+                                    expanders={expanders}
+                                    expanderEnabled={expanderEnabled}
+                                />
+                            );
+                        })}
+
+                        {isCustom ? (
+                            customBlocks.map(block => {
+                                const state = customStates[block.id] ?? defaultItemState();
+                                const peBlock = customBlockToPEBlock(block);
+                                return (
+                                    <ExamItemRow
+                                        key={block.id}
+                                        block={peBlock}
+                                        state={state}
+                                        onCycleStatus={() => cycleStatus(block.id, setCustomStates, peBlock)}
+                                        onToggleNormal={(fk) => toggleNormal(block.id, fk, setCustomStates, peBlock)}
+                                        onToggleAbnormal={(ak) => toggleAbnormal(block.id, ak, setCustomStates, peBlock)}
+                                        onSetFindings={(findings) => setFindings(block.id, findings, setCustomStates)}
+                                        expanders={expanders}
+                                        expanderEnabled={expanderEnabled}
+                                    />
+                                );
+                            })
+                        ) : (
+                            renderMiddleBlocks.map(b => {
+                                const state = blockStates[b.key] ?? defaultItemState();
+                                return (
+                                    <ExamItemRow
+                                        key={b.key}
+                                        block={b}
+                                        state={state}
+                                        onCycleStatus={() => cycleStatus(b.key, setBlockStates, b)}
+                                        onToggleNormal={(fk) => toggleNormal(b.key, fk, setBlockStates, b)}
+                                        onToggleAbnormal={(ak) => toggleAbnormal(b.key, ak, setBlockStates, b)}
+                                        onSetFindings={(findings) => setFindings(b.key, findings, setBlockStates)}
+                                        expanders={expanders}
+                                        expanderEnabled={expanderEnabled}
+                                    />
+                                );
+                            })
+                        )}
+
+                        {renderAfterBlocks.map(b => {
+                            const state = (isCustom ? wrapperStates[b.key] : blockStates[b.key]) ?? defaultItemState();
+                            const setter = isCustom ? setWrapperStates : setBlockStates;
+                            return (
+                                <ExamItemRow
+                                    key={b.key}
+                                    block={b}
+                                    state={state}
+                                    onCycleStatus={() => cycleStatus(b.key, setter, b)}
+                                    onToggleNormal={(fk) => toggleNormal(b.key, fk, setter, b)}
+                                    onToggleAbnormal={(ak) => toggleAbnormal(b.key, ak, setter, b)}
+                                    onSetFindings={(findings) => setFindings(b.key, findings, setter)}
+                                    expanders={expanders}
+                                    expanderEnabled={expanderEnabled}
+                                />
+                            );
+                        })}
+                    </div>
+
                 </div>
-            </section>
+            </div>
+
+            <div className="rounded-xl bg-themewhite2 overflow-hidden">
+                <div className="px-4 py-3">
+                    <ExpandableInput
+                        multiline
+                        value={additional}
+                        onChange={setAdditional}
+                        expanders={expanders}
+                        expanderEnabled={expanderEnabled}
+                        placeholder="Additional findings..."
+                        className="w-full text-[9pt] px-4 py-2.5 rounded-2xl border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 resize-none min-h-[3rem] transition-all duration-300"
+                    />
+                    <PIIWarningBanner warnings={additionalPiiWarnings} />
+                </div>
+            </div>
         </div>
     );
 }

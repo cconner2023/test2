@@ -63,6 +63,33 @@ export type SubmitResult = ServiceResult<{
   requestId?: string
 }>
 
+export type EmailAvailability = {
+  available: boolean
+  reason: 'account_exists' | 'pending_request' | 'invalid' | null
+}
+
+/**
+ * Check if an email is available for a new account request.
+ * Used for inline validation on the email field before submission.
+ */
+export async function checkEmailAvailability(email: string): Promise<EmailAvailability> {
+  try {
+    if (!email) return { available: false, reason: 'invalid' }
+
+    const { data, error } = await supabase.rpc('check_email_availability', {
+      p_email: email.toLowerCase().trim(),
+    })
+
+    if (error) throw error
+
+    return data as EmailAvailability
+  } catch (error) {
+    logger.error('Failed to check email availability:', error)
+    // On network failure, let the form submit and the server will catch it
+    return { available: true, reason: null }
+  }
+}
+
 /**
  * Submit a new account request via the submit_account_request RPC.
  * Returns a status_check_token that the user must save to check status later.
@@ -87,6 +114,12 @@ export async function submitAccountRequest(
 
     if (error) {
       const code = classifySupabaseError(error)
+      if (code === ErrorCode.DUPLICATE_REQUEST) {
+        return fail('A pending request for this email already exists. Use "Check Request Status" below to see its progress.')
+      }
+      if (code === ErrorCode.DUPLICATE_EMAIL) {
+        return fail('An account with this email already exists. Please sign in instead.')
+      }
       if (code === ErrorCode.RATE_LIMITED) {
         return fail('You have too many pending requests. Please wait for existing requests to be reviewed.')
       }

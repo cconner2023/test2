@@ -228,7 +228,7 @@ export function KnowledgeBaseDrawer({
             >
                 <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
                     {view === 'home' && (
-                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused}>
+                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused} inheritScroll>
                             <KBHome
                                 onCategoryClick={handleCategoryClick}
                                 searchQuery={searchQuery}
@@ -239,7 +239,7 @@ export function KnowledgeBaseDrawer({
                         </MobileSearchBar>
                     )}
                     {(view === 'training' || view === 'training-detail') && (
-                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={view === 'training'} onFocusChange={setSearchFocused}>
+                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={view === 'training'} onFocusChange={setSearchFocused} inheritScroll>
                             <TrainingPanel
                                 view={view as TrainingView}
                                 selectedTask={selectedTask}
@@ -249,7 +249,7 @@ export function KnowledgeBaseDrawer({
                         </MobileSearchBar>
                     )}
                     {(view === 'medications' || view === 'medication-detail') && (
-                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={view === 'medications'} onFocusChange={setSearchFocused}>
+                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={view === 'medications'} onFocusChange={setSearchFocused} inheritScroll>
                             <MedicationContent
                                 selectedMedication={selectedMedication}
                                 onMedicationSelect={handleMedicationSelect}
@@ -259,7 +259,7 @@ export function KnowledgeBaseDrawer({
                         </MobileSearchBar>
                     )}
                     {view === 'screener' && activeScreener && (
-                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={false} onFocusChange={setSearchFocused}>
+                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={false} onFocusChange={setSearchFocused} inheritScroll>
                             <StandaloneScreener screenerConfig={activeScreener} />
                         </MobileSearchBar>
                     )}

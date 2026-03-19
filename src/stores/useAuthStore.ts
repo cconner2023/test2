@@ -37,6 +37,14 @@ import type { DeviceRole } from '../lib/signal/transportTypes'
 
 const STORAGE_KEY = 'adtmc_user_profile'
 const LOCAL_SESSION_KEY = 'adtmc_local_session'
+const ROLES_STORAGE_KEY = 'adtmc_user_roles'
+
+/** Cached role metadata — persisted so role-gated features work offline. */
+interface CachedRoles {
+  roles: string[]
+  clinicId: string | null
+  isDevRole: boolean
+}
 
 export interface LocalSession {
   userId: string
@@ -151,6 +159,40 @@ function clearProfileStorage() {
   try { localStorage.removeItem(STORAGE_KEY) } catch { /* ignore */ }
 }
 
+// ---- Roles helpers ----
+
+/** Sync load from localStorage for instant hydration of role-gated features. */
+function loadRolesFromStorage(): CachedRoles | null {
+  try {
+    const raw = localStorage.getItem(ROLES_STORAGE_KEY)
+    if (raw && !raw.startsWith('enc:')) {
+      return JSON.parse(raw) as CachedRoles
+    }
+  } catch { /* ignore */ }
+  return null
+}
+
+/** Async load from encrypted storage. */
+async function loadRolesFromSecureStorage(): Promise<CachedRoles | null> {
+  try {
+    const raw = await secureGet(ROLES_STORAGE_KEY)
+    if (raw) return JSON.parse(raw) as CachedRoles
+  } catch { /* ignore */ }
+  return null
+}
+
+/** Persist roles to encrypted storage and localStorage (for sync hydration on next open). */
+function saveRolesToStorage(cached: CachedRoles) {
+  const json = JSON.stringify(cached)
+  secureSet(ROLES_STORAGE_KEY, json).catch(() => {})
+  try { localStorage.setItem(ROLES_STORAGE_KEY, json) } catch { /* ignore */ }
+}
+
+function clearRolesStorage() {
+  secureRemove(ROLES_STORAGE_KEY).catch(() => {})
+  try { localStorage.removeItem(ROLES_STORAGE_KEY) } catch { /* ignore */ }
+}
+
 /**
  * Fetch a full profile from Supabase for the given user ID.
  * Returns the UserTypes profile and the roles array.
@@ -247,6 +289,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     })
     clearLocalSessionStorage()
     clearProfileStorage()
+    clearRolesStorage()
     removePin()
     removeBiometric()
     clearPasswordVerification().catch(() => {})
@@ -358,16 +401,18 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
     }
   }
 
+  const cachedRoles = loadRolesFromStorage()
+
   return {
   user: null,
   loading: true,
   isGuest: false,
   profile: loadProfileFromStorage(),
-  roles: [],
-  clinicId: null,
-  isDevRole: false,
-  isSupervisorRole: false,
-  isProviderRole: false,
+  roles: cachedRoles?.roles ?? [],
+  clinicId: cachedRoles?.clinicId ?? null,
+  isDevRole: cachedRoles?.isDevRole ?? false,
+  isSupervisorRole: cachedRoles?.roles.includes('supervisor') ?? false,
+  isProviderRole: cachedRoles?.roles.includes('provider') ?? false,
   isPasswordRecovery: false,
   needsPasswordSetup: false,
   deviceRole: null,
@@ -391,6 +436,23 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         // Only hydrate if the sync load returned empty
         if (Object.keys(current).length === 0) {
           set({ profile: cached })
+        }
+      }
+    }).catch(() => {})
+
+    // Hydrate roles from encrypted storage (upgrade over sync localStorage read)
+    loadRolesFromSecureStorage().then(cached => {
+      if (cached) {
+        const currentRoles = get().roles
+        // Only hydrate if the sync load returned empty
+        if (currentRoles.length === 0) {
+          set({
+            roles: cached.roles,
+            clinicId: cached.clinicId,
+            isDevRole: cached.isDevRole,
+            isSupervisorRole: cached.roles.includes('supervisor'),
+            isProviderRole: cached.roles.includes('provider'),
+          })
         }
       }
     }).catch(() => {})
@@ -487,6 +549,7 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         needsPasswordSetup,
       })
       saveProfileToStorage(profile)
+      saveRolesToStorage({ roles, clinicId, isDevRole: isDev })
 
       // Prefetch barcode encryption key for offline use (fire-and-forget)
       prefetchBarcodeKey().catch(() => {})

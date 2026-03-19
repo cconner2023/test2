@@ -5,6 +5,8 @@ export enum ErrorCode {
   VALIDATION_FAILED = 'VALIDATION_FAILED',
   NOT_FOUND = 'NOT_FOUND',
   PERMISSION_DENIED = 'PERMISSION_DENIED',
+  DUPLICATE_REQUEST = 'DUPLICATE_REQUEST',
+  DUPLICATE_EMAIL = 'DUPLICATE_EMAIL',
   ENCRYPTION_FAILED = 'ENCRYPTION_FAILED',
   DECRYPT_FAILED = 'DECRYPT_FAILED',
   SYNC_FAILED = 'SYNC_FAILED',
@@ -16,6 +18,14 @@ export enum ErrorCode {
 export function classifySupabaseError(error: { message: string; code?: string }): ErrorCode {
   const msg = error.message.toLowerCase()
   const code = error.code ?? ''
+
+  if (msg.includes('duplicate_request:')) {
+    return ErrorCode.DUPLICATE_REQUEST
+  }
+
+  if (msg.includes('duplicate_email:')) {
+    return ErrorCode.DUPLICATE_EMAIL
+  }
 
   if (
     msg.includes('too many pending requests') ||

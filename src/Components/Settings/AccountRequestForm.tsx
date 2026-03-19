@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import type { Component } from '../../Data/User'
 import { credentials, components, ranksByComponent } from '../../Data/User'
-import { submitAccountRequest, checkRequestStatus, type AccountRequest } from '../../lib/accountRequestService'
-import { TextInput, SelectInput } from '../FormInputs'
+import { submitAccountRequest, checkRequestStatus, checkEmailAvailability, type AccountRequest } from '../../lib/accountRequestService'
+import { TextInput, PickerInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { validatePasswordComplexity } from '../../lib/constants'
 
@@ -56,6 +56,9 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isDuplicateError, setIsDuplicateError] = useState(false)
+  const [emailWarning, setEmailWarning] = useState<string | null>(null)
+  const [checkingEmail, setCheckingEmail] = useState(false)
   const [requestStatus, setRequestStatus] = useState<AccountRequest | null>(null)
 
   const componentRanks = component ? ranksByComponent[component as Component] : []
@@ -64,6 +67,26 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
     setComponent(val)
     if (val && rank && !ranksByComponent[val as Component]?.includes(rank)) {
       setRank('')
+    }
+  }
+
+  const handleEmailBlur = async () => {
+    const trimmed = email.trim()
+    if (!trimmed || !trimmed.includes('@')) {
+      setEmailWarning(null)
+      return
+    }
+    setCheckingEmail(true)
+    setEmailWarning(null)
+    const result = await checkEmailAvailability(trimmed)
+    setCheckingEmail(false)
+    if (!result.available) {
+      if (result.reason === 'account_exists') {
+        setEmailWarning('An account with this email already exists. Please sign in instead.')
+      } else if (result.reason === 'pending_request') {
+        setEmailWarning('A pending request for this email already exists.')
+        setIsDuplicateError(true)
+      }
     }
   }
 
@@ -100,10 +123,13 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
     e.preventDefault()
     setError(null)
 
+    if (emailWarning) { setError(emailWarning); return }
+
     const pwError = validatePasswordComplexity(password)
     if (pwError) { setError(pwError); return }
     if (password !== confirmPassword) { setError('Passwords do not match'); return }
 
+    setIsDuplicateError(false)
     setSubmitting(true)
 
     const result = await submitAccountRequest({
@@ -145,90 +171,51 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
         notes: notes || null,
       })
     } else {
-      setError(result.error || 'Failed to submit request')
+      const errorMsg = result.error || 'Failed to submit request'
+      setError(errorMsg)
+      if (errorMsg.includes('pending request for this email already exists')) {
+        setIsDuplicateError(true)
+      }
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending':
-        return 'text-themeyellow bg-themeyellow/10 border-themeyellow/20'
-      case 'approved':
-        return 'text-themegreen bg-themegreen/10 border-themegreen/20'
-      case 'rejected':
-        return 'text-themeredred bg-themeredred/10 border-themeredred/20'
-      default:
-        return 'text-tertiary bg-tertiary/10 border-tertiary/20'
-    }
-  }
 
   if (requestStatus) {
     return (
       <div>
-          <h2 className="text-lg font-semibold text-primary mb-4">Account Request Status</h2>
-
-          <div className={`p-4 rounded-lg border ${getStatusColor(requestStatus.status)}`}>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium uppercase tracking-wide">
-                {requestStatus.status}
-              </span>
-              <span className="text-xs opacity-75">
-                {new Date(requestStatus.requested_at).toLocaleDateString()}
-              </span>
-            </div>
-
-            <p className="text-sm mb-2">
-              <strong>Email:</strong> {requestStatus.email}
-            </p>
-            <p className="text-sm mb-2">
-              <strong>Name:</strong> {requestStatus.first_name} {requestStatus.middle_initial}{' '}
-              {requestStatus.last_name}
-            </p>
-            {requestStatus.rank && (
-              <p className="text-sm mb-2">
-                <strong>Rank:</strong> {requestStatus.rank}
-              </p>
-            )}
-            {requestStatus.component && (
-              <p className="text-sm mb-2">
-                <strong>Component:</strong> {requestStatus.component}
-              </p>
-            )}
-            {requestStatus.uic && (
-              <p className="text-sm mb-2">
-                <strong>UIC:</strong> {requestStatus.uic}
-              </p>
-            )}
-
-            {requestStatus.status === 'pending' && (
-              <p className="text-sm mt-3 italic">
-                Your request is pending review. You will be notified once it's approved.
-              </p>
-            )}
-
-            {requestStatus.status === 'approved' && (
-              <p className="text-sm mt-3 italic">
-                Your account has been approved! You can now sign in with your email and the password you set when you submitted your request.
-              </p>
-            )}
-
-            {requestStatus.status === 'rejected' && requestStatus.rejection_reason && (
-              <div className="mt-3">
-                <p className="text-sm font-medium">Reason:</p>
-                <p className="text-sm italic">{requestStatus.rejection_reason}</p>
+          <div className="rounded-xl border border-tertiary/15 p-5">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-primary">
+                  {requestStatus.first_name} {requestStatus.middle_initial}{' '}{requestStatus.last_name}
+                </span>
+                <span className="text-xs text-tertiary/40">
+                  {new Date(requestStatus.requested_at).toLocaleDateString()}
+                </span>
               </div>
-            )}
+              <p className="text-xs text-tertiary/50">{requestStatus.email}</p>
+              {(requestStatus.rank || requestStatus.component) && (
+                <p className="text-xs text-tertiary/50">
+                  {[requestStatus.rank, requestStatus.component, requestStatus.uic].filter(Boolean).join(' · ')}
+                </p>
+              )}
+              <div className="pt-2 border-t border-tertiary/10">
+                <p className="text-xs text-tertiary/60">
+                  {requestStatus.status === 'pending' && 'Your request is pending review. You will be notified once approved.'}
+                  {requestStatus.status === 'approved' && 'Your account has been approved. Sign in with your email and the password you created.'}
+                  {requestStatus.status === 'rejected' && (requestStatus.rejection_reason
+                    ? `Request declined — ${requestStatus.rejection_reason}`
+                    : 'Your request was not approved.')}
+                </p>
+              </div>
+            </div>
           </div>
 
           <button
-            onClick={() => {
-              setRequestStatus(null)
-              setSubmitted(false)
-            }}
-            className="mt-4 w-full px-4 py-2 rounded-lg bg-themeblue3 text-white font-medium
-                     transition-colors"
+            onClick={() => onBack?.()}
+            className="w-full text-xs text-themeblue2 hover:underline mt-3 active:scale-95 transition-all"
           >
-            Back
+            Back to sign in
           </button>
       </div>
     )
@@ -236,34 +223,41 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
 
   if (submitted) {
     return (
-      <div className="text-center">
-        <h2 className="text-xl font-semibold text-primary mb-2">Request Submitted!</h2>
-        <p className="text-tertiary/70 mb-4">
-          Your account request has been submitted. An administrator will review it shortly.
-        </p>
+      <div>
+        <div className="rounded-xl border border-tertiary/15 p-5">
+          <div className="space-y-3">
+            <p className="text-sm font-medium text-primary">Request Submitted</p>
+            <p className="text-xs text-tertiary/50">
+              An administrator will review your request shortly.
+            </p>
 
-        {statusCheckToken && (
-          <div className="mb-6 p-4 rounded-lg bg-themeblue2/10 border border-themeblue2/20 text-left">
-            <p className="text-sm font-medium text-themeblue3 mb-2">
-              Save your status check token:
-            </p>
-            <code className="block p-2 bg-themewhite rounded border border-themeblue2/20 text-xs font-mono text-themeblue3 break-all select-all">
-              {statusCheckToken}
-            </code>
-            <p className="text-xs text-themeblue2 mt-2">
-              You will need this token along with your email to check your request status.
-              It has been saved to your browser, but you should copy it somewhere safe in case
-              you clear your browser data.
-            </p>
+            {statusCheckToken && (
+              <div className="pt-2 border-t border-tertiary/10 space-y-1.5">
+                <p className="text-xs text-tertiary/50">Status check token</p>
+                <code className="block p-2 rounded-lg border border-tertiary/10 text-xs font-mono text-primary break-all select-all">
+                  {statusCheckToken}
+                </code>
+                <p className="text-[10px] text-tertiary/40">
+                  Save this token — you'll need it with your email to check status.
+                </p>
+              </div>
+            )}
           </div>
-        )}
+
+          <button
+            onClick={() => handleCheckStatus()}
+            className="mt-4 w-full px-4 py-2 rounded-lg bg-themeblue3 text-white font-medium
+                     active:scale-95 transition-all"
+          >
+            Check Request Status
+          </button>
+        </div>
 
         <button
-          onClick={() => handleCheckStatus()}
-          className="w-full px-4 py-2 rounded-lg bg-themeblue3 text-white font-medium
-                   transition-colors"
+          onClick={() => onBack?.()}
+          className="w-full text-xs text-themeblue2 hover:underline mt-3 active:scale-95 transition-all"
         >
-          Check Request Status
+          Back to sign in
         </button>
       </div>
     )
@@ -275,34 +269,66 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
         An account lets you log training completion and store your preferences. No patient data is collected.
       </p>
 
-      {error && <ErrorDisplay message={error} />}
+      {error && (
+        <div>
+          <ErrorDisplay message={error} />
+          {isDuplicateError && (
+            <button
+              type="button"
+              onClick={handleCheckStatus}
+              className="mt-2 w-full px-4 py-2 rounded-lg bg-themeblue3 text-white text-sm font-medium
+                       active:scale-95 transition-transform"
+            >
+              Check Request Status
+            </button>
+          )}
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-3">
-        <TextInput label="Email" value={email} onChange={setEmail} placeholder="your.email@mail.mil" type="email" required />
+        <TextInput
+          value={email}
+          onChange={(val) => { setEmail(val); setEmailWarning(null); setIsDuplicateError(false) }}
+          onBlur={handleEmailBlur}
+          placeholder="Email *"
+          type="email"
+          required
+          hint={checkingEmail ? 'Checking...' : emailWarning}
+        />
+        {isDuplicateError && emailWarning && (
+          <button
+            type="button"
+            onClick={handleCheckStatus}
+            className="-mt-1 w-full px-3 py-2 rounded-lg bg-themeblue3 text-white text-sm font-medium
+                     active:scale-95 transition-transform"
+          >
+            Check Request Status
+          </button>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
-          <TextInput label="First Name" value={firstName} onChange={setFirstName} required />
-          <TextInput label="Last Name" value={lastName} onChange={setLastName} required />
+          <TextInput value={firstName} onChange={setFirstName} placeholder="First Name *" required />
+          <TextInput value={lastName} onChange={setLastName} placeholder="Last Name *" required />
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <div className="w-20">
-            <TextInput label="MI" value={middleInitial} onChange={setMiddleInitial} maxLength={1} />
+            <TextInput value={middleInitial} onChange={setMiddleInitial} placeholder="MI" maxLength={1} />
           </div>
-          <TextInput label="UIC" value={uic} onChange={setUic} placeholder="Unit Identification Code" required />
+          <TextInput value={uic} onChange={setUic} placeholder="UIC *" required />
         </div>
 
-        <SelectInput label="Medical Credential" value={credential} onChange={setCredential} options={credentials} placeholder="Select credential" required />
-        <SelectInput label="Component" value={component} onChange={handleComponentChange} options={components} placeholder="Select component" required />
+        <PickerInput value={credential} onChange={setCredential} options={credentials} placeholder="Medical Credential *" required />
+        <PickerInput value={component} onChange={handleComponentChange} options={components} placeholder="Component *" required />
 
         {component && (
-          <SelectInput label="Rank" value={rank} onChange={setRank} options={componentRanks} placeholder="Select rank" required />
+          <PickerInput value={rank} onChange={setRank} options={componentRanks} placeholder="Rank *" required />
         )}
 
-        <TextInput label="Notes (optional)" value={notes} onChange={setNotes} placeholder="Anything else we should know?" />
+        <TextInput value={notes} onChange={setNotes} placeholder="Notes (optional)" />
 
-        <TextInput label="Password" value={password} onChange={setPassword} type="password" placeholder="Min 12 chars, upper, lower, digit, special" required />
-        <TextInput label="Confirm Password" value={confirmPassword} onChange={setConfirmPassword} type="password" placeholder="Re-enter password" required />
+        <TextInput value={password} onChange={setPassword} type="password" placeholder="Password *" required />
+        <TextInput value={confirmPassword} onChange={setConfirmPassword} type="password" placeholder="Confirm Password *" required />
 
         <button
           type="submit"

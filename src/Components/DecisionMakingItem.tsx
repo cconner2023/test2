@@ -1,14 +1,11 @@
 // components/DecisionMakingItem.tsx - FIXED VERSION
-import { useState, useRef, useEffect, useMemo, memo } from 'react'
+import { useMemo, memo } from 'react'
 import type { decisionMakingType } from '../Types/AlgorithmTypes'
-import type { getColorClasses } from '../Utilities/ColorUtilities'
 import type { medListTypes } from '../Data/MedData'
 
 interface DecisionMakingItemProps {
     item: decisionMakingType;
-    colors: ReturnType<typeof getColorClasses>;
     onMedicationClick: (medication: medListTypes) => void;
-    onDdxClick?: (diagnosis: string) => void;
 }
 
 // Consolidated badge/pill component
@@ -25,8 +22,7 @@ function Pill({
 }) {
     return (
         <button
-            className={`px-2 py-1 text-xs bg-themewhite text-primary rounded border border-themegray1/30 ${onClick ? 'hover:bg-themewhite2 transition-colors cursor-pointer' : ''
-                } ${className}`}
+            className={`px-2 py-0.5 text-[9pt] rounded-full bg-tertiary/5 text-tertiary/60 transition-colors active:scale-95 ${onClick ? 'cursor-pointer' : ''} ${className}`}
             onClick={onClick}
             type={onClick ? 'button' : undefined}
             title={title}
@@ -49,75 +45,16 @@ function TypeBadge({ item }: {
     if (!typeText) return null;
 
     return (
-        <div className="text-xs font-medium text-tertiary mb-2">
+        <div className="text-[9pt] font-semibold text-tertiary/70 uppercase tracking-wide mb-1.5">
             {typeText}
         </div>
     );
 }
 
-function DifferentialHeader({ ddx, onDdxClick }: {
-    ddx: string[];
-    onDdxClick?: (diagnosis: string) => void;
-}) {
+function TextBlock({ text }: { text: string }) {
     return (
-        <div className="bg-themewhite3 px-3 pt-3 pb-2 border-b border-themegray1/20">
-            <div className="text-xs font-medium text-tertiary mb-1">
-                {ddx.length === 1 ? 'Differential Diagnosis:' : 'Differential Diagnoses:'}
-            </div>
-            <div className="flex flex-wrap gap-1">
-                {ddx.map((diagnosis, index) => (
-                    <Pill
-                        key={index}
-                        onClick={onDdxClick ? () => onDdxClick(diagnosis) : undefined}
-                        title={onDdxClick ? `Click to view ${diagnosis} details` : undefined}
-                    >
-                        {diagnosis}
-                    </Pill>
-                ))}
-            </div>
-        </div>
-    );
-}
-
-// Expandable text component with 2-line truncation
-function ExpandableText({ text }: { text: string }) {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [needsTruncation, setNeedsTruncation] = useState(false);
-    const textRef = useRef<HTMLDivElement>(null);
-
-    useEffect(() => {
-        if (textRef.current) {
-            // Check if text overflows 2 lines
-            const lineHeight = parseFloat(getComputedStyle(textRef.current).lineHeight);
-            const maxHeight = lineHeight * 2;
-            setNeedsTruncation(textRef.current.scrollHeight > maxHeight + 2);
-        }
-    }, [text]);
-
-    return (
-        <div className="text-sm text-primary leading-relaxed mb-3">
-            <div
-                ref={textRef}
-                className={!isExpanded && needsTruncation ? 'line-clamp-2' : ''}
-            >
-                {text}
-            </div>
-            {needsTruncation && !isExpanded && (
-                <button
-                    onClick={() => setIsExpanded(true)}
-                    className="text-themeblue1 text-xs mt-1 hover:underline cursor-pointer"
-                >
-                    ...more
-                </button>
-            )}
-            {needsTruncation && isExpanded && (
-                <button
-                    onClick={() => setIsExpanded(false)}
-                    className="text-themeblue1 text-xs mt-1 hover:underline cursor-pointer"
-                >
-                    show less
-                </button>
-            )}
+        <div className="text-[10pt] text-primary leading-relaxed">
+            {text}
         </div>
     );
 }
@@ -155,26 +92,19 @@ function ContentSection({
     );
 
     return (
-        <>
-            {/* Text content with 2-line truncation */}
+        <div className="space-y-2">
             {item.text && (
-                <ExpandableText text={item.text} />
+                <TextBlock text={item.text} />
             )}
 
             {/* Ancillary Findings */}
             {Object.keys(groupedAncillaryFind).length > 0 && (
-                <div className="mb-3">
+                <div className="space-y-2">
                     {Object.entries(groupedAncillaryFind).map(([type, items]) => (
-                        <div key={type} className="mb-2">
-                            <div className="text-xs font-medium text-tertiary mb-1">
-                                {getAncillaryLabel(type)}:
-                            </div>
-                            <div className="flex flex-wrap gap-1">
-                                {items.map((anc, index) => (
-                                    <Pill key={index}>
-                                        {anc.modifier || ''}
-                                    </Pill>
-                                ))}
+                        <div key={type}>
+                            <div className="text-[9pt] font-semibold text-tertiary/70 uppercase tracking-wide mb-1">{getAncillaryLabel(type)}</div>
+                            <div className="text-[9pt] text-primary">
+                                {items.map(anc => anc.modifier).filter(Boolean).join('; ')}
                             </div>
                         </div>
                     ))}
@@ -183,8 +113,8 @@ function ContentSection({
 
             {/* Medications */}
             {item.medFind && item.medFind.length > 0 && (
-                <div className="mb-3">
-                    <div className="text-xs font-medium text-tertiary mb-1">Medications:</div>
+                <div>
+                    <div className="text-[9pt] font-semibold text-tertiary/70 uppercase tracking-wide mb-1">Medications</div>
                     <div className="flex flex-wrap gap-1">
                         {item.medFind.map((med, medIndex) => (
                             <Pill
@@ -202,41 +132,33 @@ function ContentSection({
             {/* Special Limitations */}
             {item.specLim && item.specLim.length > 0 && (
                 <div>
-                    <div className="text-xs font-medium text-tertiary mb-1">Special Limitations:</div>
-                    <div className="space-y-1">
-                        {item.specLim.map((lim, limIndex) => (
-                            <div key={limIndex} className="text-sm text-primary">
-                                {lim}
-                            </div>
-                        ))}
+                    <div className="text-[9pt] font-semibold text-tertiary/70 uppercase tracking-wide mb-1">Limitations</div>
+                    <div className="text-[9pt] text-primary">
+                        {item.specLim.join('; ')}
                     </div>
                 </div>
             )}
-        </>
+        </div>
     );
 }
 
-// Main component - each master item has its own differential and single background
+// Main component - each master item is a section: DDx header + card
 export const DecisionMakingItem = memo(function DecisionMakingItem({
     item,
     onMedicationClick,
-    onDdxClick,
 }: DecisionMakingItemProps) {
     const hasDDx = item.ddx && item.ddx.length > 0;
     return (
-        <div className="mb-4">
-            {/* Single cohesive unit for each master item */}
-            <div className="rounded-md bg-themewhite3">
-                {/* DIFFERENTIAL HEADER for this specific master item */}
-                {hasDDx && (
-                    <DifferentialHeader
-                        ddx={item.ddx!}
-                        onDdxClick={onDdxClick}
-                    />
-                )}
+        <div>
+            {/* DDx as section header above card */}
+            {hasDDx && (
+                <div className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase pb-2">
+                    {item.ddx!.join(' · ')}
+                </div>
+            )}
 
-                {/* Content area - shared background for everything */}
-                <div className={`${hasDDx ? 'px-3 pb-3' : 'p-3'}`}>
+            <div className="rounded-xl bg-themewhite2 overflow-hidden">
+                <div className="px-4 py-3 space-y-3">
                     {/* Parent section */}
                     <div>
                         <TypeBadge item={item} />
@@ -245,7 +167,7 @@ export const DecisionMakingItem = memo(function DecisionMakingItem({
 
                     {/* Child section */}
                     {item.assocMcp && (
-                        <div className="pt-4 mt-4 border-t border-themegray1/20">
+                        <div>
                             <TypeBadge item={item.assocMcp} />
                             <ContentSection item={item.assocMcp} onMedicationClick={onMedicationClick} />
                         </div>

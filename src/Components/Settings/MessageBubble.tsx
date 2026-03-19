@@ -1,6 +1,6 @@
 import { useRef, useCallback, useState, useEffect } from 'react'
 import { Check, X, Reply, Trash2, Clock, MessageSquare, Play, Pause } from 'lucide-react'
-import { GESTURE_THRESHOLDS } from '../../Utilities/GestureUtils'
+import { GESTURE_THRESHOLDS, isInteractiveTarget } from '../../Utilities/GestureUtils'
 import type { DecryptedSignalMessage } from '../../lib/signal/transportTypes'
 import { downloadDecryptedAttachment } from '../../lib/signal/attachmentService'
 
@@ -187,6 +187,10 @@ export function MessageBubble({
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     const t = e.touches[0]
+
+    // Yield to swipe-back: don't capture touches starting in the left edge zone
+    if (t.clientX < GESTURE_THRESHOLDS.EDGE_ZONE) return
+
     touchRef.current = { startX: t.clientX, startY: t.clientY, swiping: false, dirDecided: false }
     longPressFiredRef.current = false
     setTapped(true)

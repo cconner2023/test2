@@ -114,7 +114,7 @@ export const WriteNotePage = ({
             isVisible={isVisible}
             onClose={() => onExpansionChange(false)}
             fullHeight="90dvh"
-            mobileClassName="bg-themewhite2"
+            mobileClassName=""
             header={{
                 title: visiblePages[currentPage]?.label ?? '',
                 showBack: currentPage > 0,
@@ -134,7 +134,7 @@ export const WriteNotePage = ({
                 >
                     <SlideWrapper slideDirection={slideDirection}>
                         {/* Decision Making */}
-                            <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'decision' ? 'hidden' : ''}`}>
+                            <div className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'decision' ? 'hidden' : ''}`}>
                                 <div className="space-y-4">
                                     <div className="mx-2 mt-2">
                                         <ToggleOption
@@ -148,7 +148,7 @@ export const WriteNotePage = ({
                                         />
                                     </div>
                                     <div className="mx-2">
-                                        <div className="rounded-md border border-themegray1/15 overflow-hidden">
+                                        <div className="overflow-hidden">
                                             <DecisionMaking
                                                 algorithmOptions={algorithmOptions}
                                                 cardStates={cardStates}
@@ -162,7 +162,7 @@ export const WriteNotePage = ({
 
                         {/* HPI */}
                         {defaultHPI && (
-                            <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'hpi' ? 'hidden' : ''}`}>
+                            <div className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'hpi' ? 'hidden' : ''}`}>
                                 <div className="space-y-3">
                                     <div className="mx-2 mt-2">
                                         <ToggleOption
@@ -192,7 +192,7 @@ export const WriteNotePage = ({
 
                         {/* Physical Exam */}
                         {defaultPE && (
-                            <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'pe' ? 'hidden' : ''}`}>
+                            <div className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'pe' ? 'hidden' : ''}`}>
                                 <div className="space-y-3">
                                     <div className="mx-2 mt-2">
                                         <ToggleOption
@@ -207,7 +207,7 @@ export const WriteNotePage = ({
                                     </div>
                                     {includePhysicalExam && (
                                         <div className="mx-2">
-                                            <div className="rounded-md border border-themegray1/15 overflow-hidden">
+                                            <div className="overflow-hidden">
                                                 <PhysicalExam
                                                     initialText={peNote}
                                                     onChange={setPeNote}
@@ -229,7 +229,7 @@ export const WriteNotePage = ({
 
                         {/* Plan */}
                         {defaultPlan && (
-                            <div className={`w-full h-full overflow-y-auto p-2 bg-themewhite2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'plan' ? 'hidden' : ''}`}>
+                            <div className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'plan' ? 'hidden' : ''}`}>
                                 <div className="space-y-3">
                                     <div className="mx-2 mt-2">
                                         <ToggleOption
@@ -244,7 +244,7 @@ export const WriteNotePage = ({
                                     </div>
                                     {includePlan && (
                                         <div className="mx-2">
-                                            <div className="rounded-md border border-themegray1/15 overflow-hidden">
+                                            <div className="overflow-hidden">
                                                 <Plan
                                                     orderTags={profile.planOrderTags ?? { referral: [], meds: [], radiology: [], lab: [] }}
                                                     instructionTags={profile.planInstructionTags ?? []}
@@ -262,16 +262,16 @@ export const WriteNotePage = ({
                         )}
 
                         {/* Full Note */}
-                            <div className={`w-full h-full overflow-y-auto p-4 bg-themewhite2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'fullnote' ? 'hidden' : ''}`}>
-                                <div className="space-y-4">
+                            <div className={`w-full h-full overflow-y-auto p-2 ${isMobile ? 'pb-16' : ''} ${currentPageId !== 'fullnote' ? 'hidden' : ''}`}>
+                                <div className="space-y-4 mx-2 mt-2">
                                     {hasPII && (
                                         <PIIWarningBanner warnings={[...new Set([...piiWarnings, ...pePiiWarnings])]} />
                                     )}
-                                    {/* Note Preview (always visible) */}
-                                    <div>
-                                        <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
-                                            <span className="font-medium">Note Preview</span>
-                                            <div className="flex items-center gap-1">
+                                    {/* Note Preview */}
+                                    <section>
+                                        <div className="pb-2 flex items-center justify-between">
+                                            <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Note Preview</p>
+                                            <div className="flex items-center gap-0.5">
                                                 <ActionIconButton
                                                     onClick={() => handleCopy(previewNote, 'preview')}
                                                     status={copiedTarget === 'preview' ? 'done' : 'idle'}
@@ -288,16 +288,18 @@ export const WriteNotePage = ({
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="p-3 rounded-b-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto border border-themegray1/15">
-                                            {previewNote || "No content selected"}
+                                        <div className="rounded-xl bg-themewhite2 overflow-hidden">
+                                            <div className="px-4 py-3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto">
+                                                {previewNote || "No content selected"}
+                                            </div>
                                         </div>
-                                    </div>
+                                    </section>
 
-                                    {/* Encoded Note / Barcode (always visible) */}
-                                    <div>
-                                        <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
-                                            <span className="font-medium">Encoded Note</span>
-                                            <div className="flex items-center gap-1">
+                                    {/* Encoded Note / Barcode */}
+                                    <section>
+                                        <div className="pb-2 flex items-center justify-between">
+                                            <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Encoded Note</p>
+                                            <div className="flex items-center gap-0.5">
                                                 <ActionIconButton
                                                     onClick={() => handleCopy(encodedValue, 'encoded')}
                                                     status={copiedTarget === 'encoded' ? 'done' : 'idle'}
@@ -318,26 +320,28 @@ export const WriteNotePage = ({
                                                 />
                                             </div>
                                         </div>
-                                        <div className="mt-1">
-                                            <NoteBarcodeGenerator
-                                                algorithmOptions={algorithmOptions}
-                                                cardStates={cardStates}
-                                                noteOptions={{
-                                                    includeAlgorithm: true,
-                                                    includeDecisionMaking,
-                                                    customNote: includeHPI ? note : '',
-                                                    physicalExamNote: includePhysicalExam ? peNote : '',
-                                                    peState: includePhysicalExam ? (peState ?? undefined) : undefined,
-                                                    planNote: includePlan ? planNote : '',
-                                                    user: profile,
-                                                    userId: authUserId,
-                                                }}
-                                                symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
-                                                onEncodedValueChange={setEncodedValue}
-                                                layout={encodedValue.length > 300 ? 'col' : 'row'}
-                                            />
+                                        <div className="rounded-xl bg-themewhite2 overflow-hidden">
+                                            <div className="px-4 py-3">
+                                                <NoteBarcodeGenerator
+                                                    algorithmOptions={algorithmOptions}
+                                                    cardStates={cardStates}
+                                                    noteOptions={{
+                                                        includeAlgorithm: true,
+                                                        includeDecisionMaking,
+                                                        customNote: includeHPI ? note : '',
+                                                        physicalExamNote: includePhysicalExam ? peNote : '',
+                                                        peState: includePhysicalExam ? (peState ?? undefined) : undefined,
+                                                        planNote: includePlan ? planNote : '',
+                                                        user: profile,
+                                                        userId: authUserId,
+                                                    }}
+                                                    symptomCode={selectedSymptom?.icon?.replace('-', '') || 'A1'}
+                                                    onEncodedValueChange={setEncodedValue}
+                                                    layout={encodedValue.length > 300 ? 'col' : 'row'}
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
+                                    </section>
 
                                 </div>
                             </div>

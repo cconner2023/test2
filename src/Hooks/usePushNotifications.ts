@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   isPushSupported,
-  getExistingSubscription,
+  getStoredFcmToken,
   getSubscriptionInfo,
   subscribeToPush,
   unsubscribeFromPush,
+  migrateOldSubscription,
   type SubscriptionInfo,
 } from '../lib/pushNotificationService'
 
@@ -16,22 +17,25 @@ export function usePushNotifications() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const refreshSubscriptionState = useCallback(async () => {
-    const sub = await getExistingSubscription()
-    setIsSubscribed(!!sub)
-    setSubscriptionInfo(sub ? getSubscriptionInfo(sub) : null)
+  const refreshSubscriptionState = useCallback(() => {
+    const token = getStoredFcmToken()
+    setIsSubscribed(!!token)
+    setSubscriptionInfo(token ? getSubscriptionInfo() : null)
   }, [])
 
   useEffect(() => {
     const supported = isPushSupported()
     setIsSupported(supported)
 
-    if (!supported) {
-      setLoading(false)
-      return
+    if (supported) {
+      // One-time migration from old Web Push to FCM
+      migrateOldSubscription().then((migrated) => {
+        if (migrated) refreshSubscriptionState()
+      })
     }
 
-    refreshSubscriptionState().then(() => setLoading(false))
+    refreshSubscriptionState()
+    setLoading(false)
   }, [refreshSubscriptionState])
 
   const subscribe = useCallback(async (): Promise<boolean> => {
@@ -39,7 +43,7 @@ export function usePushNotifications() {
     setError(null)
     const result = await subscribeToPush()
     if (result.success) {
-      await refreshSubscriptionState()
+      refreshSubscriptionState()
     } else {
       setError(result.error || 'Failed to subscribe')
     }

@@ -1,6 +1,5 @@
 // components/DecisionMaking.tsx
 import { useState } from 'react'
-import { getColorClasses } from '../Utilities/ColorUtilities'
 import type { AlgorithmOptions, decisionMakingType, dispositionType } from '../Types/AlgorithmTypes'
 import type { CardState } from '../Hooks/useAlgorithm'
 import { DecisionMakingItem } from './DecisionMakingItem'
@@ -21,7 +20,6 @@ export function DecisionMaking({
     dispositionType,
 }: DecisionMakingProps) {
     const [selectedMedication, setSelectedMedication] = useState<medListTypes | null>(null)
-    const colors = getColorClasses(dispositionType)
 
     const findTriggeringDecisionMaking = (): decisionMakingType[] => {
         const results: decisionMakingType[] = [];
@@ -68,10 +66,10 @@ export function DecisionMaking({
             <div className="h-full">
                 {selectedMedication ? (
                     <div className="h-full flex flex-col">
-                        <div className="flex-none p-3 border-b border-themegray1/20">
+                        <div className="flex-none px-4 py-3 border-b border-tertiary/10">
                             <button
                                 onClick={handleCloseMedication}
-                                className="flex items-center gap-1 text-sm text-themeblue2 hover:text-themeblue1"
+                                className="flex items-center gap-1 text-[10pt] text-themeblue2 hover:text-themeblue1 active:scale-95 transition-transform"
                             >
                                 ← Back
                             </button>
@@ -81,22 +79,14 @@ export function DecisionMaking({
                         </div>
                     </div>
                 ) : (
-                    <div className="h-full overflow-y-auto p-3 space-y-4">
-                        {/* Clinical Decision Making Content */}
-                        {decisionMakingContent.length > 0 && (
-                            <div className="border-t border-themegray1/20 pt-4">
-                                <div className="text-xs font-semibold text-tertiary uppercase tracking-wide mb-3">Clinical Decision Support</div>
-                                {decisionMakingContent.map((item, index) => (
-                                    <DecisionMakingItem
-                                        key={index}
-                                        item={item}
-                                        colors={colors}
-                                        onMedicationClick={handleMedicationClick}
-                                        onDdxClick={undefined}
-                                    />
-                                ))}
-                            </div>
-                        )}
+                    <div className="h-full overflow-y-auto space-y-4">
+                        {decisionMakingContent.map((item, index) => (
+                            <DecisionMakingItem
+                                key={index}
+                                item={item}
+                                onMedicationClick={handleMedicationClick}
+                            />
+                        ))}
                     </div>
                 )}
             </div>

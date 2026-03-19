@@ -41,6 +41,8 @@ interface MobileSearchBarProps {
     /** Called when focus state changes — parent uses this to hide/show header content */
     onFocusChange?: (focused: boolean) => void
     variant?: 'default' | 'messages' | 'admin' | 'supervisor' | 'property'
+    /** When true, skip creating own scroll container — parent handles scrolling */
+    inheritScroll?: boolean
 }
 
 function setExternalRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
@@ -62,6 +64,7 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
             onFocus,
             onFocusChange,
             variant = 'default',
+            inheritScroll = false,
         },
         externalRef,
     ) {
@@ -242,7 +245,7 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
             return (
                 <div
                     ref={mergedScrollRef}
-                    className={`h-full overflow-y-auto ${className}`}
+                    className={`${inheritScroll ? '' : 'h-full overflow-y-auto'} ${className}`}
                     style={style}
                 >
                     {children}
@@ -253,7 +256,7 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
         return (
             <div
                 ref={mergedScrollRef}
-                className={`h-full overflow-y-auto ${className}`}
+                className={`${inheritScroll ? '' : 'h-full overflow-y-auto'} ${className}`}
                 style={style}
             >
                 {/* Inline search bar — collapses with scroll, expands on focus */}

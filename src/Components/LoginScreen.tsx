@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { LogIn, KeyRound, Lock, UserPlus } from 'lucide-react'
+import { Lock } from 'lucide-react'
 import { useAuthStore } from '../stores/useAuthStore'
 import { signIn } from '../lib/authService'
 import { supabase } from '../lib/supabase'
@@ -146,10 +146,9 @@ export function LoginScreen() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
+                  className="w-full px-4 py-3 rounded-lg
                          bg-themeblue3 text-white disabled:opacity-50 transition-colors"
                 >
-                  <LogIn size={18} />
                   {loading ? 'Signing In...' : 'Sign In'}
                 </button>
               </form>
@@ -185,10 +184,9 @@ export function LoginScreen() {
                 </button>
                 <button
                   onClick={() => switchView('request')}
-                  className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg border-2 border-tertiary/10 text-primary
+                  className="flex-1 px-4 py-3 rounded-lg border-2 border-tertiary/10 text-primary
                          font-medium"
                 >
-                  <UserPlus size={16} />
                   Request Account
                 </button>
               </div>
@@ -267,10 +265,10 @@ export function LoginScreen() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
+                  className="w-full px-4 py-3 rounded-lg
                          bg-themeblue3 text-white font-medium disabled:opacity-50 transition-colors"
                 >
-                  <KeyRound size={18} />
+
                   {loading ? 'Sending...' : 'Send Reset Token'}
                 </button>
               </form>
@@ -303,10 +301,10 @@ export function LoginScreen() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
+                  className="w-full px-4 py-3 rounded-lg
                          bg-themeblue3 text-white font-medium disabled:opacity-50 transition-colors"
                 >
-                  <KeyRound size={18} />
+
                   {loading ? 'Verifying...' : 'Verify & Reset'}
                 </button>
               </form>

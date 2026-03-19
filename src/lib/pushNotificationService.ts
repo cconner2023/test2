@@ -1,71 +1,59 @@
 import { supabase } from './supabase'
-import { base64urlToBytes } from './base64Utils'
 import { succeed, fail, type ServiceResult } from './result'
 import { getErrorMessage } from '../Utilities/errorUtils'
+import { getFirebaseMessaging, getToken, deleteToken } from './firebase'
 
-const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined
+const VAPID_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined
+const FCM_TOKEN_KEY = 'adtmc_fcm_token'
 
 export function isPushSupported(): boolean {
   return (
     'serviceWorker' in navigator &&
     'PushManager' in window &&
     'Notification' in window &&
-    !!VAPID_PUBLIC_KEY
+    !!VAPID_KEY
   )
 }
 
-export async function getExistingSubscription(): Promise<PushSubscription | null> {
-  if (!('serviceWorker' in navigator)) return null
-  const registration = await navigator.serviceWorker.getRegistration()
-  if (!registration) return null
-  return registration.pushManager.getSubscription()
+export function getStoredFcmToken(): string | null {
+  return localStorage.getItem(FCM_TOKEN_KEY)
 }
 
 export interface SubscriptionInfo {
-  endpoint: string
-  domain: string
+  provider: string
 }
 
-export function getSubscriptionInfo(sub: PushSubscription): SubscriptionInfo {
-  const endpoint = sub.endpoint
-  let domain: string
-  try {
-    domain = new URL(endpoint).hostname
-  } catch {
-    domain = 'unknown'
-  }
-  return { endpoint, domain }
+export function getSubscriptionInfo(): SubscriptionInfo | null {
+  const token = getStoredFcmToken()
+  if (!token) return null
+  return { provider: 'Firebase Cloud Messaging' }
 }
 
 export async function subscribeToPush(): Promise<ServiceResult> {
   try {
-    if (!VAPID_PUBLIC_KEY) {
-      return fail('VAPID public key not configured')
-    }
+    if (!VAPID_KEY) return fail('VAPID public key not configured')
 
     const permission = await Notification.requestPermission()
-    if (permission !== 'granted') {
-      return fail('Notification permission denied')
-    }
+    if (permission !== 'granted') return fail('Notification permission denied')
+
+    const messaging = await getFirebaseMessaging()
+    if (!messaging) return fail('Firebase Messaging not supported')
 
     const registration = await navigator.serviceWorker.ready
-    const subscription = await registration.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: base64urlToBytes(VAPID_PUBLIC_KEY),
+    const token = await getToken(messaging, {
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration: registration,
     })
 
-    const subJson = subscription.toJSON()
+    if (!token) return fail('Failed to get FCM token')
+
     const { error } = await supabase.rpc('save_push_subscription', {
-      p_endpoint: subJson.endpoint!,
-      p_auth_key: subJson.keys!.auth,
-      p_p256dh_key: subJson.keys!.p256dh,
+      p_fcm_token: token,
     })
 
-    if (error) {
-      await subscription.unsubscribe()
-      return fail(error.message)
-    }
+    if (error) return fail(error.message)
 
+    localStorage.setItem(FCM_TOKEN_KEY, token)
     return succeed()
   } catch (err) {
     return fail(getErrorMessage(err, 'Failed to subscribe'))
@@ -73,42 +61,109 @@ export async function subscribeToPush(): Promise<ServiceResult> {
 }
 
 /**
- * Re-sync an existing browser push subscription to the database for the
- * current authenticated user.  Called on login so that stale / orphaned
- * browser subscriptions are re-associated with the logged-in user and
- * the backend can deliver pushes again.
+ * Re-sync the FCM token on login. Calls getToken() to handle
+ * automatic token refresh (expired tokens get rotated by Firebase).
  */
 export async function resyncPushSubscription(): Promise<void> {
   try {
-    const subscription = await getExistingSubscription()
-    if (!subscription) return
+    const storedToken = getStoredFcmToken()
+    if (!storedToken) return
 
-    const subJson = subscription.toJSON()
-    if (!subJson.endpoint || !subJson.keys?.auth || !subJson.keys?.p256dh) return
+    let tokenToSave = storedToken
+
+    const messaging = await getFirebaseMessaging()
+    if (messaging && VAPID_KEY) {
+      const registration = await navigator.serviceWorker.ready
+      const freshToken = await getToken(messaging, {
+        vapidKey: VAPID_KEY,
+        serviceWorkerRegistration: registration,
+      })
+      if (freshToken) {
+        tokenToSave = freshToken
+        if (freshToken !== storedToken) {
+          localStorage.setItem(FCM_TOKEN_KEY, freshToken)
+        }
+      }
+    }
 
     await supabase.rpc('save_push_subscription', {
-      p_endpoint: subJson.endpoint,
-      p_auth_key: subJson.keys.auth,
-      p_p256dh_key: subJson.keys.p256dh,
+      p_fcm_token: tokenToSave,
     })
   } catch {
     // Best-effort — don't block login if sync fails
   }
 }
 
-export async function unsubscribeFromPush(): Promise<ServiceResult> {
+const FCM_MIGRATED_KEY = 'adtmc_fcm_migrated'
+
+/**
+ * One-time migration: if the browser has an old Web Push subscription
+ * (from the pre-FCM era) but no FCM token in localStorage, automatically
+ * re-subscribe via Firebase and clean up the old subscription.
+ * Returns true if migration occurred (caller should refresh state).
+ */
+export async function migrateOldSubscription(): Promise<boolean> {
   try {
-    const subscription = await getExistingSubscription()
-    if (!subscription) return succeed()
+    if (localStorage.getItem(FCM_MIGRATED_KEY)) return false
+    if (getStoredFcmToken()) {
+      localStorage.setItem(FCM_MIGRATED_KEY, '1')
+      return false
+    }
 
-    const endpoint = subscription.endpoint
+    // Check for an old PushManager subscription
+    const registration = await navigator.serviceWorker.getRegistration()
+    if (!registration) return false
+    const oldSub = await registration.pushManager.getSubscription()
+    if (!oldSub) {
+      localStorage.setItem(FCM_MIGRATED_KEY, '1')
+      return false
+    }
 
-    await subscription.unsubscribe()
+    // Notification permission is already granted (old sub exists)
+    const messaging = await getFirebaseMessaging()
+    if (!messaging || !VAPID_KEY) return false
 
-    await supabase.rpc('remove_push_subscription', {
-      p_endpoint: endpoint,
+    // Unsubscribe the old Web Push subscription
+    await oldSub.unsubscribe().catch(() => {})
+
+    // Get a fresh FCM token
+    const swReg = await navigator.serviceWorker.ready
+    const token = await getToken(messaging, {
+      vapidKey: VAPID_KEY,
+      serviceWorkerRegistration: swReg,
     })
 
+    if (!token) return false
+
+    const { error } = await supabase.rpc('save_push_subscription', {
+      p_fcm_token: token,
+    })
+
+    if (error) return false
+
+    localStorage.setItem(FCM_TOKEN_KEY, token)
+    localStorage.setItem(FCM_MIGRATED_KEY, '1')
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function unsubscribeFromPush(): Promise<ServiceResult> {
+  try {
+    const token = getStoredFcmToken()
+    if (!token) return succeed()
+
+    const messaging = await getFirebaseMessaging()
+    if (messaging) {
+      await deleteToken(messaging).catch(() => {})
+    }
+
+    await supabase.rpc('remove_push_subscription', {
+      p_fcm_token: token,
+    })
+
+    localStorage.removeItem(FCM_TOKEN_KEY)
     return succeed()
   } catch (err) {
     return fail(getErrorMessage(err, 'Failed to unsubscribe'))

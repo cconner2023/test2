@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { X } from 'lucide-react';
 import { useTextExpander } from '../Hooks/useTextExpander';
 import { TextExpanderSuggestion } from './TextExpanderSuggestion';
 import type { TextExpander } from '../Data/User';
@@ -26,12 +27,15 @@ export function ExpandableInput({
     onClick,
 }: ExpandableInputProps) {
     const [cursorPosition, setCursorPosition] = useState(0);
+    const [focused, setFocused] = useState(false);
     const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
 
     const { suggestions, selectedIndex, accept, dismiss, selectNext, selectPrev } =
         useTextExpander({ text: value, cursorPosition, expanders, enabled: expanderEnabled });
 
     const hasSuggestions = suggestions.length > 0;
+    const hasValue = value.trim().length > 0;
+    const showClose = focused || hasValue;
 
     const handleSelect = useCallback((e: React.SyntheticEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         setCursorPosition(e.currentTarget.selectionStart ?? 0);
@@ -74,30 +78,58 @@ export function ExpandableInput({
         }
     }, [hasSuggestions, handleAccept, dismiss, selectNext, selectPrev]);
 
+    const handleClose = useCallback(() => {
+        onChange('');
+        setFocused(false);
+        inputRef.current?.blur();
+    }, [onChange]);
+
+    const handleFocus = useCallback(() => setFocused(true), []);
+    const handleBlur = useCallback(() => {
+        if (!value.trim()) setFocused(false);
+    }, [value]);
+
     const sharedProps = {
         value,
         onChange: handleChange,
         onSelect: handleSelect,
         onKeyDown: handleKeyDown,
+        onFocus: handleFocus,
+        onBlur: handleBlur,
         onClick,
         placeholder,
-        className,
+        className: `${className} flex-1 min-w-0`,
     };
 
     return (
         <div className="relative">
-            {multiline ? (
-                <textarea
-                    ref={inputRef as React.RefObject<HTMLTextAreaElement>}
-                    {...sharedProps}
-                />
-            ) : (
-                <input
-                    type="text"
-                    ref={inputRef as React.RefObject<HTMLInputElement>}
-                    {...sharedProps}
-                />
-            )}
+            <div className="flex items-center gap-2">
+                {multiline ? (
+                    <textarea
+                        ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+                        {...sharedProps}
+                    />
+                ) : (
+                    <input
+                        type="text"
+                        ref={inputRef as React.RefObject<HTMLInputElement>}
+                        {...sharedProps}
+                    />
+                )}
+                <div className={`transition-all duration-200 overflow-hidden ${
+                    showClose ? 'w-9 opacity-100' : 'w-0 opacity-0'
+                }`}>
+                    <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={handleClose}
+                        className="w-9 h-9 rounded-full flex items-center justify-center bg-tertiary/10 active:scale-95 shrink-0"
+                        aria-label="Clear"
+                    >
+                        <X size={16} className="text-tertiary" />
+                    </button>
+                </div>
+            </div>
             {hasSuggestions && (
                 <TextExpanderSuggestion
                     suggestions={suggestions}

@@ -108,7 +108,7 @@ export const NotificationSettingsPanel = () => {
                 </p>
                 <p className="text-[11px] text-tertiary/70 mt-0.5 truncate">
                   {isSubscribed && subscriptionInfo
-                    ? subscriptionInfo.domain
+                    ? subscriptionInfo.provider
                     : 'This device is not receiving push notifications'
                   }
                 </p>

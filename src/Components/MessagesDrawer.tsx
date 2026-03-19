@@ -8,6 +8,7 @@ import { useMessagesContext } from '../Hooks/MessagesContext'
 import { useAuth } from '../Hooks/useAuth'
 import { useUserProfile } from '../Hooks/useUserProfile'
 import { useIsMobile } from '../Hooks/useIsMobile'
+import { useSwipeBack } from '../Hooks/useSwipeBack'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { GroupInfo } from '../lib/signal/groupTypes'
 
@@ -94,6 +95,9 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         onClose()
     }, [onClose, messagesCtx])
 
+    // Left-edge swipe-back to close messages panel (contacts list view only)
+    const contactsSwipeBack = useSwipeBack(view === 'messages' ? handleClose : undefined, isMobile)
+
     const isConversationView = view === 'messages-chat' || view === 'messages-group-chat'
     const isMessagesActive = view === 'messages' || isConversationView
 
@@ -137,7 +141,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
         ) : null
 
         return (
-            <div className="h-full relative bg-themewhite3">
+            <div className="h-full relative bg-themewhite3" {...contactsSwipeBack}>
                 {/* Floating header — collapses on search focus like NavTop */}
                 {mobileHeader && (
                     <animated.div

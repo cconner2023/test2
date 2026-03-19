@@ -641,7 +641,7 @@ function AppContent() {
               willChange: messagesSlide.isDragging ? 'transform' : 'auto',
               pointerEvents: (navigation.showMessagesDrawer || messagesSlide.progress > 0) ? 'auto' : 'none',
             }}
-            {...messagesSlide.panelCloseHandlers}
+
           >
             <ErrorBoundary>
             <Suspense fallback={null}>

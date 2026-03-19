@@ -113,52 +113,62 @@ function PlanBlockRow({ label, tags, state, onCycleStatus, onToggleTag, onSetFre
     expanderEnabled?: boolean;
 }) {
     const freeTextWarnings = useMemo(() => detectPII(state.freeText), [state.freeText]);
+    const isExpanded = state.status === 'active';
 
     return (
         <div>
             <button
                 type="button"
-                className="flex items-center justify-between w-full text-left p-2.5 rounded-md transition-colors text-xs border border-themegray1/20 bg-themewhite text-secondary hover:bg-themewhite3"
+                className="flex items-center gap-3 w-full text-left py-3 active:scale-[0.98] transition-all"
                 onClick={onCycleStatus}
             >
-                <span className="font-medium">{label.toUpperCase()}</span>
-                <span className={`text-[10px] uppercase tracking-wide font-semibold ${
-                    state.status === 'active' ? 'text-themeblue2' : 'text-secondary/40'
-                }`}>
-                    {state.status === 'active' ? 'Active' : 'Not Included'}
-                </span>
+                <span className={`w-3.5 h-3.5 rounded-full shrink-0 transition-colors duration-200 ${
+                    state.status === 'active'
+                        ? 'bg-themegreen'
+                        : 'ring-[1.5px] ring-inset ring-tertiary/25 bg-transparent'
+                }`} />
+                <span className="text-[10pt] font-medium text-primary flex-1">{label}</span>
             </button>
-            {state.status === 'active' && (
-                <div className="mt-1 ml-2">
-                    {tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-1">
-                            {tags.map(tag => (
-                                <button
-                                    key={tag}
-                                    onClick={(e) => { e.stopPropagation(); onToggleTag(tag); }}
-                                    className={`px-2 py-0.5 text-[10px] rounded-full border transition-colors ${
-                                        state.selectedTags.includes(tag)
-                                            ? 'bg-themeblue2/20 border-themeblue2/40 text-primary'
-                                            : 'border-themegray1/20 bg-themewhite text-secondary hover:bg-themewhite3'
-                                    }`}
-                                >
-                                    {tag}
-                                </button>
-                            ))}
-                        </div>
-                    )}
-                    <ExpandableInput
-                        value={state.freeText}
-                        onChange={onSetFreeText}
-                        expanders={expanders}
-                        expanderEnabled={expanderEnabled}
-                        placeholder="Additional details..."
-                        className="w-full text-xs px-3 py-1.5 rounded border border-themeblue2/20 bg-themewhite text-tertiary outline-none focus:border-themeblue2/40"
-                        onClick={(e) => e.stopPropagation()}
-                    />
-                    <PIIWarningBanner warnings={freeTextWarnings} />
+
+            <div
+                className="grid transition-[grid-template-rows,opacity] duration-300 ease-out"
+                style={{
+                    gridTemplateRows: isExpanded ? '1fr' : '0fr',
+                    opacity: isExpanded ? 1 : 0,
+                }}
+            >
+                <div className="overflow-hidden min-h-0">
+                    <div className="pb-3 pl-[26px]">
+                        {tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-1.5">
+                                {tags.map(tag => (
+                                    <button
+                                        key={tag}
+                                        onClick={(e) => { e.stopPropagation(); onToggleTag(tag); }}
+                                        className={`px-2 py-0.5 text-[9pt] rounded-full transition-colors active:scale-95 ${
+                                            state.selectedTags.includes(tag)
+                                                ? 'bg-themegreen/15 text-themegreen'
+                                                : 'bg-tertiary/5 text-tertiary/40'
+                                        }`}
+                                    >
+                                        {tag}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
+                        <ExpandableInput
+                            value={state.freeText}
+                            onChange={onSetFreeText}
+                            expanders={expanders}
+                            expanderEnabled={expanderEnabled}
+                            placeholder="Additional details..."
+                            className="w-full text-[9pt] px-4 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite text-primary outline-none focus:border-themeblue1/30 focus:bg-themewhite2 placeholder:text-tertiary/30 transition-all duration-300 mt-1"
+                            onClick={(e) => e.stopPropagation()}
+                        />
+                        <PIIWarningBanner warnings={freeTextWarnings} />
+                    </div>
                 </div>
-            )}
+            </div>
         </div>
     );
 }
@@ -267,49 +277,55 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
     }
 
     return (
-        <div className="p-3 space-y-3">
+        <div className="space-y-4">
             {/* Order Set chips */}
             {orderSets.length > 0 && (
-                <div>
-                    <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5">
-                        Order Sets
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                        {orderSets.map(os => {
-                            const isActive = activeSetIds.has(os.id);
-                            return (
-                                <button
-                                    key={os.id}
-                                    onClick={() => applyOrderSet(os)}
-                                    className={`px-3 py-1.5 text-[11px] rounded-lg border font-medium transition-all ${
-                                        isActive
-                                            ? 'border-themeblue2 bg-themeblue2 text-white shadow-sm'
-                                            : 'border-tertiary/25 bg-themewhite text-secondary hover:bg-themewhite3 hover:border-tertiary/40'
-                                    }`}
-                                >
-                                    {os.name}
-                                </button>
-                            );
-                        })}
+                <section>
+                    <div className="pb-2 flex items-center gap-2">
+                        <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Order Sets</p>
                     </div>
-                </div>
+                    <div className="rounded-xl bg-themewhite2 overflow-hidden">
+                        <div className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1.5">
+                                {orderSets.map(os => {
+                                    const isActive = activeSetIds.has(os.id);
+                                    return (
+                                        <button
+                                            key={os.id}
+                                            onClick={() => applyOrderSet(os)}
+                                            className={`px-2.5 py-1 text-[10pt] rounded-full transition-colors active:scale-95 ${
+                                                isActive
+                                                    ? 'bg-themegreen/15 text-themegreen'
+                                                    : 'bg-tertiary/5 text-tertiary/40'
+                                            }`}
+                                        >
+                                            {os.name}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </section>
             )}
 
             {/* Block rows */}
-            <div className="space-y-1.5">
-                {visibleBlocks.map(key => (
-                    <PlanBlockRow
-                        key={key}
-                        label={BLOCK_LABELS[key]}
-                        tags={allTags[key]}
-                        state={states[key]}
-                        onCycleStatus={() => cycleStatus(key)}
-                        onToggleTag={(tag) => toggleTag(key, tag)}
-                        onSetFreeText={(text) => setFreeText(key, text)}
-                        expanders={expanders}
-                        expanderEnabled={expanderEnabled}
-                    />
-                ))}
+            <div className="rounded-xl bg-themewhite2 overflow-hidden">
+                <div className="px-4 py-3">
+                    {visibleBlocks.map(key => (
+                        <PlanBlockRow
+                            key={key}
+                            label={BLOCK_LABELS[key]}
+                            tags={allTags[key]}
+                            state={states[key]}
+                            onCycleStatus={() => cycleStatus(key)}
+                            onToggleTag={(tag) => toggleTag(key, tag)}
+                            onSetFreeText={(text) => setFreeText(key, text)}
+                            expanders={expanders}
+                            expanderEnabled={expanderEnabled}
+                        />
+                    ))}
+                </div>
             </div>
         </div>
     );
