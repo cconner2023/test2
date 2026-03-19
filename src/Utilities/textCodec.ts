@@ -16,16 +16,14 @@ export { uint8ToBase64, base64ToUint8 };
 // Compressed values are prefixed with "!" to distinguish from legacy base64.
 // Base64 never contains "!" so detection is unambiguous.
 
-/** Compress text for barcode encoding. Uses deflateRaw when it saves space. */
+/** Compress text for barcode encoding. Uses deflateRaw + base64. */
 export function compressText(text: string): string {
     try {
         const deflated = deflateRaw(new TextEncoder().encode(text));
-        const compressed = '!' + uint8ToBase64(deflated);
-        const legacy = btoa(encodeURIComponent(text));
-        return compressed.length < legacy.length ? compressed : legacy;
+        return '!' + uint8ToBase64(deflated);
     } catch (e) {
         logError('textCodec.compress', e);
-        return btoa(encodeURIComponent(text));
+        return '!' + uint8ToBase64(new TextEncoder().encode(text));
     }
 }
 

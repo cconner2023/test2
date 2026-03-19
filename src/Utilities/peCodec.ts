@@ -228,8 +228,9 @@ function flattenAbnormals(findings: PEFinding[]): AbnormalOption[] {
 }
 
 function normalsToBitmask(selectedNormals: string[], findings: PEFinding[]): number {
+    if (findings.length > 31) logError('peCodec.normalsToBitmask', `${findings.length} findings exceeds 31-bit limit`);
     let bitmask = 0;
-    for (let i = 0; i < findings.length; i++) {
+    for (let i = 0; i < Math.min(findings.length, 31); i++) {
         if (selectedNormals.includes(findings[i].key)) {
             bitmask |= (1 << i);
         }
@@ -239,8 +240,9 @@ function normalsToBitmask(selectedNormals: string[], findings: PEFinding[]): num
 
 function abnormalsToBitmask(selectedAbnormals: string[], findings: PEFinding[]): number {
     const allAbnormals = flattenAbnormals(findings);
+    if (allAbnormals.length > 31) logError('peCodec.abnormalsToBitmask', `${allAbnormals.length} abnormals exceeds 31-bit limit`);
     let bitmask = 0;
-    for (let i = 0; i < allAbnormals.length; i++) {
+    for (let i = 0; i < Math.min(allAbnormals.length, 31); i++) {
         if (selectedAbnormals.includes(allAbnormals[i].key)) {
             bitmask |= (1 << i);
         }

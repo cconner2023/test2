@@ -5,8 +5,6 @@ import { compressText, decompressText, bitmaskToIndices, indicesToBitmask } from
 import { decodePECompact, encodePEState } from './peCodec';
 import { logError } from './ErrorHandler';
 
-/** True when value looks like a versioned PE compact string (e.g. "6:A,R,…"). */
-const isCompactPE = (v: string) => /^\d+:/.test(v);
 import type { PEState } from '../Types/PETypes';
 import { Algorithm } from '../Data/Algorithms';
 import { catData } from '../Data/CatData';
@@ -15,6 +13,9 @@ import type { UserTypes } from '../Data/User';
 import type { AlgorithmOptions, dispositionType } from '../Types/AlgorithmTypes';
 import type { CardState } from '../Hooks/useAlgorithm';
 import type { catDataTypes, subCatDataTypes } from '../Types/CatTypes';
+
+/** True when value looks like a versioned PE compact string (e.g. "6:A,R,…"). */
+const isCompactPE = (v: string) => /^\d+:/.test(v);
 
 // ---------------------------------------------------------------------------
 // Types
@@ -70,6 +71,83 @@ export interface ProviderNoteEncodeOptions {
 }
 
 // ---------------------------------------------------------------------------
+// Shared user encode / decode
+// ---------------------------------------------------------------------------
+
+/** Encode a user profile into "{rankIdx}.{credIdx}.{compIdx}.{compressedName}" */
+function encodeUser(user: UserTypes | undefined): string | null {
+    if (!user?.lastName) return null;
+    const ri = user.rank ? ranks.indexOf(user.rank) : -1;
+    const ci = user.credential ? credentials.indexOf(user.credential) : -1;
+    const coi = user.component ? components.indexOf(user.component) : -1;
+    const nameStr = `${user.firstName ?? ''}|${user.lastName ?? ''}|${user.middleInitial ?? ''}|${user.uic ?? ''}`;
+    try {
+        return `${ri}.${ci}.${coi}.${compressText(nameStr)}`;
+    } catch (e) {
+        logError('noteParser.encodeUser', e);
+        return `${ri}.${ci}.${coi}.${encodeURIComponent(nameStr)}`;
+    }
+}
+
+/** Decode a user profile from "{rankIdx}.{credIdx}.{compIdx}.{compressedName}" */
+function decodeUser(value: string): UserTypes | null {
+    const segs = value.split('.');
+    if (segs.length < 4) return null;
+    const ri = parseInt(segs[0], 10);
+    const ci = parseInt(segs[1], 10);
+    const coi = parseInt(segs[2], 10);
+    let names: string[] = [];
+    try {
+        names = decompressText(segs.slice(3).join('.')).split('|');
+    } catch (e) { logError('noteParser.decodeUser', e); }
+    return {
+        firstName: names[0] || undefined,
+        lastName: names[1] || undefined,
+        middleInitial: names[2] || undefined,
+        rank: ri >= 0 ? ranks[ri] : undefined,
+        credential: ci >= 0 ? credentials[ci] : undefined,
+        component: coi >= 0 ? components[coi] : undefined,
+        uic: names[3] || undefined,
+    };
+}
+
+/** Encode a UUID with hyphens stripped. */
+function encodeUserId(userId: string): string {
+    return userId.replace(/-/g, '');
+}
+
+/** Decode a 32-char hex string back to UUID format. */
+function decodeUserId(value: string): string | null {
+    if (value.length !== 32) return null;
+    return `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Shared PE encode helper
+// ---------------------------------------------------------------------------
+
+/** Encode PE state with structured v6 when available, compressed text fallback. */
+function encodePE(peState: PEState | undefined, peText: string | undefined): string | null {
+    if (peState) {
+        try {
+            return encodePEState(peState);
+        } catch (e) {
+            logError('noteParser.encodePE', e);
+        }
+    }
+    const trimmed = peText?.trim();
+    return trimmed ? compressText(trimmed) : null;
+}
+
+/** Decode a PE value — structured v6 or compressed text. */
+function decodePE(value: string, symptomCode: string): { text: string; raw?: string } {
+    if (isCompactPE(value)) {
+        return { text: decodePECompact(value, symptomCode), raw: value };
+    }
+    return { text: decompressText(value) };
+}
+
+// ---------------------------------------------------------------------------
 // Lookup helpers
 // ---------------------------------------------------------------------------
 
@@ -86,9 +164,7 @@ export function findSymptomByCode(code: string): { category: catDataTypes; sympt
     for (const category of catData) {
         if (category.contents) {
             const symptom = category.contents.find(s => s.icon === iconId);
-            if (symptom) {
-                return { category, symptom };
-            }
+            if (symptom) return { category, symptom };
         }
     }
     return null;
@@ -100,20 +176,19 @@ export function findSymptomByCode(code: string): { category: catDataTypes; sympt
 
 /**
  * Parse a pipe-delimited barcode string into a structured ParsedNote.
- * Handles current and legacy barcode formats. Returns null for empty or invalid input.
+ * Handles medic notes, provider-solo (PRV) notes, and combined medic+provider bundles.
  */
 export function parseNoteEncoding(encodedText: string): ParsedNote | null {
     if (!encodedText.trim()) return null;
 
     const parts = encodedText.split('|');
+    const symptomCode = parts[0] ?? '';
+    if (!symptomCode) return null;
 
-    // Provider solo format: first segment is "PRV"
-    if (parts[0] === 'PRV') {
-        return parseProviderSolo(parts);
-    }
+    const isProvider = symptomCode === 'PRV';
 
     const result: ParsedNote = {
-        symptomCode: '',
+        symptomCode,
         rfSelections: [],
         cardEntries: [],
         screenerEntries: [],
@@ -121,160 +196,131 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
         hpiText: '',
         peText: '',
         planText: '',
-        flags: { includeAlgorithm: true, includeDecisionMaking: true, includeHPI: false, includePhysicalExam: false, includePlan: false },
+        flags: {
+            includeAlgorithm: !isProvider,
+            includeDecisionMaking: !isProvider,
+            includeHPI: false,
+            includePhysicalExam: false,
+            includePlan: false,
+        },
         user: null,
         userId: null,
     };
 
-    let legacyLastCard = -1;
-    let legacySelections: number[] = [];
-
-    // First segment is always the symptomCode
-    result.symptomCode = parts[0] ?? '';
-
-    // Parse tagged segments (skip empty parts from consecutive pipes)
-    for (let partIdx = 1; partIdx < parts.length; partIdx++) {
-        const part = parts[partIdx];
+    for (let i = 1; i < parts.length; i++) {
+        const part = parts[i];
         if (!part) continue;
         const prefix = part[0];
         const value = part.substring(1);
 
-        if (prefix === 'R') {
-            const bitmask = parseInt(value || '0', 36);
-            result.rfSelections = bitmaskToIndices(bitmask);
-        } else if (prefix === 'H') {
-            result.hpiText = decompressText(value);
-        } else if (prefix === 'P') {
-            if (isCompactPE(value)) {
-                result.peText = decodePECompact(value, result.symptomCode);
-            } else {
-                result.peText = decompressText(value);
+        switch (prefix) {
+            // ── Medic segments (uppercase) ──
+            case 'R': {
+                result.rfSelections = bitmaskToIndices(parseInt(value || '0', 36));
+                break;
             }
-        } else if (prefix === 'N') {
-            result.planText = decompressText(value);
-        } else if (prefix === 'F') {
-            const flagsNum = parseInt(value, 10);
-            result.flags = {
-                includeAlgorithm: !!(flagsNum & 1),
-                includeDecisionMaking: !!(flagsNum & 2),
-                includeHPI: !!(flagsNum & 4),
-                includePhysicalExam: !!(flagsNum & 8),
-                includePlan: !!(flagsNum & 16),
-            };
-        } else if (prefix === 'T') {
-            // Legacy timestamp segment — ignored (no longer used)
-        } else if (prefix === 'U') {
-            // User segment: rankIdx.credIdx.compIdx.base64(first|last|middle)
-            const segs = value.split('.');
-            if (segs.length >= 4) {
-                const ri = parseInt(segs[0], 10);
-                const ci = parseInt(segs[1], 10);
-                const coi = parseInt(segs[2], 10);
-                let names: string[] = [];
-                try {
-                    names = decompressText(segs.slice(3).join('.')).split('|');
-                } catch (e) { logError('noteParser.decodeUser', e); }
-                result.user = {
-                    firstName: names[0] || undefined,
-                    lastName: names[1] || undefined,
-                    middleInitial: names[2] || undefined,
-                    rank: ri >= 0 ? ranks[ri] : undefined,
-                    credential: ci >= 0 ? credentials[ci] : undefined,
-                    component: coi >= 0 ? components[coi] : undefined,
-                    uic: names[3] || undefined,
+            case 'H': {
+                result.hpiText = decompressText(value);
+                break;
+            }
+            case 'P': {
+                const pe = decodePE(value, symptomCode);
+                result.peText = pe.text;
+                break;
+            }
+            case 'N': {
+                result.planText = decompressText(value);
+                break;
+            }
+            case 'F': {
+                const f = parseInt(value, 10);
+                result.flags = {
+                    includeAlgorithm: !!(f & 1),
+                    includeDecisionMaking: !!(f & 2),
+                    includeHPI: !!(f & 4),
+                    includePhysicalExam: !!(f & 8),
+                    includePlan: !!(f & 16),
                 };
+                break;
             }
-        } else if (prefix === 'I') {
-            // User ID segment: I{hex32} — Supabase UUID with hyphens stripped
-            if (value.length === 32) {
-                result.userId = `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`;
+            case 'U': {
+                result.user = decodeUser(value);
+                break;
             }
-        } else if (prefix === 'h') {
-            result.providerHpi = decompressText(value);
-        } else if (prefix === 'p') {
-            if (isCompactPE(value)) {
-                result.providerPeRaw = value;
-                result.providerPe = decodePECompact(value, result.symptomCode);
-            } else {
-                result.providerPe = decompressText(value);
+            case 'I': {
+                result.userId = decodeUserId(value);
+                break;
             }
-        } else if (prefix === 'x') {
-            result.providerAssessment = decompressText(value);
-        } else if (prefix === 'n') {
-            result.providerPlan = decompressText(value);
-        } else if (prefix === 'u') {
-            const segs = value.split('.');
-            if (segs.length >= 4) {
-                const ri = parseInt(segs[0], 10);
-                const ci = parseInt(segs[1], 10);
-                const coi = parseInt(segs[2], 10);
-                let names: string[] = [];
-                try { names = decompressText(segs.slice(3).join('.')).split('|'); }
-                catch (e) { logError('noteParser.decodeProviderUser', e); }
-                result.providerUser = {
-                    firstName: names[0] || undefined,
-                    lastName: names[1] || undefined,
-                    middleInitial: names[2] || undefined,
-                    rank: ri >= 0 ? ranks[ri] : undefined,
-                    credential: ci >= 0 ? credentials[ci] : undefined,
-                    component: coi >= 0 ? components[coi] : undefined,
-                    uic: names[3] || undefined,
-                };
+            case 'A': {
+                const aSegs = value.split('.');
+                if (aSegs.length >= 2) {
+                    result.actionEntries.push({
+                        index: parseInt(aSegs[0], 10),
+                        status: aSegs[1] === 'D' ? 'deferred' : 'performed',
+                    });
+                }
+                break;
             }
-        } else if (prefix === 'i') {
-            if (value.length === 32) {
-                result.providerUserId = `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`;
+            case 'Q': {
+                const qSegs = value.split('.');
+                if (qSegs.length >= 2) {
+                    const responseStr = qSegs[1];
+                    const responses = responseStr.includes('-')
+                        ? responseStr.split('-').map(s => parseInt(s, 36))
+                        : responseStr.split('').map(d => parseInt(d, 10));
+                    const followUp = qSegs.length >= 3 ? parseInt(qSegs[2], 10) : undefined;
+                    result.screenerEntries.push({
+                        id: qSegs[0],
+                        responses,
+                        followUp: isNaN(followUp as number) ? undefined : followUp,
+                    });
+                }
+                break;
             }
-        } else if (prefix === 'C') {
-            // Legacy clinic ID segment — ignored (no longer used)
-        } else if (prefix === 'A') {
-            // Action status segment: A{cardIndex}.{P|D}
-            const aSegs = value.split('.');
-            if (aSegs.length >= 2) {
-                const idx = parseInt(aSegs[0], 10);
-                const status = aSegs[1] === 'D' ? 'deferred' : 'performed';
-                result.actionEntries.push({ index: idx, status });
+            // ── Provider segments (lowercase) ──
+            case 'h': {
+                result.providerHpi = decompressText(value);
+                break;
             }
-        } else if (prefix === 'Q') {
-            // Screener segment: Q{id}.{responseDigits}[.{followUpIdx}]
-            const qSegs = value.split('.');
-            if (qSegs.length >= 2) {
-                const id = qSegs[0];
-                const responseStr = qSegs[1];
-                const responses = responseStr.includes('-')
-                    ? responseStr.split('-').map(s => parseInt(s, 36))
-                    : responseStr.split('').map(d => parseInt(d, 10));
-                const followUp = qSegs.length >= 3 ? parseInt(qSegs[2], 10) : undefined;
-                result.screenerEntries.push({ id, responses, followUp: isNaN(followUp as number) ? undefined : followUp });
+            case 'p': {
+                const pe = decodePE(value, symptomCode);
+                result.providerPe = pe.text;
+                if (pe.raw) result.providerPeRaw = pe.raw;
+                break;
             }
-        } else if (prefix === 'L') {
-            legacyLastCard = parseInt(value, 10);
-        } else if (prefix === 'S') {
-            legacySelections = value === '0' ? [] : value.split('').map(n => parseInt(n, 10));
-        } else if (/^\d/.test(part)) {
-            const segments = part.split('.');
-            if (segments.length >= 3) {
-                result.cardEntries.push({
-                    index: parseInt(segments[0], 10),
-                    selections: bitmaskToIndices(parseInt(segments[1], 36)),
-                    answerIndex: parseInt(segments[2], 10),
-                });
+            case 'x': {
+                result.providerAssessment = decompressText(value);
+                break;
+            }
+            case 'n': {
+                result.providerPlan = decompressText(value);
+                break;
+            }
+            case 'u': {
+                result.providerUser = decodeUser(value);
+                break;
+            }
+            case 'i': {
+                result.providerUserId = decodeUserId(value);
+                break;
+            }
+            default: {
+                // Card entry: "{index}.{selBitmask36}.{answerIndex}"
+                if (/^\d/.test(part)) {
+                    const segments = part.split('.');
+                    if (segments.length >= 3) {
+                        result.cardEntries.push({
+                            index: parseInt(segments[0], 10),
+                            selections: bitmaskToIndices(parseInt(segments[1], 36)),
+                            answerIndex: parseInt(segments[2], 10),
+                        });
+                    }
+                }
+                break;
             }
         }
     }
 
-    // Legacy format fallback
-    if (result.cardEntries.length === 0 && legacyLastCard > 0) {
-        result.cardEntries = [{
-            index: legacyLastCard,
-            selections: legacySelections,
-            answerIndex: -1,
-        }];
-        result.flags = { includeAlgorithm: true, includeDecisionMaking: false, includeHPI: false, includePhysicalExam: false, includePlan: false };
-    }
-
-    // Require a symptomCode for a valid note
-    if (!result.symptomCode) return null;
     return result;
 }
 
@@ -284,7 +330,6 @@ export function parseNoteEncoding(encodedText: string): ParsedNote | null {
 
 /**
  * Encode the current algorithm state, HPI, PE, and user profile into a pipe-delimited barcode string.
- * The output is compact enough for a Data Matrix barcode.
  */
 export function encodeNoteState(
     algorithmOptions: AlgorithmOptions[],
@@ -292,46 +337,38 @@ export function encodeNoteState(
     noteOptions: NoteEncodeOptions,
     symptomCode: string,
 ): string {
-    const parts: string[] = [];
+    const parts: string[] = [symptomCode];
 
-    // 1. Symptom code
-    parts.push(symptomCode);
-
-    // 2. Red flag selections (card 0 if RF type)
+    // Red flag selections (card 0 if RF type)
     const rfCard = algorithmOptions[0];
     if (rfCard?.type === 'rf' && cardStates[0]?.selectedOptions) {
-        const totalOptions = rfCard.questionOptions?.length || 0;
         let bitmask = 0;
+        const totalOptions = rfCard.questionOptions?.length || 0;
         for (let i = 0; i < totalOptions; i++) {
-            if (cardStates[0].selectedOptions.includes(i)) {
-                bitmask |= (1 << i);
-            }
+            if (cardStates[0].selectedOptions.includes(i)) bitmask |= (1 << i);
         }
         parts.push(`R${bitmask.toString(36)}`);
     } else {
         parts.push('R0');
     }
 
-    // 3. Each visible non-RF card: {index}.{selBitmaskBase36}.{answerIndex}
+    // Each visible non-RF card: {index}.{selBitmaskBase36}.{answerIndex}
     for (let i = 0; i < cardStates.length; i++) {
         const state = cardStates[i];
         const card = algorithmOptions[i];
         if (!state?.isVisible || !card || card.type === 'rf') continue;
 
         let selBitmask = 0;
-        for (const optIdx of state.selectedOptions) {
-            selBitmask |= (1 << optIdx);
-        }
+        for (const optIdx of state.selectedOptions) selBitmask |= (1 << optIdx);
 
         let answerIdx = -1;
         if (state.answer) {
             answerIdx = card.answerOptions.findIndex(a => a.text === state.answer?.text);
         }
-
         parts.push(`${i}.${selBitmask.toString(36)}.${answerIdx}`);
     }
 
-    // 3b. Screener entries for action cards with screenerConfig + screenerResponses
+    // Screener entries
     for (let i = 0; i < cardStates.length; i++) {
         const state = cardStates[i];
         const card = algorithmOptions[i];
@@ -349,7 +386,7 @@ export function encodeNoteState(
         parts.push(seg);
     }
 
-    // 3c. Action status entries for non-screener action cards
+    // Action status entries
     for (let i = 0; i < cardStates.length; i++) {
         const state = cardStates[i];
         const card = algorithmOptions[i];
@@ -357,34 +394,20 @@ export function encodeNoteState(
         parts.push(`A${i}.${state.actionStatus === 'deferred' ? 'D' : 'P'}`);
     }
 
-    // 4. HPI text (compressed)
+    // HPI
     const customNote = noteOptions.customNote?.trim();
-    if (customNote) {
-        parts.push(`H${compressText(customNote)}`);
-    }
+    if (customNote) parts.push(`H${compressText(customNote)}`);
 
-    // 4b. Physical Exam (v5 structured encoding when state available, compressed text fallback)
-    const hasPE = !!(noteOptions.peState || noteOptions.physicalExamNote?.trim());
-    if (noteOptions.peState) {
-        try {
-            parts.push(`P${encodePEState(noteOptions.peState)}`);
-        } catch (e) {
-            logError('noteParser.encodePEState', e);
-            const peNote = noteOptions.physicalExamNote?.trim();
-            if (peNote) parts.push(`P${compressText(peNote)}`);
-        }
-    } else {
-        const peNote = noteOptions.physicalExamNote?.trim();
-        if (peNote) parts.push(`P${compressText(peNote)}`);
-    }
+    // Physical Exam
+    const peEncoded = encodePE(noteOptions.peState, noteOptions.physicalExamNote);
+    const hasPE = !!peEncoded;
+    if (peEncoded) parts.push(`P${peEncoded}`);
 
-    // 4c. Plan (compressed text, prefix 'N')
+    // Plan
     const planNoteText = noteOptions.planNote?.trim();
-    if (planNoteText) {
-        parts.push(`N${compressText(planNoteText)}`);
-    }
+    if (planNoteText) parts.push(`N${compressText(planNoteText)}`);
 
-    // 5. Flags: bit0=includeAlgorithm, bit1=includeDM, bit2=includeHPI, bit3=includePE, bit4=includePlan
+    // Flags
     let flags = 0;
     if (noteOptions.includeAlgorithm) flags |= 1;
     if (noteOptions.includeDecisionMaking) flags |= 2;
@@ -393,36 +416,23 @@ export function encodeNoteState(
     if (planNoteText) flags |= 16;
     parts.push(`F${flags}`);
 
-    // 6. User profile (indexed enums + base64 name)
-    const user = noteOptions.user;
-    if (user?.lastName) {
-        const ri = user.rank ? ranks.indexOf(user.rank) : -1;
-        const ci = user.credential ? credentials.indexOf(user.credential) : -1;
-        const coi = user.component ? components.indexOf(user.component) : -1;
-        const nameStr = `${user.firstName ?? ''}|${user.lastName ?? ''}|${user.middleInitial ?? ''}|${user.uic ?? ''}`;
-        try {
-            parts.push(`U${ri}.${ci}.${coi}.${compressText(nameStr)}`);
-        } catch (e) {
-            logError('noteParser.encodeUser', e);
-            parts.push(`U${ri}.${ci}.${coi}.${encodeURIComponent(nameStr)}`);
-        }
-    }
+    // User profile
+    const userEncoded = encodeUser(noteOptions.user);
+    if (userEncoded) parts.push(`U${userEncoded}`);
 
-    // 7. User ID (UUID with hyphens stripped)
-    if (noteOptions.userId) {
-        parts.push(`I${noteOptions.userId.replace(/-/g, '')}`);
-    }
+    // User ID
+    if (noteOptions.userId) parts.push(`I${encodeUserId(noteOptions.userId)}`);
 
     return parts.join('|');
 }
 
 // ---------------------------------------------------------------------------
-// Content comparison (ignores volatile segments like timestamp)
+// Content comparison
 // ---------------------------------------------------------------------------
 
-/** Compare two encoded note strings ignoring volatile segments (I=userId, and legacy T/C) */
+/** Compare two encoded note strings ignoring volatile segments (I/i = userId) */
 export function encodedContentEquals(a: string, b: string): boolean {
-    const strip = (s: string) => s.split('|').filter(p => !p.startsWith('T') && !p.startsWith('I') && !p.startsWith('i') && !p.startsWith('C')).join('|');
+    const strip = (s: string) => s.split('|').filter(p => !p.startsWith('I') && !p.startsWith('i')).join('|');
     return strip(a) === strip(b);
 }
 
@@ -432,7 +442,6 @@ export function encodedContentEquals(a: string, b: string): boolean {
 
 /**
  * Reconstruct card states and disposition from a parsed note and its algorithm definition.
- * Replays the encoded card entries, screener responses, and action statuses onto fresh card states.
  */
 export function reconstructCardStates(
     algorithmOptions: AlgorithmOptions[],
@@ -488,12 +497,9 @@ export function reconstructCardStates(
 
     // Apply screener entries
     for (const entry of parsed.screenerEntries) {
-        // Find the action card whose screenerConfig matches this entry
         const cardIdx = algorithmOptions.findIndex(card => {
             if (!card.screenerConfig) return false;
-            // Direct match
             if (card.screenerConfig.id === entry.id) return true;
-            // Extended match (e.g. PHQ-2 card completed as PHQ-9)
             if (card.screenerConfig.conditionalExtension?.screener.id === entry.id) return true;
             return false;
         });
@@ -517,118 +523,36 @@ export function reconstructCardStates(
 }
 
 // ---------------------------------------------------------------------------
-// Provider note encoding / decoding
+// Provider note encoding
 // ---------------------------------------------------------------------------
-
-function parseProviderSolo(parts: string[]): ParsedNote {
-    const result: ParsedNote = {
-        symptomCode: 'PRV',
-        rfSelections: [], cardEntries: [], screenerEntries: [], actionEntries: [],
-        hpiText: '', peText: '', planText: '',
-        flags: { includeAlgorithm: false, includeDecisionMaking: false, includeHPI: false, includePhysicalExam: false, includePlan: false },
-        user: null, userId: null,
-    };
-    for (let i = 1; i < parts.length; i++) {
-        const part = parts[i];
-        if (!part) continue;
-        const prefix = part[0];
-        const value = part.substring(1);
-        if (prefix === 'h') result.providerHpi = decompressText(value);
-        else if (prefix === 'p') {
-            if (isCompactPE(value)) {
-                result.providerPeRaw = value;
-                result.providerPe = decodePECompact(value, 'PRV');
-            } else {
-                result.providerPe = decompressText(value);
-            }
-        }
-        else if (prefix === 'x') result.providerAssessment = decompressText(value);
-        else if (prefix === 'n') result.providerPlan = decompressText(value);
-        else if (prefix === 'u') {
-            const segs = value.split('.');
-            if (segs.length >= 4) {
-                const ri = parseInt(segs[0], 10);
-                const ci = parseInt(segs[1], 10);
-                const coi = parseInt(segs[2], 10);
-                let names: string[] = [];
-                try { names = decompressText(segs.slice(3).join('.')).split('|'); }
-                catch (e) { logError('noteParser.decodeProviderUser', e); }
-                result.providerUser = {
-                    firstName: names[0] || undefined,
-                    lastName: names[1] || undefined,
-                    middleInitial: names[2] || undefined,
-                    rank: ri >= 0 ? ranks[ri] : undefined,
-                    credential: ci >= 0 ? credentials[ci] : undefined,
-                    component: coi >= 0 ? components[coi] : undefined,
-                    uic: names[3] || undefined,
-                };
-            }
-        } else if (prefix === 'i') {
-            if (value.length === 32) {
-                result.providerUserId = `${value.slice(0,8)}-${value.slice(8,12)}-${value.slice(12,16)}-${value.slice(16,20)}-${value.slice(20)}`;
-            }
-        }
-    }
-    return result;
-}
 
 /** Encode provider note fields into a PRV-prefixed pipe-delimited string. */
 export function encodeProviderNote(options: ProviderNoteEncodeOptions): string {
     const parts: string[] = ['PRV'];
-
-    if (options.hpiNote.trim()) parts.push(`h${compressText(options.hpiNote.trim())}`);
-    encodeProviderPE(parts, options);
-    if (options.assessmentNote.trim()) parts.push(`x${compressText(options.assessmentNote.trim())}`);
-    if (options.planNote.trim()) parts.push(`n${compressText(options.planNote.trim())}`);
-    encodeProviderUser(parts, options);
-
+    appendProviderSegments(parts, options);
     return parts.join('|');
 }
 
 /** Append provider segments to an existing medic barcode string. */
 export function encodeProviderBundle(medicBarcode: string, options: ProviderNoteEncodeOptions): string {
     const providerParts: string[] = [];
-
-    if (options.hpiNote.trim()) providerParts.push(`h${compressText(options.hpiNote.trim())}`);
-    encodeProviderPE(providerParts, options);
-    if (options.assessmentNote.trim()) providerParts.push(`x${compressText(options.assessmentNote.trim())}`);
-    if (options.planNote.trim()) providerParts.push(`n${compressText(options.planNote.trim())}`);
-    encodeProviderUser(providerParts, options);
-
+    appendProviderSegments(providerParts, options);
     if (providerParts.length === 0) return medicBarcode;
     return medicBarcode + '|' + providerParts.join('|');
 }
 
-/** Encode provider PE — structured v5 when available, compressed text fallback (mirrors medic PE encoding). */
-function encodeProviderPE(parts: string[], options: ProviderNoteEncodeOptions): void {
-    if (options.peState) {
-        try {
-            parts.push(`p${encodePEState(options.peState)}`);
-            return;
-        } catch (e) {
-            logError('noteParser.encodeProviderPE', e);
-        }
-    }
-    const peNote = options.peNote.trim();
-    if (peNote) parts.push(`p${compressText(peNote)}`);
-}
+/** Shared: encode all provider segments into the parts array. */
+function appendProviderSegments(parts: string[], options: ProviderNoteEncodeOptions): void {
+    if (options.hpiNote.trim()) parts.push(`h${compressText(options.hpiNote.trim())}`);
 
-/** Encode provider user + userId segments. */
-function encodeProviderUser(parts: string[], options: ProviderNoteEncodeOptions): void {
-    const user = options.user;
-    if (user?.lastName) {
-        const ri = user.rank ? ranks.indexOf(user.rank) : -1;
-        const ci = user.credential ? credentials.indexOf(user.credential) : -1;
-        const coi = user.component ? components.indexOf(user.component) : -1;
-        const nameStr = `${user.firstName ?? ''}|${user.lastName ?? ''}|${user.middleInitial ?? ''}|${user.uic ?? ''}`;
-        try {
-            parts.push(`u${ri}.${ci}.${coi}.${compressText(nameStr)}`);
-        } catch (e) {
-            logError('noteParser.encodeProviderUser', e);
-            parts.push(`u${ri}.${ci}.${coi}.${encodeURIComponent(nameStr)}`);
-        }
-    }
-    if (options.userId) {
-        parts.push(`i${options.userId.replace(/-/g, '')}`);
-    }
+    const peEncoded = encodePE(options.peState, options.peNote);
+    if (peEncoded) parts.push(`p${peEncoded}`);
+
+    if (options.assessmentNote.trim()) parts.push(`x${compressText(options.assessmentNote.trim())}`);
+    if (options.planNote.trim()) parts.push(`n${compressText(options.planNote.trim())}`);
+
+    const userEncoded = encodeUser(options.user);
+    if (userEncoded) parts.push(`u${userEncoded}`);
+
+    if (options.userId) parts.push(`i${encodeUserId(options.userId)}`);
 }

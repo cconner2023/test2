@@ -130,7 +130,7 @@ describe('Text Codec', () => {
         expect(decompressed).toBe(original);
     });
 
-    it('decompressText handles legacy base64 format', () => {
+    it('decompressText handles legacy base64 format (non-encrypted fallback)', () => {
         // Legacy format was btoa(encodeURIComponent(text))
         const original = 'Simple text note';
         const legacy = btoa(encodeURIComponent(original));
@@ -294,7 +294,7 @@ describe('Note Encoding round-trips', () => {
         expect(parsed!.peText).toContain('GEN');
     });
 
-    it('encodedContentEquals ignores T/I/C segments', () => {
+    it('encodedContentEquals ignores I/i segments', () => {
         const states = buildCardStates();
         const opts: NoteEncodeOptions = {
             includeAlgorithm: true,
@@ -304,11 +304,11 @@ describe('Note Encoding round-trips', () => {
 
         const encoded1 = encodeNoteState(mockAlgorithm, states, opts, symptomCode);
 
-        // Inject synthetic T, I, and C segments — should be stripped
+        // Inject synthetic I segments — should be stripped
         const parts = encoded1.split('|');
-        const withExtra = [...parts, 'T12345', 'I99', 'Cfoo'].join('|');
+        const withExtra = [...parts, 'I550e8400e29b41d4a716446655440000'].join('|');
 
-        // Same content despite extra T/I/C segments
+        // Same content despite extra I segment
         expect(encodedContentEquals(encoded1, withExtra)).toBe(true);
     });
 
