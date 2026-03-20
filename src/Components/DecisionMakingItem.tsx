@@ -152,7 +152,7 @@ export const DecisionMakingItem = memo(function DecisionMakingItem({
         <div>
             {/* DDx as section header above card */}
             {hasDDx && (
-                <div className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase pb-2">
+                <div className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider pb-2">
                     {item.ddx!.join(' · ')}
                 </div>
             )}

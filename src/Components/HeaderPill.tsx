@@ -43,7 +43,7 @@ export function PillButton({ icon: Icon, onClick, label, variant = 'default', ic
 
 export function HeaderPill({ children }: { children: ReactNode }) {
     return (
-        <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5">
+        <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5 gap-0.5">
             {children}
         </div>
     )

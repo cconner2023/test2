@@ -269,7 +269,7 @@ export const WriteNotePage = ({
                                     {/* Note Preview */}
                                     <section>
                                         <div className="pb-2 flex items-center justify-between">
-                                            <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Note Preview</p>
+                                            <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Note Preview</p>
                                             <div className="flex items-center gap-0.5">
                                                 <ActionIconButton
                                                     onClick={() => handleCopy(previewNote, 'preview')}
@@ -297,7 +297,7 @@ export const WriteNotePage = ({
                                     {/* Encoded Note / Barcode */}
                                     <section>
                                         <div className="pb-2 flex items-center justify-between">
-                                            <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Encoded Note</p>
+                                            <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Encoded Note</p>
                                             <div className="flex items-center gap-0.5">
                                                 <ActionIconButton
                                                     onClick={() => handleCopy(encodedValue, 'encoded')}

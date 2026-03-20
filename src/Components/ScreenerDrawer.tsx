@@ -209,7 +209,7 @@ export function ScreenerDrawer({
                                 {q.sectionHeader && (
                                     <div className="flex items-center gap-2 mt-4 mb-2 px-1">
                                         <div className="h-px flex-1 bg-tertiary/15" />
-                                        <span className="text-[10px] font-semibold text-secondary uppercase tracking-wider">
+                                        <span className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
                                             {q.sectionHeader}
                                         </span>
                                         <div className="h-px flex-1 bg-tertiary/15" />
@@ -285,7 +285,7 @@ export function ScreenerDrawer({
                     <div className="mt-4 animate-cardAppearIn">
                         <div className="flex items-center gap-2 mb-2 px-1">
                             <div className="h-px flex-1 bg-themeyellow/30" />
-                            <span className="text-[10px] font-semibold text-secondary uppercase tracking-wider">
+                            <span className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
                                 Extended to {extendedScreener.title}
                             </span>
                             <div className="h-px flex-1 bg-themeyellow/30" />

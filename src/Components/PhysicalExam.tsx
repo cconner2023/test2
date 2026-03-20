@@ -1100,9 +1100,6 @@ export function PhysicalExam({
         <div className="space-y-4">
             {/* ── Vital Signs ──────────────────────────────────────── */}
             <section>
-                <div className="pb-2 flex items-center gap-2">
-                    <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Vital Signs</p>
-                </div>
                 <div className="rounded-xl bg-themewhite2 overflow-hidden">
                     <div className="px-4 py-3">
                         <div className="grid grid-cols-3 gap-2">
@@ -1171,11 +1168,26 @@ export function PhysicalExam({
 
             {/* ── Exam Blocks ──────────────────────────────────────── */}
             <div className="rounded-xl bg-themewhite2 overflow-hidden">
-                <div className="px-4 py-3">
+                <div className="px-4 py-3 relative">
+                    <button
+                        onClick={cycleExamStatus}
+                        className={`absolute top-3 right-4 w-11 h-11 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all z-10 ${
+                            examStatus === 'all-normal'
+                                ? 'bg-themegreen text-white'
+                                : examStatus === 'has-abnormal'
+                                ? 'bg-themeredred/20 text-themeredred'
+                                : 'bg-tertiary/10 text-tertiary/40'
+                        }`}
+                    >
+                        {examStatus === 'all-normal'
+                            ? <RotateCcw size={18} strokeWidth={2.5} />
+                            : <Check size={20} strokeWidth={2.5} />
+                        }
+                    </button>
                     <div className="flex flex-col gap-2 mb-2">
                         {/* MSK laterality / spine region selector (focused mode only) */}
                         {!isCustom && !isComprehensive && categoryLetter === 'B' && bodyPart && (
-                            <div className="flex items-center gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap pr-14">
                                 <span className="text-[10pt] text-secondary font-medium">{bodyPart.label}</span>
                                 <div className="flex flex-wrap gap-1">
                                     {isBack ? (
@@ -1208,23 +1220,6 @@ export function PhysicalExam({
                                 </div>
                             </div>
                         )}
-                        <div className="flex justify-end">
-                            <button
-                                onClick={cycleExamStatus}
-                                className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 active:scale-95 transition-all ${
-                                    examStatus === 'all-normal'
-                                        ? 'bg-themegreen text-white'
-                                        : examStatus === 'has-abnormal'
-                                        ? 'bg-themeredred/20 text-themeredred'
-                                        : 'bg-tertiary/10 text-tertiary/40'
-                                }`}
-                            >
-                                {examStatus === 'all-normal'
-                                    ? <RotateCcw size={18} strokeWidth={2.5} />
-                                    : <Check size={20} strokeWidth={2.5} />
-                                }
-                            </button>
-                        </div>
                     </div>
 
                     <div>

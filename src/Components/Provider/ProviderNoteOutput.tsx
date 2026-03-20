@@ -176,9 +176,9 @@ export function ProviderNoteOutput({
         <div className="space-y-4">
             {/* Note Preview */}
             <div>
-                <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
-                    <span className="font-medium">Note Preview</span>
-                    <div className="flex items-center gap-1">
+                <div className="pb-2 flex items-center justify-between">
+                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Note Preview</p>
+                    <div className="flex items-center gap-0.5">
                         <ActionIconButton
                             onClick={() => handleCopy(previewNote, 'preview')}
                             status={copiedTarget === 'preview' ? 'done' : 'idle'}
@@ -195,16 +195,18 @@ export function ProviderNoteOutput({
                         )}
                     </div>
                 </div>
-                <div className="p-3 rounded-b-md bg-themewhite3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto border border-themegray1/15">
-                    {previewNote || 'No content available'}
+                <div className="rounded-xl bg-themewhite2 overflow-hidden">
+                    <div className="px-4 py-3 text-tertiary text-[8pt] whitespace-pre-wrap max-h-48 overflow-y-auto">
+                        {previewNote || 'No content available'}
+                    </div>
                 </div>
             </div>
 
             {/* Encoded Note */}
             <div>
-                <div className="flex items-center justify-between p-3 rounded-t-md bg-themewhite text-xs text-secondary">
-                    <span className="font-medium">Encoded Note</span>
-                    <div className="flex items-center gap-1">
+                <div className="pb-2 flex items-center justify-between">
+                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Encoded Note</p>
+                    <div className="flex items-center gap-0.5">
                         <ActionIconButton
                             onClick={handleShare}
                             status={shareBtnStatus}
@@ -219,7 +221,7 @@ export function ProviderNoteOutput({
                         />
                     </div>
                 </div>
-                <div className="mt-1">
+                <div>
                     <BarcodeDisplay
                         encodedText={encodedValue}
                         layout={encodedValue.length > 300 ? 'col' : 'row'}

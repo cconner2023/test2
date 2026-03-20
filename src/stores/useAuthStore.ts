@@ -26,7 +26,7 @@ import { useCallStore } from './useCallStore'
 import { unregisterDevice, deleteKeyBundle, primaryLogoutAll, initLoRaMesh } from '../lib/signal/signalService'
 import { secureSet, secureGet, secureRemove, persistSupabaseAuth, destroySecureStore } from '../lib/secureStorage'
 import { clearOutboundQueue, destroyOutboundQueue } from '../lib/signal/outboundQueue'
-import { clearBackupKey, deleteBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
+import { clearBackupKey, createBackup, scheduleBackup, restoreBackup } from '../lib/signal/backupService'
 import { processVaultMessages, clearVaultKey } from '../lib/signal/vaultDevice'
 import { unsubscribeFromPush, resyncPushSubscription } from '../lib/pushNotificationService'
 import { LORA_MESH_ENABLED } from '../lib/featureFlags'
@@ -387,15 +387,12 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
           // Initialize LoRa mesh subsystem (lazy — no-ops if flag is off)
           initLoRaMesh(userId).catch(() => {})
 
-          // Server-side encrypted backup: restore first on non-primary, then
-          // all devices schedule ongoing backups so the server row stays fresh.
-          if (initResult.role === 'linked' || initResult.role === 'provisional') {
-            restoreBackup(userId)
-              .then(() => scheduleBackup(userId))
-              .catch(() => scheduleBackup(userId))
-          } else {
-            scheduleBackup(userId)
-          }
+          // Server-side encrypted backup: restore first, then schedule ongoing
+          // backups so the server row stays fresh. All device roles restore —
+          // primary included — so conversations survive a logout/re-login cycle.
+          restoreBackup(userId)
+            .then(() => scheduleBackup(userId))
+            .catch(() => scheduleBackup(userId))
         }
       }).catch(() => {})
     }
@@ -495,10 +492,10 @@ export const useAuthStore = create<AuthState & AuthActions>()((set, get) => {
         await unsubscribeFromPush().catch(() => {})
 
         if (role === 'primary') {
-          // Primary logout: destroy all linked devices + sessions first
+          // Primary logout: flush a final backup so conversations survive re-login
+          await createBackup(userId).catch(() => {})
+          // Then destroy all linked devices + sessions
           await primaryLogoutAll()
-          // Delete server-side encrypted backup
-          await deleteBackup(userId).catch(() => {})
         }
         // Then clean up own device (both primary and linked)
         const deviceId = await getLocalDeviceId()

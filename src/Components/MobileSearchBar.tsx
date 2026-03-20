@@ -75,6 +75,8 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
         const wrapperRef = useRef<HTMLDivElement>(null)
         const innerRef = useRef<HTMLDivElement>(null)
         const inputRef = useRef<HTMLInputElement>(null)
+        // Resolved scroll container — either our own div or the nearest scrollable ancestor
+        const resolvedScrollRef = useRef<HTMLElement | null>(null)
 
         const [barHeight, setBarHeight] = useState(52)
         const [focused, setFocused] = useState(false)
@@ -106,9 +108,23 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
 
         // ── Scroll-driven collapse (direct DOM writes, no spring) ────────
         useEffect(() => {
-            const el = scrollRef.current
+            // When inheritScroll is true, our own div doesn't scroll —
+            // walk up the DOM to find the nearest scrollable ancestor.
+            let el: HTMLElement | null = scrollRef.current
+            if (inheritScroll && el) {
+                let parent = el.parentElement
+                while (parent) {
+                    const { overflowY } = getComputedStyle(parent)
+                    if (overflowY === 'auto' || overflowY === 'scroll') {
+                        el = parent
+                        break
+                    }
+                    parent = parent.parentElement
+                }
+            }
             const wrapper = wrapperRef.current
             if (!el || !wrapper || !enabled) return
+            resolvedScrollRef.current = el
 
             let rafId: number | null = null
 
@@ -150,7 +166,7 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
                 el.removeEventListener('scroll', onScroll)
                 if (rafId !== null) cancelAnimationFrame(rafId)
             }
-        }, [enabled, barHeight])
+        }, [enabled, barHeight, inheritScroll])
 
         // Keep bar expanded when value is present or focused
         useEffect(() => {
@@ -167,8 +183,9 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
             onFocus?.()
             onFocusChange?.(true)
             // Scroll to top so search bar is fully visible
-            if (scrollRef.current) {
-                scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' })
+            const scrollEl = resolvedScrollRef.current ?? scrollRef.current
+            if (scrollEl) {
+                scrollEl.scrollTo({ top: 0, behavior: 'smooth' })
             }
         }, [onFocus, onFocusChange])
 
@@ -178,7 +195,7 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
             inputRef.current?.blur()
             onFocusChange?.(false)
             // Recompute collapse to current scroll position
-            const el = scrollRef.current
+            const el = resolvedScrollRef.current ?? scrollRef.current
             const wrapper = wrapperRef.current
             if (!el || !wrapper) return
             const scrollTop = el.scrollTop
@@ -195,7 +212,7 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
                 setFocused(false)
                 onFocusChange?.(false)
                 // Recompute collapse
-                const el = scrollRef.current
+                const el = resolvedScrollRef.current ?? scrollRef.current
                 const wrapper = wrapperRef.current
                 if (!el || !wrapper) return
                 const scrollTop = el.scrollTop
@@ -212,7 +229,7 @@ export const MobileSearchBar = forwardRef<HTMLDivElement, MobileSearchBarProps>(
             if (focused && !hasValue && document.activeElement !== inputRef.current) {
                 setFocused(false)
                 onFocusChange?.(false)
-                const el = scrollRef.current
+                const el = resolvedScrollRef.current ?? scrollRef.current
                 const wrapper = wrapperRef.current
                 if (el && wrapper) {
                     const collapsed = Math.max(0, Math.min(el.scrollTop, barHeight))

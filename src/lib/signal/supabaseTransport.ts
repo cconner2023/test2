@@ -198,17 +198,11 @@ export class SupabaseTransport implements SignalTransport {
   private fireNotif(recipientId: string, messageType: string): void {
     if (messageType === 'sync' || messageType === 'delete') return
 
-    const notif = messageType === 'request'
-      ? { title: 'New message request', body: 'Someone wants to message you' }
-      : messageType === 'request-accepted'
-        ? { title: 'Request accepted', body: 'Your message request was accepted' }
-        : { title: 'New secure message', body: 'You have a new encrypted message' }
-
     fireNotification({
       user_id: recipientId,
-      ...notif,
+      title: 'ADTMC',
+      body: 'New Message',
       type: 'signal_message',
-      // author_id removed (sealed sender — server doesn't know who sent)
     })
   }
 }

@@ -449,7 +449,7 @@ function KBHome({
                     if (!items?.length) return null
                     return (
                         <div key={group} className="mb-4">
-                            <p className="text-xs font-semibold text-tertiary uppercase tracking-wide px-2 mb-2">
+                            <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider px-2 mb-2">
                                 {kbGroupLabels[group]}
                             </p>
                             <div className="rounded-xl bg-themewhite2/50 overflow-hidden">
@@ -736,7 +736,7 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
                                     : 'bg-themegreen/10 border-themegreen/20'
                             }`}>
                                 <div className="flex items-center justify-between mb-2">
-                                    <p className="text-xs font-semibold text-secondary uppercase tracking-wide">Result</p>
+                                    <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Result</p>
                                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                                         aboveThreshold
                                             ? 'bg-themeyellow/20 text-secondary'

@@ -145,7 +145,7 @@ export const ProfilePage = ({
                         confirmSignOut ? (
                             <div className="mt-2 px-5">
                                 <p className="text-sm text-themeredred/80 mb-3">
-                                    This will sign out all linked devices and delete your message backup.
+                                    This will sign out all linked devices. Your conversations will be backed up and restored on next login.
                                 </p>
                                 <div className="flex items-center gap-2">
                                     <button

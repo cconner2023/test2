@@ -72,19 +72,9 @@ function DrawerHeader({
                                     opacity: showBack && onBack ? 1 : 0,
                                 }}
                             >
-                                {isMobile ? (
-                                    <HeaderPill>
-                                        <PillButton icon={ChevronLeft} onClick={onBack!} label="Go back" />
-                                    </HeaderPill>
-                                ) : (
-                                    <button
-                                        onClick={onBack}
-                                        className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
-                                        aria-label="Go back"
-                                    >
-                                        <ChevronLeft size={24} className="text-tertiary" />
-                                    </button>
-                                )}
+                                <HeaderPill>
+                                    <PillButton icon={ChevronLeft} onClick={onBack!} label="Go back" compact={!isMobile} />
+                                </HeaderPill>
                             </div>
                             <h2 className={`truncate ${isMobile ? 'text-[17px] font-semibold text-primary' : 'text-2xl text-primary'}`}>
                                 {title}

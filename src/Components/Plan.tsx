@@ -282,7 +282,7 @@ export const Plan = ({ orderTags, instructionTags, orderSets = [], initialText, 
             {orderSets.length > 0 && (
                 <section>
                     <div className="pb-2 flex items-center gap-2">
-                        <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Order Sets</p>
+                        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Order Sets</p>
                     </div>
                     <div className="rounded-xl bg-themewhite2 overflow-hidden">
                         <div className="px-4 py-3">

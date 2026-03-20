@@ -8,6 +8,7 @@ import {
   migrateOldSubscription,
   type SubscriptionInfo,
 } from '../lib/pushNotificationService'
+import { useNavigationStore } from '../stores/useNavigationStore'
 
 export interface ForegroundPush {
   title: string
@@ -39,7 +40,7 @@ export function usePushNotifications() {
     setSubscriptionInfo(token ? getSubscriptionInfo() : null)
   }, [])
 
-  // Listen for PUSH_RECEIVED messages forwarded by the service worker
+  // Listen for SW messages: foreground push toasts + notification click navigation
   useEffect(() => {
     const handler = (event: MessageEvent) => {
       if (event.data?.type === 'PUSH_RECEIVED') {
@@ -53,6 +54,21 @@ export function usePushNotifications() {
           setForegroundPush(null)
           foregroundTimerRef.current = null
         }, 6000)
+      } else if (event.data?.type === 'NOTIFICATION_CLICK') {
+        // iOS doesn't support client.navigate() — handle navigation via store
+        const url = event.data.url as string | undefined
+        if (url?.includes('view=')) {
+          const params = new URLSearchParams(url.split('?')[1] || '')
+          const view = params.get('view')
+          const nav = useNavigationStore.getState()
+          if (view === 'messages') nav.setShowMessagesDrawer(true)
+          else if (view === 'admin') nav.setShowAdminDrawer(true)
+          else if (view === 'clinicNotes') nav.setShowProviderDrawer(true)
+          else if (view === 'calendar') nav.setShowCalendarDrawer(true)
+        } else {
+          // Default: open messages for signal_message notifications
+          useNavigationStore.getState().setShowMessagesDrawer(true)
+        }
       }
     }
     navigator.serviceWorker?.addEventListener('message', handler)

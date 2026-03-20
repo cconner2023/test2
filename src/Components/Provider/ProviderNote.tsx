@@ -66,8 +66,8 @@ export function ProviderNote({
     <div className="space-y-4">
       {piiWarnings.length > 0 && <PIIWarningBanner warnings={piiWarnings} />}
 
-      <div className="space-y-2">
-        <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">History of Present Illness</p>
+      <div className="space-y-3">
+        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">History of Present Illness</p>
         {importedMedicNote?.medicHpi && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
             <p className="text-[10pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
@@ -85,14 +85,14 @@ export function ProviderNote({
         />
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Physical Exam</p>
+          <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Physical Exam</p>
           <label
             className="flex items-center gap-2 cursor-pointer"
             onClick={() => setPeMode(prev => prev === 'blocks' ? 'text' : 'blocks')}
           >
-            <span className="text-[10pt] text-tertiary/50">Structured</span>
+            <span className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Structured</span>
             <div
               className={`relative w-9 h-5 shrink-0 rounded-full transition-colors duration-200 ${
                 peMode === 'blocks' ? 'bg-themeblue3' : 'bg-tertiary/20'
@@ -137,8 +137,8 @@ export function ProviderNote({
         )}
       </div>
 
-      <div className="space-y-2">
-        <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Assessment</p>
+      <div className="space-y-3">
+        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Assessment</p>
         {importedMedicNote?.medicAssessment && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
             <p className="text-[10pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>
@@ -156,8 +156,8 @@ export function ProviderNote({
         />
       </div>
 
-      <div className="space-y-2">
-        <p className="text-[10pt] font-semibold text-tertiary/50 tracking-widest uppercase">Plan</p>
+      <div className="space-y-3">
+        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">Plan</p>
         {importedMedicNote?.medicPlan && (
           <div className="rounded-xl bg-themewhite2 px-4 py-3">
             <p className="text-[10pt] text-tertiary/50 mb-1">{importedMedicNote.medicName}</p>

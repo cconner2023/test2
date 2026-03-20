@@ -110,19 +110,27 @@ registerRoute(
 // ─── Push notifications ──────────────────────────────────────────────
 
 self.addEventListener('push', (event) => {
-  let payload: { title?: string; body?: string; url?: string };
+  // FCM may nest fields under `notification` or `data` keys — extract from all levels
+  let raw: Record<string, unknown> = {};
   try {
-    payload = event.data ? event.data.json() : {};
+    raw = event.data ? event.data.json() : {};
   } catch {
-    payload = { title: 'New Notification', body: event.data?.text() || '' };
+    raw = {};
   }
 
-  const title = payload.title || 'ADTMC';
+  const notif = (raw.notification || {}) as Record<string, unknown>;
+  const data = (raw.data || {}) as Record<string, unknown>;
+
+  // Priority: top-level > data > notification > fallback
+  const title = (raw.title || data.title || notif.title || 'ADTMC') as string;
+  const body = (raw.body || data.body || notif.body || '') as string;
+  const url = (raw.url || data.url || notif.url || '/test2/?view=admin') as string;
+
   const options: NotificationOptions = {
-    body: payload.body || '',
+    body,
     icon: '/test2/icon-192.png',
     badge: '/test2/icon-144.png',
-    data: { url: payload.url || '/test2/?view=admin' },
+    data: { url },
     tag: 'adtmc-push',
   };
 
@@ -157,11 +165,12 @@ self.addEventListener('notificationclick', (event) => {
       // Focus existing window if available
       for (const client of clientList) {
         if (client.url.includes('/test2/') && 'focus' in client) {
-          client.navigate(targetUrl);
+          // iOS doesn't support client.navigate() — use postMessage instead
+          client.postMessage({ type: 'NOTIFICATION_CLICK', url: targetUrl });
           return client.focus();
         }
       }
-      // Open new window
+      // No existing window — open a new one
       return self.clients.openWindow(targetUrl);
     })
   );

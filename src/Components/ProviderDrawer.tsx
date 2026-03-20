@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
-import { ScanLine, X, Camera, ImagePlus, Check, ChevronLeft } from 'lucide-react'
+import { ScanLine, X, Camera, ImagePlus, Check } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -277,7 +277,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     }
   }, [importExpanded])
 
-  // ── Floating Header ────────────────────────────────────────────────────────
+  // ── Header right content (import bar) ──────────────────────────────────────
 
   const noteHeaderRight = (
     <div className="flex items-center flex-1 min-w-0 justify-end relative">
@@ -357,6 +357,26 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     </div>
   )
 
+  // ── Header config ─────────────────────────────────────────────────────────
+
+  const headerConfig = useMemo(() => {
+    if (view === 'output') {
+      return {
+        title: 'Note Output',
+        badge: 'BETA',
+        showBack: true,
+        onBack: handleBack,
+      }
+    }
+    return {
+      title: 'Provider',
+      badge: 'BETA',
+      rightContent: noteHeaderRight,
+      hideDefaultClose: true,
+      rightContentFill: importExpanded,
+    }
+  }, [view, handleBack, noteHeaderRight, importExpanded])
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
@@ -366,125 +386,68 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
       fullHeight="90dvh"
       desktopPosition="left"
       desktopWidth="w-[90%]"
+      header={headerConfig}
+      blurHeader
     >
       <ContentWrapper
         slideDirection={isMobile ? slideDirection : ''}
         swipeHandlers={isMobile && canSwipeBack ? swipeHandlers : undefined}
       >
-        <div className="h-full overflow-y-auto">
-          {/* Floating header — scroll-behind blur */}
-          <div
-            className="sticky top-0 z-10 backdrop-blur-sm bg-transparent"
-            data-drag-zone
-            style={{ touchAction: 'none' }}
-          >
-            {isMobile && (
-              <div className="flex justify-center pt-1.5 pb-1">
-                <div className="w-9 h-1 rounded-full bg-tertiary/25" />
+        {/* Camera scanning overlay */}
+        {(scanRequested || isScanning) && (
+          <div className="px-4 pt-3 pb-2">
+            <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
+              <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
+              <div className="absolute inset-0 pointer-events-none">
+                <div className="absolute inset-4 border-2 border-white/30 rounded-lg" />
+                <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
+                <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
               </div>
-            )}
-            <div className={`px-5 ${isMobile ? 'pb-2.5' : 'py-4'}`}>
-              <div className="flex items-center justify-between">
-                {/* Left: back or title */}
-                <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${view === 'note' && importExpanded ? ' w-0 overflow-hidden' : ''}`}>
-                  {view === 'output' && (
-                    isMobile ? (
-                      <HeaderPill>
-                        <PillButton icon={ChevronLeft} onClick={handleBack} label="Go back" />
-                      </HeaderPill>
-                    ) : (
-                      <button
-                        onClick={handleBack}
-                        className="p-2 rounded-full hover:bg-themewhite2 active:scale-95 transition-all"
-                        aria-label="Go back"
-                      >
-                        <ChevronLeft size={24} className="text-tertiary" />
-                      </button>
-                    )
-                  )}
-                  <h2 className={`truncate ${isMobile ? 'text-[17px] font-semibold text-primary' : 'text-2xl text-primary'}`}>
-                    {view === 'note' ? 'Provider' : 'Note Output'}
-                  </h2>
-                  <span className="text-[11px] font-semibold text-themeyellow bg-themeyellow/15 px-2 py-0.5 rounded-full shrink-0 tracking-wide">
-                    BETA
-                  </span>
-                </div>
-                {/* Right: controls */}
-                <div className={`flex items-center gap-2${view === 'note' && importExpanded ? ' flex-1 min-w-0' : ' flex-1 min-w-0 justify-end'}`}>
-                  {view === 'note' ? noteHeaderRight : (
-                    isMobile ? (
-                      <div className="flex items-center justify-end flex-1">
-                        <HeaderPill>
-                          <PillButton icon={X} onClick={handleClose} label="Close" />
-                        </HeaderPill>
-                      </div>
-                    ) : (
-                      <HeaderPill>
-                        <PillButton icon={X} onClick={handleClose} label="Close" />
-                      </HeaderPill>
-                    )
-                  )}
-                </div>
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
+                Looking for barcode...
               </div>
+            </div>
+            <div className="flex justify-center pt-2">
+              <button onClick={() => { stopScanning(); setScanRequested(false) }} className="text-xs text-tertiary/60 hover:text-tertiary active:scale-95 transition-colors">Cancel scan</button>
             </div>
           </div>
-
-          {/* Camera scanning overlay */}
-          {(scanRequested || isScanning) && (
-            <div className="px-4 pt-3 pb-2">
-              <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
-                <video ref={videoRef} className="w-full h-full object-cover" playsInline muted />
-                <div className="absolute inset-0 pointer-events-none">
-                  <div className="absolute inset-4 border-2 border-white/30 rounded-lg" />
-                  <div className="absolute inset-x-4 top-1/2 h-0.5 bg-themeblue2 animate-pulse" />
-                  <ScanLine className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 text-white/50" />
-                </div>
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-xs px-3 py-1.5 rounded-full">
-                  Looking for barcode...
-                </div>
-              </div>
-              <div className="flex justify-center pt-2">
-                <button onClick={() => { stopScanning(); setScanRequested(false) }} className="text-xs text-tertiary/60 hover:text-tertiary active:scale-95 transition-colors">Cancel scan</button>
-              </div>
-            </div>
-          )}
-          {/* Decode error */}
-          {decodeError && (
-            <div className="px-4 pt-2">
-              <div className="text-xs text-themeredred">{decodeError}</div>
-            </div>
-          )}
-
-          {/* Content */}
-          <div className="px-5 py-3 md:p-5 pb-8">
-            {view === 'note' ? (
-              <ProviderNote
-                hpiNote={hpiNote}
-                setHpiNote={setHpiNote}
-                peNote={peNote}
-                setPeNote={setPeNote}
-                peState={peState}
-                onPeStateChange={setPeState}
-                peResetKey={peResetKey}
-                assessmentNote={assessmentNote}
-                setAssessmentNote={setAssessmentNote}
-                planNote={planNote}
-                setPlanNote={setPlanNote}
-                onNext={handleGoToOutput}
-                importedMedicNote={importedMedicNote}
-              />
-            ) : (
-              <ProviderNoteOutput
-                hpiNote={hpiNote}
-                peNote={peNote}
-                peState={peState}
-                assessmentNote={assessmentNote}
-                planNote={planNote}
-                importedMedicNote={importedMedicNote}
-                medicBarcode={medicBarcode}
-              />
-            )}
+        )}
+        {/* Decode error */}
+        {decodeError && (
+          <div className="px-4 pt-2">
+            <div className="text-xs text-themeredred">{decodeError}</div>
           </div>
+        )}
+
+        {/* Content */}
+        <div className="px-5 py-3 md:p-5 pb-8">
+          {view === 'note' ? (
+            <ProviderNote
+              hpiNote={hpiNote}
+              setHpiNote={setHpiNote}
+              peNote={peNote}
+              setPeNote={setPeNote}
+              peState={peState}
+              onPeStateChange={setPeState}
+              peResetKey={peResetKey}
+              assessmentNote={assessmentNote}
+              setAssessmentNote={setAssessmentNote}
+              planNote={planNote}
+              setPlanNote={setPlanNote}
+              onNext={handleGoToOutput}
+              importedMedicNote={importedMedicNote}
+            />
+          ) : (
+            <ProviderNoteOutput
+              hpiNote={hpiNote}
+              peNote={peNote}
+              peState={peState}
+              assessmentNote={assessmentNote}
+              planNote={planNote}
+              importedMedicNote={importedMedicNote}
+              medicBarcode={medicBarcode}
+            />
+          )}
         </div>
       </ContentWrapper>
     </BaseDrawer>

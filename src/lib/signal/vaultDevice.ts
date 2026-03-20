@@ -624,7 +624,10 @@ export async function processVaultMessages(userId: string): Promise<number> {
         const encMsg = inner as unknown as EncryptedMessage
         const existing = sessionMap.get(sessionKey)
         if (!existing) {
-          logger.warn(`No vault session for ${sessionKey} — skipping message ${row.id}`)
+          // Orphaned message: its X3DH initial was consumed in a prior session.
+          // Mark as read so it doesn't accumulate. The backup service already
+          // handles conversation history restoration.
+          processedIds.push(row.id)
           continue
         }
 
