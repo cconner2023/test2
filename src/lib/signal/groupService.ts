@@ -88,3 +88,17 @@ export async function removeGroupMember(groupId: string, userId: string): Promis
     'removeGroupMember', logger,
   )
 }
+
+/**
+ * Lazily get or create the system calendar group for a clinic.
+ * Idempotent — concurrent calls return the same group_id.
+ * Returns the group UUID on success.
+ */
+export async function getOrCreateClinicCalendarGroup(clinicId: string): Promise<Result<string>> {
+  const result = await callRpc<{ groupId: string }>(
+    () => supabase.rpc('get_or_create_clinic_calendar_group', { p_clinic_id: clinicId }),
+    'getOrCreateClinicCalendarGroup', logger,
+  )
+  if (!result.ok) return result
+  return { ok: true, data: result.data.groupId }
+}

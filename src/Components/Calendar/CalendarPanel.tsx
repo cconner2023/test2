@@ -14,6 +14,9 @@ import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
 import { useProperty } from '../../Hooks/useProperty'
+import { useCalendarSync } from '../../Hooks/useCalendarSync'
+import { useMessagesContext } from '../../Hooks/MessagesContext'
+import { useAuth } from '../../Hooks/useAuth'
 import { getInitials } from '../../Utilities/nameUtils'
 import type { CalendarEvent, EventFormData } from '../../Types/CalendarTypes'
 import {
@@ -34,8 +37,15 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
   const eventFormRef = useRef<EventFormHandle>(null)
 
+  const { clinicId, user } = useAuth()
+  const messagesCtx = useMessagesContext()
+  const { calendarGroupId } = useCalendarStore(useShallow(s => ({ calendarGroupId: s.calendarGroupId })))
+
+  // Kick off group resolution + IDB hydration
+  useCalendarSync()
+
   const [showDayDrawer, setShowDayDrawer] = useState(false)
-  const [dayDrawerView, setDayDrawerView] = useState<DayDrawerView>('list')
+  const [dayDrawerView, setDayDrawerView] = useState<DayDrawerView>('detail')
   const [dayDrawerEventId, setDayDrawerEventId] = useState<string | null>(null)
 
   const { medics: allMedics } = useClinicMedics()
@@ -166,8 +176,9 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
   }, [events])
 
   const handleSaveEvent = useCallback((data: EventFormData) => {
+    const now = new Date().toISOString()
     if (editingEvent) {
-      updateEvent(editingEvent.id, {
+      const changes = {
         title: data.title,
         description: data.description || null,
         category: data.category,
@@ -179,12 +190,20 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
         report_time: data.report_time || null,
         assigned_to: data.assigned_to,
         property_item_ids: data.property_item_ids,
-      })
+        updated_at: now,
+      }
+      updateEvent(editingEvent.id, changes)
+      if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
+        messagesCtx.sendCalendarEvent(calendarGroupId, {
+          type: 'calendar_event',
+          action: 'update',
+          data: { id: editingEvent.id, ...changes },
+        }).catch(() => {})
+      }
     } else {
-      const now = new Date().toISOString()
-      addEvent({
+      const newEvent: CalendarEvent = {
         id: generateId(),
-        clinic_id: '',
+        clinic_id: clinicId ?? '',
         title: data.title,
         description: data.description || null,
         category: data.category,
@@ -198,14 +217,22 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
         report_time: data.report_time || null,
         assigned_to: data.assigned_to,
         property_item_ids: data.property_item_ids,
-        created_by: '',
+        created_by: user?.id ?? '',
         created_at: now,
         updated_at: now,
-      })
+      }
+      addEvent(newEvent)
+      if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
+        messagesCtx.sendCalendarEvent(calendarGroupId, {
+          type: 'calendar_event',
+          action: 'create',
+          data: newEvent,
+        }).catch(() => {})
+      }
     }
     setEditingEvent(null)
     setPanelView('calendar')
-  }, [editingEvent, addEvent, updateEvent])
+  }, [editingEvent, addEvent, updateEvent, calendarGroupId, messagesCtx, clinicId, user])
 
   const handleMoveEvent = useCallback((eventId: string, newStartTime: string) => {
     const event = events.find(e => e.id === eventId)
@@ -215,11 +242,20 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
     const durationMs = originalEnd.getTime() - originalStart.getTime()
     const newStart = new Date(newStartTime)
     const newEnd = new Date(newStart.getTime() + durationMs)
-    updateEvent(eventId, {
+    const changes = {
       start_time: newStartTime,
       end_time: newEnd.toISOString().slice(0, 16),
-    })
-  }, [events, updateEvent])
+      updated_at: new Date().toISOString(),
+    }
+    updateEvent(eventId, changes)
+    if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
+      messagesCtx.sendCalendarEvent(calendarGroupId, {
+        type: 'calendar_event',
+        action: 'update',
+        data: { id: eventId, ...changes },
+      }).catch(() => {})
+    }
+  }, [events, updateEvent, calendarGroupId, messagesCtx])
 
   const handleMoveEventToDate = useCallback((eventId: string, targetDateKey: string) => {
     const event = events.find(e => e.id === eventId)
@@ -233,17 +269,33 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
     const newEnd = new Date(newStart.getTime() + durationMs)
     const pad = (n: number) => String(n).padStart(2, '0')
     const toISO = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`
-    updateEvent(eventId, {
+    const changes = {
       start_time: toISO(newStart),
       end_time: toISO(newEnd),
-    })
-  }, [events, updateEvent])
+      updated_at: new Date().toISOString(),
+    }
+    updateEvent(eventId, changes)
+    if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
+      messagesCtx.sendCalendarEvent(calendarGroupId, {
+        type: 'calendar_event',
+        action: 'update',
+        data: { id: eventId, ...changes },
+      }).catch(() => {})
+    }
+  }, [events, updateEvent, calendarGroupId, messagesCtx])
 
   const handleDeleteEvent = useCallback((id: string) => {
     removeEvent(id)
     selectEvent(null)
     setPanelView('calendar')
-  }, [removeEvent, selectEvent])
+    if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
+      messagesCtx.sendCalendarEvent(calendarGroupId, {
+        type: 'calendar_event',
+        action: 'delete',
+        data: { id },
+      }).catch(() => {})
+    }
+  }, [removeEvent, selectEvent, calendarGroupId, messagesCtx])
 
   const handleFormCancel = useCallback(() => {
     setEditingEvent(null)
@@ -260,7 +312,7 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
   const handleDayDrawerClose = useCallback(() => {
     setShowDayDrawer(false)
     setDayDrawerEventId(null)
-    setDayDrawerView('list')
+    setDayDrawerView('detail')
   }, [])
 
   const handleDayDrawerEdit = useCallback((id: string) => {
@@ -273,7 +325,8 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
 
   const handleDayDrawerSave = useCallback((data: EventFormData) => {
     if (editingEvent) {
-      updateEvent(editingEvent.id, {
+      const now = new Date().toISOString()
+      const changes = {
         title: data.title,
         description: data.description || null,
         category: data.category,
@@ -285,11 +338,20 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
         report_time: data.report_time || null,
         assigned_to: data.assigned_to,
         property_item_ids: data.property_item_ids,
-      })
+        updated_at: now,
+      }
+      updateEvent(editingEvent.id, changes)
+      if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
+        messagesCtx.sendCalendarEvent(calendarGroupId, {
+          type: 'calendar_event',
+          action: 'update',
+          data: { id: editingEvent.id, ...changes },
+        }).catch(() => {})
+      }
     }
     setEditingEvent(null)
     setDayDrawerView('detail')
-  }, [editingEvent, updateEvent])
+  }, [editingEvent, updateEvent, calendarGroupId, messagesCtx])
 
   const handleDayDrawerEditCancel = useCallback(() => {
     setEditingEvent(null)
@@ -507,7 +569,7 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
             onClose={handleDayDrawerDetailBack}
             onEdit={handleDayDrawerEdit}
             onDelete={(id) => {
-              removeEvent(id)
+              handleDeleteEvent(id)
               handleDayDrawerClose()
             }}
             assignedNames={resolveAssigned(dayDrawerEvent.assigned_to)}

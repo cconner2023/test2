@@ -56,7 +56,10 @@ import {
   serializeContent,
   parseMessageContent,
 } from '../lib/signal/messageContent'
-import type { MessageContent, ImageContent, VoiceContent, ReplyTo } from '../lib/signal/messageContent'
+import type { MessageContent, ImageContent, VoiceContent, ReplyTo, CalendarEventContent } from '../lib/signal/messageContent'
+import { useCalendarStore } from '../stores/useCalendarStore'
+import { saveCalendarEvents } from '../lib/calendarEventStore'
+import type { CalendarEvent } from '../Types/CalendarTypes'
 import { uploadEncryptedAttachment } from '../lib/signal/attachmentService'
 import { createBackup, markHydrationComplete } from '../lib/signal/backupService'
 import { ok as okResult, err as errResult, type Result } from '../lib/result'
@@ -371,6 +374,8 @@ export interface UseMessagesReturn {
   fetchGroupHistory: (groupId: string) => Promise<void>
   /** Refresh group list from server. */
   refreshGroups: () => Promise<void>
+  /** Send a calendar event to the clinic calendar group. Bypasses chat state entirely. */
+  sendCalendarEvent: (calendarGroupId: string, content: CalendarEventContent) => Promise<boolean>
   /** Ref for external listeners to receive qualifying incoming messages. */
   onIncomingRef: React.MutableRefObject<((msg: DecryptedSignalMessage) => void) | null>
   /** Ref tracking the currently-open conversation key (peerId or groupId). */
@@ -510,6 +515,27 @@ export function useMessages(): UseMessagesReturn {
     if (msg.senderId === userId && msg.recipientId === userId && !msg.readAt) {
       msg.readAt = new Date().toISOString()
       markMessagesRead([msg.id]).catch(e => errorBus.emit({ code: ErrorCode.SYNC_FAILED, source: 'useMessages.handleIncomingMessage', message: 'Failed to mark self-note as read', timestamp: Date.now(), metadata: { error: e } }))
+    }
+
+    // ── Calendar event routing ──
+    // Calendar messages are routed to the calendar store, NOT the chat conversations.
+    // They are NOT saved to the message IndexedDB, NOT added to conversations state,
+    // and do NOT trigger notifications.
+    if (msg.content?.type === 'calendar_event') {
+      const { action, data } = msg.content
+      const calStore = useCalendarStore.getState()
+      if (action === 'create') {
+        calStore.addEvent(data as CalendarEvent)
+      } else if (action === 'update') {
+        calStore.updateEvent(data.id, data as Partial<CalendarEvent>)
+      } else if (action === 'delete') {
+        calStore.removeEvent(data.id)
+      }
+      // Persist updated events to calendar IDB (not message store)
+      saveCalendarEvents(useCalendarStore.getState().events).catch(() => {})
+      // Mark as read so it is not re-fetched on next poll
+      markMessagesRead([msg.id]).catch(() => {})
+      return
     }
 
     // If the conversation is currently open, mark the message as read before storing
@@ -1766,6 +1792,50 @@ export function useMessages(): UseMessagesReturn {
     return () => { activePeerRef.current = null }
   }, [])
 
+  /**
+   * Send a calendar event to the clinic calendar group.
+   * Bypasses chat state entirely — no optimistic insertion, no IDB message store,
+   * no notification. Uses the same encrypt-and-fan-out primitives as sendGroupMessage.
+   */
+  const sendCalendarEvent = useCallback(async (
+    calendarGroupId: string,
+    content: CalendarEventContent,
+  ): Promise<boolean> => {
+    if (!userId || !localDeviceId) return false
+
+    const originId = crypto.randomUUID()
+    const serialized = serializeContent(content)
+
+    try {
+      const membersResult = await fetchGroupMembersRpc(calendarGroupId)
+      if (!membersResult.ok) {
+        logger.warn('sendCalendarEvent: failed to fetch group members:', membersResult.error)
+        return false
+      }
+
+      const result = await encryptAndSendToGroupMembers(
+        userId, localDeviceId, calendarGroupId, serialized, originId, membersResult.data,
+      )
+      if (!result.ok) {
+        logger.warn('sendCalendarEvent: encrypt/send failed:', result.error)
+        return false
+      }
+
+      sendSyncToOwnDevices(userId, localDeviceId, {
+        forPeerId: calendarGroupId,
+        serialized,
+        originalMessageType: 'message',
+        originalTimestamp: new Date().toISOString(),
+        originalMessageId: result.data,
+      }, calendarGroupId, originId).catch(() => {})
+
+      return true
+    } catch (e) {
+      logger.warn('sendCalendarEvent error:', e instanceof Error ? e.message : e)
+      return false
+    }
+  }, [userId, localDeviceId])
+
   return {
     conversations,
     unreadCounts,
@@ -1792,6 +1862,7 @@ export function useMessages(): UseMessagesReturn {
     fetchGroupMembers: fetchGroupMembersFn,
     fetchGroupHistory,
     refreshGroups,
+    sendCalendarEvent,
     onIncomingRef,
     activePeerRef,
   }

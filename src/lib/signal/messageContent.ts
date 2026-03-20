@@ -6,10 +6,13 @@
  * reconstruct the structured content.
  *
  * Wire format uses short keys to minimize ciphertext size:
- *   Text:  { t: "t", d: "hello" }
- *   Image: { t: "i", mime, key, path, w, h, thumb? }
- *   Voice: { t: "v", mime, key, path, dur, wf }
+ *   Text:           { t: "t", d: "hello" }
+ *   Image:          { t: "i", mime, key, path, w, h, thumb? }
+ *   Voice:          { t: "v", mime, key, path, dur, wf }
+ *   Calendar event: { t: "e", a: "c"|"u"|"d", d: {...} }
  */
+
+import type { EventCategory, EventStatus } from '../../Types/CalendarTypes'
 
 // ---- Content Types ----
 
@@ -52,7 +55,40 @@ export interface VoiceContent {
   replyTo?: ReplyTo
 }
 
-export type MessageContent = TextContent | ImageContent | VoiceContent
+/**
+ * Payload for a calendar event sync message.
+ * For 'create': all fields should be populated.
+ * For 'update': id + only changed fields.
+ * For 'delete': id only.
+ */
+export interface CalendarEventPayload {
+  id: string
+  title?: string
+  description?: string | null
+  category?: EventCategory
+  status?: EventStatus
+  start_time?: string
+  end_time?: string
+  all_day?: boolean
+  location?: string | null
+  opord_notes?: string | null
+  uniform?: string | null
+  report_time?: string | null
+  assigned_to?: string[]
+  property_item_ids?: string[]
+  created_by?: string
+  clinic_id?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CalendarEventContent {
+  type: 'calendar_event'
+  action: 'create' | 'update' | 'delete'
+  data: CalendarEventPayload
+}
+
+export type MessageContent = TextContent | ImageContent | VoiceContent | CalendarEventContent
 
 // ---- Compact wire shapes ----
 
@@ -89,7 +125,13 @@ interface WireVoice {
   rt?: WireReplyTo
 }
 
-type WireContent = WireText | WireImage | WireVoice
+interface WireCalendarEvent {
+  t: 'e'
+  a: 'c' | 'u' | 'd'
+  d: Record<string, unknown>
+}
+
+type WireContent = WireText | WireImage | WireVoice | WireCalendarEvent
 
 // ---- Serialization ----
 
@@ -118,6 +160,16 @@ export function serializeContent(content: MessageContent): string {
     }
     if (content.thumbnail) wire.thumb = content.thumbnail
     if (content.replyTo) wire.rt = toWireReplyTo(content.replyTo)
+    return JSON.stringify(wire)
+  }
+
+  if (content.type === 'calendar_event') {
+    const actionMap = { create: 'c', update: 'u', delete: 'd' } as const
+    const wire: WireCalendarEvent = {
+      t: 'e',
+      a: actionMap[content.action],
+      d: content.data as Record<string, unknown>,
+    }
     return JSON.stringify(wire)
   }
 
@@ -194,6 +246,19 @@ export function parseMessageContent(raw: string): ParsedContent {
           ...(replyTo && { replyTo }),
         },
         replyTo,
+      }
+    }
+
+    if (wire.t === 'e') {
+      const actionMap = { c: 'create', u: 'update', d: 'delete' } as const
+      const action = actionMap[wire.a] ?? 'create'
+      return {
+        plaintext: '[calendar event]',
+        content: {
+          type: 'calendar_event',
+          action,
+          data: wire.d as CalendarEventPayload,
+        } satisfies CalendarEventContent,
       }
     }
   } catch {

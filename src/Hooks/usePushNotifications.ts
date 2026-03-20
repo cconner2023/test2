@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   isPushSupported,
   getStoredFcmToken,
@@ -9,6 +9,12 @@ import {
   type SubscriptionInfo,
 } from '../lib/pushNotificationService'
 
+export interface ForegroundPush {
+  title: string
+  body: string
+  url?: string
+}
+
 /** Manages push notification subscription state: checking support, subscribing, and unsubscribing. */
 export function usePushNotifications() {
   const [isSupported, setIsSupported] = useState(false)
@@ -16,11 +22,41 @@ export function usePushNotifications() {
   const [subscriptionInfo, setSubscriptionInfo] = useState<SubscriptionInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [foregroundPush, setForegroundPush] = useState<ForegroundPush | null>(null)
+  const foregroundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const dismissForegroundPush = useCallback(() => {
+    setForegroundPush(null)
+    if (foregroundTimerRef.current) {
+      clearTimeout(foregroundTimerRef.current)
+      foregroundTimerRef.current = null
+    }
+  }, [])
 
   const refreshSubscriptionState = useCallback(() => {
     const token = getStoredFcmToken()
     setIsSubscribed(!!token)
     setSubscriptionInfo(token ? getSubscriptionInfo() : null)
+  }, [])
+
+  // Listen for PUSH_RECEIVED messages forwarded by the service worker
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'PUSH_RECEIVED') {
+        if (foregroundTimerRef.current) clearTimeout(foregroundTimerRef.current)
+        setForegroundPush({
+          title: event.data.title || 'Notification',
+          body: event.data.body || '',
+          url: event.data.url,
+        })
+        foregroundTimerRef.current = setTimeout(() => {
+          setForegroundPush(null)
+          foregroundTimerRef.current = null
+        }, 6000)
+      }
+    }
+    navigator.serviceWorker?.addEventListener('message', handler)
+    return () => navigator.serviceWorker?.removeEventListener('message', handler)
   }, [])
 
   useEffect(() => {
@@ -65,5 +101,5 @@ export function usePushNotifications() {
     return result.success
   }, [])
 
-  return { isSupported, isSubscribed, subscriptionInfo, loading, error, subscribe, unsubscribe }
+  return { isSupported, isSubscribed, subscriptionInfo, loading, error, subscribe, unsubscribe, foregroundPush, dismissForegroundPush }
 }

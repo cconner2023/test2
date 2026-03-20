@@ -15,6 +15,10 @@ interface CalendarState {
   showRosterMobile: boolean
   personnelFilter: string[]
   monthLabel: string
+  /** Cached ID of the clinic's system calendar group (set after lazy creation). */
+  calendarGroupId: string | null
+  /** True once the initial IDB hydration is complete. */
+  hydrated: boolean
 }
 
 interface CalendarActions {
@@ -36,6 +40,8 @@ interface CalendarActions {
   togglePersonnelFilter: (userId: string) => void
   clearPersonnelFilter: () => void
   setMonthLabel: (label: string) => void
+  setCalendarGroupId: (id: string) => void
+  setHydrated: (h: boolean) => void
 }
 
 export type CalendarStore = CalendarState & CalendarActions
@@ -52,6 +58,8 @@ export const useCalendarStore = create<CalendarStore>()((set) => ({
   showRosterMobile: false,
   personnelFilter: [],
   monthLabel: new Date().toLocaleDateString('en-US', { month: 'long' }),
+  calendarGroupId: null,
+  hydrated: false,
 
   setView: (view) => set({ currentView: view }),
   setSelectedDate: (date) => set({ selectedDate: date }),
@@ -111,4 +119,6 @@ export const useCalendarStore = create<CalendarStore>()((set) => ({
   })),
   clearPersonnelFilter: () => set({ personnelFilter: [] }),
   setMonthLabel: (label) => set({ monthLabel: label }),
+  setCalendarGroupId: (id) => set({ calendarGroupId: id }),
+  setHydrated: (h) => set({ hydrated: h }),
 }))

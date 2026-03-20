@@ -95,7 +95,7 @@ function ConversationPane({
   const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
   const showLoading = useMinLoadTime(loading ?? false)
 
-  const sortedGroups = Object.values(groups).sort((a, b) => a.name.localeCompare(b.name))
+  const sortedGroups = Object.values(groups).filter(g => !g.systemType).sort((a, b) => a.name.localeCompare(b.name))
 
   // IDs of contacts that have an active conversation (shown in Recent) — hide from Contacts
   const activeConversationIds = useMemo(() => {
@@ -151,7 +151,7 @@ function ConversationPane({
       m.clinicName?.toLowerCase().includes(q) ||
       [m.rank, m.lastName].filter(Boolean).join(' ').toLowerCase().includes(q)
     )
-    const matchedGroups = Object.values(groups).filter(g => g.name.toLowerCase().includes(q))
+    const matchedGroups = Object.values(groups).filter(g => !g.systemType && g.name.toLowerCase().includes(q))
 
     // Message content search — deduplicate against name matches
     const alreadyMatched = new Set<string>([

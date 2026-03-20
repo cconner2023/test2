@@ -127,16 +127,21 @@ self.addEventListener('push', (event) => {
   };
 
   // Always call waitUntil — iOS aggressively suspends the SW otherwise.
-  // Only show the OS notification if no app window is currently visible;
-  // when the app is in the foreground the in-app toast handles it.
+  // If a visible app window exists, forward the payload via postMessage
+  // so the in-app toast can display it. Otherwise show an OS notification.
   event.waitUntil(
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clients) => {
-        const appIsVisible = clients.some(
+        const visibleClients = clients.filter(
           (c) => c.visibilityState === 'visible'
         );
-        if (appIsVisible) return;               // in-app toast will handle it
+        if (visibleClients.length > 0) {
+          visibleClients.forEach((c) =>
+            c.postMessage({ type: 'PUSH_RECEIVED', title, body: options.body, url: options.data?.url })
+          );
+          return;
+        }
         return self.registration.showNotification(title, options);
       })
   );

@@ -67,6 +67,7 @@ export default defineConfig({
         orientation: 'portrait-primary',
         categories: ['productivity', 'utilities'],
         scope: '/test2/',
+        gcm_sender_id: '103953800507',
         icons: [
           {
             src: '/test2/icon-144.png',

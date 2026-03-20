@@ -32,6 +32,8 @@ import { MessagesProvider, useMessagesContext } from './Hooks/MessagesContext'
 import { CallProvider } from './Hooks/CallContext'
 import { CallOverlay } from './Components/Settings/CallOverlay'
 import { MessageNotificationToast } from './Components/MessageNotificationToast'
+import { PushNotificationToast } from './Components/PushNotificationToast'
+import { usePushNotifications } from './Hooks/usePushNotifications'
 import type { MessageNotification } from './Hooks/useMessageNotifications'
 
 // ── Lazy-loaded drawers/panels (code-split into separate chunks) ──
@@ -805,6 +807,7 @@ function AppContent() {
       </div>
       <CallOverlay />
       <MessageToastBridge onTap={handleNotificationTap} />
+      <PushToastBridge />
     </div>
     </CallProvider>
     </MessagesProvider>
@@ -822,6 +825,17 @@ function MessageToastBridge({ onTap }: { onTap: (n: MessageNotification) => void
       notification={ctx.notification}
       onDismiss={ctx.dismissNotification}
       onTap={(n) => { ctx.dismissNotification(); onTap(n) }}
+    />
+  )
+}
+
+/** Renders foreground push notification toasts (dev alerts, etc.). */
+function PushToastBridge() {
+  const { foregroundPush, dismissForegroundPush } = usePushNotifications()
+  return (
+    <PushNotificationToast
+      notification={foregroundPush}
+      onDismiss={dismissForegroundPush}
     />
   )
 }

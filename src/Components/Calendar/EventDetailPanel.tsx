@@ -1,8 +1,9 @@
-import { Pencil, X } from 'lucide-react'
+import { Pencil, X, CalendarPlus } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { getCategoryMeta } from '../../Types/CalendarTypes'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { UserAvatar } from '../Settings/UserAvatar'
+import { shareSingleEvent } from '../../lib/calendarExport'
 
 interface AssignedPerson {
   id: string
@@ -139,6 +140,15 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
             </div>
           </div>
         )}
+
+        {/* Add to phone calendar */}
+        <button
+          onClick={() => shareSingleEvent(event).catch(() => {})}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-themeblue3/20 bg-themewhite2 text-sm font-medium text-themeblue3 active:scale-95 transition-all duration-200"
+        >
+          <CalendarPlus className="w-4 h-4" />
+          Add to Phone Calendar
+        </button>
 
         <div className="h-16 shrink-0" />
       </div>
