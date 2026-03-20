@@ -1,12 +1,27 @@
-import { ArrowLeft, Pencil, Trash2, Clock, MapPin, Shirt, AlertTriangle } from 'lucide-react'
+import { Pencil, X, Clock, MapPin, Shirt, AlertTriangle, Users, Package } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { getCategoryMeta } from '../../Types/CalendarTypes'
+import { HeaderPill, PillButton } from '../HeaderPill'
+
+interface AssignedPerson {
+  id: string
+  initials: string
+  name: string
+}
+
+interface LinkedPropertyItem {
+  id: string
+  name: string
+  nsn: string | null
+}
 
 interface EventDetailPanelProps {
   event: CalendarEvent
-  onBack: () => void
+  onClose: () => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  assignedNames?: AssignedPerson[]
+  linkedPropertyItems?: LinkedPropertyItem[]
 }
 
 function formatDateTime(iso: string, allDay: boolean): string {
@@ -18,33 +33,18 @@ function formatDateTime(iso: string, allDay: boolean): string {
     ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-export function EventDetailPanel({ event, onBack, onEdit, onDelete }: EventDetailPanelProps) {
+export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, assignedNames = [], linkedPropertyItems = [] }: EventDetailPanelProps) {
   const cat = getCategoryMeta(event.category)
 
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10">
-        <button
-          onClick={onBack}
-          className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:bg-primary/5 active:scale-95 transition-all duration-200"
-        >
-          <ArrowLeft size={18} />
-        </button>
-        <div className="flex items-center gap-1">
-          <button
-            onClick={() => onEdit(event.id)}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary hover:bg-primary/5 active:scale-95 transition-all duration-200"
-          >
-            <Pencil size={16} />
-          </button>
-          <button
-            onClick={() => onDelete(event.id)}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-themeredred hover:bg-themeredred/10 active:scale-95 transition-all duration-200"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
+        <div />
+        <HeaderPill>
+          <PillButton icon={Pencil} iconSize={16} onClick={() => onEdit(event.id)} label="Edit" />
+          <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
+        </HeaderPill>
       </div>
 
       {/* Content */}
@@ -95,7 +95,44 @@ export function EventDetailPanel({ event, onBack, onEdit, onDelete }: EventDetai
               <p className="text-sm text-primary">Report: {event.report_time}</p>
             </div>
           )}
+
+          {/* Assigned To */}
+          <div className="flex items-start gap-3">
+            <Users size={16} className="text-tertiary mt-0.5 shrink-0" />
+            {assignedNames.length === 0 ? (
+              <p className="text-sm text-tertiary">Unassigned</p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {assignedNames.map((person) => (
+                  <div key={person.id} className="flex items-center gap-2">
+                    <div className="w-7 h-7 rounded-full bg-themeblue3 text-white flex items-center justify-center text-[10px] font-semibold shrink-0">
+                      {person.initials}
+                    </div>
+                    <span className="text-sm text-primary">{person.name}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Linked Equipment */}
+        {linkedPropertyItems.length > 0 && (
+          <div className="mt-5 pt-4 border-t border-primary/10">
+            <p className="text-xs font-medium text-tertiary uppercase mb-2">Equipment</p>
+            <div className="space-y-1.5">
+              {linkedPropertyItems.map((item) => (
+                <div key={item.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-secondary/5">
+                  <Package size={16} className="text-tertiary shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm text-primary truncate">{item.name}</p>
+                    {item.nsn && <p className="text-[10px] text-tertiary">{item.nsn}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Description */}
         {event.description && (

@@ -19,6 +19,7 @@ export interface CalendarEvent {
   uniform: string | null
   report_time: string | null
   assigned_to: string[]
+  property_item_ids: string[]
   created_by: string
   created_at: string
   updated_at: string
@@ -34,6 +35,8 @@ export interface EventFormData {
   location: string
   uniform: string
   report_time: string
+  assigned_to: string[]
+  property_item_ids: string[]
 }
 
 export const EVENT_CATEGORIES: { value: EventCategory; label: string; color: string }[] = [
@@ -80,6 +83,8 @@ export function createEmptyFormData(): EventFormData {
     location: '',
     uniform: '',
     report_time: '',
+    assigned_to: [],
+    property_item_ids: [],
   }
 }
 
@@ -94,6 +99,8 @@ export function eventToFormData(event: CalendarEvent): EventFormData {
     location: event.location ?? '',
     uniform: event.uniform ?? '',
     report_time: event.report_time ?? '',
+    assigned_to: event.assigned_to ?? [],
+    property_item_ids: event.property_item_ids ?? [],
   }
 }
 

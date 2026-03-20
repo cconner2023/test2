@@ -13,12 +13,15 @@ import { HeaderPill, PillButton } from '../HeaderPill'
 import { useCalendarStore } from '../../stores/useCalendarStore'
 import { useClinicMedics } from '../../Hooks/useClinicMedics'
 import { useClinicGroupedMedics } from '../../Hooks/useClinicGroupedMedics'
+import { useProperty } from '../../Hooks/useProperty'
+import { getInitials } from '../../Utilities/nameUtils'
 import type { CalendarEvent, EventFormData } from '../../Types/CalendarTypes'
 import {
   eventToFormData, toDateKey, eventFallsOnDate, generateId,
 } from '../../Types/CalendarTypes'
 
 type PanelView = 'calendar' | 'detail' | 'form'
+type DayDrawerView = 'detail' | 'edit'
 
 interface CalendarPanelProps {
   onBack: () => void
@@ -31,8 +34,54 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
   const eventFormRef = useRef<EventFormHandle>(null)
 
+  const [showDayDrawer, setShowDayDrawer] = useState(false)
+  const [dayDrawerView, setDayDrawerView] = useState<DayDrawerView>('list')
+  const [dayDrawerEventId, setDayDrawerEventId] = useState<string | null>(null)
+
   const { medics: allMedics } = useClinicMedics()
   const { ownClinicMedics } = useClinicGroupedMedics(allMedics)
+
+  // Medic name resolver — shared across detail panel and form
+  const medicLookup = useMemo(() => {
+    const map = new Map<string, { id: string; initials: string; name: string }>()
+    for (const m of ownClinicMedics) {
+      const rank = m.rank ? m.rank + ' ' : ''
+      const last = m.lastName ?? ''
+      const first = m.firstName ? ', ' + m.firstName.charAt(0) + '.' : ''
+      map.set(m.id, {
+        id: m.id,
+        initials: getInitials(m.firstName, m.lastName),
+        name: rank + last + first,
+      })
+    }
+    return map
+  }, [ownClinicMedics])
+
+  const medicList = useMemo(() => Array.from(medicLookup.values()), [medicLookup])
+
+  const property = useProperty()
+  const propertyItems = useMemo(() =>
+    property.items.filter(i => !i.parent_item_id).map(i => ({
+      id: i.id,
+      name: i.name,
+      nsn: i.nsn,
+      serial_number: i.serial_number,
+    })),
+    [property.items]
+  )
+
+  const resolveAssigned = useCallback((ids: string[]) =>
+    ids.map(id => medicLookup.get(id) ?? { id, initials: '?', name: 'Unknown' }),
+    [medicLookup]
+  )
+
+  const resolvePropertyItems = useCallback((ids: string[]) =>
+    ids.map(id => {
+      const item = property.items.find(i => i.id === id)
+      return item ? { id: item.id, name: item.name, nsn: item.nsn } : { id, name: 'Unknown Item', nsn: null }
+    }),
+    [property.items]
+  )
 
   const {
     viewMode, setViewMode,
@@ -89,9 +138,15 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
   // ── Event CRUD ──
 
   const handleSelectEvent = useCallback((id: string) => {
-    selectEvent(id)
-    setPanelView('detail')
-  }, [selectEvent])
+    if (isMobile) {
+      setDayDrawerEventId(id)
+      setDayDrawerView('detail')
+      setShowDayDrawer(true)
+    } else {
+      selectEvent(id)
+      setPanelView('detail')
+    }
+  }, [isMobile, selectEvent])
 
   const handleNewEvent = useCallback(() => {
     setEditingEvent(null)
@@ -118,6 +173,8 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
         location: data.location || null,
         uniform: data.uniform || null,
         report_time: data.report_time || null,
+        assigned_to: data.assigned_to,
+        property_item_ids: data.property_item_ids,
       })
     } else {
       const now = new Date().toISOString()
@@ -135,7 +192,8 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
         opord_notes: null,
         uniform: data.uniform || null,
         report_time: data.report_time || null,
-        assigned_to: [],
+        assigned_to: data.assigned_to,
+        property_item_ids: data.property_item_ids,
         created_by: '',
         created_at: now,
         updated_at: now,
@@ -193,6 +251,58 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
     setPanelView('calendar')
   }, [selectEvent])
 
+  // ── Day drawer handlers (mobile) ──
+
+  const handleDayDrawerClose = useCallback(() => {
+    setShowDayDrawer(false)
+    setDayDrawerEventId(null)
+    setDayDrawerView('list')
+  }, [])
+
+  const handleDayDrawerEdit = useCallback((id: string) => {
+    const event = events.find(e => e.id === id)
+    if (event) {
+      setEditingEvent(event)
+      setDayDrawerView('edit')
+    }
+  }, [events])
+
+  const handleDayDrawerSave = useCallback((data: EventFormData) => {
+    if (editingEvent) {
+      updateEvent(editingEvent.id, {
+        title: data.title,
+        description: data.description || null,
+        category: data.category,
+        start_time: data.start_time,
+        end_time: data.end_time,
+        all_day: data.all_day,
+        location: data.location || null,
+        uniform: data.uniform || null,
+        report_time: data.report_time || null,
+        assigned_to: data.assigned_to,
+        property_item_ids: data.property_item_ids,
+      })
+    }
+    setEditingEvent(null)
+    setDayDrawerView('detail')
+  }, [editingEvent, updateEvent])
+
+  const handleDayDrawerEditCancel = useCallback(() => {
+    setEditingEvent(null)
+    setDayDrawerView('detail')
+  }, [])
+
+  const handleDayDrawerDetailBack = useCallback(() => {
+    setShowDayDrawer(false)
+    setDayDrawerEventId(null)
+    setDayDrawerView('detail')
+  }, [])
+
+  const dayDrawerEvent = useMemo(() =>
+    dayDrawerEventId ? events.find(e => e.id === dayDrawerEventId) ?? null : null,
+    [events, dayDrawerEventId]
+  )
+
   // ── Sub-views (form / detail) — desktop: full panel replacement ──
 
   if (!isMobile && panelView === 'form') {
@@ -218,6 +328,8 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
           initialData={editingEvent ? eventToFormData(editingEvent) : undefined}
           onSave={handleSaveEvent}
           isEditing={!!editingEvent}
+          medics={medicList}
+          propertyItems={propertyItems}
         />
       </div>
     )
@@ -227,9 +339,11 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
     return (
       <EventDetailPanel
         event={selectedEvent}
-        onBack={handleDetailBack}
+        onClose={handleDetailBack}
         onEdit={handleEditEvent}
         onDelete={handleDeleteEvent}
+        assignedNames={resolveAssigned(selectedEvent.assigned_to)}
+        linkedPropertyItems={resolvePropertyItems(selectedEvent.property_item_ids ?? [])}
       />
     )
   }
@@ -343,7 +457,61 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
           initialData={editingEvent ? eventToFormData(editingEvent) : undefined}
           onSave={handleSaveEvent}
           isEditing={!!editingEvent}
+          medics={medicList}
+          propertyItems={propertyItems}
         />
+      </BaseDrawer>
+
+      {/* Mobile event drawer — tap an event to view/edit */}
+      <BaseDrawer
+        isVisible={showDayDrawer}
+        onClose={handleDayDrawerClose}
+        mobileOnly
+        fullHeight="85dvh"
+        zIndex="z-50"
+        header={dayDrawerView === 'edit' ? {
+          title: 'Edit Event',
+          rightContent: (
+            <HeaderPill>
+              <PillButton icon={X} iconSize={18} onClick={handleDayDrawerEditCancel} label="Cancel" />
+              <PillButton
+                icon={Check}
+                iconSize={18}
+                circleBg="bg-themegreen text-white"
+                onClick={() => eventFormRef.current?.submit()}
+                label="Save"
+              />
+            </HeaderPill>
+          ),
+          hideDefaultClose: true,
+        } : {
+          title: '',
+          hideDefaultClose: true,
+        }}
+      >
+        {dayDrawerView === 'detail' && dayDrawerEvent && (
+          <EventDetailPanel
+            event={dayDrawerEvent}
+            onClose={handleDayDrawerDetailBack}
+            onEdit={handleDayDrawerEdit}
+            onDelete={(id) => {
+              removeEvent(id)
+              handleDayDrawerClose()
+            }}
+            assignedNames={resolveAssigned(dayDrawerEvent.assigned_to)}
+            linkedPropertyItems={resolvePropertyItems(dayDrawerEvent.property_item_ids ?? [])}
+          />
+        )}
+
+        {dayDrawerView === 'edit' && editingEvent && (
+          <EventForm
+            ref={eventFormRef}
+            initialData={eventToFormData(editingEvent)}
+            onSave={handleDayDrawerSave}
+            isEditing
+            medics={medicList}
+          />
+        )}
       </BaseDrawer>
     </div>
   )

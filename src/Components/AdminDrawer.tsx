@@ -330,9 +330,36 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
 
     const renderMainView = () => (
         <div className="relative h-full">
-            {/* Vertical tab strip — floating right side */}
-            <div className="absolute top-3 right-5 z-20">
-                <VerticalPill>
+            {/* Desktop: vertical tab strip — floating right side */}
+            {!isMobile && (
+                <div className="absolute top-3 right-5 z-20">
+                    <VerticalPill>
+                        {TABS.map((tab) => {
+                            const TabIcon = TAB_ICONS[tab]
+                            const label = tab.charAt(0).toUpperCase() + tab.slice(1)
+                            return (
+                                <button
+                                    key={tab}
+                                    onClick={() => handleTabChange(tab)}
+                                    aria-label={label}
+                                    title={label}
+                                    className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors active:scale-95 ${
+                                        activeTab === tab
+                                            ? 'bg-themeblue2 text-white shadow-sm'
+                                            : 'text-tertiary/70 hover:text-primary'
+                                    }`}
+                                >
+                                    <TabIcon size={18} />
+                                </button>
+                            )
+                        })}
+                    </VerticalPill>
+                </div>
+            )}
+
+            {/* Mobile: horizontal bottom island */}
+            {isMobile && (
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 bg-themewhite2/90 dark:bg-themewhite3/90 backdrop-blur-sm rounded-full shadow-sm border border-tertiary/10 flex items-center p-1 gap-1">
                     {TABS.map((tab) => {
                         const TabIcon = TAB_ICONS[tab]
                         const label = tab.charAt(0).toUpperCase() + tab.slice(1)
@@ -352,60 +379,109 @@ export function AdminDrawer({ isVisible, onClose }: AdminDrawerProps) {
                             </button>
                         )
                     })}
-                </VerticalPill>
-            </div>
+                </div>
+            )}
 
-            {/* List content — full width */}
+            {/* List content — single search bar wrapping all tabs */}
             <div className="h-full min-h-0">
-                {activeTab === 'requests' && (
-                    <MobileSearchBar variant="admin" value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused}>
-                        <AdminRequestsList
-                            searchQuery={searchQuery}
-                            onUserApproved={(approvedUser) => {
-                                const newUser: AdminUser = {
-                                    id: approvedUser.id,
-                                    email: approvedUser.email,
-                                    first_name: approvedUser.first_name,
-                                    last_name: approvedUser.last_name,
-                                    middle_initial: null,
-                                    credential: null,
-                                    component: null,
-                                    rank: null,
-                                    uic: null,
-                                    roles: approvedUser.supervisor ? ['medic', 'supervisor'] : ['medic'],
-                                    clinic_id: null,
-                                    created_at: new Date().toISOString(),
-                                    last_active_at: null,
-                                    note_include_hpi: approvedUser.noteIncludeHPI ?? true,
-                                    note_include_pe: approvedUser.noteIncludePE ?? false,
-                                    pe_depth: approvedUser.peDepth ?? 'standard',
-                                    avatar_id: null,
-                                }
-                                handleEditUser(newUser)
-                            }}
-                        />
-                    </MobileSearchBar>
-                )}
-                {activeTab === 'users' && (
-                    <MobileSearchBar variant="admin" value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused}>
-                        <AdminUsersList
-                            onSelectUser={handleSelectUser}
-                            onEditUser={handleEditUser}
-                            onCreateUser={handleCreateUser}
-                            searchQuery={searchQuery}
-                        />
-                    </MobileSearchBar>
-                )}
-                {activeTab === 'clinics' && (
-                    <MobileSearchBar variant="admin" value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused}>
-                        <AdminClinicsList
-                            onSelectClinic={handleSelectClinic}
-                            onEditClinic={handleEditClinic}
-                            onCreateClinic={handleCreateClinic}
-                            searchQuery={searchQuery}
-                        />
-                    </MobileSearchBar>
-                )}
+                <MobileSearchBar variant="admin" value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused}>
+                    {searchQuery.trim() ? (
+                        <div className="pb-4">
+                            <div className="px-5 pb-2">
+                                <p className="text-[10pt] font-medium text-tertiary/60 uppercase tracking-wide">Requests</p>
+                            </div>
+                            <AdminRequestsList
+                                searchQuery={searchQuery}
+                                onUserApproved={(approvedUser) => {
+                                    const newUser: AdminUser = {
+                                        id: approvedUser.id,
+                                        email: approvedUser.email,
+                                        first_name: approvedUser.first_name,
+                                        last_name: approvedUser.last_name,
+                                        middle_initial: null,
+                                        credential: null,
+                                        component: null,
+                                        rank: null,
+                                        uic: null,
+                                        roles: approvedUser.supervisor ? ['medic', 'supervisor'] : ['medic'],
+                                        clinic_id: null,
+                                        created_at: new Date().toISOString(),
+                                        last_active_at: null,
+                                        note_include_hpi: approvedUser.noteIncludeHPI ?? true,
+                                        note_include_pe: approvedUser.noteIncludePE ?? false,
+                                        pe_depth: approvedUser.peDepth ?? 'standard',
+                                        avatar_id: null,
+                                    }
+                                    handleEditUser(newUser)
+                                }}
+                            />
+                            <div className="px-5 pb-2 pt-4">
+                                <p className="text-[10pt] font-medium text-tertiary/60 uppercase tracking-wide">Users</p>
+                            </div>
+                            <AdminUsersList
+                                onSelectUser={handleSelectUser}
+                                onEditUser={handleEditUser}
+                                onCreateUser={handleCreateUser}
+                                searchQuery={searchQuery}
+                            />
+                            <div className="px-5 pb-2 pt-4">
+                                <p className="text-[10pt] font-medium text-tertiary/60 uppercase tracking-wide">Clinics</p>
+                            </div>
+                            <AdminClinicsList
+                                onSelectClinic={handleSelectClinic}
+                                onEditClinic={handleEditClinic}
+                                onCreateClinic={handleCreateClinic}
+                                searchQuery={searchQuery}
+                            />
+                        </div>
+                    ) : (
+                        <>
+                            {activeTab === 'requests' && (
+                                <AdminRequestsList
+                                    searchQuery={searchQuery}
+                                    onUserApproved={(approvedUser) => {
+                                        const newUser: AdminUser = {
+                                            id: approvedUser.id,
+                                            email: approvedUser.email,
+                                            first_name: approvedUser.first_name,
+                                            last_name: approvedUser.last_name,
+                                            middle_initial: null,
+                                            credential: null,
+                                            component: null,
+                                            rank: null,
+                                            uic: null,
+                                            roles: approvedUser.supervisor ? ['medic', 'supervisor'] : ['medic'],
+                                            clinic_id: null,
+                                            created_at: new Date().toISOString(),
+                                            last_active_at: null,
+                                            note_include_hpi: approvedUser.noteIncludeHPI ?? true,
+                                            note_include_pe: approvedUser.noteIncludePE ?? false,
+                                            pe_depth: approvedUser.peDepth ?? 'standard',
+                                            avatar_id: null,
+                                        }
+                                        handleEditUser(newUser)
+                                    }}
+                                />
+                            )}
+                            {activeTab === 'users' && (
+                                <AdminUsersList
+                                    onSelectUser={handleSelectUser}
+                                    onEditUser={handleEditUser}
+                                    onCreateUser={handleCreateUser}
+                                    searchQuery={searchQuery}
+                                />
+                            )}
+                            {activeTab === 'clinics' && (
+                                <AdminClinicsList
+                                    onSelectClinic={handleSelectClinic}
+                                    onEditClinic={handleEditClinic}
+                                    onCreateClinic={handleCreateClinic}
+                                    searchQuery={searchQuery}
+                                />
+                            )}
+                        </>
+                    )}
+                </MobileSearchBar>
             </div>
         </div>
     )

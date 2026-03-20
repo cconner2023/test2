@@ -116,9 +116,6 @@ export function AdminClinicsList({
   return (
     <div>
       <div className="px-5 pt-4 pb-2 space-y-3">
-        <div className="flex items-center">
-          <p className="text-sm text-tertiary/60">Manage clinics</p>
-        </div>
         {status && <ErrorDisplay type={status.type} message={status.message} />}
       </div>
 
@@ -242,15 +239,8 @@ function ClinicCard({ clinic, assignedUserCount, onTap, onContextMenu }: ClinicC
       </div>
 
       {clinic.uics.length > 0 && (
-        <div className="flex flex-wrap items-center gap-1.5 mt-2">
-          {clinic.uics.map((uic) => (
-            <span
-              key={uic}
-              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10pt] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30"
-            >
-              {uic}
-            </span>
-          ))}
+        <div className="mt-2">
+          <span className="text-[10pt] text-tertiary">{clinic.uics.join(' · ')}</span>
         </div>
       )}
     </div>

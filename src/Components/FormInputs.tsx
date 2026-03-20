@@ -65,7 +65,7 @@ export const SelectInput = ({
   label: string
   value: string
   onChange: (val: string) => void
-  options: readonly string[]
+  options: readonly string[] | readonly { value: string; label: string }[]
   placeholder?: string
   required?: boolean
   currentValue?: string | null
@@ -88,11 +88,16 @@ export const SelectInput = ({
                  transition-colors appearance-none"
     >
       <option value="">{placeholder ?? 'Select...'}</option>
-      {options.map((opt) => (
-        <option key={opt} value={opt}>
-          {opt}
-        </option>
-      ))}
+      {options.map((opt) => {
+        const isObj = typeof opt === 'object'
+        const val = isObj ? opt.value : opt
+        const lbl = isObj ? opt.label : opt
+        return (
+          <option key={val} value={val}>
+            {lbl}
+          </option>
+        )
+      })}
     </select>
   </label>
 )

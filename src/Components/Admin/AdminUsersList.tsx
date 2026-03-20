@@ -291,10 +291,6 @@ export function AdminUsersList({
   return (
     <div>
       <div className="px-5 pt-4 pb-2 space-y-3">
-        <div className="flex items-center">
-          <p className="text-sm text-tertiary/60">Manage user accounts</p>
-        </div>
-
         {feedback && <ErrorDisplay type={feedback.type} message={feedback.message} />}
       </div>
 
@@ -349,12 +345,10 @@ export function AdminUsersList({
                           </span>
                         )}
                         {user.uic && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10pt] font-medium border bg-themeblue2/10 text-themeblue2 border-themeblue2/30">
-                            {user.uic}
-                          </span>
+                          <span className="text-[10pt] text-tertiary">{user.uic}</span>
                         )}
                         {user.clinic_id && clinicById.get(user.clinic_id) && (
-                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10pt] font-medium border bg-themegreen/10 text-themegreen border-themegreen/30">
+                          <span className="inline-flex items-center gap-1 text-[10pt] text-tertiary">
                             <Building2 size={12} />
                             {clinicById.get(user.clinic_id)!.name}
                           </span>

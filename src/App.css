@@ -138,6 +138,14 @@ input, textarea, [contenteditable="true"] {
   -webkit-backface-visibility: hidden;
 }
 
+/* Scrollable regions that need both horizontal and vertical panning.
+   Overrides the global pan-y on * for this subtree so touch-action
+   intersection doesn't collapse to vertical-only. */
+.touch-pan-xy,
+.touch-pan-xy * {
+  touch-action: manipulation;
+}
+
 /* Drag handle areas: disable all default touch behaviors */
 [data-drag-zone] {
   touch-action: none;

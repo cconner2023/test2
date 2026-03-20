@@ -456,7 +456,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
           )}
 
           {/* Content */}
-          <div className="px-4 py-3 md:p-5 pb-8">
+          <div className="px-5 py-3 md:p-5 pb-8">
             {view === 'note' ? (
               <ProviderNote
                 hpiNote={hpiNote}

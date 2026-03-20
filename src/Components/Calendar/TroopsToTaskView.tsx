@@ -82,7 +82,7 @@ export function TroopsToTaskView({ date, events, medics, onSelectEvent }: Troops
   const MIN_ROW_HEIGHT = 64
 
   return (
-    <div className="h-full min-h-0 min-w-0 overflow-auto overscroll-contain -webkit-overflow-scrolling-touch">
+    <div className="touch-pan-xy h-full min-h-0 min-w-0 overflow-auto overscroll-contain">
       <div style={{ minWidth: totalWidth, display: 'grid', gridTemplateRows: `auto auto repeat(${medics.length + (unassignedEvents.length > 0 ? 1 : 0)}, auto) auto` }}>
           {/* Spacer for mobile floating header */}
           <div className="h-[calc(var(--sat,0px)+3.5rem)] md:hidden" />

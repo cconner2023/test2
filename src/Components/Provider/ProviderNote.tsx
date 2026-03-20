@@ -63,7 +63,7 @@ export function ProviderNote({
   );
 
   return (
-    <div className="px-4 py-4 pb-8 space-y-4">
+    <div className="space-y-4">
       {piiWarnings.length > 0 && <PIIWarningBanner warnings={piiWarnings} />}
 
       <div className="space-y-2">

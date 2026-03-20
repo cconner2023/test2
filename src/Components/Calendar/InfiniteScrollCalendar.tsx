@@ -71,18 +71,68 @@ function isMultiDay(event: CalendarEvent): boolean {
   return event.start_time.slice(0, 10) !== event.end_time.slice(0, 10)
 }
 
+// ── multi-day spanning layout ────────────────────────────────────────
+
+interface MultiDaySegment {
+  event: CalendarEvent
+  startCol: number
+  span: number
+  lane: number
+  isStart: boolean
+  isEnd: boolean
+}
+
+function computeMultiDaySegments(week: WeekData, multiDayEvents: CalendarEvent[]): MultiDaySegment[] {
+  const weekStartKey = week.days[0].dateKey
+  const weekEndKey = week.days[6].dateKey
+  const seen = new Set<string>()
+  const segments: MultiDaySegment[] = []
+
+  for (const event of multiDayEvents) {
+    if (seen.has(event.id)) continue
+    const es = event.start_time.slice(0, 10)
+    const ee = event.end_time.slice(0, 10)
+    if (ee < weekStartKey || es > weekEndKey) continue
+    seen.add(event.id)
+
+    const startCol = es < weekStartKey ? 0 : week.days.findIndex(d => d.dateKey >= es)
+    const endCol = ee > weekEndKey ? 6 : week.days.findIndex(d => d.dateKey >= ee)
+    const sc = startCol === -1 ? 0 : startCol
+    const ec = endCol === -1 ? 6 : endCol
+
+    segments.push({
+      event, startCol: sc, span: ec - sc + 1, lane: 0,
+      isStart: es >= weekStartKey, isEnd: ee <= weekEndKey,
+    })
+  }
+
+  segments.sort((a, b) => a.startCol - b.startCol || b.span - a.span)
+
+  const laneEnds: number[] = []
+  for (const seg of segments) {
+    let lane = 0
+    while (lane < laneEnds.length && laneEnds[lane] >= seg.startCol) lane++
+    seg.lane = lane
+    if (lane >= laneEnds.length) laneEnds.push(seg.startCol + seg.span - 1)
+    else laneEnds[lane] = seg.startCol + seg.span - 1
+  }
+
+  return segments
+}
+
+const LANE_HEIGHT = 20
+
 // ── components ──────────────────────────────────────────────────────
 
 interface EventPillProps {
   event: CalendarEvent
-  multiDay?: boolean
   eventId: string
   onTap: (id: string) => void
   isDragging: boolean
   dragHandlers: ReturnType<ReturnType<typeof useLongPressDrag>['getDragHandlers']>
 }
 
-function EventPill({ event, multiDay, eventId, onTap, isDragging, dragHandlers }: EventPillProps) {
+function EventPill({ event, eventId, onTap, isDragging, dragHandlers }: EventPillProps) {
   const cat = getCategoryMeta(event.category)
   return (
     <div
@@ -91,11 +141,9 @@ function EventPill({ event, multiDay, eventId, onTap, isDragging, dragHandlers }
         e.stopPropagation()
         onTap(eventId)
       }}
-      className={`flex items-center gap-0.5 rounded px-1 py-px text-[9px] leading-tight truncate transition-opacity duration-150 cursor-pointer ${
-        multiDay ? `${cat.color} text-white font-medium` : ''
-      } ${isDragging ? 'opacity-30' : ''}`}
+      className={`flex items-center gap-0.5 rounded px-1 py-px text-[9px] leading-tight truncate transition-opacity duration-150 cursor-pointer ${isDragging ? 'opacity-30' : ''}`}
     >
-      {!multiDay && <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cat.color}`} />}
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cat.color}`} />
       <span className="truncate text-secondary/80">{event.title}</span>
     </div>
   )
@@ -134,27 +182,26 @@ export function InfiniteScrollCalendar({
     [events, dragState.draggedEventId]
   )
 
+  const multiDayEvents = useMemo(() => events.filter(isMultiDay), [events])
+
+  const multiDayByWeek = useMemo(() => {
+    const map = new Map<string, MultiDaySegment[]>()
+    if (multiDayEvents.length === 0) return map
+    for (const week of weeks) {
+      const segments = computeMultiDaySegments(week, multiDayEvents)
+      if (segments.length > 0) map.set(week.key, segments)
+    }
+    return map
+  }, [weeks, multiDayEvents])
+
   const eventsByDate = useMemo(() => {
     const map = new Map<string, CalendarEvent[]>()
     for (const event of events) {
-      if (isMultiDay(event)) {
-        const eStart = event.start_time.slice(0, 10)
-        const eEnd = event.end_time.slice(0, 10)
-        const cursor = new Date(eStart + 'T00:00:00')
-        const endDate = new Date(eEnd + 'T00:00:00')
-        while (cursor <= endDate) {
-          const key = toDateKey(cursor)
-          const existing = map.get(key) ?? []
-          existing.unshift(event)
-          map.set(key, existing)
-          cursor.setDate(cursor.getDate() + 1)
-        }
-      } else {
-        const key = event.start_time.slice(0, 10)
-        const existing = map.get(key) ?? []
-        existing.push(event)
-        map.set(key, existing)
-      }
+      if (isMultiDay(event)) continue
+      const key = event.start_time.slice(0, 10)
+      const existing = map.get(key) ?? []
+      existing.push(event)
+      map.set(key, existing)
     }
     return map
   }, [events])
@@ -248,79 +295,112 @@ export function InfiniteScrollCalendar({
       >
         {/* Spacer for mobile floating header (header row + day-of-week row) */}
         <div className="h-[calc(var(--sat,0px)+5rem)] md:hidden shrink-0" />
-        {weeks.map((week) => (
-          <div
-            key={week.key}
-            ref={(el) => setWeekRef(week.key, el)}
-            data-week-key={week.key}
-          >
-            {/* Week row — day cells as bordered boxes */}
-            <div className="grid grid-cols-7 border-b border-primary/8">
-              {week.days.map((day, i) => {
-                const isToday = day.dateKey === today
-                const isSelected = day.dateKey === selectedKey
-                const isDropTarget = dragState.dropTargetDate === day.dateKey
-                const dayEvents = eventsByDate.get(day.dateKey) ?? []
+        {weeks.map((week) => {
+          const weekMultiDay = multiDayByWeek.get(week.key) ?? []
+          const laneCount = weekMultiDay.length > 0 ? Math.max(...weekMultiDay.map(s => s.lane)) + 1 : 0
+          const DAY_NUM_HEIGHT = 30 // py-1 (4) + h-6 (24) + mb-0.5 (2)
 
+          return (
+            <div
+              key={week.key}
+              ref={(el) => setWeekRef(week.key, el)}
+              data-week-key={week.key}
+              className="relative"
+            >
+              {/* Multi-day bars — absolutely positioned over day cells */}
+              {weekMultiDay.map(seg => {
+                const cat = getCategoryMeta(seg.event.category)
+                const isDrag = dragState.draggedEventId === seg.event.id
                 return (
                   <div
-                    key={day.dateKey}
-                    role="button"
-                    tabIndex={0}
-                    data-drop-date={day.dateKey}
-                    onClick={() => {
-                      if (justDroppedRef.current) return
-                      onSelectDate(day.date)
+                    key={seg.event.id}
+                    {...getDragHandlers(seg.event.id)}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onSelectEvent(seg.event.id)
                     }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        if (!justDroppedRef.current) onSelectDate(day.date)
-                      }
+                    className={`absolute z-[2] flex items-center ${cat.color} text-white text-[9px] font-medium px-1.5 truncate cursor-pointer active:scale-[0.98] transition-all duration-150 ${
+                      seg.isStart ? 'rounded-l' : ''
+                    } ${seg.isEnd ? 'rounded-r' : ''} ${isDrag ? 'opacity-30' : ''}`}
+                    style={{
+                      top: DAY_NUM_HEIGHT + seg.lane * LANE_HEIGHT + 1,
+                      left: `${(seg.startCol / 7) * 100}%`,
+                      width: `${(seg.span / 7) * 100}%`,
+                      height: LANE_HEIGHT - 2,
                     }}
-                    className={`flex flex-col items-start px-0.5 py-1 min-h-[88px] transition-all duration-150 hover:bg-primary/3 active:scale-[0.97] cursor-pointer ${
-                      i < 6 ? 'border-r border-primary/8' : ''
-                    } ${isDropTarget ? 'ring-2 ring-themeblue3 ring-inset bg-themeblue3/5' : ''}`}
                   >
-                    {/* Day number */}
-                    <div className="flex items-center justify-start w-full mb-0.5">
-                      <span className={`w-6 h-6 flex items-center justify-center text-xs font-semibold rounded-full ${
-                        isSelected
-                          ? 'bg-themeblue3 text-white'
-                          : isToday
-                            ? 'bg-themeblue3/15 text-themeblue3'
-                            : day.day === 1
-                              ? 'text-primary font-bold'
-                              : day.month === selectedDate.getMonth()
-                                ? 'text-primary'
-                                : 'text-tertiary/30'
-                      }`}>
-                        {day.day}
-                      </span>
-                    </div>
-
-                    {/* Event pills */}
-                    <div className="w-full space-y-px overflow-hidden">
-                      {dayEvents.slice(0, 3).map(event => (
-                        <EventPill
-                          key={event.id}
-                          event={event}
-                          multiDay={isMultiDay(event)}
-                          eventId={event.id}
-                          onTap={onSelectEvent}
-                          isDragging={dragState.draggedEventId === event.id}
-                          dragHandlers={getDragHandlers(event.id)}
-                        />
-                      ))}
-                      {dayEvents.length > 3 && (
-                        <span className="text-[8px] text-tertiary/50 pl-1">+{dayEvents.length - 3}</span>
-                      )}
-                    </div>
+                    <span className="truncate">{seg.event.title}</span>
                   </div>
                 )
               })}
+
+              <div className="grid grid-cols-7 border-b border-primary/8">
+                {week.days.map((day, i) => {
+                  const isToday = day.dateKey === today
+                  const isSelected = day.dateKey === selectedKey
+                  const isDropTarget = dragState.dropTargetDate === day.dateKey
+                  const dayEvents = eventsByDate.get(day.dateKey) ?? []
+
+                  return (
+                    <div
+                      key={day.dateKey}
+                      role="button"
+                      tabIndex={0}
+                      data-drop-date={day.dateKey}
+                      onClick={() => {
+                        if (justDroppedRef.current) return
+                        onSelectDate(day.date)
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          if (!justDroppedRef.current) onSelectDate(day.date)
+                        }
+                      }}
+                      className={`flex flex-col items-start px-0.5 py-1 min-h-[88px] transition-all duration-150 hover:bg-primary/3 active:scale-[0.97] cursor-pointer ${
+                        i < 6 ? 'border-r border-primary/8' : ''
+                      } ${isDropTarget ? 'ring-2 ring-themeblue3 ring-inset bg-themeblue3/5' : ''}`}
+                    >
+                      <div className="flex items-center justify-start w-full mb-0.5">
+                        <span className={`w-6 h-6 flex items-center justify-center text-xs font-semibold rounded-full ${
+                          isSelected
+                            ? 'bg-themeblue3 text-white'
+                            : isToday
+                              ? 'bg-themeblue3/15 text-themeblue3'
+                              : day.day === 1
+                                ? 'text-primary font-bold'
+                                : day.month === selectedDate.getMonth()
+                                  ? 'text-primary'
+                                  : 'text-tertiary/30'
+                        }`}>
+                          {day.day}
+                        </span>
+                      </div>
+
+                      {/* Spacer for multi-day lanes so single-day pills sit below */}
+                      {laneCount > 0 && <div style={{ height: laneCount * LANE_HEIGHT }} />}
+
+                      <div className="w-full space-y-px overflow-hidden">
+                        {dayEvents.slice(0, 3).map(event => (
+                          <EventPill
+                            key={event.id}
+                            event={event}
+                            eventId={event.id}
+                            onTap={onSelectEvent}
+                            isDragging={dragState.draggedEventId === event.id}
+                            dragHandlers={getDragHandlers(event.id)}
+                          />
+                        ))}
+                        {dayEvents.length > 3 && (
+                          <span className="text-[8px] text-tertiary/50 pl-1">+{dayEvents.length - 3}</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
       </div>
 
       {/* Drag ghost */}

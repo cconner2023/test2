@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react'
-import { Clock, Package } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Clock, Package, CalendarDays } from 'lucide-react'
+import { useCalendarStore } from '../../stores/useCalendarStore'
+import { getCategoryMeta } from '../../Types/CalendarTypes'
 import type { LocalPropertyItem, CustodyLedgerEntry } from '../../Types/PropertyTypes'
 
 interface PropertyItemDetailProps {
@@ -30,6 +32,12 @@ export function PropertyItemDetail({
   const [subItems, setSubItems] = useState<LocalPropertyItem[]>([])
   const [ledger, setLedger] = useState<CustodyLedgerEntry[]>([])
   const [showLedger, setShowLedger] = useState(false)
+
+  const calendarEvents = useCalendarStore(s => s.events)
+  const linkedEvents = useMemo(() =>
+    calendarEvents.filter(e => e.property_item_ids?.includes(item.id)),
+    [calendarEvents, item.id]
+  )
 
   useEffect(() => {
     getSubItems(item.id).then(setSubItems)
@@ -91,6 +99,33 @@ export function PropertyItemDetail({
                 )}
               </button>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Linked Calendar Events */}
+      {linkedEvents.length > 0 && (
+        <div>
+          <h3 className="text-xs font-medium text-tertiary uppercase tracking-wide mb-1">
+            Scheduled Events ({linkedEvents.length})
+          </h3>
+          <div className="space-y-1.5">
+            {linkedEvents.map((evt) => {
+              const cat = getCategoryMeta(evt.category)
+              const dateStr = new Date(evt.start_time).toLocaleDateString('en-US', {
+                month: 'short', day: 'numeric',
+              })
+              return (
+                <div key={evt.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-secondary/5">
+                  <CalendarDays size={16} className="text-tertiary shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-primary truncate">{evt.title}</p>
+                    <p className="text-[10px] text-tertiary">{dateStr}</p>
+                  </div>
+                  <span className={`h-2 w-2 rounded-full shrink-0 ${cat.color}`} />
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

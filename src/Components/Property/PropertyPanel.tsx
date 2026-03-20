@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, memo } from 'react'
 import { Plus, Upload, Download, FileSpreadsheet, Eye, ArrowRightLeft, Trash2, AlertTriangle, X, Check } from 'lucide-react'
+import { ActionSheet } from '../ActionSheet'
 import { EmptyState } from '../EmptyState'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useProperty } from '../../Hooks/useProperty'
@@ -81,6 +82,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
   const [newLocationName, setNewLocationName] = useState('')
   const [rootError, setRootError] = useState(false)
   const [renamingLocation, setRenamingLocation] = useState<{ id: string; name: string } | null>(null)
+  const [showAddSheet, setShowAddSheet] = useState(false)
 
   // ── Selection state ──
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -516,7 +518,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
           </div>
           <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
             <button
-              onClick={onAddItem}
+              onClick={() => setShowAddSheet(true)}
               className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
             >
               <Plus className="w-5 h-5" />
@@ -533,6 +535,15 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
             onClose={() => setCsvImport(null)}
           />
         )}
+        <ActionSheet
+          visible={showAddSheet}
+          title="Add to Property Book"
+          options={[
+            { key: 'item', label: 'New Item', onAction: onAddItem },
+            { key: 'location', label: 'New Location', onAction: () => { setNewLocationName(''); setShowNewLocation(true) } },
+          ]}
+          onClose={() => setShowAddSheet(false)}
+        />
       </div>
     )
   }
@@ -670,7 +681,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
           </div>
           <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
             <button
-              onClick={onAddItem}
+              onClick={() => setShowAddSheet(true)}
               className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
             >
               <Plus className="w-5 h-5" />
@@ -678,6 +689,16 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
           </div>
         </div>
       )}
+
+      <ActionSheet
+        visible={showAddSheet}
+        title="Add to Property Book"
+        options={[
+          { key: 'item', label: 'New Item', onAction: onAddItem },
+          { key: 'location', label: 'New Location', onAction: () => { setNewLocationName(''); setShowNewLocation(true) } },
+        ]}
+        onClose={() => setShowAddSheet(false)}
+      />
 
       {/* Bottom action bar — shown when items are selected */}
       {hasSelection && (() => {
