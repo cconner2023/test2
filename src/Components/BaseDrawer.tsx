@@ -372,12 +372,12 @@ export function BaseDrawer({
                 onClick={useMobileLayout ? undefined : (e) => e.stopPropagation()}
             >
                 {header ? (
-                    blurHeader ? (
+                    blurHeader && useMobileLayout ? (
                         <div className="flex-1 min-h-0 overflow-y-auto">
                             {!(mobileFullScreen && useMobileLayout) && (
                                 <div
                                     className="sticky top-0 z-10 backdrop-blur-xs bg-themeblue3/[0.03]"
-                                    {...(useMobileLayout ? bindDrawerDrag() : {})}
+                                    {...bindDrawerDrag()}
                                 >
                                     <DrawerHeader
                                         title={header.title}
