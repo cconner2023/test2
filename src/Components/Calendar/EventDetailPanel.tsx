@@ -1,12 +1,16 @@
-import { Pencil, X, Clock, MapPin, Shirt, AlertTriangle, Users, Package } from 'lucide-react'
+import { Pencil, X } from 'lucide-react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
 import { getCategoryMeta } from '../../Types/CalendarTypes'
 import { HeaderPill, PillButton } from '../HeaderPill'
+import { UserAvatar } from '../Settings/UserAvatar'
 
 interface AssignedPerson {
   id: string
   initials: string
   name: string
+  avatarId?: string | null
+  firstName?: string | null
+  lastName?: string | null
 }
 
 interface LinkedPropertyItem {
@@ -22,6 +26,7 @@ interface EventDetailPanelProps {
   onDelete: (id: string) => void
   assignedNames?: AssignedPerson[]
   linkedPropertyItems?: LinkedPropertyItem[]
+  hideHeader?: boolean
 }
 
 function formatDateTime(iso: string, allDay: boolean): string {
@@ -33,99 +38,100 @@ function formatDateTime(iso: string, allDay: boolean): string {
     ' at ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, assignedNames = [], linkedPropertyItems = [] }: EventDetailPanelProps) {
+export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, assignedNames = [], linkedPropertyItems = [], hideHeader }: EventDetailPanelProps) {
   const cat = getCategoryMeta(event.category)
 
   return (
     <div className="flex flex-col h-full">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10">
-        <div />
-        <HeaderPill>
-          <PillButton icon={Pencil} iconSize={16} onClick={() => onEdit(event.id)} label="Edit" />
-          <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
-        </HeaderPill>
-      </div>
+      {!hideHeader && (
+        <div className="flex items-center justify-between px-3 py-2 border-b border-primary/10 shrink-0">
+          <div />
+          <HeaderPill>
+            <PillButton icon={Pencil} iconSize={16} onClick={() => onEdit(event.id)} label="Edit" />
+            <PillButton icon={X} iconSize={16} onClick={onClose} label="Close" />
+          </HeaderPill>
+        </div>
+      )}
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto px-4 py-4">
-        {/* Category badge */}
-        <div className="flex items-center gap-2 mb-2">
-          <span className={`h-2.5 w-2.5 rounded-full ${cat.color}`} />
-          <span className="text-xs font-medium text-tertiary uppercase">{cat.label}</span>
-          {event.status === 'cancelled' && (
-            <span className="text-[10px] font-medium text-themeredred bg-themeredred/10 rounded px-1.5 py-0.5">
-              CANCELLED
-            </span>
+      <div className={`${hideHeader ? '' : 'flex-1 overflow-y-auto'} px-4 py-4 space-y-4`}>
+        {/* Event card */}
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 p-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${cat.color}`} />
+            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">{cat.label}</span>
+          </div>
+
+          <h2 className="text-lg font-bold text-primary">{event.title}</h2>
+
+          <div className="space-y-2 text-sm">
+            <p className="text-primary">
+              {formatDateTime(event.start_time, event.all_day)}
+              {!event.all_day && (
+                <span className="text-tertiary"> — {formatDateTime(event.end_time, false)}</span>
+              )}
+            </p>
+
+            {event.location && (
+              <p className="text-secondary">{event.location}</p>
+            )}
+
+            {event.uniform && (
+              <p className="text-secondary">{event.uniform}</p>
+            )}
+
+            {event.report_time && (
+              <p className="text-secondary">Report: {event.report_time}</p>
+            )}
+          </div>
+
+          {event.description && (
+            <div className="pt-3 border-t border-primary/8">
+              <p className="text-sm text-secondary whitespace-pre-wrap">{event.description}</p>
+            </div>
           )}
         </div>
 
-        {/* Title */}
-        <h2 className="text-lg font-bold text-primary mb-4">{event.title}</h2>
-
-        {/* Details */}
-        <div className="space-y-3">
-          <div className="flex items-start gap-3">
-            <Clock size={16} className="text-tertiary mt-0.5 shrink-0" />
-            <div className="text-sm text-primary">
-              <p>{formatDateTime(event.start_time, event.all_day)}</p>
-              {!event.all_day && (
-                <p className="text-tertiary">to {formatDateTime(event.end_time, false)}</p>
-              )}
-            </div>
+        {/* Personnel card */}
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Personnel</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+              {assignedNames.length}
+            </span>
           </div>
-
-          {event.location && (
-            <div className="flex items-start gap-3">
-              <MapPin size={16} className="text-tertiary mt-0.5 shrink-0" />
-              <p className="text-sm text-primary">{event.location}</p>
-            </div>
-          )}
-
-          {event.uniform && (
-            <div className="flex items-start gap-3">
-              <Shirt size={16} className="text-tertiary mt-0.5 shrink-0" />
-              <p className="text-sm text-primary">{event.uniform}</p>
-            </div>
-          )}
-
-          {event.report_time && (
-            <div className="flex items-start gap-3">
-              <AlertTriangle size={16} className="text-tertiary mt-0.5 shrink-0" />
-              <p className="text-sm text-primary">Report: {event.report_time}</p>
-            </div>
-          )}
-
-          {/* Assigned To */}
-          <div className="flex items-start gap-3">
-            <Users size={16} className="text-tertiary mt-0.5 shrink-0" />
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             {assignedNames.length === 0 ? (
-              <p className="text-sm text-tertiary">Unassigned</p>
+              <p className="text-sm text-tertiary px-4 py-4">Unassigned</p>
             ) : (
-              <div className="flex flex-col gap-1.5">
-                {assignedNames.map((person) => (
-                  <div key={person.id} className="flex items-center gap-2">
-                    <div className="w-7 h-7 rounded-full bg-themeblue3 text-white flex items-center justify-center text-[10px] font-semibold shrink-0">
-                      {person.initials}
-                    </div>
-                    <span className="text-sm text-primary">{person.name}</span>
-                  </div>
-                ))}
-              </div>
+              assignedNames.map((person) => (
+                <div key={person.id} className="flex items-center gap-3 px-4 py-3">
+                  <UserAvatar
+                    avatarId={person.avatarId}
+                    firstName={person.firstName}
+                    lastName={person.lastName}
+                    className="w-10 h-10"
+                  />
+                  <span className="text-sm font-medium text-primary">{person.name}</span>
+                </div>
+              ))
             )}
           </div>
         </div>
 
-        {/* Linked Equipment */}
+        {/* Equipment card */}
         {linkedPropertyItems.length > 0 && (
-          <div className="mt-5 pt-4 border-t border-primary/10">
-            <p className="text-xs font-medium text-tertiary uppercase mb-2">Equipment</p>
-            <div className="space-y-1.5">
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Equipment</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+                {linkedPropertyItems.length}
+              </span>
+            </div>
+            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
               {linkedPropertyItems.map((item) => (
-                <div key={item.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-secondary/5">
-                  <Package size={16} className="text-tertiary shrink-0" />
+                <div key={item.id} className="flex items-center gap-3 px-4 py-3">
                   <div className="min-w-0">
-                    <p className="text-sm text-primary truncate">{item.name}</p>
+                    <p className="text-sm font-medium text-primary truncate">{item.name}</p>
                     {item.nsn && <p className="text-[10px] text-tertiary">{item.nsn}</p>}
                   </div>
                 </div>
@@ -134,13 +140,7 @@ export function EventDetailPanel({ event, onClose, onEdit, onDelete: _onDelete, 
           </div>
         )}
 
-        {/* Description */}
-        {event.description && (
-          <div className="mt-5 pt-4 border-t border-primary/10">
-            <p className="text-xs font-medium text-tertiary uppercase mb-2">Notes</p>
-            <p className="text-sm text-secondary whitespace-pre-wrap">{event.description}</p>
-          </div>
-        )}
+        <div className="h-16 shrink-0" />
       </div>
     </div>
   )

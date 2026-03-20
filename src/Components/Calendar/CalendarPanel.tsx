@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
-import { Clock, Plus, Users2, CalendarDays, X, Check } from 'lucide-react'
+import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { EventForm } from './EventForm'
@@ -43,7 +43,7 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
 
   // Medic name resolver — shared across detail panel and form
   const medicLookup = useMemo(() => {
-    const map = new Map<string, { id: string; initials: string; name: string }>()
+    const map = new Map<string, { id: string; initials: string; name: string; credential?: string; avatarId?: string | null; firstName?: string | null; lastName?: string | null }>()
     for (const m of ownClinicMedics) {
       const rank = m.rank ? m.rank + ' ' : ''
       const last = m.lastName ?? ''
@@ -52,6 +52,10 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
         id: m.id,
         initials: getInitials(m.firstName, m.lastName),
         name: rank + last + first,
+        credential: m.credential ?? undefined,
+        avatarId: m.avatarId,
+        firstName: m.firstName,
+        lastName: m.lastName,
       })
     }
     return map
@@ -435,6 +439,7 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
         mobileOnly
         fullHeight="85dvh"
         zIndex="z-50"
+        blurHeader
         header={{
           title: editingEvent ? 'Edit Event' : 'New Event',
           rightContent: (
@@ -469,6 +474,7 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
         mobileOnly
         fullHeight="85dvh"
         zIndex="z-50"
+        blurHeader
         header={dayDrawerView === 'edit' ? {
           title: 'Edit Event',
           rightContent: (
@@ -485,7 +491,13 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
           ),
           hideDefaultClose: true,
         } : {
-          title: '',
+          title: dayDrawerEvent?.title ?? '',
+          rightContent: dayDrawerEvent ? (
+            <HeaderPill>
+              <PillButton icon={Pencil} iconSize={16} onClick={() => handleDayDrawerEdit(dayDrawerEvent.id)} label="Edit" />
+              <PillButton icon={X} iconSize={16} onClick={handleDayDrawerDetailBack} label="Close" />
+            </HeaderPill>
+          ) : undefined,
           hideDefaultClose: true,
         }}
       >
@@ -500,6 +512,7 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
             }}
             assignedNames={resolveAssigned(dayDrawerEvent.assigned_to)}
             linkedPropertyItems={resolvePropertyItems(dayDrawerEvent.property_item_ids ?? [])}
+            hideHeader
           />
         )}
 

@@ -2,7 +2,8 @@ import { useState, useCallback, useImperativeHandle, forwardRef } from 'react'
 import { Package } from 'lucide-react'
 import type { EventFormData, EventCategory } from '../../Types/CalendarTypes'
 import { createEmptyFormData, EVENT_CATEGORIES } from '../../Types/CalendarTypes'
-import { TextInput, SelectInput } from '../FormInputs'
+import { PickerInput } from '../FormInputs'
+import { UserAvatar } from '../Settings/UserAvatar'
 
 export interface EventFormHandle {
   submit: () => void
@@ -19,7 +20,7 @@ interface EventFormProps {
   initialData?: EventFormData
   onSave: (data: EventFormData) => void
   isEditing?: boolean
-  medics?: { id: string; initials: string; name: string }[]
+  medics?: { id: string; initials: string; name: string; credential?: string; avatarId?: string | null; firstName?: string | null; lastName?: string | null }[]
   propertyItems?: PropertyItemOption[]
 }
 
@@ -75,29 +76,36 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
       }))
     }, [])
 
+    const inputCx = 'w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite2 text-primary placeholder:text-tertiary/30 transition-all duration-300'
+
+    const categoryLabel = EVENT_CATEGORIES.find(c => c.value === form.category)?.label ?? ''
+
     return (
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      <div className="px-4 py-4 space-y-3">
         <div>
-          <TextInput
-            label="Title"
+          <input
+            type="text"
             value={form.title}
-            onChange={v => updateField('title', v)}
-            placeholder="Event title"
-            required
+            onChange={e => updateField('title', e.target.value)}
+            placeholder="Event title *"
+            className={inputCx}
           />
-          {errors.title && <p className="text-xs text-themeredred mt-1">{errors.title}</p>}
+          {errors.title && <p className="text-xs text-themeredred mt-1 pl-4">{errors.title}</p>}
         </div>
 
-        <SelectInput
-          label="Category"
-          value={form.category}
-          onChange={v => updateField('category', v as EventCategory)}
-          options={EVENT_CATEGORIES.map(c => ({ value: c.value, label: c.label }))}
+        <PickerInput
+          value={categoryLabel}
+          onChange={v => {
+            const cat = EVENT_CATEGORIES.find(c => c.label === v)
+            if (cat) updateField('category', cat.value as EventCategory)
+          }}
+          options={EVENT_CATEGORIES.map(c => c.label)}
+          placeholder="Category"
           required
         />
 
-        <div className="flex items-center justify-between px-3 py-2.5 rounded-lg bg-themewhite2 border border-tertiary/10">
-          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">All day</span>
+        <div className="flex items-center justify-between px-4 py-2.5 rounded-full border border-themeblue3/10 shadow-xs bg-themewhite2">
+          <span className="text-sm text-tertiary/50">All day</span>
           <button
             type="button"
             onClick={() => {
@@ -121,70 +129,54 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
           </button>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2">
           <div>
-            <TextInput
-              label="Start"
+            <input
               type="datetime-local"
               value={form.start_time}
-              onChange={v => updateField('start_time', v)}
-              required={!form.all_day}
+              onChange={e => updateField('start_time', e.target.value)}
+              placeholder="Start"
+              className={inputCx}
             />
-            {errors.start_time && <p className="text-xs text-themeredred mt-1">{errors.start_time}</p>}
+            {errors.start_time && <p className="text-xs text-themeredred mt-1 pl-4">{errors.start_time}</p>}
           </div>
           <div>
-            <TextInput
-              label="End"
+            <input
               type="datetime-local"
               value={form.end_time}
-              onChange={v => updateField('end_time', v)}
-              required={!form.all_day}
+              onChange={e => updateField('end_time', e.target.value)}
+              placeholder="End"
+              className={inputCx}
             />
-            {errors.end_time && <p className="text-xs text-themeredred mt-1">{errors.end_time}</p>}
+            {errors.end_time && <p className="text-xs text-themeredred mt-1 pl-4">{errors.end_time}</p>}
           </div>
         </div>
 
-        <TextInput
-          label="Location"
+        <input
+          type="text"
           value={form.location}
-          onChange={v => updateField('location', v)}
-          placeholder="Building, room, grid coordinate"
+          onChange={e => updateField('location', e.target.value)}
+          placeholder="Location"
+          className={inputCx}
         />
 
-        <div className="grid grid-cols-2 gap-3">
-          <TextInput
-            label="Uniform"
-            value={form.uniform}
-            onChange={v => updateField('uniform', v)}
-            placeholder="OCP, PT, etc."
-          />
-          <TextInput
-            label="Report Time"
-            value={form.report_time}
-            onChange={v => updateField('report_time', v)}
-            placeholder="e.g. 0545"
-          />
-        </div>
-
-        <label className="block">
-          <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">
-            Description / OPORD Notes
-          </span>
-          <textarea
-            value={form.description}
-            onChange={e => updateField('description', e.target.value)}
-            placeholder="Additional details, instructions, notes..."
-            rows={3}
-            className="mt-1 w-full px-3 py-2.5 rounded-lg text-primary text-base
-                       border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none
-                       transition-all placeholder:text-tertiary/30 resize-none"
-          />
-        </label>
+        <textarea
+          value={form.description}
+          onChange={e => updateField('description', e.target.value)}
+          placeholder="Description / OPORD notes"
+          rows={3}
+          className="w-full rounded-2xl py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite2 text-primary placeholder:text-tertiary/30 transition-all duration-300 resize-none"
+        />
 
         {medics && medics.length > 0 && (
           <div>
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Assigned To</span>
-            <div className="mt-1.5 flex gap-2 overflow-x-auto pb-1 scrollbar-none">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Personnel</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+                {form.assigned_to.length}
+              </span>
+            </div>
+            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
               {medics.map(medic => {
                 const isSelected = form.assigned_to.includes(medic.id)
                 return (
@@ -192,16 +184,25 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                     key={medic.id}
                     type="button"
                     onClick={() => toggleAssigned(medic.id)}
-                    className={`flex items-center gap-1.5 rounded-full border px-1 py-1 pr-2.5 transition-all duration-150 active:scale-95 shrink-0 ${
-                      isSelected ? 'bg-themeblue3/10 border-themeblue3/40' : 'border-tertiary/15'
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-150 active:scale-[0.98] ${
+                      isSelected ? 'bg-themeblue3/8' : ''
                     }`}
                   >
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold ${
-                      isSelected ? 'bg-themeblue3 text-white' : 'bg-primary/8 text-secondary'
-                    }`}>
-                      {medic.initials}
+                    <UserAvatar
+                      avatarId={medic.avatarId}
+                      firstName={medic.firstName}
+                      lastName={medic.lastName}
+                      className="w-10 h-10"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-primary truncate">{medic.name}</p>
+                      {medic.credential && (
+                        <p className="text-[10px] text-tertiary/50 truncate">{medic.credential}</p>
+                      )}
                     </div>
-                    <span className="text-xs text-primary">{medic.name}</span>
+                    {isSelected && (
+                      <div className="w-2 h-2 rounded-full bg-themeblue3 shrink-0" />
+                    )}
                   </button>
                 )
               })}
@@ -211,8 +212,13 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
 
         {propertyItems && propertyItems.length > 0 && (
           <div>
-            <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">Equipment</span>
-            <div className="mt-1.5 flex flex-col gap-1.5">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Equipment</span>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
+                {form.property_item_ids.length}
+              </span>
+            </div>
+            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
               {propertyItems.map(item => {
                 const isSelected = form.property_item_ids.includes(item.id)
                 return (
@@ -220,13 +226,13 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
                     key={item.id}
                     type="button"
                     onClick={() => togglePropertyItem(item.id)}
-                    className={`flex items-center gap-2.5 rounded-lg border px-3 py-2 transition-all duration-150 active:scale-95 text-left ${
-                      isSelected ? 'bg-themeblue3/10 border-themeblue3/40' : 'border-tertiary/15'
+                    className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-all duration-150 active:scale-[0.98] ${
+                      isSelected ? 'bg-themeblue3/8' : ''
                     }`}
                   >
                     <Package size={16} className={isSelected ? 'text-themeblue3 shrink-0' : 'text-tertiary shrink-0'} />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm text-primary truncate">{item.name}</p>
+                      <p className="text-sm font-medium text-primary truncate">{item.name}</p>
                       {item.nsn && <p className="text-[10px] text-tertiary truncate">{item.nsn}</p>}
                     </div>
                     {item.serial_number && (
@@ -238,6 +244,9 @@ export const EventForm = forwardRef<EventFormHandle, EventFormProps>(
             </div>
           </div>
         )}
+
+        {/* Bottom scroll padding */}
+        <div className="h-24 shrink-0" />
       </div>
     )
   }
