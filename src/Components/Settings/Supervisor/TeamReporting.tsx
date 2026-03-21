@@ -11,6 +11,7 @@ interface TeamReportingProps {
   onViewSoldier: (soldier: ClinicMedic) => void
   testableTaskMap: Map<string, { taskId: string }[]>
   onNavigateToTask?: (taskId: string) => void
+  onNavigateToArea?: (areaName: string) => void
   clinicName?: string | null
 }
 
@@ -33,6 +34,7 @@ export function TeamReporting({
   onViewSoldier,
   testableTaskMap,
   onNavigateToTask,
+  onNavigateToArea,
   clinicName,
 }: TeamReportingProps) {
   const sortedSoldiers = useMemo(() => {
@@ -85,10 +87,10 @@ export function TeamReporting({
 
       {/* Soldier Readiness */}
       <div>
-        <h3 className="text-xs font-semibold text-tertiary/50 uppercase tracking-wider mb-3">
+        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
           Soldier Readiness
-        </h3>
-        <div className="space-y-2">
+        </p>
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
           {sortedSoldiers.map((entry) => {
             const soldier = medics.find(m => m.id === entry.soldierId)
             if (!soldier) return null
@@ -96,31 +98,40 @@ export function TeamReporting({
               <button
                 key={entry.soldierId}
                 onClick={() => onViewSoldier(soldier)}
-                className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-themewhite2 text-left active:scale-95 transition-all"
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all"
               >
                 <span className="text-sm text-primary min-w-0 truncate shrink-0 w-36">
                   {formatMedicName(soldier)}
                 </span>
-                <div className="flex-1 min-w-0">
-                  <div
-                    className="h-2 rounded-full bg-tertiary/10 overflow-hidden"
-                    role="progressbar"
-                    aria-valuenow={entry.readinessPercent}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                  >
-                    <div
-                      className={`h-full rounded-full transition-all ${readinessColor(entry.readinessPercent)}`}
-                      style={{ width: `${entry.readinessPercent}%` }}
-                    />
+                <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9pt] text-tertiary/50 w-18 shrink-0">Readiness</span>
+                    <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${readinessColor(entry.readinessPercent)}`}
+                        style={{ width: `${entry.readinessPercent}%` }}
+                      />
+                    </div>
+                    <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(entry.readinessPercent)}`}>
+                      {entry.readinessPercent}%
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9pt] text-tertiary/50 w-18 shrink-0">Compliance</span>
+                    <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${readinessColor(entry.compliancePercent)}`}
+                        style={{ width: `${entry.compliancePercent}%` }}
+                      />
+                    </div>
+                    <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(entry.compliancePercent)}`}>
+                      {entry.compliancePercent}%
+                    </span>
                   </div>
                 </div>
-                <span className={`text-xs font-medium w-9 text-right ${readinessTextColor(entry.readinessPercent)}`}>
-                  {entry.readinessPercent}%
-                </span>
                 {entry.overdueCount > 0 && (
                   <span className="text-[10px] font-medium text-themeredred bg-themeredred/10 px-1.5 py-0.5 rounded-full flex-shrink-0">
-                    {entry.overdueCount} overdue
+                    {entry.overdueCount}
                   </span>
                 )}
               </button>
@@ -131,25 +142,29 @@ export function TeamReporting({
 
       {/* Coverage Gaps */}
       <div>
-        <h3 className="text-xs font-semibold text-tertiary/50 uppercase tracking-wider mb-3">
+        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
           Coverage Gaps
-        </h3>
-        <div className="space-y-2">
+        </p>
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
           {sortedGaps.map((gap) => (
             <button
               key={gap.areaName}
               onClick={() => {
-                const tasks = testableTaskMap.get(gap.areaName)
-                if (tasks?.[0] && onNavigateToTask) onNavigateToTask(tasks[0].taskId)
+                if (onNavigateToArea) {
+                  onNavigateToArea(gap.areaName)
+                } else {
+                  const tasks = testableTaskMap.get(gap.areaName)
+                  if (tasks?.[0] && onNavigateToTask) onNavigateToTask(tasks[0].taskId)
+                }
               }}
-              className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-themewhite2 text-left active:scale-95 transition-all"
+              className="w-full flex items-center gap-3 px-4 py-3 hover:bg-themeblue2/5 text-left active:scale-95 transition-all"
             >
               <span className="text-sm text-primary min-w-0 truncate shrink-0 w-36">
                 {gap.areaName}
               </span>
               <div className="flex-1 min-w-0">
                 <div
-                  className="h-2 rounded-full bg-tertiary/10 overflow-hidden"
+                  className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden"
                   role="progressbar"
                   aria-valuenow={gap.coveragePercent}
                   aria-valuemin={0}
@@ -161,7 +176,7 @@ export function TeamReporting({
                   />
                 </div>
               </div>
-              <span className={`text-xs font-medium w-9 text-right ${readinessTextColor(gap.coveragePercent)}`}>
+              <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(gap.coveragePercent)}`}>
                 {gap.coveragePercent}%
               </span>
             </button>

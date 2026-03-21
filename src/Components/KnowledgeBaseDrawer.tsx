@@ -1,9 +1,7 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { ChevronRight, RotateCcw, X } from 'lucide-react'
-import { useDrag } from '@use-gesture/react'
 import { MobileSearchBar } from './MobileSearchBar'
 import { BaseDrawer } from './BaseDrawer'
-import { HeaderPill, PillButton } from './HeaderPill'
 import { TrainingPanel, type TrainingView } from './Settings/TrainingPanel'
 import { MedicationContent } from './MedicationContent'
 import { ContentWrapper } from './Settings/ContentWrapper'
@@ -11,7 +9,6 @@ import { QuestionRow, WordListContent } from './ScreenerDrawer'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { VitalSignsCalculator } from './VitalSignsCalculator'
 import { useAuthStore } from '../stores/useAuthStore'
-import { useIsMobile } from '../Hooks/useIsMobile'
 import { kbCategories, kbGroupLabels, kbGroupOrder, type KBCategory } from '../Data/KnowledgeBaseCategories'
 import { GAD7, PHQ2, MACE2, AUDITC } from '../Data/SpecTesting'
 import { getScreenerMaxScore, isQuestionScored } from '../Data/SpecTesting'
@@ -19,7 +16,6 @@ import { stp68wTraining } from '../Data/TrainingTaskList'
 import { getTaskData } from '../Data/TrainingData'
 import { Check } from 'lucide-react'
 import { UI_TIMING } from '../Utilities/constants'
-import { GESTURE_THRESHOLDS, clamp } from '../Utilities/GestureUtils'
 import type { subjectAreaArrayOptions } from '../Types/CatTypes'
 import { medList, type medListTypes } from '../Data/MedData'
 import { tc3MedList } from '../Data/TC3MedData'
@@ -200,7 +196,7 @@ export function KnowledgeBaseDrawer({
     const headerConfig = useMemo(() => {
         switch (view) {
             case 'training':
-                return { title: 'STP 68W Training', showBack: true, onBack: handleBack }
+                return { title: 'STP 8-68W13-SM-TG', showBack: true, onBack: handleBack }
             case 'training-detail':
                 return { title: selectedTask?.text || 'Task', showBack: true, onBack: handleBack }
             case 'medications':
@@ -215,64 +211,60 @@ export function KnowledgeBaseDrawer({
     }, [view, selectedTask, selectedMedication, activeScreener, tc3Mode, handleBack])
 
     return (
-        <>
-            <BaseDrawer
-                isVisible={isVisible}
-                onClose={handleClose}
-                fullHeight="90dvh"
-                desktopPosition="left"
-                header={headerConfig}
-                cardMode={calculatorOpen}
-                headerFaded={searchFocused}
-                blurHeader
-            >
-                <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
-                    {view === 'home' && (
-                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused} inheritScroll>
-                            <KBHome
-                                onCategoryClick={handleCategoryClick}
-                                searchQuery={searchQuery}
-                                onSelectTask={handleSelectTask}
-                                onMedicationSelect={handleMedicationSelect}
-                                tc3Mode={tc3Mode}
-                            />
-                        </MobileSearchBar>
-                    )}
-                    {(view === 'training' || view === 'training-detail') && (
-                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={view === 'training'} onFocusChange={setSearchFocused} inheritScroll>
-                            <TrainingPanel
-                                view={view as TrainingView}
-                                selectedTask={selectedTask}
-                                onSelectTask={handleSelectTask}
-                                searchQuery={searchQuery}
-                            />
-                        </MobileSearchBar>
-                    )}
-                    {(view === 'medications' || view === 'medication-detail') && (
-                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={view === 'medications'} onFocusChange={setSearchFocused} inheritScroll>
-                            <MedicationContent
-                                selectedMedication={selectedMedication}
-                                onMedicationSelect={handleMedicationSelect}
-                                tc3Mode={tc3Mode}
-                                searchQuery={searchQuery}
-                            />
-                        </MobileSearchBar>
-                    )}
-                    {view === 'screener' && activeScreener && (
-                        <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={false} onFocusChange={setSearchFocused} inheritScroll>
-                            <StandaloneScreener screenerConfig={activeScreener} />
-                        </MobileSearchBar>
-                    )}
-                </ContentWrapper>
-            </BaseDrawer>
+        <BaseDrawer
+            isVisible={isVisible}
+            onClose={handleClose}
+            fullHeight="90dvh"
+            desktopPosition="left"
+            header={headerConfig}
+            headerFaded={searchFocused}
+            blurHeader
+        >
+            <ContentWrapper slideDirection={slideDirection} swipeHandlers={canSwipeBack ? swipeHandlers : undefined}>
+                {view === 'home' && (
+                    <MobileSearchBar value={searchQuery} onChange={setSearchQuery} onFocusChange={setSearchFocused} inheritScroll>
+                        <KBHome
+                            onCategoryClick={handleCategoryClick}
+                            searchQuery={searchQuery}
+                            onSelectTask={handleSelectTask}
+                            onMedicationSelect={handleMedicationSelect}
+                            tc3Mode={tc3Mode}
+                        />
+                    </MobileSearchBar>
+                )}
+                {(view === 'training' || view === 'training-detail') && (
+                    <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={view === 'training'} onFocusChange={setSearchFocused} inheritScroll>
+                        <TrainingPanel
+                            view={view as TrainingView}
+                            selectedTask={selectedTask}
+                            onSelectTask={handleSelectTask}
+                            searchQuery={searchQuery}
+                        />
+                    </MobileSearchBar>
+                )}
+                {(view === 'medications' || view === 'medication-detail') && (
+                    <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={view === 'medications'} onFocusChange={setSearchFocused} inheritScroll>
+                        <MedicationContent
+                            selectedMedication={selectedMedication}
+                            onMedicationSelect={handleMedicationSelect}
+                            tc3Mode={tc3Mode}
+                            searchQuery={searchQuery}
+                        />
+                    </MobileSearchBar>
+                )}
+                {view === 'screener' && activeScreener && (
+                    <MobileSearchBar value={searchQuery} onChange={setSearchQuery} enabled={false} onFocusChange={setSearchFocused} inheritScroll>
+                        <StandaloneScreener screenerConfig={activeScreener} />
+                    </MobileSearchBar>
+                )}
+            </ContentWrapper>
 
-            {isVisible && (
-                <VitalSignsDrawer
-                    isOpen={calculatorOpen}
-                    onClose={() => setCalculatorOpen(false)}
-                />
-            )}
-        </>
+            {/* Vital Signs overlay — slides up on top of KB content */}
+            <VitalSignsOverlay
+                isOpen={calculatorOpen}
+                onClose={() => setCalculatorOpen(false)}
+            />
+        </BaseDrawer>
     )
 }
 
@@ -764,86 +756,59 @@ function StandaloneScreener({ screenerConfig }: { screenerConfig: ScreenerConfig
     )
 }
 
-// ── Vital Signs Drawer ───────────────────────────────────────────────────────
-// Always mounted while KB is open — isOpen drives a pure CSS transition so both
-// the KB card-mode shrink and this slide-up are triggered by the same state
-// change with zero JS timing lag.
+// ── Vital Signs Overlay ─────────────────────────────────────────────────────
+// ActionSheet-style panel that slides up on top of KB content, no separate drawer.
 
-function VitalSignsDrawer({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-    const isMobile = useIsMobile()
-    const [isDragging, setIsDragging] = useState(false)
-    const cardRef = useRef<HTMLDivElement>(null)
-    const dragPos = useRef(0)   // live drag offset in % (0 = resting, 100 = fully off-screen)
-    const [dragOffset, setDragOffset] = useState(0)
+function VitalSignsOverlay({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+    const [mounted, setMounted] = useState(false)
+    const [open, setOpen] = useState(false)
 
-    const bindDrag = useDrag(
-        ({ active, first, movement: [, my], velocity: [, vy], direction: [, dy], event, cancel }) => {
-            if (first) {
-                const target = event?.target as HTMLElement
-                if (!target?.closest('[data-drag-zone]')) { cancel(); return }
-                dragPos.current = 0
-            }
-            if (active) {
-                setIsDragging(true)
-                const h = cardRef.current?.offsetHeight ?? 300
-                const pct = clamp((my / h) * 100, 0, 100)
-                dragPos.current = pct
-                setDragOffset(pct)
-            } else {
-                setIsDragging(false)
-                if ((vy > GESTURE_THRESHOLDS.DRAWER_FLING_VELOCITY && dy > 0) || dragPos.current > 40) {
-                    onClose()
-                }
-                dragPos.current = 0
-                setDragOffset(0)
-            }
-        },
-        { axis: 'y', filterTaps: true, pointer: { touch: true } },
-    )
+    useEffect(() => {
+        if (isOpen) {
+            setMounted(true)
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => setOpen(true))
+            })
+        } else {
+            setOpen(false)
+            const t = setTimeout(() => setMounted(false), 300)
+            return () => clearTimeout(t)
+        }
+    }, [isOpen])
 
-    // Combine CSS-driven open/close with drag offset
-    const translateY = isOpen ? dragOffset : 100
+    const handleClose = useCallback(() => {
+        setOpen(false)
+        setTimeout(onClose, 300)
+    }, [onClose])
+
+    if (!mounted) return null
 
     return (
-        <div
-            ref={cardRef}
-            className={isMobile
-                ? `fixed left-0 right-0 bottom-0 z-60 bg-themewhite3 flex flex-col
-                    ${isDragging ? '' : 'transition-all duration-300 ease-out'}`
-                : `absolute left-0 bottom-0 w-[45%] z-60 flex flex-col rounded-md border border-tertiary/20
-                    shadow-lg shadow-black/8 backdrop-blur-xl bg-themewhite3/95
-                    transform-gpu overflow-hidden text-primary/80 text-sm
-                    ${isDragging ? '' : 'transition-all duration-300 ease-out'}`
-            }
-            style={{
-                height: isMobile ? '50dvh' : '55%',
-                transform: `translateY(${translateY}%)`,
-                opacity: isOpen ? Math.max(0, 1 - dragOffset / 80) : 0,
-                borderRadius: isMobile ? '1.25rem 1.25rem 0 0' : undefined,
-                boxShadow: isMobile ? '0 -4px 20px rgba(0, 0, 0, 0.1)' : undefined,
-                pointerEvents: isOpen ? 'auto' : 'none',
-            }}
-        >
-            {/* Drag handle + header */}
-            <div className="shrink-0" {...bindDrag()} data-drag-zone style={{ touchAction: 'none' }}>
-                {isMobile && (
-                    <div className="flex justify-center pt-3 pb-1" data-drag-zone>
-                        <div className="w-14 h-1.5 rounded-full bg-tertiary/30" />
-                    </div>
-                )}
-                <div className="px-6 py-3 border-b border-tertiary/10 flex items-center justify-between" data-drag-zone>
-                    <h2 className="text-[11pt] font-normal text-primary md:text-2xl">Vital Signs</h2>
-                    <HeaderPill>
-                        <PillButton icon={X} onClick={onClose} label="Close calculator" />
-                    </HeaderPill>
+        <>
+            <div
+                className={`absolute inset-0 z-10 bg-black/20 transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'}`}
+                style={{ pointerEvents: open ? 'auto' : 'none' }}
+                onClick={handleClose}
+            />
+            <div
+                className={`absolute left-3 right-3 bottom-3 z-20 bg-themewhite3 rounded-2xl shadow-xl overflow-hidden
+                    transition-all duration-300 ease-out ${open ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'}`}
+                style={{ maxHeight: '70%' }}
+            >
+                <div className="flex items-center justify-between px-5 py-3 border-b border-tertiary/10">
+                    <h3 className="text-[15px] font-semibold text-primary">Vital Signs</h3>
+                    <button
+                        onClick={handleClose}
+                        className="text-tertiary hover:text-secondary active:scale-95 transition-all"
+                    >
+                        <X size={18} />
+                    </button>
+                </div>
+                <div className="overflow-y-auto" style={{ maxHeight: 'calc(70dvh - 52px)' }}>
+                    <VitalSignsCalculator />
                 </div>
             </div>
-
-            {/* Content */}
-            <div className="flex-1 min-h-0 overflow-y-auto">
-                <VitalSignsCalculator />
-            </div>
-        </div>
+        </>
     )
 }
 

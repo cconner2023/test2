@@ -1,5 +1,5 @@
 import { useRef, useEffect, useCallback, useMemo } from 'react'
-import { Check, ChevronRight, Lock, BookOpen } from 'lucide-react'
+import { Check, ChevronRight, Lock } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { stp68wTraining } from '../../Data/TrainingTaskList'
 import { getTaskData } from '../../Data/TrainingData'
@@ -7,7 +7,7 @@ import type { TaskTrainingData } from '../../Data/TrainingData'
 import type { subjectAreaArrayOptions } from '../../Types/CatTypes'
 import { useTrainingCompletions } from '../../Hooks/useTrainingCompletions'
 import { AudioAidPlayer } from '../AudioAidPlayer'
-import { subjectAreaIcons, skillLevelLabels, categoryOrder } from '../../Data/TrainingConstants'
+import { skillLevelLabels, categoryOrder } from '../../Data/TrainingConstants'
 import { StepCallout, PerformanceStepItem, SectionHeader } from '../TrainingStepComponents'
 
 interface FlatTask {
@@ -92,27 +92,27 @@ function TaskRow({
         <button
             onClick={() => hasData && onSelectTask(task.option)}
             disabled={!hasData}
-            className={`flex items-center w-full px-6 py-3 rounded-xl text-left transition-all
+            className={`flex items-center gap-3 w-full px-4 py-3.5 text-left transition-all
                 ${hasData
-                    ? 'hover:bg-themewhite2 active:scale-95 cursor-pointer'
-                    : 'opacity-40 cursor-not-allowed'
+                    ? 'active:scale-95 hover:bg-themeblue2/5 cursor-pointer'
+                    : 'opacity-50 cursor-not-allowed'
                 }`}
         >
             <div className="flex-1 min-w-0">
-                <p className={`text-sm font-medium truncate ${hasData ? 'text-primary' : 'text-tertiary'}`}>
+                <p className={`text-sm font-medium truncate ${hasData ? 'text-primary' : 'text-tertiary/40'}`}>
                     {task.title}
                 </p>
-                <p className="text-[8pt] text-tertiary/50 font-mono">
+                <p className="text-[11px] text-tertiary/70 mt-0.5 font-mono">
                     {task.taskId}
                 </p>
                 {!hasData && (
-                    <p className="text-[8pt] text-tertiary/40 flex items-center gap-1 mt-0.5">
+                    <p className="text-[9px] text-tertiary/40 flex items-center gap-1 mt-0.5">
                         <Lock size={9} /> Coming soon
                     </p>
                 )}
             </div>
             <div className="shrink-0 ml-2 flex items-center gap-2">
-                <span className="px-1.5 py-0.5 rounded text-[8pt] font-semibold bg-themewhite2 text-tertiary/60">
+                <span className="px-1.5 py-0.5 rounded text-[8pt] font-semibold bg-tertiary/10 text-tertiary/60">
                     {badge}
                 </span>
                 {completed ? (
@@ -120,7 +120,7 @@ function TaskRow({
                 ) : viewed ? (
                     <div className="w-2 h-2 rounded-full bg-themeyellow" />
                 ) : hasData ? (
-                    <ChevronRight size={16} className="text-tertiary/30" />
+                    <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
                 ) : null}
             </div>
         </button>
@@ -162,13 +162,13 @@ function TrainingList({
     const isSearching = searchQuery.trim().length > 0
 
     return (
-        <div className="px-4 py-3 md:p-5">
-            <p className="text-xs text-tertiary/60 mb-3">
-                STP 8-68W13-SM-TG — Select a task to begin studying.
+        <div className="px-5 py-4 space-y-5">
+            <p className="text-xs text-tertiary/60">
+                Select a task to begin studying.
             </p>
 
             {isSearching && (
-                <p className="text-[10px] text-tertiary/50 mb-2">
+                <p className="text-[10px] text-tertiary/50">
                     {totalResults} result{totalResults !== 1 ? 's' : ''}
                 </p>
             )}
@@ -176,35 +176,28 @@ function TrainingList({
             {totalResults === 0 && isSearching ? (
                 <EmptyState title="No tasks match your search" />
             ) : (
-                <div className="space-y-1">
-                    {Array.from(displayCategories).map(([categoryName, tasks]) => (
-                        <div key={categoryName}>
-                            {/* Group header */}
-                            <div className="px-6 pt-4 pb-1 flex items-center justify-between">
-                                <div className="flex items-center gap-1.5 text-tertiary/50">
-                                    {subjectAreaIcons[categoryName] ?? <BookOpen size={14} />}
-                                    <p className="text-[10px] font-semibold tracking-widest uppercase">
-                                        {categoryName}
-                                    </p>
+                Array.from(displayCategories).map(([categoryName, tasks]) => (
+                    <div key={categoryName}>
+                        <div className="flex items-center gap-2 mb-2">
+                            <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider">
+                                {categoryName}
+                            </p>
+                            <span className="text-[10px] text-tertiary/40">{tasks.length}</span>
+                        </div>
+                        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                            {tasks.map((task, idx) => (
+                                <div key={task.taskId} className={idx > 0 ? 'border-t border-tertiary/8' : ''}>
+                                    <TaskRow
+                                        task={task}
+                                        onSelectTask={onSelectTask}
+                                        isTaskCompleted={isTaskCompleted}
+                                        isTaskViewed={isTaskViewed}
+                                    />
                                 </div>
-                                <p className="text-[10px] text-tertiary/40">
-                                    {tasks.length}
-                                </p>
-                            </div>
-
-                            {/* Tasks */}
-                            {tasks.map((task) => (
-                                <TaskRow
-                                    key={task.taskId}
-                                    task={task}
-                                    onSelectTask={onSelectTask}
-                                    isTaskCompleted={isTaskCompleted}
-                                    isTaskViewed={isTaskViewed}
-                                />
                             ))}
                         </div>
-                    ))}
-                </div>
+                    </div>
+                ))
             )}
         </div>
     )

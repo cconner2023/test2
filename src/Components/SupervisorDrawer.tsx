@@ -14,8 +14,8 @@ import { SoldierProfile } from './Settings/Supervisor/SoldierProfile'
 import { SoldierCertsEditor } from './Settings/Supervisor/SoldierCertsEditor'
 import { EvaluateFlow } from './Settings/Supervisor/EvaluateFlow'
 import { TeamReporting } from './Settings/Supervisor/TeamReporting'
+import { CoverageTasksView } from './Settings/Supervisor/CoverageTasksView'
 import { SupervisorTree, type TreeSelection } from './Settings/Supervisor/SupervisorTree'
-import { useNavigationStore } from '../stores/useNavigationStore'
 import { LoadingSpinner } from './LoadingSpinner'
 import { useMinLoadTime } from '../Hooks/useMinLoadTime'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
@@ -28,6 +28,8 @@ type SupervisorView =
   | { screen: 'soldier-certs'; soldier: ClinicMedic }
   | { screen: 'evaluate-select-task'; soldier: ClinicMedic }
   | { screen: 'evaluate-go-nogo'; soldier: ClinicMedic; taskNumber: string; taskTitle: string }
+  | { screen: 'coverage-tasks'; areaName: string }
+  | { screen: 'coverage-task-evaluate'; areaName: string; soldier: ClinicMedic; taskNumber: string; taskTitle: string }
 
 interface SupervisorDrawerProps {
   isVisible: boolean
@@ -128,8 +130,19 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     setView({ screen: 'evaluate-go-nogo', soldier: view.soldier, taskNumber, taskTitle })
   }, [view, handleSlideAnimation])
 
+  const handleNavigateToArea = useCallback((areaName: string) => {
+    handleSlideAnimation('left')
+    setView({ screen: 'coverage-tasks', areaName })
+  }, [handleSlideAnimation])
+
+  const handleCoverageEvaluate = useCallback((soldier: ClinicMedic, taskId: string, taskTitle: string) => {
+    if (view.screen !== 'coverage-tasks') return
+    handleSlideAnimation('left')
+    setView({ screen: 'coverage-task-evaluate', areaName: view.areaName, soldier, taskNumber: taskId, taskTitle })
+  }, [view, handleSlideAnimation])
+
   const handleSubmitEvaluation = useCallback(async (stepResults: StepResult[], notes: string) => {
-    if (view.screen !== 'evaluate-go-nogo') return
+    if (view.screen !== 'evaluate-go-nogo' && view.screen !== 'coverage-task-evaluate') return
 
     const hasNoGo = stepResults.some(s => s.result === 'NO_GO')
     await submitTestEvaluation({
@@ -141,14 +154,22 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     })
 
     refreshData()
-    setView({ screen: 'main' })
-    setTreeSelection({ type: 'all-personnel' })
+    if (view.screen === 'coverage-task-evaluate') {
+      // Return to the coverage tasks view for the same area
+      setView({ screen: 'coverage-tasks', areaName: view.areaName })
+    } else {
+      setView({ screen: 'main' })
+      setTreeSelection({ type: 'all-personnel' })
+    }
   }, [view, submitTestEvaluation, refreshData])
 
   const handleBack = useCallback(() => {
     if (view.screen === 'evaluate-go-nogo') {
       handleSlideAnimation('right')
       setView({ screen: 'evaluate-select-task', soldier: view.soldier })
+    } else if (view.screen === 'coverage-task-evaluate') {
+      handleSlideAnimation('right')
+      setView({ screen: 'coverage-tasks', areaName: view.areaName })
     } else if (view.screen !== 'main') {
       handleSlideAnimation('right')
       setFocusCertId(null)
@@ -276,6 +297,24 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
           showBack: true,
           onBack: handleBack,
         }
+      case 'coverage-tasks':
+        return {
+          title: view.areaName,
+          showBack: true,
+          onBack: handleBack,
+          rightContent: (
+            <HeaderPill>
+              <PillButton icon={X} onClick={handleClose} label="Close" />
+            </HeaderPill>
+          ),
+          hideDefaultClose: true,
+        }
+      case 'coverage-task-evaluate':
+        return {
+          title: 'Evaluation',
+          showBack: true,
+          onBack: handleBack,
+        }
     }
   }, [view, isMobile, treeSelection, handleBack, mainHeaderActions, handleClose])
 
@@ -305,10 +344,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
                 onViewSoldier={handleViewProfile}
                 testableTaskMap={testableTaskMap}
                 clinicName={clinicName}
-                onNavigateToTask={(taskId) => {
-                  handleClose()
-                  setTimeout(() => useNavigationStore.getState().setShowTrainingDrawer(taskId), 300)
-                }}
+                onNavigateToArea={handleNavigateToArea}
               />
             </div>
           )
@@ -348,10 +384,17 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             certs={certsForSoldier(soldier.id)}
             tests={testsForSoldier(soldier.id)}
             readinessPercent={readinessForSoldier(soldier.id)}
+            compliancePercent={teamMetrics.soldierReadiness.find(s => s.soldierId === soldier.id)?.compliancePercent ?? 100}
             currentUserId={currentUserId}
             resolveName={resolveName}
             onNavigateToCert={(certId) => handleNavigateToCert(soldier, certId)}
             onRemoveTest={removeTest}
+            testableTaskMap={testableTaskMap}
+            onNavigateToArea={(areaName) => {
+              handleSlideAnimation('left')
+              setView({ screen: 'evaluate-select-task', soldier })
+              setTaskSearchQuery(areaName)
+            }}
           />
         )
       }
@@ -366,10 +409,7 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
               onViewSoldier={handleViewProfile}
               testableTaskMap={testableTaskMap}
               clinicName={clinicName}
-              onNavigateToTask={(taskId) => {
-                handleClose()
-                setTimeout(() => useNavigationStore.getState().setShowTrainingDrawer(taskId), 300)
-              }}
+              onNavigateToArea={handleNavigateToArea}
             />
           </div>
         )
@@ -439,6 +479,32 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             taskTitle={view.taskTitle}
             searchQuery={taskSearchQuery}
             onSelectTask={handleSelectTask}
+            onSubmit={handleSubmitEvaluation}
+          />
+        )
+
+      case 'coverage-tasks': {
+        const areaTasks = testableTaskMap.get(view.areaName) ?? []
+        return subViewWrapper(
+          <CoverageTasksView
+            areaName={view.areaName}
+            tasks={areaTasks}
+            medics={medics}
+            testsForSoldier={testsForSoldier}
+            onEvaluate={handleCoverageEvaluate}
+            onBack={handleBack}
+          />
+        )
+      }
+
+      case 'coverage-task-evaluate':
+        return subViewWrapper(
+          <EvaluateFlow
+            soldier={view.soldier}
+            taskNumber={view.taskNumber}
+            taskTitle={view.taskTitle}
+            searchQuery=""
+            onSelectTask={() => {}}
             onSubmit={handleSubmitEvaluation}
           />
         )

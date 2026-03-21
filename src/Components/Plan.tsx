@@ -15,7 +15,12 @@ interface BlockState {
     freeText: string;
 }
 
-const ALL_BLOCK_KEYS: PlanBlockKey[] = [...PLAN_ORDER_CATEGORIES, 'instructions'];
+// Display order: meds → lab → radiology → referral → instructions → followUp
+const ALL_BLOCK_KEYS: PlanBlockKey[] = [
+    ...PLAN_ORDER_CATEGORIES.filter(k => k !== 'followUp'),
+    'instructions',
+    'followUp',
+];
 
 const BLOCK_LABELS: Record<PlanBlockKey, string> = {
     ...PLAN_ORDER_LABELS,

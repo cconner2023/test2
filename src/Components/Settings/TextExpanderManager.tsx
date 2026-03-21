@@ -1,6 +1,7 @@
 import { TextCursorInput, Layers, Check, X } from 'lucide-react';
 import type { TextExpander } from '../../Data/User';
 import type { TemplateNode } from '../../Data/TemplateTypes';
+import { ShortcutStepBuilder } from './ShortcutStepBuilder';
 
 const templatePreview = (nodes: TemplateNode[]): string =>
     nodes.map(n => {
@@ -17,6 +18,14 @@ const expansionPreview = (e: TextExpander): string => {
     return e.expansion;
 };
 
+export interface EditCardState {
+    abbr: string;
+    type: 'simple' | 'template';
+    expansion: string;
+    nodes: TemplateNode[];
+    isNew: boolean;
+}
+
 interface TextExpanderManagerProps {
     expanders: TextExpander[];
     editing?: boolean;
@@ -24,14 +33,21 @@ interface TextExpanderManagerProps {
     stagedAdds: TextExpander[];
     onToggleDelete: (abbr: string) => void;
     onUnstageAdd: (abbr: string) => void;
-    /** Tap a card in non-edit mode to view/edit */
     onCardTap?: (expander: TextExpander) => void;
-    /** Abbreviation input field */
+    /** Abbreviation input */
     inputAbbr: string;
     onInputAbbrChange: (value: string) => void;
     onInputAbbrSubmit: () => void;
     inputError: string;
     onClearInput: () => void;
+    /** Type selector */
+    selectedType: 'simple' | 'template';
+    onTypeChange: (type: 'simple' | 'template') => void;
+    /** Inline edit card */
+    editCard: EditCardState | null;
+    onEditCardChange: (state: EditCardState) => void;
+    onEditCardAccept: () => void;
+    onEditCardCancel: () => void;
 }
 
 export const TextExpanderManager = ({
@@ -39,145 +55,249 @@ export const TextExpanderManager = ({
     stagedDeletes, stagedAdds, onToggleDelete, onUnstageAdd,
     onCardTap,
     inputAbbr, onInputAbbrChange, onInputAbbrSubmit, inputError, onClearInput,
+    selectedType, onTypeChange,
+    editCard, onEditCardChange, onEditCardAccept, onEditCardCancel,
 }: TextExpanderManagerProps) => {
     const totalCount = expanders.length + stagedAdds.length - stagedDeletes.size;
     const hasItems = expanders.length > 0 || stagedAdds.length > 0;
 
+    const editCardValid = editCard
+        ? editCard.type === 'simple'
+            ? editCard.expansion.trim().length > 0
+            : editCard.nodes.length > 0
+        : false;
+
     return (
-        <section>
-            <div className="pb-2 flex items-center gap-2">
+        <section className="space-y-3">
+            {/* ── Section header ── */}
+            <div className="flex items-center gap-2">
                 <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">Templates</p>
                 <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary/50 font-medium">
                     {totalCount}
                 </span>
             </div>
 
-            <div className="rounded-xl bg-themewhite2 overflow-hidden">
-                <div className="px-4 py-3">
-
-                    {/* Add input — edit-gated */}
-                    <div className={`overflow-hidden transition-all duration-300 ease-out ${
-                        editing ? 'max-h-16 opacity-100 mb-2' : 'max-h-0 opacity-0'
-                    }`}>
-                        <div className="relative">
-                            <div className="flex items-center gap-1.5">
-                                <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
-                                    <input
-                                        type="text"
-                                        value={inputAbbr}
-                                        onChange={(e) => onInputAbbrChange(e.target.value)}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onInputAbbrSubmit(); } }}
-                                        placeholder="New shortcut..."
-                                        className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary/30"
-                                    />
-                                </div>
-                                {inputAbbr.trim() && (
-                                    <>
-                                        <button
-                                            type="button"
-                                            onClick={onClearInput}
-                                            className="animate-spring-in shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-                                        >
-                                            <X size={18} />
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={onInputAbbrSubmit}
-                                            className="animate-spring-in shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
-                                        >
-                                            <Check size={18} />
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                            {inputError && (
-                                <div className="absolute left-0 right-0 top-full mt-1.5 z-10">
-                                    <p className="text-xs font-medium text-themeredred bg-themeredred/5 rounded-full px-4 py-1.5 text-center">
-                                        {inputError}
-                                    </p>
-                                </div>
-                            )}
+            {/* ── Edit flow ── */}
+            <div className={`overflow-hidden transition-all duration-300 ease-out ${
+                editCard ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+            }`}>
+                {editCard && editCard.type === 'simple' ? (
+                    /* Simple — unified card: header, textarea, footer */
+                    <div className="rounded-xl bg-themewhite2 divide-y divide-tertiary/10">
+                        <div className="flex items-center gap-2 px-4 py-3">
+                            <p className="text-base font-semibold text-primary font-mono flex-1 min-w-0 truncate">
+                                {editCard.abbr}
+                            </p>
+                            <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-themeblue2/15 text-themeblue2">
+                                simple
+                            </span>
+                        </div>
+                        <div className="px-4 py-3">
+                            <textarea
+                                value={editCard.expansion}
+                                onChange={(e) => onEditCardChange({ ...editCard, expansion: e.target.value })}
+                                placeholder="Text that replaces the shortcut…"
+                                className="w-full min-h-[100px] bg-transparent outline-none text-sm text-primary placeholder:text-tertiary/30 resize-none leading-relaxed"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="flex items-center justify-end gap-1.5 px-4 py-2.5">
+                            <button
+                                type="button"
+                                onClick={onEditCardCancel}
+                                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
+                            >
+                                <X size={18} />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={onEditCardAccept}
+                                disabled={!editCardValid}
+                                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-40 active:scale-95 transition-all"
+                            >
+                                <Check size={18} />
+                            </button>
                         </div>
                     </div>
-
-                    {/* Template list */}
-                    {hasItems ? (
-                        <div className="space-y-0.5">
-                            {expanders.map(e => {
-                                const isTemplate = e.template && e.template.length > 0;
-                                const isMarkedDelete = stagedDeletes.has(e.abbr);
-                                const Icon = isTemplate ? Layers : TextCursorInput;
-                                const iconBg = isTemplate ? 'bg-themepurple/15' : 'bg-themeblue2/15';
-                                const iconColor = isTemplate ? 'text-themepurple' : 'text-themeblue2';
-
-                                return (
-                                    <div
-                                        key={e.abbr}
-                                        onClick={
-                                            editing
-                                                ? () => onToggleDelete(e.abbr)
-                                                : onCardTap
-                                                    ? () => onCardTap(e)
-                                                    : undefined
-                                        }
-                                        className={`flex items-start gap-3 py-2 px-2 rounded-lg transition-colors ${
-                                            isMarkedDelete
-                                                ? 'ring-1 ring-inset ring-themeredred/30 bg-themeredred/5 cursor-pointer active:scale-[0.98]'
-                                                : editing
-                                                    ? 'cursor-pointer active:scale-[0.98] hover:bg-themeredred/5'
-                                                    : onCardTap
-                                                        ? 'cursor-pointer active:scale-[0.98]'
-                                                        : ''
-                                        }`}
-                                    >
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
-                                            <Icon size={14} className={iconColor} />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className={`text-sm font-medium truncate ${
-                                                isMarkedDelete ? 'text-themeredred/60 line-through' : 'text-primary'
-                                            }`}>{e.abbr}</p>
-                                            <p className={`text-[11px] mt-0.5 leading-relaxed ${
-                                                isMarkedDelete ? 'text-themeredred/30' : 'text-tertiary/50'
-                                            }`}>
-                                                {expansionPreview(e)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-
-                            {stagedAdds.map(e => {
-                                const isTemplate = e.template && e.template.length > 0;
-                                const Icon = isTemplate ? Layers : TextCursorInput;
-                                const iconBg = isTemplate ? 'bg-themepurple/15' : 'bg-themeblue2/15';
-                                const iconColor = isTemplate ? 'text-themepurple' : 'text-themeblue2';
-
-                                return (
-                                    <div
-                                        key={`add-${e.abbr}`}
-                                        onClick={editing ? () => onUnstageAdd(e.abbr) : undefined}
-                                        className="flex items-start gap-3 py-2 px-2 rounded-lg border border-dashed border-themeblue2/30 bg-themeblue2/5 cursor-pointer active:scale-[0.98] transition-all"
-                                    >
-                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
-                                            <Icon size={14} className={iconColor} />
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-sm font-medium text-primary truncate">{e.abbr}</p>
-                                            <p className="text-[11px] text-tertiary/50 mt-0.5 leading-relaxed">
-                                                {expansionPreview(e)}
-                                            </p>
-                                        </div>
-                                    </div>
-                                );
-                            })}
+                ) : editCard && editCard.type === 'template' ? (
+                    /* Template — separated cards: header, step cards, footer */
+                    <div className="space-y-2">
+                        <div className="rounded-xl bg-themewhite2 px-4 py-3 flex items-center gap-2">
+                            <p className="text-base font-semibold text-primary font-mono flex-1 min-w-0 truncate">
+                                {editCard.abbr}
+                            </p>
+                            <span className="text-[10px] font-semibold tracking-wider uppercase px-2 py-0.5 rounded-full bg-themepurple/15 text-themepurple">
+                                template
+                            </span>
                         </div>
-                    ) : (
-                        <p className="text-sm text-tertiary/50 py-2 text-center">
-                            No templates configured
-                        </p>
-                    )}
+
+                        <ShortcutStepBuilder
+                            nodes={editCard.nodes}
+                            onChange={(nodes) => onEditCardChange({ ...editCard, nodes })}
+                        />
+
+                        <div className="rounded-xl bg-themewhite2 px-4 py-2.5 flex items-center justify-end gap-1.5">
+                            <button
+                                type="button"
+                                onClick={onEditCardCancel}
+                                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary hover:bg-tertiary/10 active:scale-95 transition-all"
+                            >
+                                <X size={18} />
+                            </button>
+                            <button
+                                type="button"
+                                onClick={onEditCardAccept}
+                                disabled={!editCardValid}
+                                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-40 active:scale-95 transition-all"
+                            >
+                                <Check size={18} />
+                            </button>
+                        </div>
+                    </div>
+                ) : null}
+            </div>
+
+            {/* ── Unified card: input bar (when editing) + template list ── */}
+            <div className="rounded-xl bg-themewhite2 overflow-hidden">
+                {/* Input bar — inside the list card, edit-gated */}
+                <div className={`overflow-hidden transition-all duration-300 ease-out ${
+                    editing && !editCard ? 'max-h-16 opacity-100' : 'max-h-0 opacity-0'
+                }`}>
+                    <div className="relative px-4 py-3">
+                        <div className="flex items-center gap-1.5">
+                            {/* Type selector pill */}
+                            <button
+                                type="button"
+                                onClick={() => onTypeChange(selectedType === 'simple' ? 'template' : 'simple')}
+                                className={`shrink-0 px-3 py-2.5 rounded-full text-[11px] font-semibold tracking-wide uppercase transition-all active:scale-95 ${
+                                    selectedType === 'template'
+                                        ? 'bg-themepurple/15 text-themepurple border border-themepurple/20'
+                                        : 'bg-themeblue2/15 text-themeblue2 border border-themeblue2/20'
+                                }`}
+                            >
+                                {selectedType === 'simple' ? 'Simple' : 'Template'}
+                            </button>
+
+                            {/* Abbreviation input */}
+                            <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
+                                <input
+                                    type="text"
+                                    value={inputAbbr}
+                                    onChange={(e) => onInputAbbrChange(e.target.value)}
+                                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onInputAbbrSubmit(); } }}
+                                    placeholder="New shortcut…"
+                                    className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary/30"
+                                />
+                            </div>
+
+                            {inputAbbr.trim() && (
+                                <>
+                                    <button
+                                        type="button"
+                                        onClick={onClearInput}
+                                        className="animate-spring-in shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+                                    >
+                                        <X size={18} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={onInputAbbrSubmit}
+                                        className="animate-spring-in shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white active:scale-95 transition-all"
+                                    >
+                                        <Check size={18} />
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                        {inputError && (
+                            <div className="absolute left-0 right-0 top-full mt-1.5 z-10">
+                                <p className="text-xs font-medium text-themeredred bg-themeredred/5 rounded-full px-4 py-1.5 text-center">
+                                    {inputError}
+                                </p>
+                            </div>
+                        )}
+                    </div>
                 </div>
+
+                {/* List items */}
+                {hasItems ? (
+                    <div className="divide-y divide-tertiary/8 px-2">
+                        {/* Staged adds — top of list */}
+                        {stagedAdds.map(e => {
+                            const isTemplate = e.template && e.template.length > 0;
+                            const Icon = isTemplate ? Layers : TextCursorInput;
+                            const iconBg = isTemplate ? 'bg-themepurple/15' : 'bg-themeblue2/15';
+                            const iconColor = isTemplate ? 'text-themepurple' : 'text-themeblue2';
+
+                            return (
+                                <div
+                                    key={`add-${e.abbr}`}
+                                    onClick={editing ? () => onUnstageAdd(e.abbr) : undefined}
+                                    className="flex items-start gap-3 py-2 px-2 rounded-lg border border-dashed border-themeblue2/30 bg-themeblue2/5 cursor-pointer active:scale-[0.98] transition-all"
+                                >
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
+                                        <Icon size={14} className={iconColor} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium text-primary truncate">{e.abbr}</p>
+                                        <p className="text-[11px] text-tertiary/50 mt-0.5 leading-relaxed">
+                                            {expansionPreview(e)}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {/* Existing expanders */}
+                        {expanders.map(e => {
+                            const isTemplate = e.template && e.template.length > 0;
+                            const isMarkedDelete = stagedDeletes.has(e.abbr);
+                            const Icon = isTemplate ? Layers : TextCursorInput;
+                            const iconBg = isTemplate ? 'bg-themepurple/15' : 'bg-themeblue2/15';
+                            const iconColor = isTemplate ? 'text-themepurple' : 'text-themeblue2';
+
+                            return (
+                                <div
+                                    key={e.abbr}
+                                    onClick={
+                                        editing
+                                            ? () => onToggleDelete(e.abbr)
+                                            : onCardTap
+                                                ? () => onCardTap(e)
+                                                : undefined
+                                    }
+                                    className={`flex items-start gap-3 py-2 px-2 rounded-lg transition-colors ${
+                                        isMarkedDelete
+                                            ? 'ring-1 ring-inset ring-themeredred/30 bg-themeredred/5 cursor-pointer active:scale-[0.98]'
+                                            : editing
+                                                ? 'cursor-pointer active:scale-[0.98] hover:bg-themeredred/5'
+                                                : onCardTap
+                                                    ? 'cursor-pointer active:scale-[0.98]'
+                                                    : ''
+                                    }`}
+                                >
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${iconBg}`}>
+                                        <Icon size={14} className={iconColor} />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <p className={`text-sm font-medium truncate ${
+                                            isMarkedDelete ? 'text-themeredred/60 line-through' : 'text-primary'
+                                        }`}>{e.abbr}</p>
+                                        <p className={`text-[11px] mt-0.5 leading-relaxed ${
+                                            isMarkedDelete ? 'text-themeredred/30' : 'text-tertiary/50'
+                                        }`}>
+                                            {expansionPreview(e)}
+                                        </p>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                ) : (
+                    <p className="text-sm text-tertiary/50 py-4 text-center">
+                        No templates configured
+                    </p>
+                )}
             </div>
         </section>
     );

@@ -1,13 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useUserProfile } from '../../Hooks/useUserProfile';
 import type { UserTypes, TextExpander } from '../../Data/User';
+import type { TemplateNode } from '../../Data/TemplateTypes';
 import { TextExpanderManager } from './TextExpanderManager';
+import type { EditCardState } from './TextExpanderManager';
 import { TextTemplateDetailPanel } from './TextTemplateDetailPanel';
-
-interface DetailState {
-    expander: TextExpander;
-    isNew: boolean;
-}
 
 interface TextTemplatesPanelProps {
     editing?: boolean;
@@ -23,17 +20,22 @@ export const TextTemplatesPanel = ({
 
     const textExpanders = profile.textExpanders ?? [];
 
-    // Staging state — used only for bulk delete in edit mode
+    // Staging state
     const [stagedDeletes, setStagedDeletes] = useState<Set<string>>(new Set());
+    const [stagedAdds, setStagedAdds] = useState<TextExpander[]>([]);
 
-    // Abbreviation input state
+    // Input bar state
     const [inputAbbr, setInputAbbr] = useState('');
     const [inputError, setInputError] = useState('');
+    const [selectedType, setSelectedType] = useState<'simple' | 'template'>('simple');
 
-    // Inline detail view state
-    const [detail, setDetail] = useState<DetailState | null>(null);
+    // Inline edit card state
+    const [editCard, setEditCard] = useState<EditCardState | null>(null);
 
-    const hasPending = stagedDeletes.size > 0;
+    // Detail view for editing existing (tap a card in non-edit mode)
+    const [detailExpander, setDetailExpander] = useState<TextExpander | null>(null);
+
+    const hasPending = stagedDeletes.size > 0 || stagedAdds.length > 0;
 
     useEffect(() => {
         onPendingChangesChange?.(hasPending);
@@ -46,19 +48,25 @@ export const TextTemplatesPanel = ({
         syncProfileField(dbFields);
     }, [updateProfile, syncProfileField]);
 
-    // Commit staged deletes when save is requested
+    // Commit staged changes when save is requested
     useEffect(() => {
         if (!saveRequested) return;
 
-        if (stagedDeletes.size > 0) {
-            const next = textExpanders.filter(e => !stagedDeletes.has(e.abbr));
+        const current = [...textExpanders];
+        let next = current.filter(e => !stagedDeletes.has(e.abbr));
+        if (stagedAdds.length > 0) {
+            next = [...next, ...stagedAdds];
+        }
+
+        if (stagedDeletes.size > 0 || stagedAdds.length > 0) {
             handleUpdate({ textExpanders: next });
         }
 
         setStagedDeletes(new Set());
+        setStagedAdds([]);
         setInputAbbr('');
         setInputError('');
-        setDetail(null);
+        setEditCard(null);
         onSaveComplete?.();
     }, [saveRequested]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -66,9 +74,10 @@ export const TextTemplatesPanel = ({
     useEffect(() => {
         if (!editing) {
             setStagedDeletes(new Set());
+            setStagedAdds([]);
             setInputAbbr('');
             setInputError('');
-            setDetail(null);
+            setEditCard(null);
         }
     }, [editing]);
 
@@ -81,13 +90,20 @@ export const TextTemplatesPanel = ({
         });
     }, []);
 
-    // Validate abbreviation and open detail inline
+    const handleUnstageAdd = useCallback((abbr: string) => {
+        setStagedAdds(prev => prev.filter(e => e.abbr !== abbr));
+    }, []);
+
+    // Validate abbreviation and open inline edit card
     const handleInputSubmit = useCallback(() => {
         const trimmed = inputAbbr.trim();
         if (!trimmed) return;
         if (/\s/.test(trimmed)) { setInputError('No spaces allowed'); return; }
 
-        const allAbbrs = textExpanders.map(e => e.abbr.toLowerCase());
+        const allAbbrs = [
+            ...textExpanders.map(e => e.abbr.toLowerCase()),
+            ...stagedAdds.map(e => e.abbr.toLowerCase()),
+        ];
         if (allAbbrs.includes(trimmed.toLowerCase())) {
             setInputError('Abbreviation already exists');
             return;
@@ -95,20 +111,45 @@ export const TextTemplatesPanel = ({
 
         setInputAbbr('');
         setInputError('');
-        setDetail({ expander: { abbr: trimmed, expansion: '' }, isNew: true });
-    }, [inputAbbr, textExpanders]);
+        setEditCard({
+            abbr: trimmed,
+            type: selectedType,
+            expansion: '',
+            nodes: [],
+            isNew: true,
+        });
+    }, [inputAbbr, textExpanders, stagedAdds, selectedType]);
 
     const handleClearInput = useCallback(() => {
         setInputAbbr('');
         setInputError('');
     }, []);
 
-    // Open detail for editing an existing expander
-    const handleCardTap = useCallback((expander: TextExpander) => {
-        setDetail({ expander, isNew: false });
+    // Edit card accept — stage the new expander
+    const handleEditCardAccept = useCallback(() => {
+        if (!editCard) return;
+
+        const entry: TextExpander = editCard.type === 'template'
+            ? { abbr: editCard.abbr, expansion: '', template: editCard.nodes }
+            : { abbr: editCard.abbr, expansion: editCard.expansion.trim() };
+
+        if (editCard.isNew) {
+            setStagedAdds(prev => [...prev, entry]);
+        }
+
+        setEditCard(null);
+    }, [editCard]);
+
+    const handleEditCardCancel = useCallback(() => {
+        setEditCard(null);
     }, []);
 
-    // Detail panel save handler
+    // Open detail for editing an existing expander (non-edit mode tap)
+    const handleCardTap = useCallback((expander: TextExpander) => {
+        setDetailExpander(expander);
+    }, []);
+
+    // Detail panel save handler (editing existing)
     const handleDetailSave = useCallback((entry: TextExpander, originalAbbr?: string) => {
         const current = profile.textExpanders ?? [];
         const next = originalAbbr
@@ -116,7 +157,7 @@ export const TextTemplatesPanel = ({
             : [...current, entry];
 
         handleUpdate({ textExpanders: next });
-        setDetail(null);
+        setDetailExpander(null);
     }, [profile.textExpanders, handleUpdate]);
 
     // Detail panel delete handler
@@ -125,19 +166,19 @@ export const TextTemplatesPanel = ({
         const next = current.filter(e => e.abbr !== abbr);
 
         handleUpdate({ textExpanders: next });
-        setDetail(null);
+        setDetailExpander(null);
     }, [profile.textExpanders, handleUpdate]);
 
-    // ── Inline detail view ──
-    if (detail) {
+    // ── Detail view for editing existing ──
+    if (detailExpander) {
         return (
             <TextTemplateDetailPanel
-                expander={detail.expander}
-                isNew={detail.isNew}
+                expander={detailExpander}
+                isNew={false}
                 existingAbbrs={textExpanders.map(e => e.abbr)}
                 onSave={handleDetailSave}
-                onDelete={!detail.isNew ? handleDetailDelete : undefined}
-                onCancel={() => setDetail(null)}
+                onDelete={handleDetailDelete}
+                onCancel={() => setDetailExpander(null)}
             />
         );
     }
@@ -154,15 +195,21 @@ export const TextTemplatesPanel = ({
                     expanders={textExpanders}
                     editing={editing}
                     stagedDeletes={stagedDeletes}
-                    stagedAdds={[]}
+                    stagedAdds={stagedAdds}
                     onToggleDelete={handleToggleDelete}
-                    onUnstageAdd={() => {}}
+                    onUnstageAdd={handleUnstageAdd}
                     onCardTap={handleCardTap}
                     inputAbbr={inputAbbr}
                     onInputAbbrChange={(v) => { setInputAbbr(v); setInputError(''); }}
                     onInputAbbrSubmit={handleInputSubmit}
                     inputError={inputError}
                     onClearInput={handleClearInput}
+                    selectedType={selectedType}
+                    onTypeChange={setSelectedType}
+                    editCard={editCard}
+                    onEditCardChange={setEditCard}
+                    onEditCardAccept={handleEditCardAccept}
+                    onEditCardCancel={handleEditCardCancel}
                 />
             </div>
         </div>

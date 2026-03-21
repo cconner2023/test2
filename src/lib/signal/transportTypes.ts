@@ -69,7 +69,6 @@ export interface SignalMessageRow {
   payload: Record<string, unknown>
   created_at: string
   read_at: string | null
-  deleted_at: string | null
 }
 
 /** A registered device for a peer (returned by fetch_peer_devices RPC). */

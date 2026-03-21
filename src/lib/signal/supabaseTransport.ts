@@ -116,7 +116,6 @@ export class SupabaseTransport implements SignalTransport {
         .select('*')
         .eq('recipient_id', userId)
         .is('read_at', null)
-        .is('deleted_at', null)
         .order('created_at', { ascending: true })
 
       if (deviceId) {
@@ -175,7 +174,6 @@ export class SupabaseTransport implements SignalTransport {
           `and(sender_id.eq.${userId},recipient_id.eq.${peerId}),` +
           `and(sender_id.eq.${peerId},recipient_id.eq.${userId})`
         )
-        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(limit),
       'fetchConversation', [],
@@ -188,7 +186,6 @@ export class SupabaseTransport implements SignalTransport {
         .from('signal_messages')
         .select('*')
         .eq('group_id', groupId)
-        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(limit),
       'fetchGroupConversation', [],

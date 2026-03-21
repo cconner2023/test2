@@ -366,7 +366,7 @@ export function BaseDrawer({
                         <div className="flex-1 min-h-0 overflow-y-auto">
                             {!(mobileFullScreen && useMobileLayout) && (
                                 <div
-                                    className="sticky top-0 z-10 backdrop-blur-xs bg-themeblue3/[0.03]"
+                                    className="sticky top-0 z-10 backdrop-blur-xs bg-transparent"
                                     {...bindDrawerDrag()}
                                 >
                                     <DrawerHeader

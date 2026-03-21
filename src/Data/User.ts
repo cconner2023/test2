@@ -52,7 +52,7 @@ export interface PlanOrderTags {
     followUp: string[];
 }
 
-export const PLAN_ORDER_CATEGORIES = ['referral', 'meds', 'radiology', 'lab', 'followUp'] as const;
+export const PLAN_ORDER_CATEGORIES = ['meds', 'lab', 'radiology', 'referral', 'followUp'] as const;
 export type PlanOrderCategory = typeof PLAN_ORDER_CATEGORIES[number];
 
 export const PLAN_ORDER_LABELS: Record<PlanOrderCategory, string> = {

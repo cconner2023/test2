@@ -42,7 +42,6 @@ function makeRow(overrides: Partial<SignalMessageRow> = {}): SignalMessageRow {
     payload: {},
     created_at: new Date().toISOString(),
     read_at: null,
-    deleted_at: null,
     ...overrides,
   }
 }

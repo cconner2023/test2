@@ -521,7 +521,6 @@ export async function processVaultMessages(userId: string): Promise<number> {
     .eq('recipient_id', userId)
     .eq('recipient_device_id', VAULT_DEVICE_ID)
     .is('read_at', null)
-    .is('deleted_at', null)
     .order('created_at', { ascending: true })
 
   if (fetchError || !rows || rows.length === 0) {

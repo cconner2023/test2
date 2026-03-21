@@ -314,14 +314,12 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
     if (view === 'output') {
       return {
         title: 'Note Output',
-        badge: 'BETA',
         showBack: true,
         onBack: handleBack,
       }
     }
     return {
       title: 'Provider',
-      badge: 'BETA',
       rightContent: noteHeaderRight,
       hideDefaultClose: true,
       rightContentFill: importExpanded,
@@ -371,7 +369,7 @@ export function ProviderDrawer({ isVisible, onClose }: ProviderDrawerProps) {
         )}
 
         {/* Content */}
-        <div className="px-5 py-3 md:p-5 pb-8">
+        <div className="px-5 pt-14 py-3 md:p-5 md:pt-14 pb-8">
           {view === 'note' ? (
             <ProviderNote
               hpiNote={hpiNote}

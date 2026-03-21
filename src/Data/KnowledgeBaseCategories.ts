@@ -25,7 +25,7 @@ export const kbCategories: KBCategory[] = [
     // ── Training ──────────────────────────────────────────────
     {
         id: 'stp',
-        label: 'STP 68W',
+        label: 'STP 8-68W13-SM-TG',
         description: 'Soldier Training Publication',
         icon: BookOpen,
         group: 'training',

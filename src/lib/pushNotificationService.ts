@@ -50,9 +50,11 @@ export async function subscribeToPush(): Promise<ServiceResult> {
     // If re-subscribing and the token changed, remove the stale DB row first
     const previousToken = getStoredFcmToken()
     if (previousToken && previousToken !== token) {
-      await supabase.rpc('remove_push_subscription', {
-        p_fcm_token: previousToken,
-      }).catch(() => {})
+      try {
+        await supabase.rpc('remove_push_subscription', {
+          p_fcm_token: previousToken,
+        })
+      } catch { /* best-effort cleanup of stale token */ }
     }
 
     const { error } = await supabase.rpc('save_push_subscription', {
@@ -91,9 +93,11 @@ export async function resyncPushSubscription(): Promise<void> {
         if (freshToken !== storedToken) {
           // Token rotated — remove the stale DB row before saving the new one
           // to prevent orphaned subscriptions from accumulating.
-          await supabase.rpc('remove_push_subscription', {
-            p_fcm_token: storedToken,
-          }).catch(() => {})
+          try {
+            await supabase.rpc('remove_push_subscription', {
+              p_fcm_token: storedToken,
+            })
+          } catch { /* best-effort cleanup of rotated token */ }
           localStorage.setItem(FCM_TOKEN_KEY, freshToken)
         }
       }

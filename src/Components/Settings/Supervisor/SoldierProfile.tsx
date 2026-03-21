@@ -1,13 +1,21 @@
 import { useState, useCallback, useMemo } from 'react'
-import { getTaskData } from '../../../Data/TrainingData'
+import { Building2, ChevronRight } from 'lucide-react'
+import { getTaskData, isTaskTestable } from '../../../Data/TrainingData'
 import { deleteCompletion as deleteCompletionApi } from '../../../lib/trainingService'
-import { formatMedicName, getExpirationStatus } from './supervisorHelpers'
+import { formatMedicName, getExpirationStatus, getLatestTestByTask } from './supervisorHelpers'
+import type { FlatTask } from './supervisorHelpers'
 import type { ClinicMedic } from '../../../Types/SupervisorTestTypes'
 import type { Certification } from '../../../Data/User'
 import type { TrainingCompletionUI } from '../../../lib/trainingService'
 import { createLogger } from '../../../Utilities/Logger'
 
 const logger = createLogger('SoldierProfile')
+
+function readinessColor(pct: number): string {
+  if (pct >= 80) return 'bg-themegreen'
+  if (pct >= 50) return 'bg-themeyellow'
+  return 'bg-themeredred'
+}
 
 function readinessTextColor(pct: number): string {
   if (pct >= 80) return 'text-themegreen'
@@ -20,10 +28,13 @@ interface SoldierProfileProps {
   certs: Certification[]
   tests: TrainingCompletionUI[]
   readinessPercent: number
+  compliancePercent: number
   currentUserId: string
   resolveName: (id: string | null) => string
   onNavigateToCert?: (certId: string) => void
   onRemoveTest: (testId: string) => void
+  testableTaskMap: Map<string, FlatTask[]>
+  onNavigateToArea?: (areaName: string) => void
 }
 
 export function SoldierProfile({
@@ -31,10 +42,13 @@ export function SoldierProfile({
   certs,
   tests,
   readinessPercent,
+  compliancePercent,
   currentUserId,
   resolveName,
   onNavigateToCert,
   onRemoveTest,
+  testableTaskMap,
+  onNavigateToArea,
 }: SoldierProfileProps) {
   const [expandedTestId, setExpandedTestId] = useState<string | null>(null)
   const [deletingId, setDeletingId] = useState<string | null>(null)
@@ -54,10 +68,6 @@ export function SoldierProfile({
     certs.filter(c => getExpirationStatus(c.exp_date) === 'valid').length,
   [certs])
 
-  const passCount = useMemo(() =>
-    tests.filter(r => r.result === 'GO').length,
-  [tests])
-
   const sortedCerts = useMemo(() => {
     const priority: Record<string, number> = { expired: 0, expiring: 1, valid: 2, none: 3 }
     return [...certs].sort((a, b) => {
@@ -74,50 +84,77 @@ export function SoldierProfile({
     })
   }, [tests])
 
+  /** Per-category competency for this soldier */
+  const categoryCompetency = useMemo(() => {
+    const latestByTask = getLatestTestByTask(tests)
+    const categories: { areaName: string; passed: number; total: number; pct: number }[] = []
+
+    for (const [areaName, tasks] of testableTaskMap) {
+      const testable = tasks.filter(t => isTaskTestable(t.taskId))
+      if (testable.length === 0) continue
+      let passed = 0
+      for (const task of testable) {
+        const latest = latestByTask.get(task.taskId)
+        if (latest?.result === 'GO') passed++
+      }
+      const pct = Math.round((passed / testable.length) * 100)
+      categories.push({ areaName, passed, total: testable.length, pct })
+    }
+
+    return categories.sort((a, b) => a.pct - b.pct)
+  }, [tests, testableTaskMap])
+
   return (
     <div className="space-y-5">
-      {/* Header */}
-      <div>
-        <p className="text-lg font-semibold text-primary">{formatMedicName(soldier)}</p>
-        {soldier.credential && (
-          <p className="text-xs text-tertiary/50">{soldier.credential}</p>
-        )}
+      {/* Soldier Card */}
+      <div className="rounded-xl bg-themewhite2 px-4 py-3">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+            <Building2 size={16} className="text-tertiary/50" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-primary truncate">{formatMedicName(soldier)}</p>
+            <p className="text-[9pt] text-tertiary/50">
+              {soldier.credential ?? 'No credential'} · {validCertCount}/{certs.length} certs valid
+            </p>
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5 mt-2 ml-11">
+          <div className="flex items-center gap-2">
+            <span className="text-[9pt] text-tertiary/50 w-18 shrink-0">Readiness</span>
+            <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
+              <div className={`h-full rounded-full ${readinessColor(readinessPercent)}`} style={{ width: `${readinessPercent}%` }} />
+            </div>
+            <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(readinessPercent)}`}>{readinessPercent}%</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-[9pt] text-tertiary/50 w-18 shrink-0">Compliance</span>
+            <div className="flex-1 h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
+              <div className={`h-full rounded-full ${readinessColor(compliancePercent)}`} style={{ width: `${compliancePercent}%` }} />
+            </div>
+            <span className={`text-[9pt] font-medium w-8 text-right ${readinessTextColor(compliancePercent)}`}>{compliancePercent}%</span>
+          </div>
+        </div>
       </div>
 
-      {/* Stat Strip */}
-      <div className="flex items-center gap-4 px-1">
-        <div>
-          <p className={`text-lg font-bold ${readinessTextColor(readinessPercent)}`}>{readinessPercent}%</p>
-          <p className="text-[10px] text-tertiary/50 uppercase tracking-wide">Readiness</p>
-        </div>
-        <div className="w-px h-8 bg-tertiary/10" />
-        <div>
-          <p className="text-lg font-bold text-primary">{validCertCount}<span className="text-tertiary/40">/{certs.length}</span></p>
-          <p className="text-[10px] text-tertiary/50 uppercase tracking-wide">Certs Valid</p>
-        </div>
-        <div className="w-px h-8 bg-tertiary/10" />
-        <div>
-          <p className="text-lg font-bold text-primary">{passCount}<span className="text-tertiary/40">/{tests.length}</span></p>
-          <p className="text-[10px] text-tertiary/50 uppercase tracking-wide">Tests Passed</p>
-        </div>
-      </div>
-
-      {/* Section 1: Certifications */}
+      {/* Certifications */}
       <div>
-        <p className="text-xs font-semibold text-tertiary/60 uppercase tracking-wider mb-2">
+        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
           Certifications
         </p>
         {certs.length === 0 ? (
-          <p className="text-sm text-tertiary/40 py-3">No certifications on file</p>
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-4">
+            <p className="text-sm text-tertiary/40">No certifications on file</p>
+          </div>
         ) : (
-          <div className="space-y-1.5">
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             {sortedCerts.map((cert) => {
               const status = getExpirationStatus(cert.exp_date)
               return (
                 <button
                   key={cert.id}
                   onClick={() => onNavigateToCert?.(cert.id)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg bg-themewhite2 text-left hover:bg-themewhite2/80 active:scale-95 transition-all"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-themeblue2/5 active:scale-95 transition-all"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -143,25 +180,65 @@ export function SoldierProfile({
         )}
       </div>
 
-      {/* Section 2: Completed Training */}
+      {/* Training Competency by Category */}
       <div>
-        <p className="text-xs font-semibold text-tertiary/60 uppercase tracking-wider mb-2">
+        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
+          Training Competency
+        </p>
+        {categoryCompetency.length === 0 ? (
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-4">
+            <p className="text-sm text-tertiary/40">No testable tasks available</p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            {categoryCompetency.map((cat) => (
+              <button
+                key={cat.areaName}
+                onClick={() => onNavigateToArea?.(cat.areaName)}
+                className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-themeblue2/5 active:scale-95 transition-all"
+              >
+                <span className="text-sm text-primary min-w-0 truncate shrink-0 w-36">
+                  {cat.areaName}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="h-1.5 rounded-full bg-tertiary/10 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${readinessColor(cat.pct)}`}
+                      style={{ width: `${cat.pct}%` }}
+                    />
+                  </div>
+                </div>
+                <span className={`text-[9pt] font-medium w-12 text-right ${readinessTextColor(cat.pct)}`}>
+                  {cat.passed}/{cat.total}
+                </span>
+                <ChevronRight size={14} className="text-tertiary/30 shrink-0" />
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Training History */}
+      <div>
+        <p className="text-[9pt] font-semibold text-primary/80 uppercase tracking-wider mb-2">
           Training History
         </p>
         {tests.length === 0 ? (
-          <p className="text-sm text-tertiary/40 py-3">No test records yet</p>
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden px-4 py-4">
+            <p className="text-sm text-tertiary/40">No test records yet</p>
+          </div>
         ) : (
-          <div className="space-y-2">
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
             {sortedTests.map((record) => {
               const isExpanded = expandedTestId === record.id
               const taskTitle = getTaskData(record.trainingItemId)?.title ?? record.trainingItemId
               const overallResult = record.result === 'GO' ? 'PASS' : 'FAIL'
 
               return (
-                <div key={record.id} className="rounded-lg border border-tertiary/10 bg-themewhite2 overflow-hidden">
+                <div key={record.id}>
                   <button
                     onClick={() => setExpandedTestId(isExpanded ? null : record.id)}
-                    className="flex items-center w-full px-4 py-3 text-left hover:bg-themewhite2/80 transition-colors"
+                    className="flex items-center w-full px-4 py-3 text-left hover:bg-themeblue2/5 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-primary truncate">{taskTitle}</p>

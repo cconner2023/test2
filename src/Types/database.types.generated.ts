@@ -496,7 +496,6 @@ export type Database = {
           payload: Json
           created_at: string
           read_at: string | null
-          deleted_at: string | null
         }
         Insert: {
           id?: string
@@ -510,7 +509,6 @@ export type Database = {
           payload: Json
           created_at?: string
           read_at?: string | null
-          deleted_at?: string | null
         }
         Update: {
           id?: string
@@ -524,7 +522,6 @@ export type Database = {
           payload?: Json
           created_at?: string
           read_at?: string | null
-          deleted_at?: string | null
         }
         Relationships: []
       }

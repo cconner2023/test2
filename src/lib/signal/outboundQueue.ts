@@ -32,6 +32,7 @@ export interface OutboundQueueEntry {
   status: 'pending' | 'sending' | 'failed'
   retryCount: number
   batchId: string | null  // groups fan-out entries
+  silent?: boolean        // suppress push notification on flush (e.g. calendar events)
 }
 
 // ---- Database Schema ----
@@ -80,6 +81,7 @@ export async function enqueue(params: SendMessageParams): Promise<void> {
       status: 'pending',
       retryCount: 0,
       batchId: null,
+      silent: params.silent,
     }
 
     const db = await getDb()
@@ -112,6 +114,7 @@ export async function enqueueBatch(params: SendBatchParams): Promise<void> {
         status: 'pending',
         retryCount: 0,
         batchId,
+        silent: params.silent,
       }
       tx.store.put(entry)
     }
@@ -145,6 +148,7 @@ export async function dequeueAll(): Promise<SendMessageParams[]> {
           groupId: entry.groupId ?? undefined,
           messageType: entry.messageType,
           payload,
+          silent: entry.silent,
         })
       } catch {
         logger.warn(`Failed to decrypt queue entry ${entry.id} — skipping`)

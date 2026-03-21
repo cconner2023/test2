@@ -121,6 +121,7 @@ export interface TeamMetrics {
 export interface SoldierReadinessEntry {
   soldierId: string
   readinessPercent: number
+  compliancePercent: number
   overdueCount: number
 }
 
@@ -268,16 +269,21 @@ export function computeTeamMetrics(
     }
   ).length
 
-  // Per-soldier readiness
+  // Per-soldier readiness + compliance
   const matrix = buildCompetencyMatrix(medics, tests, testableTaskMap)
   const soldierReadiness: SoldierReadinessEntry[] = medics.map(m => {
     const sc = matrix.find(s => s.soldierId === m.id)
     const readinessPercent = sc && sc.overallTotal > 0
       ? Math.round((sc.overallPassed / sc.overallTotal) * 100) : 0
     const { expiredCerts, failedTests } = overdueItemsFn(m.id)
+    const soldierCerts = certs.filter(c => c.user_id === m.id)
+    const soldierValidCerts = soldierCerts.filter(c => getExpirationStatus(c.exp_date) === 'valid')
+    const compliancePercent = soldierCerts.length > 0
+      ? Math.round((soldierValidCerts.length / soldierCerts.length) * 100) : 100
     return {
       soldierId: m.id,
       readinessPercent,
+      compliancePercent,
       overdueCount: expiredCerts.length + failedTests.length,
     }
   })
