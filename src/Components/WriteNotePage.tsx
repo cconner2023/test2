@@ -245,7 +245,7 @@ export const WriteNotePage = ({
                                         <div className="mx-2">
                                             <div className="overflow-hidden">
                                                 <Plan
-                                                    orderTags={profile.planOrderTags ?? { referral: [], meds: [], radiology: [], lab: [] }}
+                                                    orderTags={profile.planOrderTags ?? { referral: [], meds: [], radiology: [], lab: [], followUp: [] }}
                                                     instructionTags={profile.planInstructionTags ?? []}
                                                     orderSets={profile.planOrderSets}
                                                     initialText={planNote}

@@ -8,7 +8,7 @@
  * State lives in this hook (no Zustand store). Mounted once in MessagesPanel.
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { createLogger } from '../Utilities/Logger'
 import { useAuth } from './useAuth'
 import { usePageVisibility } from './usePageVisibility'
@@ -282,6 +282,7 @@ async function encryptAndSendToGroupMembers(
   serialized: string,
   originId: string,
   members: GroupMember[],
+  silent?: boolean,
 ): Promise<Result<string>> {
   const otherMembers = members.filter(m => m.userId !== userId)
   let firstServerId: string | null = null
@@ -296,7 +297,7 @@ async function encryptAndSendToGroupMembers(
         logger.warn(`Could not encrypt group message for ${member.userId}`)
         continue
       }
-      const sendResult = await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, groupId, originId)
+      const sendResult = await sendMessageFanOut(userId, localDeviceId, member.userId, fanOutInputs, groupId, originId, silent)
       if (sendResult.ok && !firstServerId) {
         firstServerId = sendResult.data[0]
       }
@@ -1812,7 +1813,7 @@ export function useMessages(): UseMessagesReturn {
       }
 
       const result = await encryptAndSendToGroupMembers(
-        userId, localDeviceId, calendarGroupId, serialized, originId, membersResult.data,
+        userId, localDeviceId, calendarGroupId, serialized, originId, membersResult.data, true,
       )
       if (!result.ok) {
         logger.warn('sendCalendarEvent: encrypt/send failed:', result.error)
@@ -1834,9 +1835,23 @@ export function useMessages(): UseMessagesReturn {
     }
   }, [userId, localDeviceId])
 
+  // Exclude system groups (e.g. calendar) from unread counts so they
+  // don't contribute to the badge total shown in nav bars.
+  const filteredUnreadCounts = useMemo(() => {
+    const systemGroupIds = new Set(
+      Object.values(groups).filter(g => g.systemType).map(g => g.groupId),
+    )
+    if (systemGroupIds.size === 0) return unreadCounts
+    const filtered: Record<string, number> = {}
+    for (const [key, count] of Object.entries(unreadCounts)) {
+      if (!systemGroupIds.has(key)) filtered[key] = count
+    }
+    return filtered
+  }, [unreadCounts, groups])
+
   return {
     conversations,
-    unreadCounts,
+    unreadCounts: filteredUnreadCounts,
     sendMessage,
     sendImage,
     sendVoice,

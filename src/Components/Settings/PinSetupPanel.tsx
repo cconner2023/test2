@@ -189,24 +189,20 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
 
     return (
       <div className="h-full overflow-y-auto">
-        <div className="px-5 py-4 space-y-5">
+        <div className="px-5 py-4 space-y-4">
           <p className="text-xs text-tertiary leading-relaxed">
             When enabled, a 4-digit PIN will be required each time you open the application.
             Your PIN persists across devices and protects cached notes.
           </p>
 
-          {success && (
-            <ErrorDisplay type="success" message={success} />
-          )}
+          {success && <ErrorDisplay type="success" message={success} />}
+          {error && <ErrorDisplay type="error" message={error} />}
 
-          {error && (
-            <ErrorDisplay type="error" message={error} />
-          )}
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
 
-          {/* App Lock */}
-          <div className="rounded-xl border border-tertiary/15 bg-themewhite2 overflow-hidden">
+            {/* App Lock */}
             <div
-              className="flex items-center gap-3 px-4 py-3.5 cursor-pointer"
+              className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
               onClick={() => {
                 if (pinEnabled) {
                   resetState(); setPendingAction('remove'); setView('verify-current')
@@ -239,18 +235,17 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
 
             {/* Nested options when PIN is enabled */}
             {pinEnabled && (
-              <div className="border-t border-tertiary/10 px-4 py-3 space-y-2">
-                {/* Biometric toggle */}
+              <>
                 {bioAvailable && (
                   <div
                     onClick={bioLoading ? undefined : handleBiometricToggle}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border border-tertiary/15 bg-themewhite transition-all ${bioLoading ? 'opacity-50' : 'cursor-pointer'}`}
+                    className={`flex items-center gap-3 pl-16 pr-4 py-3 bg-tertiary/5 transition-all ${bioLoading ? 'opacity-50' : 'cursor-pointer hover:bg-themeblue2/5 active:scale-95'}`}
                     role="button"
                     tabIndex={0}
-                    onKeyDown={(e) => { if (!bioLoading && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleBiometricToggle(); } }}
+                    onKeyDown={(e) => { if (!bioLoading && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); handleBiometricToggle() } }}
                   >
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${bioEnrolled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
-                      <ScanFace size={18} className={bioEnrolled ? 'text-themeblue2' : 'text-tertiary/50'} />
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${bioEnrolled ? 'bg-themeblue2/15' : 'bg-tertiary/10'}`}>
+                      <ScanFace size={16} className={bioEnrolled ? 'text-themeblue2' : 'text-tertiary/50'} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className={`text-sm font-medium ${bioEnrolled ? 'text-primary' : 'text-tertiary'}`}>
@@ -262,24 +257,23 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
                   </div>
                 )}
 
-                {/* Change PIN */}
-                <button
+                <div
+                  className="flex items-center gap-3 pl-16 pr-4 py-3 bg-tertiary/5 cursor-pointer transition-all hover:bg-themeblue2/5 active:scale-95"
                   onClick={() => { resetState(); setPendingAction('change'); setView('verify-current') }}
-                  className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-tertiary/15 bg-themewhite
-                             hover:bg-themewhite/80 active:scale-95 transition-all text-left"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); resetState(); setPendingAction('change'); setView('verify-current') } }}
                 >
-                  <KeyRound size={16} className="text-themeblue2" />
+                  <KeyRound size={16} className="text-themeblue2 shrink-0" />
                   <span className="text-sm font-medium text-themeblue2">Change PIN</span>
-                </button>
-              </div>
+                </div>
+              </>
             )}
-          </div>
 
-          {/* Inactivity Timeout */}
-          {isAuthenticated && (
-            <>
+            {/* Inactivity Timeout */}
+            {isAuthenticated && (
               <div
-                className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-tertiary/15 bg-themewhite2 cursor-pointer"
+                className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
                 onClick={() => {
                   const next = timeoutEnabled ? 0 : TIMEOUT_20_MIN
                   setTimeoutMs(next)
@@ -309,10 +303,12 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
                 </div>
                 <ToggleSwitch checked={timeoutEnabled} />
               </div>
+            )}
 
-              {/* Activity Tracking */}
+            {/* Activity Tracking */}
+            {isAuthenticated && (
               <div
-                className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-tertiary/15 bg-themewhite2 cursor-pointer"
+                className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
                 onClick={() => {
                   const next = !activityTracking
                   setActivityTrackingEnabled(next)
@@ -338,28 +334,29 @@ export const PinSetupPanel = ({ onNavigateToDevices }: PinSetupPanelProps) => {
                 </div>
                 <ToggleSwitch checked={activityTracking} />
               </div>
-            </>
-          )}
+            )}
 
-          {/* Sessions & Devices — nested under Security */}
-          {onNavigateToDevices && (
-            <div
-              className="flex items-center gap-3 px-4 py-3.5 rounded-xl border border-tertiary/15 bg-themewhite2 cursor-pointer active:scale-95 transition-all"
-              onClick={onNavigateToDevices}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigateToDevices(); } }}
-            >
-              <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
-                <Smartphone size={18} className="text-tertiary/50" />
+            {/* Sessions & Devices */}
+            {onNavigateToDevices && (
+              <div
+                className="flex items-center gap-3 px-4 py-3.5 cursor-pointer transition-all active:scale-95 hover:bg-themeblue2/5"
+                onClick={onNavigateToDevices}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigateToDevices() } }}
+              >
+                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                  <Smartphone size={18} className="text-tertiary/50" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-primary">Sessions & Devices</p>
+                  <p className="text-[11px] text-tertiary/70 mt-0.5">View and manage registered devices</p>
+                </div>
+                <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-primary">Sessions & Devices</p>
-                <p className="text-[11px] text-tertiary/70 mt-0.5">View and manage registered devices</p>
-              </div>
-              <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
-            </div>
-          )}
+            )}
+
+          </div>
         </div>
       </div>
     )

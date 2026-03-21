@@ -1,6 +1,7 @@
 // components/NoteImport.tsx
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Camera, ScanLine, User, ImagePlus, Check, AlertCircle } from 'lucide-react';
+import { X, ScanLine, User, AlertCircle } from 'lucide-react';
+import { ImportInputBar } from './ImportInputBar';
 import { profileAvatars } from '../Data/ProfileAvatars';
 import { supabase } from '../lib/supabase';
 import {
@@ -216,13 +217,6 @@ const NoteImportContent = ({
         if (!autoPickImage) autoPickedRef.current = false;
     }, [autoPickImage]);
 
-    // File input change handler
-    const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) handleImageDecode(file);
-        e.target.value = '';
-    }, [handleImageDecode]);
-
     // Copy feedback auto-revert
     useEffect(() => {
         if (state.copiedTarget) {
@@ -303,66 +297,22 @@ const NoteImportContent = ({
                 </HeaderPill>
             </div>
             {/* Expanded input bar */}
-            <div className={`flex items-center flex-1 min-w-0 gap-2 transition-all duration-300 origin-right ${
+            <div className={`flex-1 min-w-0 transition-all duration-300 origin-right ${
                 importExpanded
                     ? 'opacity-100 scale-100'
                     : 'opacity-0 scale-95 pointer-events-none absolute right-0 left-0'
             }`}>
-                <form
-                    onSubmit={(e) => { e.preventDefault(); handleSubmit(); }}
-                    className="flex-1 min-w-0"
-                >
-                    <div className="relative flex items-center">
-                        <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-                            <button
-                                type="button"
-                                onClick={handleStartScan}
-                                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/50 hover:text-themeblue3 hover:bg-themeblue3/5 active:scale-95 transition-colors"
-                                title="Scan barcode"
-                            >
-                                <Camera size={16} />
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => fileInputRef.current?.click()}
-                                disabled={isDecodingImage}
-                                className="w-8 h-8 rounded-full flex items-center justify-center text-tertiary/50 hover:text-themeblue3 hover:bg-themeblue3/5 active:scale-95 transition-colors disabled:opacity-40"
-                                title={isDecodingImage ? 'Reading image...' : 'Upload image'}
-                            >
-                                <ImagePlus size={16} />
-                            </button>
-                        </div>
-                        <input
-                            ref={importInputRef}
-                            type="text"
-                            value={state.inputText}
-                            onChange={(e) => setState(prev => ({ ...prev, inputText: e.target.value }))}
-                            className="w-full rounded-full py-2.5 pl-[4.5rem] pr-3 border border-themeblue3/10 shadow-xs bg-themewhite focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm text-primary placeholder:text-tertiary/30 transition-all duration-300"
-                            placeholder="Paste code or scan"
-                        />
-                    </div>
-                </form>
-                {state.inputText.trim() && (
-                    <button
-                        type="button"
-                        onClick={handleSubmit}
-                        className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 bg-themeblue3 text-white"
-                        aria-label="Decode"
-                        title="Decode"
-                    >
-                        <Check style={{ width: 20, height: 20 }} />
-                    </button>
-                )}
-                <button
-                    type="button"
-                    onClick={handleCollapseImport}
-                    className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary"
-                    aria-label="Close import"
-                    title="Close import"
-                >
-                    <X style={{ width: 24, height: 24 }} />
-                </button>
-                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" />
+                <ImportInputBar
+                    value={state.inputText}
+                    onChange={(v) => setState(prev => ({ ...prev, inputText: v }))}
+                    onSubmit={handleSubmit}
+                    onClose={handleCollapseImport}
+                    onScan={handleStartScan}
+                    onImage={handleImageDecode}
+                    inputRef={importInputRef}
+                    fileRef={fileInputRef}
+                    isDecodingImage={isDecodingImage}
+                />
             </div>
         </div>
     );

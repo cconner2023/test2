@@ -1,5 +1,6 @@
 // NavTop.tsx - Simplified version with grouped props
-import { X, ChevronLeft, Info, Mail, Upload, BookOpen, Check, Camera, ImagePlus } from "lucide-react";
+import { X, ChevronLeft, Info, Mail, Upload, BookOpen } from "lucide-react";
+import { ImportInputBar } from "./ImportInputBar";
 import { HeaderPill, PillButton } from "./HeaderPill";
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useSpring, animated, to } from '@react-spring/web';
@@ -312,72 +313,19 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
             {/* Search Container - mobile only */}
             {isMobile && (
                 <div className={`flex items-center min-w-0 ${isAnyExpanded ? 'flex-1' : 'shrink-0 justify-end'}`}>
-                    {/* Mobile import input — matches ProviderDrawer pattern */}
+                    {/* Mobile import input */}
                     {isImportExpanded && (
-                        <div className="relative w-full animate-expandSearch flex items-center gap-2">
-                            {!importText.trim() && (
-                                <div className="flex items-center gap-2 shrink-0">
-                                    <button
-                                        type="button"
-                                        onClick={() => { handleImportCollapse(); onImportScan?.(); }}
-                                        className="w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue1/30 text-tertiary hover:text-primary focus:outline-none active:scale-95 transition-all duration-300"
-                                        title="Scan barcode"
-                                    >
-                                        <Camera size={20} />
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => { handleImportCollapse(); onImportImage?.(); }}
-                                        className="w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue1/30 text-tertiary hover:text-primary focus:outline-none active:scale-95 transition-all duration-300"
-                                        title="Upload image"
-                                    >
-                                        <ImagePlus size={20} />
-                                    </button>
-                                </div>
-                            )}
-                            <form
-                                onSubmit={(e) => { e.preventDefault(); handleImportSubmit(); }}
-                                className="flex-1 min-w-0"
-                            >
-                                <input
-                                    ref={importInputRef}
-                                    type="text"
-                                    placeholder="Paste code or scan"
-                                    value={importText}
-                                    onChange={(e) => setImportText(e.target.value)}
-                                    className={`w-full rounded-full py-2.5 px-4 border shadow-xs bg-themewhite2 focus:outline-none text-sm text-primary placeholder:text-tertiary/30 transition-all duration-300 ${
-                                        importError ? 'border-themeredred/30' : 'border-themeblue1/30'
-                                    }`}
-                                />
-                            </form>
-                            <button
-                                type="button"
-                                onClick={handleImportCollapse}
-                                className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary"
-                                aria-label="Close import"
-                                title="Close import"
-                            >
-                                <X style={{ width: 24, height: 24 }} />
-                            </button>
-                            {importText.trim() && (
-                                <button
-                                    type="button"
-                                    onClick={handleImportSubmit}
-                                    className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 bg-themeblue3 text-white border border-themeblue1/30"
-                                    aria-label="Decode"
-                                    title="Decode"
-                                >
-                                    <Check style={{ width: 20, height: 20 }} />
-                                </button>
-                            )}
-                            <div className={`absolute left-0 right-0 top-full mt-1.5 transition-all duration-300 ease-out ${
-                                importError ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1 pointer-events-none'
-                            }`}>
-                                <p className="text-xs font-medium text-themeredred bg-themeredred/5 rounded-full px-4 py-1.5 text-center">
-                                    {importError}
-                                </p>
-                            </div>
-                        </div>
+                        <ImportInputBar
+                            value={importText}
+                            onChange={setImportText}
+                            onSubmit={handleImportSubmit}
+                            onClose={handleImportCollapse}
+                            onScan={() => { handleImportCollapse(); onImportScan?.(); }}
+                            onImage={() => { handleImportCollapse(); onImportImage?.(); }}
+                            error={importError}
+                            inputRef={importInputRef}
+                            className="w-full animate-expandSearch"
+                        />
                     )}
 
                     {/* Mobile collapsed: messages + info + search buttons */}
@@ -492,68 +440,26 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                         </button>
                     )}
 
-                    {/* Import overlay — covers search + buttons, matches ProviderDrawer pattern */}
+                    {/* Import overlay — covers search + buttons */}
                     <animated.div
-                        className="absolute inset-0 z-10 flex items-center gap-2 bg-themewhite"
+                        className="absolute inset-0 z-10 bg-themewhite"
                         style={{
                             opacity: desktopImportSpring.overlayOpacity,
                             transform: desktopImportSpring.overlayScale.to(s => `scale(${s})`),
                             pointerEvents: isImportExpanded ? 'auto' : 'none',
                         }}
                     >
-                        {!importText.trim() && (
-                            <div className="flex items-center gap-2 shrink-0">
-                                <button
-                                    type="button"
-                                    onClick={() => { handleImportCollapse(); onImportScan?.(); }}
-                                    className="w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue1/30 text-tertiary hover:text-primary focus:outline-none active:scale-95 transition-all duration-300"
-                                    title="Scan barcode"
-                                >
-                                    <Camera size={20} />
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => { handleImportCollapse(); onImportImage?.(); }}
-                                    className="w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue1/30 text-tertiary hover:text-primary focus:outline-none active:scale-95 transition-all duration-300"
-                                    title="Upload image"
-                                >
-                                    <ImagePlus size={20} />
-                                </button>
-                            </div>
-                        )}
-                        <form
-                            onSubmit={(e) => { e.preventDefault(); handleImportSubmit(); }}
-                            className="flex-1 min-w-0"
-                        >
-                            <input
-                                ref={importInputRef}
-                                type="text"
-                                placeholder="Paste code or scan"
-                                value={importText}
-                                onChange={(e) => setImportText(e.target.value)}
-                                className="w-full rounded-full py-2.5 px-4 border border-themeblue1/30 shadow-xs bg-themewhite2 focus:outline-none text-sm text-primary placeholder:text-tertiary/30 transition-all duration-300"
-                            />
-                        </form>
-                        <button
-                            type="button"
-                            onClick={handleImportCollapse}
-                            className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary"
-                            aria-label="Close import"
-                            title="Close import"
-                        >
-                            <X style={{ width: 24, height: 24 }} />
-                        </button>
-                        {importText.trim() && (
-                            <button
-                                type="button"
-                                onClick={handleImportSubmit}
-                                className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 bg-themeblue3 text-white border border-themeblue1/30"
-                                aria-label="Decode"
-                                title="Decode"
-                            >
-                                <Check style={{ width: 20, height: 20 }} />
-                            </button>
-                        )}
+                        <ImportInputBar
+                            value={importText}
+                            onChange={setImportText}
+                            onSubmit={handleImportSubmit}
+                            onClose={handleImportCollapse}
+                            onScan={() => { handleImportCollapse(); onImportScan?.(); }}
+                            onImage={() => { handleImportCollapse(); onImportImage?.(); }}
+                            error={importError}
+                            inputRef={importInputRef}
+                            className="h-full"
+                        />
                     </animated.div>
                 </div>
             )}

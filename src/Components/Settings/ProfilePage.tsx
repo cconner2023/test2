@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { User, Award, KeyRound, LogOut, ChevronRight, Trash2, AlertTriangle } from 'lucide-react';
+import { User, Award, KeyRound, LogOut, ChevronRight, Trash2 } from 'lucide-react';
 import { useAuth } from '../../Hooks/useAuth';
 import { useAuthStore } from '../../stores/useAuthStore';
 import { useAvatar } from '../../Utilities/AvatarContext';
 import { getInitials } from '../../Utilities/nameUtils';
+import { ConfirmDialog } from '../ConfirmDialog';
 import { PinKeypad } from '../PinKeypad';
 import { isPinEnabled, verifyPin } from '../../lib/pinService';
 
@@ -23,12 +24,14 @@ export const ProfilePage = ({
     const { currentAvatar, customImage, isCustom, isInitials } = useAvatar();
     const { profile } = useAuth();
     const deviceRole = useAuthStore(s => s.deviceRole);
-    const [confirmSignOut, setConfirmSignOut] = useState(false);
 
-    // Delete account flow
-    const [deletePhase, setDeletePhase] = useState<'idle' | 'confirm' | 'processing'>('idle');
+    // Sign out dialog
+    const [showSignOut, setShowSignOut] = useState(false);
+
+    // Delete account flow: dialog → optional PIN gate → processing
+    const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+    const [deletePhase, setDeletePhase] = useState<'idle' | 'pin' | 'processing'>('idle');
     const [deleteError, setDeleteError] = useState('');
-    const [confirmText, setConfirmText] = useState('');
     const hasPinEnabled = isPinEnabled();
 
     const displayName = profile.lastName
@@ -36,11 +39,11 @@ export const ProfilePage = ({
         : 'Set Up Profile';
 
     const displayCredential = profile.credential
-        ? `${profile.credential}${profile.component ? ' \u00b7 ' + profile.component : ''}`
+        ? `${profile.credential}${profile.component ? ' · ' + profile.component : ''}`
         : null;
 
     const displayClinic = profile.clinicName
-        ? `${profile.clinicName}${profile.uic ? ' \u00b7 ' + profile.uic : ''}`
+        ? `${profile.clinicName}${profile.uic ? ' · ' + profile.uic : ''}`
         : profile.uic
             ? `UIC: ${profile.uic}`
             : null;
@@ -50,6 +53,20 @@ export const ProfilePage = ({
         { icon: <Award size={20} />, label: 'Certifications', panel: 'certifications' as const },
         { icon: <KeyRound size={20} />, label: 'Change Password', panel: 'change-password' as const },
     ];
+
+    const handleDeleteConfirm = async () => {
+        if (hasPinEnabled) {
+            setShowDeleteDialog(false);
+            setDeletePhase('pin');
+            return;
+        }
+        setDeletePhase('processing');
+        const result = await onDeleteAccount();
+        if (!result.success) {
+            setDeleteError(result.error || 'Failed to delete account');
+            setDeletePhase('idle');
+        }
+    };
 
     const handlePinSubmit = async (pin: string) => {
         const valid = await verifyPin(pin);
@@ -62,215 +79,148 @@ export const ProfilePage = ({
         const result = await onDeleteAccount();
         if (!result.success) {
             setDeleteError(result.error || 'Failed to delete account');
-            setDeletePhase('confirm');
-        }
-    };
-
-    const handleTypedConfirm = async () => {
-        setDeletePhase('processing');
-        const result = await onDeleteAccount();
-        if (!result.success) {
-            setDeleteError(result.error || 'Failed to delete account');
-            setDeletePhase('confirm');
+            setDeletePhase('pin');
         }
     };
 
     const resetDelete = () => {
+        setShowDeleteDialog(false);
         setDeletePhase('idle');
         setDeleteError('');
-        setConfirmText('');
     };
 
     return (
         <div className="h-full overflow-y-auto">
-            <div className="px-4 py-3 md:p-5">
-                {/* Avatar + User Info */}
-                <div className="flex items-center px-4 py-3.5 md:px-5 md:py-3.5 mb-4">
-                    <div className="mr-4 flex flex-col items-center shrink-0">
-                        <button
-                            onClick={onAvatarClick}
-                            className="w-12 h-12 rounded-full overflow-hidden active:scale-95 transition-transform"
-                        >
-                            {isCustom && customImage ? (
-                                <img src={customImage} alt="Profile" className="w-full h-full object-cover" />
-                            ) : isInitials ? (
-                                <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
-                                    <span className="text-base font-semibold text-themeblue2">
-                                        {getInitials(profile.firstName, profile.lastName)}
-                                    </span>
-                                </div>
-                            ) : (
-                                <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full">{currentAvatar.svg}</div>
+            <div className="px-5 py-4 space-y-5">
+                {/* User Card */}
+                <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                    <div className="flex items-center gap-4 px-4 py-4">
+                        <div className="flex flex-col items-center shrink-0">
+                            <button
+                                onClick={onAvatarClick}
+                                className="w-14 h-14 rounded-full overflow-hidden active:scale-95 transition-transform"
+                            >
+                                {isCustom && customImage ? (
+                                    <img src={customImage} alt="Profile" className="w-full h-full object-cover" />
+                                ) : isInitials ? (
+                                    <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
+                                        <span className="text-lg font-semibold text-themeblue2">
+                                            {getInitials(profile.firstName, profile.lastName)}
+                                        </span>
+                                    </div>
+                                ) : (
+                                    <div className="w-full h-full [&>svg]:w-full [&>svg]:h-full">{currentAvatar.svg}</div>
+                                )}
+                            </button>
+                            <button
+                                onClick={onAvatarClick}
+                                className="mt-1.5 text-[11px] font-medium text-themeblue2 active:opacity-70 transition-opacity"
+                            >
+                                Edit Photo
+                            </button>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-base font-semibold text-primary truncate">{displayName}</p>
+                            {displayCredential && (
+                                <p className="text-xs text-tertiary mt-0.5 truncate">{displayCredential}</p>
                             )}
-                        </button>
-                        <button
-                            onClick={onAvatarClick}
-                            className="mt-1.5 text-[11px] font-medium text-tertiary/60 active:opacity-70 transition-opacity"
-                        >
-                            Edit Photo
-                        </button>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <p className="text-base font-semibold text-primary md:text-[12pt] truncate">{displayName}</p>
-                        {displayCredential && (
-                            <p className="text-xs text-tertiary md:text-sm mt-0.5 truncate">{displayCredential}</p>
-                        )}
-                        {displayClinic && (
-                            <p className="text-xs text-tertiary md:text-sm mt-0.5 truncate">{displayClinic}</p>
-                        )}
+                            {displayClinic && (
+                                <p className="text-xs text-tertiary mt-0.5 truncate">{displayClinic}</p>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {/* Menu Items */}
-                <div className="border-t border-tertiary/10 pt-2">
+                {/* Options Card */}
+                <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
                     {menuItems.map((item) => (
                         <button
                             key={item.panel}
                             onClick={() => onNavigate(item.panel)}
-                            className="flex items-center w-full px-5 py-3.5 hover:bg-themewhite2 active:scale-95
-                                       transition-all rounded-xl group"
+                            className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5"
                         >
-                            <div className="mr-4 text-tertiary/60 group-hover:scale-110 transition-transform">
-                                {item.icon}
+                            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                                <div className="text-tertiary/70">{item.icon}</div>
                             </div>
-                            <span className="flex-1 text-left text-base text-primary font-medium">
+                            <span className="flex-1 text-left text-sm font-medium text-primary">
                                 {item.label}
                             </span>
-                            <ChevronRight size={18} className="text-tertiary/40" />
+                            <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
                         </button>
                     ))}
+                </div>
 
-                    {/* Sign Out — hidden when delete flow is active */}
-                    {deletePhase === 'idle' && (
-                        confirmSignOut ? (
-                            <div className="mt-2 px-5">
-                                <p className="text-sm text-themeredred/80 mb-3">
-                                    This will sign out all linked devices. Your conversations will be backed up and restored on next login.
-                                </p>
-                                <div className="flex items-center gap-2">
-                                    <button
-                                        onClick={onSignOut}
-                                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-themeredred/10 text-themeredred text-sm font-medium active:scale-95 transition-all"
-                                    >
-                                        <LogOut size={16} />
-                                        Confirm Sign Out
-                                    </button>
-                                    <button
-                                        onClick={() => setConfirmSignOut(false)}
-                                        className="px-4 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary text-sm font-medium active:scale-95 transition-all"
-                                    >
-                                        Cancel
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
+                {/* Danger Zone */}
+                <div className="rounded-2xl border border-themeredred/10 bg-themewhite2 overflow-hidden">
+                    {deletePhase === 'pin' ? (
+                        <div className="px-4 py-5 flex flex-col items-center">
+                            <PinKeypad
+                                onSubmit={handlePinSubmit}
+                                label="Enter passcode to confirm"
+                                error={deleteError}
+                            />
                             <button
-                                onClick={deviceRole === 'primary' ? () => setConfirmSignOut(true) : onSignOut}
-                                className="flex items-center w-full px-5 py-3.5 hover:bg-themeredred/5 active:scale-95
-                                           transition-all rounded-xl group mt-2"
+                                onClick={resetDelete}
+                                className="mt-4 px-6 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary text-sm font-medium active:scale-95 transition-all"
                             >
-                                <div className="mr-4 text-themeredred group-hover:scale-110 transition-transform">
-                                    <LogOut size={20} />
+                                Cancel
+                            </button>
+                        </div>
+                    ) : deletePhase === 'processing' ? (
+                        <div className="flex items-center justify-center py-8">
+                            <p className="text-sm text-tertiary animate-pulse">Deleting account...</p>
+                        </div>
+                    ) : (
+                        <>
+                            <button
+                                onClick={deviceRole === 'primary' ? () => setShowSignOut(true) : onSignOut}
+                                className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeredred/5"
+                            >
+                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeredred/10">
+                                    <LogOut size={20} className="text-themeredred" />
                                 </div>
-                                <span className="flex-1 text-left text-base text-themeredred font-medium">
+                                <span className="flex-1 text-left text-sm font-medium text-themeredred">
                                     Sign Out
                                 </span>
                             </button>
-                        )
-                    )}
-
-                    {/* Delete Account — hidden when sign-out confirm is active */}
-                    {!confirmSignOut && (
-                        <>
-                            {deletePhase === 'idle' ? (
-                                <button
-                                    onClick={() => { setDeletePhase('confirm'); setDeleteError(''); setConfirmText(''); }}
-                                    className="flex items-center w-full px-5 py-3.5 hover:bg-themeredred/5 active:scale-95
-                                               transition-all rounded-xl group mt-1"
-                                >
-                                    <div className="mr-4 text-themeredred/60 group-hover:scale-110 transition-transform">
-                                        <Trash2 size={20} />
-                                    </div>
-                                    <span className="flex-1 text-left text-base text-themeredred/60 font-medium">
-                                        Delete Account
-                                    </span>
-                                </button>
-                            ) : (
-                                <div className="mt-3 px-5 pb-4">
-                                    {/* Warning header */}
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <AlertTriangle size={16} className="text-themeredred shrink-0" />
-                                        <p className="text-sm font-medium text-themeredred">Delete Account</p>
-                                    </div>
-                                    <p className="text-xs text-tertiary mb-4">
-                                        This will permanently delete your account and all associated data.
-                                        This action cannot be undone.
-                                    </p>
-
-                                    {deletePhase === 'processing' ? (
-                                        <div className="flex items-center justify-center py-8">
-                                            <p className="text-sm text-tertiary animate-pulse">Deleting account...</p>
-                                        </div>
-                                    ) : hasPinEnabled ? (
-                                        /* PIN verification */
-                                        <div className="flex flex-col items-center">
-                                            <PinKeypad
-                                                onSubmit={handlePinSubmit}
-                                                label="Enter passcode to confirm"
-                                                error={deleteError}
-                                            />
-                                            <button
-                                                onClick={resetDelete}
-                                                className="mt-4 px-6 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary text-sm font-medium active:scale-95 transition-all"
-                                            >
-                                                Cancel
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        /* Typed confirmation fallback (no PIN set) */
-                                        <div>
-                                            <p className="text-xs text-tertiary mb-2">
-                                                Type <span className="font-semibold text-primary">DELETE</span> to confirm:
-                                            </p>
-                                            <input
-                                                type="text"
-                                                value={confirmText}
-                                                onChange={(e) => { setConfirmText(e.target.value.toUpperCase()); setDeleteError(''); }}
-                                                placeholder="DELETE"
-                                                className="w-full px-3 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-sm text-primary
-                                                           placeholder:text-tertiary/40 focus:outline-none focus:ring-1 focus:ring-themeredred/30 mb-3"
-                                                autoComplete="off"
-                                                autoCapitalize="characters"
-                                            />
-                                            {deleteError && (
-                                                <p className="text-xs text-themeredred mb-2">{deleteError}</p>
-                                            )}
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={handleTypedConfirm}
-                                                    disabled={confirmText !== 'DELETE'}
-                                                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-themeredred
-                                                               text-white text-sm font-medium active:scale-95 transition-all disabled:opacity-30"
-                                                >
-                                                    <Trash2 size={16} />
-                                                    Delete Account
-                                                </button>
-                                                <button
-                                                    onClick={resetDelete}
-                                                    className="px-4 py-2.5 rounded-xl border border-tertiary/15 bg-themewhite2 text-tertiary
-                                                               text-sm font-medium active:scale-95 transition-all"
-                                                >
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        </div>
-                                    )}
+                            <button
+                                onClick={() => setShowDeleteDialog(true)}
+                                className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeredred/5"
+                            >
+                                <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeredred/5">
+                                    <Trash2 size={20} className="text-themeredred/60" />
                                 </div>
-                            )}
+                                <span className="flex-1 text-left text-sm font-medium text-themeredred/60">
+                                    Delete Account
+                                </span>
+                            </button>
                         </>
                     )}
                 </div>
             </div>
+
+            {/* Sign Out Confirm Dialog */}
+            <ConfirmDialog
+                visible={showSignOut}
+                title="Sign Out"
+                subtitle="This will sign out all linked devices. Your conversations will be backed up and restored on next login."
+                confirmLabel="Sign Out"
+                variant="danger"
+                onConfirm={() => { setShowSignOut(false); onSignOut(); }}
+                onCancel={() => setShowSignOut(false)}
+            />
+
+            {/* Delete Account Confirm Dialog */}
+            <ConfirmDialog
+                visible={showDeleteDialog}
+                title="Delete Account"
+                subtitle="This will permanently delete your account and all associated data. This action cannot be undone."
+                confirmLabel="Delete Account"
+                variant="danger"
+                processing={deletePhase === 'processing'}
+                onConfirm={handleDeleteConfirm}
+                onCancel={() => setShowDeleteDialog(false)}
+            />
         </div>
     );
 };

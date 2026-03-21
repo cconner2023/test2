@@ -58,12 +58,14 @@ export class SupabaseTransport implements SignalTransport {
     )
     if (!result.ok) return result
 
-    // Fire push notification (fire-and-forget, skip self-notes)
-    if (params.senderId && params.senderId !== params.recipientId) {
-      this.fireNotif(params.recipientId, params.messageType)
-    } else if (!params.senderId) {
-      // senderId not provided — always notify (conservative)
-      this.fireNotif(params.recipientId, params.messageType)
+    // Fire push notification (fire-and-forget, skip self-notes and silent sends)
+    if (!params.silent) {
+      if (params.senderId && params.senderId !== params.recipientId) {
+        this.fireNotif(params.recipientId, params.messageType)
+      } else if (!params.senderId) {
+        // senderId not provided — always notify (conservative)
+        this.fireNotif(params.recipientId, params.messageType)
+      }
     }
 
     logger.info(`Message sent to ${params.recipientId} (type=${params.messageType})`)
@@ -93,12 +95,14 @@ export class SupabaseTransport implements SignalTransport {
     )
     if (!result.ok) return result
 
-    // Single notification for the batch
-    const firstType = params.messages[0].messageType
-    if (params.senderId && params.senderId !== params.recipientId) {
-      this.fireNotif(params.recipientId, firstType)
-    } else if (!params.senderId) {
-      this.fireNotif(params.recipientId, firstType)
+    // Single notification for the batch (skip silent sends)
+    if (!params.silent) {
+      const firstType = params.messages[0].messageType
+      if (params.senderId && params.senderId !== params.recipientId) {
+        this.fireNotif(params.recipientId, firstType)
+      } else if (!params.senderId) {
+        this.fireNotif(params.recipientId, firstType)
+      }
     }
 
     logger.info(`Fan-out: ${params.messages.length} messages sent to ${params.recipientId}`)

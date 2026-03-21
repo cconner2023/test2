@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Check, RefreshCw, Eye, EyeOff } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../Hooks/useAuth';
-import { PasswordInput } from '../FormInputs';
 import { ErrorDisplay } from '../ErrorDisplay';
+
+const pillInput = 'w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300';
 
 export const ChangePasswordPanel = () => {
     const { user } = useAuth();
@@ -13,6 +14,9 @@ export const ChangePasswordPanel = () => {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
+    const [showCurrent, setShowCurrent] = useState(false);
+    const [showNew, setShowNew] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
 
     const isValid = currentPassword.length > 0 && newPassword.length >= 12 && newPassword === confirm;
 
@@ -23,7 +27,6 @@ export const ChangePasswordPanel = () => {
         setError(null);
         setSubmitting(true);
 
-        // Verify current password
         const { error: signInError } = await supabase.auth.signInWithPassword({
             email: user.email,
             password: currentPassword,
@@ -35,7 +38,6 @@ export const ChangePasswordPanel = () => {
             return;
         }
 
-        // Update to new password
         const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
 
         setSubmitting(false);
@@ -53,7 +55,7 @@ export const ChangePasswordPanel = () => {
     if (success) {
         return (
             <div className="h-full overflow-y-auto">
-                <div className="px-4 py-3 md:p-5 flex flex-col items-center justify-center pt-16">
+                <div className="px-5 py-4 flex flex-col items-center justify-center pt-16">
                     <div className="w-14 h-14 rounded-full bg-themegreen/10 flex items-center justify-center mb-4">
                         <CheckCircle size={28} className="text-themegreen" />
                     </div>
@@ -69,54 +71,93 @@ export const ChangePasswordPanel = () => {
     return (
         <div className="h-full overflow-y-auto">
             <div className="px-4 py-3 md:p-5">
-                <div className="mb-5">
-                    <h2 className="text-lg font-semibold text-primary">Change Password</h2>
-                    <p className="text-sm text-tertiary/60 mt-1">
-                        Enter your current password and choose a new one.
-                    </p>
-                </div>
-
                 <ErrorDisplay message={error} centered />
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <PasswordInput
-                        label="Current Password"
-                        value={currentPassword}
-                        onChange={setCurrentPassword}
-                        placeholder="Enter current password"
-                        autoComplete="current-password"
-                    />
+                <form onSubmit={handleSubmit}>
+                    <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+                        <div className="px-4 py-3 space-y-2">
+                            <p className="text-xs text-tertiary leading-relaxed">Enter your current password and choose a new one.</p>
 
-                    <PasswordInput
-                        label="New Password"
-                        value={newPassword}
-                        onChange={setNewPassword}
-                        placeholder="Min 12 characters"
-                        autoComplete="new-password"
-                        hint={newPassword.length > 0 && newPassword.length < 12 && (
-                            <p className="text-xs text-themeredred mt-1">Password must be at least 12 characters</p>
-                        )}
-                    />
+                            {/* Current password */}
+                            <div>
+                                <div className="relative">
+                                    <input
+                                        type={showCurrent ? 'text' : 'password'}
+                                        value={currentPassword}
+                                        onChange={e => setCurrentPassword(e.target.value)}
+                                        placeholder="Current password"
+                                        autoComplete="current-password"
+                                        className={`${pillInput} pr-10`}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowCurrent(v => !v)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary/50 hover:text-tertiary transition-colors"
+                                    >
+                                        {showCurrent ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                </div>
+                            </div>
 
-                    <PasswordInput
-                        label="Confirm New Password"
-                        value={confirm}
-                        onChange={setConfirm}
-                        placeholder="Re-enter new password"
-                        autoComplete="new-password"
-                        hint={confirm.length > 0 && newPassword !== confirm && (
-                            <p className="text-xs text-themeredred mt-1">Passwords do not match</p>
-                        )}
-                    />
+                            {/* New password */}
+                            <div>
+                                <div className="relative">
+                                    <input
+                                        type={showNew ? 'text' : 'password'}
+                                        value={newPassword}
+                                        onChange={e => setNewPassword(e.target.value)}
+                                        placeholder="New password (min 12 characters)"
+                                        autoComplete="new-password"
+                                        className={`${pillInput} pr-10`}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowNew(v => !v)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary/50 hover:text-tertiary transition-colors"
+                                    >
+                                        {showNew ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                </div>
+                                {newPassword.length > 0 && newPassword.length < 12 && (
+                                    <p className="text-xs text-themeredred mt-1">Password must be at least 12 characters</p>
+                                )}
+                            </div>
 
-                    <button
-                        type="submit"
-                        disabled={!isValid || submitting}
-                        className="w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
-                                   hover:bg-themeblue3/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                        {submitting ? 'Updating Password...' : 'Update Password'}
-                    </button>
+                            {/* Confirm password */}
+                            <div>
+                                <div className="relative">
+                                    <input
+                                        type={showConfirm ? 'text' : 'password'}
+                                        value={confirm}
+                                        onChange={e => setConfirm(e.target.value)}
+                                        placeholder="Confirm new password"
+                                        autoComplete="new-password"
+                                        className={`${pillInput} pr-10`}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowConfirm(v => !v)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-tertiary/50 hover:text-tertiary transition-colors"
+                                    >
+                                        {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                                    </button>
+                                </div>
+                                {confirm.length > 0 && newPassword !== confirm && (
+                                    <p className="text-xs text-themeredred mt-1">Passwords do not match</p>
+                                )}
+                            </div>
+
+                            <div className="flex items-center justify-end gap-1.5 pt-1">
+                                <button
+                                    type="submit"
+                                    disabled={!isValid || submitting}
+                                    className="w-10 h-10 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-transform disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                    {submitting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </form>
             </div>
         </div>

@@ -49,9 +49,10 @@ export interface PlanOrderTags {
     meds: string[];
     radiology: string[];
     lab: string[];
+    followUp: string[];
 }
 
-export const PLAN_ORDER_CATEGORIES = ['referral', 'meds', 'radiology', 'lab'] as const;
+export const PLAN_ORDER_CATEGORIES = ['referral', 'meds', 'radiology', 'lab', 'followUp'] as const;
 export type PlanOrderCategory = typeof PLAN_ORDER_CATEGORIES[number];
 
 export const PLAN_ORDER_LABELS: Record<PlanOrderCategory, string> = {
@@ -59,6 +60,7 @@ export const PLAN_ORDER_LABELS: Record<PlanOrderCategory, string> = {
     meds: 'Medications',
     radiology: 'Radiology',
     lab: 'Lab',
+    followUp: 'Follow-Up',
 };
 
 /** A block key used by Plan: one of the 4 order categories or 'instructions' */

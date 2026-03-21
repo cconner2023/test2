@@ -46,9 +46,12 @@ export const MainSettingsPanel = ({
             <div className="px-5 py-4 space-y-5">
                 {/* Profile card */}
                 <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-                    <button
+                    <div
                         onClick={onProfileClick}
-                        className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5"
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onProfileClick(); } }}
+                        className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5 cursor-pointer"
                     >
                         <button
                             onClick={(e) => { e.stopPropagation(); onAvatarClick(); }}
@@ -69,7 +72,7 @@ export const MainSettingsPanel = ({
                             <p className="text-[11px] text-tertiary/70 mt-0.5">{displaySub}</p>
                         </div>
                         <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
-                    </button>
+                    </div>
                 </div>
 
                 {/* Top row items (before first header, if any) */}
@@ -82,8 +85,7 @@ export const MainSettingsPanel = ({
                                     item.action();
                                     onItemClick(item.id);
                                 }}
-                                className={`flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5
-                                           ${idx > 0 ? 'border-t border-tertiary/10' : ''}`}
+                                className={`flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5`}
                             >
                                 <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
                                     <div className={item.color}>{item.icon}</div>
@@ -121,9 +123,7 @@ export const MainSettingsPanel = ({
                                         onItemClick(item.id);
                                     }}
                                     disabled={item.disabled}
-                                    className={`flex items-center gap-3 w-full px-4 py-3.5 transition-all
-                                               ${idx > 0 ? 'border-t border-tertiary/10' : ''}
-                                               ${item.disabled
+                                    className={`flex items-center gap-3 w-full px-4 py-3.5 transition-all ${item.disabled
                                             ? 'opacity-50 cursor-not-allowed'
                                             : 'active:scale-95 hover:bg-themeblue2/5'
                                         }`}

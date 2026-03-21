@@ -14,6 +14,7 @@ import { PropertyItemDetail } from './PropertyItemDetail'
 import { PropertyItemForm } from './PropertyItemForm'
 import { PropertyLocationTree } from './PropertyLocationTree'
 import { PropertyLocationList } from './PropertyLocationList'
+import { SearchInput } from '../SearchInput'
 import type { PropertyLocationListHandle } from './PropertyLocationList'
 import { CustodyTransferForm } from './CustodyTransferForm'
 import { LoadingSpinner } from '../LoadingSpinner'
@@ -64,9 +65,11 @@ interface PropertyPanelProps {
   onDrilldownChange?: (path: Array<{ id: string; name: string }>) => void
   /** Ref to the PropertyLocationList so drawer can call popPath() imperatively */
   locationListRef?: React.Ref<PropertyLocationListHandle>
+  /** Desktop: callback to update search query (search input lives in the sidebar) */
+  onSearchChange?: (query: string) => void
 }
 
-export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '', onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onRegisterLocationActions, onDrilldownChange, locationListRef }: PropertyPanelProps) {
+export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '', onSelectItem, onAddItem, onEditItem, onTransferItem, onBack, isMobile = true, mobileLocationView = false, onMobileLocationViewChange, onRegisterDetailActions, onRegisterAddLocation, onRegisterLocationActions, onDrilldownChange, locationListRef, onSearchChange }: PropertyPanelProps) {
   const { user } = useAuth()
   const property = useProperty()
   const showLoading = useMinLoadTime(property.isLoading)
@@ -795,20 +798,15 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
       />
       <div className="flex h-full">
         <div className="w-[260px] shrink-0 border-r border-tertiary/10 flex flex-col bg-themewhite3/50">
-          <div className="shrink-0 px-6 py-3 border-b border-primary/10">
-            <div className="flex items-center justify-between">
-              <p className="text-[10pt] font-medium text-tertiary/70 uppercase tracking-wide">Locations</p>
-              <button
-                onClick={() => {
-                  setNewLocationName('')
-                  setShowNewLocation(true)
-                }}
-                className="flex items-center gap-1 text-[10pt] text-themeblue2 hover:text-themeblue2/80 active:scale-95 transition-all"
-              >
-                <Plus size={12} />
-                Location
-              </button>
-            </div>
+          <div className="shrink-0 px-4 py-3 border-b border-primary/10 flex flex-col gap-2">
+            <p className="text-[10pt] font-medium text-tertiary/70 uppercase tracking-wide px-2">Locations</p>
+            {onSearchChange && (
+              <SearchInput
+                value={searchQuery}
+                onChange={onSearchChange}
+                placeholder="Search items..."
+              />
+            )}
           </div>
           {showNewLocation && (
             <div className="shrink-0 flex items-center gap-2 px-6 py-3 border-b border-primary/10">
@@ -923,11 +921,7 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
             </div>
             <div className="absolute right-4 rounded-full border border-tertiary/20 p-0.5 bg-themewhite shadow-lg pointer-events-auto">
               <button
-                onClick={() => {
-                  store.setDefaultLocationId(null)
-                  store.setEditingItem(null)
-                  onAddItem()
-                }}
+                onClick={() => setShowAddSheet(true)}
                 className="w-11 h-11 rounded-full bg-themeblue3 text-white flex items-center justify-center active:scale-95 transition-all duration-200"
               >
                 <Plus className="w-5 h-5" />
@@ -936,6 +930,15 @@ export const PropertyPanel = memo(function PropertyPanel({ view, searchQuery = '
           </div>
         </div>
       </div>
+      <ActionSheet
+        visible={showAddSheet}
+        title="Add to Property Book"
+        options={[
+          { key: 'item', label: 'New Item', onAction: () => { store.setDefaultLocationId(null); store.setEditingItem(null); onAddItem() } },
+          { key: 'location', label: 'New Location', onAction: () => { setNewLocationName(''); setShowNewLocation(true) } },
+        ]}
+        onClose={() => setShowAddSheet(false)}
+      />
       {csvImport && (
         <PropertyCSVImport
           rows={csvImport.rows}

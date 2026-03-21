@@ -48,6 +48,7 @@ function parseInitialText(
         meds: defaultBlockState(),
         radiology: defaultBlockState(),
         lab: defaultBlockState(),
+        followUp: defaultBlockState(),
         instructions: defaultBlockState(),
     };
     if (!text.trim()) return states;

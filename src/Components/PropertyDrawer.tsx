@@ -185,31 +185,49 @@ export function PropertyDrawer({ isVisible, onClose }: PropertyDrawerProps) {
             headerFaded={searchFocused}
         >
             <ContentWrapper slideDirection={isMobile ? slideDirection : ''} swipeHandlers={isMobile && view !== 'property' ? swipeHandlers : undefined}>
-                <MobileSearchBar variant="property"
-                    value={searchQuery}
-                    onChange={setSearchQuery}
-                    enabled={view === 'property'}
-                    onFocusChange={setSearchFocused}
-                >
+                {isMobile ? (
+                    <MobileSearchBar variant="property"
+                        value={searchQuery}
+                        onChange={setSearchQuery}
+                        enabled={view === 'property'}
+                        onFocusChange={setSearchFocused}
+                    >
+                        <div className="h-full relative">
+                            <PropertyPanel
+                                isMobile={isMobile}
+                                view={view}
+                                searchQuery={searchQuery}
+                                onSelectItem={handleSelectItem}
+                                onAddItem={handleAddItem}
+                                onEditItem={handleEditItem}
+                                onTransferItem={handleTransfer}
+                                onBack={handleBack}
+                                mobileLocationView={mobileLocationView}
+                                onMobileLocationViewChange={setMobileLocationView}
+                                onRegisterDetailActions={setDetailActions}
+                                onRegisterLocationActions={setLocationActions}
+                                onDrilldownChange={setDrilldownPath}
+                                locationListRef={locationListRef}
+                            />
+                        </div>
+                    </MobileSearchBar>
+                ) : (
                     <div className="h-full relative">
                         <PropertyPanel
-                            isMobile={isMobile}
+                            isMobile={false}
                             view={view}
                             searchQuery={searchQuery}
+                            onSearchChange={setSearchQuery}
                             onSelectItem={handleSelectItem}
                             onAddItem={handleAddItem}
                             onEditItem={handleEditItem}
                             onTransferItem={handleTransfer}
                             onBack={handleBack}
-                            mobileLocationView={mobileLocationView}
-                            onMobileLocationViewChange={setMobileLocationView}
                             onRegisterDetailActions={setDetailActions}
                             onRegisterLocationActions={setLocationActions}
-                            onDrilldownChange={setDrilldownPath}
-                            locationListRef={locationListRef}
                         />
                     </div>
-                </MobileSearchBar>
+                )}
             </ContentWrapper>
         </BaseDrawer>
     )

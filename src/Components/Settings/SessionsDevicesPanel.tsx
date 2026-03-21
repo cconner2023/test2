@@ -7,7 +7,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { Crown, Trash2, Smartphone, LogOut, Info, Check } from 'lucide-react'
+import { Smartphone, Monitor, LogOut, Info, Shield } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { LoadingSpinner } from '../LoadingSpinner'
@@ -15,11 +15,9 @@ import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { useAuth } from '../../Hooks/useAuth'
 import { useAuthStore } from '../../stores/useAuthStore'
 import { getLocalDeviceId } from '../../lib/signal/keyManager'
+import { VAULT_DEVICE_ID } from '../../lib/signal/vaultDevice'
 import { unregisterDevice, deleteKeyBundle, primaryLogoutAll } from '../../lib/signal/signalService'
 import { fetchOwnDevicesWithRole, type DeviceWithRole } from '../../lib/signal/deviceService'
-import { CardContextMenu } from '../CardContextMenu'
-import { CardActionBar } from '../CardActionBar'
-import { SwipeableCard } from '../SwipeableCard'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { UI_TIMING } from '../../Utilities/constants'
 
@@ -34,10 +32,9 @@ export function SessionsDevicesPanel() {
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [confirmLogoutAll, setConfirmLogoutAll] = useState(false)
-  const [openSwipeId, setOpenSwipeId] = useState<string | null>(null)
-  const [selectedDeviceIds, setSelectedDeviceIds] = useState<Set<string>>(new Set())
-  const [contextMenu, setContextMenu] = useState<{ deviceId: string; x: number; y: number } | null>(null)
-  const multiSelectMode = selectedDeviceIds.size > 0
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null)
+  const [confirmSignOut, setConfirmSignOut] = useState(false)
+  const signOut = useAuthStore((s) => s.signOut)
 
   // Clear status banner after a delay
   useEffect(() => {
@@ -83,7 +80,6 @@ export function SessionsDevicesPanel() {
   // Remove a single device
   const handleRemove = useCallback(async (deviceId: string) => {
     if (!user?.id) return
-    setOpenSwipeId(null)
 
     const [unreg, delKey] = await Promise.all([
       unregisterDevice(user.id, deviceId),
@@ -165,77 +161,55 @@ export function SessionsDevicesPanel() {
       <div className="px-5 py-4 space-y-3">
 
         <p className="text-xs text-tertiary leading-relaxed">
-          Devices registered to your account. Tap or swipe left on a device to remove it.
+          Devices registered to your account. Tap a device to remove it.
         </p>
 
         {status && <ErrorDisplay type={status.type} message={status.message} />}
 
         {/* Device list */}
-        {devices.map((device) => {
-          const isCurrent = device.deviceId === localDeviceId
-          const activity = activityInfo(device.lastActiveAt)
-          const shortId = device.deviceId.slice(0, 8)
-          const canSwipe = !isCurrent
-          const isDeviceSelected = selectedDeviceIds.has(device.deviceId)
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          {devices.map((device) => {
+            const isCurrent = device.deviceId === localDeviceId
+            const isVault = device.deviceId === VAULT_DEVICE_ID
+            const activity = activityInfo(device.lastActiveAt)
+            const shortId = device.deviceId.slice(0, 8)
+            const isTappable = !isVault
 
-          return (
-            <SwipeableCard
-              key={device.deviceId}
-              isOpen={openSwipeId === device.deviceId}
-              enabled={canSwipe && !multiSelectMode}
-              actions={canSwipe ? [
-                { key: 'remove', label: 'Remove', icon: Trash2, iconBg: 'bg-themeredred/15', iconColor: 'text-themeredred', onAction: () => handleRemove(device.deviceId) },
-              ] : []}
-              onOpen={() => { setOpenSwipeId(device.deviceId) }}
-              onClose={() => { if (openSwipeId === device.deviceId) setOpenSwipeId(null) }}
-              onContextMenu={canSwipe ? (e) => { e.preventDefault(); setContextMenu({ deviceId: device.deviceId, x: e.clientX, y: e.clientY }) } : undefined}
-              onTap={canSwipe ? () => {
-                if (multiSelectMode) {
-                  setSelectedDeviceIds(prev => {
-                    const next = new Set(prev)
-                    if (next.has(device.deviceId)) next.delete(device.deviceId)
-                    else next.add(device.deviceId)
-                    return next
-                  })
-                  return
-                }
-                setOpenSwipeId(null)
-                // Single-tap selects (shows bottom bar)
-                const isTogglingOff = selectedDeviceIds.has(device.deviceId)
-                setSelectedDeviceIds(isTogglingOff ? new Set() : new Set([device.deviceId]))
-              } : undefined}
-            >
+            const handleTap = () => {
+              if (isCurrent) setConfirmSignOut(true)
+              else setPendingRemoveId(device.deviceId)
+            }
+
+            return (
               <div
-                className={`rounded-xl border px-4 py-3.5 transition-colors ${
-                  isCurrent
-                    ? 'border-themeblue2/25 bg-themeblue2/10'
-                    : isDeviceSelected
-                      ? 'border-themeblue2/30 bg-themeblue2/5'
-                      : 'border-tertiary/15 bg-themewhite2'
+                key={device.deviceId}
+                className={`px-4 py-3.5 transition-all ${
+                  isVault ? 'opacity-50' : 'cursor-pointer active:scale-95 hover:bg-themeblue2/5'
                 }`}
+                onClick={isTappable ? handleTap : undefined}
+                role={isTappable ? 'button' : undefined}
+                tabIndex={isTappable ? 0 : undefined}
+                onKeyDown={isTappable ? (e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    handleTap()
+                  }
+                } : undefined}
               >
                 <div className="flex items-center gap-3">
-                  {/* Icon — show checkmark when selected in multi-select */}
-                  {isDeviceSelected ? (
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-themeblue2">
-                      <Check size={16} className="text-white" />
-                    </div>
-                  ) : (
-                    <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${
-                      isCurrent ? 'bg-themeblue2/15' : device.isPrimary ? 'bg-themeyellow/15' : 'bg-tertiary/10'
-                    }`}>
-                      {device.isPrimary ? (
-                        <Crown size={18} className={isCurrent ? 'text-themeblue2' : 'text-themeyellow'} />
-                      ) : (
-                        <Smartphone size={18} className={isCurrent ? 'text-themeblue2' : 'text-tertiary/50'} />
-                      )}
-                    </div>
-                  )}
+                  <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+                    {isVault ? (
+                      <Shield size={18} className="text-tertiary/50" />
+                    ) : /Mac|Windows|Linux/i.test(device.deviceLabel || '') ? (
+                      <Monitor size={18} className="text-tertiary/50" />
+                    ) : (
+                      <Smartphone size={18} className="text-tertiary/50" />
+                    )}
+                  </div>
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-primary">
+                      <span className={`text-sm font-medium ${isVault ? 'text-tertiary' : 'text-primary'}`}>
                         {device.deviceLabel || 'Unknown'}
                       </span>
                       {isCurrent && (
@@ -243,24 +217,30 @@ export function SessionsDevicesPanel() {
                           This device
                         </span>
                       )}
-                      {device.isPrimary && (
-                        <span className="text-[9pt] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-themeyellow/15 text-themeyellow">
-                          Primary
+                      {isVault && (
+                        <span className="text-[9pt] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded bg-tertiary/10 text-tertiary/60">
+                          Vault
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-2 mt-0.5">
                       <span className={`inline-block w-1.5 h-1.5 rounded-full ${activity.color}`} />
                       <span className="text-[11px] text-tertiary/70">{activity.label}</span>
+                      {device.isPrimary && (
+                        <>
+                          <span className="text-[11px] text-tertiary/30">&middot;</span>
+                          <span className="text-[11px] text-tertiary/70">Primary</span>
+                        </>
+                      )}
                       <span className="text-[11px] text-tertiary/30">&middot;</span>
                       <span className="text-[11px] text-tertiary/30 font-mono">{shortId}</span>
                     </div>
                   </div>
                 </div>
               </div>
-            </SwipeableCard>
-          )
-        })}
+            )
+          })}
+        </div>
 
         {/* Sign Out All Other Sessions (primary only) */}
         {isPrimary && otherDevicesExist && (
@@ -288,52 +268,42 @@ export function SessionsDevicesPanel() {
           <div className="flex items-start gap-2 px-3 py-2 rounded-lg bg-tertiary/5">
             <Info size={14} className="text-tertiary/60 shrink-0 mt-0.5" />
             <p className="text-[11px] text-tertiary/70 leading-relaxed">
-              Only the primary device can sign out all other sessions. Tap or swipe left on
-              individual devices to remove them.
+              Only the primary device can sign out all other sessions. Tap individual
+              devices to remove them.
             </p>
           </div>
         )}
       </div>
 
-      {/* Bottom action bar for multi-select */}
-      {multiSelectMode && (
-        <CardActionBar
-          selectedCount={selectedDeviceIds.size}
-          onClear={() => setSelectedDeviceIds(new Set())}
-          actions={[
-            {
-              key: 'delete',
-              label: 'Delete',
-              icon: Trash2,
-              iconBg: 'bg-themeredred/15',
-              iconColor: 'text-themeredred',
-              onAction: async () => {
-                const ids = [...selectedDeviceIds]
-                setSelectedDeviceIds(new Set())
-                for (const id of ids) await handleRemove(id)
-              },
-            },
-          ]}
-        />
-      )}
+      {/* Confirm remove dialog */}
+      <ConfirmDialog
+        visible={!!pendingRemoveId}
+        title={`Remove "${devices.find(d => d.deviceId === pendingRemoveId)?.deviceLabel || 'this device'}"?`}
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={async () => {
+          if (pendingRemoveId) {
+            const id = pendingRemoveId
+            setPendingRemoveId(null)
+            await handleRemove(id)
+          }
+        }}
+        onCancel={() => setPendingRemoveId(null)}
+      />
 
-      {/* Right-click context menu */}
-      {contextMenu && (
-        <CardContextMenu
-          x={contextMenu.x}
-          y={contextMenu.y}
-          onClose={() => setContextMenu(null)}
-          items={[
-            {
-              key: 'delete',
-              label: 'Delete',
-              icon: Trash2,
-              destructive: true,
-              onAction: () => handleRemove(contextMenu.deviceId),
-            },
-          ]}
-        />
-      )}
+      {/* Confirm sign out this device */}
+      <ConfirmDialog
+        visible={confirmSignOut}
+        title="Sign out and remove this device?"
+        confirmLabel="Sign Out"
+        variant="danger"
+        onConfirm={async () => {
+          setConfirmSignOut(false)
+          if (localDeviceId) await handleRemove(localDeviceId)
+          await signOut()
+        }}
+        onCancel={() => setConfirmSignOut(false)}
+      />
     </div>
   )
 }

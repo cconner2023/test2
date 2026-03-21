@@ -107,7 +107,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
                 <button
                   key={opt.key}
                   onClick={() => handleOption(opt)}
-                  className="w-full py-3 rounded-full text-[15px] font-medium text-themeblue3 border border-themeblue3/40 active:scale-95 transition-all"
+                  className="w-full py-3 rounded-full text-[15px] font-medium bg-themeblue3 text-white active:scale-95 transition-all"
                 >
                   {opt.label}
                 </button>
@@ -135,7 +135,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
       />
       <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
         <div
-          className={`bg-themewhite rounded-3xl shadow-xl px-8 py-8 max-w-[340px] w-full pointer-events-auto transition-all duration-300 ${open ? 'opacity-100 scale-100' : 'opacity-0 scale-95'}`}
+          className={`bg-themewhite rounded-3xl shadow-xl px-8 py-8 max-w-[340px] w-full pointer-events-auto transition-all duration-300 ease-out ${open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-4'}`}
           role="dialog"
           aria-modal="true"
           aria-labelledby="action-sheet-title"
@@ -149,7 +149,7 @@ export function ActionSheet({ visible, title, options, onClose }: ActionSheetPro
               <button
                 key={opt.key}
                 onClick={() => handleOption(opt)}
-                className="w-full py-3 rounded-full text-[15px] font-medium text-themeblue3 border border-themeblue3/40 active:scale-95 transition-all"
+                className="w-full py-3 rounded-full text-[15px] font-medium bg-themeblue3 text-white active:scale-95 transition-all"
               >
                 {opt.label}
               </button>

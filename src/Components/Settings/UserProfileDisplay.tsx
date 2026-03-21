@@ -1,20 +1,5 @@
-import { Pencil } from 'lucide-react'
+import { ChevronRight, Pencil } from 'lucide-react'
 import { useAuth } from '../../Hooks/useAuth'
-
-const DisplayField = ({
-  label,
-  value,
-}: {
-  label: string
-  value: string | null | undefined
-}) => (
-  <div className="block">
-    <span className="text-xs font-medium text-tertiary/60 uppercase tracking-wide">{label}</span>
-    <div className="mt-1 px-3 py-2.5 rounded-lg bg-themewhite2/50 text-primary text-base border border-tertiary/10">
-      {value || <span className="text-tertiary/30 italic">Not set</span>}
-    </div>
-  </div>
-)
 
 interface UserProfileDisplayProps {
   onRequestChange: () => void
@@ -23,57 +8,69 @@ interface UserProfileDisplayProps {
 export const UserProfileDisplay = ({ onRequestChange }: UserProfileDisplayProps) => {
   const { profile } = useAuth()
 
+  const fullName = [profile.firstName, profile.middleInitial, profile.lastName]
+    .filter(Boolean)
+    .join(' ')
+
+  const fields: { label: string; value: string | null | undefined }[] = [
+    { label: 'Name', value: fullName || null },
+    { label: 'Credential', value: profile.credential },
+    { label: 'Component', value: profile.component },
+    { label: 'Rank', value: profile.rank },
+    { label: 'UIC', value: profile.uic },
+  ]
+
   return (
     <div className="h-full overflow-y-auto">
-      <div className="px-4 py-3 md:p-5">
-        <div className="flex items-start justify-between mb-5">
-          <div>
-            <h2 className="text-lg font-semibold text-primary">Your Profile</h2>
-            <p className="text-sm text-tertiary/60 mt-1">
-              Profile information is read-only. Request changes below.
-            </p>
-          </div>
-        </div>
+      <div className="px-5 py-4 space-y-5">
+        <p className="text-xs text-tertiary leading-relaxed">
+          Profile information is read-only. Request changes below.
+        </p>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <DisplayField label="First Name" value={profile.firstName} />
-            <DisplayField label="Last Name" value={profile.lastName} />
-          </div>
-
-          <DisplayField label="Middle Initial" value={profile.middleInitial} />
-          <DisplayField label="Credential" value={profile.credential} />
-          <DisplayField label="Component" value={profile.component} />
-          <DisplayField label="Rank" value={profile.rank} />
-          <DisplayField label="UIC" value={profile.uic} />
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+          {fields.map(({ label, value }) => (
+            <div key={label} className="px-4 py-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-tertiary/70">{label}</span>
+                <span className="text-sm font-medium text-primary">
+                  {value || <span className="text-tertiary/30 italic">Not set</span>}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
 
         {profile.lastName && profile.credential && (
-          <div className="mt-6 pt-4 border-t border-tertiary/10">
-            <p className="text-xs text-tertiary/60 uppercase tracking-wide mb-1">Signature Preview</p>
-            <p className="text-sm text-primary font-medium">
-              Signed: {profile.lastName} {profile.firstName} {profile.middleInitial}{' '}
-              {profile.credential}
-              {profile.rank ? `, ${profile.rank}` : ''}
-              {profile.component ? `, ${profile.component}` : ''}
-              {profile.uic ? ` | UIC: ${profile.uic}` : ''}
-            </p>
+          <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+            <div className="px-4 py-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-tertiary/70">Signature Preview</span>
+                <span className="text-sm font-medium text-primary">
+                  {profile.lastName} {profile.firstName} {profile.middleInitial}{' '}
+                  {profile.credential}
+                  {profile.rank ? `, ${profile.rank}` : ''}
+                  {profile.component ? `, ${profile.component}` : ''}
+                  {profile.uic ? ` | UIC: ${profile.uic}` : ''}
+                </span>
+              </div>
+            </div>
           </div>
         )}
 
-        <div className="mt-6 pt-4 border-t border-tertiary/10">
+        <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
           <button
             onClick={onRequestChange}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg
-                     bg-themeblue3 text-white font-medium hover:bg-themeblue3/90
-                     transition-colors"
+            className="flex items-center gap-3 w-full px-4 py-3.5 transition-all active:scale-95 hover:bg-themeblue2/5"
           >
-            <Pencil size={18} />
-            Request Profile Changes
+            <div className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-tertiary/10">
+              <Pencil size={18} className="text-tertiary/50" />
+            </div>
+            <div className="flex-1 text-left">
+              <span className="text-sm font-medium text-primary">Request Profile Changes</span>
+              <p className="text-[11px] text-tertiary/70 mt-0.5">Requires administrator approval</p>
+            </div>
+            <ChevronRight size={16} className="text-tertiary/40 shrink-0" />
           </button>
-          <p className="text-xs text-tertiary/60 text-center mt-2">
-            All profile changes require administrator approval
-          </p>
         </div>
       </div>
     </div>

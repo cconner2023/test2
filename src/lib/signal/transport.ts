@@ -24,6 +24,7 @@ export interface SendMessageParams {
   payload: Record<string, unknown>
   groupId?: string         // set for group messages
   originId?: string        // shared UUID for delete-for-everyone
+  silent?: boolean         // suppress push notification (e.g. calendar events)
 }
 
 export interface SendBatchParams {
@@ -33,6 +34,7 @@ export interface SendBatchParams {
   messages: Array<{ id: string } & FanOutMessageInput>
   groupId?: string         // set for group messages
   originId?: string        // shared UUID for delete-for-everyone
+  silent?: boolean         // suppress push notification (e.g. calendar events)
 }
 
 export interface SignalTransport {

@@ -114,6 +114,8 @@ function ConversationPane({
     const medicMap = new Map(medics.map(m => [m.id, m]))
     for (const [key, msgs] of Object.entries(conversations)) {
       if (key === userId) continue
+      // Skip system groups (e.g. calendar) — they are not user-facing chats
+      if (groups[key]?.systemType) continue
       const visibleMsgs = msgs.filter(m => m.messageType !== 'request-accepted' && !m.threadId)
       if (visibleMsgs.length === 0) continue
       const lastTime = visibleMsgs.at(-1)?.createdAt ?? ''
@@ -163,6 +165,7 @@ function ConversationPane({
     const messageMatches: { conversationKey: string; type: 'contact' | 'group'; medic?: typeof medics[0]; group?: typeof groups[string]; matchedText: string }[] = []
     for (const [key, msgs] of Object.entries(conversations)) {
       if (alreadyMatched.has(key)) continue
+      if (groups[key]?.systemType) continue
       for (const msg of msgs) {
         if (msg.threadId || msg.messageType === 'request-accepted') continue
         if (msg.plaintext?.toLowerCase().includes(q)) {

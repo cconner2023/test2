@@ -1,5 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
-import { X, ImagePlus, CheckCircle, ChevronRight } from 'lucide-react';
+import { useState, useCallback } from 'react';
+import { ChevronRight } from 'lucide-react';
+import { ImportInputBar } from '../ImportInputBar';
 import { parseNoteEncoding, findAlgorithmByCode, findSymptomByCode, reconstructCardStates } from '../../Utilities/noteParser';
 import { isEncryptedBarcode, decryptBarcode } from '../../Utilities/NoteCodec';
 import { assembleNote, formatSignature } from '../../Utilities/NoteFormatter';
@@ -14,6 +15,7 @@ interface ProviderImportProps {
   planNote: string;
   setPlanNote: (note: string) => void;
   onNext: () => void;
+  onScan?: () => void;
   onMedicNoteImported: (medicNote: {
     medicHpi: string;
     medicPe: string;
@@ -81,19 +83,15 @@ export function ProviderImport({
   planNote,
   setPlanNote,
   onNext,
+  onScan,
   onMedicNoteImported,
 }: ProviderImportProps) {
   const [phase, setPhase] = useState<ImportPhase>('input');
   const [inputText, setInputText] = useState('');
   const [decodeError, setDecodeError] = useState('');
   const [medicData, setMedicData] = useState<MedicData | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
-
+  const handleFileImport = useCallback(async (file: File) => {
     if (file.type.startsWith('image/')) {
       setDecodeError('Image barcode scanning coming soon. Paste the encoded text instead.');
       return;
@@ -235,57 +233,15 @@ export function ProviderImport({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 flex items-center">
-          <div className="absolute left-2 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="p-1.5 text-tertiary/50 hover:text-themeblue3 active:scale-95 transition-colors"
-              title="Upload image"
-            >
-              <ImagePlus size={16} />
-            </button>
-          </div>
-          <input
-            type="text"
-            value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && inputText.trim()) handleDecode(); }}
-            className="w-full rounded-full py-2.5 pl-12 pr-3 border border-themegray1 focus:border-themeblue2 focus:outline-none text-sm bg-themewhite text-tertiary"
-            placeholder="Paste encoded note or scan"
-          />
-        </div>
-        {inputText.trim() && (
-          <button
-            type="button"
-            onClick={handleDecode}
-            className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 bg-themeblue3 text-white"
-            title="Decode"
-          >
-            <CheckCircle size={20} />
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={() => setInputText('')}
-          className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-all duration-300 bg-themewhite2 border border-themeblue3/10 text-tertiary hover:text-primary"
-          title="Clear"
-        >
-          <X size={24} />
-        </button>
-      </div>
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        onChange={handleFileSelect}
-        className="hidden"
-      />
-      {decodeError && (
-        <div className="text-xs text-themeredred">{decodeError}</div>
-      )}
-    </div>
+    <ImportInputBar
+      value={inputText}
+      onChange={setInputText}
+      onSubmit={handleDecode}
+      onClose={() => setInputText('')}
+      onScan={onScan}
+      onImage={handleFileImport}
+      error={decodeError}
+      placeholder="Paste encoded note or scan"
+    />
   );
 }

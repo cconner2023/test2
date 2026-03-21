@@ -249,7 +249,8 @@ export async function sendMessageFanOut(
   recipientId: string,
   messages: FanOutMessageInput[],
   groupId?: string,
-  originId?: string
+  originId?: string,
+  silent?: boolean,
 ): Promise<Result<string[]>> {
   if (messages.length === 0) return ok([])
 
@@ -263,6 +264,7 @@ export async function sendMessageFanOut(
     })),
     groupId,
     originId,
+    silent,
   })
 }
 

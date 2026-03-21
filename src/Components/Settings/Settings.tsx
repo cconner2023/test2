@@ -13,6 +13,9 @@ import { NotificationSettingsPanel } from './NotificationSettingsPanel';
 import { FeedbackPanel } from './FeedbackPanel';
 import { PrivacyPolicyPanel } from './PrivacyPolicyPanel';
 import { NoteContentPanel } from './NoteContentPanel';
+import { PhysicalExamPanel } from './PhysicalExamPanel';
+import { PlanPanel } from './PlanPanel';
+import { TextTemplatesPanel } from './TextTemplatesPanel';
 import { ProfilePage } from './ProfilePage';
 import { ChangePasswordPanel } from './ChangePasswordPanel';
 import { CertificationsPanel } from './CertificationsPanel';
@@ -51,12 +54,19 @@ export const Settings = ({
     initialPanel,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora' | 'physical-exam' | 'plan-settings' | 'text-templates'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
     const [isSupabaseConnected, setIsSupabaseConnected] = useState(false);
     const { user, signOut, isAuthenticated, isDevRole, isSupervisorRole, clinicId } = useAuth();
+    const [peEditing, setPeEditing] = useState(false);
+    const [planEditing, setPlanEditing] = useState(false);
+    const [planSaveRequested, setPlanSaveRequested] = useState(false);
+    const [planHasPending, setPlanHasPending] = useState(false);
+    const [templatesEditing, setTemplatesEditing] = useState(false);
+    const [templatesSaveRequested, setTemplatesSaveRequested] = useState(false);
+    const [templatesHasPending, setTemplatesHasPending] = useState(false);
     const [clinicEditing, setClinicEditing] = useState(false);
     const [clinicSaveRequested, setClinicSaveRequested] = useState(false);
     const [clinicDeleteSelection, setClinicDeleteSelection] = useState<Set<string>>(new Set());
@@ -203,6 +213,19 @@ export const Settings = ({
                 const doBack = () => { handleSlideAnimation('right'); setClinicEditing(false); setClinicDeleteSelection(new Set()); setClinicAddingMember(false); setActivePanel('main'); };
                 return () => guardedClinicAction(doBack);
             }
+            // note-content resets editing on back
+            if (activePanel === 'note-content') {
+                return () => { handleSlideAnimation('right'); setActivePanel('main'); };
+            }
+            if (activePanel === 'physical-exam') {
+                return () => { handleSlideAnimation('right'); setPeEditing(false); setActivePanel('note-content'); };
+            }
+            if (activePanel === 'plan-settings') {
+                return () => { handleSlideAnimation('right'); setPlanEditing(false); setActivePanel('note-content'); };
+            }
+            if (activePanel === 'text-templates') {
+                return () => { handleSlideAnimation('right'); setTemplatesEditing(false); setActivePanel('note-content'); };
+            }
             return () => { handleSlideAnimation('right'); setActivePanel('main'); };
         }, [activePanel, handleSlideAnimation, guardedClinicAction]),
         activePanel !== 'main',
@@ -211,6 +234,13 @@ export const Settings = ({
     const handleClose = useCallback(() => {
         setActivePanel('main');
         setSlideDirection('');
+        setPeEditing(false);
+        setPlanEditing(false);
+        setPlanSaveRequested(false);
+        setPlanHasPending(false);
+        setTemplatesEditing(false);
+        setTemplatesSaveRequested(false);
+        setTemplatesHasPending(false);
         setClinicEditing(false);
         setClinicDeleteSelection(new Set());
         onClose();
@@ -250,7 +280,94 @@ export const Settings = ({
             case 'notification-settings': return { title: 'Notifications', ...backTo() };
             case 'feedback':            return { title: 'Feedback', ...backTo() };
             case 'privacy-policy':      return { title: 'Privacy Policy', ...backTo() };
-            case 'note-content':        return { title: 'Note Content', ...backTo() };
+            case 'note-content':            return { title: 'Note Content', ...backTo() };
+            case 'physical-exam': {
+                const doBack = () => { handleSlideAnimation('right'); setPeEditing(false); setActivePanel('note-content'); };
+                const pePills = (
+                    <HeaderPill>
+                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
+                            peEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0'
+                        }`}>
+                            <PillButton icon={X} iconSize={18} onClick={() => setPeEditing(false)} label="Cancel" />
+                        </div>
+                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
+                            !peEditing ? 'max-w-22 opacity-100' : 'max-w-0 opacity-0'
+                        }`}>
+                            <PillButton icon={Pencil} iconSize={18} onClick={() => setPeEditing(true)} label="Edit" />
+                        </div>
+                        {peEditing ? (
+                            <PillButton icon={Check} iconSize={18} circleBg="bg-themegreen text-white" onClick={() => setPeEditing(false)} label="Done" />
+                        ) : (
+                            <PillButton icon={X} onClick={handleClose} label="Close" />
+                        )}
+                    </HeaderPill>
+                );
+                return {
+                    title: 'Physical Exam',
+                    showBack: true as const,
+                    onBack: doBack,
+                    rightContent: pePills,
+                    hideDefaultClose: true,
+                };
+            }
+            case 'text-templates': {
+                const doTemplatesBack = () => { handleSlideAnimation('right'); setTemplatesEditing(false); setTemplatesHasPending(false); setActivePanel('note-content'); };
+                const templatesPills = (
+                    <HeaderPill>
+                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
+                            templatesEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0'
+                        }`}>
+                            <PillButton icon={X} iconSize={18} onClick={() => setTemplatesEditing(false)} label="Cancel" />
+                        </div>
+                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
+                            !templatesEditing ? 'max-w-22 opacity-100' : 'max-w-0 opacity-0'
+                        }`}>
+                            <PillButton icon={Pencil} iconSize={18} onClick={() => setTemplatesEditing(true)} label="Edit" />
+                        </div>
+                        {templatesEditing ? (
+                            <PillButton icon={Check} iconSize={18} circleBg="bg-themegreen text-white" onClick={() => setTemplatesSaveRequested(true)} label="Save" />
+                        ) : (
+                            <PillButton icon={X} onClick={handleClose} label="Close" />
+                        )}
+                    </HeaderPill>
+                );
+                return {
+                    title: 'Text Templates',
+                    showBack: true as const,
+                    onBack: doTemplatesBack,
+                    rightContent: templatesPills,
+                    hideDefaultClose: true,
+                };
+            }
+            case 'plan-settings': {
+                const doPlanBack = () => { handleSlideAnimation('right'); setPlanEditing(false); setPlanHasPending(false); setActivePanel('note-content'); };
+                const planPills = (
+                    <HeaderPill>
+                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
+                            planEditing ? 'max-w-16 opacity-100' : 'max-w-0 opacity-0'
+                        }`}>
+                            <PillButton icon={X} iconSize={18} onClick={() => setPlanEditing(false)} label="Cancel" />
+                        </div>
+                        <div className={`flex items-center overflow-hidden transition-all duration-200 ease-out ${
+                            !planEditing ? 'max-w-22 opacity-100' : 'max-w-0 opacity-0'
+                        }`}>
+                            <PillButton icon={Pencil} iconSize={18} onClick={() => setPlanEditing(true)} label="Edit" />
+                        </div>
+                        {planEditing ? (
+                            <PillButton icon={Check} iconSize={18} circleBg="bg-themegreen text-white" onClick={() => setPlanSaveRequested(true)} label="Save" />
+                        ) : (
+                            <PillButton icon={X} onClick={handleClose} label="Close" />
+                        )}
+                    </HeaderPill>
+                );
+                return {
+                    title: 'Plan',
+                    showBack: true as const,
+                    onBack: doPlanBack,
+                    rightContent: planPills,
+                    hideDefaultClose: true,
+                };
+            }
             case 'clinic': {
                 const doClinicBack = () => { handleSlideAnimation('right'); setClinicEditing(false); setClinicDeleteSelection(new Set()); setActivePanel('main'); };
                 const clinicBackTo = {
@@ -299,7 +416,7 @@ export const Settings = ({
             }
 
         }
-    }, [activePanel, backTo, handleClose, isSupervisorRole, clinicEditing, handleSlideAnimation, guardedClinicAction]);
+    }, [activePanel, backTo, handleClose, isSupervisorRole, clinicEditing, peEditing, planEditing, planSaveRequested, planHasPending, templatesEditing, templatesSaveRequested, templatesHasPending, handleSlideAnimation, guardedClinicAction]);
 
     return (<>
         <BaseDrawer
@@ -400,7 +517,31 @@ export const Settings = ({
                             'release-notes':        <ReleaseNotesPanel />,
                             'feedback':             <FeedbackPanel />,
                             'privacy-policy':       <PrivacyPolicyPanel />,
-                            'note-content':         <NoteContentPanel />,
+                            'note-content': (
+                                <NoteContentPanel
+                                    onNavigate={(panel) => {
+                                        handleSlideAnimation('left');
+                                        setActivePanel(panel as typeof activePanel);
+                                    }}
+                                />
+                            ),
+                            'physical-exam':        <PhysicalExamPanel editing={peEditing} />,
+                            'plan-settings': (
+                                <PlanPanel
+                                    editing={planEditing}
+                                    saveRequested={planSaveRequested}
+                                    onSaveComplete={() => { setPlanSaveRequested(false); setPlanEditing(false); }}
+                                    onPendingChangesChange={setPlanHasPending}
+                                />
+                            ),
+                            'text-templates': (
+                                <TextTemplatesPanel
+                                    editing={templatesEditing}
+                                    saveRequested={templatesSaveRequested}
+                                    onSaveComplete={() => { setTemplatesSaveRequested(false); setTemplatesEditing(false); }}
+                                    onPendingChangesChange={setTemplatesHasPending}
+                                />
+                            ),
                             'notification-settings': <NotificationSettingsPanel />,
                             'sessions-devices':     <SessionsDevicesPanel />,
                             'lora':                 <LoRaPanel />,
