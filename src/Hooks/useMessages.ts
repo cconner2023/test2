@@ -58,7 +58,6 @@ import {
 } from '../lib/signal/messageContent'
 import type { MessageContent, ImageContent, VoiceContent, ReplyTo, CalendarEventContent } from '../lib/signal/messageContent'
 import { useCalendarStore } from '../stores/useCalendarStore'
-import { saveCalendarEvents } from '../lib/calendarEventStore'
 import type { CalendarEvent } from '../Types/CalendarTypes'
 import { uploadEncryptedAttachment } from '../lib/signal/attachmentService'
 import { createBackup, markHydrationComplete } from '../lib/signal/backupService'
@@ -531,8 +530,7 @@ export function useMessages(): UseMessagesReturn {
       } else if (action === 'delete') {
         calStore.removeEvent(data.id)
       }
-      // Persist updated events to calendar IDB (not message store)
-      saveCalendarEvents(useCalendarStore.getState().events).catch(() => {})
+      // IDB persistence handled by calendarPersist middleware on the store mutations above
       // Mark as read so it is not re-fetched on next poll
       markMessagesRead([msg.id]).catch(() => {})
       return

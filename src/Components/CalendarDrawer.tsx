@@ -1,10 +1,11 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { X, ListFilter, Check } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { CalendarPanel } from './Calendar/CalendarPanel'
 import { RosterPane } from './Calendar/RosterPane'
+import { MiniCalendar } from './Calendar/MiniCalendar'
 import { SearchInput } from './SearchInput'
 import { useCalendarStore } from '../stores/useCalendarStore'
 import { useIsMobile } from '../Hooks/useIsMobile'
@@ -31,23 +32,40 @@ interface CalendarDrawerProps {
 export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
     const isMobile = useIsMobile()
 
-    const { selectedEventId, assignPersonnel, unassignPersonnel, events, personnelFilter, togglePersonnelFilter, clearPersonnelFilter, monthLabel, viewMode, rosterSearchQuery, setRosterSearchQuery } =
-        useCalendarStore(useShallow(s => ({
-            selectedEventId: s.selectedEventId,
-            assignPersonnel: s.assignPersonnel,
-            unassignPersonnel: s.unassignPersonnel,
-            events: s.events,
-            personnelFilter: s.personnelFilter,
-            togglePersonnelFilter: s.togglePersonnelFilter,
-            clearPersonnelFilter: s.clearPersonnelFilter,
-            monthLabel: s.monthLabel,
-            viewMode: s.currentView,
-            rosterSearchQuery: s.rosterSearchQuery,
-            setRosterSearchQuery: s.setRosterSearchQuery,
-        })))
+    const {
+        selectedEventId, assignPersonnel, unassignPersonnel,
+        events, personnelFilter, togglePersonnelFilter, clearPersonnelFilter,
+        monthLabel, viewMode, rosterSearchQuery, setRosterSearchQuery,
+        selectedDate, setSelectedDate,
+    } = useCalendarStore(useShallow(s => ({
+        selectedEventId: s.selectedEventId,
+        assignPersonnel: s.assignPersonnel,
+        unassignPersonnel: s.unassignPersonnel,
+        events: s.events,
+        personnelFilter: s.personnelFilter,
+        togglePersonnelFilter: s.togglePersonnelFilter,
+        clearPersonnelFilter: s.clearPersonnelFilter,
+        monthLabel: s.monthLabel,
+        viewMode: s.currentView,
+        rosterSearchQuery: s.rosterSearchQuery,
+        setRosterSearchQuery: s.setRosterSearchQuery,
+        selectedDate: s.selectedDate,
+        setSelectedDate: s.setSelectedDate,
+    })))
+
+    const [scrollNonce, setScrollNonce] = useState(1)
+
+    // Reset to today and trigger scroll whenever the drawer opens
+    useEffect(() => {
+        if (isVisible) {
+            const today = new Date()
+            const key = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+            setSelectedDate(key)
+            setScrollNonce(n => n + 1)
+        }
+    }, [isVisible, setSelectedDate])
 
     const [showPersonnelDrawer, setShowPersonnelDrawer] = useState(false)
-
     const { medics } = useClinicMedics()
     const { ownClinicMedics } = useClinicGroupedMedics(medics)
 
@@ -94,6 +112,52 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
             assignPersonnel(selectedEventId, userId)
         }
     }, [selectedEventId, events, assignPersonnel, unassignPersonnel])
+
+    // Personnel filter sidebar panel — shared between month and day views
+    const personnelFilterPanel = (
+        <div className="flex flex-col min-h-0">
+            <div className="px-3 pt-2 pb-1 border-t border-primary/10">
+                <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-semibold text-tertiary/60 uppercase tracking-wide">Filter Personnel</span>
+                    {personnelFilter.length > 0 && (
+                        <button
+                            onClick={clearPersonnelFilter}
+                            className="text-[10px] text-themeblue3 font-medium active:scale-95 transition-transform"
+                        >
+                            Clear
+                        </button>
+                    )}
+                </div>
+            </div>
+            <div className="overflow-y-auto flex-1 px-1 pb-2">
+                {ownClinicMedics.map(medic => {
+                    const isSelected = personnelFilter.includes(medic.id)
+                    return (
+                        <button
+                            key={medic.id}
+                            onClick={() => togglePersonnelFilter(medic.id)}
+                            className={`w-full flex items-center gap-2 px-2 py-2 rounded-xl text-left transition-all duration-150 active:scale-[0.98] ${isSelected ? 'bg-themeblue3/8' : ''}`}
+                        >
+                            <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 ${isSelected ? 'bg-themeblue3 text-white' : 'bg-primary/8 text-secondary'}`}>
+                                {getInitials(medic.firstName, medic.lastName)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <p className="text-xs font-medium text-primary truncate">
+                                    {formatMedicName(medic)}
+                                </p>
+                                {medic.credential && (
+                                    <p className="text-[10px] text-tertiary/50 truncate">{medic.credential}</p>
+                                )}
+                            </div>
+                            {isSelected && (
+                                <Check size={14} className="text-themeblue3 shrink-0" />
+                            )}
+                        </button>
+                    )
+                })}
+            </div>
+        </div>
+    )
 
     return (
         <BaseDrawer
@@ -143,19 +207,43 @@ export function CalendarDrawer({ isVisible, onClose }: CalendarDrawerProps) {
                 )}
 
                 <div className="flex absolute inset-0 overflow-hidden">
-                    {/* Roster — desktop: left pane (hidden in troops view where TroopsToTaskView renders its own names) */}
+                    {/* Contextual sidebar — desktop only, hidden for troops-to-task (has its own personnel column) */}
                     {!isMobile && viewMode !== 'troops' && (
-                        <div className="w-[280px] shrink-0">
-                            <RosterPane
-                                onAssignToEvent={handleRosterAssign}
-                                assignableEventId={selectedEventId}
-                            />
+                        <div className="w-[280px] shrink-0 flex flex-col overflow-y-auto border-r border-primary/10">
+                            {viewMode === 'month' ? (
+                                /* Month view: mini calendar + personnel filter */
+                                <>
+                                    <MiniCalendar
+                                        selectedDate={selectedDate}
+                                        onSelectDate={setSelectedDate}
+                                        events={events}
+                                    />
+                                    {personnelFilterPanel}
+                                </>
+                            ) : (
+                                /* Day view: mini calendar + personnel filter + roster */
+                                <>
+                                    <MiniCalendar
+                                        selectedDate={selectedDate}
+                                        onSelectDate={setSelectedDate}
+                                        events={events}
+                                    />
+                                    {personnelFilterPanel}
+                                    <div className="flex-1 min-h-0 border-t border-primary/10">
+                                        <RosterPane
+                                            onAssignToEvent={handleRosterAssign}
+                                            assignableEventId={selectedEventId}
+                                            compact
+                                        />
+                                    </div>
+                                </>
+                            )}
                         </div>
                     )}
 
                     {/* Schedule — right pane (or full width on mobile) */}
                     <div className="flex-1 min-w-0">
-                        <CalendarPanel onBack={onClose} />
+                        <CalendarPanel onBack={onClose} scrollNonce={scrollNonce} />
                     </div>
 
                     {/* Personnel filter drawer — mobile */}

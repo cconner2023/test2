@@ -35,7 +35,7 @@ export interface AccountRequest {
   component: string | null
   uic: string
   status: 'pending' | 'approved' | 'rejected'
-  request_type: 'new_account' | 'profile_change'
+  request_type: 'new_account' | 'profile_change' | 'support'
   status_check_token: string | null
   user_id: string | null
   requested_at: string
@@ -196,6 +196,63 @@ export async function submitProfileChangeRequest(
  * Uses the check_request_status RPC (SECURITY DEFINER) since anon users
  * have no direct SELECT access to account_requests.
  */
+/**
+ * Submit a support/help request from the login screen (no auth required).
+ * Reuses the account_requests table via the same RPC with request_type = 'support'.
+ */
+export async function submitSupportRequest(
+  name: string,
+  email: string,
+  message: string
+): Promise<SubmitResult> {
+  try {
+    const nameParts = name.trim().split(/\s+/)
+    const firstName = nameParts[0] || 'Unknown'
+    const lastName = nameParts.slice(1).join(' ') || ''
+
+    const { data, error } = await supabase.rpc('submit_account_request', {
+      p_email: email.toLowerCase().trim(),
+      p_first_name: firstName,
+      p_last_name: lastName,
+      p_middle_initial: null,
+      p_credential: null,
+      p_rank: null,
+      p_component: null,
+      p_uic: 'SUPPORT',
+      p_notes: message.trim() || null,
+      p_request_type: 'support',
+      p_password: null,
+    })
+
+    if (error) {
+      const code = classifySupabaseError(error)
+      if (code === ErrorCode.RATE_LIMITED) {
+        return fail('Too many requests. Please try again later.')
+      }
+      throw error
+    }
+
+    const validated = validateRpcResult<{ id: string; status_check_token: string; message: string }>(
+      data, ['id', 'status_check_token'], 'submitSupportRequest'
+    )
+    const result = validated.ok ? validated.data : null
+
+    fireNotification({
+      type: 'new_feedback',
+      name: name.trim(),
+      email,
+    })
+
+    return succeed({
+      statusCheckToken: result?.status_check_token,
+      requestId: result?.id,
+    })
+  } catch (error) {
+    logger.error('Failed to submit support request:', error)
+    return fail(getErrorMessage(error, 'Failed to submit request'))
+  }
+}
+
 export async function checkRequestStatus(
   email: string,
   statusCheckToken: string

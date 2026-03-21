@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState, useCallback } from 'react'
+import { useMemo, useRef, useState, useCallback, useEffect } from 'react'
 import type { CalendarEvent } from '../../Types/CalendarTypes'
-import { CATEGORY_BG_MAP, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toLocalISOString } from '../../Types/CalendarTypes'
+import { CATEGORY_BG_MAP, DAY_START_HOUR, DAY_END_HOUR, HOUR_HEIGHT_PX, toLocalISOString, toDateKey } from '../../Types/CalendarTypes'
 
 interface DayViewProps {
   date: Date
@@ -36,20 +36,26 @@ function snapMinutes(minutes: number): number {
 function formatSnappedTime(minutes: number): string {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
-  const suffix = h >= 12 ? 'PM' : 'AM'
-  const display = h > 12 ? h - 12 : h === 0 ? 12 : h
-  return `${display}:${String(m).padStart(2, '0')} ${suffix}`
+  return `${String(h).padStart(2, '0')}${String(m).padStart(2, '0')}`
 }
 
 function getEventPosition(event: CalendarEvent, dateKey: string) {
   const start = new Date(event.start_time)
   const end = new Date(event.end_time)
 
+  // Use local date from stored strings (they're already local ISO, no Z suffix)
+  const startDateKey = event.start_time.slice(0, 10)
+  const endDateKey = event.end_time.slice(0, 10)
+
   let startMinutes = start.getHours() * 60 + start.getMinutes()
   let endMinutes = end.getHours() * 60 + end.getMinutes()
 
-  if (start.toISOString().slice(0, 10) < dateKey) startMinutes = DAY_START_HOUR * 60
-  if (end.toISOString().slice(0, 10) > dateKey) endMinutes = DAY_END_HOUR * 60
+  // Clamp multi-day events to the visible day
+  if (startDateKey < dateKey) startMinutes = DAY_START_HOUR * 60
+  if (endDateKey > dateKey) endMinutes = DAY_END_HOUR * 60
+
+  // Handle same-day events where end is midnight (0:00) — treat as end of day
+  if (endDateKey === dateKey && endMinutes === 0 && startMinutes > 0) endMinutes = DAY_END_HOUR * 60
 
   startMinutes = Math.max(startMinutes, DAY_START_HOUR * 60)
   endMinutes = Math.min(endMinutes, DAY_END_HOUR * 60)
@@ -103,16 +109,25 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent }: DayViewPro
   const [dragTop, setDragTop] = useState(0)
   const [dragEventId, setDragEventId] = useState<string | null>(null)
 
-  const dateKey = date.toISOString().slice(0, 10)
+  const dateKey = toDateKey(date)
   const hours = useMemo(() => Array.from({ length: DAY_END_HOUR - DAY_START_HOUR }, (_, i) => DAY_START_HOUR + i), [])
   const totalHeight = hours.length * HOUR_HEIGHT_PX
+
+  // Auto-scroll: to current time if today, or 0600 otherwise
+  useEffect(() => {
+    if (!scrollRef.current) return
+    const now = new Date()
+    const isToday = now.toISOString().slice(0, 10) === dateKey
+    const scrollToHour = isToday ? Math.max(0, now.getHours() - 1) : 6
+    scrollRef.current.scrollTop = scrollToHour * HOUR_HEIGHT_PX
+  }, [dateKey])
 
   const allDayEvents = useMemo(() => events.filter(e => e.all_day), [events])
   const timedEvents = useMemo(() => resolveOverlaps(events, dateKey), [events, dateKey])
 
   const nowMarkerTop = useMemo(() => {
     const now = new Date()
-    if (now.toISOString().slice(0, 10) !== dateKey) return null
+    if (toDateKey(now) !== dateKey) return null
     const minutes = now.getHours() * 60 + now.getMinutes()
     if (minutes < DAY_START_HOUR * 60 || minutes > DAY_END_HOUR * 60) return null
     return ((minutes - DAY_START_HOUR * 60) / 60) * HOUR_HEIGHT_PX
@@ -303,7 +318,7 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent }: DayViewPro
                 <p className="text-xs font-semibold truncate leading-tight">{event.title}</p>
                 {height > 36 && (
                   <p className="text-[10px] opacity-70 truncate">
-                    {new Date(event.start_time).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                    {new Date(event.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '')}
                   </p>
                 )}
                 {height > 52 && event.location && (

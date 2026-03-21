@@ -52,7 +52,27 @@ export async function loadCalendarEvents(): Promise<CalendarEvent[]> {
   }
 }
 
-/** Replace the entire persisted event list. */
+/** Upsert a single event (granular write for middleware). */
+export async function putCalendarEvent(event: CalendarEvent): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.put('events', event)
+  } catch (e) {
+    logger.warn('Failed to put calendar event in IDB:', e)
+  }
+}
+
+/** Delete a single event by ID (granular write for middleware). */
+export async function deleteCalendarEvent(id: string): Promise<void> {
+  try {
+    const db = await getDb()
+    await db.delete('events', id)
+  } catch (e) {
+    logger.warn('Failed to delete calendar event from IDB:', e)
+  }
+}
+
+/** Replace the entire persisted event list (bulk hydration / reset). */
 export async function saveCalendarEvents(events: CalendarEvent[]): Promise<void> {
   try {
     const db = await getDb()

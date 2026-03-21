@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Moon, Sun, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Pencil, Check } from 'lucide-react';
+import { Moon, Sun, Shield, Lock, MessageSquare, Bell, Stethoscope, Scale, X, Building2, Pencil, Check, Radio } from 'lucide-react';
 import { BaseDrawer } from '../BaseDrawer';
 import { resizeImage } from '../../Hooks/useProfileAvatar';
 import { useAvatar } from '../../Utilities/AvatarContext';
@@ -24,12 +24,14 @@ import { clearServiceWorkerCaches } from '../../lib/cacheService';
 import { deleteOwnAccount } from '../../lib/authService';
 import { PANEL, PANEL_TARGET, type PanelId, type SettingsItem } from './SettingsTypes';
 import { UI_TIMING } from '../../Utilities/constants';
+import { LORA_MESH_ENABLED } from '../../lib/featureFlags';
 import { MainSettingsPanel } from './MainSettingsPanel';
 import { AvatarPickerPanel } from './AvatarPickerPanel';
 import { ContentWrapper } from './ContentWrapper';
 import { HeaderPill, PillButton } from '../HeaderPill';
 import { SessionsDevicesPanel } from './SessionsDevicesPanel';
 import { ClinicPanel } from './ClinicPanel';
+import { LoRaPanel } from './LoRaPanel';
 import { ConfirmDialog } from '../ConfirmDialog';
 
 
@@ -49,7 +51,7 @@ export const Settings = ({
     initialPanel,
 }: SettingsDrawerProps) => {
     const { currentAvatar, setAvatar, avatarList, customImage, isCustom, setCustomImage, clearCustomImage } = useAvatar();
-    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic'>('main');
+    const [activePanel, setActivePanel] = useState<'main' | 'release-notes' | 'avatar-picker' | 'user-profile' | 'user-profile-details' | 'profile-change-request' | 'pin-setup' | 'notification-settings' | 'feedback' | 'note-content' | 'privacy-policy' | 'change-password' | 'certifications' | 'sessions-devices' | 'clinic' | 'lora'>('main');
     const { profile, updateProfile } = useUserProfile();
     const [slideDirection, setSlideDirection] = useState<'left' | 'right' | ''>('');
     const prevVisibleRef = useRef(false);
@@ -132,10 +134,11 @@ export const Settings = ({
 
     const buildSettingsOptions = useCallback((closeDrawer: () => void): SettingsItem[] => {
         /** Shorthand for a standard menu option that navigates to a panel. */
-        const opt = (id: PanelId, icon: React.ReactNode, label: string, overrides?: Partial<Extract<SettingsItem, { type: 'option' }>>): Extract<SettingsItem, { type: 'option' }> => ({
+        const opt = (id: PanelId, icon: React.ReactNode, label: string, subtitle?: string, overrides?: Partial<Extract<SettingsItem, { type: 'option' }>>): Extract<SettingsItem, { type: 'option' }> => ({
             type: 'option',
             icon,
             label,
+            subtitle,
             action: () => handleItemClick(id, closeDrawer),
             color: 'text-tertiary',
             id,
@@ -148,26 +151,34 @@ export const Settings = ({
         if (isAuthenticated) {
             items.push(
                 { type: 'header', label: 'Clinics' },
-                opt(PANEL.CLINIC, <Building2 size={20} />, profile.clinicName || 'My Clinic'),
+                opt(PANEL.CLINIC, <Building2 size={20} />, profile.clinicName || 'My Clinic', 'Manage clinic and personnel'),
             );
         }
 
         // PREFERENCES section
         items.push(
             { type: 'header', label: 'Preferences' },
-            opt(PANEL.TOGGLE_THEME, isDarkMode ? <Sun size={20} /> : <Moon size={20} />, 'Toggle Theme', { action: onToggleTheme }),
-            opt(PANEL.NOTE_CONTENT, <Stethoscope size={20} />, 'Note Content'),
-            opt(PANEL.PIN_SETUP, <Lock size={20} />, 'Security'),
-            opt(PANEL.NOTIFICATION_SETTINGS, <Bell size={20} />, 'Notifications'),
+            opt(PANEL.TOGGLE_THEME, isDarkMode ? <Sun size={20} /> : <Moon size={20} />, 'Toggle Theme', isDarkMode ? 'Switch to light mode' : 'Switch to dark mode', { action: onToggleTheme }),
+            opt(PANEL.NOTE_CONTENT, <Stethoscope size={20} />, 'Note Content', 'Exam blocks, templates, order sets'),
+            opt(PANEL.PIN_SETUP, <Lock size={20} />, 'Security', 'App lock, biometrics, devices'),
+            opt(PANEL.NOTIFICATION_SETTINGS, <Bell size={20} />, 'Notifications', 'Push subscriptions and alerts'),
         );
 
         // ABOUT section
         items.push(
             { type: 'header', label: 'About' },
-            opt(PANEL.RELEASE_NOTES, <Shield size={20} />, 'Release Notes'),
-            opt(PANEL.FEEDBACK, <MessageSquare size={20} />, 'Feedback'),
-            opt(PANEL.PRIVACY_POLICY, <Scale size={20} />, 'Privacy'),
+            opt(PANEL.RELEASE_NOTES, <Shield size={20} />, 'Release Notes', 'What\'s new in this version'),
+            opt(PANEL.FEEDBACK, <MessageSquare size={20} />, 'Feedback', 'Report issues or suggestions'),
+            opt(PANEL.PRIVACY_POLICY, <Scale size={20} />, 'Privacy', 'Data handling and policy'),
         );
+
+        // UTILITIES section
+        if (isAuthenticated && (LORA_MESH_ENABLED || isDevRole)) {
+            items.push(
+                { type: 'header', label: 'Utilities' },
+                opt(PANEL.LORA, <Radio size={20} />, 'WhisperNet', 'LoRa mesh offline messaging'),
+            );
+        }
 
         return items;
     }, [isDarkMode, onToggleTheme, handleItemClick, isDevRole, isAuthenticated, isSupervisorRole, profile.clinicName]);
@@ -234,6 +245,7 @@ export const Settings = ({
             case 'avatar-picker':       return { title: 'Choose Avatar', ...backTo() };
             case 'user-profile':        return { title: 'Profile', ...backTo() };
             case 'sessions-devices':    return { title: 'Sessions & Devices', ...backTo('pin-setup') };
+            case 'lora':                return { title: 'WhisperNet', ...backTo() };
             case 'pin-setup':           return { title: 'Security', ...backTo() };
             case 'notification-settings': return { title: 'Notifications', ...backTo() };
             case 'feedback':            return { title: 'Feedback', ...backTo() };
@@ -391,6 +403,7 @@ export const Settings = ({
                             'note-content':         <NoteContentPanel />,
                             'notification-settings': <NotificationSettingsPanel />,
                             'sessions-devices':     <SessionsDevicesPanel />,
+                            'lora':                 <LoRaPanel />,
                             'pin-setup': (
                                 <PinSetupPanel
                                     onNavigateToDevices={isAuthenticated ? () => {

@@ -65,7 +65,7 @@ export function useNavItems(): UseNavItemsReturn {
       }
     }
 
-    const pinnedActions = new Set(['settings', 'lora'])
+    const pinnedActions = new Set(['settings'])
     const hiddenSet = new Set(hidden)
     ordered = ordered.filter(i => !hiddenSet.has(i.action) || pinnedActions.has(i.action))
 

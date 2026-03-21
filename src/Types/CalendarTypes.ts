@@ -123,6 +123,6 @@ export function generateId(): string {
   return `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 }
 
-export const DAY_START_HOUR = 6
-export const DAY_END_HOUR = 22
+export const DAY_START_HOUR = 0
+export const DAY_END_HOUR = 24
 export const HOUR_HEIGHT_PX = 60

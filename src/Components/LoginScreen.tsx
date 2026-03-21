@@ -7,8 +7,9 @@ import { PinKeypad } from './PinKeypad'
 import { ErrorDisplay } from './ErrorDisplay'
 import { TextInput, PasswordInput } from './FormInputs'
 import { AccountRequestForm } from './Settings/AccountRequestForm'
+import { submitSupportRequest } from '../lib/accountRequestService'
 
-type View = 'main' | 'reset' | 'resetToken' | 'pin' | 'request'
+type View = 'main' | 'reset' | 'resetToken' | 'pin' | 'request' | 'help'
 
 
 export function LoginScreen() {
@@ -23,6 +24,10 @@ export function LoginScreen() {
   const [pinEmailConfirmed, setPinEmailConfirmed] = useState(false)
   const [pinError, setPinError] = useState('')
   const [pinLoading, setPinLoading] = useState(false)
+  const [helpName, setHelpName] = useState('')
+  const [helpEmail, setHelpEmail] = useState('')
+  const [helpNotes, setHelpNotes] = useState('')
+  const [helpSubmitted, setHelpSubmitted] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -94,6 +99,22 @@ export function LoginScreen() {
     setResetToken('')
     setPinError('')
     setPinEmailConfirmed(false)
+    if (next === 'help') {
+      setHelpSubmitted(false)
+    }
+  }
+
+  const handleSupportSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    const result = await submitSupportRequest(helpName, helpEmail, helpNotes)
+    if (result.success) {
+      setHelpSubmitted(true)
+    } else {
+      setError(result.error || 'Failed to submit request')
+    }
+    setLoading(false)
   }
 
   return (
@@ -194,6 +215,13 @@ export function LoginScreen() {
               <p className="mt-3 text-[10px] text-center text-tertiary/50">
                 Guest mode keeps training and preferences local to this device.
               </p>
+
+              <button
+                onClick={() => switchView('help')}
+                className="w-full text-[10px] text-center text-themeblue2 hover:underline mt-2 active:scale-95 transition-transform"
+              >
+                Need help? Contact support
+              </button>
             </>
           )}
 
@@ -316,6 +344,64 @@ export function LoginScreen() {
                   Back to sign in
                 </button>
               </div>
+            </>
+          )}
+
+          {/* ── Help / Support ── */}
+          {view === 'help' && (
+            <>
+              {helpSubmitted ? (
+                <div className="rounded-xl border border-tertiary/15 p-5">
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-primary">Request Received</p>
+                    <p className="text-xs text-tertiary/50">
+                      We'll review your message and get back to you at {helpEmail}.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <p className="text-xs text-tertiary/60 mb-4">
+                    Having trouble signing in or need assistance? Send us a message.
+                  </p>
+                  <form onSubmit={handleSupportSubmit} className="space-y-3">
+                    <TextInput
+                      value={helpName}
+                      onChange={setHelpName}
+                      placeholder="Your name *"
+                      required
+                    />
+                    <TextInput
+                      value={helpEmail}
+                      onChange={setHelpEmail}
+                      type="email"
+                      placeholder="your.email@mail.mil *"
+                      required
+                    />
+                    <textarea
+                      value={helpNotes}
+                      onChange={(e) => setHelpNotes(e.target.value)}
+                      placeholder="How can we help? *"
+                      required
+                      rows={3}
+                      className="w-full px-3 py-2.5 rounded-lg bg-themewhite dark:bg-themewhite3 text-primary text-base
+                               border border-tertiary/10 focus:border-themeblue1/30 focus:bg-themewhite2
+                               focus:outline-none transition-all placeholder:text-tertiary/30 resize-none"
+                    />
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
+                               disabled:opacity-50 transition-colors active:scale-95"
+                    >
+                      {loading ? 'Sending...' : 'Send Message'}
+                    </button>
+                  </form>
+                </>
+              )}
+              <button onClick={() => switchView('main')} className="w-full text-xs text-themeblue2 hover:underline mt-3 active:scale-95 transition-transform">
+                Back to sign in
+              </button>
             </>
           )}
 

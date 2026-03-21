@@ -5,11 +5,10 @@
  *  1. Get-or-create the clinic's system calendar group (lazy, idempotent).
  *  2. Load the materialized event list from IndexedDB (instant render).
  *
- * IndexedDB is the primary hydration source. Events are persisted there by
- * handleIncomingMessage → saveCalendarEvents() in useMessages.ts on every
- * incoming calendar message. The realtime subscription handles incremental
- * updates via the same path — no message history replay is needed or possible
- * (ratchet state is consumed on decrypt).
+ * IDB persistence is handled by the calendarPersist middleware on
+ * useCalendarStore — every mutation (add, update, remove, move, assign)
+ * writes through to IDB automatically. No explicit saveCalendarEvents()
+ * calls are needed anywhere.
  */
 
 import { useEffect } from 'react'

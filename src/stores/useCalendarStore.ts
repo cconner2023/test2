@@ -1,5 +1,9 @@
-import { create } from 'zustand'
+import { create, type StateCreator } from 'zustand'
 import type { CalendarEvent, EventCategory } from '../Types/CalendarTypes'
+import { putCalendarEvent, deleteCalendarEvent } from '../lib/calendarEventStore'
+import { createLogger } from '../Utilities/Logger'
+
+const logger = createLogger('CalendarPersist')
 
 type CalendarViewMode = 'month' | 'day' | 'troops'
 
@@ -46,7 +50,61 @@ interface CalendarActions {
 
 export type CalendarStore = CalendarState & CalendarActions
 
-export const useCalendarStore = create<CalendarStore>()((set) => ({
+/**
+ * Persistence middleware — intercepts event mutations and writes through to
+ * IndexedDB with granular put/delete operations. Only active after hydration
+ * completes (hydrated === true) to prevent write-before-read cycles.
+ *
+ * Wrapped actions: addEvent, updateEvent, removeEvent, moveEvent,
+ * assignPersonnel, unassignPersonnel.
+ * NOT wrapped: setEvents (used for hydration — would write stale data back).
+ */
+const calendarPersist = (
+  creator: StateCreator<CalendarStore>,
+): StateCreator<CalendarStore> => (set, get, api) => {
+  const store = creator(set, get, api)
+
+  const persistPut = (id: string) => {
+    if (!get().hydrated) return
+    const event = get().events.find(e => e.id === id)
+    if (event) putCalendarEvent(event).catch(e => logger.warn('IDB put failed:', e))
+  }
+
+  const persistDelete = (id: string) => {
+    if (!get().hydrated) return
+    deleteCalendarEvent(id).catch(e => logger.warn('IDB delete failed:', e))
+  }
+
+  return {
+    ...store,
+    addEvent: (event) => {
+      store.addEvent(event)
+      if (get().hydrated) putCalendarEvent(event).catch(e => logger.warn('IDB put failed:', e))
+    },
+    updateEvent: (id, updates) => {
+      store.updateEvent(id, updates)
+      persistPut(id)
+    },
+    removeEvent: (id) => {
+      store.removeEvent(id)
+      persistDelete(id)
+    },
+    moveEvent: (id, daysDelta, newStartTime) => {
+      store.moveEvent(id, daysDelta, newStartTime)
+      persistPut(id)
+    },
+    assignPersonnel: (eventId, userId) => {
+      store.assignPersonnel(eventId, userId)
+      persistPut(eventId)
+    },
+    unassignPersonnel: (eventId, userId) => {
+      store.unassignPersonnel(eventId, userId)
+      persistPut(eventId)
+    },
+  }
+}
+
+export const useCalendarStore = create<CalendarStore>()(calendarPersist((set) => ({
   currentView: 'month',
   selectedDate: new Date().toISOString().slice(0, 10),
   selectedEventId: null,
@@ -121,4 +179,4 @@ export const useCalendarStore = create<CalendarStore>()((set) => ({
   setMonthLabel: (label) => set({ monthLabel: label }),
   setCalendarGroupId: (id) => set({ calendarGroupId: id }),
   setHydrated: (h) => set({ hydrated: h }),
-}))
+})))

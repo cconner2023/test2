@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
-import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil } from 'lucide-react'
+import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2 } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { EventForm } from './EventForm'
@@ -8,6 +8,7 @@ import { EventDetailPanel } from './EventDetailPanel'
 import { DayView } from './DayView'
 import { TroopsToTaskView } from './TroopsToTaskView'
 import { InfiniteScrollCalendar } from './InfiniteScrollCalendar'
+import { ConfirmDialog } from '../ConfirmDialog'
 import { BaseDrawer } from '../BaseDrawer'
 import { HeaderPill, PillButton } from '../HeaderPill'
 import { useCalendarStore } from '../../stores/useCalendarStore'
@@ -28,12 +29,12 @@ type DayDrawerView = 'detail' | 'edit'
 
 interface CalendarPanelProps {
   onBack: () => void
+  scrollNonce?: number
 }
 
-export function CalendarPanel({ onBack }: CalendarPanelProps) {
+export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
   const isMobile = useIsMobile()
   const [panelView, setPanelView] = useState<PanelView>('calendar')
-  const [selectedDate, setSelectedDate] = useState(() => new Date())
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null)
   const eventFormRef = useRef<EventFormHandle>(null)
 
@@ -43,6 +44,8 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
 
   // Kick off group resolution + IDB hydration
   useCalendarSync()
+
+  const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<string | null>(null)
 
   const [showDayDrawer, setShowDayDrawer] = useState(false)
   const [dayDrawerView, setDayDrawerView] = useState<DayDrawerView>('detail')
@@ -104,6 +107,7 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
     assignPersonnel, unassignPersonnel,
     personnelFilter,
     setMonthLabel,
+    selectedDateStr, storeSetSelectedDate,
   } = useCalendarStore(useShallow(s => ({
     viewMode: s.currentView,
     setViewMode: s.setView,
@@ -117,7 +121,12 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
     unassignPersonnel: s.unassignPersonnel,
     personnelFilter: s.personnelFilter,
     setMonthLabel: s.setMonthLabel,
+    selectedDateStr: s.selectedDate,
+    storeSetSelectedDate: s.setSelectedDate,
   })))
+
+  const selectedDate = useMemo(() => new Date(selectedDateStr + 'T00:00:00'), [selectedDateStr])
+  const setSelectedDate = useCallback((d: Date) => storeSetSelectedDate(toDateKey(d)), [storeSetSelectedDate])
 
   const selectedDateKey = toDateKey(selectedDate)
 
@@ -371,6 +380,26 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
 
   // ── Sub-views (form / detail) — desktop: full panel replacement ──
 
+  // ConfirmDialog must render in every branch — extract as a shared element
+  const deleteConfirmDialog = (
+    <ConfirmDialog
+      visible={!!confirmDeleteEvent}
+      title="Delete event?"
+      subtitle="This will permanently remove the event for all clinic members."
+      confirmLabel="Delete"
+      variant="danger"
+      onConfirm={() => {
+        if (confirmDeleteEvent) {
+          handleDeleteEvent(confirmDeleteEvent)
+          setConfirmDeleteEvent(null)
+          setEditingEvent(null)
+          setShowDayDrawer(false)
+        }
+      }}
+      onCancel={() => setConfirmDeleteEvent(null)}
+    />
+  )
+
   if (!isMobile && panelView === 'form') {
     return (
       <div className="flex flex-col h-full">
@@ -379,6 +408,9 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
             {editingEvent ? 'Edit Event' : 'New Event'}
           </h2>
           <HeaderPill>
+            {editingEvent && (
+              <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
+            )}
             <PillButton icon={X} iconSize={18} onClick={handleFormCancel} label="Cancel" />
             <PillButton
               icon={Check}
@@ -397,6 +429,7 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
           medics={medicList}
           propertyItems={propertyItems}
         />
+        {deleteConfirmDialog}
       </div>
     )
   }
@@ -430,6 +463,8 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
             onMonthChange={setMonthLabel}
             onMoveEvent={handleMoveEventToDate}
             onSelectEvent={handleSelectEvent}
+            scrollTargetDate={selectedDateStr}
+            scrollNonce={scrollNonce}
           />
         )}
 
@@ -506,6 +541,9 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
           title: editingEvent ? 'Edit Event' : 'New Event',
           rightContent: (
             <HeaderPill>
+              {editingEvent && (
+                <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
+              )}
               <PillButton icon={X} iconSize={18} onClick={handleFormCancel} label="Cancel" />
               <PillButton
                 icon={Check}
@@ -541,6 +579,9 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
           title: 'Edit Event',
           rightContent: (
             <HeaderPill>
+              {editingEvent && (
+                <PillButton icon={Trash2} iconSize={18} onClick={() => setConfirmDeleteEvent(editingEvent.id)} label="Delete" variant="danger" />
+              )}
               <PillButton icon={X} iconSize={18} onClick={handleDayDrawerEditCancel} label="Cancel" />
               <PillButton
                 icon={Check}
@@ -588,6 +629,8 @@ export function CalendarPanel({ onBack }: CalendarPanelProps) {
           />
         )}
       </BaseDrawer>
+
+      {deleteConfirmDialog}
     </div>
   )
 }

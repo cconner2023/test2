@@ -50,5 +50,5 @@ export const PANEL_TARGET: Partial<Record<PanelId, string>> = {
 };
 
 export type SettingsItem =
-    | { type: 'option'; icon: React.ReactNode; label: string; action: () => void; color: string; id: PanelId; disabled?: boolean; badge?: number }
+    | { type: 'option'; icon: React.ReactNode; label: string; subtitle?: string; action: () => void; color: string; id: PanelId; disabled?: boolean; badge?: number }
     | { type: 'header'; label: string };

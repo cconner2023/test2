@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { Clock, Building2, RotateCcw, Trash2, UserCheck, Eye, Check, X } from 'lucide-react'
+import { Clock, Building2, RotateCcw, Trash2, UserCheck, Eye, Check, X, HelpCircle } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
 import { CardContextMenu } from '../CardContextMenu'
 import { ConfirmDialog } from '../ConfirmDialog'
@@ -100,9 +100,10 @@ function RequestCard({
   approvalPeDepth: string
   setApprovalPeDepth: (v: string) => void
 }) {
+  const isSupport = request.request_type === 'support'
   const isPending = request.status === 'pending'
   const isRejected = request.status === 'rejected'
-  const hasActions = isPending || isRejected
+  const hasActions = isSupport ? true : (isPending || isRejected)
   const isExpanded = expandedId === request.id
 
   const longPress = useLongPress((x: number, y: number) => {
@@ -127,23 +128,43 @@ function RequestCard({
     >
       {/* Row 1: name + status text */}
       <div className="flex items-center gap-3">
+        {isSupport && (
+          <div className="w-8 h-8 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
+            <HelpCircle size={16} className="text-themeblue2" />
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-primary truncate">
-            {request.rank ? `${request.rank} ` : ''}
-            {request.first_name}
-            {request.middle_initial ? ` ${request.middle_initial}` : ''}{' '}
-            {request.last_name}
+            {isSupport ? (
+              `${request.first_name}${request.last_name ? ` ${request.last_name}` : ''}`
+            ) : (
+              <>
+                {request.rank ? `${request.rank} ` : ''}
+                {request.first_name}
+                {request.middle_initial ? ` ${request.middle_initial}` : ''}{' '}
+                {request.last_name}
+              </>
+            )}
           </p>
           <p className="text-[10pt] text-tertiary truncate">
-            {[request.credential, request.email].filter(Boolean).join(' · ')}
+            {isSupport
+              ? request.email
+              : [request.credential, request.email].filter(Boolean).join(' · ')}
           </p>
         </div>
 
-        <span className="text-[10pt] text-tertiary shrink-0 capitalize">{request.status}</span>
+        <span className="text-[10pt] text-tertiary shrink-0 capitalize">
+          {isSupport ? 'Help Request' : request.status}
+        </span>
       </div>
 
+      {/* Support request: show message preview */}
+      {isSupport && request.notes && !isExpanded && (
+        <p className="text-[10pt] text-tertiary mt-1.5 line-clamp-2">{request.notes}</p>
+      )}
+
       {/* Row 2: UIC + clinic (plain text) */}
-      {request.uic && (
+      {!isSupport && request.uic && (
         <div className="flex items-center gap-2 flex-wrap mt-2">
           <span className="text-[10pt] text-tertiary">{request.uic}</span>
           {matchedClinic ? (
@@ -163,7 +184,26 @@ function RequestCard({
       )}
 
       {/* Expanded detail section */}
-      {isExpanded && (
+      {isExpanded && isSupport && (
+        <div className="mt-3 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
+          {request.notes && (
+            <p className="text-[10pt] text-primary whitespace-pre-wrap">{request.notes}</p>
+          )}
+          <p className="text-[10pt] text-tertiary">
+            Submitted: {new Date(request.requested_at).toLocaleString()}
+          </p>
+          <div className="flex items-center gap-3 pt-1">
+            <button
+              onClick={() => setConfirmDeleteId(request.id)}
+              className="text-[10pt] text-themeredred font-medium transition-colors active:scale-95"
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isExpanded && !isSupport && (
         <div className="mt-3 pt-3 border-t border-tertiary/10 space-y-2" onClick={(e) => e.stopPropagation()}>
           {request.component && (
             <p className="text-[10pt] text-tertiary">
@@ -428,7 +468,8 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
           fullName.includes(q) ||
           r.email.toLowerCase().includes(q) ||
           (r.credential?.toLowerCase().includes(q) ?? false) ||
-          (r.rank?.toLowerCase().includes(q) ?? false)
+          (r.rank?.toLowerCase().includes(q) ?? false) ||
+          (r.notes?.toLowerCase().includes(q) ?? false)
         )
       })
     }
@@ -589,7 +630,21 @@ export function AdminRequestsList({ searchQuery: searchQueryProp, onUserApproved
       {/* Right-click / long-press context menu */}
       {contextMenu && (() => {
         const ctxRequest = requests.find(r => r.id === contextMenu.requestId)
-        const ctxItems = ctxRequest?.status === 'rejected' ? [
+        const ctxItems = ctxRequest?.request_type === 'support' ? [
+          {
+            key: 'view',
+            label: 'View',
+            icon: Eye,
+            onAction: () => setExpandedId(contextMenu.requestId),
+          },
+          {
+            key: 'delete',
+            label: 'Dismiss',
+            icon: Trash2,
+            destructive: true,
+            onAction: () => setConfirmDeleteId(contextMenu.requestId),
+          },
+        ] : ctxRequest?.status === 'rejected' ? [
           {
             key: 'view',
             label: 'View',

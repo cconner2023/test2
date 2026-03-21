@@ -66,14 +66,6 @@ export const menuData: sideMenuDataType[] = [
         action: 'settings',
         group: 'system'
     },
-    // Utility — below settings
-    {
-        text: "WhisperNet",
-        icon: 'lora',
-        action: 'lora',
-        group: 'utility',
-        gateKey: 'lora'
-    }
 ]
 
 export const medcomTrainingData: medcom[] = [

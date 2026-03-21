@@ -45,7 +45,6 @@ const PropertyDrawer = lazy(() => import('./Components/PropertyDrawer').then(m =
 const AdminDrawer = lazy(() => import('./Components/AdminDrawer').then(m => ({ default: m.AdminDrawer })))
 const SupervisorDrawer = lazy(() => import('./Components/SupervisorDrawer').then(m => ({ default: m.SupervisorDrawer })))
 const ProviderDrawer = lazy(() => import('./Components/ProviderDrawer').then(m => ({ default: m.ProviderDrawer })))
-const LoRaDrawer = lazy(() => import('./Components/LoRaDrawer').then(m => ({ default: m.LoRaDrawer })))
 const MapOverlayDrawer = lazy(() => import('./Components/MapOverlay/MapOverlayPanel'))
 const CalendarDrawer = lazy(() => import('./Components/CalendarDrawer').then(m => ({ default: m.CalendarDrawer })))
 const WriteNotePage = lazy(() => import('./Components/WriteNotePage').then(m => ({ default: m.WriteNotePage })))
@@ -226,9 +225,6 @@ function AppContent() {
     navigation.setShowPropertyDrawer(true)
   }, [navigation.setShowPropertyDrawer])
 
-  const handleLoRaClick = useCallback(() => {
-    navigation.setShowLoRaDrawer(true)
-  }, [navigation.setShowLoRaDrawer])
 
   const handleMapOverlayClick = useCallback(() => {
     navigation.setShowMapOverlayDrawer(true)
@@ -273,10 +269,7 @@ function AppContent() {
       case 'admin':
         handleAdminClick()
         break
-      case 'lora':
-        handleLoRaClick()
-        break
-      case 'mapOverlay':
+case 'mapOverlay':
         handleMapOverlayClick()
         break
       case 'calendar':
@@ -290,7 +283,7 @@ function AppContent() {
         navigation.setShowSettings(true)
         break
     }
-  }, [navigation.isMobile, navigation.toggleImportExpanded, navigation.setShowNoteImport, navigation.setShowSettings, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleLoRaClick, handleMapOverlayClick, handleCalendarClick, handleSupervisorClick, handleAdminClick])
+  }, [navigation.isMobile, navigation.toggleImportExpanded, navigation.setShowNoteImport, navigation.setShowSettings, handleKnowledgeBaseClick, handleMessagesClick, handlePropertyClick, handleMapOverlayClick, handleCalendarClick, handleSupervisorClick, handleAdminClick])
 
   // Callback for notification toast tap — opens MessagesDrawer to the target conversation
   const handleNotificationTap = useCallback((n: MessageNotification) => {
@@ -734,14 +727,6 @@ function AppContent() {
         <PropertyDrawer
           isVisible={navigation.showPropertyDrawer}
           onClose={() => navigation.setShowPropertyDrawer(false)}
-        />
-        </Suspense>
-        </ErrorBoundary>
-        <ErrorBoundary>
-        <Suspense fallback={null}>
-        <LoRaDrawer
-          isVisible={navigation.showLoRaDrawer}
-          onClose={() => navigation.setShowLoRaDrawer(false)}
         />
         </Suspense>
         </ErrorBoundary>

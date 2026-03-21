@@ -11,6 +11,8 @@ interface InfiniteScrollCalendarProps {
   onMonthChange: (monthLabel: string) => void
   onMoveEvent: (eventId: string, targetDateKey: string) => void
   onSelectEvent: (id: string) => void
+  scrollTargetDate?: string
+  scrollNonce?: number
 }
 
 const WEEKS_BUFFER = 26
@@ -141,10 +143,10 @@ function EventPill({ event, eventId, onTap, isDragging, dragHandlers }: EventPil
         e.stopPropagation()
         onTap(eventId)
       }}
-      className={`flex items-center gap-0.5 rounded px-1 py-px text-[9px] leading-tight truncate transition-opacity duration-150 cursor-pointer ${isDragging ? 'opacity-30' : ''}`}
+      className={`w-full rounded px-1.5 text-[9px] leading-tight truncate font-medium text-white transition-opacity duration-150 cursor-pointer active:scale-95 ${cat.color} ${isDragging ? 'opacity-30' : ''}`}
+      style={{ height: LANE_HEIGHT - 2, display: 'flex', alignItems: 'center' }}
     >
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cat.color}`} />
-      <span className="truncate text-secondary/80">{event.title}</span>
+      <span className="truncate">{event.title}</span>
     </div>
   )
 }
@@ -158,11 +160,25 @@ export function InfiniteScrollCalendar({
   onMonthChange,
   onMoveEvent,
   onSelectEvent,
+  scrollTargetDate,
+  scrollNonce,
 }: InfiniteScrollCalendarProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const weekRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const [weeks, setWeeks] = useState(() => generateWeeks(new Date(), WEEKS_BUFFER, WEEKS_BUFFER))
-  const initialScrollDone = useRef(false)
+  const [rowMinHeight, setRowMinHeight] = useState(88)
+
+  // Dynamically size rows so ~5 weeks fill the visible area
+  useEffect(() => {
+    const container = scrollRef.current
+    if (!container) return
+    const observer = new ResizeObserver(([entry]) => {
+      const h = entry.contentRect.height
+      if (h > 0) setRowMinHeight(Math.max(88, Math.floor(h / 5)))
+    })
+    observer.observe(container)
+    return () => observer.disconnect()
+  }, [])
   const today = useMemo(() => toDateKey(new Date()), [])
   const selectedKey = toDateKey(selectedDate)
   const justDroppedRef = useRef(false)
@@ -206,20 +222,39 @@ export function InfiniteScrollCalendar({
     return map
   }, [events])
 
-  // Scroll to current week on mount
-  useEffect(() => {
-    if (initialScrollDone.current) return
-    const todayWeekKey = weeks.find(w => w.days.some(d => d.dateKey === today))?.key
-    if (todayWeekKey) {
-      const el = weekRefs.current.get(todayWeekKey)
+  const scrollToDate = useCallback((dateKey: string) => {
+    const targetWeek = weeks.find(w => w.days.some(d => d.dateKey === dateKey))
+    if (targetWeek) {
+      const el = weekRefs.current.get(targetWeek.key)
       if (el && scrollRef.current) {
-        const containerTop = scrollRef.current.getBoundingClientRect().top
-        const elTop = el.getBoundingClientRect().top
-        scrollRef.current.scrollTop += elTop - containerTop - 80
-        initialScrollDone.current = true
+        // Center the target week in the viewport (offset by ~2 rows above)
+        const containerHeight = scrollRef.current.clientHeight
+        const rowHeight = el.offsetHeight || rowMinHeight
+        const centerOffset = Math.max(0, (containerHeight - rowHeight) / 2)
+        const isMobileView = window.innerWidth < 768
+        const headerOffset = isMobileView ? 60 : 0
+        scrollRef.current.scrollTop = el.offsetTop - centerOffset + headerOffset
       }
+    } else {
+      const targetDate = new Date(dateKey + 'T00:00:00')
+      setWeeks(generateWeeks(targetDate, WEEKS_BUFFER, WEEKS_BUFFER))
     }
-  }, [weeks, today])
+  }, [weeks])
+
+  // Scroll on mount (handles initial open + returning from other views)
+  useEffect(() => {
+    if (!scrollTargetDate) return
+    requestAnimationFrame(() => scrollToDate(scrollTargetDate))
+    // Only run on mount — scrollTargetDate changes are handled by the effect below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Scroll when target date or nonce changes after mount
+  useEffect(() => {
+    if (!scrollTargetDate) return
+    requestAnimationFrame(() => scrollToDate(scrollTargetDate))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scrollTargetDate, scrollNonce])
 
   // Detect visible month for header
   useEffect(() => {
@@ -290,7 +325,7 @@ export function InfiniteScrollCalendar({
       {/* Scrollable weeks */}
       <div
         ref={scrollRef}
-        className={`flex-1 ${dragState.isDragging ? 'overflow-hidden' : 'overflow-y-auto'}`}
+        className={`flex-1 relative ${dragState.isDragging ? 'overflow-hidden' : 'overflow-y-auto'}`}
         onScroll={handleScroll}
       >
         {/* Spacer for mobile floating header (header row + day-of-week row) */}
@@ -356,21 +391,20 @@ export function InfiniteScrollCalendar({
                           if (!justDroppedRef.current) onSelectDate(day.date)
                         }
                       }}
-                      className={`flex flex-col items-start px-0.5 py-1 min-h-[88px] transition-all duration-150 hover:bg-primary/3 active:scale-[0.97] cursor-pointer ${
+                      style={{ minHeight: rowMinHeight }}
+                      className={`flex flex-col items-start px-0.5 py-1 transition-all duration-150 hover:bg-primary/3 active:scale-[0.97] cursor-pointer ${
                         i < 6 ? 'border-r border-primary/8' : ''
-                      } ${isDropTarget ? 'ring-2 ring-themeblue3 ring-inset bg-themeblue3/5' : ''}`}
+                      } ${isDropTarget ? 'ring-2 ring-themeblue3 ring-inset bg-themeblue3/5' : ''} ${
+                        isToday && !isDropTarget && !isSelected ? 'bg-themeblue3/8 border border-themeblue2/30' : ''
+                      } ${isSelected && !isDropTarget ? 'bg-themeblue3/20 border border-themeblue2/30' : ''}`}
                     >
                       <div className="flex items-center justify-start w-full mb-0.5">
                         <span className={`w-6 h-6 flex items-center justify-center text-xs font-semibold rounded-full ${
-                          isSelected
-                            ? 'bg-themeblue3 text-white'
-                            : isToday
-                              ? 'bg-themeblue3/15 text-themeblue3'
-                              : day.day === 1
-                                ? 'text-primary font-bold'
-                                : day.month === selectedDate.getMonth()
-                                  ? 'text-primary'
-                                  : 'text-tertiary/30'
+                          day.day === 1
+                            ? 'text-primary font-bold'
+                            : day.month === selectedDate.getMonth()
+                              ? 'text-primary'
+                              : 'text-tertiary/30'
                         }`}>
                           {day.day}
                         </span>
@@ -379,7 +413,7 @@ export function InfiniteScrollCalendar({
                       {/* Spacer for multi-day lanes so single-day pills sit below */}
                       {laneCount > 0 && <div style={{ height: laneCount * LANE_HEIGHT }} />}
 
-                      <div className="w-full space-y-px overflow-hidden">
+                      <div className="w-full space-y-0.5 overflow-hidden">
                         {dayEvents.slice(0, 3).map(event => (
                           <EventPill
                             key={event.id}
