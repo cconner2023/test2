@@ -1,6 +1,8 @@
 import { useRef, useEffect, useCallback, useMemo } from 'react'
-import { Check, ChevronRight, Lock } from 'lucide-react'
+import { Check, ChevronRight, Lock, CalendarDays } from 'lucide-react'
 import { EmptyState } from '../EmptyState'
+import { useMessagesContext } from '../../Hooks/MessagesContext'
+import { useCalendarStore } from '../../stores/useCalendarStore'
 import { stp68wTraining } from '../../Data/TrainingTaskList'
 import { getTaskData } from '../../Data/TrainingData'
 import type { TaskTrainingData } from '../../Data/TrainingData'
@@ -77,16 +79,26 @@ function TaskRow({
     onSelectTask,
     isTaskCompleted,
     isTaskViewed,
+    assignment,
 }: {
     task: FlatTask
     onSelectTask: (t: subjectAreaArrayOptions) => void
     isTaskCompleted: (id: string) => boolean
     isTaskViewed: (id: string) => boolean
+    assignment?: ReturnType<ReturnType<typeof useTrainingCompletions>['getAssignment']>
 }) {
     const hasData = !!getTaskData(task.taskId)
     const completed = isTaskCompleted(task.taskId)
     const viewed = isTaskViewed(task.taskId)
     const badge = skillLevelLabels[task.levelName] ?? task.levelName
+
+    const isAssigned = assignment && !assignment.completedAt
+    const isOverdue = isAssigned && assignment.dueDate && new Date(assignment.dueDate) < new Date()
+
+    const formatDueDate = (iso: string) => {
+        const d = new Date(iso + 'T00:00:00')
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    }
 
     return (
         <button
@@ -102,9 +114,16 @@ function TaskRow({
                 <p className={`text-sm font-medium truncate ${hasData ? 'text-primary' : 'text-tertiary/40'}`}>
                     {task.title}
                 </p>
-                <p className="text-[11px] text-tertiary/70 mt-0.5 font-mono">
-                    {task.taskId}
-                </p>
+                <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-[11px] text-tertiary/70 font-mono">
+                        {task.taskId}
+                    </p>
+                    {isAssigned && assignment.dueDate && (
+                        <span className={`text-[10px] font-medium ${isOverdue ? 'text-themeredred' : 'text-themeblue3'}`}>
+                            {isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}
+                        </span>
+                    )}
+                </div>
                 {!hasData && (
                     <p className="text-[9px] text-tertiary/40 flex items-center gap-1 mt-0.5">
                         <Lock size={9} /> Coming soon
@@ -117,6 +136,8 @@ function TaskRow({
                 </span>
                 {completed ? (
                     <Check size={16} className="text-themegreen" />
+                ) : isAssigned ? (
+                    <div className={`w-2 h-2 rounded-full ${isOverdue ? 'bg-themeredred' : 'bg-themeblue3'}`} />
                 ) : viewed ? (
                     <div className="w-2 h-2 rounded-full bg-themeyellow" />
                 ) : hasData ? (
@@ -134,7 +155,7 @@ function TrainingList({
     onSelectTask: (task: subjectAreaArrayOptions) => void
     searchQuery: string
 }) {
-    const { isTaskCompleted, isTaskViewed } = useTrainingCompletions()
+    const { isTaskCompleted, isTaskViewed, getAssignment } = useTrainingCompletions()
 
     const allByCategory = useMemo(() => buildAllTasksByCategory(), [])
 
@@ -192,6 +213,7 @@ function TrainingList({
                                         onSelectTask={onSelectTask}
                                         isTaskCompleted={isTaskCompleted}
                                         isTaskViewed={isTaskViewed}
+                                        assignment={getAssignment(task.taskId)}
                                     />
                                 </div>
                             ))}
@@ -213,9 +235,43 @@ function TaskDetail({
     taskData: TaskTrainingData
     taskNumber: string
 }) {
-    const { markTaskViewed, markTaskCompleted, isTaskCompleted } = useTrainingCompletions()
+    const { markTaskViewed, markTaskCompleted, isTaskCompleted, getAssignment } = useTrainingCompletions()
     const bottomRef = useRef<HTMLDivElement>(null)
     const completed = isTaskCompleted(taskNumber)
+    const assignment = getAssignment(taskNumber)
+    const isAssigned = assignment && !assignment.completedAt
+    const isOverdue = isAssigned && assignment.dueDate && new Date(assignment.dueDate) < new Date()
+
+    const messagesCtx = useMessagesContext()
+    const calendarGroupId = useCalendarStore(s => s.calendarGroupId)
+    const calendarEvents = useCalendarStore(s => s.events)
+    const updateCalendarEvent = useCalendarStore(s => s.updateEvent)
+
+    const formatDueDate = (iso: string) => {
+        const d = new Date(iso + 'T00:00:00')
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    }
+
+    const updateCalendarOnCompletion = useCallback(() => {
+        if (!isAssigned || !assignment.calendarOriginId || !calendarGroupId || !messagesCtx?.sendCalendarEvent) return
+        const calEvent = calendarEvents.find(e => e.originId === assignment.calendarOriginId)
+        if (!calEvent) return
+
+        const updatedEvent = { ...calEvent, status: 'completed' as const, updated_at: new Date().toISOString() }
+        updateCalendarEvent(calEvent.id, { status: 'completed', updated_at: updatedEvent.updated_at })
+
+        const oldOriginIds = calEvent.originId ? [calEvent.originId] : []
+        if (oldOriginIds.length > 0 && messagesCtx.deleteCalendarEventMessages) {
+            messagesCtx.deleteCalendarEventMessages(calendarGroupId, oldOriginIds).catch(() => {})
+        }
+        messagesCtx.sendCalendarEvent(calendarGroupId, {
+            type: 'calendar_event',
+            action: 'create',
+            data: updatedEvent,
+        }).then(newOriginId => {
+            if (newOriginId) updateCalendarEvent(calEvent.id, { originId: newOriginId })
+        }).catch(() => {})
+    }, [isAssigned, assignment, calendarGroupId, messagesCtx, calendarEvents, updateCalendarEvent])
 
     // Mark as viewed on mount
     useEffect(() => {
@@ -229,6 +285,7 @@ function TaskDetail({
             ([entry]) => {
                 if (entry.isIntersecting) {
                     markTaskCompleted(taskNumber)
+                    updateCalendarOnCompletion()
                     observer.disconnect()
                 }
             },
@@ -236,11 +293,12 @@ function TaskDetail({
         )
         observer.observe(bottomRef.current)
         return () => observer.disconnect()
-    }, [taskNumber, completed, markTaskCompleted])
+    }, [taskNumber, completed, markTaskCompleted, updateCalendarOnCompletion])
 
     const handleMarkComplete = useCallback(() => {
         markTaskCompleted(taskNumber)
-    }, [taskNumber, markTaskCompleted])
+        updateCalendarOnCompletion()
+    }, [taskNumber, markTaskCompleted, updateCalendarOnCompletion])
 
     return (
         <div className="px-4 py-3 md:p-5 pb-12">
@@ -254,6 +312,25 @@ function TaskDetail({
                     </span>
                 )}
             </div>
+
+            {/* Assignment banner */}
+            {isAssigned && assignment.dueDate && (
+                <div className={`flex items-center gap-2 px-3 py-2.5 rounded-lg mb-4 ${
+                    isOverdue
+                        ? 'bg-themeredred/10 border border-themeredred/20'
+                        : 'bg-themeblue3/10 border border-themeblue3/20'
+                }`}>
+                    <CalendarDays size={15} className={isOverdue ? 'text-themeredred' : 'text-themeblue3'} />
+                    <span className={`text-sm font-medium ${isOverdue ? 'text-themeredred' : 'text-themeblue3'}`}>
+                        {isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}
+                    </span>
+                    {assignment.supervisorNotes && (
+                        <span className="text-xs text-tertiary/60 ml-auto truncate max-w-[50%]">
+                            {assignment.supervisorNotes}
+                        </span>
+                    )}
+                </div>
+            )}
 
             {/* Conditions */}
             <div className="mb-5">

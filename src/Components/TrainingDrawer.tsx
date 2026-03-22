@@ -1,8 +1,10 @@
 import { useEffect, useRef, useCallback } from 'react'
-import { Check } from 'lucide-react'
+import { Check, CalendarDays } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { getTaskData } from '../Data/TrainingData'
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
+import { useMessagesContext } from '../Hooks/MessagesContext'
+import { useCalendarStore } from '../stores/useCalendarStore'
 import { AudioAidPlayer } from './AudioAidPlayer'
 import { StepCallout, PerformanceStepItem, SectionHeader } from './TrainingStepComponents'
 
@@ -14,9 +16,45 @@ interface TrainingDrawerProps {
 
 function TrainingDrawerContent({ taskId }: { taskId: string }) {
     const taskData = getTaskData(taskId)
-    const { markTaskViewed, markTaskCompleted, isTaskCompleted } = useTrainingCompletions()
+    const { markTaskViewed, markTaskCompleted, isTaskCompleted, getAssignment } = useTrainingCompletions()
     const bottomRef = useRef<HTMLDivElement>(null)
     const completed = isTaskCompleted(taskId)
+    const assignment = getAssignment(taskId)
+    const isAssigned = assignment && !assignment.completedAt
+    const isOverdue = isAssigned && assignment.dueDate && new Date(assignment.dueDate) < new Date()
+
+    const messagesCtx = useMessagesContext()
+    const calendarGroupId = useCalendarStore(s => s.calendarGroupId)
+    const calendarEvents = useCalendarStore(s => s.events)
+    const updateCalendarEvent = useCalendarStore(s => s.updateEvent)
+
+    const formatDueDate = (iso: string) => {
+        const d = new Date(iso + 'T00:00:00')
+        return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    }
+
+    const updateCalendarOnCompletion = useCallback(() => {
+        if (!isAssigned || !assignment.calendarOriginId || !calendarGroupId || !messagesCtx?.sendCalendarEvent) return
+        // Find the calendar event by matching originId
+        const calEvent = calendarEvents.find(e => e.originId === assignment.calendarOriginId)
+        if (!calEvent) return
+
+        const updatedEvent = { ...calEvent, status: 'completed' as const, updated_at: new Date().toISOString() }
+        updateCalendarEvent(calEvent.id, { status: 'completed', updated_at: updatedEvent.updated_at })
+
+        // Delete old broadcast, send replacement
+        const oldOriginIds = calEvent.originId ? [calEvent.originId] : []
+        if (oldOriginIds.length > 0 && messagesCtx.deleteCalendarEventMessages) {
+            messagesCtx.deleteCalendarEventMessages(calendarGroupId, oldOriginIds).catch(() => {})
+        }
+        messagesCtx.sendCalendarEvent(calendarGroupId, {
+            type: 'calendar_event',
+            action: 'create',
+            data: updatedEvent,
+        }).then(newOriginId => {
+            if (newOriginId) updateCalendarEvent(calEvent.id, { originId: newOriginId })
+        }).catch(() => {})
+    }, [isAssigned, assignment, calendarGroupId, messagesCtx, calendarEvents, updateCalendarEvent])
 
     // Mark as viewed on mount
     useEffect(() => {
@@ -30,6 +68,7 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
             ([entry]) => {
                 if (entry.isIntersecting) {
                     markTaskCompleted(taskId)
+                    updateCalendarOnCompletion()
                     observer.disconnect()
                 }
             },
@@ -37,11 +76,12 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
         )
         observer.observe(bottomRef.current)
         return () => observer.disconnect()
-    }, [taskId, completed, markTaskCompleted])
+    }, [taskId, completed, markTaskCompleted, updateCalendarOnCompletion])
 
     const handleMarkComplete = useCallback(() => {
         markTaskCompleted(taskId)
-    }, [taskId, markTaskCompleted])
+        updateCalendarOnCompletion()
+    }, [taskId, markTaskCompleted, updateCalendarOnCompletion])
 
     if (!taskData) {
         return (
@@ -64,6 +104,25 @@ function TrainingDrawerContent({ taskId }: { taskId: string }) {
                         </span>
                     )}
                 </div>
+
+                {/* Assignment banner */}
+                {isAssigned && assignment.dueDate && (
+                    <div className={`flex items-center gap-2 px-3 py-2.5 rounded-lg mb-4 ${
+                        isOverdue
+                            ? 'bg-themeredred/10 border border-themeredred/20'
+                            : 'bg-themeblue3/10 border border-themeblue3/20'
+                    }`}>
+                        <CalendarDays size={15} className={isOverdue ? 'text-themeredred' : 'text-themeblue3'} />
+                        <span className={`text-sm font-medium ${isOverdue ? 'text-themeredred' : 'text-themeblue3'}`}>
+                            {isOverdue ? 'Overdue' : 'Due'}: {formatDueDate(assignment.dueDate)}
+                        </span>
+                        {assignment.supervisorNotes && (
+                            <span className="text-xs text-tertiary/60 ml-auto truncate max-w-[50%]">
+                                {assignment.supervisorNotes}
+                            </span>
+                        )}
+                    </div>
+                )}
 
                 {/* Warning (task-level) */}
                 {taskData.warning && (

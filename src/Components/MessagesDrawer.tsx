@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useSpring, animated } from '@react-spring/web'
-import { ChevronLeft, PenLine, X } from 'lucide-react'
+import { ChevronLeft, PenLine, X, Video, Phone, Info } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { HeaderPill, PillButton } from './HeaderPill'
 import { MessagesPanel, type MessagesView, type MessagesPanelHandle } from './Settings/MessagesPanel'
@@ -8,6 +8,7 @@ import { useMessagesContext } from '../Hooks/MessagesContext'
 import { useAuth } from '../Hooks/useAuth'
 import { useUserProfile } from '../Hooks/useUserProfile'
 import { useIsMobile } from '../Hooks/useIsMobile'
+import { useCallActions } from '../Hooks/CallContext'
 import { useSwipeBack } from '../Hooks/useSwipeBack'
 import type { ClinicMedic } from '../Types/SupervisorTestTypes'
 import type { GroupInfo } from '../lib/signal/groupTypes'
@@ -36,6 +37,8 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     const { profile } = useUserProfile()
     const panelRef = useRef<MessagesPanelHandle>(null)
     const isMobile = useIsMobile()
+    const callActions = useCallActions()
+    const selectedGroup = selectedGroupId && messagesCtx ? messagesCtx.groups[selectedGroupId] : null
 
     // Apply deep-link when drawer opens
     useMemo(() => {
@@ -169,8 +172,30 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
     // ── Desktop: BaseDrawer overlay ───────────────────────────────────────
 
     const desktopHeaderConfig = useMemo(() => {
-        if (isConversationView) {
-            return { title: 'Messages', showBack: true, onBack: handleBack }
+        if (view === 'messages-chat' && selectedPeerId) {
+            return {
+                title: selectedPeerName ?? 'Chat',
+                showBack: true,
+                onBack: handleBack,
+                rightContent: callActions ? (
+                    <HeaderPill>
+                        <PillButton icon={Video} onClick={() => callActions.startVideoCall({ userId: selectedPeerId, displayName: selectedPeerName ?? 'Unknown' })} label="Video call" compact />
+                        <PillButton icon={Phone} onClick={() => callActions.startCall({ userId: selectedPeerId, displayName: selectedPeerName ?? 'Unknown' })} label="Voice call" compact />
+                    </HeaderPill>
+                ) : undefined,
+            }
+        }
+        if (view === 'messages-group-chat' && selectedGroupId) {
+            return {
+                title: selectedPeerName ?? 'Group',
+                showBack: true,
+                onBack: handleBack,
+                rightContent: (
+                    <HeaderPill>
+                        <PillButton icon={Info} onClick={() => panelRef.current?.showGroupInfo()} label="Group info" compact />
+                    </HeaderPill>
+                ),
+            }
         }
         return {
             title: 'Messages',
@@ -182,7 +207,7 @@ export function MessagesDrawer({ isVisible, onClose, initialPeerId, initialGroup
                 </HeaderPill>
             ),
         }
-    }, [isConversationView, handleBack, handleClose])
+    }, [view, selectedPeerId, selectedGroupId, selectedPeerName, handleBack, handleClose, callActions])
 
     return (
         <BaseDrawer

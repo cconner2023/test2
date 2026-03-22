@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo, useRef } from 'react'
 import { Clock, Plus, Users2, CalendarDays, X, Check, Pencil, Trash2 } from 'lucide-react'
+import { CardContextMenu } from '../CardContextMenu'
 import { useShallow } from 'zustand/react/shallow'
 import { useIsMobile } from '../../Hooks/useIsMobile'
 import { EventForm } from './EventForm'
@@ -46,6 +47,7 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
   useCalendarSync()
 
   const [confirmDeleteEvent, setConfirmDeleteEvent] = useState<string | null>(null)
+  const [contextMenu, setContextMenu] = useState<{ eventId: string; x: number; y: number } | null>(null)
 
   const [showDayDrawer, setShowDayDrawer] = useState(false)
   const [dayDrawerView, setDayDrawerView] = useState<DayDrawerView>('detail')
@@ -187,7 +189,9 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
   const handleSaveEvent = useCallback((data: EventFormData) => {
     const now = new Date().toISOString()
     if (editingEvent) {
-      const changes = {
+      // Edit = delete old broadcast + send fresh replacement (Signal-safe pattern)
+      const updatedEvent: CalendarEvent = {
+        ...editingEvent,
         title: data.title,
         description: data.description || null,
         category: data.category,
@@ -201,14 +205,22 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
         property_item_ids: data.property_item_ids,
         updated_at: now,
       }
-      updateEvent(editingEvent.id, changes)
+      // Hard-delete old broadcast from Supabase, then send replacement
       if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
+        const oldOriginIds = editingEvent.originId ? [editingEvent.originId] : []
+        if (oldOriginIds.length > 0 && messagesCtx.deleteCalendarEventMessages) {
+          messagesCtx.deleteCalendarEventMessages(calendarGroupId, oldOriginIds).catch(() => {})
+        }
         messagesCtx.sendCalendarEvent(calendarGroupId, {
           type: 'calendar_event',
-          action: 'update',
-          data: { id: editingEvent.id, ...changes },
+          action: 'create',
+          data: updatedEvent,
+        }).then(newOriginId => {
+          if (newOriginId) updateEvent(editingEvent.id, { ...updatedEvent, originId: newOriginId })
         }).catch(() => {})
       }
+      // Update local state immediately (originId will be patched async above)
+      updateEvent(editingEvent.id, updatedEvent)
     } else {
       const newEvent: CalendarEvent = {
         id: generateId(),
@@ -236,6 +248,8 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
           type: 'calendar_event',
           action: 'create',
           data: newEvent,
+        }).then(originId => {
+          if (originId) updateEvent(newEvent.id, { originId })
         }).catch(() => {})
       }
     }
@@ -251,17 +265,25 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
     const durationMs = originalEnd.getTime() - originalStart.getTime()
     const newStart = new Date(newStartTime)
     const newEnd = new Date(newStart.getTime() + durationMs)
-    const changes = {
+    const movedEvent: CalendarEvent = {
+      ...event,
       start_time: newStartTime,
       end_time: newEnd.toISOString().slice(0, 16),
       updated_at: new Date().toISOString(),
     }
-    updateEvent(eventId, changes)
+    updateEvent(eventId, movedEvent)
+    // Delete old broadcast, send replacement with full state
     if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
+      const oldOriginIds = event.originId ? [event.originId] : []
+      if (oldOriginIds.length > 0 && messagesCtx.deleteCalendarEventMessages) {
+        messagesCtx.deleteCalendarEventMessages(calendarGroupId, oldOriginIds).catch(() => {})
+      }
       messagesCtx.sendCalendarEvent(calendarGroupId, {
         type: 'calendar_event',
-        action: 'update',
-        data: { id: eventId, ...changes },
+        action: 'create',
+        data: movedEvent,
+      }).then(newOriginId => {
+        if (newOriginId) updateEvent(eventId, { originId: newOriginId })
       }).catch(() => {})
     }
   }, [events, updateEvent, calendarGroupId, messagesCtx])
@@ -278,33 +300,50 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
     const newEnd = new Date(newStart.getTime() + durationMs)
     const pad = (n: number) => String(n).padStart(2, '0')
     const toISO = (dt: Date) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`
-    const changes = {
+    const movedEvent: CalendarEvent = {
+      ...event,
       start_time: toISO(newStart),
       end_time: toISO(newEnd),
       updated_at: new Date().toISOString(),
     }
-    updateEvent(eventId, changes)
+    updateEvent(eventId, movedEvent)
+    // Delete old broadcast, send replacement with full state
     if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
+      const oldOriginIds = event.originId ? [event.originId] : []
+      if (oldOriginIds.length > 0 && messagesCtx.deleteCalendarEventMessages) {
+        messagesCtx.deleteCalendarEventMessages(calendarGroupId, oldOriginIds).catch(() => {})
+      }
       messagesCtx.sendCalendarEvent(calendarGroupId, {
         type: 'calendar_event',
-        action: 'update',
-        data: { id: eventId, ...changes },
+        action: 'create',
+        data: movedEvent,
+      }).then(newOriginId => {
+        if (newOriginId) updateEvent(eventId, { originId: newOriginId })
       }).catch(() => {})
     }
   }, [events, updateEvent, calendarGroupId, messagesCtx])
 
   const handleDeleteEvent = useCallback((id: string) => {
+    const event = events.find(e => e.id === id)
     removeEvent(id)
     selectEvent(null)
     setPanelView('calendar')
-    if (calendarGroupId && messagesCtx?.sendCalendarEvent) {
-      messagesCtx.sendCalendarEvent(calendarGroupId, {
-        type: 'calendar_event',
-        action: 'delete',
-        data: { id },
-      }).catch(() => {})
+    if (calendarGroupId && messagesCtx) {
+      // Hard-delete from Supabase + protocol-level delete to all devices
+      const originIds = event?.originId ? [event.originId] : []
+      if (originIds.length > 0 && messagesCtx.deleteCalendarEventMessages) {
+        messagesCtx.deleteCalendarEventMessages(calendarGroupId, originIds).catch(() => {})
+      }
+      // Also broadcast the calendar delete action for devices that are online
+      if (messagesCtx.sendCalendarEvent) {
+        messagesCtx.sendCalendarEvent(calendarGroupId, {
+          type: 'calendar_event',
+          action: 'delete',
+          data: { id },
+        }).catch(() => {})
+      }
     }
-  }, [removeEvent, selectEvent, calendarGroupId, messagesCtx])
+  }, [events, removeEvent, selectEvent, calendarGroupId, messagesCtx])
 
   const handleFormCancel = useCallback(() => {
     setEditingEvent(null)
@@ -315,6 +354,11 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
     selectEvent(null)
     setPanelView('calendar')
   }, [selectEvent])
+
+  const handleEventContextMenu = useCallback((eventId: string, x: number, y: number) => {
+    if (isMobile) return
+    setContextMenu({ eventId, x, y })
+  }, [isMobile])
 
   // ── Day drawer handlers (mobile) ──
 
@@ -463,6 +507,7 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
             onMonthChange={setMonthLabel}
             onMoveEvent={handleMoveEventToDate}
             onSelectEvent={handleSelectEvent}
+            onEventContextMenu={handleEventContextMenu}
             scrollTargetDate={selectedDateStr}
             scrollNonce={scrollNonce}
           />
@@ -474,6 +519,7 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
             events={dayEvents}
             onSelectEvent={handleSelectEvent}
             onMoveEvent={handleMoveEvent}
+            onEventContextMenu={handleEventContextMenu}
           />
         )}
 
@@ -629,6 +675,18 @@ export function CalendarPanel({ onBack, scrollNonce }: CalendarPanelProps) {
           />
         )}
       </BaseDrawer>
+
+      {contextMenu && (
+        <CardContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          onClose={() => setContextMenu(null)}
+          items={[
+            { key: 'edit', label: 'Edit', icon: Pencil, onAction: () => handleEditEvent(contextMenu.eventId) },
+            { key: 'delete', label: 'Delete', icon: Trash2, destructive: true, onAction: () => setConfirmDeleteEvent(contextMenu.eventId) },
+          ]}
+        />
+      )}
 
       {deleteConfirmDialog}
     </div>

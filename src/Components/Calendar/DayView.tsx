@@ -7,6 +7,7 @@ interface DayViewProps {
   events: CalendarEvent[]
   onSelectEvent: (id: string) => void
   onMoveEvent: (eventId: string, newStartTime: string) => void
+  onEventContextMenu?: (eventId: string, x: number, y: number) => void
 }
 
 interface ActiveDrag {
@@ -98,7 +99,7 @@ function resolveOverlaps(events: CalendarEvent[], dateKey: string) {
   return columns
 }
 
-export function DayView({ date, events, onSelectEvent, onMoveEvent }: DayViewProps) {
+export function DayView({ date, events, onSelectEvent, onMoveEvent, onEventContextMenu }: DayViewProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<ActiveDrag | null>(null)
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -247,6 +248,12 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent }: DayViewPro
             <button
               key={e.id}
               onClick={() => onSelectEvent(e.id)}
+              onContextMenu={(ev) => {
+                if (onEventContextMenu) {
+                  ev.preventDefault()
+                  onEventContextMenu(e.id, ev.clientX, ev.clientY)
+                }
+              }}
               className={`w-full text-left text-xs font-medium px-2 py-1 rounded border ${CATEGORY_BG_MAP[e.category]} active:scale-95 transition-all duration-200 truncate`}
             >
               {e.title}
@@ -294,6 +301,12 @@ export function DayView({ date, events, onSelectEvent, onMoveEvent }: DayViewPro
                 role="button"
                 tabIndex={0}
                 onClick={() => handleEventClick(event.id)}
+                onContextMenu={(e) => {
+                  if (onEventContextMenu) {
+                    e.preventDefault()
+                    onEventContextMenu(event.id, e.clientX, e.clientY)
+                  }
+                }}
                 onTouchStart={(e) => handleTouchStart(event.id, top, e)}
                 onTouchMove={handleTouchMove}
                 onTouchEnd={handleTouchEnd}

@@ -36,7 +36,7 @@ export function useNavItems(): UseNavItemsReturn {
   const gatedItems = useMemo(() => menuData.filter(item => {
     if (!item.gateKey) return true
     if (item.gateKey === 'authenticated') return isAuthenticated
-    if (item.gateKey === 'property') return isAuthenticated && PROPERTY_MANAGEMENT_ENABLED
+    if (item.gateKey === 'property') return isAuthenticated && PROPERTY_MANAGEMENT_ENABLED && isDevRole
     if (item.gateKey === 'provider') return isProviderRole
     if (item.gateKey === 'supervisor') return isSupervisorRole
     if (item.gateKey === 'admin') return isDevRole

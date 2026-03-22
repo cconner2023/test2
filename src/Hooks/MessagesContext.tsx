@@ -84,7 +84,7 @@ export function MessagesProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<MessagesContextValue | null>(() => {
     if (!isAuthenticated) return null
     return { ...messagesRef.current, notification, dismissNotification: dismiss }
-  }, [isAuthenticated, messages.conversations, messages.unreadCounts, messages.sending, messages.groups, messages.sendMessage, messages.sendCalendarEvent, notification, dismiss])
+  }, [isAuthenticated, messages.conversations, messages.unreadCounts, messages.sending, messages.groups, messages.sendMessage, messages.sendCalendarEvent, messages.deleteCalendarEventMessages, notification, dismiss])
 
   return (
     <MessagesContext.Provider value={value}>

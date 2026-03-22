@@ -27,9 +27,20 @@ export function routeCalendarEvent(content: CalendarEventContent): void {
   const store = useCalendarStore.getState()
 
   if (action === 'create') {
-    store.addEvent(data as CalendarEvent)
+    // Upsert: if the event already exists (replacement message after edit),
+    // update it with the full new state; otherwise add as new.
+    if (store.events.some(e => e.id === data.id)) {
+      store.updateEvent(data.id, data as Partial<CalendarEvent>)
+    } else {
+      store.addEvent(data as CalendarEvent)
+    }
   } else if (action === 'update') {
-    store.updateEvent(data.id, data as Partial<CalendarEvent>)
+    // Legacy delta updates — kept for backward compat with in-flight messages
+    if (store.events.some(e => e.id === data.id)) {
+      store.updateEvent(data.id, data as Partial<CalendarEvent>)
+    } else {
+      store.addEvent(data as CalendarEvent)
+    }
   } else if (action === 'delete') {
     store.removeEvent(data.id)
   }

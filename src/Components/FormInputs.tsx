@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from 'react'
-import { Eye, EyeOff, ChevronDown } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Eye, EyeOff, ChevronDown, Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useIsMobile } from '../Hooks/useIsMobile'
 
 export const TextInput = ({
   label,
@@ -43,9 +44,9 @@ export const TextInput = ({
       placeholder={placeholder}
       maxLength={maxLength}
       required={required}
-      className={`${label ? 'mt-1' : ''} w-full px-3 py-2.5 rounded-lg text-primary text-base
-                 border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none
-                 transition-all placeholder:text-tertiary/30`}
+      className={`${label ? 'mt-1' : ''} w-full px-4 py-2.5 rounded-full text-primary text-sm
+                 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none
+                 transition-all duration-300 placeholder:text-tertiary/30`}
     />
     {hint && (
       <span className="mt-1 block text-xs text-themeredred">{hint}</span>
@@ -102,6 +103,8 @@ export const SelectInput = ({
   </label>
 )
 
+/* ── Picker Input (drawer/modal selection) ── */
+
 export const PickerInput = ({
   value,
   onChange,
@@ -115,105 +118,672 @@ export const PickerInput = ({
   placeholder?: string
   required?: boolean
 }) => {
+  const isMobile = useIsMobile()
+  const [visible, setVisible] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const [open, setOpen] = useState(false)
-  const [highlighted, setHighlighted] = useState(-1)
-  const ref = useRef<HTMLDivElement>(null)
-  const listRef = useRef<HTMLDivElement>(null)
+  const [dragY, setDragY] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
+  const dragStartY = useRef(0)
 
   useEffect(() => {
-    if (!open) return
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    if (visible) {
+      setMounted(true)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setOpen(true))
+      })
+    } else {
+      setOpen(false)
+      const t = setTimeout(() => {
+        setMounted(false)
+        setDragY(0)
+      }, 300)
+      return () => clearTimeout(t)
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
+  }, [visible])
 
-  useEffect(() => {
-    if (open) {
-      const idx = value ? options.indexOf(value) : 0
-      setHighlighted(idx >= 0 ? idx : 0)
-    }
-  }, [open, options, value])
+  const handleClose = useCallback(() => {
+    setOpen(false)
+    setTimeout(() => setVisible(false), 300)
+  }, [])
 
-  useEffect(() => {
-    if (!open || highlighted < 0) return
-    const el = listRef.current?.children[highlighted] as HTMLElement | undefined
-    el?.scrollIntoView({ block: 'nearest' })
-  }, [highlighted, open])
+  const handleSelect = useCallback((opt: string) => {
+    onChange(opt)
+    handleClose()
+  }, [onChange, handleClose])
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (!open) {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault()
-        setOpen(true)
-      }
-      return
-    }
-    switch (e.key) {
-      case 'ArrowDown':
-        e.preventDefault()
-        setHighlighted(i => Math.min(i + 1, options.length - 1))
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        setHighlighted(i => Math.max(i - 1, 0))
-        break
-      case 'Enter':
-      case ' ':
-        e.preventDefault()
-        if (highlighted >= 0 && highlighted < options.length) {
-          onChange(options[highlighted])
-          setOpen(false)
-        }
-        break
-      case 'Escape':
-        e.preventDefault()
-        setOpen(false)
-        break
-    }
-  }
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    const target = e.target as HTMLElement
+    if (!target.closest('[data-drag-zone]')) return
+    dragStartY.current = e.touches[0].clientY
+    setIsDragging(true)
+  }, [])
+
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isDragging) return
+    const dy = Math.max(0, e.touches[0].clientY - dragStartY.current)
+    setDragY(dy)
+  }, [isDragging])
+
+  const onTouchEnd = useCallback(() => {
+    if (!isDragging) return
+    setIsDragging(false)
+    if (dragY > 80) handleClose()
+    setDragY(0)
+  }, [isDragging, dragY, handleClose])
 
   return (
-    <div ref={ref} className="relative">
+    <div className="relative">
       <button
         type="button"
-        onClick={() => setOpen(!open)}
-        onFocus={() => setOpen(true)}
-        onKeyDown={handleKeyDown}
-        className={`w-full px-3 py-2.5 rounded-lg text-left text-base
-                   border border-tertiary/10 focus:border-themeblue1/30 focus:bg-themewhite2 bg-themewhite dark:bg-themewhite3 focus:outline-none
-                   transition-all flex items-center justify-between active:scale-[0.98] ${
+        onClick={() => setVisible(true)}
+        className={`w-full px-4 py-2.5 rounded-full text-left text-sm
+                   border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3
+                   transition-all duration-200 flex items-center justify-between active:scale-[0.98] ${
                      value ? 'text-primary' : 'text-tertiary/30'
                    }`}
       >
         <span className="truncate">{value || placeholder || 'Select...'}</span>
-        <ChevronDown size={16} className={`shrink-0 ml-2 text-tertiary/40 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary/40" />
       </button>
       {required && !value && (
         <input tabIndex={-1} className="absolute inset-0 opacity-0 pointer-events-none" required value="" onChange={() => {}} />
       )}
-      {open && (
-        <div ref={listRef} className="absolute z-50 left-0 right-0 top-full mt-1 max-h-52 overflow-y-auto rounded-xl border border-tertiary/10 bg-themewhite dark:bg-themewhite3 shadow-lg">
-          {options.map((opt, i) => (
-            <button
-              key={opt}
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onMouseEnter={() => setHighlighted(i)}
-              onClick={() => { onChange(opt); setOpen(false) }}
-              className={`w-full text-left px-3 py-2.5 text-sm transition-colors active:scale-95 ${
-                i === highlighted ? 'text-themeblue3 font-medium bg-themeblue3/5' : opt === value ? 'text-themeblue3 font-medium' : 'text-primary hover:bg-themeblue3/5'
+
+      {mounted && (isMobile ? (
+        <>
+          <div
+            className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-40' : 'opacity-0'}`}
+            style={{ pointerEvents: open ? 'auto' : 'none' }}
+            onClick={handleClose}
+          />
+          <div
+            className={`fixed left-0 right-0 bottom-0 z-50 bg-themewhite3 rounded-t-[1.25rem] ${isDragging ? '' : 'transition-transform duration-300 ease-out'}`}
+            style={{
+              transform: open ? `translateY(${dragY}px)` : 'translateY(100%)',
+              maxHeight: '50dvh',
+            }}
+            role="listbox"
+            aria-label={placeholder}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+          >
+            <div className="flex justify-center pt-2 pb-1" data-drag-zone style={{ touchAction: 'none' }}>
+              <div className="w-9 h-1 rounded-full bg-tertiary/25" />
+            </div>
+            <p className="px-5 pb-2 text-xs font-medium text-tertiary/50 uppercase tracking-wide">
+              {placeholder}
+            </p>
+            <div className="px-3 pb-5 overflow-y-auto" style={{ maxHeight: 'calc(50dvh - 3.5rem)' }}>
+              {options.map((opt) => (
+                <button
+                  key={opt}
+                  type="button"
+                  role="option"
+                  aria-selected={opt === value}
+                  onClick={() => handleSelect(opt)}
+                  className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-colors active:scale-95 flex items-center justify-between ${
+                    opt === value ? 'text-themeblue3 font-medium bg-themeblue3/5' : 'text-primary'
+                  }`}
+                >
+                  {opt}
+                  {opt === value && <Check size={16} className="shrink-0 text-themeblue3" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div
+            className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-20' : 'opacity-0'}`}
+            style={{ pointerEvents: open ? 'auto' : 'none' }}
+            onClick={handleClose}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div
+              className={`bg-themewhite rounded-3xl shadow-xl px-6 py-6 max-w-[300px] w-full pointer-events-auto transition-all duration-300 ease-out ${
+                open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-4'
               }`}
+              role="listbox"
+              aria-label={placeholder}
             >
-              {opt}
-            </button>
-          ))}
-        </div>
-      )}
+              <p className="pb-3 text-xs font-medium text-tertiary/50 uppercase tracking-wide">
+                {placeholder}
+              </p>
+              <div className="max-h-60 overflow-y-auto -mx-2">
+                {options.map((opt) => (
+                  <button
+                    key={opt}
+                    type="button"
+                    role="option"
+                    aria-selected={opt === value}
+                    onClick={() => handleSelect(opt)}
+                    className={`w-full text-left px-4 py-2.5 rounded-xl text-sm transition-colors active:scale-95 flex items-center justify-between ${
+                      opt === value ? 'text-themeblue3 font-medium bg-themeblue3/5' : 'text-primary hover:bg-themeblue3/5'
+                    }`}
+                  >
+                    {opt}
+                    {opt === value && <Check size={16} className="shrink-0 text-themeblue3" />}
+                  </button>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={handleClose}
+                className="mt-3 w-full py-2.5 rounded-full text-sm font-medium text-tertiary active:scale-95 transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </>
+      ))}
     </div>
   )
 }
+
+/* ── Date Picker Input ── */
+
+const DAYS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December']
+
+function parseIso(iso: string): Date | null {
+  if (!iso) return null
+  const [y, m, d] = iso.split('-').map(Number)
+  if (!y || !m || !d) return null
+  return new Date(y, m - 1, d)
+}
+
+function toIso(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+function formatDisplay(iso: string): string {
+  const d = parseIso(iso)
+  if (!d) return ''
+  return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`
+}
+
+function calendarDays(year: number, month: number): (Date | null)[] {
+  const first = new Date(year, month, 1)
+  const last = new Date(year, month + 1, 0)
+  const days: (Date | null)[] = []
+  for (let i = 0; i < first.getDay(); i++) days.push(null)
+  for (let d = 1; d <= last.getDate(); d++) days.push(new Date(year, month, d))
+  return days
+}
+
+function DatePickerCalendar({
+  value,
+  onChange,
+  onClose,
+  minDate,
+  maxDate,
+}: {
+  value: string
+  onChange: (val: string) => void
+  onClose: () => void
+  minDate?: string
+  maxDate?: string
+}) {
+  const today = new Date()
+  const selected = parseIso(value)
+  const initial = selected ?? today
+  const [viewYear, setViewYear] = useState(initial.getFullYear())
+  const [viewMonth, setViewMonth] = useState(initial.getMonth())
+  const [zoom, setZoom] = useState<'days' | 'months'>('days')
+
+  const minD = parseIso(minDate ?? '')
+  const maxD = parseIso(maxDate ?? '')
+
+  const prevMonth = useCallback(() => {
+    if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1) }
+    else setViewMonth(m => m - 1)
+  }, [viewMonth])
+
+  const nextMonth = useCallback(() => {
+    if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) }
+    else setViewMonth(m => m + 1)
+  }, [viewMonth])
+
+  const days = calendarDays(viewYear, viewMonth)
+
+  const isOutOfRange = (d: Date) => {
+    if (minD && d < minD) return true
+    if (maxD && d > maxD) return true
+    return false
+  }
+
+  const isToday = (d: Date) =>
+    d.getFullYear() === today.getFullYear() &&
+    d.getMonth() === today.getMonth() &&
+    d.getDate() === today.getDate()
+
+  const isSelected = (d: Date) =>
+    selected !== null &&
+    d.getFullYear() === selected.getFullYear() &&
+    d.getMonth() === selected.getMonth() &&
+    d.getDate() === selected.getDate()
+
+  if (zoom === 'months') {
+    return (
+      <div className="px-4 pt-2 pb-5">
+        <div className="flex items-center justify-between mb-4">
+          <button
+            type="button"
+            onClick={() => setViewYear(y => y - 1)}
+            className="p-1.5 rounded-full text-tertiary/60 active:scale-95 transition-all"
+          >
+            <ChevronLeft size={18} />
+          </button>
+          <span className="text-sm font-semibold text-primary">{viewYear}</span>
+          <button
+            type="button"
+            onClick={() => setViewYear(y => y + 1)}
+            className="p-1.5 rounded-full text-tertiary/60 active:scale-95 transition-all"
+          >
+            <ChevronRight size={18} />
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {MONTHS.map((m, i) => {
+            const isCurrent = viewYear === today.getFullYear() && i === today.getMonth()
+            const isActive = i === viewMonth && viewYear === initial.getFullYear()
+            return (
+              <button
+                key={m}
+                type="button"
+                onClick={() => { setViewMonth(i); setZoom('days') }}
+                className={`py-2.5 rounded-xl text-sm transition-all active:scale-95
+                  ${isActive ? 'bg-themeblue3 text-white font-semibold' : isCurrent ? 'bg-themeblue3/10 text-primary font-medium' : 'text-primary'}
+                `}
+              >
+                {m.slice(0, 3)}
+              </button>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="px-4 pt-2 pb-5">
+      <div className="flex items-center justify-between mb-3">
+        <button
+          type="button"
+          onClick={prevMonth}
+          className="p-1.5 rounded-full text-tertiary/60 active:scale-95 transition-all"
+        >
+          <ChevronLeft size={18} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setZoom('months')}
+          className="text-sm font-semibold text-primary active:scale-95 transition-all px-2 py-1 rounded-lg"
+        >
+          {MONTHS[viewMonth]} {viewYear}
+        </button>
+        <button
+          type="button"
+          onClick={nextMonth}
+          className="p-1.5 rounded-full text-tertiary/60 active:scale-95 transition-all"
+        >
+          <ChevronRight size={18} />
+        </button>
+      </div>
+      <div className="grid grid-cols-7 mb-1">
+        {DAYS.map((d, i) => (
+          <div key={i} className="h-8 flex items-center justify-center text-[11px] font-medium text-tertiary/40">
+            {d}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7">
+        {days.map((d, i) => {
+          if (!d) return <div key={i} />
+          const oob = isOutOfRange(d)
+          const sel = isSelected(d)
+          const tod = isToday(d)
+          return (
+            <div key={i} className="flex items-center justify-center py-0.5">
+              <button
+                type="button"
+                disabled={oob}
+                onClick={() => { onChange(toIso(d)); onClose() }}
+                className={`h-9 w-9 text-sm transition-all active:scale-95
+                  ${oob ? 'opacity-30 pointer-events-none' : ''}
+                  ${sel ? 'bg-themeblue3 text-white font-semibold rounded-full' : tod ? 'bg-themeblue3 text-white font-medium rounded-lg' : 'text-primary rounded-full'}
+                `}
+              >
+                {d.getDate()}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export const DatePickerInput = ({
+  value,
+  onChange,
+  placeholder,
+  minDate,
+  maxDate,
+}: {
+  value: string
+  onChange: (val: string) => void
+  placeholder?: string
+  minDate?: string
+  maxDate?: string
+}) => {
+  const isMobile = useIsMobile()
+  const [visible, setVisible] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [open, setOpen] = useState(false)
+  const [dragY, setDragY] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
+  const dragStartY = useRef(0)
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true)
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => setOpen(true))
+      })
+    } else {
+      setOpen(false)
+      const t = setTimeout(() => {
+        setMounted(false)
+        setDragY(0)
+      }, 300)
+      return () => clearTimeout(t)
+    }
+  }, [visible])
+
+  const handleClose = useCallback(() => {
+    setOpen(false)
+    setTimeout(() => setVisible(false), 300)
+  }, [])
+
+  const onTouchStart = useCallback((e: React.TouchEvent) => {
+    const target = e.target as HTMLElement
+    if (!target.closest('[data-drag-zone]')) return
+    dragStartY.current = e.touches[0].clientY
+    setIsDragging(true)
+  }, [])
+
+  const onTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!isDragging) return
+    const dy = Math.max(0, e.touches[0].clientY - dragStartY.current)
+    setDragY(dy)
+  }, [isDragging])
+
+  const onTouchEnd = useCallback(() => {
+    if (!isDragging) return
+    setIsDragging(false)
+    if (dragY > 80) handleClose()
+    setDragY(0)
+  }, [isDragging, dragY, handleClose])
+
+  const display = formatDisplay(value)
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setVisible(true)}
+        className={`w-full px-4 py-2.5 rounded-full text-left text-sm
+                   border border-themeblue3/10 shadow-xs bg-themewhite dark:bg-themewhite3
+                   transition-all duration-200 flex items-center justify-between active:scale-[0.98] ${
+                     display ? 'text-primary' : 'text-tertiary/30'
+                   }`}
+      >
+        <span className="truncate">{display || placeholder || 'Select date...'}</span>
+        <ChevronDown size={16} className="shrink-0 ml-2 text-tertiary/40" />
+      </button>
+
+      {mounted && (isMobile ? (
+        <>
+          <div
+            className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-40' : 'opacity-0'}`}
+            style={{ pointerEvents: open ? 'auto' : 'none' }}
+            onClick={handleClose}
+          />
+          <div
+            className={`fixed left-0 right-0 bottom-0 z-50 bg-themewhite3 rounded-t-[1.25rem] ${isDragging ? '' : 'transition-transform duration-300 ease-out'}`}
+            style={{
+              transform: open ? `translateY(${dragY}px)` : 'translateY(100%)',
+              maxHeight: '50dvh',
+            }}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+          >
+            <div className="flex justify-center pt-2 pb-1" data-drag-zone style={{ touchAction: 'none' }}>
+              <div className="w-9 h-1 rounded-full bg-tertiary/25" />
+            </div>
+            <p className="px-5 pb-1 text-xs font-medium text-tertiary/50 uppercase tracking-wide">
+              {placeholder ?? 'Select Date'}
+            </p>
+            <div className="overflow-y-auto" style={{ maxHeight: 'calc(50dvh - 3.5rem)' }}>
+              <DatePickerCalendar
+                value={value}
+                onChange={onChange}
+                onClose={handleClose}
+                minDate={minDate}
+                maxDate={maxDate}
+              />
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          <div
+            className={`fixed inset-0 z-50 bg-black transition-opacity duration-300 ${open ? 'opacity-20' : 'opacity-0'}`}
+            style={{ pointerEvents: open ? 'auto' : 'none' }}
+            onClick={handleClose}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+            <div
+              className={`bg-themewhite rounded-3xl shadow-xl px-2 py-4 max-w-[320px] w-full pointer-events-auto transition-all duration-300 ease-out ${
+                open ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-90 translate-y-4'
+              }`}
+            >
+              <p className="px-4 pb-2 text-xs font-medium text-tertiary/50 uppercase tracking-wide">
+                {placeholder ?? 'Select Date'}
+              </p>
+              <DatePickerCalendar
+                value={value}
+                onChange={onChange}
+                onClose={handleClose}
+                minDate={minDate}
+                maxDate={maxDate}
+              />
+              <div className="px-4">
+                <button
+                  type="button"
+                  onClick={handleClose}
+                  className="w-full py-2.5 rounded-full text-sm font-medium text-tertiary active:scale-95 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      ))}
+    </div>
+  )
+}
+
+/* ── UIC Pin Input (6-digit auto-advance) ── */
+
+export function UicPinInput({ value, onChange, spread }: { value: string; onChange: (v: string) => void; spread?: boolean }) {
+  const refs = useRef<(HTMLInputElement | null)[]>([])
+  const chars = (value + '      ').slice(0, 6).split('')
+
+  const handleChange = (i: number, char: string) => {
+    const c = char.toUpperCase().replace(/[^0-9A-Z]/g, '')
+    if (!c) return
+    const next = [...chars]
+    next[i] = c
+    onChange(next.join('').replace(/ /g, ''))
+    if (i < 5) refs.current[i + 1]?.focus()
+  }
+
+  const handleKeyDown = (i: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace') {
+      e.preventDefault()
+      const next = [...chars]
+      if (next[i] !== ' ' && next[i] !== '') {
+        next[i] = ' '
+        onChange(next.join('').trim())
+      } else if (i > 0) {
+        next[i - 1] = ' '
+        onChange(next.join('').trim())
+        refs.current[i - 1]?.focus()
+      }
+    } else if (e.key === 'ArrowLeft' && i > 0) {
+      refs.current[i - 1]?.focus()
+    } else if (e.key === 'ArrowRight' && i < 5) {
+      refs.current[i + 1]?.focus()
+    }
+  }
+
+  return (
+    <div className={spread ? 'grid grid-cols-6 gap-2' : 'flex items-center gap-1.5'}>
+      {!spread && <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mr-1">UIC</span>}
+      {chars.map((c, i) => (
+        <input
+          key={i}
+          ref={el => { refs.current[i] = el }}
+          type="text"
+          inputMode="text"
+          maxLength={1}
+          value={c === ' ' ? '' : c}
+          onChange={(e) => handleChange(i, e.target.value)}
+          onKeyDown={(e) => handleKeyDown(i, e)}
+          onFocus={(e) => e.target.select()}
+          className={`h-10 text-center rounded-full border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm font-mono bg-themewhite dark:bg-themewhite3 text-primary transition-all duration-300 ${spread ? 'w-full' : 'w-8'}`}
+        />
+      ))}
+    </div>
+  )
+}
+
+/* ── Code Input (auto-advance, auto-submit, configurable length) ── */
+
+export function PinCodeInput({ onSubmit, error, disabled, label, length = 4 }: {
+  onSubmit: (code: string) => void
+  error?: string
+  disabled?: boolean
+  label?: string
+  length?: number
+}) {
+  const lastIdx = length - 1
+  const refs = useRef<(HTMLInputElement | null)[]>([])
+  const [digits, setDigits] = useState(() => Array(length).fill(''))
+  const [shaking, setShaking] = useState(false)
+  const submitted = useRef(false)
+
+  // Shake + clear on error after submission
+  useEffect(() => {
+    if (!submitted.current || !error) return
+    submitted.current = false
+    setShaking(true)
+    setTimeout(() => {
+      setShaking(false)
+      setDigits(Array(length).fill(''))
+      refs.current[0]?.focus()
+    }, 400)
+  }, [error, length])
+
+  const handleChange = (i: number, char: string) => {
+    if (disabled) return
+    const c = char.replace(/[^0-9]/g, '')
+    if (!c) return
+    const next = [...digits]
+    next[i] = c
+    setDigits(next)
+    if (i < lastIdx) {
+      refs.current[i + 1]?.focus()
+    } else if (next.every(d => d)) {
+      submitted.current = true
+      onSubmit(next.join(''))
+    }
+  }
+
+  const handleKeyDown = (i: number, e: React.KeyboardEvent) => {
+    if (disabled) return
+    if (e.key === 'Backspace') {
+      e.preventDefault()
+      const next = [...digits]
+      if (next[i]) {
+        next[i] = ''
+        setDigits(next)
+      } else if (i > 0) {
+        next[i - 1] = ''
+        setDigits(next)
+        refs.current[i - 1]?.focus()
+      }
+    } else if (e.key === 'ArrowLeft' && i > 0) {
+      refs.current[i - 1]?.focus()
+    } else if (e.key === 'ArrowRight' && i < lastIdx) {
+      refs.current[i + 1]?.focus()
+    }
+  }
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault()
+    const pasted = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, length)
+    if (!pasted) return
+    const next = Array(length).fill('')
+    pasted.split('').forEach((c, i) => { next[i] = c })
+    setDigits(next)
+    if (pasted.length === length) {
+      submitted.current = true
+      onSubmit(next.join(''))
+    } else {
+      refs.current[Math.min(pasted.length, lastIdx)]?.focus()
+    }
+  }
+
+  return (
+    <div className="flex flex-col items-center gap-2">
+      {label && <p className={`text-xs ${error && shaking ? 'text-themeredred' : 'text-tertiary/60'}`}>{error && shaking ? error : label}</p>}
+      <div className={`flex items-center gap-2 ${shaking ? 'animate-shake' : ''}`} onPaste={handlePaste}>
+        {digits.map((d, i) => (
+          <input
+            key={i}
+            ref={el => { refs.current[i] = el }}
+            type="text"
+            inputMode="numeric"
+            maxLength={1}
+            value={d}
+            onChange={(e) => handleChange(i, e.target.value)}
+            onKeyDown={(e) => handleKeyDown(i, e)}
+            onFocus={(e) => e.target.select()}
+            disabled={disabled}
+            className={`w-10 h-11 text-center rounded-xl border shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-lg font-mono bg-themewhite dark:bg-themewhite3 text-primary transition-all duration-300 disabled:opacity-50 ${
+              error && shaking ? 'border-themeredred/40' : 'border-themeblue3/10'
+            }`}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* ── Password Input ── */
 
 export const PasswordInput = ({
   label,
@@ -248,8 +818,8 @@ export const PasswordInput = ({
           placeholder={placeholder}
           autoComplete={autoComplete}
           disabled={disabled}
-          className="w-full px-3 py-2.5 pr-10 rounded-lg bg-themewhite dark:bg-themewhite3 text-primary text-base
-                     border border-tertiary/10 focus-within:border-themeblue1/30 focus-within:bg-themewhite2 focus:outline-none transition-all placeholder:text-tertiary/30 disabled:opacity-50"
+          className="w-full px-4 py-2.5 pr-10 rounded-full bg-themewhite dark:bg-themewhite3 text-primary text-sm
+                     border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none transition-all duration-300 placeholder:text-tertiary/30 disabled:opacity-50"
         />
         <button
           type="button"

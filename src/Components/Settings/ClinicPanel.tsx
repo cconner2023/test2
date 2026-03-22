@@ -24,7 +24,7 @@ import {
   createClinicUser,
   type UserLookupResult,
 } from '../../lib/supervisorService'
-import { TextInput } from '../FormInputs'
+import { TextInput, PickerInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { UserAvatar } from './UserAvatar'
 import { ActionIconButton } from '../WriteNoteHelpers'
@@ -1116,116 +1116,6 @@ interface CreateFormProps {
   onCancel: () => void
 }
 
-function TypeaheadInput({ value, onChange, options, placeholder }: {
-  value: string; onChange: (v: string) => void; options: string[]; placeholder: string
-}) {
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const ref = useRef<HTMLDivElement>(null)
-
-  const filtered = options.filter(o =>
-    o.toLowerCase().includes((query || value).toLowerCase())
-  )
-
-  const displayValue = value || query
-
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
-
-  return (
-    <div ref={ref} className="flex-1 min-w-0 relative">
-      <input
-        type="text"
-        value={displayValue}
-        placeholder={placeholder}
-        onFocus={() => { setOpen(true); setQuery(value) }}
-        onChange={(e) => {
-          setQuery(e.target.value)
-          setOpen(true)
-          if (!e.target.value) onChange('')
-        }}
-        className="w-full rounded-full py-2.5 px-3 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
-      />
-      {open && filtered.length > 0 && (
-        <div className="absolute z-50 left-0 right-0 top-full mt-1 max-h-40 overflow-y-auto rounded-xl border border-themeblue3/10 bg-themewhite shadow-lg">
-          {filtered.map(o => (
-            <button
-              key={o}
-              type="button"
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => { onChange(o); setQuery(''); setOpen(false) }}
-              className={`w-full text-left px-3 py-2 text-sm transition-colors active:scale-95 ${
-                o === value ? 'text-themeblue3 font-medium bg-themeblue3/5' : 'text-primary hover:bg-themeblue3/5'
-              }`}
-            >
-              {o}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function UicPinInput({ value, onChange, spread }: { value: string; onChange: (v: string) => void; spread?: boolean }) {
-  const refs = useRef<(HTMLInputElement | null)[]>([])
-  const chars = (value + '      ').slice(0, 6).split('')
-
-  const handleChange = (i: number, char: string) => {
-    const c = char.toUpperCase().replace(/[^0-9A-Z]/g, '')
-    if (!c) return
-    const next = [...chars]
-    next[i] = c
-    onChange(next.join('').replace(/ /g, ''))
-    if (i < 5) refs.current[i + 1]?.focus()
-  }
-
-  const handleKeyDown = (i: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace') {
-      e.preventDefault()
-      const next = [...chars]
-      if (next[i] !== ' ' && next[i] !== '') {
-        next[i] = ' '
-        onChange(next.join('').trim())
-      } else if (i > 0) {
-        next[i - 1] = ' '
-        onChange(next.join('').trim())
-        refs.current[i - 1]?.focus()
-      }
-    } else if (e.key === 'ArrowLeft' && i > 0) {
-      refs.current[i - 1]?.focus()
-    } else if (e.key === 'ArrowRight' && i < 5) {
-      refs.current[i + 1]?.focus()
-    }
-  }
-
-  return (
-    <div className={spread ? 'grid grid-cols-6 gap-2' : 'flex items-center gap-1.5'}>
-      {!spread && <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mr-1">UIC</span>}
-      {chars.map((c, i) => (
-        <input
-          key={i}
-          ref={el => { refs.current[i] = el }}
-          type="text"
-          inputMode="text"
-          maxLength={1}
-          value={c === ' ' ? '' : c}
-          onChange={(e) => handleChange(i, e.target.value)}
-          onKeyDown={(e) => handleKeyDown(i, e)}
-          onFocus={(e) => e.target.select()}
-          className={`h-9 text-center rounded-lg border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm font-mono bg-themewhite text-primary transition-all duration-200 ${spread ? 'w-full' : 'w-8'}`}
-        />
-      ))}
-    </div>
-  )
-}
-
 function AddMemberCreateForm(props: CreateFormProps) {
   const [userData, setUserData] = useState<{
     credentials: string[]
@@ -1287,18 +1177,22 @@ function AddMemberCreateForm(props: CreateFormProps) {
           maxLength={1}
           className="w-11 shrink-0 text-center rounded-full py-2.5 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300"
         />
-        <TypeaheadInput
-          value={props.credential}
-          onChange={props.onCredential}
-          options={userData.credentials}
-          placeholder="Credential"
-        />
-        <TypeaheadInput
-          value={props.rank}
-          onChange={props.onRank}
-          options={componentRanks}
-          placeholder="Rank"
-        />
+        <div className="flex-1 min-w-0">
+          <PickerInput
+            value={props.credential}
+            onChange={props.onCredential}
+            options={userData.credentials}
+            placeholder="Credential"
+          />
+        </div>
+        <div className="flex-1 min-w-0">
+          <PickerInput
+            value={props.rank}
+            onChange={props.onRank}
+            options={componentRanks}
+            placeholder="Rank"
+          />
+        </div>
       </div>
 
       <div>

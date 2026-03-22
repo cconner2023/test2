@@ -23,6 +23,8 @@ export interface CalendarEvent {
   created_by: string
   created_at: string
   updated_at: string
+  /** Origin ID of the latest broadcast message — used for hard-delete on update/delete. */
+  originId?: string
 }
 
 export interface EventFormData {

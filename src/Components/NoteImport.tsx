@@ -330,11 +330,11 @@ const NoteImportContent = ({
                         <div className="w-9 h-1 rounded-full bg-tertiary/25" />
                     </div>
                 )}
-                <div className={`px-5 ${isMobile ? 'pb-2.5' : 'py-4'}`}>
+                <div className={`px-5 ${isMobile ? 'pb-2' : 'py-2.5'}`}>
                     <div className="flex items-center justify-between">
                         {/* Left: title — collapses when import bar is expanded */}
                         <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${importExpanded ? ' w-0 overflow-hidden' : ''}`}>
-                            <h2 className={`truncate ${isMobile ? 'text-[17px] font-semibold text-primary' : 'text-2xl text-primary'}`}>
+                            <h2 className={`truncate ${isMobile ? 'text-[17px] font-semibold text-primary' : 'text-[15px] font-medium text-primary'}`}>
                                 {preview ? 'Screening Note' : 'Import Note'}
                             </h2>
                         </div>

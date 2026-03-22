@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
-import type { ReactNode } from 'react'
+import { Children, type ReactNode } from 'react'
+import { useIsMobile } from '../Hooks/useIsMobile'
 
 interface PillButtonProps {
     icon: LucideIcon
@@ -13,8 +14,9 @@ interface PillButtonProps {
     circleBg?: string
 }
 
-export function PillButton({ icon: Icon, onClick, label, variant = 'default', iconSize = 24, compact, disabled, circleBg }: PillButtonProps) {
-    const size = compact ? 'w-9 h-9' : 'w-11 h-11'
+export function PillButton({ icon: Icon, onClick, label, variant = 'default', iconSize, compact, disabled, circleBg }: PillButtonProps) {
+    const size = compact ? 'w-8 h-8' : 'w-9 h-9'   // 32px compact, 36px default
+    const resolvedIconSize = iconSize ?? (compact ? 18 : 20)
 
     const color = circleBg
         ? ''
@@ -32,26 +34,38 @@ export function PillButton({ icon: Icon, onClick, label, variant = 'default', ic
         >
             {circleBg ? (
                 <div className={`w-full h-full rounded-full flex items-center justify-center ${circleBg}`}>
-                    <Icon style={{ width: iconSize, height: iconSize }} />
+                    <Icon style={{ width: resolvedIconSize, height: resolvedIconSize }} />
                 </div>
             ) : (
-                <Icon style={{ width: iconSize, height: iconSize }} />
+                <Icon style={{ width: resolvedIconSize, height: resolvedIconSize }} />
             )}
         </button>
     )
 }
 
-export function HeaderPill({ children }: { children: ReactNode }) {
+export function HeaderPill({ children, multi }: { children: ReactNode; multi?: boolean }) {
+    const isMobile = useIsMobile()
+    const isMulti = multi ?? Children.toArray(children).filter(Boolean).length > 1
+
+    if (!isMobile) return <div className="flex items-center gap-0.5">{children}</div>
+
     return (
-        <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5 gap-0.5">
+        <div className={isMulti
+            ? 'rounded-full bg-themewhite border border-tertiary/20 flex items-center px-1 py-0.5 gap-1'
+            : 'rounded-full bg-themewhite border border-tertiary/20 flex items-center p-0.5'
+        }>
             {children}
         </div>
     )
 }
 
 export function VerticalPill({ children }: { children: ReactNode }) {
+    const isMobile = useIsMobile()
     return (
-        <div className="rounded-full bg-themewhite border border-tertiary/20 flex flex-col items-center p-0.5">
+        <div className={isMobile
+            ? 'rounded-full bg-themewhite border border-tertiary/20 flex flex-col items-center p-0.5'
+            : 'flex flex-col items-center'
+        }>
             {children}
         </div>
     )

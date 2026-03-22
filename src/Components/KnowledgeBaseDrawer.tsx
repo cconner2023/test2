@@ -786,12 +786,12 @@ function VitalSignsOverlay({ isOpen, onClose }: { isOpen: boolean; onClose: () =
     return (
         <>
             <div
-                className={`absolute inset-0 z-10 bg-black/20 transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'}`}
+                className={`absolute inset-0 z-10 bg-black/40 transition-opacity duration-300 ${open ? 'opacity-100' : 'opacity-0'}`}
                 style={{ pointerEvents: open ? 'auto' : 'none' }}
                 onClick={handleClose}
             />
             <div
-                className={`absolute left-3 right-3 bottom-3 z-20 bg-themewhite3 rounded-2xl shadow-xl overflow-hidden
+                className={`absolute left-3 right-3 bottom-14 z-20 bg-themewhite3 rounded-2xl shadow-xl overflow-hidden
                     transition-all duration-300 ease-out ${open ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-full'}`}
                 style={{ maxHeight: '70%' }}
             >

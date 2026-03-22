@@ -62,13 +62,13 @@ function DrawerHeader({
                     transformOrigin: 'top center',
                 }}
             >
-                <div className={`px-5 ${isMobile ? 'pb-2.5' : 'py-4'} ${headerFaded || blurMode ? '' : 'border-b border-tertiary/10'}`}>
+                <div className={`px-5 ${isMobile ? 'pb-2' : 'py-2.5'} ${headerFaded || blurMode ? '' : 'border-b border-tertiary/10'}`}>
                     <div className="flex items-center justify-between">
                         <div className={`flex items-center gap-2 min-w-0 transition-all duration-200${rightContentFill ? ' w-0 overflow-hidden' : ''}`}>
                             <div
                                 className="shrink-0 overflow-hidden transition-all duration-200"
                                 style={{
-                                    width: showBack && onBack ? (isMobile ? 48 : 40) : 0,
+                                    width: showBack && onBack ? (isMobile ? 40 : 36) : 0,
                                     opacity: showBack && onBack ? 1 : 0,
                                 }}
                             >
@@ -76,7 +76,7 @@ function DrawerHeader({
                                     <PillButton icon={ChevronLeft} onClick={onBack!} label="Go back" compact={!isMobile} />
                                 </HeaderPill>
                             </div>
-                            <h2 className={`truncate ${isMobile ? 'text-[17px] font-semibold text-primary' : 'text-2xl text-primary'}`}>
+                            <h2 className={`truncate ${isMobile ? 'text-[17px] font-semibold text-primary' : 'text-[15px] font-medium text-primary'}`}>
                                 {title}
                             </h2>
                             {badge && (

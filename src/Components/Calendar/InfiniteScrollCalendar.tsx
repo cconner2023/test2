@@ -11,6 +11,7 @@ interface InfiniteScrollCalendarProps {
   onMonthChange: (monthLabel: string) => void
   onMoveEvent: (eventId: string, targetDateKey: string) => void
   onSelectEvent: (id: string) => void
+  onEventContextMenu?: (eventId: string, x: number, y: number) => void
   scrollTargetDate?: string
   scrollNonce?: number
 }
@@ -130,11 +131,12 @@ interface EventPillProps {
   event: CalendarEvent
   eventId: string
   onTap: (id: string) => void
+  onContextMenu?: (eventId: string, x: number, y: number) => void
   isDragging: boolean
   dragHandlers: ReturnType<ReturnType<typeof useLongPressDrag>['getDragHandlers']>
 }
 
-function EventPill({ event, eventId, onTap, isDragging, dragHandlers }: EventPillProps) {
+function EventPill({ event, eventId, onTap, onContextMenu, isDragging, dragHandlers }: EventPillProps) {
   const cat = getCategoryMeta(event.category)
   return (
     <div
@@ -142,6 +144,13 @@ function EventPill({ event, eventId, onTap, isDragging, dragHandlers }: EventPil
       onClick={(e) => {
         e.stopPropagation()
         onTap(eventId)
+      }}
+      onContextMenu={(e) => {
+        if (onContextMenu) {
+          e.preventDefault()
+          e.stopPropagation()
+          onContextMenu(eventId, e.clientX, e.clientY)
+        }
       }}
       className={`w-full rounded px-1.5 text-[9px] leading-tight truncate font-medium text-white transition-opacity duration-150 cursor-pointer active:scale-95 ${cat.color} ${isDragging ? 'opacity-30' : ''}`}
       style={{ height: LANE_HEIGHT - 2, display: 'flex', alignItems: 'center' }}
@@ -160,6 +169,7 @@ export function InfiniteScrollCalendar({
   onMonthChange,
   onMoveEvent,
   onSelectEvent,
+  onEventContextMenu,
   scrollTargetDate,
   scrollNonce,
 }: InfiniteScrollCalendarProps) {
@@ -222,18 +232,21 @@ export function InfiniteScrollCalendar({
     return map
   }, [events])
 
+  // Read live DOM measurements — no stale closure values
   const scrollToDate = useCallback((dateKey: string) => {
     const targetWeek = weeks.find(w => w.days.some(d => d.dateKey === dateKey))
     if (targetWeek) {
       const el = weekRefs.current.get(targetWeek.key)
       if (el && scrollRef.current) {
-        // Center the target week in the viewport (offset by ~2 rows above)
         const containerHeight = scrollRef.current.clientHeight
-        const rowHeight = el.offsetHeight || rowMinHeight
-        const centerOffset = Math.max(0, (containerHeight - rowHeight) / 2)
+        const rowHeight = el.offsetHeight
+        // Measure actual spacer/header overlay height from the DOM
         const isMobileView = window.innerWidth < 768
-        const headerOffset = isMobileView ? 60 : 0
-        scrollRef.current.scrollTop = el.offsetTop - centerOffset + headerOffset
+        const spacer = isMobileView ? (scrollRef.current.firstElementChild as HTMLElement) : null
+        const headerHeight = spacer?.offsetHeight ?? 0
+        const visibleHeight = containerHeight - headerHeight
+        const centerOffset = Math.max(0, (visibleHeight - rowHeight) / 2) + headerHeight
+        scrollRef.current.scrollTop = el.offsetTop - centerOffset
       }
     } else {
       const targetDate = new Date(dateKey + 'T00:00:00')
@@ -241,17 +254,25 @@ export function InfiniteScrollCalendar({
     }
   }, [weeks])
 
-  // Scroll on mount (handles initial open + returning from other views)
+  // Scroll on mount — delayed so ResizeObserver can update rowMinHeight,
+  // React re-renders rows with correct heights, and DOM measurements are stable.
+  const mountScrollDoneRef = useRef(false)
+  const [scrollReady, setScrollReady] = useState(false)
   useEffect(() => {
     if (!scrollTargetDate) return
-    requestAnimationFrame(() => scrollToDate(scrollTargetDate))
-    // Only run on mount — scrollTargetDate changes are handled by the effect below
+    const timer = setTimeout(() => {
+      scrollToDate(scrollTargetDate)
+      mountScrollDoneRef.current = true
+      // Reveal after scroll position is set
+      requestAnimationFrame(() => setScrollReady(true))
+    }, 300)
+    return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Scroll when target date or nonce changes after mount
+  // Scroll when target date or nonce changes AFTER initial mount scroll
   useEffect(() => {
-    if (!scrollTargetDate) return
+    if (!scrollTargetDate || !mountScrollDoneRef.current) return
     requestAnimationFrame(() => scrollToDate(scrollTargetDate))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollTargetDate, scrollNonce])
@@ -325,7 +346,7 @@ export function InfiniteScrollCalendar({
       {/* Scrollable weeks */}
       <div
         ref={scrollRef}
-        className={`flex-1 relative ${dragState.isDragging ? 'overflow-hidden' : 'overflow-y-auto'}`}
+        className={`flex-1 relative transition-opacity duration-300 ${scrollReady ? 'opacity-100' : 'opacity-0'} ${dragState.isDragging ? 'overflow-hidden' : 'overflow-y-auto'}`}
         onScroll={handleScroll}
       >
         {/* Spacer for mobile floating header (header row + day-of-week row) */}
@@ -353,6 +374,13 @@ export function InfiniteScrollCalendar({
                     onClick={(e) => {
                       e.stopPropagation()
                       onSelectEvent(seg.event.id)
+                    }}
+                    onContextMenu={(e) => {
+                      if (onEventContextMenu) {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        onEventContextMenu(seg.event.id, e.clientX, e.clientY)
+                      }
                     }}
                     className={`absolute z-[2] flex items-center ${cat.color} text-white text-[9px] font-medium px-1.5 truncate cursor-pointer active:scale-[0.98] transition-all duration-150 ${
                       seg.isStart ? 'rounded-l' : ''
@@ -420,6 +448,7 @@ export function InfiniteScrollCalendar({
                             event={event}
                             eventId={event.id}
                             onTap={onSelectEvent}
+                            onContextMenu={onEventContextMenu}
                             isDragging={dragState.draggedEventId === event.id}
                             dragHandlers={getDragHandlers(event.id)}
                           />

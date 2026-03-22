@@ -13,17 +13,22 @@ export function useClinicMedics() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  // Subscribe reactively so fetchMedics re-runs when auth resolves
+  const userId = useAuthStore(s => s.user?.id ?? null)
+
   const fetchMedics = useCallback(async () => {
+    if (!userId) {
+      // Auth hasn't resolved yet — stay in loading state, don't set error.
+      // The effect will re-trigger once userId populates.
+      return
+    }
+
     setLoading(true)
     setError(null)
 
     try {
       const user = useAuthStore.getState().user
-      if (!user) {
-        setError('Not authenticated')
-        setLoading(false)
-        return
-      }
+      if (!user) return
 
       // ── Try RPC first ────────────────────────────────────────────
       try {
@@ -108,9 +113,12 @@ export function useClinicMedics() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [userId])
 
   useEffect(() => {
+    // Don't attempt anything until auth has resolved
+    if (!userId) return
+
     let cancelled = false
 
     // Load from IDB cache first for instant render
@@ -129,7 +137,7 @@ export function useClinicMedics() {
     })
 
     return () => { cancelled = true }
-  }, [fetchMedics])
+  }, [userId, fetchMedics])
 
   return { medics, loading, error, refresh: fetchMedics }
 }

@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo, useEffect } from 'react'
-import { Ban, X, ClipboardCheck, Pencil } from 'lucide-react'
+import { Ban, X, ClipboardCheck, Pencil, CalendarDays } from 'lucide-react'
 import { BaseDrawer } from './BaseDrawer'
 import { ContentWrapper } from './Settings/ContentWrapper'
 import { HeaderPill, PillButton } from './HeaderPill'
@@ -8,10 +8,15 @@ import { useSwipeBack } from '../Hooks/useSwipeBack'
 import { useIsMobile } from '../Hooks/useIsMobile'
 import { UI_TIMING } from '../Utilities/constants'
 import { useTrainingCompletions } from '../Hooks/useTrainingCompletions'
+import { useMessagesContext } from '../Hooks/MessagesContext'
+import { useCalendarStore } from '../stores/useCalendarStore'
+import { updateAssignmentCalendarOriginId } from '../lib/trainingService'
+import { useAuthStore } from '../stores/useAuthStore'
 import { useSupervisorData } from './Settings/Supervisor/useSupervisorData'
 import { SoldierProfile } from './Settings/Supervisor/SoldierProfile'
 import { SoldierCertsEditor } from './Settings/Supervisor/SoldierCertsEditor'
 import { EvaluateFlow } from './Settings/Supervisor/EvaluateFlow'
+import { AssignTaskFlow } from './Settings/Supervisor/AssignTaskFlow'
 import { TeamReporting } from './Settings/Supervisor/TeamReporting'
 import { CoverageTasksView } from './Settings/Supervisor/CoverageTasksView'
 import { SupervisorTree, type TreeSelection } from './Settings/Supervisor/SupervisorTree'
@@ -29,6 +34,7 @@ type SupervisorView =
   | { screen: 'evaluate-go-nogo'; soldier: ClinicMedic; taskNumber: string; taskTitle: string }
   | { screen: 'coverage-tasks'; areaName: string }
   | { screen: 'coverage-task-evaluate'; areaName: string; soldier: ClinicMedic; taskNumber: string; taskTitle: string }
+  | { screen: 'assign-task'; soldier: ClinicMedic }
 
 interface SupervisorDrawerProps {
   isVisible: boolean
@@ -51,7 +57,12 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
 
   // ── Data ───────────────────────────────────────────────────────────────────
 
-  const { submitTestEvaluation } = useTrainingCompletions()
+  const { submitTestEvaluation, assignTask } = useTrainingCompletions()
+  const messagesCtx = useMessagesContext()
+  const calendarGroupId = useCalendarStore(s => s.calendarGroupId)
+  const addCalendarEvent = useCalendarStore(s => s.addEvent)
+  const updateCalendarEvent = useCalendarStore(s => s.updateEvent)
+  const user = useAuthStore(s => s.user)
 
   const {
     loading: _loading,
@@ -103,6 +114,66 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     handleSlideAnimation('left')
     setView({ screen: 'evaluate-select-task', soldier })
   }, [handleSlideAnimation])
+
+  const handleAssign = useCallback((soldier: ClinicMedic) => {
+    handleSlideAnimation('left')
+    setView({ screen: 'assign-task', soldier })
+  }, [handleSlideAnimation])
+
+  const handleSubmitAssignment = useCallback(async (taskId: string, taskTitle: string, dueDate: string, notes: string) => {
+    if (view.screen !== 'assign-task') return
+
+    const saved = await assignTask({
+      medicUserId: view.soldier.id,
+      trainingItemId: taskId,
+      dueDate,
+      notes: notes || undefined,
+    })
+
+    // Create calendar event for the assignment
+    if (calendarGroupId && messagesCtx?.sendCalendarEvent && user) {
+      const now = new Date().toISOString()
+      const calendarEvent = {
+        id: crypto.randomUUID(),
+        clinic_id: view.soldier.clinicId || '',
+        title: `Training: ${taskTitle}`,
+        description: notes || '',
+        category: 'training' as const,
+        status: 'planned' as const,
+        start_time: `${dueDate}T00:00`,
+        end_time: `${dueDate}T23:59`,
+        all_day: true,
+        location: '',
+        opord_notes: '',
+        uniform: '',
+        report_time: '',
+        assigned_to: [view.soldier.id],
+        property_item_ids: [],
+        created_by: user.id,
+        created_at: now,
+        updated_at: now,
+      }
+
+      addCalendarEvent(calendarEvent)
+      messagesCtx.sendCalendarEvent(calendarGroupId, {
+        type: 'calendar_event',
+        action: 'create',
+        data: calendarEvent,
+      }).then(originId => {
+        if (originId) {
+          updateCalendarEvent(calendarEvent.id, { originId })
+          // Link the calendar event back to the assignment
+          if (saved) {
+            updateAssignmentCalendarOriginId(saved.id, user.id, originId).catch(() => {})
+          }
+        }
+      }).catch(() => {})
+    }
+
+    refreshData()
+    setView({ screen: 'main' })
+    setTreeSelection({ type: 'soldier', soldierId: view.soldier.id })
+  }, [view, assignTask, refreshData, calendarGroupId, messagesCtx, user, addCalendarEvent, updateCalendarEvent])
 
   const handleModifyCerts = useCallback((soldier: ClinicMedic) => {
 
@@ -164,6 +235,11 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
     } else if (view.screen === 'coverage-task-evaluate') {
       handleSlideAnimation('right')
       setView({ screen: 'coverage-tasks', areaName: view.areaName })
+    } else if (view.screen === 'assign-task') {
+      handleSlideAnimation('right')
+      setTaskSearchQuery('')
+      setView({ screen: 'main' })
+      setTreeSelection({ type: 'soldier', soldierId: view.soldier.id })
     } else if (view.screen !== 'main') {
       handleSlideAnimation('right')
       setFocusCertId(null)
@@ -222,11 +298,12 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
       )
     }
 
-    // Soldier selected: Evaluate + Edit Certs + Close
+    // Soldier selected: Evaluate + Assign + Edit Certs + Close
     if (selectedSoldier) {
       return (
         <HeaderPill>
           <PillButton icon={ClipboardCheck} iconSize={20} onClick={() => handleEvaluate(selectedSoldier)} label="Evaluate" />
+          <PillButton icon={CalendarDays} iconSize={20} onClick={() => handleAssign(selectedSoldier)} label="Assign" />
           <PillButton icon={Pencil} iconSize={20} onClick={() => handleModifyCerts(selectedSoldier)} label="Edit Certs" />
           <PillButton icon={X} onClick={handleClose} label="Close" />
         </HeaderPill>
@@ -307,6 +384,18 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
           title: 'Evaluation',
           showBack: true,
           onBack: handleBack,
+        }
+      case 'assign-task':
+        return {
+          title: 'Assign Training',
+          showBack: true,
+          onBack: handleBack,
+          rightContent: (
+            <HeaderPill>
+              <PillButton icon={X} onClick={handleClose} label="Close" />
+            </HeaderPill>
+          ),
+          hideDefaultClose: true,
         }
     }
   }, [view, isMobile, treeSelection, handleBack, mainHeaderActions, handleClose])
@@ -458,6 +547,24 @@ export function SupervisorDrawer({ isVisible, onClose }: SupervisorDrawerProps) 
             onSelectTask={() => {}}
             onSubmit={handleSubmitEvaluation}
           />
+        )
+
+      case 'assign-task':
+        return (
+          <MobileSearchBar variant="supervisor"
+            value={taskSearchQuery}
+            onChange={setTaskSearchQuery}
+            placeholder="Search tasks to assign..."
+            onFocusChange={setSearchFocused}
+          >
+            <div className="px-4 py-3 md:p-5 pb-8 min-h-full">
+              <AssignTaskFlow
+                soldier={view.soldier}
+                searchQuery={taskSearchQuery}
+                onSubmit={handleSubmitAssignment}
+              />
+            </div>
+          </MobileSearchBar>
         )
 
       case 'main':

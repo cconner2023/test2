@@ -50,7 +50,7 @@ export interface ChatDetailViewProps {
   showForward?: boolean
   emptyText?: string
   mobileHeader: ReactNode
-  desktopHeader: ReactNode
+  desktopHeader?: ReactNode
   children?: ReactNode
 }
 

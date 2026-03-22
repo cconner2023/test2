@@ -44,6 +44,8 @@ export interface TrainingCompletionUI {
   supervisorId: string | null
   stepResults: StepResult[] | null
   supervisorNotes: string | null
+  dueDate: string | null
+  calendarOriginId: string | null
   completedAt: string | null
   createdAt: string
   updatedAt: string
@@ -65,6 +67,8 @@ export interface TrainingCompletionRow {
   supervisor_id: string | null
   step_results: unknown
   supervisor_notes: string | null
+  due_date: string | null
+  calendar_origin_id: string | null
   completed_at: string | null
   created_at: string
   updated_at: string
@@ -81,6 +85,8 @@ export function mapRowToTrainingCompletionUI(row: TrainingCompletionRow): Traini
     supervisorId: row.supervisor_id,
     stepResults: row.step_results as StepResult[] | null,
     supervisorNotes: row.supervisor_notes,
+    dueDate: row.due_date ?? null,
+    calendarOriginId: row.calendar_origin_id ?? null,
     completedAt: row.completed_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -99,6 +105,8 @@ export function localToUI(local: LocalTrainingCompletion): TrainingCompletionUI 
     supervisorId: local.supervisor_id,
     stepResults: local.step_results as StepResult[] | null,
     supervisorNotes: local.supervisor_notes,
+    dueDate: local.due_date ?? null,
+    calendarOriginId: local.calendar_origin_id ?? null,
     completedAt: local.completed_at,
     createdAt: local.created_at,
     updatedAt: local.updated_at,
@@ -139,6 +147,8 @@ export async function createReadCompletion(
     supervisor_id: null,
     step_results: null,
     supervisor_notes: null,
+    due_date: null,
+    calendar_origin_id: null,
     created_at: now,
     updated_at: now,
     _sync_status: userId === 'guest' ? 'synced' : 'pending',
@@ -210,6 +220,8 @@ export async function createTestCompletion(params: {
     supervisor_id: supervisorId,
     step_results: stepResults as unknown as Json,
     supervisor_notes: supervisorNotes || null,
+    due_date: null,
+    calendar_origin_id: null,
     created_at: now,
     updated_at: now,
     _sync_status: 'pending',
@@ -306,6 +318,8 @@ export async function fetchCompletionsFromServer(userId: string): Promise<LocalT
 
   return (data || []).map((row): LocalTrainingCompletion => ({
     ...row,
+    due_date: row.due_date ?? null,
+    calendar_origin_id: row.calendar_origin_id ?? null,
     _sync_status: 'synced' as const,
     _sync_retry_count: 0,
     _last_sync_error: null,
@@ -354,4 +368,169 @@ export async function fetchClinicTestHistory(
   }
 
   return (data || []).map(mapRowToTrainingCompletionUI)
+}
+
+// ============================================================
+// Assignment Operations
+// ============================================================
+
+/**
+ * Create a training assignment (supervisor assigns homework to a medic).
+ * Uses completion_type='assignment' with a due_date and no result yet.
+ */
+export async function createAssignment(params: {
+  medicUserId: string
+  trainingItemId: string
+  supervisorId: string
+  dueDate: string
+  supervisorNotes?: string
+}): Promise<TrainingCompletionUI> {
+  const { medicUserId, trainingItemId, supervisorId, dueDate, supervisorNotes } = params
+  const now = new Date().toISOString()
+
+  const local: LocalTrainingCompletion = {
+    id: crypto.randomUUID(),
+    user_id: medicUserId,
+    training_item_id: trainingItemId,
+    completed: false,
+    completed_at: null,
+    completion_type: 'assignment',
+    result: 'GO',
+    supervisor_id: supervisorId,
+    step_results: null,
+    supervisor_notes: supervisorNotes || null,
+    due_date: dueDate,
+    calendar_origin_id: null,
+    created_at: now,
+    updated_at: now,
+    _sync_status: 'pending',
+    _sync_retry_count: 0,
+    _last_sync_error: null,
+    _last_sync_error_message: null,
+  }
+
+  await saveLocalTrainingCompletion(local)
+
+  const payload = stripLocalFields(local as unknown as Record<string, unknown>)
+
+  await addToSyncQueue({
+    user_id: supervisorId,
+    action: 'create',
+    table_name: 'training_completions',
+    record_id: local.id,
+    payload,
+  })
+
+  const synced = await immediateSync(
+    { id: local.id, payload },
+    {
+      tableName: 'training_completions',
+      upsertFn: async (rec) => {
+        const { error } = await supabase
+          .from('training_completions')
+          .upsert(rec.payload as never, {
+            onConflict: 'user_id,training_item_id,completion_type',
+          })
+        if (error) throw error
+      },
+      updateSyncStatus: updateTrainingCompletionSyncStatus,
+    },
+    'create'
+  )
+  if (synced) {
+    local._sync_status = 'synced'
+  }
+
+  return localToUI(local)
+}
+
+/**
+ * Complete a training assignment — mutates the record from 'assignment' to 'read' or 'test'.
+ * Uses UPDATE by id (not upsert) because the completion_type changes.
+ */
+export async function completeAssignment(params: {
+  completionId: string
+  medicUserId: string
+  completionType: 'read' | 'test'
+  result: CompletionResult
+  stepResults?: StepResult[]
+  supervisorNotes?: string
+  supervisorId: string
+}): Promise<TrainingCompletionUI> {
+  const { completionId, medicUserId, completionType, result, stepResults, supervisorNotes, supervisorId } = params
+  const now = new Date().toISOString()
+
+  const locals = await getLocalTrainingCompletions(medicUserId)
+  const existing = locals.find(l => l.id === completionId)
+  if (!existing) {
+    throw new Error(`Assignment ${completionId} not found in local store`)
+  }
+
+  const updated: LocalTrainingCompletion = {
+    ...existing,
+    completion_type: completionType,
+    result,
+    completed: true,
+    completed_at: now,
+    step_results: (stepResults as unknown as Json) ?? null,
+    supervisor_notes: supervisorNotes ?? existing.supervisor_notes,
+    supervisor_id: supervisorId,
+    updated_at: now,
+    _sync_status: 'pending',
+  }
+
+  await saveLocalTrainingCompletion(updated)
+
+  const payload = stripLocalFields(updated as unknown as Record<string, unknown>)
+
+  await addToSyncQueue({
+    user_id: supervisorId,
+    action: 'update',
+    table_name: 'training_completions',
+    record_id: completionId,
+    payload,
+  })
+
+  const synced = await immediateSync(
+    { id: completionId, payload },
+    {
+      tableName: 'training_completions',
+      upsertFn: async (rec) => {
+        const { error } = await supabase
+          .from('training_completions')
+          .update(rec.payload as never)
+          .eq('id', completionId)
+        if (error) throw error
+      },
+      updateSyncStatus: updateTrainingCompletionSyncStatus,
+    },
+    'update'
+  )
+  if (synced) {
+    updated._sync_status = 'synced'
+  }
+
+  return localToUI(updated)
+}
+
+/**
+ * Update the calendar_origin_id on an assignment record.
+ * Called after the calendar event is created and we have the originId.
+ */
+export async function updateAssignmentCalendarOriginId(
+  completionId: string,
+  userId: string,
+  calendarOriginId: string
+): Promise<void> {
+  const locals = await getLocalTrainingCompletions(userId)
+  const existing = locals.find(l => l.id === completionId)
+  if (!existing) return
+
+  const updated: LocalTrainingCompletion = {
+    ...existing,
+    calendar_origin_id: calendarOriginId,
+    updated_at: new Date().toISOString(),
+  }
+
+  await saveLocalTrainingCompletion(updated)
 }

@@ -1,6 +1,5 @@
-import { useState, useCallback } from 'react'
-import { Award, Plus, Trash2, X, Check, RefreshCw } from 'lucide-react'
-import { EmptyState } from '../EmptyState'
+import { useState, useCallback, useRef, useEffect } from 'react'
+import { Award, Trash2, X, Check, RefreshCw } from 'lucide-react'
 import { ConfirmDialog } from '../ConfirmDialog'
 import { useCertifications } from '../../Hooks/useCertifications'
 import { credentials } from '../../Data/User'
@@ -8,6 +7,7 @@ import { LoadingSpinner } from '../LoadingSpinner'
 import { useMinLoadTime } from '../../Hooks/useMinLoadTime'
 import { getExpirationStatus } from './Supervisor/supervisorHelpers'
 import { ToggleSwitch } from './ToggleSwitch'
+import { DatePickerInput } from '../FormInputs'
 import type { CertInput } from '../../lib/certificationService'
 import type { Certification } from '../../Data/User'
 
@@ -30,21 +30,6 @@ function formatDate(dateStr: string): string {
 
 const pillInput = 'w-full rounded-full py-2.5 px-4 border border-themeblue3/10 shadow-xs focus:border-themeblue1/30 focus:bg-themewhite2 focus:outline-none text-sm bg-themewhite text-primary placeholder:text-tertiary/30 transition-all duration-300'
 
-/** Convert YYYY-MM-DD ↔ MM/DD/YYYY for display */
-function toDisplayDate(iso: string): string {
-  if (!iso) return ''
-  const [y, m, d] = iso.split('-')
-  return `${m}/${d}/${y}`
-}
-
-function toIsoDate(display: string): string {
-  const clean = display.replace(/[^0-9/]/g, '')
-  const parts = clean.split('/')
-  if (parts.length === 3 && parts[2].length === 4) {
-    return `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`
-  }
-  return ''
-}
 
 export const CertificationsPanel = () => {
   const { certs, loading, addCert, updateCert, removeCert } = useCertifications()
@@ -56,6 +41,15 @@ export const CertificationsPanel = () => {
   const [saving, setSaving] = useState(false)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const [pendingDeletePrimary, setPendingDeletePrimary] = useState(false)
+  const titleInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (mode === 'adding') {
+      // Small delay to let the expand animation start before focusing
+      const t = setTimeout(() => titleInputRef.current?.focus(), 100)
+      return () => clearTimeout(t)
+    }
+  }, [mode])
 
   const resetForm = useCallback(() => {
     setForm(emptyForm)
@@ -125,6 +119,7 @@ export const CertificationsPanel = () => {
   const renderEditForm = (certId: string | null) => (
     <div className="px-4 py-3 bg-tertiary/5 space-y-2">
       <input
+        ref={certId === null ? titleInputRef : undefined}
         type="text"
         list="cert-title-suggestions"
         value={form.title}
@@ -141,37 +136,15 @@ export const CertificationsPanel = () => {
           placeholder="Cert #"
           className={pillInput}
         />
-        <input
-          type="text"
-          inputMode="numeric"
-          value={toDisplayDate(form.issue_date)}
-          onChange={(e) => {
-            const raw = e.target.value
-            setForm(f => ({ ...f, issue_date: toIsoDate(raw) || (raw ? f.issue_date : '') }))
-          }}
-          onBlur={(e) => {
-            if (e.target.value && !toIsoDate(e.target.value)) {
-              setForm(f => ({ ...f, issue_date: '' }))
-            }
-          }}
-          placeholder="Issued (MM/DD/YYYY)"
-          className={pillInput}
+        <DatePickerInput
+          value={form.issue_date}
+          onChange={(val) => setForm(f => ({ ...f, issue_date: val }))}
+          placeholder="Issued"
         />
-        <input
-          type="text"
-          inputMode="numeric"
-          value={toDisplayDate(form.exp_date)}
-          onChange={(e) => {
-            const raw = e.target.value
-            setForm(f => ({ ...f, exp_date: toIsoDate(raw) || (raw ? f.exp_date : '') }))
-          }}
-          onBlur={(e) => {
-            if (e.target.value && !toIsoDate(e.target.value)) {
-              setForm(f => ({ ...f, exp_date: '' }))
-            }
-          }}
-          placeholder="Expires (MM/DD/YYYY)"
-          className={pillInput}
+        <DatePickerInput
+          value={form.exp_date}
+          onChange={(val) => setForm(f => ({ ...f, exp_date: val }))}
+          placeholder="Expires"
         />
       </div>
 
@@ -183,6 +156,14 @@ export const CertificationsPanel = () => {
           <ToggleSwitch checked={form.is_primary} />
         </label>
 
+        <button
+          onClick={resetForm}
+          disabled={saving}
+          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+        >
+          <X size={18} />
+        </button>
+
         {mode === 'editing' && certId && (
           <button
             onClick={() => {
@@ -193,19 +174,11 @@ export const CertificationsPanel = () => {
               }
             }}
             disabled={saving}
-            className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeredred/10 text-themeredred active:scale-95 transition-all"
+            className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
           >
             <Trash2 size={18} />
           </button>
         )}
-
-        <button
-          onClick={resetForm}
-          disabled={saving}
-          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
-        >
-          <X size={18} />
-        </button>
 
         <button
           onClick={() => mode === 'adding' ? handleAdd() : certId && handleEdit(certId)}
@@ -233,16 +206,41 @@ export const CertificationsPanel = () => {
           <LoadingSpinner label="Loading certifications..." className="py-12 text-tertiary" />
         ) : (
           <>
-            {certs.length === 0 && mode !== 'adding' ? (
-              <EmptyState
-                icon={<Award size={28} />}
-                title="No certifications added yet"
-              />
-            ) : (
-              <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
-                {mode === 'adding' && renderEditForm(null)}
+            <div className="rounded-2xl border border-themeblue3/10 bg-themewhite2 overflow-hidden">
+              {/* Inline creation block */}
+              <div className={`overflow-hidden transition-all duration-300 ease-out ${
+                mode === 'view' ? 'max-h-16 opacity-100' : 'max-h-0 opacity-0'
+              }`}>
+                <div className="px-4 pt-3 pb-1">
+                  <div className="flex items-center gap-1.5">
+                    <div className="relative flex flex-1 items-center rounded-full border border-themeblue3/10 shadow-xs bg-themewhite focus-within:border-themeblue1/30 focus-within:bg-themewhite2 transition-all duration-300">
+                      <input
+                        type="text"
+                        value=""
+                        onFocus={() => { setMode('adding'); setForm(emptyForm) }}
+                        placeholder="Add certification..."
+                        className="w-full bg-transparent outline-none text-sm text-primary px-3.5 py-2.5 rounded-full min-w-0 placeholder:text-tertiary/30"
+                        readOnly
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-                {certs.map((cert) => {
+              {/* Expanded creation form */}
+              <div className={`overflow-hidden transition-all duration-300 ease-out ${
+                mode === 'adding' ? 'max-h-[400px] opacity-100' : 'max-h-0 opacity-0'
+              }`}>
+                {renderEditForm(null)}
+              </div>
+
+              {certs.length === 0 && mode !== 'adding' && (
+                <div className="px-4 pb-3">
+                  <p className="text-xs text-tertiary/40 text-center py-4">No certifications added yet</p>
+                </div>
+              )}
+
+              {certs.map((cert) => {
                   const status = getExpirationStatus(cert.exp_date)
                   const badge = statusLabel(status)
                   const isEditing = mode === 'editing' && editingCertId === cert.id
@@ -296,18 +294,7 @@ export const CertificationsPanel = () => {
                     </div>
                   )
                 })}
-              </div>
-            )}
-
-            {mode === 'view' && (
-              <button
-                onClick={() => { setMode('adding'); setForm(emptyForm) }}
-                className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-lg border border-dashed border-tertiary/20 text-xs text-tertiary/50 hover:border-themeblue2 hover:text-themeblue2 transition-colors active:scale-95"
-              >
-                <Plus size={14} />
-                Add Certification
-              </button>
-            )}
+            </div>
           </>
         )}
       </div>

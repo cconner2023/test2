@@ -31,6 +31,8 @@ import {
   getCompletions,
   createReadCompletion,
   createTestCompletion,
+  createAssignment,
+  completeAssignment,
   deleteCompletion as deleteCompletionApi,
   type TrainingCompletionUI,
 } from '../lib/trainingService';
@@ -397,6 +399,56 @@ export function useTrainingCompletions() {
     [completions, viewedTasks]
   );
 
+  // ── Assignment Queries ─────────────────────────────────────
+
+  const getAssignments = useCallback(
+    (): TrainingCompletionUI[] => {
+      return completions.filter((c) => c.completionType === 'assignment');
+    },
+    [completions]
+  );
+
+  const getPendingAssignments = useCallback(
+    (): TrainingCompletionUI[] => {
+      return completions.filter(
+        (c) => c.completionType === 'assignment' && !c.completedAt
+      );
+    },
+    [completions]
+  );
+
+  const getOverdueAssignments = useCallback(
+    (): TrainingCompletionUI[] => {
+      const now = new Date();
+      return completions.filter(
+        (c) =>
+          c.completionType === 'assignment' &&
+          !c.completedAt &&
+          c.dueDate &&
+          new Date(c.dueDate) < now
+      );
+    },
+    [completions]
+  );
+
+  const isTaskAssigned = useCallback(
+    (taskId: string): boolean => {
+      return completions.some(
+        (c) => c.trainingItemId === taskId && c.completionType === 'assignment'
+      );
+    },
+    [completions]
+  );
+
+  const getAssignment = useCallback(
+    (taskId: string): TrainingCompletionUI | undefined => {
+      return completions.find(
+        (c) => c.trainingItemId === taskId && c.completionType === 'assignment'
+      );
+    },
+    [completions]
+  );
+
   // ── Mutation Operations ────────────────────────────────────
 
   const markTaskCompleted = useCallback(
@@ -404,7 +456,45 @@ export function useTrainingCompletions() {
       const userId = userIdRef.current;
       if (!userId) return;
 
-      // Optimistic update: add a placeholder completion to state
+      // Check if an assignment exists for this task — complete it instead of creating new
+      const existingAssignment = completions.find(
+        (c) => c.trainingItemId === taskId && c.completionType === 'assignment' && !c.completedAt
+      );
+
+      if (existingAssignment) {
+        // Optimistic: update the assignment in-place
+        const optimistic: TrainingCompletionUI = {
+          ...existingAssignment,
+          completionType: 'read',
+          result: 'GO',
+          completedAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          syncStatus: 'pending',
+        };
+        setCompletions((prev) =>
+          prev.map((c) => (c.id === existingAssignment.id ? optimistic : c))
+        );
+
+        completeAssignment({
+          completionId: existingAssignment.id,
+          medicUserId: userId,
+          completionType: 'read',
+          result: 'GO',
+          supervisorId: existingAssignment.supervisorId || userId,
+        })
+          .then((saved) => {
+            setCompletions((prev) =>
+              prev.map((c) => (c.id === existingAssignment.id ? saved : c))
+            );
+          })
+          .catch((err) => {
+            logger.error('Complete assignment failed:', err);
+            refreshCompletions(userId);
+          });
+        return;
+      }
+
+      // Standard path: create a new read completion
       const optimisticCompletion: TrainingCompletionUI = {
         id: crypto.randomUUID(),
         userId,
@@ -414,6 +504,8 @@ export function useTrainingCompletions() {
         supervisorId: null,
         stepResults: null,
         supervisorNotes: null,
+        dueDate: null,
+        calendarOriginId: null,
         completedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
@@ -425,10 +517,8 @@ export function useTrainingCompletions() {
         setPendingCount((prev) => prev + 1);
       }
 
-      // Persist asynchronously
       createReadCompletion(taskId, userId)
         .then((saved) => {
-          // Replace optimistic entry with the persisted version
           setCompletions((prev) =>
             prev.map((c) =>
               c.id === optimisticCompletion.id ? saved : c
@@ -443,7 +533,7 @@ export function useTrainingCompletions() {
           refreshCompletions(userId);
         });
     },
-    [refreshCompletions]
+    [refreshCompletions, completions]
   );
 
   const submitTestEvaluation = useCallback(
@@ -486,6 +576,34 @@ export function useTrainingCompletions() {
       });
     },
     [refreshCompletions]
+  );
+
+  const assignTask = useCallback(
+    async (params: {
+      medicUserId: string;
+      trainingItemId: string;
+      dueDate: string;
+      notes?: string;
+    }): Promise<TrainingCompletionUI | null> => {
+      const userId = userIdRef.current;
+      if (!userId) return null;
+
+      const saved = await createAssignment({
+        medicUserId: params.medicUserId,
+        trainingItemId: params.trainingItemId,
+        supervisorId: userId,
+        dueDate: params.dueDate,
+        supervisorNotes: params.notes,
+      });
+
+      setCompletions((prev) => [saved, ...prev]);
+      if (saved.syncStatus === 'pending') {
+        setPendingCount((prev) => prev + 1);
+      }
+
+      return saved;
+    },
+    []
   );
 
   // ── Viewed Tasks (Local-Only) ──────────────────────────────
@@ -534,13 +652,15 @@ export function useTrainingCompletions() {
         id: completion.id,
         user_id: completion.userId,
         training_item_id: completion.trainingItemId,
-        completed: true,
+        completed: completion.completionType !== 'assignment' || !!completion.completedAt,
         completed_at: completion.completedAt,
         completion_type: completion.completionType,
         result: completion.result,
         supervisor_id: completion.supervisorId,
         step_results: completion.stepResults as unknown as null,
         supervisor_notes: completion.supervisorNotes,
+        due_date: completion.dueDate ?? null,
+        calendar_origin_id: completion.calendarOriginId ?? null,
         created_at: completion.createdAt,
         updated_at: completion.updatedAt,
         _sync_status: 'synced',
@@ -585,6 +705,14 @@ export function useTrainingCompletions() {
     deleteCompletion,
     isTaskViewed,
     markTaskViewed,
+    // Assignment queries
+    getAssignments,
+    getPendingAssignments,
+    getOverdueAssignments,
+    isTaskAssigned,
+    getAssignment,
+    // Assignment mutation
+    assignTask,
     /** Whether a sync operation is currently in progress. */
     isSyncing,
     /** Number of completions with syncStatus === 'pending'. */

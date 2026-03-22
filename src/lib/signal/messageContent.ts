@@ -80,6 +80,8 @@ export interface CalendarEventPayload {
   clinic_id?: string
   created_at?: string
   updated_at?: string
+  /** Origin ID for tracking the broadcast message on the server. */
+  originId?: string
 }
 
 export interface CalendarEventContent {

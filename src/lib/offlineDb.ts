@@ -64,6 +64,8 @@ export interface LocalTrainingCompletion {
   supervisor_id: string | null
   step_results: Json | null
   supervisor_notes: string | null
+  due_date: string | null
+  calendar_origin_id: string | null
   created_at: string
   updated_at: string
 
@@ -265,6 +267,8 @@ export async function getDb(): Promise<IDBPDatabase<PackageBackEndDB>> {
             supervisor_id: (item as LocalTrainingCompletion).supervisor_id ?? null,
             step_results: (item as LocalTrainingCompletion).step_results ?? null,
             supervisor_notes: (item as LocalTrainingCompletion).supervisor_notes ?? null,
+            due_date: (item as LocalTrainingCompletion).due_date ?? null,
+            calendar_origin_id: (item as LocalTrainingCompletion).calendar_origin_id ?? null,
             created_at: item.created_at,
             updated_at: item.updated_at,
             _sync_status: wasSynced ? 'synced' : 'pending',

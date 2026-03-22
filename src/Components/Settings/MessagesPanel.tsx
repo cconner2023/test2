@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, memo, useImperativeHandle, forwardRef, useMemo } from 'react'
-import { Trash2, Phone, Video, MessageSquare, Users, Info, ChevronLeft, Pin } from 'lucide-react'
+import { Trash2, Phone, Video, MessageSquare, Info, ChevronLeft, Pin } from 'lucide-react'
 import { useSpring, animated, type SpringValue } from '@react-spring/web'
 import { MobileSearchBar } from '../MobileSearchBar'
 import { HeaderPill, PillButton } from '../HeaderPill'
@@ -30,6 +30,7 @@ export type MessagesView = 'messages' | 'messages-chat' | 'messages-group-chat'
 
 export interface MessagesPanelHandle {
   createGroup: () => void
+  showGroupInfo: () => void
 }
 
 interface MessagesPanelProps {
@@ -556,28 +557,6 @@ function ChatDetail({
     </div>
   )
 
-  const desktopHeader = (
-    <div className="hidden md:flex shrink-0 px-4 h-10 items-center justify-between">
-      <p className="text-sm font-medium text-primary truncate">
-        {peerName ?? (isSelf ? 'Notes' : 'Chat')}
-      </p>
-      {canCall && (
-        <div className="flex items-center gap-1">
-          {onStartVideoCall && (
-            <button onClick={onStartVideoCall} className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all" title="Video call">
-              <Video size={16} className="text-themeblue2" />
-            </button>
-          )}
-          {onStartCall && (
-            <button onClick={onStartCall} className="p-1.5 rounded-full hover:bg-primary/5 active:scale-95 transition-all" title="Voice call">
-              <Phone size={16} className="text-themeblue2" />
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  )
-
   return (
     <ChatDetailView
       conversationId={peerId}
@@ -604,7 +583,7 @@ function ChatDetail({
       showForward
       emptyText={isSelf ? 'Write a note...' : 'No messages yet. Say hello!'}
       mobileHeader={mobileHeader}
-      desktopHeader={desktopHeader}
+      desktopHeader={null}
     />
   )
 }
@@ -651,10 +630,11 @@ function GroupChatDetail({
   removeGroupMember: (groupId: string, userId: string) => Promise<void>
   fetchGroupMembers: (groupId: string) => Promise<GroupMember[]>
   unavailableIds: Map<string, UnavailableReason>
+  showGroupInfo: boolean
+  onShowGroupInfo: (show: boolean) => void
 }) {
   const { user } = useAuth()
   const userId = user?.id ?? ''
-  const [showGroupInfo, setShowGroupInfo] = useState(false)
   const [membersCache, setMembersCache] = useState<GroupMember[]>([])
 
   useEffect(() => {
@@ -719,27 +699,10 @@ function GroupChatDetail({
         <p className="text-[10px] text-tertiary/40">{group.memberCount} members</p>
       </div>
       <div className="rounded-full border border-tertiary/20 bg-themewhite p-0.5 overflow-hidden shrink-0">
-        <button onClick={() => setShowGroupInfo(true)} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
+        <button onClick={() => onShowGroupInfo(true)} className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform">
           <Info className="w-5 h-5 text-tertiary" />
         </button>
       </div>
-    </div>
-  )
-
-  const desktopHeader = (
-    <div className="hidden md:flex shrink-0 px-4 h-10 items-center justify-between">
-      <div className="flex items-center gap-2 min-w-0">
-        <div className="w-7 h-7 rounded-full bg-themeblue2/10 flex items-center justify-center shrink-0">
-          <Users size={14} className="text-themeblue2" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-primary truncate">{group.name}</p>
-          <p className="text-[10px] text-tertiary/40">{group.memberCount} members</p>
-        </div>
-      </div>
-      <button onClick={() => setShowGroupInfo(true)} className="p-2 rounded-full hover:bg-primary/5 active:scale-95 transition-all">
-        <Info size={18} className="text-tertiary" />
-      </button>
     </div>
   )
 
@@ -762,14 +725,14 @@ function GroupChatDetail({
       resolveSenderName={resolveSenderName}
       emptyText="No messages yet. Start the conversation!"
       mobileHeader={mobileHeader}
-      desktopHeader={desktopHeader}
+      desktopHeader={null}
     >
       {showGroupInfo && (
         <GroupInfoPanel
           group={group}
           userId={userId}
           medics={medics}
-          onClose={() => setShowGroupInfo(false)}
+          onClose={() => onShowGroupInfo(false)}
           onLeave={handleLeave}
           onRename={renameGroup}
           onAddMember={addGroupMember}
@@ -788,9 +751,11 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
   const { medics, loading } = useClinicMedics()
   const callActions = useCallActions()
   const [showCreateGroup, setShowCreateGroup] = useState(false)
+  const [showGroupInfo, setShowGroupInfo] = useState(false)
 
   useImperativeHandle(ref, () => ({
     createGroup: () => setShowCreateGroup(true),
+    showGroupInfo: () => setShowGroupInfo(true),
   }), [])
 
   // Batch-check which contacts have active devices
@@ -854,6 +819,8 @@ export const MessagesPanel = memo(forwardRef<MessagesPanelHandle, MessagesPanelP
         removeGroupMember={removeGroupMember}
         fetchGroupMembers={fetchGroupMembers}
         unavailableIds={unavailableIds}
+        showGroupInfo={showGroupInfo}
+        onShowGroupInfo={setShowGroupInfo}
       />
     )
   } else if (view === 'messages-chat' && selectedPeerId) {

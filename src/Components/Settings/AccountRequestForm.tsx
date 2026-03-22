@@ -1,18 +1,14 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { Check, X, RefreshCw } from 'lucide-react'
 import type { Component } from '../../Data/User'
-import { credentials, components, ranksByComponent } from '../../Data/User'
 import { submitAccountRequest, checkRequestStatus, checkEmailAvailability, type AccountRequest } from '../../lib/accountRequestService'
-import { TextInput, PickerInput } from '../FormInputs'
+import { TextInput, PickerInput, PasswordInput, UicPinInput } from '../FormInputs'
 import { ErrorDisplay } from '../ErrorDisplay'
 import { validatePasswordComplexity } from '../../lib/constants'
 
 const LOCAL_STORAGE_TOKEN_KEY = 'account_request_token'
 const LOCAL_STORAGE_EMAIL_KEY = 'account_request_email'
 
-/**
- * Saves the status check token to localStorage so the user can check
- * their request status later (even after closing the browser).
- */
 function saveTokenLocally(email: string, token: string) {
   try {
     localStorage.setItem(LOCAL_STORAGE_TOKEN_KEY, token)
@@ -47,12 +43,11 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
   const [rank, setRank] = useState('')
   const [uic, setUic] = useState('')
   const [notes, setNotes] = useState('')
+  const [contactConsent, setContactConsent] = useState(false)
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
 
-  // Token for status checks (returned after submission)
   const [statusCheckToken, setStatusCheckToken] = useState('')
-
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -61,11 +56,31 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
   const [checkingEmail, setCheckingEmail] = useState(false)
   const [requestStatus, setRequestStatus] = useState<AccountRequest | null>(null)
 
-  const componentRanks = component ? ranksByComponent[component as Component] : []
+  const [userData, setUserData] = useState<{
+    credentials: string[]
+    components: string[]
+    ranksByComponent: Record<string, string[]>
+  } | null>(null)
+
+  useEffect(() => {
+    import('../../Data/User').then((mod) => {
+      setUserData({
+        credentials: [...mod.credentials],
+        components: [...mod.components],
+        ranksByComponent: Object.fromEntries(
+          Object.entries(mod.ranksByComponent).map(([k, v]) => [k, [...v]])
+        ),
+      })
+    })
+  }, [])
+
+  const componentRanks = component && userData
+    ? userData.ranksByComponent[component] ?? []
+    : []
 
   const handleComponentChange = (val: string) => {
     setComponent(val)
-    if (val && rank && !ranksByComponent[val as Component]?.includes(rank)) {
+    if (val && rank && !userData?.ranksByComponent[val]?.includes(rank)) {
       setRank('')
     }
   }
@@ -91,7 +106,6 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
   }
 
   const handleCheckStatus = async () => {
-    // Try using the token from state first, then fall back to localStorage
     let checkEmail = email
     let checkToken = statusCheckToken
 
@@ -263,6 +277,8 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
     )
   }
 
+  if (!userData) return null
+
   return (
     <div>
       <p className="text-xs text-tertiary/60 mb-4">
@@ -270,13 +286,13 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
       </p>
 
       {error && (
-        <div>
+        <div className="mb-3">
           <ErrorDisplay message={error} />
           {isDuplicateError && (
             <button
               type="button"
               onClick={handleCheckStatus}
-              className="mt-2 w-full px-4 py-2 rounded-lg bg-themeblue3 text-white text-sm font-medium
+              className="mt-2 w-full px-4 py-2 rounded-full bg-themeblue3 text-white text-sm font-medium
                        active:scale-95 transition-transform"
             >
               Check Request Status
@@ -285,66 +301,99 @@ export const AccountRequestForm = ({ onBack }: AccountRequestFormProps) => {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-3">
-        <TextInput
-          value={email}
-          onChange={(val) => { setEmail(val); setEmailWarning(null); setIsDuplicateError(false) }}
-          onBlur={handleEmailBlur}
-          placeholder="Email *"
-          type="email"
-          required
-          hint={checkingEmail ? 'Checking...' : emailWarning}
-        />
-        {isDuplicateError && emailWarning && (
-          <button
-            type="button"
-            onClick={handleCheckStatus}
-            className="-mt-1 w-full px-3 py-2 rounded-lg bg-themeblue3 text-white text-sm font-medium
-                     active:scale-95 transition-transform"
-          >
-            Check Request Status
-          </button>
-        )}
+      <div className="rounded-xl bg-themewhite2 overflow-hidden px-4 py-3">
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <p className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase">New Account</p>
 
-        <div className="grid grid-cols-2 gap-3">
-          <TextInput value={firstName} onChange={setFirstName} placeholder="First Name *" required />
-          <TextInput value={lastName} onChange={setLastName} placeholder="Last Name *" required />
-        </div>
+          <TextInput
+            value={email}
+            onChange={(val) => { setEmail(val); setEmailWarning(null); setIsDuplicateError(false) }}
+            onBlur={handleEmailBlur}
+            placeholder="Email *"
+            type="email"
+            required
+            hint={checkingEmail ? 'Checking...' : emailWarning}
+          />
+          {isDuplicateError && emailWarning && (
+            <button
+              type="button"
+              onClick={handleCheckStatus}
+              className="-mt-1 w-full px-3 py-2 rounded-full bg-themeblue3 text-white text-sm font-medium
+                       active:scale-95 transition-transform"
+            >
+              Check Request Status
+            </button>
+          )}
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="w-20">
-            <TextInput value={middleInitial} onChange={setMiddleInitial} placeholder="MI" maxLength={1} />
+          <div className="grid grid-cols-2 gap-2">
+            <TextInput value={firstName} onChange={setFirstName} placeholder="First Name *" required />
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <TextInput value={lastName} onChange={setLastName} placeholder="Last Name *" required />
+              </div>
+              <div className="w-11 shrink-0">
+                <TextInput value={middleInitial} onChange={setMiddleInitial} placeholder="MI" maxLength={1} />
+              </div>
+            </div>
           </div>
-          <TextInput value={uic} onChange={setUic} placeholder="UIC *" required />
-        </div>
 
-        <PickerInput value={credential} onChange={setCredential} options={credentials} placeholder="Medical Credential *" required />
-        <PickerInput value={component} onChange={handleComponentChange} options={components} placeholder="Component *" required />
+          <div className="grid grid-cols-2 gap-2">
+            <PickerInput value={credential} onChange={setCredential} options={userData.credentials} placeholder="Medical Credential" required />
+            <PickerInput value={component} onChange={handleComponentChange} options={userData.components} placeholder="Component" required />
+          </div>
 
-        {component && (
-          <PickerInput value={rank} onChange={setRank} options={componentRanks} placeholder="Rank *" required />
-        )}
+          {component && (
+            <PickerInput value={rank} onChange={setRank} options={componentRanks} placeholder="Rank" required />
+          )}
 
-        <TextInput value={notes} onChange={setNotes} placeholder="Notes (optional)" />
+          <div>
+            <span className="text-[10px] font-semibold text-tertiary/50 tracking-widest uppercase mb-1.5 block">UIC</span>
+            <UicPinInput value={uic} onChange={setUic} spread />
+          </div>
 
-        <TextInput value={password} onChange={setPassword} type="password" placeholder="Password *" required />
-        <TextInput value={confirmPassword} onChange={setConfirmPassword} type="password" placeholder="Confirm Password *" required />
+          <TextInput value={notes} onChange={setNotes} placeholder="Unit & justification *" required />
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full px-4 py-3 rounded-lg bg-themeblue3 text-white font-medium
-                   transition-colors disabled:opacity-50"
-        >
-          {submitting ? 'Submitting...' : 'Submit Request'}
-        </button>
-      </form>
+          <PasswordInput value={password} onChange={setPassword} placeholder="Password *" />
+          <PasswordInput value={confirmPassword} onChange={setConfirmPassword} placeholder="Confirm Password *" />
 
-      {onBack && (
-        <button onClick={onBack} className="w-full text-xs text-themeblue2 hover:underline mt-3">
-          Back to sign in
-        </button>
-      )}
+          <label className="flex items-start gap-2.5 cursor-pointer pt-1 active:scale-[0.98] transition-transform select-none">
+            <input
+              type="checkbox"
+              checked={contactConsent}
+              onChange={(e) => setContactConsent(e.target.checked)}
+              className="sr-only peer"
+            />
+            <div className={`relative w-5 h-5 shrink-0 mt-0.5 rounded border transition-colors duration-200 ${
+              contactConsent ? 'bg-themeblue3 border-themeblue3' : 'border-themeblue3/20 bg-themewhite'
+            }`}>
+              {contactConsent && <Check size={14} className="absolute inset-0 m-auto text-white" />}
+            </div>
+            <span className="text-[11px] text-tertiary/60 leading-tight">
+              I agree to be contacted by the developer at the email provided if my UIC cannot be verified.
+            </span>
+          </label>
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            {onBack && (
+              <button
+                type="button"
+                onClick={onBack}
+                className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-tertiary active:scale-95 transition-all"
+              >
+                <X size={18} />
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={submitting || !firstName.trim() || !lastName.trim() || !email.trim() || !contactConsent || !notes.trim()}
+              className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center bg-themeblue3 text-white disabled:opacity-30 active:scale-95 transition-all"
+            >
+              {submitting ? <RefreshCw size={16} className="animate-spin" /> : <Check size={18} />}
+            </button>
+          </div>
+        </form>
+      </div>
+
     </div>
   )
 }

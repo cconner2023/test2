@@ -168,9 +168,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
         }
     };
 
-    // Button style constants - iOS standard tap target is 44px (w-11 h-11)
     const BUTTON_CLASSES = {
-        mobileContainer: "rounded-full border border-tertiary/20 flex items-center p-0.5 bg-themewhite",
         desktop: "h-8 flex items-center justify-center px-3 lg:px-4 py-1.5 bg-themewhite2 hover:bg-themewhite rounded-full active:scale-95 transition-all duration-300"
     };
 
@@ -182,8 +180,8 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                     {/* Mobile: Back + Avatar button crossfade */}
                     {isMobile && (
                         <div className="relative">
-                            {/* Invisible spacer to maintain navbar layout - 48px to match button */}
-                            <div className="w-12 h-12" />
+                            {/* Invisible spacer to maintain navbar layout */}
+                            <div className="w-11 h-11" />
 
                             {/* Back button - slides in from right, out to right */}
                             <animated.div
@@ -207,10 +205,10 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                     pointerEvents: showBack ? 'none' : 'auto',
                                 }}
                             >
-                                <div className={BUTTON_CLASSES.mobileContainer}>
+                                <HeaderPill>
                                     <button
                                         onClick={onMenuClick}
-                                        className="w-11 h-11 rounded-full flex items-center justify-center active:scale-95 transition-transform overflow-hidden"
+                                        className="w-9 h-9 rounded-full flex items-center justify-center active:scale-95 transition-transform overflow-hidden"
                                         aria-label="Open menu"
                                     >
                                         {isCustom && customImage ? (
@@ -221,7 +219,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                             />
                                         ) : isInitials ? (
                                             <div className="w-full h-full rounded-full bg-themeblue2/15 flex items-center justify-center">
-                                                <span className="text-sm font-semibold text-themeblue2">
+                                                <span className="text-xs font-semibold text-themeblue2">
                                                     {getInitials(profile.firstName, profile.lastName)}
                                                 </span>
                                             </div>
@@ -231,7 +229,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                                             </div>
                                         )}
                                     </button>
-                                </div>
+                                </HeaderPill>
                             </animated.div>
                         </div>
                     )}
@@ -328,54 +326,49 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                         />
                     )}
 
-                    {/* Mobile collapsed: messages + info + search buttons */}
+                    {/* Mobile collapsed: messages + info buttons */}
                     {!isAnyExpanded && (
                         <div className={`flex items-center justify-end h-full transition-opacity duration-200${isSearchFocused ? ' opacity-0 pointer-events-none' : ''}`}>
-                            <div className="rounded-full bg-themewhite border border-tertiary/20 flex items-center justify-center p-0.5">
+                            <HeaderPill multi={shouldShowMessagesButton && shouldShowInfoButton}>
                                 <div className={`
-                    transition-all duration-300 ease-out overflow-hidden
-                    ${shouldShowMessagesButton ? 'w-11 opacity-100' : 'w-0 opacity-0'}
-                    flex items-center justify-center
-                `}>
+                                    transition-all duration-300 ease-out overflow-hidden
+                                    ${shouldShowMessagesButton ? 'w-9 opacity-100' : 'w-0 opacity-0'}
+                                    flex items-center justify-center
+                                `}>
                                     {shouldShowMessagesButton && (
                                         <button
                                             onClick={onMessagesClick}
-                                            className="text-tertiary hover:text-primary active:scale-95 transition-all duration-200 relative"
+                                            className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200 relative"
                                             aria-label="Messages"
                                             title="Messages"
                                         >
-                                            <div className="w-11 h-11 rounded-full flex items-center justify-center">
-                                                <Mail className="w-6 h-6 stroke-current" />
-                                                {totalUnread > 0 && (
-                                                    <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[10px] font-bold leading-none">
-                                                        {totalUnread > 99 ? '99+' : totalUnread}
-                                                    </span>
-                                                )}
-                                            </div>
+                                            <Mail style={{ width: 20, height: 20 }} />
+                                            {totalUnread > 0 && (
+                                                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 flex items-center justify-center rounded-full bg-themeredred text-white text-[10px] font-bold leading-none">
+                                                    {totalUnread > 99 ? '99+' : totalUnread}
+                                                </span>
+                                            )}
                                         </button>
                                     )}
                                 </div>
 
                                 <div className={`
-                    transition-all duration-300 ease-out overflow-hidden
-                    ${shouldShowInfoButton ? 'w-11 opacity-100' : 'w-0 opacity-0'}
-                    flex items-center justify-center
-                `}>
+                                    transition-all duration-300 ease-out overflow-hidden
+                                    ${shouldShowInfoButton ? 'w-9 opacity-100' : 'w-0 opacity-0'}
+                                    flex items-center justify-center
+                                `}>
                                     {shouldShowInfoButton && (
                                         <button
                                             onClick={onInfoClick}
-                                            className="text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
+                                            className="w-9 h-9 rounded-full flex items-center justify-center text-tertiary hover:text-primary active:scale-95 transition-all duration-200"
                                             aria-label="Info"
                                             title="Info"
                                         >
-                                            <div className="w-11 h-11 rounded-full flex items-center justify-center">
-                                                <Info className="w-6 h-6 stroke-current" />
-                                            </div>
+                                            <Info style={{ width: 20, height: 20 }} />
                                         </button>
                                     )}
                                 </div>
-
-                            </div>
+                            </HeaderPill>
                         </div>
                     )}
                 </div>
@@ -402,11 +395,11 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
                         <button
                             type="button"
                             onClick={() => handleClearSearch(false)}
-                            className="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue1/30 text-tertiary hover:text-primary focus:outline-none active:scale-95 transition-all duration-300"
+                            className="shrink-0 w-9 h-9 rounded-full flex items-center justify-center bg-themewhite2 border border-themeblue1/30 text-tertiary hover:text-primary focus:outline-none active:scale-95 transition-all duration-300"
                             aria-label="Clear search"
                             title="Clear search"
                         >
-                            <X style={{ width: 24, height: 24 }} />
+                            <X style={{ width: 20, height: 20 }} />
                         </button>
                     )}
 

@@ -5,6 +5,7 @@ import { getCategoryMeta } from '../../Types/CalendarTypes'
 interface EventCardProps {
   event: CalendarEvent
   onSelect: (id: string) => void
+  onContextMenu?: (eventId: string, x: number, y: number) => void
 }
 
 function formatTime(iso: string, allDay: boolean): string {
@@ -13,12 +14,18 @@ function formatTime(iso: string, allDay: boolean): string {
   return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
 }
 
-export function EventCard({ event, onSelect }: EventCardProps) {
+export function EventCard({ event, onSelect, onContextMenu }: EventCardProps) {
   const cat = getCategoryMeta(event.category)
 
   return (
     <button
       onClick={() => onSelect(event.id)}
+      onContextMenu={(e) => {
+        if (onContextMenu) {
+          e.preventDefault()
+          onContextMenu(event.id, e.clientX, e.clientY)
+        }
+      }}
       className="w-full text-left rounded-xl border border-primary/10 bg-themewhite p-3 transition-all duration-200 hover:border-primary/20 active:scale-95"
     >
       <div className="flex items-start gap-3">
