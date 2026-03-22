@@ -109,12 +109,7 @@ export function NavTop({ search, import: importProps, actions, ui }: NavTopProps
         }
     }, [isSearchExpanded, inputRef]);
 
-    // Focus import input when it expands
-    useEffect(() => {
-        if (isImportExpanded && importInputRef.current) {
-            importInputRef.current.focus();
-        }
-    }, [isImportExpanded]);
+    // No auto-focus on import expand — iOS keyboard open shifts the viewport
 
     // Clear import text when collapsing
     useEffect(() => {
